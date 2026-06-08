@@ -37,9 +37,9 @@ You can also point it at a Codex home:
 ```
 
 The installer copies the skill files directly into the selected skills
-directory: `README.md`, `LICENSE`, `SKILL.md`, `agents/`, `policy/`,
-`templates/`, `experts/`, `references/`, and `scripts/`. It does not build or
-require a tarball.
+directory: `README.md`, `LICENSE`, `SKILL.md`, `AGENTS.md`, `agents/`,
+`policy/`, `templates/`, `experts/`, `references/`, `schemas/`, `examples/`,
+and `scripts/`. It does not build or require a tarball.
 
 ## Invocation
 
@@ -76,6 +76,8 @@ Core policy files:
   never-share categories.
 - `policy/acceptance-policy.yaml`: contractor return sections and architect
   review rules.
+- `policy/contracting-controls.yaml`: dispatch, audit, and adjudication
+  controls for outside or local-worker contracts.
 
 Helper scripts:
 
@@ -86,9 +88,19 @@ Helper scripts:
   Beads from routing triggers.
 - `scripts/build_contractor_packet.py`: generate a gated outside-contractor
   packet for one Bead.
+- `scripts/generate_manual_dispatch_prompt.py`: turn an approved packet into a
+  manual prompt for Claude, OpenAI deep research, or another contractor.
+- `scripts/dispatch_work.py`: record a manual dispatch event and produce the
+  prompt without claiming that an external model was called automatically.
 - `scripts/evaluate_return.py`: check contractor returns for required sections.
+- `scripts/record_audit_event.py`: append a local audit entry for routing,
+  packet, dispatch, evaluation, and adjudication events.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
   graph state.
+
+Schemas in `schemas/` describe route results, contractor packets, contractor
+returns, acceptance decisions, Beads metadata, and audit events. `examples/`
+contains small sample artifacts that can be used as smoke-test inputs.
 
 Example route check:
 
@@ -205,10 +217,12 @@ flowchart TD
 
     Create --> Guard[Add contractor-only and no-codex-exec labels]
     Guard --> Metadata[Add executor, codex_pickup, discipline, share_boundary metadata]
-    Metadata --> PMPacket[PM prepares packet with bd show output and contractor brief]
-    PMPacket --> Outside[Outside model performs assigned review]
+    Metadata --> PMPacket[PM prepares boundary-gated packet]
+    PMPacket --> Dispatch[Generate manual dispatch prompt and audit event]
+    Dispatch --> Outside[Outside model performs assigned review]
     Outside --> Return[Return Beads comment or patch branch]
-    Return --> Architect[Architect reviews output]
+    Return --> Evaluate[Evaluate return format, evidence, and boundary fit]
+    Evaluate --> Architect[Architect accepts, rejects, or escalates]
     Architect --> Accepted{Accepted?}
     Accepted -->|Yes| Followup[Create normal Codex-executable follow-up beads]
     Accepted -->|No| CloseLoop[Record rejected or superseded finding]
@@ -255,11 +269,13 @@ flowchart LR
 7. Create role/lane tasks under the epic: architect framing, PM coordination,
    workerbee work, validation, docs/handoff, and any outside contracts.
 8. For outside work, post contractor-only beads with job-description labels.
-9. PM prepares the contractor packet and dispatches the outside model.
+9. PM prepares the contractor packet and a manual dispatch prompt.
 10. The outside model returns findings through Beads comments or a patch branch.
-11. The architect reviews contractor findings before Codex workers implement
+11. PM evaluates the return for required sections, evidence, confidence,
+   residual risk, and boundary violations.
+12. The architect reviews contractor findings before Codex workers implement
    follow-up work or before release decisions are made.
-12. PM keeps dependencies, status, blockers, and resume instructions current.
+13. PM keeps dependencies, status, blockers, and resume instructions current.
 
 ## Beads Requirement
 
@@ -418,7 +434,17 @@ The packet can be generated after the contractor Bead exists:
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor external_security_reviewer \
-  --share-boundary redacted-packet
+  --share-boundary redacted-packet \
+  --format json \
+  --output contractor-packet.json
+```
+
+Manual dispatch prompts are generated from approved packets:
+
+```bash
+python3 scripts/dispatch_work.py \
+  --packet contractor-packet.json \
+  --mode manual
 ```
 
 Do not ask outside models for raw chain-of-thought. Ask for conclusions,
@@ -449,9 +475,10 @@ Escalation needed:
 
 See `references/external-contracting.md` for a more detailed operator guide.
 Use `references/contractor-brief.md` as the reusable assignment brief for
-outside model contractors.
-Use `policy/`, `templates/`, and `experts/` as the source of truth for route
-classification, job-description calibration, and reusable Beads bodies.
+outside model contractors. Use `policy/`, `schemas/`, `templates/`, and
+`experts/` as the source of truth for route classification, job-description
+calibration, validation contracts, and reusable Beads bodies. Use `examples/`
+for smoke-test inputs and expected artifact shapes.
 
 ## License
 

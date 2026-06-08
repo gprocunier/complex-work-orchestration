@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "schema": "json-compatible-yaml",
   "contractor_return_required_sections": [
     "Status",
@@ -13,8 +13,35 @@
     "Recommended next bead",
     "Escalation needed"
   ],
+  "hard_disqualifiers": [
+    "boundary violation",
+    "unapproved patch or repo access",
+    "missing assigned job-description alignment",
+    "suspected secret or personal-data spill",
+    "scope creep beyond assigned bead"
+  ],
+  "score": {
+    "start": 100,
+    "penalties": {
+      "missing_required_section": 20,
+      "no_concrete_evidence": 20,
+      "non_reproducible_validation": 15,
+      "vague_recommendation": 15,
+      "missing_confidence": 10,
+      "missing_residual_risk": 10,
+      "scope_creep": 10
+    },
+    "thresholds": {
+      "accept": 85,
+      "clarify": 70,
+      "partial_accept": 50,
+      "reject_below": 50
+    }
+  },
+  "verdicts": ["accept", "clarify", "partial-accept", "reject", "escalate"],
   "architect_review": {
     "required_for_external_contracts": true,
+    "required_for_local_workers": true,
     "accepted_findings_become": "normal Codex-executable follow-up beads",
     "rejected_findings_require": "brief evidence note and no implementation dependency"
   },

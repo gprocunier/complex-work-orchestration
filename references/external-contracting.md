@@ -30,6 +30,10 @@ Use the policy files as the source of truth for contractor routing:
   and expected reasoning lenses.
 - `policy/share-boundaries.yaml`: allowed sharing modes.
 - `policy/acceptance-policy.yaml`: required contractor return sections.
+- `policy/contracting-controls.yaml`: manual dispatch, audit, and
+  adjudication requirements.
+- `schemas/`: machine-readable shapes for route results, contractor packets,
+  returns, acceptance decisions, Beads metadata, and audit events.
 
 The helpers are gates, not authority. If a helper recommends an external
 contract but the user has not opted in or the share boundary is unclear, do not
@@ -268,7 +272,9 @@ For generated packets, create the contractor Bead first, then run:
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor external_security_reviewer \
-  --share-boundary redacted-packet
+  --share-boundary redacted-packet \
+  --format json \
+  --output contractor-packet.json
 ```
 
 ## Dispatch Flow
@@ -280,21 +286,31 @@ python3 scripts/build_contractor_packet.py \
 
    ```bash
    bd show <id> --json
-   python3 scripts/build_contractor_packet.py --bead <id> --share-boundary <mode>
+   python3 scripts/build_contractor_packet.py \
+     --bead <id> \
+     --share-boundary <mode> \
+     --format json \
+     --output contractor-packet.json
    ```
 
 5. PM gives the contractor `references/contractor-brief.md`, the packet, and
    the bead assignment.
-6. Contractor returns a Beads comment or patch branch.
-7. PM checks the return format:
+6. PM generates a manual dispatch prompt and audit event:
+
+   ```bash
+   python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
+   ```
+
+7. Contractor returns a Beads comment or patch branch.
+8. PM checks the return format and evidence:
 
    ```bash
    python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
    ```
 
-8. Architect reviews findings and decides what to accept, reject, or convert
+9. Architect reviews findings and decides what to accept, reject, or convert
    into Codex workerbee tasks.
-9. PM updates dependencies and ready-work state.
+10. PM updates dependencies and ready-work state.
 
 ## Codex Worker Filters
 

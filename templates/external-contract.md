@@ -2,30 +2,53 @@ Purpose:
 
 Scope:
 
-Inputs:
+Assigned expert:
+{{expert_name}}
+
+Executor:
+{{executor_key}}
+
+Dispatch mode:
+{{dispatch_mode}}
+
+Input manifest:
+- assignment summary
+- allowed snippets or artifacts
+- policy excerpts
+
+Allowed artifacts:
+{{allowed_artifacts}}
+
+Forbidden artifacts:
+Secrets, credentials, production access, private keys, personal data, parent
+epic closure authority, release/tag authority, and anything outside the selected
+share boundary.
 
 Allowed changes:
-
-Do not touch:
-Secrets, private credentials, production systems, release tags, parent epics,
-and any files outside the explicit scope.
+No direct repo changes unless the Bead explicitly authorizes `patch-branch`.
 
 Expected output:
-Findings, evidence, confidence, risks or gaps, and recommended next beads.
+Findings, evidence, confidence, risks or gaps, validation result, and
+recommended next Beads.
 
-Validation required:
-State whether each finding is based on code, documentation, command output, or
-inference from the assignment packet.
+Evidence requirements:
+State whether each claim is based on code, documentation, command output, or
+inference. Unsupported claims must be marked as assumptions.
+
+Confidence scale:
+low, medium, medium-high, high. Explain confidence when below high.
 
 Escalation triggers:
-Missing context, suspected secret exposure, scope changes, architecture changes,
-destructive commands, production impact, release impact, or conflicting evidence.
+Boundary violation, suspected secret exposure, missing context, scope change,
+architecture change, destructive command, production impact, release impact, or
+conflicting evidence.
 
 Handoff format:
 Beads comment or approved patch branch using the required contractor return
 format.
 
 Contractor job description:
+{{job_description_label}}
 
 Contract labels:
 contractor-only,no-codex-exec,{{job_description_label}}
@@ -33,6 +56,10 @@ contractor-only,no-codex-exec,{{job_description_label}}
 Share boundary:
 {{share_boundary}}
 
+Evaluation rule:
+This return must pass evaluator scoring and architect adjudication before any
+finding becomes implementation work.
+
 Codex handling rule:
-Codex agents may coordinate, brief, and review this bead, but must not execute
-or close it as contractor work.
+Codex agents may coordinate, brief, evaluate, and review this Bead, but must not
+execute or close it as contractor work.

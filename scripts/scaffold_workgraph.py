@@ -8,17 +8,17 @@ from typing import Any
 from orchestration_lib import add_dependency, classify_work, create_bead, read_text_arg
 
 
-def work_task_body(purpose: str, expected: str) -> str:
+def body(purpose: str, expected: str) -> str:
     return f"""Purpose:
 {purpose}
 
 Scope:
-Bounded to the parent epic and assigned lane.
+Bounded to this Bead and parent epic.
 
 Inputs:
 - Parent epic
+- Route result
 - Current repository state
-- Policy route summary
 
 Allowed changes:
 Only changes required by this lane.
@@ -39,51 +39,47 @@ Handoff format:
 Beads comment with findings, validation, and next action."""
 
 
-def contractor_body(expert: dict[str, Any], share_boundary: str) -> str:
-    return f"""Purpose:
-Perform {expert['display_name']} work for the parent epic.
-
-Scope:
-Use the assigned job-description label and do not broaden into a whole-project review.
-
-Inputs:
-- Assigned Bead JSON
-- Contractor packet
-- references/contractor-brief.md
-
-Allowed changes:
-No direct repo changes unless the Bead explicitly allows a patch branch.
-
-Do not touch:
-Secrets, private credentials, production systems, release tags, parent epics, or files outside the explicit scope.
-
-Expected output:
-Findings, evidence, confidence, risks or gaps, and recommended next beads.
-
-Validation required:
-State whether each finding is based on code, documentation, command output, or inference from the assignment packet.
-
-Escalation triggers:
-Missing context, suspected secret exposure, scope changes, architecture changes, destructive commands, production impact, release impact, or conflicting evidence.
-
-Handoff format:
-Beads comment or approved patch branch using the required contractor return format.
-
-Contractor job description:
-{expert['display_name']}
-
-Contract labels:
-contractor-only,no-codex-exec,{expert['job_description_label']}
-
-Share boundary:
-{share_boundary}
-
-Codex handling rule:
-Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work."""
-
-
-def print_plan(plan: list[dict[str, Any]]) -> None:
-    print(json.dumps(plan, indent=2, sort_keys=True))
+def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
+    graph: list[dict[str, Any]] = [
+        {"title": title, "type": "epic", "labels": ["orchestration", "policy-routed"], "metadata": {"orchestration_route": route}},
+        {"title": f"Architect frame: {title}", "type": "task", "lane": "architect", "labels": ["architect", "framing"]},
+        {"title": f"PM coordinate: {title}", "type": "task", "lane": "pm", "labels": ["pm", "coordination"]},
+        {"title": f"Implement: {title}", "type": "task", "lane": "implementation", "labels": ["workerbee", "implementation"]},
+        {"title": f"Validate: {title}", "type": "task", "lane": "validation", "labels": ["workerbee", "validation"]},
+        {"title": f"Docs and handoff: {title}", "type": "task", "lane": "docs", "labels": ["docs", "handoff"]},
+    ]
+    if route.get("route") in ["external-contract", "local-worker"]:
+        graph.extend(
+            [
+                {"title": f"Dispatch: {title}", "type": "task", "lane": "external-dispatch", "labels": ["dispatch", route["route"]]},
+                {"title": f"Evaluate return: {title}", "type": "task", "lane": "evaluation", "labels": ["evaluation", "contractor-evaluator"]},
+                {"title": f"Architect adjudication: {title}", "type": "task", "lane": "architect-adjudication", "labels": ["architect", "adjudication"]},
+            ]
+        )
+    for expert in route.get("ranked_experts", []):
+        labels = ["expert-review", expert["job_description_label"], expert["review_stage"]]
+        if route.get("route") == "external-contract":
+            labels = ["contractor-only", "no-codex-exec", expert["job_description_label"], expert["review_stage"]]
+        graph.append(
+            {
+                "title": f"{expert['display_name']}: {title}",
+                "type": "task",
+                "lane": expert["review_stage"],
+                "labels": labels,
+                "metadata": {
+                    "expert": expert["name"],
+                    "discipline": expert["discipline"],
+                    "job_description_label": expert["job_description_label"],
+                    "review_stage": expert["review_stage"],
+                    "share_boundary": route["share_boundary"],
+                    "executor": route["recommended_executor"],
+                    "codex_pickup": "forbidden" if route.get("route") == "external-contract" else "allowed",
+                    "architect_review_required": True,
+                    "acceptance_bead_required": route.get("route") in ["external-contract", "local-worker"],
+                },
+            }
+        )
+    return graph
 
 
 def try_dep(blocked: str, blocker: str) -> None:
@@ -95,146 +91,64 @@ def try_dep(blocked: str, blocker: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create a policy-shaped Beads graph for complex work.")
-    parser.add_argument("--title", required=True, help="Epic title.")
-    parser.add_argument("--description", default="", help="Epic description.")
-    parser.add_argument("--file", help="Read additional task context from a file.")
-    parser.add_argument("--external-ok", action="store_true", help="User has opted in to third-party contracting.")
-    parser.add_argument(
-        "--share-boundary",
-        default="no-outside-sharing",
-        help="One of: no-outside-sharing, redacted-packet, repo-readonly, patch-branch.",
-    )
-    parser.add_argument("--dry-run", action="store_true", help="Print planned Beads without creating them.")
+    parser.add_argument("--title", required=True)
+    parser.add_argument("--description", default="")
+    parser.add_argument("--file")
+    parser.add_argument("--external-ok", action="store_true")
+    parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument("--requested-role", action="append", default=[])
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     context = read_text_arg(f"{args.title}\n\n{args.description}".strip(), args.file)
-    route = classify_work(context, external_ok=args.external_ok, share_boundary=args.share_boundary)
-    metadata = {"orchestration_route": route}
-
-    planned: list[dict[str, Any]] = [
-        {
-            "title": args.title,
-            "type": "epic",
-            "labels": ["orchestration", "policy-routed"],
-            "metadata": metadata,
-        },
-        {"title": f"Architect frame: {args.title}", "type": "task", "labels": ["architect", "framing"]},
-        {"title": f"PM coordinate: {args.title}", "type": "task", "labels": ["pm", "coordination"]},
-        {"title": f"Implement: {args.title}", "type": "task", "labels": ["workerbee", "implementation"]},
-        {"title": f"Validate: {args.title}", "type": "task", "labels": ["workerbee", "validation"]},
-        {"title": f"Docs and handoff: {args.title}", "type": "task", "labels": ["docs", "handoff"]},
-    ]
-
-    for expert in route.get("required_experts", []):
-        if route["route"] == "external-contract":
-            labels = ["contractor-only", "no-codex-exec", expert["job_description_label"]]
-            lane = "external contract"
-        else:
-            labels = ["expert-review", expert["job_description_label"]]
-            lane = "internal expert review"
-        planned.append(
-            {
-                "title": f"{expert['display_name']}: {args.title}",
-                "type": "task",
-                "lane": lane,
-                "labels": labels,
-                "metadata": {
-                    "expert": expert["name"],
-                    "discipline": expert["discipline"],
-                    "job_description_label": expert["job_description_label"],
-                    "share_boundary": args.share_boundary,
-                    "codex_pickup": "forbidden" if route["route"] == "external-contract" else "allowed",
-                    "architect_review_required": True,
-                },
-            }
-        )
-
+    route = classify_work(
+        context,
+        external_ok=args.external_ok,
+        share_boundary=args.share_boundary,
+        requested_roles=args.requested_role,
+    )
+    plan = planned_graph(args.title, route)
     if args.dry_run:
-        print_plan(planned)
+        print(json.dumps(plan, indent=2, sort_keys=True))
         return
 
+    created: dict[str, str] = {}
     epic = create_bead(
         args.title,
         issue_type="epic",
         priority=1,
         labels=["orchestration", "policy-routed"],
         description=args.description or "Policy-routed complex work epic.",
-        acceptance="All lane work is complete, validated, reviewed, and ready for user handoff.",
-        metadata=metadata,
+        acceptance="All lane work is complete, validated, evaluated, adjudicated, and ready for handoff.",
+        metadata={"orchestration_route": route},
     )
+    created["epic"] = epic["id"]
     print(f"Created epic: {epic['id']}")
 
-    architect = create_bead(
-        f"Architect frame: {args.title}",
-        parent=epic["id"],
-        priority=1,
-        labels=["architect", "framing"],
-        description=work_task_body("Frame decomposition, constraints, risks, and acceptance.", "Architecture notes and acceptance criteria."),
-    )
-    pm = create_bead(
-        f"PM coordinate: {args.title}",
-        parent=epic["id"],
-        priority=1,
-        labels=["pm", "coordination"],
-        description=work_task_body("Maintain dependencies, status, assignments, and handoffs.", "Graph hygiene and resume instructions."),
-    )
-    implementation = create_bead(
-        f"Implement: {args.title}",
-        parent=epic["id"],
-        priority=2,
-        labels=["workerbee", "implementation"],
-        description=work_task_body("Make the bounded implementation changes.", "Patch and implementation evidence."),
-    )
-    validation = create_bead(
-        f"Validate: {args.title}",
-        parent=epic["id"],
-        priority=2,
-        labels=["workerbee", "validation"],
-        description=work_task_body("Run syntax, smoke, install, and behavior checks.", "Validation commands and outcomes."),
-    )
-    docs = create_bead(
-        f"Docs and handoff: {args.title}",
-        parent=epic["id"],
-        priority=2,
-        labels=["docs", "handoff"],
-        description=work_task_body("Update user-facing docs and final handoff.", "Documentation updates and resume notes."),
-    )
-
-    for task in [architect, pm, implementation, validation, docs]:
-        print(f"Created task: {task['id']} {task['title']}")
-
-    try_dep(implementation["id"], architect["id"])
-    try_dep(validation["id"], implementation["id"])
-    try_dep(docs["id"], validation["id"])
-
-    for expert in route.get("required_experts", []):
-        external = route["route"] == "external-contract"
-        labels = (
-            ["contractor-only", "no-codex-exec", expert["job_description_label"]]
-            if external
-            else ["expert-review", expert["job_description_label"]]
-        )
+    for item in plan[1:]:
         bead = create_bead(
-            f"{expert['display_name']}: {args.title}",
+            item["title"],
             parent=epic["id"],
-            priority=1,
-            labels=labels,
-            description=contractor_body(expert, args.share_boundary) if external else work_task_body(
-                f"Perform {expert['display_name']} before acceptance.",
-                "Findings, evidence, confidence, and recommended next beads.",
-            ),
-            metadata={
-                "executor": expert.get("preferred_external_executor") if external else "internal_worker",
-                "expert": expert["name"],
-                "discipline": expert["discipline"],
-                "job_description_label": expert["job_description_label"],
-                "share_boundary": args.share_boundary,
-                "codex_pickup": "forbidden" if external else "allowed",
-                "architect_review_required": True,
-            },
+            priority=1 if item["lane"] in ["architect", "pm", "external-dispatch", "evaluation", "architect-adjudication"] else 2,
+            labels=item["labels"],
+            description=body(f"Complete the {item['lane']} lane.", f"Evidence and result for {item['lane']}."),
+            metadata=item.get("metadata"),
         )
-        print(f"Created review task: {bead['id']} {bead['title']}")
-        try_dep(implementation["id"], bead["id"])
+        created[item["lane"]] = bead["id"]
+        print(f"Created task: {bead['id']} {bead['title']}")
+
+    if "implementation" in created and "architect" in created:
+        try_dep(created["implementation"], created["architect"])
+    if "validation" in created and "implementation" in created:
+        try_dep(created["validation"], created["implementation"])
+    if "external-dispatch" in created and "pm" in created:
+        try_dep(created["external-dispatch"], created["pm"])
+    if "evaluation" in created and "external-dispatch" in created:
+        try_dep(created["evaluation"], created["external-dispatch"])
+    if "architect-adjudication" in created and "evaluation" in created:
+        try_dep(created["architect-adjudication"], created["evaluation"])
+    if "implementation" in created and "architect-adjudication" in created:
+        try_dep(created["implementation"], created["architect-adjudication"])
 
 
 if __name__ == "__main__":

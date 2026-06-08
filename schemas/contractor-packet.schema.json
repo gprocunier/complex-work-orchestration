@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Contractor Packet",
+  "type": "object",
+  "required": ["dispatch_id", "bead_id", "executor", "share_boundary", "job_description_label", "bead_summary", "included_artifacts", "excluded_artifacts", "required_return_sections", "acceptance_rule", "packet_sha256"],
+  "properties": {
+    "dispatch_id": {"type": "string"},
+    "bead_id": {"type": "string"},
+    "executor": {"type": "string"},
+    "share_boundary": {"type": "string"},
+    "job_description_label": {"type": "string"},
+    "boundary_description": {"type": "string"},
+    "bead_summary": {"type": "object"},
+    "selected_snippets": {"type": "array", "items": {"type": "object"}},
+    "included_artifacts": {"type": "array", "items": {"type": "object"}},
+    "excluded_artifacts": {"type": "array", "items": {"type": "object"}},
+    "required_return_sections": {"type": "array", "items": {"type": "string"}},
+    "acceptance_rule": {"type": "string"},
+    "packet_sha256": {"type": "string"}
+  }
+}

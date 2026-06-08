@@ -129,4 +129,7 @@ residual risk is explicit, and the next coordination action is clear.
 
 The coordinator may run `scripts/evaluate_return.py` against your return. Missing
 required sections can send the assignment back for clarification before the
-architect reviews it.
+architect reviews it. The evaluator checks structure, concrete evidence,
+validation, confidence, residual risk, recommended next Bead, and boundary
+violations. Passing evaluation does not mean the finding is accepted; architect
+adjudication is still required before Codex workers implement follow-up work.

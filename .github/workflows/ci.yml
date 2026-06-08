@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile
+        run: python -m compileall .
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Route dry run
+        run: bash examples/sample-route-command.sh
+      - name: Installer dry run
+        run: ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run

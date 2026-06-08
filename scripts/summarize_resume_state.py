@@ -9,8 +9,7 @@ from orchestration_lib import run_bd
 
 
 def bd_json(args: list[str]) -> Any:
-    output = run_bd(args)
-    return json.loads(output)
+    return json.loads(run_bd(args))
 
 
 def coerce_items(value: Any) -> list[dict[str, Any]]:
@@ -18,72 +17,56 @@ def coerce_items(value: Any) -> list[dict[str, Any]]:
         return [item for item in value if isinstance(item, dict)]
     if isinstance(value, dict):
         for key in ["issues", "items", "data"]:
-            items = value.get(key)
-            if isinstance(items, list):
-                return [item for item in items if isinstance(item, dict)]
+            if isinstance(value.get(key), list):
+                return [item for item in value[key] if isinstance(item, dict)]
     return []
+
+
+def labels(item: dict[str, Any]) -> str:
+    raw = item.get("labels", [])
+    return ",".join(str(label) for label in raw) if isinstance(raw, list) else str(raw)
 
 
 def field(item: dict[str, Any], *names: str) -> str:
     for name in names:
-        value = item.get(name)
-        if value is not None:
-            return str(value)
+        if item.get(name) is not None:
+            return str(item[name])
     return ""
 
 
-def summarize_items(title: str, items: list[dict[str, Any]], limit: int) -> None:
+def summarize(title: str, items: list[dict[str, Any]], limit: int) -> None:
     print(f"## {title}")
     if not items:
-        print("None reported.")
-        print()
+        print("None reported.\n")
         return
     for item in items[:limit]:
-        labels = item.get("labels", [])
-        if isinstance(labels, list):
-            label_text = ",".join(str(label) for label in labels)
-        else:
-            label_text = str(labels)
-        print(
-            f"- {field(item, 'id', 'issue_id')} "
-            f"{field(item, 'title', 'summary')} "
-            f"[{field(item, 'status') or 'unknown'}; {label_text}]"
-        )
+        print(f"- {field(item, 'id', 'issue_id')} {field(item, 'title', 'summary')} [{field(item, 'status') or 'unknown'}; {labels(item)}]")
     print()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Summarize Beads state for session resume.")
-    parser.add_argument("--ready-limit", type=int, default=10, help="Maximum ready items to show.")
-    parser.add_argument("--open-limit", type=int, default=20, help="Maximum open items to show.")
+    parser = argparse.ArgumentParser(description="Summarize Beads state for orchestration resume.")
+    parser.add_argument("--ready-limit", type=int, default=10)
+    parser.add_argument("--open-limit", type=int, default=20)
     args = parser.parse_args()
 
-    print("# Orchestration Resume State")
-    print()
-    print("Workerbee-ready command:")
-    print("`bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json`")
-    print()
-    print("Contractor dispatch command:")
-    print("`bd ready --label contractor-only --json`")
-    print()
+    print("# Orchestration Resume State\n")
+    print("Workerbee-ready: `bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json`")
+    print("Contractor dispatch: `bd ready --label contractor-only --json`")
+    print("Evaluation/adjudication: `bd ready --label evaluation --json` and `bd ready --label adjudication --json`\n")
 
-    try:
-        ready = coerce_items(bd_json(["ready", "--exclude-label", "contractor-only", "--exclude-label", "no-codex-exec", "--json"]))
-        summarize_items("Codex-ready work", ready, args.ready_limit)
-    except SystemExit as exc:
-        print(f"## Codex-ready work\nUnable to read ready work: {exc}\n")
-
-    try:
-        contractors = coerce_items(bd_json(["ready", "--label", "contractor-only", "--json"]))
-        summarize_items("Contractor-only work", contractors, args.ready_limit)
-    except SystemExit as exc:
-        print(f"## Contractor-only work\nUnable to read contractor work: {exc}\n")
-
-    try:
-        open_items = coerce_items(bd_json(["list", "--json"]))
-        summarize_items("Open graph", open_items, args.open_limit)
-    except SystemExit as exc:
-        print(f"## Open graph\nUnable to read open graph: {exc}\n")
+    commands = [
+        ("Codex-ready work", ["ready", "--exclude-label", "contractor-only", "--exclude-label", "no-codex-exec", "--json"], args.ready_limit),
+        ("Contractor-only work", ["ready", "--label", "contractor-only", "--json"], args.ready_limit),
+        ("Evaluation gates", ["ready", "--label", "evaluation", "--json"], args.ready_limit),
+        ("Architect adjudication gates", ["ready", "--label", "adjudication", "--json"], args.ready_limit),
+        ("Open graph", ["list", "--json"], args.open_limit),
+    ]
+    for title, command, limit in commands:
+        try:
+            summarize(title, coerce_items(bd_json(command)), limit)
+        except SystemExit as exc:
+            print(f"## {title}\nUnable to read: {exc}\n")
 
 
 if __name__ == "__main__":

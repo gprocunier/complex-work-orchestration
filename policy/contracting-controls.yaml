@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "contracting_mode": "manual-first",
+  "default_share_boundary": "no-outside-sharing",
+  "allowed_external_executors": [
+    "openai_deep_research_manual",
+    "claude_code_manual",
+    "human_specialist_contractor",
+    "external_reasoner",
+    "external_security_reviewer"
+  ],
+  "manual_dispatch_required": true,
+  "api_dispatch_enabled": false,
+  "local_dispatch_enabled": true,
+  "quota_policy": {
+    "external_manual_dispatches_per_epic": 5,
+    "local_worker_dispatches_per_epic": 20
+  },
+  "fail_closed": [
+    "unknown executor",
+    "missing user opt-in",
+    "unknown share boundary",
+    "restricted data with non-human external executor",
+    "packet contains forbidden artifact class",
+    "missing evaluator or architect-adjudication step"
+  ]
+}

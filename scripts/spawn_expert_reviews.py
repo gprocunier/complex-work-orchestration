@@ -3,90 +3,82 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Any
 
 from orchestration_lib import classify_work, create_bead, read_text_arg
 
 
-def expert_description(expert: dict[str, Any], external: bool, share_boundary: str) -> str:
-    focus = "\n".join(f"- {item}" for item in expert.get("output_focus", []))
-    if external:
-        labels = f"contractor-only,no-codex-exec,{expert['job_description_label']}"
-        codex_rule = "Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work."
-    else:
-        labels = f"expert-review,{expert['job_description_label']}"
-        codex_rule = "Codex agents may execute this as an internal expert-review task."
+def review_body(expert: dict[str, object], route: dict[str, object]) -> str:
     return f"""Purpose:
-Perform {expert['display_name']} for the parent work item.
+Perform {expert['display_name']} review for the assigned Bead.
 
-Scope:
-Stay within this assigned review lens and the parent Bead context.
+Review stage:
+{expert['review_stage']}
 
-Review focus:
-{focus}
+Job-description label:
+{expert['job_description_label']}
 
-Expected output:
-Findings, evidence, confidence, risks or gaps, and recommended next beads.
+Output contract:
+{chr(10).join('- ' + str(item) for item in expert.get('output_contract', []))}
 
-Validation required:
-State whether findings are based on code, documentation, command output, or inference.
+Acceptance checks:
+{chr(10).join('- ' + str(item) for item in expert.get('acceptance_checks', []))}
 
-Contract labels:
-{labels}
+Escalation rules:
+{chr(10).join('- ' + str(item) for item in expert.get('escalation_rules', []))}
 
 Share boundary:
-{share_boundary}
+{route['share_boundary']}
 
 Codex handling rule:
-{codex_rule}"""
+{"Codex may brief and evaluate this Bead, but must not execute it as contractor work." if route['route'] == 'external-contract' else "Codex may execute this as an internal expert-review task."}
+"""
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create expert review Beads from the routing policy.")
-    parser.add_argument("text", nargs="*", help="Task text to classify.")
-    parser.add_argument("--file", help="Read task text from a file.")
-    parser.add_argument("--parent", help="Parent Beads ID.")
-    parser.add_argument("--title-prefix", default="Expert review", help="Prefix for created review tasks.")
-    parser.add_argument("--external-ok", action="store_true", help="User has opted in to third-party contracting.")
-    parser.add_argument("--share-boundary", default="no-outside-sharing", help="Approved sharing boundary.")
-    parser.add_argument("--dry-run", action="store_true", help="Print planned reviews without creating Beads.")
+    parser = argparse.ArgumentParser(description="Create expert review Beads from ranked routing.")
+    parser.add_argument("text", nargs="*")
+    parser.add_argument("--file")
+    parser.add_argument("--parent")
+    parser.add_argument("--title-prefix", default="Expert review")
+    parser.add_argument("--external-ok", action="store_true")
+    parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument("--requested-role", action="append", default=[])
+    parser.add_argument("--top-n", type=int, default=3)
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    route = classify_work(text, external_ok=args.external_ok, share_boundary=args.share_boundary)
-    external = route["route"] == "external-contract"
+    route = classify_work(text, external_ok=args.external_ok, share_boundary=args.share_boundary, requested_roles=args.requested_role)
     reviews = []
-
-    for expert in route.get("required_experts", []):
-        labels = (
-            ["contractor-only", "no-codex-exec", expert["job_description_label"]]
-            if external
-            else ["expert-review", expert["job_description_label"]]
+    for expert in route.get("ranked_experts", [])[: args.top_n]:
+        labels = ["expert-review", expert["job_description_label"], expert["review_stage"]]
+        if route["route"] == "external-contract":
+            labels = ["contractor-only", "no-codex-exec", expert["job_description_label"], expert["review_stage"]]
+        reviews.append(
+            {
+                "title": f"{args.title_prefix}: {expert['display_name']}",
+                "labels": labels,
+                "metadata": {
+                    "executor": route["recommended_executor"],
+                    "expert": expert["name"],
+                    "discipline": expert["discipline"],
+                    "review_stage": expert["review_stage"],
+                    "job_description_label": expert["job_description_label"],
+                    "share_boundary": args.share_boundary,
+                    "codex_pickup": "forbidden" if route["route"] == "external-contract" else "allowed",
+                    "architect_review_required": True,
+                    "acceptance_bead_required": route["route"] in ["external-contract", "local-worker"],
+                },
+                "description": review_body(expert, route),
+            }
         )
-        review = {
-            "title": f"{args.title_prefix}: {expert['display_name']}",
-            "labels": labels,
-            "metadata": {
-                "executor": expert.get("preferred_external_executor") if external else "internal_worker",
-                "expert": expert["name"],
-                "discipline": expert["discipline"],
-                "job_description_label": expert["job_description_label"],
-                "share_boundary": args.share_boundary,
-                "codex_pickup": "forbidden" if external else "allowed",
-                "architect_review_required": True,
-            },
-            "description": expert_description(expert, external, args.share_boundary),
-        }
-        reviews.append(review)
 
     if args.dry_run:
         print(json.dumps({"route": route, "planned_reviews": reviews}, indent=2, sort_keys=True))
         return
-
     if not reviews:
         print("No expert triggers matched; no review Beads created.")
         return
-
     for review in reviews:
         bead = create_bead(
             review["title"],

@@ -1,0 +1,18 @@
+{
+  "id": "complex-work-orchestration-example",
+  "title": "Security DE review: redacted packet behavior",
+  "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
+  "status": "open",
+  "priority": "P1",
+  "description": "Review the redacted-packet boundary behavior without receiving full Bead JSON.",
+  "metadata": {
+    "executor": "claude_code_manual",
+    "dispatch_mode": "manual_ui",
+    "share_boundary": "redacted-packet",
+    "architect_review_required": true,
+    "acceptance_bead_required": true
+  },
+  "comments": [
+    "This comment must not appear in redacted packets."
+  ]
+}

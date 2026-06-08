@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Complex Work Orchestration Route Result",
+  "type": "object",
+  "required": ["route", "task_class", "risk_level", "data_sensitivity", "dispatch_sensitivity", "share_boundary", "ranked_experts", "ranked_executors", "recommended_executor"],
+  "properties": {
+    "route": {"type": "string"},
+    "task_class": {"type": "string"},
+    "risk_level": {"type": "string"},
+    "data_sensitivity": {"type": "string"},
+    "dispatch_sensitivity": {"type": "string"},
+    "share_boundary": {"type": "string"},
+    "external_contract_allowed": {"type": "boolean"},
+    "evaluator_required": {"type": "boolean"},
+    "architect_adjudication_required": {"type": "boolean"},
+    "ranked_experts": {"type": "array", "items": {"type": "object"}},
+    "ranked_executors": {"type": "array", "items": {"type": "object"}},
+    "recommended_executor": {"type": "string"},
+    "guard_labels": {"type": "array", "items": {"type": "string"}},
+    "hard_stops": {"type": "array", "items": {"type": "string"}}
+  }
+}

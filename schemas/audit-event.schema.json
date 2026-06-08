@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dispatch Audit Event",
+  "type": "object",
+  "required": ["dispatch_id", "event_type", "timestamp", "bead_id"],
+  "properties": {
+    "dispatch_id": {"type": "string"},
+    "event_type": {"type": "string"},
+    "timestamp": {"type": "string"},
+    "bead_id": {"type": ["string", "null"]},
+    "executor_key": {"type": "string"},
+    "share_boundary": {"type": "string"},
+    "packet_sha256": {"type": "string"},
+    "dispatch_mode": {"type": "string"},
+    "acceptance_score": {"type": "integer"},
+    "verdict": {"type": "string"},
+    "event_hash": {"type": "string"}
+  }
+}

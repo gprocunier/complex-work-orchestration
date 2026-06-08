@@ -1,0 +1,12 @@
+{
+  "dispatch_id": "dispatch-example",
+  "bead_id": "complex-work-orchestration-example",
+  "verdict": "accept",
+  "score": 100,
+  "accepted_findings": ["redacted-packet omits full Bead JSON"],
+  "rejected_findings": [],
+  "clarification_required": [],
+  "followup_beads": ["complex-work-orchestration-followup"],
+  "architect_review_required": true,
+  "architect_signoff": true
+}

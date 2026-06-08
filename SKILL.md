@@ -43,9 +43,9 @@ target:
 ```
 
 The installer does not build a tarball. It copies `README.md`, `LICENSE`,
-`SKILL.md`, `agents/`, `policy/`, `templates/`, `experts/`, `references/`, and
-`scripts/` into the selected skills directory. It checks for the Beads CLI (`bd`)
-and never treats a missing Beads
+`SKILL.md`, `AGENTS.md`, `agents/`, `policy/`, `templates/`, `experts/`,
+`references/`, `schemas/`, `examples/`, and `scripts/` into the selected skills
+directory. It checks for the Beads CLI (`bd`) and never treats a missing Beads
 install as fatal. On Fedora/RPM-style hosts it prints package-install guidance,
 including the public `greg-at-redhat/beads` COPR as a fallback when the user
 does not have their own Beads package source. Set `BEADS_COPR` to print a
@@ -57,10 +57,11 @@ the skill installed.
 Use `README.md` as the human-facing operating guide for invocation, flow,
 external contracting, job-description labels, and Beads requirements. Use
 `policy/` as the machine-readable control plane, `templates/` for reusable Beads
-bodies, `experts/` for discipline calibration, `references/external-contracting.md`
-when posting or reviewing outside model contracts, and
-`references/contractor-brief.md` as the briefing artifact given to an outside
-contractor with a specific Beads assignment.
+bodies, `experts/` for discipline calibration, `schemas/` for helper output
+contracts, `examples/` for smoke-test artifacts, `references/external-contracting.md`
+when posting or reviewing outside model contracts, and `references/contractor-brief.md`
+as the briefing artifact given to an outside contractor with a specific Beads
+assignment.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.
@@ -248,7 +249,16 @@ Before giving a Bead to an outside model, build a packet through the gate:
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor external_security_reviewer \
-  --share-boundary redacted-packet
+  --share-boundary redacted-packet \
+  --format json \
+  --output contractor-packet.json
+```
+
+Generate the manual dispatch prompt from an approved packet. Do not claim that
+this helper called the outside model automatically:
+
+```bash
+python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
 ```
 
 After the contractor returns, evaluate the handoff before converting findings to
@@ -282,12 +292,13 @@ Contractor rules:
 When this skill is used, produce a concise orchestration packet:
 
 - harness decision: in-thread, PM-only, or full architect/PM/workerbee/contractor setup
-- policy route: route class, task class, risk, data sensitivity, share boundary,
-  selected experts, and recommended executor
+- policy route: route class, task class, risk, data sensitivity, dispatch
+  sensitivity, share boundary, selected experts, and recommended executor
 - role roster with model/effort choices
 - Beads epic and task list, with IDs when created
 - dependency graph summary
 - contractor-ready assignments
+- dispatch, evaluation, and architect-adjudication requirements
 - validation matrix
 - escalation rules
 - resume instructions using `bd ready --json`

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "schema": "json-compatible-yaml",
   "defaults": {
     "share_boundary": "no-outside-sharing",
@@ -7,20 +7,35 @@
     "risk_level": "low",
     "data_sensitivity": "internal",
     "recommended_executor": "internal_worker",
-    "beads_required_for_full_handoff": true
+    "beads_required_for_full_handoff": true,
+    "top_n_experts": 5,
+    "top_n_executors": 5
   },
   "route_classes": {
-    "in-thread": {
-      "description": "Small single-thread work that does not need durable coordination."
+    "in-thread": {"description": "Small single-thread work that does not need durable coordination."},
+    "internal-worker": {"description": "Normal Codex-executable work."},
+    "local-worker": {"description": "Low-risk local inference envelope with evaluator and architect review."},
+    "architect-review": {"description": "High-risk or cross-cutting reasoning that needs architect judgment before worker execution."},
+    "external-contract": {"description": "Outside model contract with explicit opt-in, share boundary, guard labels, evaluator, and architect review."}
+  },
+  "scoring": {
+    "expert": {
+      "explicit_role": 8,
+      "path_match": 4,
+      "trigger_term": 3,
+      "stage_match": 3,
+      "component_match": 2
     },
-    "internal-worker": {
-      "description": "Normal Codex-executable work. Contractor-only labels must not be present."
-    },
-    "architect-review": {
-      "description": "High-risk or cross-cutting reasoning that needs architect judgment before worker execution."
-    },
-    "external-contract": {
-      "description": "Outside model contract with explicit user opt-in, share boundary, guard labels, and architect review."
+    "executor": {
+      "task_class_fit": 6,
+      "tooling_fit": 5,
+      "privacy_fit": 5,
+      "evidence_fit": 4,
+      "latency_fit": 3,
+      "cost_fit": 2,
+      "policy_violation": -100,
+      "missing_user_opt_in": -25,
+      "manual_dispatch_penalty_when_unattended": -15
     }
   },
   "restricted_terms": [
@@ -36,14 +51,22 @@
     "production access",
     "personal data"
   ],
-  "external_contract_guard_labels": [
-    "contractor-only",
-    "no-codex-exec"
-  ],
-  "architect_review_required_for": [
-    "external-contract",
-    "architect-review",
-    "high",
-    "critical"
+  "sensitivity_terms": {
+    "restricted": ["secret value", "credential value", "private key", "production access", "personal data"],
+    "redacted": ["token handling", "credential handling", "auth flow", "private repo", "internal design"],
+    "public": ["public repo", "public documentation", "public docs", "open source"]
+  },
+  "local_worker": {
+    "allowed_risks": ["low"],
+    "allowed_task_classes": ["docs-review", "domain-review", "classification", "summarization", "low-risk-docs"],
+    "requires_acceptance": true
+  },
+  "external_contract_guard_labels": ["contractor-only", "no-codex-exec"],
+  "architect_review_required_for": ["external-contract", "local-worker", "architect-review", "high", "critical"],
+  "hard_stops": [
+    "restricted data cannot be sent to external executors unless human_specialist_contractor is explicitly selected",
+    "external dispatch requires user opt-in",
+    "redacted-packet dispatch cannot include full Bead JSON",
+    "external and local non-main-thread work requires evaluator and architect adjudication"
   ]
 }

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Contractor Return",
+  "type": "object",
+  "required": ["status", "contractor_job_description", "summary", "validation_result", "evidence", "confidence", "risks_or_gaps", "recommended_next_bead"],
+  "properties": {
+    "status": {"type": "string"},
+    "contractor_job_description": {"type": "string"},
+    "summary": {"type": "string"},
+    "files_changed": {"type": ["array", "string"], "items": {"type": "string"}},
+    "commands_run": {"type": ["array", "string"], "items": {"type": "string"}},
+    "validation_result": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "alternatives_considered": {"type": ["array", "string"], "items": {"type": "string"}},
+    "confidence": {"type": "string"},
+    "risks_or_gaps": {"type": "string"},
+    "recommended_next_bead": {"type": "string"},
+    "escalation_needed": {"type": ["boolean", "string"]}
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Acceptance Decision",
+  "type": "object",
+  "required": ["dispatch_id", "bead_id", "verdict", "score", "architect_review_required"],
+  "properties": {
+    "dispatch_id": {"type": ["string", "null"]},
+    "bead_id": {"type": ["string", "null"]},
+    "verdict": {"enum": ["accept", "clarify", "partial-accept", "reject", "escalate"]},
+    "score": {"type": "integer"},
+    "architect_review_required": {"type": "boolean"},
+    "missing_sections": {"type": "array", "items": {"type": "string"}},
+    "penalty_reasons": {"type": "array", "items": {"type": "string"}},
+    "hard_disqualifiers": {"type": "array", "items": {"type": "string"}},
+    "escalation_flagged": {"type": "boolean"},
+    "sections": {"type": "object"},
+    "followup_beads": {"type": "array", "items": {"type": "string"}}
+  }
+}
