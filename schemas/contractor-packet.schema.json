@@ -2,13 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Contractor Packet",
   "type": "object",
-  "required": ["dispatch_id", "bead_id", "executor", "share_boundary", "job_description_label", "bead_summary", "included_artifacts", "excluded_artifacts", "required_return_sections", "acceptance_rule", "packet_sha256"],
+  "required": ["dispatch_id", "bead_id", "executor", "share_boundary", "job_description_label", "expert_profile_included", "external_opt_in", "opt_in_basis", "bead_summary", "included_artifacts", "excluded_artifacts", "required_return_sections", "acceptance_rule", "quota_checked", "packet_sha256"],
   "properties": {
     "dispatch_id": {"type": "string"},
     "bead_id": {"type": "string"},
+    "epic_id": {"type": ["string", "null"]},
     "executor": {"type": "string"},
     "share_boundary": {"type": "string"},
     "job_description_label": {"type": "string"},
+    "expert_profile": {"type": ["object", "null"]},
+    "expert_profile_included": {"type": "boolean"},
+    "external_opt_in": {"type": "boolean"},
+    "opt_in_basis": {"enum": ["cli-flag", "audit-record", "manual-note", "not-recorded"]},
     "boundary_description": {"type": "string"},
     "bead_summary": {"type": "object"},
     "selected_snippets": {"type": "array", "items": {"type": "object"}},
@@ -16,6 +21,10 @@
     "excluded_artifacts": {"type": "array", "items": {"type": "object"}},
     "required_return_sections": {"type": "array", "items": {"type": "string"}},
     "acceptance_rule": {"type": "string"},
+    "quota_checked": {"type": "boolean"},
+    "quota_event_type": {"type": ["string", "null"]},
+    "quota_limit": {"type": ["integer", "null"]},
+    "quota_remaining": {"type": ["integer", "null"]},
     "packet_sha256": {"type": "string"}
   }
 }

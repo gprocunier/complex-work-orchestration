@@ -13,6 +13,7 @@ Dispatch mode:
 
 Input manifest:
 - assignment summary
+- Distinguished Engineer profile and SHA-256
 - allowed snippets or artifacts
 - policy excerpts
 
@@ -59,6 +60,10 @@ Share boundary:
 Evaluation rule:
 This return must pass evaluator scoring and architect adjudication before any
 finding becomes implementation work.
+
+Profile rule:
+Use the Distinguished Engineer profile as the operating lens. A packet without
+the profile is degraded and must be called out in the return.
 
 Codex handling rule:
 Codex agents may coordinate, brief, evaluate, and review this Bead, but must not

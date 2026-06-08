@@ -9,6 +9,11 @@
     "executor": "claude_code_manual",
     "dispatch_mode": "manual_ui",
     "share_boundary": "redacted-packet",
+    "expert_profile_included": true,
+    "external_opt_in": true,
+    "opt_in_basis": "cli-flag",
+    "quota_checked": true,
+    "quota_remaining": 4,
     "architect_review_required": true,
     "acceptance_bead_required": true
   },

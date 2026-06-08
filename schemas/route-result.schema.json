@@ -13,9 +13,21 @@
     "external_contract_allowed": {"type": "boolean"},
     "evaluator_required": {"type": "boolean"},
     "architect_adjudication_required": {"type": "boolean"},
-    "ranked_experts": {"type": "array", "items": {"type": "object"}},
+    "ranked_experts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "recommended_executor": {"type": "string"},
+          "selected_executor": {"type": "object"},
+          "executor_policy_violations": {"type": "array", "items": {"type": "string"}},
+          "executor_candidates": {"type": "array", "items": {"type": "object"}}
+        }
+      }
+    },
     "ranked_executors": {"type": "array", "items": {"type": "object"}},
     "recommended_executor": {"type": "string"},
+    "selected_executor": {"type": "object"},
     "guard_labels": {"type": "array", "items": {"type": "string"}},
     "hard_stops": {"type": "array", "items": {"type": "string"}}
   }

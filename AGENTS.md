@@ -11,6 +11,10 @@ Rules:
   scoring and architect adjudication are required before implementation.
 - Redacted contractor packets must not contain whole Bead JSON, secrets,
   credentials, production access, private keys, or personal data.
+- External contractor packets require explicit opt-in, a selected share
+  boundary, quota check metadata, and exactly one primary job-description label.
+- Contractor packets include the matched Distinguished Engineer profile by
+  default. If the profile is omitted, record that as degraded context.
 
 Before handoff, run:
 

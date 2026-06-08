@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Orchestration Bead Metadata",
+  "title": "Orchestration Beads Metadata",
   "type": "object",
   "required": ["executor", "dispatch_mode", "share_boundary", "architect_review_required"],
   "properties": {

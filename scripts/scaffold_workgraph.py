@@ -60,6 +60,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
         labels = ["expert-review", expert["job_description_label"], expert["review_stage"]]
         if route.get("route") == "external-contract":
             labels = ["contractor-only", "no-codex-exec", expert["job_description_label"], expert["review_stage"]]
+        executor = expert.get("recommended_executor", route["recommended_executor"])
         graph.append(
             {
                 "title": f"{expert['display_name']}: {title}",
@@ -72,7 +73,9 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                     "job_description_label": expert["job_description_label"],
                     "review_stage": expert["review_stage"],
                     "share_boundary": route["share_boundary"],
-                    "executor": route["recommended_executor"],
+                    "executor": executor,
+                    "selected_executor": expert.get("selected_executor"),
+                    "executor_policy_violations": expert.get("executor_policy_violations", []),
                     "codex_pickup": "forbidden" if route.get("route") == "external-contract" else "allowed",
                     "architect_review_required": True,
                     "acceptance_bead_required": route.get("route") in ["external-contract", "local-worker"],

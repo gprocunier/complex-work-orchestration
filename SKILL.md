@@ -186,7 +186,8 @@ no outside sharing?
 Default to no outside sharing. If the user asks for Claude, Opus, Mythos, or
 another outside model, treat that as model opt-in, but still confirm the sharing
 boundary before exporting private context, secrets, unreleased content, or repo
-state.
+state. Packet generation must still record explicit opt-in with `--external-ok`
+or `--opt-in-record`; model preference alone is not enough to export context.
 
 Every outside contract should have these guard labels:
 
@@ -250,9 +251,17 @@ python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
+  --external-ok \
   --format json \
   --output contractor-packet.json
 ```
+
+The packet includes the matched Distinguished Engineer profile by default. A
+packet without that profile is degraded and must be justified. Multi-discipline
+reviews require multiple contractor Beads, each with exactly one primary
+job-description label and one matching profile. Pass `--epic <id>` when an epic
+exists so dispatch quotas are scoped correctly. Use `--opt-in-record <path>`
+instead of `--external-ok` when opt-in is recorded in a local audit note.
 
 Generate the manual dispatch prompt from an approved packet. Do not claim that
 this helper called the outside model automatically:

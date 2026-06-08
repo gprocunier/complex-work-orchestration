@@ -57,8 +57,10 @@ other discipline-specific contract into a generic project review.
 - `contract-jd-domain-<name>`: discipline-specific review, such as SELinux,
   API compatibility, compliance, performance, reliability, or docs.
 
-If the packet includes an `experts/<discipline>.md` profile, use that file as
-the calibration lens for the assignment.
+Packets normally include an `experts/<discipline>.md` Distinguished Engineer
+profile. Use that profile as the operating lens for the assignment. If the
+packet says no profile was included, treat the context as degraded and say so in
+your return.
 
 ## Required Startup
 

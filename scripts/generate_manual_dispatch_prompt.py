@@ -47,6 +47,17 @@ def render_packet_prompt(packet: dict[str, Any]) -> str:
     for item in packet.get("selected_snippets", []):
         snippets.append(f"### {item.get('path')}\n\n```text\n{item.get('content', '')}\n```")
     snippet_text = "\n\n".join(snippets) if snippets else "No file snippets were included."
+    profile = packet.get("expert_profile") or {}
+    if profile:
+        profile_text = f"""Distinguished Engineer calibration profile:
+Path: {profile.get('path')}
+SHA-256: {profile.get('sha256')}
+
+```markdown
+{profile.get('content', '')}
+```"""
+    else:
+        profile_text = "Distinguished Engineer calibration profile: not included. Treat this as degraded context and say so in the return."
     return f"""You are an outside model contractor for one bounded Beads assignment.
 
 Dispatch ID: {packet['dispatch_id']}
@@ -70,10 +81,14 @@ Included artifacts:
 Selected snippets:
 {snippet_text}
 
+{profile_text}
+
 Required return sections:
 {required_sections}
 
 Rules:
+- Use the Distinguished Engineer calibration profile as your operating lens.
+- Do not return generic review output. Stay inside the assigned job-description label and the assigned Bead.
 - Work only this assignment.
 - Do not ask for or expose secrets, credentials, production access, or private data.
 - Do not re-plan the whole project.

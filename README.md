@@ -87,7 +87,8 @@ Helper scripts:
 - `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
   Beads from routing triggers.
 - `scripts/build_contractor_packet.py`: generate a gated outside-contractor
-  packet for one Bead.
+  packet for one Bead, with explicit opt-in, quota checks, safe snippets, and
+  a Distinguished Engineer profile included by default.
 - `scripts/generate_manual_dispatch_prompt.py`: turn an approved packet into a
   manual prompt for Claude, OpenAI deep research, or another contractor.
 - `scripts/dispatch_work.py`: record a manual dispatch event and produce the
@@ -333,7 +334,15 @@ release, tag, rotate secrets, or run destructive commands.
 External contracting is fail-closed. A contractor packet is only valid when the
 user has opted in, the selected share boundary allows outside work, the Bead has
 `contractor-only` and `no-codex-exec`, and an architect review is required
-before any finding becomes implementation work.
+before any finding becomes implementation work. Packet building enforces this:
+external packets require `--external-ok` or `--opt-in-record`, and unsafe files
+are rejected before they can enter the packet.
+
+Distinguished Engineer profiles are first-class packet artifacts. A normal
+contractor packet includes the matched `experts/<discipline>.md` profile and
+its SHA-256 so the outside model receives the full operating lens, not just a
+job-description label. A packet created with `--no-include-expert-profile` is
+degraded and must be justified in the handoff.
 
 Use outside contracts for work that benefits from an independent reasoning lens:
 
@@ -374,6 +383,9 @@ Every outside contract also gets exactly one primary job-description label:
 
 The job-description label calibrates the outside model. A security contract
 should return security findings, not a generic project review.
+If work needs multiple disciplines, create multiple contractor Beads so each
+packet has exactly one primary job-description label and one matching expert
+profile.
 
 ## Contractor Bead Template
 
@@ -423,7 +435,9 @@ Give the outside model:
 - the assigned bead ID and `bd show <id> --json` output
 - `references/contractor-brief.md`
 - the job-description label and discipline lens
+- the Distinguished Engineer calibration profile
 - allowed files, forbidden files, and sharing boundary
+- opt-in basis and quota metadata
 - expected output and handoff format
 - validation expectations
 - escalation triggers
@@ -435,9 +449,15 @@ python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
+  --external-ok \
   --format json \
   --output contractor-packet.json
 ```
+
+Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is recorded
+in a local audit note. Pass `--epic <id>` when the contract belongs to a durable
+epic so quota checks are scoped to that epic. Without `--epic`, the helper uses
+the global dispatch bucket for quota accounting.
 
 Manual dispatch prompts are generated from approved packets:
 

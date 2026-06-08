@@ -54,12 +54,15 @@ def main() -> None:
         labels = ["expert-review", expert["job_description_label"], expert["review_stage"]]
         if route["route"] == "external-contract":
             labels = ["contractor-only", "no-codex-exec", expert["job_description_label"], expert["review_stage"]]
+        executor = expert.get("recommended_executor", route["recommended_executor"])
         reviews.append(
             {
                 "title": f"{args.title_prefix}: {expert['display_name']}",
                 "labels": labels,
                 "metadata": {
-                    "executor": route["recommended_executor"],
+                    "executor": executor,
+                    "selected_executor": expert.get("selected_executor"),
+                    "executor_policy_violations": expert.get("executor_policy_violations", []),
                     "expert": expert["name"],
                     "discipline": expert["discipline"],
                     "review_stage": expert["review_stage"],

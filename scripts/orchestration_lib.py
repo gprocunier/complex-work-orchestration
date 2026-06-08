@@ -19,6 +19,47 @@ AUDIT_LOG = AUDIT_DIR / "audit.jsonl"
 RISK_ORDER = ["low", "medium", "high", "critical"]
 SENSITIVITY_ORDER = ["public", "redacted", "internal", "restricted"]
 EXTERNAL_GUARD_LABELS = ["contractor-only", "no-codex-exec"]
+BLOCKED_PACKET_PATH_PARTS = {".git", ".beads", ".orchestration-audit"}
+BLOCKED_PACKET_FILE_NAMES = {
+    ".env",
+    ".env.local",
+    ".env.production",
+    ".envrc",
+    "id_rsa",
+    "id_ed25519",
+}
+BLOCKED_PACKET_SUFFIXES = {".pem", ".key", ".p12", ".pfx"}
+
+
+def repo_relative_path(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(REPO_ROOT).as_posix()
+    except ValueError as exc:
+        raise SystemExit(f"refusing path outside repository: {path}") from exc
+
+
+def assert_repo_safe_path(path: Path) -> Path:
+    resolved = path.resolve()
+    relative = Path(repo_relative_path(resolved))
+    parts = set(relative.parts)
+    blocked_parts = sorted(parts & BLOCKED_PACKET_PATH_PARTS)
+    if blocked_parts:
+        raise SystemExit(f"refusing forbidden packet path component: {', '.join(blocked_parts)}")
+    lowered_parts = {part.lower() for part in relative.parts}
+    name = resolved.name.lower()
+    if name in BLOCKED_PACKET_FILE_NAMES:
+        raise SystemExit(f"refusing likely secret file in packet: {relative.as_posix()}")
+    if ".kube" in lowered_parts and name == "config":
+        raise SystemExit(f"refusing kube config in packet: {relative.as_posix()}")
+    if resolved.suffix.lower() in BLOCKED_PACKET_SUFFIXES:
+        raise SystemExit(f"refusing private key or certificate bundle in packet: {relative.as_posix()}")
+    if not resolved.is_file():
+        raise SystemExit(f"packet artifact is not a regular file: {relative.as_posix()}")
+    probe = resolved.read_bytes()[:4096]
+    if b"\0" in probe:
+        raise SystemExit(f"refusing binary packet artifact: {relative.as_posix()}")
+    return resolved
 
 
 def load_json_compatible_yaml(path: Path) -> dict[str, Any]:
@@ -283,6 +324,45 @@ def score_executors(
     return results
 
 
+def select_executor_for_expert(
+    expert: dict[str, Any],
+    *,
+    text: str,
+    risk: str,
+    sensitivity: str,
+    share_boundary: str,
+    external_ok: bool,
+    unattended: bool = False,
+) -> dict[str, Any]:
+    ranked = score_executors(
+        task_class=expert.get("task_class", "domain-review"),
+        risk=rank_max([risk, expert.get("default_risk", "medium")], RISK_ORDER, "low"),
+        sensitivity=sensitivity,
+        share_boundary=share_boundary,
+        external_ok=external_ok,
+        experts=[expert],
+        text=" ".join(
+            str(part)
+            for part in [
+                text,
+                expert.get("discipline", ""),
+                expert.get("review_stage", ""),
+                expert.get("job_description_label", ""),
+            ]
+            if part
+        ),
+        unattended=unattended,
+    )
+    viable = [item for item in ranked if not item["policy_violations"]]
+    selected = viable[0] if viable else ranked[0]
+    return {
+        "recommended_executor": selected["key"],
+        "selected_executor": selected,
+        "executor_policy_violations": selected.get("policy_violations", []),
+        "executor_candidates": ranked,
+    }
+
+
 def classify_work(
     text: str,
     *,
@@ -307,9 +387,25 @@ def classify_work(
     sensitivity = detect_sensitivity(text, routing)
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
     risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
+    enriched_experts: list[dict[str, Any]] = []
+    for expert in experts:
+        expert_result = dict(expert)
+        expert_result.update(
+            select_executor_for_expert(
+                expert,
+                text=text,
+                risk=risk,
+                sensitivity=dispatch_sensitivity,
+                share_boundary=share_boundary,
+                external_ok=external_ok,
+                unattended=unattended,
+            )
+        )
+        enriched_experts.append(expert_result)
+    experts = enriched_experts
     primary = experts[0] if experts else {}
     task_class = primary.get("task_class", routing.get("defaults", {}).get("task_class", "implementation"))
-    ranked_executors = score_executors(
+    ranked_executors = primary.get("executor_candidates") or score_executors(
         task_class=task_class,
         risk=risk,
         sensitivity=dispatch_sensitivity,
@@ -319,9 +415,8 @@ def classify_work(
         text=text,
         unattended=unattended,
     )
-    viable = [item for item in ranked_executors if not item["policy_violations"]]
-    selected = viable[0] if viable else ranked_executors[0]
-    recommended_executor = selected["key"]
+    selected = primary.get("selected_executor") or ranked_executors[0]
+    recommended_executor = primary.get("recommended_executor", selected["key"])
 
     dispatch_mode = selected.get("dispatch_mode")
     if selected.get("external"):
@@ -410,22 +505,134 @@ def artifact_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def load_expert_profile(persona_file: str | None) -> dict[str, str]:
+    if not persona_file:
+        return {}
+    safe_path = assert_repo_safe_path(REPO_ROOT / persona_file)
+    content = safe_path.read_text(encoding="utf-8")
+    return {
+        "path": repo_relative_path(safe_path),
+        "sha256": artifact_hash(content),
+        "content": content,
+    }
+
+
 def file_snippet(path: Path, *, max_lines: int) -> dict[str, Any]:
-    repo_path = path.resolve()
-    try:
-        relative = repo_path.relative_to(REPO_ROOT)
-    except ValueError:
-        raise SystemExit(f"refusing snippet outside repository: {path}")
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    repo_path = assert_repo_safe_path(path)
+    relative = repo_relative_path(repo_path)
+    lines = repo_path.read_text(encoding="utf-8", errors="replace").splitlines()
     selected = "\n".join(lines[:max_lines])
     redacted = redact_text(selected)
     return {
         "type": "selected_file_snippet",
-        "path": str(relative),
+        "path": relative,
         "line_count": min(len(lines), max_lines),
         "truncated": len(lines) > max_lines,
         "sha256": artifact_hash(redacted),
         "content": redacted,
+    }
+
+
+def load_contracting_controls() -> dict[str, Any]:
+    return load_policy("contracting-controls")
+
+
+def executor_external(executor_key: str) -> bool:
+    executor = load_policy("executor-registry").get("executors", {}).get(executor_key)
+    if not isinstance(executor, dict):
+        raise SystemExit(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
+    return bool(executor.get("external"))
+
+
+def executor_dispatch_mode(executor_key: str) -> str:
+    executor = load_policy("executor-registry").get("executors", {}).get(executor_key)
+    if not isinstance(executor, dict):
+        raise SystemExit(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
+    return str(executor.get("dispatch_mode", ""))
+
+
+def iter_audit_events(audit_file: Path | None = None) -> list[dict[str, Any]]:
+    audit_file = audit_file or AUDIT_LOG
+    if not audit_file.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    for line in audit_file.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            events.append(value)
+    return events
+
+
+def count_audit_events(
+    event_type: str,
+    epic_id: str | None,
+    executor_external: bool,
+    *,
+    ignore_dispatch_id: str | None = None,
+) -> int:
+    unique_dispatches: set[str] = set()
+    for event in iter_audit_events():
+        if event.get("quota_event_type") != event_type:
+            continue
+        event_epic = event.get("epic_id")
+        if epic_id is None:
+            if event_epic not in [None, ""]:
+                continue
+        elif event_epic != epic_id:
+            continue
+        if bool(event.get("executor_external")) != executor_external:
+            continue
+        dispatch_id = str(event.get("dispatch_id") or event.get("event_hash") or json.dumps(event, sort_keys=True))
+        if ignore_dispatch_id and dispatch_id == ignore_dispatch_id:
+            continue
+        unique_dispatches.add(dispatch_id)
+    return len(unique_dispatches)
+
+
+def enforce_contracting_quota(
+    epic_id: str | None,
+    executor: str,
+    route: str,
+    *,
+    dispatch_id: str | None = None,
+) -> dict[str, Any]:
+    controls = load_contracting_controls()
+    quotas = controls.get("quota_policy", {})
+    is_external = executor_external(executor)
+    dispatch_mode = executor_dispatch_mode(executor)
+    if is_external:
+        quota_key = "external_manual_dispatches_per_epic"
+        quota_event_type = "external_manual_dispatch"
+    elif route == "local-worker" or dispatch_mode == "local_openai_compatible":
+        quota_key = "local_worker_dispatches_per_epic"
+        quota_event_type = "local_worker_dispatch"
+    else:
+        return {
+            "quota_checked": False,
+            "quota_event_type": None,
+            "quota_limit": None,
+            "quota_remaining": None,
+            "executor_external": is_external,
+        }
+    limit = int(quotas.get(quota_key, 0))
+    if limit <= 0:
+        raise SystemExit(f"quota {quota_key} is not configured")
+    used = count_audit_events(quota_event_type, epic_id, is_external, ignore_dispatch_id=dispatch_id)
+    remaining_before = limit - used
+    if remaining_before <= 0:
+        scope = epic_id or "global"
+        raise SystemExit(f"{quota_key} exhausted for {scope}: used {used} of {limit}")
+    return {
+        "quota_checked": True,
+        "quota_event_type": quota_event_type,
+        "quota_limit": limit,
+        "quota_remaining": remaining_before - 1,
+        "executor_external": is_external,
     }
 
 

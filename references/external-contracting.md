@@ -39,6 +39,11 @@ The helpers are gates, not authority. If a helper recommends an external
 contract but the user has not opted in or the share boundary is unclear, do not
 export context.
 
+Generated contractor packets include the matched Distinguished Engineer profile
+by default. That profile is part of the contract artifact and gives the outside
+model the operating lens for the assigned discipline. A packet generated without
+the profile is degraded and must be justified in the Beads handoff.
+
 ## Invocation Patterns
 
 Full scaffold:
@@ -273,6 +278,8 @@ python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
+  --external-ok \
+  --epic <epic-id> \
   --format json \
   --output contractor-packet.json
 ```
@@ -289,28 +296,35 @@ python3 scripts/build_contractor_packet.py \
    python3 scripts/build_contractor_packet.py \
      --bead <id> \
      --share-boundary <mode> \
+     --external-ok \
+     --epic <epic-id> \
      --format json \
      --output contractor-packet.json
    ```
 
-5. PM gives the contractor `references/contractor-brief.md`, the packet, and
+   Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is
+   recorded in a local audit note.
+
+5. PM verifies the packet includes the expert profile, opt-in basis, quota
+   metadata, and only safe redacted snippets.
+6. PM gives the contractor `references/contractor-brief.md`, the packet, and
    the bead assignment.
-6. PM generates a manual dispatch prompt and audit event:
+7. PM generates a manual dispatch prompt and audit event:
 
    ```bash
    python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
    ```
 
-7. Contractor returns a Beads comment or patch branch.
-8. PM checks the return format and evidence:
+8. Contractor returns a Beads comment or patch branch.
+9. PM checks the return format and evidence:
 
    ```bash
    python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
    ```
 
-9. Architect reviews findings and decides what to accept, reject, or convert
+10. Architect reviews findings and decides what to accept, reject, or convert
    into Codex workerbee tasks.
-10. PM updates dependencies and ready-work state.
+11. PM updates dependencies and ready-work state.
 
 ## Codex Worker Filters
 
