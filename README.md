@@ -355,3 +355,8 @@ Escalation needed:
 ## Reference
 
 See `references/external-contracting.md` for a more detailed operator guide.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 only
+(`GPL-3.0-only`). See `LICENSE`.
