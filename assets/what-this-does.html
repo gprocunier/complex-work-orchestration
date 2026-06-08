@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Complex Work Orchestration</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f7f4;
+      --fg: #1f2328;
+      --muted: #5d6673;
+      --panel: #ffffff;
+      --line: #d7d9dd;
+      --accent: #0f766e;
+      --code: #eef2f2;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #151719;
+        --fg: #e6e8ea;
+        --muted: #aeb6bf;
+        --panel: #1f2327;
+        --line: #363c43;
+        --accent: #5eead4;
+        --code: #2a3035;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(960px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 40px 0 56px;
+    }
+
+    header {
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 24px;
+    }
+
+    h1,
+    h2 {
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 1.15rem;
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    ul {
+      margin: 0 0 16px 1.2rem;
+      padding: 0;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    .lead {
+      max-width: 780px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin: 16px 0 6px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 150px;
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+    }
+
+    code,
+    pre {
+      background: var(--code);
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    code {
+      padding: 0.1rem 0.3rem;
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Complex Work Orchestration</h1>
+      <p class="lead">
+        A Codex skill for turning large, risky, or multi-session work into a controlled
+        Mixture of Experts operating model with durable handoffs.
+      </p>
+    </header>
+
+    <section>
+      <h2>What This Does</h2>
+      <p>
+        <code>complex-work-orchestration</code> is for projects that are too large,
+        stateful, or coordination-heavy for a single chat thread. It helps structure
+        multi-session work, parallel investigations, contractor handoffs, lab or release
+        work, and tasks that need durable tracking.
+      </p>
+    </section>
+
+    <section>
+      <h2>Mixture Of Experts Model</h2>
+      <p>
+        The skill separates responsibilities into explicit roles so agents do not all
+        improvise on the whole project. Each expert gets a defined lane, scope, expected
+        output, validation requirement, and escalation rule.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <strong>Architect</strong>
+          Owns decomposition, technical judgment, integration, acceptance, and final
+          decisions.
+        </div>
+        <div class="card">
+          <strong>Project Manager</strong>
+          Keeps the work graph clean, tracks dependencies, status, assignments, blockers,
+          and handoffs.
+        </div>
+        <div class="card">
+          <strong>Workerbees</strong>
+          Handle bounded implementation, research, test triage, validation, and evidence
+          gathering.
+        </div>
+        <div class="card">
+          <strong>Outside Contractor</strong>
+          Claude or another LLM/agent that receives a narrow assignment and reports back
+          through the agreed handoff path.
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Outside Contracting</h2>
+      <p>
+        Outside agents are treated like contractors, not project owners. They receive one
+        explicit task at a time, usually backed by a Beads issue. Each contract carries
+        a job-description label such as <code>contract-jd-general-reasoning</code>,
+        <code>contract-jd-security-reasoning</code>, or
+        <code>contract-jd-architecture-reasoning</code> so the outside model knows
+        which reasoning lens it is being hired to apply. The contractor receives
+        <code>interaction.html</code> as the briefing document plus the specific
+        assignment.
+      </p>
+
+      <p>A contractor assignment should include:</p>
+      <ul>
+        <li>purpose and scope</li>
+        <li>job-description label and discipline lens</li>
+        <li>allowed files or areas</li>
+        <li>things not to touch</li>
+        <li>expected deliverable</li>
+        <li>validation required</li>
+        <li>escalation triggers</li>
+        <li>handoff format</li>
+      </ul>
+
+      <p>
+        Contractors should not re-plan the project, close parent epics, publish releases,
+        touch secrets, or run destructive commands. Their job is to return focused work,
+        evidence, alternatives considered, risks, confidence, and blockers.
+      </p>
+    </section>
+
+    <section>
+      <h2>Durable Coordination</h2>
+      <p>
+        When Beads is available, the skill uses <code>bd</code> as the shared work graph:
+        epics, tasks, dependencies, comments, status, and ready work. When Beads is not
+        installed, the skill still works using Markdown handoff state, with less durability.
+      </p>
+    </section>
+
+    <section>
+      <h2>Documentation</h2>
+      <p>
+        Start with <code>README.md</code> for invocation, flow, external contracting,
+        job-description labels, and Beads requirements. Use
+        <code>references/external-contracting.md</code> for the detailed operator guide
+        to posting outside model contracts.
+      </p>
+    </section>
+
+    <section>
+      <h2>How It Gets Invoked</h2>
+      <p>Invoke it explicitly with:</p>
+      <pre><code>Use $complex-work-orchestration to scaffold this project.</code></pre>
+      <p>
+        It should also trigger naturally when a request mentions Mixture of Experts,
+        project manager, workerbees, Claude contractor handoff, Beads work graph,
+        durable handoff, or complex multi-agent work.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
