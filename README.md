@@ -134,7 +134,7 @@ flowchart TD
 
     Create --> Guard[Add contractor-only and no-codex-exec labels]
     Guard --> Metadata[Add executor, codex_pickup, discipline, share_boundary metadata]
-    Metadata --> PMPacket[PM prepares packet with bd show output and interaction.html]
+    Metadata --> PMPacket[PM prepares packet with bd show output and contractor brief]
     PMPacket --> Outside[Outside model performs assigned review]
     Outside --> Return[Return Beads comment or patch branch]
     Return --> Architect[Architect reviews output]
@@ -321,7 +321,7 @@ Codex handling rule: Codex agents may coordinate, brief, and review this bead, b
 Give the outside model:
 
 - the assigned bead ID and `bd show <id> --json` output
-- `assets/interaction.html`
+- `references/contractor-brief.md`
 - the job-description label and discipline lens
 - allowed files, forbidden files, and sharing boundary
 - expected output and handoff format
@@ -355,6 +355,8 @@ Escalation needed:
 ## Reference
 
 See `references/external-contracting.md` for a more detailed operator guide.
+Use `references/contractor-brief.md` as the reusable assignment brief for
+outside model contractors.
 
 ## License
 

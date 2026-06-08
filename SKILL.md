@@ -42,8 +42,8 @@ target:
 ./scripts/install.sh --skills-dir /path/to/codex/skills --yes
 ```
 
-The installer does not build a tarball. It copies `README.md`, `SKILL.md`,
-`agents/`, `assets/`, `references/`, and `scripts/` into the selected skills
+The installer does not build a tarball. It copies `README.md`, `LICENSE`,
+`SKILL.md`, `agents/`, `references/`, and `scripts/` into the selected skills
 directory. It checks for the Beads CLI (`bd`) and never treats a missing Beads
 install as fatal. On Fedora/RPM-style hosts it prints package-install guidance,
 including the public `greg-at-redhat/beads` COPR as a fallback when the user
@@ -56,8 +56,8 @@ the skill installed.
 Use `README.md` as the human-facing operating guide for invocation, flow,
 external contracting, job-description labels, and Beads requirements. Use
 `references/external-contracting.md` when posting or reviewing outside model
-contracts. Use `assets/interaction.html` as the briefing artifact given to an
-outside contractor with a specific Beads assignment.
+contracts. Use `references/contractor-brief.md` as the briefing artifact given
+to an outside contractor with a specific Beads assignment.
 
 ## Role Model
 
@@ -222,7 +222,7 @@ recommended next actions.
 ## Contractor Interaction
 
 For Claude or another outside agent, use
-`assets/interaction.html` as the reusable briefing artifact. Provide the
+`references/contractor-brief.md` as the reusable briefing artifact. Provide the
 contractor with the file plus a specific bead assignment. The assignment packet
 must name the job-description label and the discipline-specific review lens.
 

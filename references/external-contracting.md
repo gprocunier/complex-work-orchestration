@@ -245,8 +245,8 @@ or close it as contractor work."
    bd show <id> --json
    ```
 
-4. PM gives the contractor `assets/interaction.html`, the packet, and the bead
-   assignment.
+4. PM gives the contractor `references/contractor-brief.md`, the packet, and
+   the bead assignment.
 5. Contractor returns a Beads comment or patch branch.
 6. Architect reviews findings and decides what to accept, reject, or convert
    into Codex workerbee tasks.
