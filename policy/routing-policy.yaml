@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "defaults": {
+    "share_boundary": "no-outside-sharing",
+    "task_class": "implementation",
+    "risk_level": "low",
+    "data_sensitivity": "internal",
+    "recommended_executor": "internal_worker",
+    "beads_required_for_full_handoff": true
+  },
+  "route_classes": {
+    "in-thread": {
+      "description": "Small single-thread work that does not need durable coordination."
+    },
+    "internal-worker": {
+      "description": "Normal Codex-executable work. Contractor-only labels must not be present."
+    },
+    "architect-review": {
+      "description": "High-risk or cross-cutting reasoning that needs architect judgment before worker execution."
+    },
+    "external-contract": {
+      "description": "Outside model contract with explicit user opt-in, share boundary, guard labels, and architect review."
+    }
+  },
+  "restricted_terms": [
+    "secret value",
+    "credential value",
+    "password value",
+    "password=",
+    "private key",
+    "api key",
+    "access key",
+    "token=",
+    "-----begin",
+    "production access",
+    "personal data"
+  ],
+  "external_contract_guard_labels": [
+    "contractor-only",
+    "no-codex-exec"
+  ],
+  "architect_review_required_for": [
+    "external-contract",
+    "architect-review",
+    "high",
+    "critical"
+  ]
+}

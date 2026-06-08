@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "contractor_return_required_sections": [
+    "Status",
+    "Contractor job description",
+    "Summary",
+    "Validation result",
+    "Evidence",
+    "Alternatives considered",
+    "Confidence",
+    "Risks or gaps",
+    "Recommended next bead",
+    "Escalation needed"
+  ],
+  "architect_review": {
+    "required_for_external_contracts": true,
+    "accepted_findings_become": "normal Codex-executable follow-up beads",
+    "rejected_findings_require": "brief evidence note and no implementation dependency"
+  },
+  "rubric": [
+    "The output stays inside the assigned bead and job-description label.",
+    "Claims cite evidence from code, commands, docs, or explicit inference.",
+    "Validation status is explicit and reproducible enough for the architect to check.",
+    "Residual risks and missing context are named.",
+    "Recommended next action is concrete enough to become a Beads task."
+  ]
+}

@@ -19,6 +19,22 @@ a Beads task with:
 Codex can coordinate, brief, and review contractor beads. Codex must not execute
 or close them as if they were normal ready work.
 
+## Policy Control Plane
+
+Use the policy files as the source of truth for contractor routing:
+
+- `policy/routing-policy.yaml`: route classes, guard labels, and restricted
+  terms.
+- `policy/executor-registry.yaml`: registered internal and outside executors.
+- `policy/expert-registry.yaml`: discipline triggers, job-description labels,
+  and expected reasoning lenses.
+- `policy/share-boundaries.yaml`: allowed sharing modes.
+- `policy/acceptance-policy.yaml`: required contractor return sections.
+
+The helpers are gates, not authority. If a helper recommends an external
+contract but the user has not opted in or the share boundary is unclear, do not
+export context.
+
 ## Invocation Patterns
 
 Full scaffold:
@@ -69,6 +85,17 @@ Interpret the answer conservatively:
 
 Never share secrets, private credentials, production access, or unreleased
 third-party material unless the user explicitly authorizes that exact sharing.
+
+Run the route twice when needed: first with the default no-sharing boundary, then
+again after the user has explicitly approved a boundary:
+
+```bash
+python3 scripts/route_work.py "<task text>"
+python3 scripts/route_work.py \
+  --external-ok \
+  --share-boundary redacted-packet \
+  "<task text>"
+```
 
 ## Beads Setup
 
@@ -235,22 +262,39 @@ Codex agents may coordinate, brief, and review this bead, but must not execute
 or close it as contractor work."
 ```
 
+For generated packets, create the contractor Bead first, then run:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor external_security_reviewer \
+  --share-boundary redacted-packet
+```
+
 ## Dispatch Flow
 
-1. PM confirms sharing boundary.
-2. PM creates the contractor bead with labels and metadata.
-3. PM prepares the packet:
+1. PM classifies the work with `scripts/route_work.py`.
+2. PM confirms sharing boundary.
+3. PM creates the contractor bead with labels and metadata.
+4. PM prepares the packet:
 
    ```bash
    bd show <id> --json
+   python3 scripts/build_contractor_packet.py --bead <id> --share-boundary <mode>
    ```
 
-4. PM gives the contractor `references/contractor-brief.md`, the packet, and
+5. PM gives the contractor `references/contractor-brief.md`, the packet, and
    the bead assignment.
-5. Contractor returns a Beads comment or patch branch.
-6. Architect reviews findings and decides what to accept, reject, or convert
+6. Contractor returns a Beads comment or patch branch.
+7. PM checks the return format:
+
+   ```bash
+   python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
+   ```
+
+8. Architect reviews findings and decides what to accept, reject, or convert
    into Codex workerbee tasks.
-7. PM updates dependencies and ready-work state.
+9. PM updates dependencies and ready-work state.
 
 ## Codex Worker Filters
 

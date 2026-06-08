@@ -1,4 +1,4 @@
 interface:
   display_name: "Complex Work Orchestration"
-  short_description: "MoE harness for large work"
-  default_prompt: "Use $complex-work-orchestration to scaffold this complex project with architect, project-manager, workerbee, job-description contractor, and Beads coordination lanes."
+  short_description: "Policy-routed MoE harness for large work"
+  default_prompt: "Use $complex-work-orchestration to classify this complex project, scaffold Beads lanes, and route architect, project-manager, workerbee, expert-review, and outside-contractor work through the policy control plane."

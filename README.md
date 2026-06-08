@@ -37,7 +37,9 @@ You can also point it at a Codex home:
 ```
 
 The installer copies the skill files directly into the selected skills
-directory. It does not build or require a tarball.
+directory: `README.md`, `LICENSE`, `SKILL.md`, `agents/`, `policy/`,
+`templates/`, `experts/`, `references/`, and `scripts/`. It does not build or
+require a tarball.
 
 ## Invocation
 
@@ -55,6 +57,47 @@ The skill should also be used for requests that mention:
 - Beads work graphs
 - durable handoff or multi-session coordination
 - broad review, release, lab, production, or publication risk
+
+## Policy Control Plane
+
+The skill is organized as a small control plane over Beads. The Markdown files
+teach the operator-facing flow; the JSON-compatible YAML policy files make the
+same flow inspectable by helper scripts without adding a Python dependency.
+
+Core policy files:
+
+- `policy/routing-policy.yaml`: route classes, restricted terms, default route,
+  and contractor guard labels.
+- `policy/executor-registry.yaml`: internal and outside executor capabilities,
+  opt-in requirements, and Codex pickup rules.
+- `policy/expert-registry.yaml`: discipline profiles, trigger terms,
+  job-description labels, and expected output lenses.
+- `policy/share-boundaries.yaml`: allowed third-party sharing modes and
+  never-share categories.
+- `policy/acceptance-policy.yaml`: contractor return sections and architect
+  review rules.
+
+Helper scripts:
+
+- `scripts/route_work.py`: classify a request against the policy.
+- `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and lane
+  tasks.
+- `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
+  Beads from routing triggers.
+- `scripts/build_contractor_packet.py`: generate a gated outside-contractor
+  packet for one Bead.
+- `scripts/evaluate_return.py`: check contractor returns for required sections.
+- `scripts/summarize_resume_state.py`: print Beads resume commands and current
+  graph state.
+
+Example route check:
+
+```bash
+python3 scripts/route_work.py \
+  --external-ok \
+  --share-boundary redacted-packet \
+  "Security review the auth token and shell command handling."
+```
 
 ## Diagrams
 
@@ -89,6 +132,34 @@ flowchart TD
     Beads --> Review
     Review --> Followup[Accepted follow-up beads]
     Followup --> WorkerReady
+```
+
+### Policy Routing
+
+```mermaid
+flowchart TD
+    Request[User request] --> Classifier[route_work.py]
+    Classifier --> Routing[policy/routing-policy.yaml]
+    Classifier --> Experts[policy/expert-registry.yaml]
+    Classifier --> Share[policy/share-boundaries.yaml]
+    Classifier --> Executors[policy/executor-registry.yaml]
+
+    Routing --> Decision{Route class}
+    Experts --> Decision
+    Share --> Gate{External allowed?}
+    Executors --> Gate
+
+    Decision -->|internal-worker| Worker[Normal Codex-executable Beads]
+    Decision -->|architect-review| Architect[Architect review Beads]
+    Decision -->|external-contract| Gate
+
+    Gate -->|No| Architect
+    Gate -->|Yes| Contract[Contractor-only Bead]
+    Contract --> Guard[contractor-only + no-codex-exec + one job-description label]
+    Guard --> Packet[build_contractor_packet.py]
+    Packet --> Outside[Outside model contractor]
+    Outside --> Return[evaluate_return.py]
+    Return --> Architect
 ```
 
 ### Invocation Flow
@@ -163,7 +234,13 @@ flowchart LR
 
 1. Decide whether the work is small enough to stay in-thread or needs the
    orchestration harness.
-2. If outside contracting may help, ask the third-party collaboration question:
+2. Classify non-trivial work against the policy:
+
+   ```bash
+   python3 scripts/route_work.py "<task text>"
+   ```
+
+3. If outside contracting may help, ask the third-party collaboration question:
 
    ```text
    Should this project use a third-party model contractor for deep reasoning? If
@@ -171,16 +248,18 @@ flowchart LR
    or no outside sharing?
    ```
 
-3. Check Beads and initialize or sync the work graph.
-4. Create one epic for the project goal.
-5. Create role/lane tasks under the epic: architect framing, PM coordination,
+4. If the answer permits outside sharing, re-run the route with `--external-ok`
+   and the selected `--share-boundary`.
+5. Check Beads and initialize or sync the work graph.
+6. Create one epic for the project goal.
+7. Create role/lane tasks under the epic: architect framing, PM coordination,
    workerbee work, validation, docs/handoff, and any outside contracts.
-6. For outside work, post contractor-only beads with job-description labels.
-7. PM prepares the contractor packet and dispatches the outside model.
-8. The outside model returns findings through Beads comments or a patch branch.
-9. The architect reviews contractor findings before Codex workers implement
+8. For outside work, post contractor-only beads with job-description labels.
+9. PM prepares the contractor packet and dispatches the outside model.
+10. The outside model returns findings through Beads comments or a patch branch.
+11. The architect reviews contractor findings before Codex workers implement
    follow-up work or before release decisions are made.
-10. PM keeps dependencies, status, blockers, and resume instructions current.
+12. PM keeps dependencies, status, blockers, and resume instructions current.
 
 ## Beads Requirement
 
@@ -234,6 +313,11 @@ bd show <id> --json
 Outside models are contractors, not project owners. They receive one explicit
 bead at a time. They do not re-plan the project, close parent epics, publish,
 release, tag, rotate secrets, or run destructive commands.
+
+External contracting is fail-closed. A contractor packet is only valid when the
+user has opted in, the selected share boundary allows outside work, the Bead has
+`contractor-only` and `no-codex-exec`, and an architect review is required
+before any finding becomes implementation work.
 
 Use outside contracts for work that benefits from an independent reasoning lens:
 
@@ -328,6 +412,15 @@ Give the outside model:
 - validation expectations
 - escalation triggers
 
+The packet can be generated after the contractor Bead exists:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor external_security_reviewer \
+  --share-boundary redacted-packet
+```
+
 Do not ask outside models for raw chain-of-thought. Ask for conclusions,
 assumptions, evidence, alternatives considered, risks, confidence, and
 recommended next actions.
@@ -357,6 +450,8 @@ Escalation needed:
 See `references/external-contracting.md` for a more detailed operator guide.
 Use `references/contractor-brief.md` as the reusable assignment brief for
 outside model contractors.
+Use `policy/`, `templates/`, and `experts/` as the source of truth for route
+classification, job-description calibration, and reusable Beads bodies.
 
 ## License
 

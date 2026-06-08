@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "executors": {
+    "frontier_architect": {
+      "display_name": "Frontier architect",
+      "venue": "codex-main-thread",
+      "role": "architect",
+      "external": false,
+      "task_classes": [
+        "architecture",
+        "acceptance",
+        "release",
+        "conflict-resolution",
+        "high-risk-review"
+      ],
+      "max_risk": "critical",
+      "max_data_sensitivity": "restricted",
+      "explicit_opt_in_required": false,
+      "architect_review_required": false,
+      "codex_pickup": "allowed"
+    },
+    "internal_worker": {
+      "display_name": "Internal Codex workerbee",
+      "venue": "codex-worker",
+      "role": "workerbee",
+      "external": false,
+      "task_classes": [
+        "implementation",
+        "validation",
+        "docs",
+        "research",
+        "focused-review"
+      ],
+      "max_risk": "medium",
+      "max_data_sensitivity": "internal",
+      "explicit_opt_in_required": false,
+      "architect_review_required": true,
+      "codex_pickup": "allowed"
+    },
+    "local_low_cost_worker": {
+      "display_name": "Local low-cost worker",
+      "venue": "local-inference",
+      "role": "classifier",
+      "external": false,
+      "task_classes": [
+        "summarization",
+        "classification",
+        "low-risk-docs"
+      ],
+      "max_risk": "low",
+      "max_data_sensitivity": "internal",
+      "explicit_opt_in_required": false,
+      "architect_review_required": true,
+      "codex_pickup": "allowed"
+    },
+    "external_reasoner": {
+      "display_name": "Outside general reasoner",
+      "venue": "outside-contractor",
+      "role": "outside-contractor",
+      "external": true,
+      "task_classes": [
+        "general-review",
+        "architecture-review",
+        "reliability-review",
+        "performance-review",
+        "docs-review",
+        "domain-review"
+      ],
+      "max_risk": "high",
+      "max_data_sensitivity": "redacted",
+      "explicit_opt_in_required": true,
+      "architect_review_required": true,
+      "codex_pickup": "forbidden"
+    },
+    "external_security_reviewer": {
+      "display_name": "Outside security reasoner",
+      "venue": "outside-contractor",
+      "role": "outside-contractor",
+      "external": true,
+      "task_classes": [
+        "security-review"
+      ],
+      "max_risk": "high",
+      "max_data_sensitivity": "redacted",
+      "explicit_opt_in_required": true,
+      "architect_review_required": true,
+      "codex_pickup": "forbidden"
+    }
+  }
+}

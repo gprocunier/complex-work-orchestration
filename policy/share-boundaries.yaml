@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "boundaries": {
+    "no-outside-sharing": {
+      "allows_external": false,
+      "allows_repo_access": false,
+      "allows_patches": false,
+      "description": "No third-party model receives project context. Keep review inside Codex or local tools."
+    },
+    "redacted-packet": {
+      "allows_external": true,
+      "allows_repo_access": false,
+      "allows_patches": false,
+      "description": "Share only a prepared packet, selected snippets, and sanitized evidence. No secrets or private operational context."
+    },
+    "repo-readonly": {
+      "allows_external": true,
+      "allows_repo_access": true,
+      "allows_patches": false,
+      "description": "The outside contractor may inspect the repo read-only and return findings through Beads."
+    },
+    "patch-branch": {
+      "allows_external": true,
+      "allows_repo_access": true,
+      "allows_patches": true,
+      "description": "The outside contractor may prepare a focused patch branch when the assigned bead explicitly allows code changes."
+    }
+  },
+  "never_share": [
+    "secrets",
+    "private credentials",
+    "production access material",
+    "unreleased third-party content",
+    "personal data not already authorized for the contractor"
+  ]
+}

@@ -1,0 +1,209 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "experts": {
+    "general_reasoning": {
+      "display_name": "General reasoning reviewer",
+      "discipline": "general",
+      "job_description_label": "contract-jd-general-reasoning",
+      "task_class": "general-review",
+      "default_risk": "medium",
+      "default_share_boundary": "redacted-packet",
+      "preferred_external_executor": "external_reasoner",
+      "trigger_terms": [
+        "second opinion",
+        "independent review",
+        "tradeoff",
+        "assumption",
+        "failure mode",
+        "alternative"
+      ],
+      "output_focus": [
+        "assumptions",
+        "tradeoffs",
+        "failure modes",
+        "alternatives",
+        "confidence",
+        "next actions"
+      ]
+    },
+    "security": {
+      "display_name": "Security-focused reviewer",
+      "discipline": "security",
+      "job_description_label": "contract-jd-security-reasoning",
+      "task_class": "security-review",
+      "default_risk": "high",
+      "default_share_boundary": "redacted-packet",
+      "preferred_external_executor": "external_security_reviewer",
+      "trigger_terms": [
+        "security",
+        "threat",
+        "auth",
+        "authn",
+        "authz",
+        "credential",
+        "secret",
+        "token",
+        "privilege",
+        "injection",
+        "shell",
+        "deserialization",
+        "supply-chain",
+        "dependency",
+        "sandbox"
+      ],
+      "output_focus": [
+        "threat model",
+        "trust boundaries",
+        "privilege and identity",
+        "input handling",
+        "secret exposure",
+        "dependency risk",
+        "mitigations"
+      ]
+    },
+    "networking": {
+      "display_name": "Networking reviewer",
+      "discipline": "networking",
+      "job_description_label": "contract-jd-domain-networking",
+      "task_class": "domain-review",
+      "default_risk": "medium",
+      "default_share_boundary": "redacted-packet",
+      "preferred_external_executor": "external_reasoner",
+      "trigger_terms": [
+        "network",
+        "dns",
+        "proxy",
+        "ingress",
+        "egress",
+        "socket",
+        "timeout",
+        "tls",
+        "firewall",
+        "route",
+        "vpn"
+      ],
+      "output_focus": [
+        "connectivity assumptions",
+        "failure modes",
+        "timeouts",
+        "routing",
+        "TLS evidence",
+        "rollback"
+      ]
+    },
+    "storage": {
+      "display_name": "Storage reviewer",
+      "discipline": "storage",
+      "job_description_label": "contract-jd-domain-storage",
+      "task_class": "domain-review",
+      "default_risk": "medium",
+      "default_share_boundary": "redacted-packet",
+      "preferred_external_executor": "external_reasoner",
+      "trigger_terms": [
+        "storage",
+        "disk",
+        "volume",
+        "filesystem",
+        "migration",
+        "backup",
+        "restore",
+        "snapshot",
+        "database",
+        "persistence"
+      ],
+      "output_focus": [
+        "data durability",
+        "migration risk",
+        "backup and restore",
+        "state transitions",
+        "corruption risk",
+        "recovery evidence"
+      ]
+    },
+    "compute": {
+      "display_name": "Compute and runtime reviewer",
+      "discipline": "compute",
+      "job_description_label": "contract-jd-domain-compute",
+      "task_class": "domain-review",
+      "default_risk": "medium",
+      "default_share_boundary": "redacted-packet",
+      "preferred_external_executor": "external_reasoner",
+      "trigger_terms": [
+        "cpu",
+        "gpu",
+        "memory",
+        "runtime",
+        "container",
+        "kubernetes",
+        "openshift",
+        "systemd",
+        "kernel",
+        "process"
+      ],
+      "output_focus": [
+        "runtime constraints",
+        "resource pressure",
+        "isolation",
+        "scheduling",
+        "failure recovery",
+        "operational evidence"
+      ]
+    },
+    "coding_quality": {
+      "display_name": "Code quality reviewer",
+      "discipline": "coding-quality",
+      "job_description_label": "contract-jd-domain-coding-quality",
+      "task_class": "domain-review",
+      "default_risk": "medium",
+      "default_share_boundary": "redacted-packet",
+      "preferred_external_executor": "external_reasoner",
+      "trigger_terms": [
+        "refactor",
+        "api",
+        "compatibility",
+        "maintainability",
+        "test coverage",
+        "regression",
+        "edge case",
+        "interface"
+      ],
+      "output_focus": [
+        "maintainability",
+        "compatibility",
+        "edge cases",
+        "test gaps",
+        "regression risk",
+        "simpler alternatives"
+      ]
+    },
+    "documentation": {
+      "display_name": "Documentation reviewer",
+      "discipline": "documentation",
+      "job_description_label": "contract-jd-docs-reasoning",
+      "task_class": "docs-review",
+      "default_risk": "low",
+      "default_share_boundary": "redacted-packet",
+      "preferred_external_executor": "external_reasoner",
+      "trigger_terms": [
+        "docs",
+        "documentation",
+        "readme",
+        "guide",
+        "operator",
+        "install",
+        "publish",
+        "public",
+        "sanitized"
+      ],
+      "output_focus": [
+        "correctness",
+        "audience fit",
+        "missing warnings",
+        "examples",
+        "publishability",
+        "support burden"
+      ]
+    }
+  }
+}

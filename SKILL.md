@@ -43,8 +43,9 @@ target:
 ```
 
 The installer does not build a tarball. It copies `README.md`, `LICENSE`,
-`SKILL.md`, `agents/`, `references/`, and `scripts/` into the selected skills
-directory. It checks for the Beads CLI (`bd`) and never treats a missing Beads
+`SKILL.md`, `agents/`, `policy/`, `templates/`, `experts/`, `references/`, and
+`scripts/` into the selected skills directory. It checks for the Beads CLI (`bd`)
+and never treats a missing Beads
 install as fatal. On Fedora/RPM-style hosts it prints package-install guidance,
 including the public `greg-at-redhat/beads` COPR as a fallback when the user
 does not have their own Beads package source. Set `BEADS_COPR` to print a
@@ -55,9 +56,14 @@ the skill installed.
 
 Use `README.md` as the human-facing operating guide for invocation, flow,
 external contracting, job-description labels, and Beads requirements. Use
-`references/external-contracting.md` when posting or reviewing outside model
-contracts. Use `references/contractor-brief.md` as the briefing artifact given
-to an outside contractor with a specific Beads assignment.
+`policy/` as the machine-readable control plane, `templates/` for reusable Beads
+bodies, `experts/` for discipline calibration, `references/external-contracting.md`
+when posting or reviewing outside model contracts, and
+`references/contractor-brief.md` as the briefing artifact given to an outside
+contractor with a specific Beads assignment.
+
+The policy files intentionally use JSON-compatible YAML so helper scripts can
+run with the Python standard library only.
 
 ## Role Model
 
@@ -75,27 +81,44 @@ conflicting findings back to the architect.
 ## Startup Protocol
 
 1. State whether the work is coherent in-thread or needs the harness.
-2. If launching agents, clean stale agent state first using the local harness convention.
-3. Check for Beads:
+2. If the work is non-trivial, risky, or may use outside contractors, classify
+   it against the policy:
+
+```bash
+python3 scripts/route_work.py "<task text>"
+```
+
+3. If outside contracting may help, ask the third-party collaboration question
+   unless the user already opted in. Default to `no-outside-sharing`; if the user
+   permits sharing, re-run the route with `--external-ok --share-boundary <mode>`.
+4. If launching agents, clean stale agent state first using the local harness convention.
+5. Check for Beads:
 
 ```bash
 command -v bd
 test -d .beads && bd ready --json || true
 ```
 
-4. If Beads is available and durable coordination is appropriate, initialize or sync it:
+6. If Beads is available and durable coordination is appropriate, initialize or sync it:
 
 ```bash
 bd init    # only if this repo should own the work graph and .beads is absent
 bd sync    # when a remote/synced graph is configured
 ```
 
-5. If Beads is unavailable, create the same structure in a temporary Markdown plan and say that durability is reduced.
+7. If Beads is unavailable, create the same structure in a temporary Markdown plan and say that durability is reduced.
 
 ## Scaffold Shape
 
 Create one epic for the project goal, then create role/lane tasks under it.
 Use dependencies to represent real ordering, not decorative hierarchy.
+
+When helper scripts are available, prefer:
+
+```bash
+python3 scripts/scaffold_workgraph.py --title "<project goal>" --description "<scope>"
+python3 scripts/spawn_expert_reviews.py --parent <epic-or-task-id> "<review scope>"
+```
 
 Recommended lanes:
 
@@ -219,6 +242,22 @@ Do not ask outside models for raw chain-of-thought. Ask for conclusions,
 assumptions, evidence, alternatives considered, risks, confidence, and
 recommended next actions.
 
+Before giving a Bead to an outside model, build a packet through the gate:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor external_security_reviewer \
+  --share-boundary redacted-packet
+```
+
+After the contractor returns, evaluate the handoff before converting findings to
+implementation work:
+
+```bash
+python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
+```
+
 ## Contractor Interaction
 
 For Claude or another outside agent, use
@@ -243,6 +282,8 @@ Contractor rules:
 When this skill is used, produce a concise orchestration packet:
 
 - harness decision: in-thread, PM-only, or full architect/PM/workerbee/contractor setup
+- policy route: route class, task class, risk, data sensitivity, share boundary,
+  selected experts, and recommended executor
 - role roster with model/effort choices
 - Beads epic and task list, with IDs when created
 - dependency graph summary

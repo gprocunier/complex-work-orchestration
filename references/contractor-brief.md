@@ -4,6 +4,11 @@ Use this brief when assigning one Beads task to Claude, Opus, Mythos, or
 another outside model contractor. The assigned Bead is the contract. Do not
 infer broader authority from this brief.
 
+This brief may be embedded in a generated packet from
+`scripts/build_contractor_packet.py`. The packet's assigned Bead, share
+boundary, job-description label, and forbidden areas override any generic text
+in this brief.
+
 ## Assignment Packet
 
 Fill these values before dispatch:
@@ -51,6 +56,9 @@ other discipline-specific contract into a generic project review.
   paths, data flow, maintainability, and reversibility.
 - `contract-jd-domain-<name>`: discipline-specific review, such as SELinux,
   API compatibility, compliance, performance, reliability, or docs.
+
+If the packet includes an `experts/<discipline>.md` profile, use that file as
+the calibration lens for the assignment.
 
 ## Required Startup
 
@@ -118,3 +126,7 @@ instead of broadening scope.
 
 A Bead is only done when the deliverable exists, validation has been reported,
 residual risk is explicit, and the next coordination action is clear.
+
+The coordinator may run `scripts/evaluate_return.py` against your return. Missing
+required sections can send the assignment back for clarification before the
+architect reviews it.

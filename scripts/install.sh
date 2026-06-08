@@ -173,7 +173,7 @@ copy_item() {
 install_skill() {
   local skills_dir="$1"
   local target_dir="$skills_dir/$SKILL_NAME"
-  local items="README.md LICENSE SKILL.md agents references scripts"
+  local items="README.md LICENSE SKILL.md agents policy templates experts references scripts"
 
   say ""
   say "Install plan:"
@@ -298,8 +298,10 @@ main() {
 
   if [ "$DRY_RUN" -eq 1 ]; then
     say "Contractor brief would be: $skills_dir/$SKILL_NAME/references/contractor-brief.md"
+    say "Routing policy would be: $skills_dir/$SKILL_NAME/policy/routing-policy.yaml"
   else
     say "Contractor brief: $skills_dir/$SKILL_NAME/references/contractor-brief.md"
+    say "Routing policy: $skills_dir/$SKILL_NAME/policy/routing-policy.yaml"
   fi
 }
 
