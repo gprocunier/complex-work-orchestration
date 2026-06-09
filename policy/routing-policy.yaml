@@ -33,6 +33,7 @@
       "evidence_fit": 4,
       "latency_fit": 3,
       "cost_fit": 2,
+      "prefer_local_fit": 12,
       "policy_violation": -100,
       "missing_user_opt_in": -25,
       "manual_dispatch_penalty_when_unattended": -15

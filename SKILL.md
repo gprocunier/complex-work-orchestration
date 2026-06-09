@@ -92,6 +92,8 @@ python3 scripts/route_work.py "<task text>"
 3. If outside contracting may help, ask the third-party collaboration question
    unless the user already opted in. Default to `no-outside-sharing`; if the user
    permits sharing, re-run the route with `--external-ok --share-boundary <mode>`.
+   For local inference, use `--local-ok` and only add `--prefer-local` when
+   low-risk local worker dispatch is the intended route.
 4. If launching agents, clean stale agent state first using the local harness convention.
 5. Check for Beads:
 
@@ -261,10 +263,14 @@ packet without that profile is degraded and must be justified. Multi-discipline
 reviews require multiple contractor Beads, each with exactly one primary
 job-description label and one matching profile. Pass `--epic <id>` when an epic
 exists so dispatch quotas are scoped correctly. Use `--opt-in-record <path>`
-instead of `--external-ok` when opt-in is recorded in a local audit note.
+instead of `--external-ok` when opt-in is recorded in a structured local JSON
+audit note. Packet build audits by default; use `--no-audit` only for tests or
+dry rehearsals that must not consume quota.
 
 Generate the manual dispatch prompt from an approved packet. Do not claim that
-this helper called the outside model automatically:
+this helper called the outside model automatically. Dispatch revalidates the
+packet hash, executor, opt-in basis, boundary, expert profile, and artifact
+whitelist before rendering. It also audits by default:
 
 ```bash
 python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual

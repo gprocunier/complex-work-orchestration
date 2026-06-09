@@ -2,9 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Contractor Packet",
   "type": "object",
-  "required": ["dispatch_id", "bead_id", "executor", "share_boundary", "job_description_label", "expert_profile_included", "external_opt_in", "opt_in_basis", "bead_summary", "included_artifacts", "excluded_artifacts", "required_return_sections", "acceptance_rule", "quota_checked", "packet_sha256"],
+  "required": ["dispatch_id", "generated_at", "bead_id", "executor", "share_boundary", "job_description_label", "expert_profile_included", "external_opt_in", "opt_in_basis", "boundary_description", "bead_summary", "selected_snippets", "included_artifacts", "excluded_artifacts", "required_return_sections", "acceptance_rule", "quota_checked", "packet_sha256"],
   "properties": {
     "dispatch_id": {"type": "string"},
+    "generated_at": {"type": "string"},
     "bead_id": {"type": "string"},
     "epic_id": {"type": ["string", "null"]},
     "executor": {"type": "string"},

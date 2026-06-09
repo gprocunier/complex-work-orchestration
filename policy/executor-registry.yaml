@@ -53,6 +53,7 @@
       "dispatch_mode": "local_openai_compatible",
       "external": false,
       "capabilities": ["summarization", "classification", "low-risk-docs", "domain-review", "boilerplate"],
+      "allowed_task_classes": ["docs-review", "domain-review", "classification", "summarization", "low-risk-docs"],
       "supports_web": false,
       "supports_shell": false,
       "supports_repo_read": false,

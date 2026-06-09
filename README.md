@@ -87,17 +87,21 @@ Helper scripts:
 - `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
   Beads from routing triggers.
 - `scripts/build_contractor_packet.py`: generate a gated outside-contractor
-  packet for one Bead, with explicit opt-in, quota checks, safe snippets, and
-  a Distinguished Engineer profile included by default.
+  packet for one Bead, with structured opt-in, quota checks, safe snippets,
+  default audit recording, and a Distinguished Engineer profile included by
+  default.
 - `scripts/generate_manual_dispatch_prompt.py`: turn an approved packet into a
   manual prompt for Claude, OpenAI deep research, or another contractor.
-- `scripts/dispatch_work.py`: record a manual dispatch event and produce the
-  prompt without claiming that an external model was called automatically.
+- `scripts/dispatch_work.py`: revalidate a contractor packet, record a manual
+  dispatch event by default, and produce the prompt without claiming that an
+  external model was called automatically.
 - `scripts/evaluate_return.py`: check contractor returns for required sections.
 - `scripts/record_audit_event.py`: append a local audit entry for routing,
   packet, dispatch, evaluation, and adjudication events.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
   graph state.
+- `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
+  executor controls, or emitted packet artifact names drift apart.
 
 Schemas in `schemas/` describe route results, contractor packets, contractor
 returns, acceptance decisions, Beads metadata, and audit events. `examples/`
@@ -163,15 +167,18 @@ flowchart TD
     Executors --> Gate
 
     Decision -->|internal-worker| Worker[Normal Codex-executable Beads]
+    Decision -->|local-worker| Local[Low-risk local worker envelope]
     Decision -->|architect-review| Architect[Architect review Beads]
     Decision -->|external-contract| Gate
 
+    Local --> Return[evaluate_return.py]
     Gate -->|No| Architect
     Gate -->|Yes| Contract[Contractor-only Bead]
     Contract --> Guard[contractor-only + no-codex-exec + one job-description label]
     Guard --> Packet[build_contractor_packet.py]
-    Packet --> Outside[Outside model contractor]
-    Outside --> Return[evaluate_return.py]
+    Packet --> Validate[dispatch_work.py packet revalidation]
+    Validate --> Outside[Outside model contractor]
+    Outside --> Return
     Return --> Architect
 ```
 
@@ -219,7 +226,8 @@ flowchart TD
     Create --> Guard[Add contractor-only and no-codex-exec labels]
     Guard --> Metadata[Add executor, codex_pickup, discipline, share_boundary metadata]
     Metadata --> PMPacket[PM prepares boundary-gated packet]
-    PMPacket --> Dispatch[Generate manual dispatch prompt and audit event]
+    PMPacket --> Validate[Validate packet hash, policy, opt-in, and artifacts]
+    Validate --> Dispatch[Generate manual dispatch prompt and audit event]
     Dispatch --> Outside[Outside model performs assigned review]
     Outside --> Return[Return Beads comment or patch branch]
     Return --> Evaluate[Evaluate return format, evidence, and boundary fit]
@@ -265,18 +273,25 @@ flowchart LR
 
 4. If the answer permits outside sharing, re-run the route with `--external-ok`
    and the selected `--share-boundary`.
-5. Check Beads and initialize or sync the work graph.
-6. Create one epic for the project goal.
-7. Create role/lane tasks under the epic: architect framing, PM coordination,
+5. If using local inference, pass `--local-ok`; add `--prefer-local` only when
+   low-risk local work is the desired route.
+6. Check Beads and initialize or sync the work graph.
+7. Create one epic for the project goal.
+8. Create role/lane tasks under the epic: architect framing, PM coordination,
    workerbee work, validation, docs/handoff, and any outside contracts.
-8. For outside work, post contractor-only beads with job-description labels.
-9. PM prepares the contractor packet and a manual dispatch prompt.
-10. The outside model returns findings through Beads comments or a patch branch.
-11. PM evaluates the return for required sections, evidence, confidence,
-   residual risk, and boundary violations.
-12. The architect reviews contractor findings before Codex workers implement
+9. For outside work, post contractor-only Beads with job-description labels.
+   The scaffold wires dispatch, expert review, evaluation, and architect
+   adjudication as real Beads dependencies.
+10. PM prepares the contractor packet and a manual dispatch prompt. Packet
+   build and dispatch both record audit events unless `--no-audit` is used.
+11. Dispatch revalidates the packet hash, executor, boundary, opt-in basis,
+   expert profile, and artifact whitelist before rendering the prompt.
+12. The outside model returns findings through Beads comments or a patch branch.
+13. PM evaluates the return for required sections, evidence, confidence,
+   residual risk, explicit safety fields, and boundary fit.
+14. The architect reviews contractor findings before Codex workers implement
    follow-up work or before release decisions are made.
-13. PM keeps dependencies, status, blockers, and resume instructions current.
+15. PM keeps dependencies, status, blockers, and resume instructions current.
 
 ## Beads Requirement
 
@@ -336,7 +351,9 @@ user has opted in, the selected share boundary allows outside work, the Bead has
 `contractor-only` and `no-codex-exec`, and an architect review is required
 before any finding becomes implementation work. Packet building enforces this:
 external packets require `--external-ok` or `--opt-in-record`, and unsafe files
-are rejected before they can enter the packet.
+are rejected before they can enter the packet. Dispatch then revalidates the
+packet hash, executor, boundary, opt-in basis, expert profile, and artifact
+whitelist before any manual prompt is rendered.
 
 Distinguished Engineer profiles are first-class packet artifacts. A normal
 contractor packet includes the matched `experts/<discipline>.md` profile and
@@ -455,9 +472,11 @@ python3 scripts/build_contractor_packet.py \
 ```
 
 Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is recorded
-in a local audit note. Pass `--epic <id>` when the contract belongs to a durable
-epic so quota checks are scoped to that epic. Without `--epic`, the helper uses
-the global dispatch bucket for quota accounting.
+in a local JSON audit note. The record must include `allowed: true`, a matching
+share boundary, allowed executor list, decision source, timestamp, and scope;
+see `examples/sample-opt-in-record.json`. Pass `--epic <id>` when the contract
+belongs to a durable epic so quota checks are scoped to that epic. Without
+`--epic`, the helper uses the global dispatch bucket for quota accounting.
 
 Manual dispatch prompts are generated from approved packets:
 
@@ -466,6 +485,23 @@ python3 scripts/dispatch_work.py \
   --packet contractor-packet.json \
   --mode manual
 ```
+
+Both packet build and dispatch append audit entries by default. Use
+`--no-audit` only for tests or dry operator rehearsals that must not consume
+quota.
+
+For a low-risk local worker envelope, the operator must explicitly opt in:
+
+```bash
+python3 scripts/route_work.py \
+  --local-ok \
+  --prefer-local \
+  --requested-role documentation \
+  "Documentation review for public README examples."
+```
+
+Local-worker output is treated like contractor evidence: evaluator scoring and
+architect adjudication are still required before follow-up work is implemented.
 
 Do not ask outside models for raw chain-of-thought. Ask for conclusions,
 assumptions, evidence, alternatives considered, risks, confidence, and
@@ -482,6 +518,10 @@ Contractor job description:
 Summary:
 Files changed:
 Commands run:
+Boundary violation:
+Patch authorization:
+Secret or personal-data spill:
+Scope compliance:
 Validation result:
 Evidence:
 Alternatives considered:

@@ -28,6 +28,12 @@ class ScaffoldDryRunTests(unittest.TestCase):
         for item in expert_items:
             self.assertIn("executor", item["metadata"])
             self.assertIn("selected_executor", item["metadata"])
+            selected = item["metadata"]["selected_executor"]
+            if selected.get("external"):
+                self.assertEqual(item["metadata"]["codex_pickup"], "forbidden")
+                self.assertIn("contractor-only", item["labels"])
+                self.assertIn("no-codex-exec", item["labels"])
+                self.assertIn(item["lane"], graph[[node.get("lane") for node in graph].index("evaluation")]["depends_on_lanes"])
 
 
 if __name__ == "__main__":

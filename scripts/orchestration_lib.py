@@ -19,6 +19,26 @@ AUDIT_LOG = AUDIT_DIR / "audit.jsonl"
 RISK_ORDER = ["low", "medium", "high", "critical"]
 SENSITIVITY_ORDER = ["public", "redacted", "internal", "restricted"]
 EXTERNAL_GUARD_LABELS = ["contractor-only", "no-codex-exec"]
+CONTRACTOR_PACKET_REQUIRED_FIELDS = [
+    "dispatch_id",
+    "generated_at",
+    "bead_id",
+    "executor",
+    "share_boundary",
+    "job_description_label",
+    "expert_profile_included",
+    "external_opt_in",
+    "opt_in_basis",
+    "boundary_description",
+    "bead_summary",
+    "selected_snippets",
+    "included_artifacts",
+    "excluded_artifacts",
+    "required_return_sections",
+    "acceptance_rule",
+    "quota_checked",
+    "packet_sha256",
+]
 BLOCKED_PACKET_PATH_PARTS = {".git", ".beads", ".orchestration-audit"}
 BLOCKED_PACKET_FILE_NAMES = {
     ".env",
@@ -222,7 +242,9 @@ def boundary_allows_external(share_boundary: str) -> bool:
 def executor_policy_violations(
     executor: dict[str, Any],
     *,
+    task_class: str,
     external_ok: bool,
+    local_ok: bool = False,
     share_boundary: str,
     sensitivity: str,
     risk: str,
@@ -236,6 +258,18 @@ def executor_policy_violations(
         violations.append(f"share boundary {share_boundary} does not allow external dispatch")
     if executor.get("external") and sensitivity == "restricted" and executor.get("dispatch_mode") != "human":
         violations.append("restricted data cannot be sent to non-human external executors")
+    if executor.get("dispatch_mode") == "local_openai_compatible":
+        local_policy = load_policy("routing-policy").get("local_worker", {})
+        allowed_classes = set(local_policy.get("allowed_task_classes", []))
+        allowed_risks = set(local_policy.get("allowed_risks", []))
+        if not local_ok:
+            violations.append("local worker dispatch requires --local-ok")
+        if allowed_classes and task_class not in allowed_classes:
+            violations.append(f"task class {task_class} is not allowed for local worker dispatch")
+        if allowed_risks and risk not in allowed_risks:
+            violations.append(f"risk {risk} is not allowed for local worker dispatch")
+        if sensitivity == "restricted":
+            violations.append("restricted data cannot be sent to local worker dispatch")
     if not rank_allows(risk, executor.get("max_risk", "low"), RISK_ORDER):
         violations.append(f"risk {risk} exceeds executor max_risk {executor.get('max_risk')}")
     if not rank_allows(sensitivity, executor.get("max_data_sensitivity", "public"), SENSITIVITY_ORDER):
@@ -254,6 +288,8 @@ def score_executors(
     sensitivity: str,
     share_boundary: str,
     external_ok: bool,
+    local_ok: bool = False,
+    prefer_local: bool = False,
     experts: list[dict[str, Any]],
     text: str,
     unattended: bool = False,
@@ -274,7 +310,9 @@ def score_executors(
         reasons: list[str] = []
         violations = executor_policy_violations(
             executor,
+            task_class=task_class,
             external_ok=external_ok,
+            local_ok=local_ok,
             share_boundary=share_boundary,
             sensitivity=sensitivity,
             risk=risk,
@@ -285,9 +323,17 @@ def score_executors(
         if key in preferred:
             score += 8
             reasons.append("preferred by matched expert")
-        if task_class in capabilities or any(part in capabilities for part in [task_class.split("-")[0], "domain-review"]):
+        allowed_local_classes = executor.get("allowed_task_classes", [])
+        if (
+            task_class in capabilities
+            or task_class in allowed_local_classes
+            or any(part in capabilities for part in [task_class.split("-")[0], "domain-review"])
+        ):
             score += scoring.get("task_class_fit", 6)
             reasons.append("task class fit")
+        if prefer_local and executor.get("dispatch_mode") == "local_openai_compatible" and not violations:
+            score += scoring.get("prefer_local_fit", 12)
+            reasons.append("preferred local worker")
         if need_web and executor.get("supports_web"):
             score += scoring.get("tooling_fit", 5)
             reasons.append("web/tooling fit")
@@ -332,6 +378,8 @@ def select_executor_for_expert(
     sensitivity: str,
     share_boundary: str,
     external_ok: bool,
+    local_ok: bool = False,
+    prefer_local: bool = False,
     unattended: bool = False,
 ) -> dict[str, Any]:
     ranked = score_executors(
@@ -340,6 +388,8 @@ def select_executor_for_expert(
         sensitivity=sensitivity,
         share_boundary=share_boundary,
         external_ok=external_ok,
+        local_ok=local_ok,
+        prefer_local=prefer_local,
         experts=[expert],
         text=" ".join(
             str(part)
@@ -367,6 +417,8 @@ def classify_work(
     text: str,
     *,
     external_ok: bool = False,
+    local_ok: bool = False,
+    prefer_local: bool = False,
     share_boundary: str = "no-outside-sharing",
     requested_roles: list[str] | None = None,
     file_paths: list[str] | None = None,
@@ -398,6 +450,8 @@ def classify_work(
                 sensitivity=dispatch_sensitivity,
                 share_boundary=share_boundary,
                 external_ok=external_ok,
+                local_ok=local_ok,
+                prefer_local=prefer_local,
                 unattended=unattended,
             )
         )
@@ -411,6 +465,8 @@ def classify_work(
         sensitivity=dispatch_sensitivity,
         share_boundary=share_boundary,
         external_ok=external_ok,
+        local_ok=local_ok,
+        prefer_local=prefer_local,
         experts=experts,
         text=text,
         unattended=unattended,
@@ -445,6 +501,8 @@ def classify_work(
         "share_boundary": share_boundary,
         "external_opt_in": external_ok,
         "external_contract_allowed": route == "external-contract" and not hard_stops,
+        "local_worker_allowed": local_ok,
+        "prefer_local_worker": prefer_local,
         "recommended_executor": recommended_executor,
         "selected_executor": selected,
         "required_experts": experts,
@@ -503,6 +561,187 @@ def redact_value(value: Any) -> Any:
 
 def artifact_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def make_dispatch_id(bead_id: str, generated_at: str | None = None) -> str:
+    timestamp = generated_at or dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    safe_bead = re.sub(r"[^A-Za-z0-9_.-]+", "-", bead_id).strip("-") or "unassigned"
+    return f"dispatch-{safe_bead}-{timestamp}"
+
+
+def packet_payload_hash(packet: dict[str, Any]) -> str:
+    payload = dict(packet)
+    payload.pop("packet_sha256", None)
+    return artifact_hash(json.dumps(payload, sort_keys=True))
+
+
+def artifact_whitelist_for_boundary(share_boundary: str) -> set[str]:
+    return set(boundary_config(share_boundary).get("artifact_whitelist", []))
+
+
+def selected_executor_for_expert(expert: dict[str, Any], fallback_executor: str | None = None) -> dict[str, Any]:
+    selected = expert.get("selected_executor")
+    if isinstance(selected, dict):
+        return selected
+    key = expert.get("recommended_executor") or fallback_executor
+    registry = load_policy("executor-registry").get("executors", {})
+    executor = registry.get(key) if key else None
+    if isinstance(executor, dict):
+        value = dict(executor)
+        value.setdefault("key", key)
+        return value
+    return {"key": str(key or ""), "external": False, "codex_pickup": "allowed", "dispatch_mode": ""}
+
+
+def expert_uses_external_contract(expert: dict[str, Any], fallback_executor: str | None = None) -> bool:
+    return bool(selected_executor_for_expert(expert, fallback_executor).get("external"))
+
+
+def expert_review_lane(expert: dict[str, Any]) -> str:
+    raw = str(expert.get("name") or expert.get("discipline") or expert.get("display_name") or "review")
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-") or "review"
+    return f"expert-review-{slug}"
+
+
+def expert_review_labels(expert: dict[str, Any], route: dict[str, Any]) -> list[str]:
+    stage = str(expert.get("review_stage", "pre-implementation"))
+    job_label = str(expert.get("job_description_label", "contract-jd-general-reasoning"))
+    if expert_uses_external_contract(expert, route.get("recommended_executor")):
+        return [*EXTERNAL_GUARD_LABELS, job_label, stage]
+    return ["expert-review", job_label, stage]
+
+
+def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dict[str, Any]:
+    selected = selected_executor_for_expert(expert, route.get("recommended_executor"))
+    executor = expert.get("recommended_executor") or selected.get("key") or route.get("recommended_executor")
+    external = bool(selected.get("external"))
+    dispatch_mode = selected.get("dispatch_mode")
+    return {
+        "expert": expert.get("name"),
+        "discipline": expert.get("discipline"),
+        "job_description_label": expert.get("job_description_label"),
+        "review_stage": expert.get("review_stage"),
+        "share_boundary": route.get("share_boundary"),
+        "executor": executor,
+        "selected_executor": selected,
+        "executor_policy_violations": expert.get("executor_policy_violations", []),
+        "codex_pickup": "forbidden" if external else selected.get("codex_pickup", "allowed"),
+        "architect_review_required": True,
+        "acceptance_bead_required": external or dispatch_mode == "local_openai_compatible",
+    }
+
+
+def validate_opt_in_record(path: str | Path, *, executor: str, share_boundary: str) -> dict[str, Any]:
+    record_path = Path(path)
+    if not record_path.is_file():
+        raise SystemExit(f"opt-in record does not exist: {record_path}")
+    try:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"opt-in record is not valid JSON: {record_path}: {exc}") from exc
+    if not isinstance(record, dict):
+        raise SystemExit("opt-in record must contain a top-level object")
+
+    if record.get("allowed") is not True and record.get("external_contracting_allowed") is not True:
+        raise SystemExit("opt-in record must set allowed=true or external_contracting_allowed=true")
+
+    boundaries = record.get("share_boundaries", record.get("share_boundary"))
+    if isinstance(boundaries, str):
+        boundary_allowed = boundaries in [share_boundary, "*"]
+    elif isinstance(boundaries, list):
+        boundary_allowed = share_boundary in boundaries or "*" in boundaries
+    else:
+        boundary_allowed = False
+    if not boundary_allowed:
+        raise SystemExit(f"opt-in record does not allow share boundary {share_boundary!r}")
+
+    executors = record.get("allowed_executors", record.get("executors", record.get("executor")))
+    if isinstance(executors, str):
+        executor_allowed = executors in [executor, "*"]
+    elif isinstance(executors, list):
+        executor_allowed = executor in executors or "*" in executors
+    else:
+        executor_allowed = False
+    if not executor_allowed:
+        raise SystemExit(f"opt-in record does not allow executor {executor!r}")
+
+    if not record.get("decision_source"):
+        raise SystemExit("opt-in record must include decision_source")
+    if not record.get("recorded_at"):
+        raise SystemExit("opt-in record must include recorded_at")
+    if not record.get("scope"):
+        raise SystemExit("opt-in record must include scope")
+    return record
+
+
+def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet: bool = False) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(packet, dict):
+        return ["packet must contain a top-level object"]
+
+    for field in CONTRACTOR_PACKET_REQUIRED_FIELDS:
+        if field not in packet:
+            errors.append(f"packet is missing required field {field!r}")
+    if errors:
+        return errors
+
+    executor_key = str(packet.get("executor", ""))
+    executors = load_policy("executor-registry").get("executors", {})
+    executor = executors.get(executor_key)
+    if not isinstance(executor, dict):
+        errors.append(f"packet executor {executor_key!r} is unknown")
+    elif not executor.get("external"):
+        errors.append(f"packet executor {executor_key!r} is not an outside contractor executor")
+
+    controls = load_contracting_controls()
+    allowed_external = set(controls.get("allowed_external_executors", []))
+    if allowed_external and executor_key not in allowed_external:
+        errors.append(f"packet executor {executor_key!r} is not allowed by contracting controls")
+
+    share_boundary = str(packet.get("share_boundary", ""))
+    try:
+        boundary = boundary_config(share_boundary)
+    except SystemExit as exc:
+        errors.append(str(exc))
+        boundary = {}
+    if boundary and not boundary.get("allows_external"):
+        errors.append(f"packet share boundary {share_boundary!r} does not allow external contracting")
+
+    if packet.get("external_opt_in") is not True:
+        errors.append("packet external_opt_in must be true")
+    if packet.get("opt_in_basis") in [None, "", "not-recorded"]:
+        errors.append("packet opt_in_basis must record explicit user opt-in")
+    if not str(packet.get("job_description_label", "")).startswith("contract-jd-"):
+        errors.append("packet job_description_label must be a contract-jd label")
+    if packet.get("expert_profile_included") is not True and not allow_degraded_packet:
+        errors.append("packet is missing the expert profile; pass --allow-degraded-packet to dispatch anyway")
+
+    expected_hash = packet_payload_hash(packet)
+    if packet.get("packet_sha256") != expected_hash:
+        errors.append("packet_sha256 does not match packet payload")
+
+    whitelist = set(boundary.get("artifact_whitelist", [])) if boundary else set()
+    for artifact in packet.get("included_artifacts", []):
+        artifact_type = artifact.get("type") if isinstance(artifact, dict) else None
+        if not artifact_type:
+            errors.append("included_artifacts contains an artifact without a type")
+        elif artifact_type not in whitelist:
+            errors.append(f"artifact type {artifact_type!r} is not allowed by share boundary {share_boundary!r}")
+
+    for snippet in packet.get("selected_snippets", []):
+        snippet_type = snippet.get("type") if isinstance(snippet, dict) else None
+        if snippet_type and snippet_type not in whitelist:
+            errors.append(f"snippet artifact type {snippet_type!r} is not allowed by share boundary {share_boundary!r}")
+
+    if not packet.get("required_return_sections"):
+        errors.append("packet required_return_sections must not be empty")
+    return errors
+
+
+def require_valid_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet: bool = False) -> None:
+    errors = validate_contractor_packet(packet, allow_degraded_packet=allow_degraded_packet)
+    if errors:
+        raise SystemExit("invalid contractor packet:\n- " + "\n- ".join(errors))
 
 
 def load_expert_profile(persona_file: str | None) -> dict[str, str]:
@@ -655,6 +894,39 @@ def parse_return_sections(text: str) -> dict[str, str]:
     return sections
 
 
+def section_value(sections: dict[str, str], *names: str) -> str:
+    normalized = {key.lower(): value for key, value in sections.items()}
+    for name in names:
+        value = normalized.get(name.lower())
+        if value is not None:
+            return value.strip()
+    return ""
+
+
+def negative_field(value: str) -> bool:
+    normalized = value.strip().lower()
+    if not normalized:
+        return False
+    return bool(
+        re.match(r"^(no|false|none|not observed|not present|not applicable|n/a|na)\b", normalized)
+        or re.search(r"\b(no|not observed|not present|none)\s+(boundary violation|secret|personal-data spill|scope creep|patch)\b", normalized)
+    )
+
+
+def affirmative_field(value: str) -> bool:
+    normalized = value.strip().lower()
+    if not normalized or negative_field(value):
+        return False
+    return bool(
+        re.match(r"^(yes|true|required|present|observed|found|confirmed|compliant|approved|authorized|unauthorized|unapproved)\b", normalized)
+        or re.search(r"\b(violation observed|secret spill|personal-data spill|outside assigned scope|broadened scope|without approval)\b", normalized)
+    )
+
+
+def nonempty_work_field(value: str) -> bool:
+    return bool(value.strip()) and not negative_field(value)
+
+
 def make_acceptance_decision(
     text: str,
     *,
@@ -694,16 +966,42 @@ def make_acceptance_decision(
         score -= penalties.get("missing_residual_risk", 10)
         penalty_reasons.append("risks or gaps missing")
 
-    lower = text.lower()
-    if "boundary violation" in lower:
+    boundary_violation = section_value(sections, "Boundary violation")
+    if affirmative_field(boundary_violation):
         hard_disqualifiers.append("boundary violation")
-    if "unapproved patch" in lower or "pushed branch without approval" in lower:
+
+    patch_authorization = section_value(sections, "Patch authorization")
+    files_changed = section_value(sections, "Files changed")
+    commands_run = section_value(sections, "Commands run")
+    if share_boundary == "patch-branch":
+        if not nonempty_work_field(files_changed) or not nonempty_work_field(commands_run):
+            hard_disqualifiers.append("patch branch return missing files changed or commands run")
+    elif nonempty_work_field(files_changed) and not affirmative_field(patch_authorization):
         hard_disqualifiers.append("unapproved patch or repo access")
+    if affirmative_field(patch_authorization) and re.search(r"\b(unapproved|unauthorized|without approval)\b", patch_authorization, re.I):
+        hard_disqualifiers.append("unapproved patch or repo access")
+
+    lower = text.lower()
     if job_description_label and job_description_label not in lower and sections.get("Contractor job description"):
         hard_disqualifiers.append("missing assigned job-description alignment")
+    secret_spill = section_value(sections, "Secret or personal-data spill", "Secret spill", "Personal-data spill")
+    if affirmative_field(secret_spill):
+        hard_disqualifiers.append("suspected secret or personal-data spill")
     if re.search(r"(?i)(secret|password|api[_ -]?key|private key)\s*[:=]", text):
         hard_disqualifiers.append("suspected secret or personal-data spill")
-    if "outside assigned scope" in lower or "broadened scope" in lower:
+    scope_compliance = section_value(sections, "Scope compliance")
+    scope_lower = scope_compliance.strip().lower()
+    scope_noncompliant = bool(
+        re.match(r"^(no|false)\b", scope_lower)
+        and not re.search(r"\b(no scope creep|no deviation|no out-of-scope work)\b", scope_lower)
+    ) or bool(
+        scope_compliance
+        and re.search(r"\b(outside assigned scope|broadened scope|scope creep)\b", scope_compliance, re.I)
+        and not re.search(r"\b(no|not observed|not present)\s+(scope creep|out-of-scope|deviation)\b", scope_compliance, re.I)
+    )
+    if scope_compliance and not affirmative_field(scope_compliance) and not scope_noncompliant:
+        penalty_reasons.append("scope compliance field is unclear")
+    if scope_noncompliant:
         hard_disqualifiers.append("scope creep beyond assigned bead")
         score -= penalties.get("scope_creep", 10)
 

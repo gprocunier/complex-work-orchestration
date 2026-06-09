@@ -37,6 +37,29 @@ class RoutingTests(unittest.TestCase):
         else:
             self.assertNotEqual(result["route"], "external-contract")
 
+    def test_local_worker_requires_explicit_opt_in(self) -> None:
+        result = classify_work(
+            "Documentation review for public README examples.",
+            requested_roles=["documentation"],
+            share_boundary="no-outside-sharing",
+            prefer_local=True,
+        )
+        self.assertNotEqual(result["route"], "local-worker")
+        local_candidate = next(item for item in result["ranked_executors"] if item["key"] == "local_openai_compatible_worker")
+        self.assertIn("local worker dispatch requires --local-ok", local_candidate["policy_violations"])
+
+    def test_prefer_local_selects_low_risk_local_worker_when_allowed(self) -> None:
+        result = classify_work(
+            "Documentation review for public README examples.",
+            requested_roles=["documentation"],
+            share_boundary="no-outside-sharing",
+            local_ok=True,
+            prefer_local=True,
+        )
+        self.assertEqual(result["route"], "local-worker")
+        self.assertEqual(result["recommended_executor"], "local_openai_compatible_worker")
+        self.assertTrue(result["evaluator_required"])
+
 
 if __name__ == "__main__":
     unittest.main()

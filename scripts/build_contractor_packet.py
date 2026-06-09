@@ -16,10 +16,13 @@ from orchestration_lib import (
     file_snippet,
     load_expert_profile,
     load_policy,
+    make_dispatch_id,
+    packet_payload_hash,
     record_audit_event,
     redact_text,
     sanitize_bead,
     show_bead_json,
+    validate_opt_in_record,
 )
 
 
@@ -62,8 +65,8 @@ def validate_gate(
         raise SystemExit(f"executor {executor!r} is not an outside contractor executor")
     if not external_ok and not opt_in_record:
         raise SystemExit("external packet build requires --external-ok or an opt-in record")
-    if opt_in_record and not Path(opt_in_record).is_file():
-        raise SystemExit(f"opt-in record does not exist: {opt_in_record}")
+    if opt_in_record:
+        validate_opt_in_record(opt_in_record, executor=executor, share_boundary=share_boundary)
     if not boundary_allows_external(share_boundary):
         raise SystemExit(f"share boundary {share_boundary!r} does not allow external contracting")
     missing = [label for label in ["contractor-only", "no-codex-exec"] if label not in labels]
@@ -100,7 +103,7 @@ def build_packet(
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    dispatch_id = dispatch_id or f"dispatch-{bead_id}-{now.replace(':', '').replace('-', '')}"
+    dispatch_id = dispatch_id or make_dispatch_id(bead_id, now.replace("-", "").replace(":", ""))
     bead_summary = sanitize_bead(bead_json, share_boundary)
     selected_snippets = collect_snippets(allowed_files, int(boundary.get("snippet_line_limit", 80)))
     profile_path = expert_profile_path or persona_for_job_label(job_description_label)
@@ -156,7 +159,7 @@ def build_packet(
         "acceptance_rule": "Evaluator scoring and architect adjudication are required before implementation.",
     }
     packet.update(quota_info or {"quota_checked": False, "quota_remaining": None})
-    packet["packet_sha256"] = artifact_hash(json.dumps(packet, sort_keys=True))
+    packet["packet_sha256"] = packet_payload_hash(packet)
     return packet
 
 
@@ -245,7 +248,9 @@ def main() -> None:
     parser.add_argument("--dispatch-id")
     parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
     parser.add_argument("--output")
-    parser.add_argument("--audit", action="store_true")
+    parser.set_defaults(audit=True)
+    parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     args = parser.parse_args()
 
     bead_json = json.loads(Path(args.bead_json_file).read_text(encoding="utf-8")) if args.bead_json_file else show_bead_json(args.bead)
@@ -259,7 +264,13 @@ def main() -> None:
         external_ok=args.external_ok,
         opt_in_record=args.opt_in_record,
     )
-    quota_info = enforce_contracting_quota(args.epic, args.executor, "external-contract")
+    dispatch_id = args.dispatch_id or make_dispatch_id(args.bead)
+    quota_info = enforce_contracting_quota(
+        args.epic,
+        args.executor,
+        "external-contract",
+        dispatch_id=dispatch_id,
+    )
     packet = build_packet(
         bead_id=args.bead,
         bead_json=bead_json,
@@ -268,7 +279,7 @@ def main() -> None:
         job_description_label=job_label,
         allowed_files=args.allowed_file,
         inline_snippets=args.snippet,
-        dispatch_id=args.dispatch_id,
+        dispatch_id=dispatch_id,
         expert_profile_path=args.expert_profile,
         include_expert_profile=args.include_expert_profile,
         external_opt_in=True,

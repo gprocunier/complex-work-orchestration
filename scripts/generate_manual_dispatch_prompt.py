@@ -103,13 +103,22 @@ def main() -> None:
     parser.add_argument("text", nargs="*")
     parser.add_argument("--file")
     parser.add_argument("--external-ok", action="store_true")
+    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
+    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--share-boundary", default="redacted-packet")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
     task = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    route = classify_work(task, external_ok=args.external_ok, share_boundary=args.share_boundary, requested_roles=args.requested_role)
+    route = classify_work(
+        task,
+        external_ok=args.external_ok,
+        local_ok=args.local_ok,
+        prefer_local=args.prefer_local,
+        share_boundary=args.share_boundary,
+        requested_roles=args.requested_role,
+    )
     prompt = render_prompt(task, route)
     if args.json:
         print(json.dumps({"route": route, "prompt": prompt}, indent=2, sort_keys=True))

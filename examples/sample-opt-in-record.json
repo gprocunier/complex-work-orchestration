@@ -1,0 +1,9 @@
+{
+  "allowed": true,
+  "share_boundary": "redacted-packet",
+  "allowed_executors": ["claude_code_manual", "external_security_reviewer"],
+  "decision_source": "user-chat-confirmation",
+  "recorded_at": "2026-06-09T00:00:00Z",
+  "scope": "One redacted contractor packet for the assigned Bead only.",
+  "notes": "Does not allow repo-wide access, secrets, production access, release authority, or raw Beads database export."
+}

@@ -11,6 +11,8 @@
     "dispatch_sensitivity": {"type": "string"},
     "share_boundary": {"type": "string"},
     "external_contract_allowed": {"type": "boolean"},
+    "local_worker_allowed": {"type": "boolean"},
+    "prefer_local_worker": {"type": "boolean"},
     "evaluator_required": {"type": "boolean"},
     "architect_adjudication_required": {"type": "boolean"},
     "ranked_experts": {

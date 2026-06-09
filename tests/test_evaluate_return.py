@@ -16,11 +16,22 @@ class EvaluateReturnTests(unittest.TestCase):
         self.assertLess(result["score"], 85)
         self.assertTrue(result["missing_sections"])
 
-    def test_boundary_violation_forces_reject(self) -> None:
+    def test_structured_boundary_violation_forces_reject(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
-        result = make_acceptance_decision(text + "\nRisks or gaps: boundary violation\n")
+        result = make_acceptance_decision(text + "\nBoundary violation: yes\n")
         self.assertEqual(result["verdict"], "reject")
         self.assertIn("boundary violation", result["hard_disqualifiers"])
+
+    def test_negative_boundary_phrase_does_not_false_reject(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(text + "\nBoundary violation: no boundary violation observed\n")
+        self.assertNotIn("boundary violation", result["hard_disqualifiers"])
+
+    def test_patch_branch_requires_files_and_commands(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(text, share_boundary="patch-branch")
+        self.assertEqual(result["verdict"], "reject")
+        self.assertIn("patch branch return missing files changed or commands run", result["hard_disqualifiers"])
 
 
 if __name__ == "__main__":

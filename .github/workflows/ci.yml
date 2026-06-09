@@ -14,6 +14,8 @@ jobs:
           python-version: "3.12"
       - name: Compile
         run: python -m compileall .
+      - name: Repository validator
+        run: python scripts/validate_repository.py
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: Route dry run

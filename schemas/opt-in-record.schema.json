@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "External Contractor Opt-In Record",
+  "type": "object",
+  "required": ["allowed", "share_boundary", "allowed_executors", "decision_source", "recorded_at", "scope"],
+  "properties": {
+    "allowed": {"type": "boolean"},
+    "share_boundary": {"type": "string"},
+    "share_boundaries": {"type": "array", "items": {"type": "string"}},
+    "allowed_executors": {"type": "array", "items": {"type": "string"}},
+    "executors": {"type": "array", "items": {"type": "string"}},
+    "executor": {"type": "string"},
+    "decision_source": {"type": "string"},
+    "recorded_at": {"type": "string"},
+    "scope": {"type": "string"},
+    "notes": {"type": "string"}
+  }
+}

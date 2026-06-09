@@ -15,6 +15,9 @@ def print_human(route: dict[str, object], top_n: int) -> None:
     print(f"Dispatch sensitivity: {route['dispatch_sensitivity']}")
     print(f"Share boundary: {route['share_boundary']}")
     print(f"Recommended executor: {route['recommended_executor']}")
+    print(f"External contract allowed: {route['external_contract_allowed']}")
+    print(f"Local worker allowed: {route['local_worker_allowed']}")
+    print(f"Prefer local worker: {route['prefer_local_worker']}")
     print(f"Evaluator required: {route['evaluator_required']}")
     print(f"Architect adjudication required: {route['architect_adjudication_required']}")
 
@@ -26,7 +29,14 @@ def print_human(route: dict[str, object], top_n: int) -> None:
 
     print("\nRanked experts:")
     for expert in route.get("ranked_experts", [])[:top_n]:  # type: ignore[index]
-        print(f"- {expert['name']} score={expert['score']} label={expert['job_description_label']}")
+        selected = expert.get("selected_executor", {})
+        executor = expert.get("recommended_executor") or selected.get("key") or "unknown"
+        external = selected.get("external")
+        violations = "; ".join(expert.get("executor_policy_violations", [])) or "none"
+        print(
+            f"- {expert['name']} score={expert['score']} label={expert['job_description_label']} "
+            f"executor={executor} external={external} violations={violations}"
+        )
 
     print("\nRanked executors:")
     for executor in route.get("ranked_executors", [])[:top_n]:  # type: ignore[index]
@@ -44,6 +54,8 @@ def main() -> None:
     parser.add_argument("text", nargs="*", help="Task text to classify.")
     parser.add_argument("--file", help="Read task text from a file.")
     parser.add_argument("--external-ok", action="store_true", help="User has opted in to third-party contracting.")
+    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
+    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[], help="Explicit expert role requested by the user.")
     parser.add_argument("--file-path", action="append", default=[], help="Relevant repository path for path-pattern scoring.")
@@ -57,6 +69,8 @@ def main() -> None:
     route = classify_work(
         text,
         external_ok=args.external_ok,
+        local_ok=args.local_ok,
+        prefer_local=args.prefer_local,
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
         file_paths=args.file_path,

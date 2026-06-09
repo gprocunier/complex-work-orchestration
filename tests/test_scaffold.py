@@ -20,10 +20,19 @@ class ScaffoldTests(unittest.TestCase):
             requested_roles=["security"],
         )
         graph = planned_graph("Example", route)
-        lanes = {item.get("lane") for item in graph}
+        by_lane = {item.get("lane"): item for item in graph}
+        lanes = set(by_lane)
         if route["route"] in ["external-contract", "local-worker"]:
             self.assertIn("evaluation", lanes)
             self.assertIn("architect-adjudication", lanes)
+            self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+            external_review_lanes = [
+                item["lane"]
+                for item in graph
+                if item.get("metadata", {}).get("codex_pickup") == "forbidden"
+            ]
+            for lane in external_review_lanes:
+                self.assertIn(lane, by_lane["evaluation"]["depends_on_lanes"])
 
 
 if __name__ == "__main__":

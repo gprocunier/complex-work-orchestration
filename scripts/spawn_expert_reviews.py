@@ -4,7 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 
-from orchestration_lib import classify_work, create_bead, read_text_arg
+from orchestration_lib import (
+    classify_work,
+    create_bead,
+    expert_review_labels,
+    expert_review_metadata,
+    expert_uses_external_contract,
+    read_text_arg,
+)
 
 
 def review_body(expert: dict[str, object], route: dict[str, object]) -> str:
@@ -30,7 +37,7 @@ Share boundary:
 {route['share_boundary']}
 
 Codex handling rule:
-{"Codex may brief and evaluate this Bead, but must not execute it as contractor work." if route['route'] == 'external-contract' else "Codex may execute this as an internal expert-review task."}
+{"Codex may brief and evaluate this Bead, but must not execute it as contractor work." if expert_uses_external_contract(expert, route.get('recommended_executor')) else "Codex may execute this as an internal expert-review task."}
 """
 
 
@@ -41,6 +48,8 @@ def main() -> None:
     parser.add_argument("--parent")
     parser.add_argument("--title-prefix", default="Expert review")
     parser.add_argument("--external-ok", action="store_true")
+    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
+    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--top-n", type=int, default=3)
@@ -48,30 +57,21 @@ def main() -> None:
     args = parser.parse_args()
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    route = classify_work(text, external_ok=args.external_ok, share_boundary=args.share_boundary, requested_roles=args.requested_role)
+    route = classify_work(
+        text,
+        external_ok=args.external_ok,
+        local_ok=args.local_ok,
+        prefer_local=args.prefer_local,
+        share_boundary=args.share_boundary,
+        requested_roles=args.requested_role,
+    )
     reviews = []
     for expert in route.get("ranked_experts", [])[: args.top_n]:
-        labels = ["expert-review", expert["job_description_label"], expert["review_stage"]]
-        if route["route"] == "external-contract":
-            labels = ["contractor-only", "no-codex-exec", expert["job_description_label"], expert["review_stage"]]
-        executor = expert.get("recommended_executor", route["recommended_executor"])
         reviews.append(
             {
                 "title": f"{args.title_prefix}: {expert['display_name']}",
-                "labels": labels,
-                "metadata": {
-                    "executor": executor,
-                    "selected_executor": expert.get("selected_executor"),
-                    "executor_policy_violations": expert.get("executor_policy_violations", []),
-                    "expert": expert["name"],
-                    "discipline": expert["discipline"],
-                    "review_stage": expert["review_stage"],
-                    "job_description_label": expert["job_description_label"],
-                    "share_boundary": args.share_boundary,
-                    "codex_pickup": "forbidden" if route["route"] == "external-contract" else "allowed",
-                    "architect_review_required": True,
-                    "acceptance_bead_required": route["route"] in ["external-contract", "local-worker"],
-                },
+                "labels": expert_review_labels(expert, route),
+                "metadata": expert_review_metadata(expert, route),
                 "description": review_body(expert, route),
             }
         )

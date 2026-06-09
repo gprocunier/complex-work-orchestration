@@ -15,11 +15,18 @@ Rules:
   boundary, quota check metadata, and exactly one primary job-description label.
 - Contractor packets include the matched Distinguished Engineer profile by
   default. If the profile is omitted, record that as degraded context.
+- Packet build and dispatch audit by default. Use `--no-audit` only for tests
+  or rehearsals that must not consume quota.
+- Dispatch must revalidate contractor packet hash, executor, opt-in, boundary,
+  expert profile, and artifact whitelist before rendering a manual prompt.
+- Local-worker dispatch requires explicit `--local-ok`; use `--prefer-local`
+  only for low-risk work where local inference is the intended route.
 
 Before handoff, run:
 
 ```bash
 python -m compileall .
+python scripts/validate_repository.py
 python -m unittest discover -s tests -v
 ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
 ```

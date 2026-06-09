@@ -303,13 +303,18 @@ python3 scripts/build_contractor_packet.py \
    ```
 
    Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is
-   recorded in a local audit note.
+   recorded in a structured local JSON audit note. The record must include
+   `allowed: true`, a matching share boundary, allowed executor list, decision
+   source, timestamp, and scope; see `examples/sample-opt-in-record.json`.
 
 5. PM verifies the packet includes the expert profile, opt-in basis, quota
-   metadata, and only safe redacted snippets.
+   metadata, and only safe redacted snippets. Packet build audits by default;
+   use `--no-audit` only for test rehearsals that must not consume quota.
 6. PM gives the contractor `references/contractor-brief.md`, the packet, and
    the bead assignment.
-7. PM generates a manual dispatch prompt and audit event:
+7. PM generates a manual dispatch prompt. Dispatch revalidates the packet hash,
+   executor, opt-in basis, boundary, expert profile, and artifact whitelist, then
+   records an audit event by default:
 
    ```bash
    python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
@@ -349,6 +354,10 @@ Contractor job description:
 Summary:
 Files changed:
 Commands run:
+Boundary violation:
+Patch authorization:
+Secret or personal-data spill:
+Scope compliance:
 Validation result:
 Evidence:
 Alternatives considered:
