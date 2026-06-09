@@ -60,7 +60,8 @@ other discipline-specific contract into a generic project review.
 Packets normally include an `experts/<discipline>.md` Distinguished Engineer
 profile. Use that profile as the operating lens for the assignment. If the
 packet says no profile was included, treat the context as degraded and say so in
-your return.
+your return; use the packet's degraded-context justification to understand why
+the profile is missing.
 
 ## Required Startup
 

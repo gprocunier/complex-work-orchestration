@@ -51,6 +51,9 @@ class RouteWorkTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("External contract allowed:", rendered)
         self.assertIn("Local worker allowed:", rendered)
+        self.assertIn("Has external expert contracts:", rendered)
+        self.assertIn("External experts:", rendered)
+        self.assertIn("Acceptance required experts:", rendered)
         self.assertIn("executor=", rendered)
         self.assertIn("violations=", rendered)
 

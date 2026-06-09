@@ -94,7 +94,9 @@ Helper scripts:
   manual prompt for Claude, OpenAI deep research, or another contractor.
 - `scripts/dispatch_work.py`: revalidate a contractor packet, record a manual
   dispatch event by default, and produce the prompt without claiming that an
-  external model was called automatically.
+  external model was called automatically. Direct dispatch can use
+  `--dispatch-id` so quota checks, output, and audit records share the same
+  identity.
 - `scripts/evaluate_return.py`: check contractor returns for required sections.
 - `scripts/record_audit_event.py`: append a local audit entry for routing,
   packet, dispatch, evaluation, and adjudication events.
@@ -167,11 +169,12 @@ flowchart TD
     Executors --> Gate
 
     Decision -->|internal-worker| Worker[Normal Codex-executable Beads]
-    Decision -->|local-worker| Local[Low-risk local worker envelope]
+    Decision -->|local-worker| Local[Low-risk local worker contract]
     Decision -->|architect-review| Architect[Architect review Beads]
     Decision -->|external-contract| Gate
 
-    Local --> Return[evaluate_return.py]
+    Local --> LocalGuard[local-worker-only + no-codex-exec + one job-description label]
+    LocalGuard --> Return[evaluate_return.py]
     Gate -->|No| Architect
     Gate -->|Yes| Contract[Contractor-only Bead]
     Contract --> Guard[contractor-only + no-codex-exec + one job-description label]
@@ -226,7 +229,7 @@ flowchart TD
     Create --> Guard[Add contractor-only and no-codex-exec labels]
     Guard --> Metadata[Add executor, codex_pickup, discipline, share_boundary metadata]
     Metadata --> PMPacket[PM prepares boundary-gated packet]
-    PMPacket --> Validate[Validate packet hash, policy, opt-in, and artifacts]
+    PMPacket --> Validate[Validate packet hash, policy, opt-in, profile, snippets, exclusions, and artifacts]
     Validate --> Dispatch[Generate manual dispatch prompt and audit event]
     Dispatch --> Outside[Outside model performs assigned review]
     Outside --> Return[Return Beads comment or patch branch]
@@ -242,14 +245,18 @@ flowchart TD
 ```mermaid
 flowchart LR
     Ready[bd ready] --> Filter{Which actor is looking?}
-    Filter -->|Codex workerbee| CodexCmd[bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json]
-    Filter -->|PM or architect dispatch| ContractorCmd[bd ready --label contractor-only --json]
+    Filter -->|Codex workerbee| CodexCmd[bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json]
+    Filter -->|PM or architect external dispatch| ContractorCmd[bd ready --label contractor-only --json]
+    Filter -->|PM or architect local dispatch| LocalCmd[bd ready --label local-worker-only --json]
 
     CodexCmd --> Normal[Normal implementation, test, docs, validation beads]
     ContractorCmd --> Contracts[External contractor beads only]
+    LocalCmd --> LocalContracts[Local-worker review contracts only]
 
     Contracts --> ContractLabels[contractor-only + no-codex-exec + one contract-jd label]
+    LocalContracts --> LocalLabels[local-worker-only + no-codex-exec + one contract-jd label]
     ContractLabels --> Packet[Brief outside model]
+    LocalLabels --> LocalEnvelope[Brief local worker]
     Normal --> Execute[Codex may claim and execute]
 ```
 
@@ -274,7 +281,9 @@ flowchart LR
 4. If the answer permits outside sharing, re-run the route with `--external-ok`
    and the selected `--share-boundary`.
 5. If using local inference, pass `--local-ok`; add `--prefer-local` only when
-   low-risk local work is the desired route.
+   low-risk local work is the desired route. Local-worker review beads still get
+   `local-worker-only` and `no-codex-exec` and require evaluator plus architect
+   adjudication before implementation.
 6. Check Beads and initialize or sync the work graph.
 7. Create one epic for the project goal.
 8. Create role/lane tasks under the epic: architect framing, PM coordination,
@@ -327,16 +336,18 @@ you do not have one, the installer suggests the public `greg-at-redhat/beads`
 COPR. Set `BEADS_COPR=owner/project` before running the installer to point the
 hint at a different COPR.
 
-Normal Codex ready-work discovery should exclude outside contracts:
+Normal Codex ready-work discovery should exclude outside and local-worker
+contracts:
 
 ```bash
-bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json
+bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json
 ```
 
-PM or architect dispatch can inspect contractor work explicitly:
+PM or architect dispatch can inspect contract work explicitly:
 
 ```bash
 bd ready --label contractor-only --json
+bd ready --label local-worker-only --json
 bd show <id> --json
 ```
 
@@ -359,7 +370,8 @@ Distinguished Engineer profiles are first-class packet artifacts. A normal
 contractor packet includes the matched `experts/<discipline>.md` profile and
 its SHA-256 so the outside model receives the full operating lens, not just a
 job-description label. A packet created with `--no-include-expert-profile` is
-degraded and must be justified in the handoff.
+degraded, must pass `--degraded-context-justification`, and still requires
+`--allow-degraded-packet` at dispatch time.
 
 Use outside contracts for work that benefits from an independent reasoning lens:
 
@@ -473,10 +485,31 @@ python3 scripts/build_contractor_packet.py \
 
 Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is recorded
 in a local JSON audit note. The record must include `allowed: true`, a matching
-share boundary, allowed executor list, decision source, timestamp, and scope;
-see `examples/sample-opt-in-record.json`. Pass `--epic <id>` when the contract
-belongs to a durable epic so quota checks are scoped to that epic. Without
-`--epic`, the helper uses the global dispatch bucket for quota accounting.
+share boundary, `allowed_external_executors`, decision source, timezone-aware
+timestamp, scope, and optional expiry; see `examples/sample-opt-in-record.json`.
+Legacy records with `allowed_executors` still validate for compatibility. Pass
+`--epic <id>` when the contract belongs to a durable epic so quota checks are
+scoped to that epic. Without `--epic`, the helper uses the global dispatch
+bucket for quota accounting.
+
+If an expert profile is intentionally omitted, name the reason in the packet:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor external_security_reviewer \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --no-include-expert-profile \
+  --degraded-context-justification "The reviewer only needs a narrow compatibility check." \
+  --format json \
+  --output contractor-packet.json
+```
+
+Packet validation checks the packet hash, executor, boundary, opt-in basis,
+expert-profile state, mandatory exclusions (`full_bead_json`, `secrets`,
+`production_access`), artifact whitelist, snippet shape, snippet line limits,
+snippet SHA-256 values, and included-artifact consistency before dispatch.
 
 Manual dispatch prompts are generated from approved packets:
 
@@ -502,6 +535,20 @@ python3 scripts/route_work.py \
 
 Local-worker output is treated like contractor evidence: evaluator scoring and
 architect adjudication are still required before follow-up work is implemented.
+Local-worker expert review beads are labeled `local-worker-only` and
+`no-codex-exec`, and their metadata sets `codex_pickup` to `forbidden`.
+
+Direct route dispatch without a prebuilt packet can carry a stable dispatch ID:
+
+```bash
+python3 scripts/dispatch_work.py \
+  --local-ok \
+  --prefer-local \
+  --dispatch-id dispatch-<bead-id>-<timestamp> \
+  --bead <id> \
+  --epic <epic-id> \
+  "Documentation review for public README examples."
+```
 
 Do not ask outside models for raw chain-of-thought. Ask for conclusions,
 assumptions, evidence, alternatives considered, risks, confidence, and

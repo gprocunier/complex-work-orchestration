@@ -19,6 +19,8 @@ AUDIT_LOG = AUDIT_DIR / "audit.jsonl"
 RISK_ORDER = ["low", "medium", "high", "critical"]
 SENSITIVITY_ORDER = ["public", "redacted", "internal", "restricted"]
 EXTERNAL_GUARD_LABELS = ["contractor-only", "no-codex-exec"]
+LOCAL_WORKER_GUARD_LABELS = ["local-worker-only", "no-codex-exec"]
+MANDATORY_EXCLUDED_ARTIFACTS = {"full_bead_json", "secrets", "production_access"}
 CONTRACTOR_PACKET_REQUIRED_FIELDS = [
     "dispatch_id",
     "generated_at",
@@ -27,6 +29,7 @@ CONTRACTOR_PACKET_REQUIRED_FIELDS = [
     "share_boundary",
     "job_description_label",
     "expert_profile_included",
+    "degraded_context_justification",
     "external_opt_in",
     "opt_in_basis",
     "boundary_description",
@@ -488,9 +491,33 @@ def classify_work(
     guard_labels: list[str] = []
     if route == "external-contract":
         guard_labels = EXTERNAL_GUARD_LABELS + [primary.get("job_description_label", "contract-jd-general-reasoning")]
+    elif route == "local-worker":
+        guard_labels = LOCAL_WORKER_GUARD_LABELS + [primary.get("job_description_label", "contract-jd-general-reasoning")]
 
     evaluator_required = route in ["external-contract", "local-worker"]
     architect_adjudication_required = evaluator_required or route == "architect-review" or risk in ["high", "critical"]
+    external_experts = [
+        str(expert.get("name"))
+        for expert in experts
+        if expert_uses_external_contract(expert, recommended_executor)
+    ]
+    local_worker_experts = [
+        str(expert.get("name"))
+        for expert in experts
+        if expert_uses_local_worker(expert, recommended_executor)
+    ]
+    internal_experts = [
+        str(expert.get("name"))
+        for expert in experts
+        if not expert_uses_external_contract(expert, recommended_executor)
+        and not expert_uses_local_worker(expert, recommended_executor)
+    ]
+    acceptance_required_experts = [
+        str(expert.get("name"))
+        for expert in experts
+        if expert_uses_external_contract(expert, recommended_executor)
+        or expert_uses_local_worker(expert, recommended_executor)
+    ]
 
     return {
         "route": route,
@@ -503,6 +530,12 @@ def classify_work(
         "external_contract_allowed": route == "external-contract" and not hard_stops,
         "local_worker_allowed": local_ok,
         "prefer_local_worker": prefer_local,
+        "has_external_expert_contracts": bool(external_experts),
+        "has_local_worker_contracts": bool(local_worker_experts),
+        "external_experts": external_experts,
+        "local_worker_experts": local_worker_experts,
+        "internal_experts": internal_experts,
+        "acceptance_required_experts": acceptance_required_experts,
         "recommended_executor": recommended_executor,
         "selected_executor": selected,
         "required_experts": experts,
@@ -575,6 +608,16 @@ def packet_payload_hash(packet: dict[str, Any]) -> str:
     return artifact_hash(json.dumps(payload, sort_keys=True))
 
 
+def parse_iso_datetime(value: str, field_name: str) -> dt.datetime:
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SystemExit(f"{field_name} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise SystemExit(f"{field_name} must include a timezone")
+    return parsed.astimezone(dt.timezone.utc)
+
+
 def artifact_whitelist_for_boundary(share_boundary: str) -> set[str]:
     return set(boundary_config(share_boundary).get("artifact_whitelist", []))
 
@@ -597,6 +640,10 @@ def expert_uses_external_contract(expert: dict[str, Any], fallback_executor: str
     return bool(selected_executor_for_expert(expert, fallback_executor).get("external"))
 
 
+def expert_uses_local_worker(expert: dict[str, Any], fallback_executor: str | None = None) -> bool:
+    return selected_executor_for_expert(expert, fallback_executor).get("dispatch_mode") == "local_openai_compatible"
+
+
 def expert_review_lane(expert: dict[str, Any]) -> str:
     raw = str(expert.get("name") or expert.get("discipline") or expert.get("display_name") or "review")
     slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-") or "review"
@@ -608,6 +655,8 @@ def expert_review_labels(expert: dict[str, Any], route: dict[str, Any]) -> list[
     job_label = str(expert.get("job_description_label", "contract-jd-general-reasoning"))
     if expert_uses_external_contract(expert, route.get("recommended_executor")):
         return [*EXTERNAL_GUARD_LABELS, job_label, stage]
+    if expert_uses_local_worker(expert, route.get("recommended_executor")):
+        return [*LOCAL_WORKER_GUARD_LABELS, job_label, stage]
     return ["expert-review", job_label, stage]
 
 
@@ -616,6 +665,7 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
     executor = expert.get("recommended_executor") or selected.get("key") or route.get("recommended_executor")
     external = bool(selected.get("external"))
     dispatch_mode = selected.get("dispatch_mode")
+    local_worker = dispatch_mode == "local_openai_compatible"
     return {
         "expert": expert.get("name"),
         "discipline": expert.get("discipline"),
@@ -625,9 +675,9 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
         "executor": executor,
         "selected_executor": selected,
         "executor_policy_violations": expert.get("executor_policy_violations", []),
-        "codex_pickup": "forbidden" if external else selected.get("codex_pickup", "allowed"),
+        "codex_pickup": "forbidden" if external or local_worker else selected.get("codex_pickup", "allowed"),
         "architect_review_required": True,
-        "acceptance_bead_required": external or dispatch_mode == "local_openai_compatible",
+        "acceptance_bead_required": external or local_worker,
     }
 
 
@@ -655,7 +705,10 @@ def validate_opt_in_record(path: str | Path, *, executor: str, share_boundary: s
     if not boundary_allowed:
         raise SystemExit(f"opt-in record does not allow share boundary {share_boundary!r}")
 
-    executors = record.get("allowed_executors", record.get("executors", record.get("executor")))
+    executors = record.get(
+        "allowed_external_executors",
+        record.get("allowed_executors", record.get("executors", record.get("executor"))),
+    )
     if isinstance(executors, str):
         executor_allowed = executors in [executor, "*"]
     elif isinstance(executors, list):
@@ -669,9 +722,30 @@ def validate_opt_in_record(path: str | Path, *, executor: str, share_boundary: s
         raise SystemExit("opt-in record must include decision_source")
     if not record.get("recorded_at"):
         raise SystemExit("opt-in record must include recorded_at")
+    parse_iso_datetime(str(record["recorded_at"]), "recorded_at")
+    expires_at = record.get("expires_at")
+    if expires_at:
+        expiry = parse_iso_datetime(str(expires_at), "expires_at")
+        if expiry <= dt.datetime.now(dt.timezone.utc):
+            raise SystemExit("opt-in record has expired")
     if not record.get("scope"):
         raise SystemExit("opt-in record must include scope")
     return record
+
+
+def find_forbidden_fields(value: Any, forbidden_fields: set[str], prefix: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if key in forbidden_fields:
+                hits.append(path)
+            hits.extend(find_forbidden_fields(item, forbidden_fields, path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            path = f"{prefix}[{index}]" if prefix else f"[{index}]"
+            hits.extend(find_forbidden_fields(item, forbidden_fields, path))
+    return hits
 
 
 def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet: bool = False) -> list[str]:
@@ -715,12 +789,31 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         errors.append("packet job_description_label must be a contract-jd label")
     if packet.get("expert_profile_included") is not True and not allow_degraded_packet:
         errors.append("packet is missing the expert profile; pass --allow-degraded-packet to dispatch anyway")
+    if packet.get("expert_profile_included") is not True and not str(packet.get("degraded_context_justification", "")).strip():
+        errors.append("degraded packet is missing degraded_context_justification")
 
     expected_hash = packet_payload_hash(packet)
     if packet.get("packet_sha256") != expected_hash:
         errors.append("packet_sha256 does not match packet payload")
 
+    forbidden_fields = set(boundary.get("forbidden_fields", [])) if boundary else set()
+    forbidden_hits = find_forbidden_fields(packet.get("bead_summary", {}), forbidden_fields)
+    if forbidden_hits:
+        errors.append("bead_summary contains forbidden boundary fields: " + ", ".join(sorted(forbidden_hits)))
+
+    excluded_types = {
+        artifact.get("type")
+        for artifact in packet.get("excluded_artifacts", [])
+        if isinstance(artifact, dict)
+    }
+    missing_exclusions = sorted(MANDATORY_EXCLUDED_ARTIFACTS - excluded_types)
+    if missing_exclusions:
+        errors.append("excluded_artifacts is missing mandatory exclusions: " + ", ".join(missing_exclusions))
+
     whitelist = set(boundary.get("artifact_whitelist", [])) if boundary else set()
+    included_artifacts = [item for item in packet.get("included_artifacts", []) if isinstance(item, dict)]
+    selected_snippets = [item for item in packet.get("selected_snippets", []) if isinstance(item, dict)]
+    snippet_limit = int(boundary.get("snippet_line_limit", 0)) if boundary else 0
     for artifact in packet.get("included_artifacts", []):
         artifact_type = artifact.get("type") if isinstance(artifact, dict) else None
         if not artifact_type:
@@ -729,9 +822,58 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
             errors.append(f"artifact type {artifact_type!r} is not allowed by share boundary {share_boundary!r}")
 
     for snippet in packet.get("selected_snippets", []):
+        if not isinstance(snippet, dict):
+            errors.append("selected_snippets contains a non-object entry")
+            continue
+        required_snippet_fields = {"type", "path", "line_count", "truncated", "sha256", "content"}
+        missing = sorted(required_snippet_fields - set(snippet))
+        if missing:
+            errors.append(f"selected snippet {snippet.get('path', '<unknown>')} is missing fields: {', '.join(missing)}")
         snippet_type = snippet.get("type") if isinstance(snippet, dict) else None
         if snippet_type and snippet_type not in whitelist:
             errors.append(f"snippet artifact type {snippet_type!r} is not allowed by share boundary {share_boundary!r}")
+        line_count = snippet.get("line_count")
+        if not isinstance(line_count, int):
+            errors.append(f"selected snippet {snippet.get('path', '<unknown>')} has non-integer line_count")
+        elif snippet_limit and line_count > snippet_limit:
+            errors.append(
+                f"selected snippet {snippet.get('path', '<unknown>')} exceeds boundary line limit {snippet_limit}"
+            )
+        content = snippet.get("content")
+        sha256 = snippet.get("sha256")
+        if isinstance(content, str) and isinstance(sha256, str) and artifact_hash(content) != sha256:
+            errors.append(f"selected snippet {snippet.get('path', '<unknown>')} sha256 does not match content")
+
+    assignment = next((item for item in included_artifacts if item.get("type") == "assignment_summary"), None)
+    if not assignment:
+        errors.append("included_artifacts is missing assignment_summary")
+    elif assignment.get("sha256") != artifact_hash(json.dumps(packet.get("bead_summary", {}), sort_keys=True)):
+        errors.append("assignment_summary sha256 does not match bead_summary")
+
+    if packet.get("expert_profile_included"):
+        profile = packet.get("expert_profile") or {}
+        profile_artifact = next((item for item in included_artifacts if item.get("type") == "expert_profile"), None)
+        if not profile_artifact:
+            errors.append("included_artifacts is missing expert_profile")
+        elif isinstance(profile, dict):
+            if profile_artifact.get("path") != profile.get("path") or profile_artifact.get("sha256") != profile.get("sha256"):
+                errors.append("expert_profile artifact does not match expert_profile payload")
+
+    for artifact in included_artifacts:
+        artifact_type = artifact.get("type")
+        if artifact_type in {"selected_file_snippet", "inline_snippet"}:
+            match = next(
+                (
+                    snippet
+                    for snippet in selected_snippets
+                    if snippet.get("type") == artifact_type
+                    and snippet.get("path") == artifact.get("path")
+                    and snippet.get("sha256") == artifact.get("sha256")
+                ),
+                None,
+            )
+            if not match:
+                errors.append(f"included artifact {artifact_type}:{artifact.get('path')} has no matching selected snippet")
 
     if not packet.get("required_return_sections"):
         errors.append("packet required_return_sections must not be empty")

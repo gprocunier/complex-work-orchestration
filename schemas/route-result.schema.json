@@ -13,6 +13,12 @@
     "external_contract_allowed": {"type": "boolean"},
     "local_worker_allowed": {"type": "boolean"},
     "prefer_local_worker": {"type": "boolean"},
+    "has_external_expert_contracts": {"type": "boolean"},
+    "has_local_worker_contracts": {"type": "boolean"},
+    "external_experts": {"type": "array", "items": {"type": "string"}},
+    "local_worker_experts": {"type": "array", "items": {"type": "string"}},
+    "internal_experts": {"type": "array", "items": {"type": "string"}},
+    "acceptance_required_experts": {"type": "array", "items": {"type": "string"}},
     "evaluator_required": {"type": "boolean"},
     "architect_adjudication_required": {"type": "boolean"},
     "ranked_experts": {

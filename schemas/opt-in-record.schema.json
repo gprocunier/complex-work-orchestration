@@ -2,16 +2,42 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "External Contractor Opt-In Record",
   "type": "object",
-  "required": ["allowed", "share_boundary", "allowed_executors", "decision_source", "recorded_at", "scope"],
+  "required": ["decision_source", "recorded_at", "scope"],
+  "anyOf": [
+    {"required": ["allowed"]},
+    {"required": ["external_contracting_allowed"]}
+  ],
+  "allOf": [
+    {
+      "anyOf": [
+        {"required": ["share_boundary"]},
+        {"required": ["share_boundaries"]}
+      ]
+    },
+    {
+      "anyOf": [
+        {"required": ["allowed_external_executors"]},
+        {"required": ["allowed_executors"]},
+        {"required": ["executors"]},
+        {"required": ["executor"]}
+      ]
+    }
+  ],
   "properties": {
     "allowed": {"type": "boolean"},
+    "external_contracting_allowed": {"type": "boolean"},
+    "project": {"type": "string"},
+    "epic_id": {"type": "string"},
+    "bead_id": {"type": "string"},
     "share_boundary": {"type": "string"},
     "share_boundaries": {"type": "array", "items": {"type": "string"}},
+    "allowed_external_executors": {"type": "array", "items": {"type": "string"}},
     "allowed_executors": {"type": "array", "items": {"type": "string"}},
     "executors": {"type": "array", "items": {"type": "string"}},
     "executor": {"type": "string"},
     "decision_source": {"type": "string"},
-    "recorded_at": {"type": "string"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
     "scope": {"type": "string"},
     "notes": {"type": "string"}
   }

@@ -57,7 +57,11 @@ SHA-256: {profile.get('sha256')}
 {profile.get('content', '')}
 ```"""
     else:
-        profile_text = "Distinguished Engineer calibration profile: not included. Treat this as degraded context and say so in the return."
+        justification = packet.get("degraded_context_justification", "")
+        profile_text = f"""Distinguished Engineer calibration profile: not included. Treat this as degraded context and say so in the return.
+
+Degraded-context justification:
+{justification}"""
     return f"""You are an outside model contractor for one bounded Beads assignment.
 
 Dispatch ID: {packet['dispatch_id']}

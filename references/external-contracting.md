@@ -42,7 +42,8 @@ export context.
 Generated contractor packets include the matched Distinguished Engineer profile
 by default. That profile is part of the contract artifact and gives the outside
 model the operating lens for the assigned discipline. A packet generated without
-the profile is degraded and must be justified in the Beads handoff.
+the profile is degraded, must be built with `--degraded-context-justification`,
+and still requires `--allow-degraded-packet` before manual dispatch.
 
 ## Invocation Patterns
 
@@ -132,6 +133,13 @@ Guard labels:
 
 ```text
 contractor-only
+no-codex-exec
+```
+
+Local-worker review contracts use:
+
+```text
+local-worker-only
 no-codex-exec
 ```
 
@@ -302,19 +310,24 @@ python3 scripts/build_contractor_packet.py \
      --output contractor-packet.json
    ```
 
-   Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is
-   recorded in a structured local JSON audit note. The record must include
-   `allowed: true`, a matching share boundary, allowed executor list, decision
-   source, timestamp, and scope; see `examples/sample-opt-in-record.json`.
+  Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is
+  recorded in a structured local JSON audit note. Preferred records include
+  `allowed: true`, a matching share boundary, `allowed_external_executors`,
+  decision source, timezone-aware `recorded_at`, optional `expires_at`, scope,
+  and optional project/epic/bead IDs; see `examples/sample-opt-in-record.json`.
+  Legacy records with `allowed_executors` remain accepted for compatibility.
 
 5. PM verifies the packet includes the expert profile, opt-in basis, quota
    metadata, and only safe redacted snippets. Packet build audits by default;
    use `--no-audit` only for test rehearsals that must not consume quota.
+   If the profile is intentionally omitted, the build command must include
+   `--no-include-expert-profile --degraded-context-justification "<reason>"`.
 6. PM gives the contractor `references/contractor-brief.md`, the packet, and
    the bead assignment.
 7. PM generates a manual dispatch prompt. Dispatch revalidates the packet hash,
-   executor, opt-in basis, boundary, expert profile, and artifact whitelist, then
-   records an audit event by default:
+   executor, opt-in basis, boundary, expert-profile state, mandatory exclusions,
+   selected snippet fields, snippet line limits, snippet SHA-256 values, and
+   artifact whitelist before it records an audit event by default:
 
    ```bash
    python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
@@ -336,15 +349,25 @@ python3 scripts/build_contractor_packet.py \
 Codex agents should not pick up contractor-only work:
 
 ```bash
-bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json
+bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json
 ```
 
-To inspect contractor work deliberately:
+To inspect contract work deliberately:
 
 ```bash
 bd ready --label contractor-only --json
+bd ready --label local-worker-only --json
 bd show <id> --json
 ```
+
+## Local Worker Contracts
+
+Local OpenAI-compatible workers are not outside contractors, but their review
+beads are still contract-style evidence. They require explicit `--local-ok` and
+should only be preferred with `--prefer-local` for low-risk work. Generated
+expert-review beads use `local-worker-only` plus `no-codex-exec`, metadata sets
+`codex_pickup` to `forbidden`, and evaluator plus architect adjudication are
+required before accepted findings become normal Codex implementation beads.
 
 ## Handoff Format
 

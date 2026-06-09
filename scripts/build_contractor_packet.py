@@ -84,6 +84,21 @@ def collect_snippets(paths: list[str], max_lines: int) -> list[dict[str, Any]]:
     return snippets
 
 
+def inline_snippet(snippet: str, *, index: int, max_lines: int) -> dict[str, Any]:
+    redacted = redact_text(snippet)
+    lines = redacted.splitlines()
+    if max_lines and len(lines) > max_lines:
+        raise SystemExit(f"inline snippet {index} exceeds boundary line limit {max_lines}")
+    return {
+        "type": "inline_snippet",
+        "path": f"inline-{index}",
+        "line_count": len(lines),
+        "truncated": False,
+        "sha256": artifact_hash(redacted),
+        "content": redacted,
+    }
+
+
 def build_packet(
     *,
     bead_id: str,
@@ -96,6 +111,7 @@ def build_packet(
     dispatch_id: str | None = None,
     expert_profile_path: str | None = None,
     include_expert_profile: bool = True,
+    degraded_context_justification: str = "",
     external_opt_in: bool = False,
     opt_in_basis: str = "not-recorded",
     epic_id: str | None = None,
@@ -108,17 +124,11 @@ def build_packet(
     selected_snippets = collect_snippets(allowed_files, int(boundary.get("snippet_line_limit", 80)))
     profile_path = expert_profile_path or persona_for_job_label(job_description_label)
     expert_profile = load_expert_profile(profile_path) if include_expert_profile and profile_path else {}
+    if not expert_profile and not degraded_context_justification.strip():
+        raise SystemExit("degraded packet requires --degraded-context-justification")
     for index, snippet in enumerate(inline_snippets, 1):
-        redacted = redact_text(snippet)
         selected_snippets.append(
-            {
-                "type": "inline_snippet",
-                "path": f"inline-{index}",
-                "line_count": len(redacted.splitlines()),
-                "truncated": False,
-                "sha256": artifact_hash(redacted),
-                "content": redacted,
-            }
+            inline_snippet(snippet, index=index, max_lines=int(boundary.get("snippet_line_limit", 80)))
         )
 
     included = [
@@ -148,6 +158,7 @@ def build_packet(
         "job_description_label": job_description_label,
         "expert_profile": expert_profile or None,
         "expert_profile_included": bool(expert_profile),
+        "degraded_context_justification": degraded_context_justification.strip(),
         "external_opt_in": external_opt_in,
         "opt_in_basis": opt_in_basis,
         "boundary_description": boundary.get("description"),
@@ -181,7 +192,13 @@ SHA-256: {profile['sha256']}
 ```
 """
     else:
-        profile_block = "## Expert Profile\n\nNo expert profile included. This is a degraded packet and must be justified.\n"
+        profile_block = f"""## Expert Profile
+
+No expert profile included. This is a degraded packet.
+
+Justification:
+{packet.get('degraded_context_justification', '')}
+"""
     return f"""# Contractor Packet
 
 Dispatch ID: {packet['dispatch_id']}
@@ -243,6 +260,7 @@ def main() -> None:
     profile_group = parser.add_mutually_exclusive_group()
     profile_group.add_argument("--include-expert-profile", dest="include_expert_profile", action="store_true", default=True)
     profile_group.add_argument("--no-include-expert-profile", dest="include_expert_profile", action="store_false")
+    parser.add_argument("--degraded-context-justification", default="")
     parser.add_argument("--allowed-file", action="append", default=[])
     parser.add_argument("--snippet", action="append", default=[], help="Inline snippet to include after redaction.")
     parser.add_argument("--dispatch-id")
@@ -282,6 +300,7 @@ def main() -> None:
         dispatch_id=dispatch_id,
         expert_profile_path=args.expert_profile,
         include_expert_profile=args.include_expert_profile,
+        degraded_context_justification=args.degraded_context_justification,
         external_opt_in=True,
         opt_in_basis=opt_in_basis,
         epic_id=args.epic,

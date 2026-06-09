@@ -50,6 +50,10 @@ def validate_repository() -> list[str]:
         alias_for = executor.get("alias_for")
         if alias_for and alias_for not in executors:
             errors.append(f"executor {key!r} aliases unknown executor {alias_for!r}")
+        if executor.get("external") and executor.get("codex_pickup") != "forbidden":
+            errors.append(f"external executor {key!r} must set codex_pickup=forbidden")
+        if executor.get("dispatch_mode") == "local_openai_compatible" and executor.get("codex_pickup") != "forbidden":
+            errors.append(f"local worker executor {key!r} must set codex_pickup=forbidden")
 
     labels: dict[str, str] = {}
     for name, expert in experts.items():

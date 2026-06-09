@@ -51,13 +51,28 @@ def main() -> None:
     args = parser.parse_args()
 
     print("# Orchestration Resume State\n")
-    print("Workerbee-ready: `bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json`")
+    print("Workerbee-ready: `bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json`")
     print("Contractor dispatch: `bd ready --label contractor-only --json`")
+    print("Local-worker dispatch: `bd ready --label local-worker-only --json`")
     print("Evaluation/adjudication: `bd ready --label evaluation --json` and `bd ready --label adjudication --json`\n")
 
     commands = [
-        ("Codex-ready work", ["ready", "--exclude-label", "contractor-only", "--exclude-label", "no-codex-exec", "--json"], args.ready_limit),
+        (
+            "Codex-ready work",
+            [
+                "ready",
+                "--exclude-label",
+                "contractor-only",
+                "--exclude-label",
+                "local-worker-only",
+                "--exclude-label",
+                "no-codex-exec",
+                "--json",
+            ],
+            args.ready_limit,
+        ),
         ("Contractor-only work", ["ready", "--label", "contractor-only", "--json"], args.ready_limit),
+        ("Local-worker work", ["ready", "--label", "local-worker-only", "--json"], args.ready_limit),
         ("Evaluation gates", ["ready", "--label", "evaluation", "--json"], args.ready_limit),
         ("Architect adjudication gates", ["ready", "--label", "adjudication", "--json"], args.ready_limit),
         ("Open graph", ["list", "--json"], args.open_limit),

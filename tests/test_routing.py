@@ -58,6 +58,9 @@ class RoutingTests(unittest.TestCase):
         )
         self.assertEqual(result["route"], "local-worker")
         self.assertEqual(result["recommended_executor"], "local_openai_compatible_worker")
+        self.assertTrue(result["has_local_worker_contracts"])
+        self.assertIn("local-worker-only", result["guard_labels"])
+        self.assertIn("no-codex-exec", result["guard_labels"])
         self.assertTrue(result["evaluator_required"])
 
 

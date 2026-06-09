@@ -42,9 +42,11 @@ class PacketProfileInclusionTests(unittest.TestCase):
             inline_snippets=[],
             dispatch_id="dispatch-no-profile-test",
             include_expert_profile=False,
+            degraded_context_justification="The operator requested a minimal compatibility packet.",
         )
         self.assertFalse(packet["expert_profile_included"])
         self.assertIsNone(packet["expert_profile"])
+        self.assertIn("minimal compatibility", packet["degraded_context_justification"])
 
 
 if __name__ == "__main__":

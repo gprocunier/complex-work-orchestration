@@ -74,6 +74,9 @@ Default roles:
 - **Project Manager**: simpler model. Owns Beads graph hygiene, status, dependencies, assignments, stale-work detection, and handoff completeness. Coordinates; does not decide architecture.
 - **Workerbee**: Codex 5.3-spark if available. Owns bounded investigation, focused patches, test triage, file search, evidence gathering, and narrow validation tasks.
 - **Outside Contractor**: Claude or another external LLM. Receives one explicit bead/contract at a time, calibrated by a job-description label, and reports findings through Beads or a patch branch.
+- **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
+  local-worker review contracts after explicit `--local-ok`; output is evidence
+  and still needs evaluator scoring plus architect adjudication.
 
 The main thread remains the final decision owner. Escalate architecture changes,
 scope changes, release decisions, destructive actions, secret handling, and
@@ -196,6 +199,11 @@ Every outside contract should have these guard labels:
 - `contractor-only`
 - `no-codex-exec`
 
+Every local-worker review contract should have these guard labels:
+
+- `local-worker-only`
+- `no-codex-exec`
+
 Add exactly one primary job-description label:
 
 - `contract-jd-general-reasoning`: independent second opinion, assumptions, tradeoffs, failure modes, and alternative approaches.
@@ -229,16 +237,18 @@ Share boundary:
 Codex handling rule: Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work."
 ```
 
-Codex agents should use ready-work filters that exclude contractor-only work:
+Codex agents should use ready-work filters that exclude contractor and
+local-worker contract work:
 
 ```bash
-bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json
+bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json
 ```
 
-Project-manager or architect dispatch may inspect contractor work explicitly:
+Project-manager or architect dispatch may inspect contract work explicitly:
 
 ```bash
 bd ready --label contractor-only --json
+bd ready --label local-worker-only --json
 bd show <id> --json
 ```
 
@@ -259,22 +269,31 @@ python3 scripts/build_contractor_packet.py \
 ```
 
 The packet includes the matched Distinguished Engineer profile by default. A
-packet without that profile is degraded and must be justified. Multi-discipline
-reviews require multiple contractor Beads, each with exactly one primary
-job-description label and one matching profile. Pass `--epic <id>` when an epic
-exists so dispatch quotas are scoped correctly. Use `--opt-in-record <path>`
-instead of `--external-ok` when opt-in is recorded in a structured local JSON
-audit note. Packet build audits by default; use `--no-audit` only for tests or
-dry rehearsals that must not consume quota.
+packet without that profile is degraded and must be built with
+`--degraded-context-justification`; dispatch still requires
+`--allow-degraded-packet`. Multi-discipline reviews require multiple contractor
+Beads, each with exactly one primary job-description label and one matching
+profile. Pass `--epic <id>` when an epic exists so dispatch quotas are scoped
+correctly. Use `--opt-in-record <path>` instead of `--external-ok` when opt-in
+is recorded in a structured local JSON audit note. Preferred opt-in records use
+`allowed_external_executors`, a timezone-aware `recorded_at`, optional
+`expires_at`, and project/epic/bead scope fields; legacy `allowed_executors`
+records remain accepted. Packet build audits by default; use `--no-audit` only
+for tests or dry rehearsals that must not consume quota.
 
 Generate the manual dispatch prompt from an approved packet. Do not claim that
 this helper called the outside model automatically. Dispatch revalidates the
-packet hash, executor, opt-in basis, boundary, expert profile, and artifact
-whitelist before rendering. It also audits by default:
+packet hash, executor, opt-in basis, boundary, expert profile, mandatory
+exclusions, selected snippets, and artifact whitelist before rendering. It also
+audits by default:
 
 ```bash
 python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
 ```
+
+For direct route dispatch without a packet, pass `--dispatch-id` when the
+operator needs quota checks, output, and audit entries to share a stable
+identity.
 
 After the contractor returns, evaluate the handoff before converting findings to
 implementation work:

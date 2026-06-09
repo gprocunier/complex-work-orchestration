@@ -9,6 +9,7 @@ from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt
 from orchestration_lib import (
     classify_work,
     enforce_contracting_quota,
+    make_dispatch_id,
     read_text_arg,
     record_audit_event,
     require_valid_contractor_packet,
@@ -33,6 +34,7 @@ def main() -> None:
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--bead")
     parser.add_argument("--epic")
+    parser.add_argument("--dispatch-id")
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
@@ -90,8 +92,15 @@ def main() -> None:
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
     )
-    quota_info = enforce_contracting_quota(args.epic, route["recommended_executor"], route["route"])
+    dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "unassigned")
+    quota_info = enforce_contracting_quota(
+        args.epic,
+        route["recommended_executor"],
+        route["route"],
+        dispatch_id=dispatch_id,
+    )
     artifact = {
+        "dispatch_id": dispatch_id,
         "bead_id": args.bead,
         "epic_id": args.epic,
         "route": route,
@@ -110,7 +119,7 @@ def main() -> None:
             {
                 "event_type": "dispatch_prepared",
                 "quota_event_type": quota_info.get("quota_event_type"),
-                "dispatch_id": f"dispatch-{args.bead or 'unassigned'}",
+                "dispatch_id": dispatch_id,
                 "bead_id": args.bead,
                 "epic_id": args.epic,
                 "executor_key": route["recommended_executor"],

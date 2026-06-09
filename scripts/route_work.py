@@ -18,8 +18,20 @@ def print_human(route: dict[str, object], top_n: int) -> None:
     print(f"External contract allowed: {route['external_contract_allowed']}")
     print(f"Local worker allowed: {route['local_worker_allowed']}")
     print(f"Prefer local worker: {route['prefer_local_worker']}")
+    print(f"Has external expert contracts: {route.get('has_external_expert_contracts')}")
+    print(f"Has local worker contracts: {route.get('has_local_worker_contracts')}")
     print(f"Evaluator required: {route['evaluator_required']}")
     print(f"Architect adjudication required: {route['architect_adjudication_required']}")
+
+    mixed_summary = [
+        ("External experts", route.get("external_experts") or []),
+        ("Local worker experts", route.get("local_worker_experts") or []),
+        ("Internal experts", route.get("internal_experts") or []),
+        ("Acceptance required experts", route.get("acceptance_required_experts") or []),
+    ]
+    for title, experts in mixed_summary:
+        if experts:
+            print(f"{title}: {', '.join(str(item) for item in experts)}")
 
     hard_stops = route.get("hard_stops") or []
     if hard_stops:

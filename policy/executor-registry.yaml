@@ -67,7 +67,7 @@
       "explicit_opt_in_required": false,
       "acceptance_required": true,
       "architect_review_required": true,
-      "codex_pickup": "allowed"
+      "codex_pickup": "forbidden"
     },
     "openai_deep_research_manual": {
       "display_name": "OpenAI Deep Research manual dispatch",
