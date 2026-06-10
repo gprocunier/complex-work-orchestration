@@ -6,7 +6,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from orchestration_lib import POLICY_DIR, REPO_ROOT, load_policy
+from orchestration_lib import (
+    CONTRACTOR_PACKET_REQUIRED_FIELDS,
+    LOCAL_DISPATCH_REQUIRED_FIELDS,
+    POLICY_DIR,
+    REPO_ROOT,
+    load_policy,
+)
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
     "assignment_summary",
@@ -61,6 +67,23 @@ def validate_repository() -> list[str]:
             errors.append(f"executor {key!r} references unknown provider_key {provider_key!r}")
         elif bool(executor.get("external")) != bool(providers[provider_key].get("external")):
             errors.append(f"executor {key!r} external flag does not match provider {provider_key!r}")
+        if executor.get("dispatch_mode") in {"local_openai_compatible", "local_secure_review"}:
+            if not executor.get("local_profile"):
+                errors.append(f"local executor {key!r} is missing local_profile")
+            transport = executor.get("transport") or {}
+            for field in [
+                "kind",
+                "base_url_env",
+                "api_key_env",
+                "model_env",
+                "endpoint_path",
+                "timeout_seconds",
+                "max_input_chars",
+            ]:
+                if field not in transport:
+                    errors.append(f"local executor {key!r} transport is missing {field!r}")
+            if executor.get("supports_web") or executor.get("supports_shell") or executor.get("supports_repo_write"):
+                errors.append(f"local executor {key!r} must not support web, shell, or repo write")
         if executor.get("dispatch_mode") == "local_secure_review":
             if executor.get("supports_web"):
                 errors.append(f"local secure reviewer {key!r} must not support web")
@@ -116,7 +139,117 @@ def validate_repository() -> list[str]:
     elif local_secure and executors[local_secure].get("dispatch_mode") != "local_secure_review":
         errors.append(f"peer-review local secure reviewer {local_secure!r} must use local_secure_review dispatch mode")
 
+    control_peer_executors = controls.get("peer_review_policy", {}).get("allowed_peer_executors", [])
+    for executor in control_peer_executors:
+        if executor not in executors:
+            errors.append(f"contracting controls peer review allows unknown executor {executor!r}")
+    if not controls.get("sabotage_policy", {}).get("signal_weights"):
+        errors.append("contracting controls must define sabotage_policy.signal_weights")
+    if not controls.get("malpractice_policy", {}).get("signal_weights"):
+        errors.append("contracting controls must define malpractice_policy.signal_weights")
+    for required_expert in ["peer_review", "sabotage_review"]:
+        if required_expert not in experts:
+            errors.append(f"expert registry is missing required {required_expert!r} gate")
+
+    packet_schema = load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json")
+    packet_required = set(packet_schema.get("required", []))
+    missing_packet_required = sorted(set(CONTRACTOR_PACKET_REQUIRED_FIELDS) - packet_required)
+    if missing_packet_required:
+        errors.append(
+            "contractor packet schema is missing runtime required fields: " + ", ".join(missing_packet_required)
+        )
+    opt_in_schema = load_json(REPO_ROOT / "schemas" / "opt-in-record.schema.json")
+    require_schema_properties(
+        errors,
+        schema_name="opt-in-record.schema.json",
+        schema=opt_in_schema,
+        properties=["allowed_providers"],
+    )
+    acceptance_schema = load_json(REPO_ROOT / "schemas" / "acceptance-decision.schema.json")
+    require_schema_properties(
+        errors,
+        schema_name="acceptance-decision.schema.json",
+        schema=acceptance_schema,
+        properties=[
+            "malpractice_score",
+            "malpractice_signals",
+            "signal_categories",
+            "peer_review_required",
+            "peer_review_status",
+            "human_adjudication_required",
+            "recommended_disposition",
+        ],
+    )
+    local_envelope_schema = load_json(REPO_ROOT / "schemas" / "local-dispatch-envelope.schema.json")
+    local_required = set(local_envelope_schema.get("required", []))
+    missing_local_required = sorted(set(LOCAL_DISPATCH_REQUIRED_FIELDS) - local_required)
+    if missing_local_required:
+        errors.append(
+            "local dispatch envelope schema is missing runtime required fields: " + ", ".join(missing_local_required)
+        )
+
+    require_doc_terms(
+        errors,
+        "README.md",
+        [
+            "OpenShift AI vLLM",
+            "references/local-inference.md",
+            "malpractice_score",
+            "peer_review_required",
+            "schemas/local-dispatch-envelope.schema.json",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "SKILL.md",
+        ["OpenShift AI vLLM", "local-profile", "peer_review_required", "malpractice_score"],
+    )
+    require_doc_terms(
+        errors,
+        "references/external-contracting.md",
+        ["Peer-review disposition", "malpractice_score", "contract-jd-sabotage-review"],
+    )
+    require_doc_terms(
+        errors,
+        "references/incident-response-playbook.md",
+        ["malpractice_score", "peer_review_status", "recommended_disposition"],
+    )
+    require_doc_terms(
+        errors,
+        "references/local-inference.md",
+        ["OpenShift AI vLLM", "CWO_OPENSHIFT_AI_VLLM_BASE_URL", "scripts/dispatch_work.py"],
+    )
+
+    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    for term in ["python scripts/validate_repository.py", "python -m unittest discover -s tests"]:
+        if term not in ci:
+            errors.append(f"CI workflow is missing required command: {term}")
+
     return errors
+
+
+def require_schema_properties(
+    errors: list[str],
+    *,
+    schema_name: str,
+    schema: dict[str, Any],
+    properties: list[str],
+) -> None:
+    available = set(schema.get("properties", {}))
+    missing = sorted(set(properties) - available)
+    if missing:
+        errors.append(f"schema {schema_name} is missing properties: {', '.join(missing)}")
+
+
+def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -> None:
+    path = REPO_ROOT / relative_path
+    if not path.is_file():
+        errors.append(f"required documentation file is missing: {relative_path}")
+        return
+    content = path.read_text(encoding="utf-8")
+    missing = [term for term in terms if term not in content]
+    if missing:
+        errors.append(f"{relative_path} is missing required terms: {', '.join(missing)}")
 
 
 def main() -> None:

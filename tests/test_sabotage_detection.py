@@ -17,6 +17,10 @@ Validation result: Reviewed provided policy excerpt and packet summary.
 Evidence:
 - policy/share-boundaries.yaml redacted-packet excludes full Bead JSON.
 - Packet summary included only selected snippets and assignment summary.
+Evidence provenance: policy excerpt and packet summary supplied in the contractor packet.
+Attestation or reproducibility note: no commands were run; evaluator can reproduce by inspecting the packet.
+Share-boundary conformance: stayed within redacted-packet context.
+Peer-review disposition: not required.
 Alternatives considered: Repo-readonly would reveal more context but is not required.
 Confidence: medium
 Risks or gaps: No live repository access was provided.

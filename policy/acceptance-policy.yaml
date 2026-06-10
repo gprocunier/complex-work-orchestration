@@ -7,6 +7,10 @@
     "Summary",
     "Validation result",
     "Evidence",
+    "Evidence provenance",
+    "Attestation or reproducibility note",
+    "Share-boundary conformance",
+    "Peer-review disposition",
     "Alternatives considered",
     "Confidence",
     "Risks or gaps",
@@ -31,7 +35,8 @@
       "missing_confidence": 10,
       "missing_residual_risk": 10,
       "scope_creep": 10,
-      "sabotage_review": 20
+      "sabotage_review": 20,
+      "malpractice_review": 10
     },
     "thresholds": {
       "accept": 85,
@@ -44,6 +49,7 @@
   "sabotage": {
     "thresholds": {
       "review": 30,
+      "architect_escalation": 45,
       "quarantine": 60
     },
     "signals": [

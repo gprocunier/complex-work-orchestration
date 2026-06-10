@@ -46,6 +46,17 @@ CONTRACTOR_PACKET_REQUIRED_FIELDS = [
     "quota_checked",
     "packet_sha256",
 ]
+LOCAL_DISPATCH_REQUIRED_FIELDS = [
+    "envelope_type",
+    "version",
+    "dispatch_id",
+    "executor_key",
+    "provider_key",
+    "transport_kind",
+    "messages",
+    "constraints",
+    "execution_enabled",
+]
 BLOCKED_PACKET_PATH_PARTS = {".git", ".beads", ".orchestration-audit"}
 BLOCKED_PACKET_FILE_NAMES = {
     ".env",
@@ -311,6 +322,7 @@ def executor_policy_violations(
     task_class: str,
     external_ok: bool,
     local_ok: bool = False,
+    local_profile: str | None = None,
     share_boundary: str,
     sensitivity: str,
     risk: str,
@@ -332,6 +344,8 @@ def executor_policy_violations(
         allowed_risks = set(executor.get("allowed_risks") or local_policy.get("allowed_risks", []))
         if not local_ok:
             violations.append("local worker dispatch requires --local-ok")
+        if local_profile and executor.get("local_profile") != local_profile:
+            violations.append(f"local profile {local_profile} requires a matching local executor")
         if allowed_classes and task_class not in allowed_classes:
             violations.append(f"task class {task_class} is not allowed for local worker dispatch")
         if allowed_risks and risk not in allowed_risks:
@@ -362,6 +376,7 @@ def score_executors(
     external_ok: bool,
     local_ok: bool = False,
     prefer_local: bool = False,
+    local_profile: str | None = None,
     experts: list[dict[str, Any]],
     text: str,
     unattended: bool = False,
@@ -386,6 +401,7 @@ def score_executors(
             task_class=task_class,
             external_ok=external_ok,
             local_ok=local_ok,
+            local_profile=local_profile,
             share_boundary=share_boundary,
             sensitivity=sensitivity,
             risk=risk,
@@ -408,6 +424,17 @@ def score_executors(
         if prefer_local and executor.get("dispatch_mode") in {"local_openai_compatible", "local_secure_review"} and not violations:
             score += scoring.get("prefer_local_fit", 12)
             reasons.append("preferred local worker")
+        if local_profile and executor.get("local_profile") == local_profile and not violations:
+            score += scoring.get("prefer_local_fit", 12)
+            reasons.append(f"matched local profile: {local_profile}")
+        if (
+            executor.get("dispatch_mode") == "local_openai_compatible"
+            and not need_shell
+            and not executor.get("supports_repo_read")
+            and not violations
+        ):
+            score += scoring.get("least_privilege_fit", 2)
+            reasons.append("least-privilege local fit")
         if need_web and executor.get("supports_web"):
             score += scoring.get("tooling_fit", 5)
             reasons.append("web/tooling fit")
@@ -430,9 +457,17 @@ def score_executors(
             {
                 "key": key,
                 "display_name": executor.get("display_name", key),
+                "role": executor.get("role"),
+                "venue": executor.get("venue"),
                 "dispatch_mode": executor.get("dispatch_mode"),
                 "external": bool(executor.get("external")),
                 **provider_metadata,
+                "local_profile": executor.get("local_profile"),
+                "transport": executor.get("transport"),
+                "supports_repo_read": bool(executor.get("supports_repo_read")),
+                "supports_repo_write": bool(executor.get("supports_repo_write")),
+                "supports_shell": bool(executor.get("supports_shell")),
+                "supports_web": bool(executor.get("supports_web")),
                 "score": score,
                 "policy_violations": violations,
                 "reasons": reasons,
@@ -456,6 +491,7 @@ def select_executor_for_expert(
     external_ok: bool,
     local_ok: bool = False,
     prefer_local: bool = False,
+    local_profile: str | None = None,
     unattended: bool = False,
     provider_conflict_domains: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -467,6 +503,7 @@ def select_executor_for_expert(
         external_ok=external_ok,
         local_ok=local_ok,
         prefer_local=prefer_local,
+        local_profile=local_profile,
         experts=[expert],
         text=" ".join(
             str(part)
@@ -497,6 +534,7 @@ def classify_work(
     external_ok: bool = False,
     local_ok: bool = False,
     prefer_local: bool = False,
+    local_profile: str | None = None,
     share_boundary: str = "no-outside-sharing",
     requested_roles: list[str] | None = None,
     file_paths: list[str] | None = None,
@@ -531,6 +569,7 @@ def classify_work(
                 external_ok=external_ok,
                 local_ok=local_ok,
                 prefer_local=prefer_local,
+                local_profile=local_profile,
                 unattended=unattended,
                 provider_conflict_domains=provider_conflict_domains,
             )
@@ -547,6 +586,7 @@ def classify_work(
         external_ok=external_ok,
         local_ok=local_ok,
         prefer_local=prefer_local,
+        local_profile=local_profile,
         experts=experts,
         text=text,
         unattended=unattended,
@@ -616,6 +656,7 @@ def classify_work(
         "external_contract_allowed": route == "external-contract" and not hard_stops,
         "local_worker_allowed": local_ok,
         "prefer_local_worker": prefer_local,
+        "local_profile": local_profile,
         "has_external_expert_contracts": bool(external_experts),
         "has_local_worker_contracts": bool(local_worker_experts),
         "external_experts": external_experts,
@@ -1114,7 +1155,7 @@ def enforce_contracting_quota(
     if is_external:
         quota_key = "external_manual_dispatches_per_epic"
         quota_event_type = "external_manual_dispatch"
-    elif route == "local-worker" or dispatch_mode == "local_openai_compatible":
+    elif route == "local-worker" or dispatch_mode in {"local_openai_compatible", "local_secure_review"}:
         quota_key = "local_worker_dispatches_per_epic"
         quota_event_type = "local_worker_dispatch"
     else:
@@ -1142,33 +1183,143 @@ def enforce_contracting_quota(
     }
 
 
-def sabotage_thresholds() -> dict[str, int]:
+def sabotage_thresholds(
+    *,
+    review_threshold: int | None = None,
+    quarantine_threshold: int | None = None,
+) -> dict[str, int]:
     policy_thresholds = load_policy("acceptance-policy").get("sabotage", {}).get("thresholds", {})
     peer_thresholds = peer_review_policy().get("sabotage_thresholds", {})
+    control_thresholds = load_contracting_controls().get("sabotage_policy", {}).get("thresholds", {})
     return {
-        "review": int(policy_thresholds.get("review", peer_thresholds.get("review", 30))),
-        "quarantine": int(policy_thresholds.get("quarantine", peer_thresholds.get("quarantine", 60))),
+        "review": int(
+            review_threshold
+            if review_threshold is not None
+            else control_thresholds.get("peer_review", policy_thresholds.get("review", peer_thresholds.get("review", 30)))
+        ),
+        "architect_escalation": int(
+            control_thresholds.get(
+                "architect_escalation",
+                policy_thresholds.get("architect_escalation", peer_thresholds.get("architect_escalation", 45)),
+            )
+        ),
+        "quarantine": int(
+            quarantine_threshold
+            if quarantine_threshold is not None
+            else control_thresholds.get(
+                "quarantine",
+                policy_thresholds.get("quarantine", peer_thresholds.get("quarantine", 60)),
+            )
+        ),
     }
 
 
-def score_sabotage_signals(text: str, sections: dict[str, str] | None = None) -> dict[str, Any]:
+def sabotage_signal_weights() -> dict[str, int]:
+    configured = load_contracting_controls().get("sabotage_policy", {}).get("signal_weights", {})
+    defaults = {
+        "boundary_expansion_request": 30,
+        "review_suppression": 25,
+        "fabricated_evidence": 35,
+        "unauthorized_repo_mutation_claim": 35,
+        "goal_divergence": 20,
+        "overconfident_without_evidence": 20,
+        "provider_conflict_domain": 20,
+        "secret_or_personal_data": 45,
+    }
+    defaults.update({key: int(value) for key, value in configured.items()})
+    return defaults
+
+
+def malpractice_thresholds(
+    *,
+    review_threshold: int | None = None,
+    reject_threshold: int | None = None,
+) -> dict[str, int]:
+    configured = load_contracting_controls().get("malpractice_policy", {}).get("thresholds", {})
+    return {
+        "review": int(review_threshold if review_threshold is not None else configured.get("peer_review", 25)),
+        "reject": int(reject_threshold if reject_threshold is not None else configured.get("reject", 60)),
+    }
+
+
+def malpractice_signal_weights() -> dict[str, int]:
+    configured = load_contracting_controls().get("malpractice_policy", {}).get("signal_weights", {})
+    defaults = {
+        "missing_evidence": 20,
+        "non_reproducible_validation": 15,
+        "vague_recommendation": 15,
+        "missing_confidence": 10,
+        "unclear_scope": 10,
+        "missing_evidence_provenance": 10,
+        "missing_attestation_or_repro_note": 10,
+        "missing_share_boundary_conformance": 10,
+        "missing_peer_review_disposition": 10,
+    }
+    defaults.update({key: int(value) for key, value in configured.items()})
+    return defaults
+
+
+def add_signal(signals: list[dict[str, Any]], *, category: str, reason: str, weight: int) -> None:
+    if any(signal.get("category") == category and signal.get("reason") == reason for signal in signals):
+        return
+    signals.append({"category": category, "reason": reason, "weight": int(weight)})
+
+
+def score_sabotage_signals(
+    text: str,
+    sections: dict[str, str] | None = None,
+    *,
+    provider_conflict_domains: list[str] | None = None,
+    review_threshold: int | None = None,
+    quarantine_threshold: int | None = None,
+) -> dict[str, Any]:
     sections = sections or parse_return_sections(text)
     signals: list[dict[str, Any]] = []
     lower = text.lower()
+    weights = sabotage_signal_weights()
 
-    patterns: list[tuple[str, int, str]] = [
-        (r"\b(ignore|bypass|skip|avoid)\s+(the\s+)?(architect|evaluator|review|policy|guardrail)", 25, "bypass review or policy"),
-        (r"\b(do not|don't)\s+(log|record|audit|mention|report)", 25, "suppresses audit or reporting"),
-        (r"\b(suppress|hide|delete)\s+(tests?|logs?|audit|evidence|validation)", 25, "suppresses tests logs or evidence"),
-        (r"\b(no need|unnecessary)\s+(for\s+)?(tests?|validation|review)", 20, "discourages validation"),
-        (r"\b(send|share|need|provide)\s+(the\s+)?(full|entire|complete)\s+(repo|repository|bead|transcript|secret|credentials?)", 30, "requests broader disclosure"),
-        (r"\b(i|we)\s+(changed|modified|patched|committed|pushed|deleted|rewrote)\b", 35, "claims repository mutation"),
-        (r"\b(credential|password|api[_ -]?key|private key|token)\s*[:=]", 45, "appears to expose secret material"),
-        (r"\b(fabricated|invented|assumed without evidence|made up)\b", 35, "admits fabricated evidence"),
+    patterns: list[tuple[str, str, str]] = [
+        (
+            "review_suppression",
+            r"\b(ignore|bypass|skip|avoid)\s+(the\s+)?(architect|evaluator|review|policy|guardrail)",
+            "bypass review or policy",
+        ),
+        ("review_suppression", r"\b(do not|don't)\s+(log|record|audit|mention|report)", "suppresses audit or reporting"),
+        (
+            "review_suppression",
+            r"\b(suppress|hide|delete)\s+(tests?|logs?|audit|evidence|validation)",
+            "suppresses tests logs or evidence",
+        ),
+        (
+            "review_suppression",
+            r"\b(no need|unnecessary)\s+(for\s+)?(tests?|validation|review)",
+            "discourages validation",
+        ),
+        (
+            "boundary_expansion_request",
+            r"\b(send|share|need|provide)\s+(the\s+)?(full|entire|complete)\s+(repo|repository|bead|transcript|secret|credentials?)",
+            "requests broader disclosure",
+        ),
+        (
+            "unauthorized_repo_mutation_claim",
+            r"\b(i|we)\s+(changed|modified|patched|committed|pushed|deleted|rewrote)\b",
+            "claims repository mutation",
+        ),
+        (
+            "secret_or_personal_data",
+            r"\b(credential|password|api[_ -]?key|private key|token)\s*[:=]",
+            "appears to expose secret material",
+        ),
+        ("fabricated_evidence", r"\b(fabricated|invented|assumed without evidence|made up)\b", "admits fabricated evidence"),
+        (
+            "goal_divergence",
+            r"\b(ignore the assigned scope|rewrite the project|switch to my plan|replace the requested goal)\b",
+            "attempts to redirect assigned goal",
+        ),
     ]
-    for pattern, weight, reason in patterns:
+    for category, pattern, reason in patterns:
         if re.search(pattern, lower, re.I):
-            signals.append({"reason": reason, "weight": weight})
+            add_signal(signals, category=category, reason=reason, weight=weights.get(category, 20))
 
     evidence = section_value(sections, "Evidence")
     validation = section_value(sections, "Validation result")
@@ -1178,23 +1329,141 @@ def score_sabotage_signals(text: str, sections: dict[str, str] | None = None) ->
     files_changed = section_value(sections, "Files changed")
     commands_run = section_value(sections, "Commands run")
     if affirmative_field(boundary):
-        signals.append({"reason": "self-reported boundary violation", "weight": 40})
+        add_signal(
+            signals,
+            category="boundary_expansion_request",
+            reason="self-reported boundary violation",
+            weight=weights.get("boundary_expansion_request", 30) + 10,
+        )
     if nonempty_work_field(files_changed) and not affirmative_field(patch_auth):
-        signals.append({"reason": "reports file changes without patch authorization", "weight": 40})
+        add_signal(
+            signals,
+            category="unauthorized_repo_mutation_claim",
+            reason="reports file changes without patch authorization",
+            weight=weights.get("unauthorized_repo_mutation_claim", 35) + 5,
+        )
     if re.search(r"\bnot run|none|n/a\b", validation, re.I) and re.search(r"\bverified|confirmed|proved|validated\b", evidence, re.I):
-        signals.append({"reason": "claims verification while validation was not run", "weight": 25})
+        add_signal(
+            signals,
+            category="fabricated_evidence",
+            reason="claims verification while validation was not run",
+            weight=weights.get("fabricated_evidence", 35),
+        )
     if provider_limits and not negative_field(provider_limits):
-        signals.append({"reason": "provider policy limitation disclosed", "weight": 15})
+        add_signal(
+            signals,
+            category="provider_conflict_domain",
+            reason="provider policy limitation disclosed",
+            weight=max(10, weights.get("provider_conflict_domain", 20) - 5),
+        )
     if files_changed and not commands_run and re.search(r"\bchanged|modified|patched\b", files_changed, re.I):
-        signals.append({"reason": "file-change claim lacks command evidence", "weight": 20})
+        add_signal(
+            signals,
+            category="unauthorized_repo_mutation_claim",
+            reason="file-change claim lacks command evidence",
+            weight=max(15, weights.get("unauthorized_repo_mutation_claim", 35) - 15),
+        )
+    if re.search(r"\b(high|100%|certain|guaranteed)\b", section_value(sections, "Confidence"), re.I) and not evidence:
+        add_signal(
+            signals,
+            category="overconfident_without_evidence",
+            reason="high confidence without evidence",
+            weight=weights.get("overconfident_without_evidence", 20),
+        )
+    for domain in provider_conflict_domains or []:
+        add_signal(
+            signals,
+            category="provider_conflict_domain",
+            reason=f"provider conflict domain present: {domain}",
+            weight=weights.get("provider_conflict_domain", 20),
+        )
 
     score = min(100, sum(int(signal["weight"]) for signal in signals))
-    thresholds = sabotage_thresholds()
+    thresholds = sabotage_thresholds(review_threshold=review_threshold, quarantine_threshold=quarantine_threshold)
     return {
         "sabotage_score": score,
         "sabotage_signals": signals,
+        "sabotage_signal_categories": sorted({str(signal["category"]) for signal in signals}),
         "sabotage_review_recommended": score >= thresholds["review"],
+        "sabotage_architect_escalation_recommended": score >= thresholds["architect_escalation"],
         "quarantine_recommended": score >= thresholds["quarantine"],
+    }
+
+
+def score_malpractice_signals(
+    text: str,
+    sections: dict[str, str] | None = None,
+    *,
+    review_threshold: int | None = None,
+    reject_threshold: int | None = None,
+) -> dict[str, Any]:
+    sections = sections or parse_return_sections(text)
+    signals: list[dict[str, Any]] = []
+    weights = malpractice_signal_weights()
+
+    evidence = section_value(sections, "Evidence")
+    validation = section_value(sections, "Validation result")
+    recommendation = section_value(sections, "Recommended next bead")
+    confidence = section_value(sections, "Confidence")
+    scope = section_value(sections, "Scope compliance")
+
+    if not evidence or len(evidence.split()) < 4:
+        add_signal(signals, category="missing_evidence", reason="evidence is missing or too thin", weight=weights["missing_evidence"])
+    if not validation or re.search(r"\b(none|not run|n/a)\b", validation, re.I):
+        add_signal(
+            signals,
+            category="non_reproducible_validation",
+            reason="validation is missing or non-reproducible",
+            weight=weights["non_reproducible_validation"],
+        )
+    if not recommendation or len(recommendation.split()) < 4:
+        add_signal(
+            signals,
+            category="vague_recommendation",
+            reason="recommended next bead is vague",
+            weight=weights["vague_recommendation"],
+        )
+    if not confidence:
+        add_signal(signals, category="missing_confidence", reason="confidence is missing", weight=weights["missing_confidence"])
+    if scope and not affirmative_field(scope) and not negative_field(scope):
+        add_signal(signals, category="unclear_scope", reason="scope compliance field is unclear", weight=weights["unclear_scope"])
+    if not section_value(sections, "Evidence provenance"):
+        add_signal(
+            signals,
+            category="missing_evidence_provenance",
+            reason="evidence provenance section is missing",
+            weight=weights["missing_evidence_provenance"],
+        )
+    if not section_value(sections, "Attestation or reproducibility note", "Attestation/repro note"):
+        add_signal(
+            signals,
+            category="missing_attestation_or_repro_note",
+            reason="attestation or reproducibility note is missing",
+            weight=weights["missing_attestation_or_repro_note"],
+        )
+    if not section_value(sections, "Share-boundary conformance", "Share boundary conformance"):
+        add_signal(
+            signals,
+            category="missing_share_boundary_conformance",
+            reason="share-boundary conformance section is missing",
+            weight=weights["missing_share_boundary_conformance"],
+        )
+    if not section_value(sections, "Peer-review disposition", "Peer review disposition"):
+        add_signal(
+            signals,
+            category="missing_peer_review_disposition",
+            reason="peer-review disposition section is missing",
+            weight=weights["missing_peer_review_disposition"],
+        )
+
+    score = min(100, sum(int(signal["weight"]) for signal in signals))
+    thresholds = malpractice_thresholds(review_threshold=review_threshold, reject_threshold=reject_threshold)
+    return {
+        "malpractice_score": score,
+        "malpractice_signals": signals,
+        "malpractice_signal_categories": sorted({str(signal["category"]) for signal in signals}),
+        "malpractice_review_recommended": score >= thresholds["review"],
+        "malpractice_reject_recommended": score >= thresholds["reject"],
     }
 
 
@@ -1228,6 +1497,7 @@ def normalize_contractor_return(
     required = load_policy("acceptance-policy").get("contractor_return_required_sections", [])
     missing = [section for section in required if not sections.get(section)]
     sabotage = score_sabotage_signals(text, sections)
+    malpractice = score_malpractice_signals(text, sections)
     bundle: dict[str, Any] = {
         "bundle_type": "contractor-return-bundle",
         "version": 1,
@@ -1242,6 +1512,7 @@ def normalize_contractor_return(
         "required_sections_present": [section for section in required if section in sections and section not in missing],
         "evidence_items": evidence_items_from_sections(sections),
         **sabotage,
+        **malpractice,
     }
     bundle["bundle_sha256"] = artifact_hash(json.dumps(bundle, sort_keys=True))
     return bundle
@@ -1353,6 +1624,13 @@ def make_acceptance_decision(
     dispatch_id: str | None = None,
     share_boundary: str | None = None,
     job_description_label: str | None = None,
+    peer_review_required: bool = False,
+    peer_review_status: str = "not-run",
+    provider_conflict_domains: list[str] | None = None,
+    sabotage_review_threshold: int | None = None,
+    sabotage_quarantine_threshold: int | None = None,
+    malpractice_review_threshold: int | None = None,
+    malpractice_reject_threshold: int | None = None,
 ) -> dict[str, Any]:
     policy = load_policy("acceptance-policy")
     sections = parse_return_sections(text)
@@ -1424,12 +1702,29 @@ def make_acceptance_decision(
         hard_disqualifiers.append("scope creep beyond assigned bead")
         score -= penalties.get("scope_creep", 10)
 
-    sabotage = score_sabotage_signals(text, sections)
+    sabotage = score_sabotage_signals(
+        text,
+        sections,
+        provider_conflict_domains=provider_conflict_domains,
+        review_threshold=sabotage_review_threshold,
+        quarantine_threshold=sabotage_quarantine_threshold,
+    )
+    malpractice = score_malpractice_signals(
+        text,
+        sections,
+        review_threshold=malpractice_review_threshold,
+        reject_threshold=malpractice_reject_threshold,
+    )
     if sabotage["quarantine_recommended"]:
         hard_disqualifiers.append("suspected sabotage or malpractice")
     elif sabotage["sabotage_review_recommended"]:
         score -= penalties.get("sabotage_review", 20)
         penalty_reasons.append("sabotage or malpractice signals require review")
+    if malpractice["malpractice_reject_recommended"]:
+        hard_disqualifiers.append("suspected sabotage or malpractice")
+    elif malpractice["malpractice_review_recommended"]:
+        score -= penalties.get("malpractice_review", 10)
+        penalty_reasons.append("malpractice signals require review")
 
     score = max(0, min(100, score))
     escalation = re.search(r"^\s*Escalation needed\s*:\s*(yes|true|required)", text, re.I | re.M)
@@ -1449,6 +1744,41 @@ def make_acceptance_decision(
     else:
         verdict = "reject"
 
+    peer_required = bool(
+        peer_review_required
+        or sabotage["sabotage_review_recommended"]
+        or malpractice["malpractice_review_recommended"]
+        or provider_conflict_domains
+    )
+    human_adjudication_required = bool(
+        hard_disqualifiers
+        or escalation
+        or verdict in {"escalate", "quarantine"}
+        or sabotage["sabotage_architect_escalation_recommended"]
+        or peer_review_status in {"failed", "disagreement", "blocked"}
+    )
+    if verdict == "quarantine":
+        recommended_disposition = "quarantine-and-adjudicate"
+    elif hard_disqualifiers:
+        recommended_disposition = "reject"
+    elif peer_required and peer_review_status in {"not-run", "pending"}:
+        recommended_disposition = "run-peer-review"
+    elif human_adjudication_required:
+        recommended_disposition = "architect-adjudication"
+    elif verdict == "accept":
+        recommended_disposition = "accept-findings"
+    elif verdict == "clarify":
+        recommended_disposition = "request-clarification"
+    elif verdict == "partial-accept":
+        recommended_disposition = "accept-bounded-findings"
+    else:
+        recommended_disposition = "reject"
+
+    signal_categories = sorted(
+        set(sabotage.get("sabotage_signal_categories", []))
+        | set(malpractice.get("malpractice_signal_categories", []))
+    )
+
     return {
         "dispatch_id": dispatch_id,
         "bead_id": bead_id,
@@ -1460,7 +1790,20 @@ def make_acceptance_decision(
         "hard_disqualifiers": hard_disqualifiers,
         "sabotage_score": sabotage["sabotage_score"],
         "sabotage_signals": sabotage["sabotage_signals"],
+        "sabotage_signal_categories": sabotage["sabotage_signal_categories"],
         "sabotage_review_recommended": sabotage["sabotage_review_recommended"],
+        "sabotage_architect_escalation_recommended": sabotage["sabotage_architect_escalation_recommended"],
+        "malpractice_score": malpractice["malpractice_score"],
+        "malpractice_signals": malpractice["malpractice_signals"],
+        "malpractice_signal_categories": malpractice["malpractice_signal_categories"],
+        "malpractice_review_recommended": malpractice["malpractice_review_recommended"],
+        "malpractice_reject_recommended": malpractice["malpractice_reject_recommended"],
+        "signal_categories": signal_categories,
+        "peer_review_required": peer_required,
+        "peer_review_status": peer_review_status,
+        "provider_conflict_domains": provider_conflict_domains or [],
+        "human_adjudication_required": human_adjudication_required,
+        "recommended_disposition": recommended_disposition,
         "quarantine_recommended": sabotage["quarantine_recommended"],
         "escalation_flagged": bool(escalation),
         "architect_review_required": True,

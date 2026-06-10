@@ -26,6 +26,18 @@
       "may_peer_review": true,
       "may_counter_review": true
     },
+    "openshift_ai_vllm": {
+      "display_name": "OpenShift AI vLLM local endpoint",
+      "trust_tier": "local-platform",
+      "family": "local-openai-compatible",
+      "external": false,
+      "retention_class": "local-cluster",
+      "allowed_roles": ["local-worker", "local-secure-reviewer", "peer-reviewer"],
+      "conflict_risk_domains": [],
+      "may_primary": true,
+      "may_peer_review": true,
+      "may_counter_review": true
+    },
     "openai_manual": {
       "display_name": "OpenAI manual external model",
       "trust_tier": "external-frontier",

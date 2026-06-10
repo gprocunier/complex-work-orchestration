@@ -12,6 +12,10 @@ Provider policy limitations: none
 Evidence:
 - Included artifacts list contains assignment summary and selected snippets only.
 - Excluded artifacts list explicitly names full Bead JSON and secrets.
+Evidence provenance: packet manifest and selected snippets supplied in the contractor packet.
+Attestation or reproducibility note: no runtime command was executed; evaluator can reproduce by inspecting the packet manifest.
+Share-boundary conformance: stayed within redacted-packet context and did not request broader disclosure.
+Peer-review disposition: not required for this sample return.
 Alternatives considered: Allowing repo-readonly packets, but that exceeds redacted-packet scope.
 Confidence: medium-high
 Risks or gaps: The broader repo was not shared under this boundary.

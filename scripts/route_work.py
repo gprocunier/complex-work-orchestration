@@ -24,6 +24,8 @@ def print_human(route: dict[str, object], top_n: int) -> None:
     print(f"External contract allowed: {route['external_contract_allowed']}")
     print(f"Local worker allowed: {route['local_worker_allowed']}")
     print(f"Prefer local worker: {route['prefer_local_worker']}")
+    if route.get("local_profile"):
+        print(f"Local profile: {route['local_profile']}")
     print(f"Has external expert contracts: {route.get('has_external_expert_contracts')}")
     print(f"Has local worker contracts: {route.get('has_local_worker_contracts')}")
     print(f"Evaluator required: {route['evaluator_required']}")
@@ -77,6 +79,7 @@ def main() -> None:
     parser.add_argument("--external-ok", action="store_true", help="User has opted in to third-party contracting.")
     parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
+    parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[], help="Explicit expert role requested by the user.")
     parser.add_argument("--file-path", action="append", default=[], help="Relevant repository path for path-pattern scoring.")
@@ -92,6 +95,7 @@ def main() -> None:
         external_ok=args.external_ok,
         local_ok=args.local_ok,
         prefer_local=args.prefer_local,
+        local_profile=args.local_profile,
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
         file_paths=args.file_path,

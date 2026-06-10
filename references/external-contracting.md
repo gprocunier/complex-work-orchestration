@@ -167,6 +167,8 @@ contract-jd-architecture-reasoning
 contract-jd-reliability-reasoning
 contract-jd-performance-reasoning
 contract-jd-docs-reasoning
+contract-jd-peer-review
+contract-jd-sabotage-review
 contract-jd-domain-<name>
 ```
 
@@ -355,7 +357,9 @@ python3 scripts/build_contractor_packet.py \
 
 8. Contractor returns a Beads comment or patch branch.
 9. PM normalizes the return and checks format, evidence, boundary fit, and
-   sabotage or malpractice signals:
+   sabotage or malpractice signals. Evaluator output includes
+   `sabotage_score`, `malpractice_score`, `peer_review_required`,
+   `peer_review_status`, and `recommended_disposition`:
 
    ```bash
    python3 scripts/normalize_contractor_return.py \
@@ -368,8 +372,9 @@ python3 scripts/build_contractor_packet.py \
    python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
    ```
 
-10. If evaluation returns `quarantine`, preserve artifacts, avoid implementation
-   dependencies, and use `references/incident-response-playbook.md`.
+10. If evaluation returns `quarantine`, a high `malpractice_score`, or a
+   failed peer review, preserve artifacts, avoid implementation dependencies,
+   and use `references/incident-response-playbook.md`.
 11. Architect reviews findings and decides what to accept, reject, or convert
    into Codex workerbee tasks.
 12. PM updates dependencies and ready-work state.
@@ -402,6 +407,8 @@ required before accepted findings become normal Codex implementation beads.
 The local secure reviewer (`local_secure_review_worker`) is for read-only
 security, peer-review, repo-review, and sabotage-review work. It may inspect
 approved local repo context but has no web, shell, or repo-write authority.
+For OpenShift AI vLLM, require `--local-profile openshift-ai-vllm`; endpoint
+settings are documented in `references/local-inference.md`.
 
 ## Handoff Format
 
@@ -418,6 +425,10 @@ Scope compliance:
 Validation result:
 Provider policy limitations:
 Evidence:
+Evidence provenance:
+Attestation or reproducibility note:
+Share-boundary conformance:
+Peer-review disposition:
 Alternatives considered:
 Confidence:
 Risks or gaps:

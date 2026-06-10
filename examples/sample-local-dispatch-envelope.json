@@ -1,0 +1,32 @@
+{
+  "envelope_type": "local-openai-compatible-dispatch",
+  "version": 1,
+  "dispatch_id": "dispatch-local-example",
+  "bead_id": "complex-work-orchestration-local-example",
+  "epic_id": null,
+  "executor_key": "openshift_ai_vllm_worker",
+  "provider_key": "openshift_ai_vllm",
+  "provider_trust_tier": "local-platform",
+  "local_profile": "openshift-ai-vllm",
+  "transport_kind": "openai-chat-completions",
+  "base_url_env": "CWO_OPENSHIFT_AI_VLLM_BASE_URL",
+  "base_url_configured": false,
+  "api_key_env": "CWO_OPENSHIFT_AI_VLLM_API_KEY",
+  "model_env": "CWO_OPENSHIFT_AI_VLLM_MODEL",
+  "model": "vllm-local",
+  "endpoint_path": "/v1/chat/completions",
+  "timeout_seconds": 180,
+  "max_input_chars": 24000,
+  "constraints": "local-only, evaluator review required, architect adjudication required, no web, no shell, no repo write",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a bounded local worker for complex-work-orchestration."
+    },
+    {
+      "role": "user",
+      "content": "Summarize the provided docs-review task."
+    }
+  ],
+  "execution_enabled": false
+}

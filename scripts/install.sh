@@ -193,6 +193,7 @@ install_skill() {
   fi
 
   if [ "$DRY_RUN" -eq 0 ]; then
+    rm -rf -- "$target_dir"
     mkdir -p -- "$target_dir"
   else
     say "Dry run: no files will be copied."

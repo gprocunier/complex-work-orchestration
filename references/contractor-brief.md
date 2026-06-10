@@ -56,6 +56,10 @@ other discipline-specific contract into a generic project review.
   authn/authz, inputs, secrets, dependencies, and supply-chain risk.
 - `contract-jd-architecture-reasoning`: system boundaries, coupling, migration
   paths, data flow, maintainability, and reversibility.
+- `contract-jd-peer-review`: independent gate for contractor or local-worker
+  returns before implementation use.
+- `contract-jd-sabotage-review`: integrity review for suspected sabotage,
+  malpractice, fabricated evidence, or boundary-breaking output.
 - `contract-jd-domain-<name>`: discipline-specific review, such as SELinux,
   API compatibility, compliance, performance, reliability, or docs.
 
@@ -118,6 +122,10 @@ Commands run:
 Validation result:
 Provider policy limitations:
 Evidence:
+Evidence provenance:
+Attestation or reproducibility note:
+Share-boundary conformance:
+Peer-review disposition:
 Alternatives considered:
 Confidence:
 Risks or gaps:

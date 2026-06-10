@@ -122,9 +122,13 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                             "title": f"Peer review return: {title}",
                             "type": "task",
                             "lane": "peer-review",
-                            "labels": route.get("peer_review_labels")
-                            or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"],
+                            "labels": [
+                                *(route.get("peer_review_labels")
+                                  or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
+                                "contract-jd-peer-review",
+                            ],
                             "metadata": {
+                                "job_description_label": "contract-jd-peer-review",
                                 "peer_review_count": route.get("peer_review_count", 1),
                                 "provider_diversity_required": route.get("provider_diversity_required", True),
                                 "provider_conflict_domains": route.get("provider_conflict_domains", []),
@@ -177,6 +181,7 @@ def main() -> None:
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
+    parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--dry-run", action="store_true")
@@ -188,6 +193,7 @@ def main() -> None:
         external_ok=args.external_ok,
         local_ok=args.local_ok,
         prefer_local=args.prefer_local,
+        local_profile=args.local_profile,
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
     )

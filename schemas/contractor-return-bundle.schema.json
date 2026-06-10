@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Contractor Return Bundle",
   "type": "object",
-  "required": ["bundle_type", "version", "sections", "required_sections_missing", "evidence_items", "sabotage_score", "sabotage_signals", "quarantine_recommended", "bundle_sha256"],
+  "required": ["bundle_type", "version", "sections", "required_sections_missing", "evidence_items", "sabotage_score", "sabotage_signals", "malpractice_score", "malpractice_signals", "quarantine_recommended", "bundle_sha256"],
   "properties": {
     "bundle_type": {"const": "contractor-return-bundle"},
     "version": {"type": "integer"},
@@ -18,7 +18,14 @@
     "evidence_items": {"type": "array", "items": {"type": "object"}},
     "sabotage_score": {"type": "integer"},
     "sabotage_signals": {"type": "array", "items": {"type": "object"}},
+    "sabotage_signal_categories": {"type": "array", "items": {"type": "string"}},
     "sabotage_review_recommended": {"type": "boolean"},
+    "sabotage_architect_escalation_recommended": {"type": "boolean"},
+    "malpractice_score": {"type": "integer"},
+    "malpractice_signals": {"type": "array", "items": {"type": "object"}},
+    "malpractice_signal_categories": {"type": "array", "items": {"type": "string"}},
+    "malpractice_review_recommended": {"type": "boolean"},
+    "malpractice_reject_recommended": {"type": "boolean"},
     "quarantine_recommended": {"type": "boolean"},
     "bundle_sha256": {"type": "string"}
   }

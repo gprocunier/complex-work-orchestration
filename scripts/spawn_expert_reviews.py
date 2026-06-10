@@ -41,6 +41,77 @@ Codex handling rule:
 """
 
 
+def control_review_body(kind: str, route: dict[str, object]) -> str:
+    return f"""Purpose:
+Perform {kind} for the contractor or local-worker return before findings are used for implementation.
+
+Share boundary:
+{route['share_boundary']}
+
+Provider conflict domains:
+{', '.join(str(item) for item in route.get('provider_conflict_domains', [])) or 'none'}
+
+Expected output:
+- decision: pass, fail, disagreement, or blocked
+- evidence for that decision
+- boundary or provider-conflict concerns
+- quarantine recommendation if applicable
+
+Codex handling rule:
+Codex may brief and evaluate this Bead, but must not execute it as contractor or local-worker review work.
+"""
+
+
+def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[dict[str, object]]:
+    tasks: list[dict[str, object]] = []
+    if route.get("peer_review_required"):
+        tasks.append(
+            {
+                "title": f"{title_prefix}: Peer review gate",
+                "labels": [
+                    "local-worker-only",
+                    "no-codex-exec",
+                    "peer-review-required",
+                    "contractor-peer-review",
+                    "contract-jd-peer-review",
+                ],
+                "metadata": {
+                    "job_description_label": "contract-jd-peer-review",
+                    "executor": route.get("local_secure_review_executor"),
+                    "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                    "peer_review_count": route.get("peer_review_count", 1),
+                    "provider_diversity_required": route.get("provider_diversity_required", True),
+                    "codex_pickup": "forbidden",
+                    "acceptance_bead_required": True,
+                    "architect_review_required": True,
+                },
+                "description": control_review_body("independent peer review", route),
+            }
+        )
+    if route.get("provider_conflict_detected"):
+        tasks.append(
+            {
+                "title": f"{title_prefix}: Sabotage review gate",
+                "labels": [
+                    "local-worker-only",
+                    "no-codex-exec",
+                    "sabotage-review",
+                    "contract-jd-sabotage-review",
+                ],
+                "metadata": {
+                    "job_description_label": "contract-jd-sabotage-review",
+                    "executor": route.get("local_secure_review_executor"),
+                    "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                    "codex_pickup": "forbidden",
+                    "acceptance_bead_required": True,
+                    "architect_review_required": True,
+                },
+                "description": control_review_body("sabotage and malpractice review", route),
+            }
+        )
+    return tasks
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create expert review Beads from ranked routing.")
     parser.add_argument("text", nargs="*")
@@ -50,6 +121,7 @@ def main() -> None:
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
+    parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--top-n", type=int, default=3)
@@ -62,6 +134,7 @@ def main() -> None:
         external_ok=args.external_ok,
         local_ok=args.local_ok,
         prefer_local=args.prefer_local,
+        local_profile=args.local_profile,
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
     )
@@ -75,6 +148,7 @@ def main() -> None:
                 "description": review_body(expert, route),
             }
         )
+    reviews.extend(control_review_tasks(args.title_prefix, route))
 
     if args.dry_run:
         print(json.dumps({"route": route, "planned_reviews": reviews}, indent=2, sort_keys=True))

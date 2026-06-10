@@ -104,6 +104,10 @@ Helper scripts:
 - `scripts/evaluate_return.py`: check contractor returns for required sections.
 - `scripts/normalize_contractor_return.py`: turn a contractor response into a
   normalized return bundle with evidence items and sabotage scoring.
+- `scripts/dispatch_work.py --local-profile openshift-ai-vllm`: prepare a
+  local OpenAI-compatible dispatch envelope for OpenShift AI vLLM or another
+  named local profile. The envelope shape is documented by
+  `schemas/local-dispatch-envelope.schema.json`.
 - `scripts/verify_attestation.py`: verify SHA-256 subject attestations for
   packets, return bundles, or other exported artifacts.
 - `scripts/verify_audit_log.py`: verify audit event hashes and hash-chain links.
@@ -116,9 +120,9 @@ Helper scripts:
   executor controls, or emitted packet artifact names drift apart.
 
 Schemas in `schemas/` describe route results, contractor packets, contractor
-return bundles, attestations, acceptance decisions, Beads metadata, and audit
-events. `examples/` contains small sample artifacts that can be used as
-smoke-test inputs.
+return bundles, local dispatch envelopes, attestations, acceptance decisions,
+Beads metadata, and audit events. `examples/` contains small sample artifacts
+that can be used as smoke-test inputs.
 
 Example route check:
 
@@ -326,7 +330,8 @@ flowchart LR
 5. If using local inference, pass `--local-ok`; add `--prefer-local` only when
    low-risk local work is the desired route. Local-worker review beads still get
    `local-worker-only` and `no-codex-exec` and require evaluator plus architect
-   adjudication before implementation.
+   adjudication before implementation. Use `--local-profile openshift-ai-vllm`
+   when the target worker is an OpenShift AI vLLM endpoint.
 6. Check Beads and initialize or sync the work graph.
 7. Create one epic for the project goal.
 8. Create role/lane tasks under the epic: architect framing, PM coordination,
@@ -464,6 +469,10 @@ Every outside contract also gets exactly one primary job-description label:
   resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing
   warnings, examples, and publishability.
+- `contract-jd-peer-review`: independent acceptance gate for contractor or
+  local-worker returns when `peer_review_required=true`.
+- `contract-jd-sabotage-review`: integrity review for suspicious, conflicted,
+  fabricated, or boundary-breaking returns.
 - `contract-jd-domain-<name>`: any other discipline-specific contract, such as
   `contract-jd-domain-selinux` or `contract-jd-domain-api-compat`.
 
@@ -603,6 +612,7 @@ For a low-risk local worker envelope, the operator must explicitly opt in:
 python3 scripts/route_work.py \
   --local-ok \
   --prefer-local \
+  --local-profile openshift-ai-vllm \
   --requested-role documentation \
   "Documentation review for public README examples."
 ```
@@ -621,11 +631,31 @@ Direct route dispatch without a prebuilt packet can carry a stable dispatch ID:
 python3 scripts/dispatch_work.py \
   --local-ok \
   --prefer-local \
+  --local-profile openshift-ai-vllm \
   --dispatch-id dispatch-<bead-id>-<timestamp> \
   --bead <id> \
   --epic <epic-id> \
   "Documentation review for public README examples."
 ```
+
+To call a local OpenAI-compatible endpoint, set the OpenShift AI vLLM endpoint
+environment variables and opt in to execution:
+
+```bash
+export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
+export CWO_OPENSHIFT_AI_VLLM_MODEL="vllm-local"
+
+python3 scripts/dispatch_work.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --execute-local \
+  "Summarize the docs-review risks in this packet."
+```
+
+The generated `local_envelope` follows
+`schemas/local-dispatch-envelope.schema.json`; `--execute-local` is never
+implicit.
 
 Do not ask outside models for raw chain-of-thought. Ask for conclusions,
 assumptions, evidence, alternatives considered, risks, confidence, and
@@ -649,6 +679,10 @@ Scope compliance:
 Validation result:
 Provider policy limitations:
 Evidence:
+Evidence provenance:
+Attestation or reproducibility note:
+Share-boundary conformance:
+Peer-review disposition:
 Alternatives considered:
 Confidence:
 Risks or gaps:
@@ -672,8 +706,11 @@ python3 scripts/normalize_contractor_return.py \
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
-If the evaluator reports `Verdict: quarantine` or a high sabotage score, do not
-create implementation dependencies from the contractor output. Keep the return
+Evaluator output includes `sabotage_score`, `malpractice_score`,
+`peer_review_required`, `peer_review_status`, `human_adjudication_required`,
+and `recommended_disposition`. If the evaluator reports `Verdict: quarantine`,
+a high sabotage score, or a high malpractice score, do not create
+implementation dependencies from the contractor output. Keep the return
 isolated, run peer review or local secure review as needed, and have the
 architect decide whether to reject, narrow, or re-post the contract.
 
@@ -689,12 +726,13 @@ python3 scripts/verify_audit_log.py --json
 
 ## Reference
 
-See `references/external-contracting.md` for a more detailed operator guide.
-Use `references/contractor-brief.md` as the reusable assignment brief for
-outside model contractors. Use `policy/`, `schemas/`, `templates/`, and
-`experts/` as the source of truth for route classification, job-description
-calibration, validation contracts, and reusable Beads bodies. Use `examples/`
-for smoke-test inputs and expected artifact shapes.
+See `references/external-contracting.md` for a more detailed operator guide,
+and `references/local-inference.md` for OpenShift AI vLLM and other local
+OpenAI-compatible workers. Use `references/contractor-brief.md` as the reusable
+assignment brief for outside model contractors. Use `policy/`, `schemas/`,
+`templates/`, and `experts/` as the source of truth for route classification,
+job-description calibration, validation contracts, and reusable Beads bodies.
+Use `examples/` for smoke-test inputs and expected artifact shapes.
 
 ## License
 

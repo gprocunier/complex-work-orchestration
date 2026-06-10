@@ -17,6 +17,51 @@
     "external_manual_dispatches_per_epic": 5,
     "local_worker_dispatches_per_epic": 20
   },
+  "peer_review_policy": {
+    "required_for_routes": ["external-contract"],
+    "required_for_provider_conflict": true,
+    "allowed_peer_executors": [
+      "local_secure_review_worker",
+      "openshift_ai_vllm_secure_reviewer",
+      "human_specialist_contractor"
+    ],
+    "cross_provider_required": true,
+    "human_adjudication_on_disagreement": true
+  },
+  "sabotage_policy": {
+    "signal_weights": {
+      "boundary_expansion_request": 30,
+      "review_suppression": 25,
+      "fabricated_evidence": 35,
+      "unauthorized_repo_mutation_claim": 35,
+      "goal_divergence": 20,
+      "overconfident_without_evidence": 20,
+      "provider_conflict_domain": 20,
+      "secret_or_personal_data": 45
+    },
+    "thresholds": {
+      "peer_review": 20,
+      "architect_escalation": 35,
+      "quarantine": 50
+    }
+  },
+  "malpractice_policy": {
+    "signal_weights": {
+      "missing_evidence": 20,
+      "non_reproducible_validation": 15,
+      "vague_recommendation": 15,
+      "missing_confidence": 10,
+      "unclear_scope": 10,
+      "missing_evidence_provenance": 10,
+      "missing_attestation_or_repro_note": 10,
+      "missing_share_boundary_conformance": 10,
+      "missing_peer_review_disposition": 10
+    },
+    "thresholds": {
+      "peer_review": 25,
+      "reject": 60
+    }
+  },
   "fail_closed": [
     "unknown executor",
     "missing user opt-in",

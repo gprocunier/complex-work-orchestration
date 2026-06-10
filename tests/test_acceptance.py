@@ -17,6 +17,9 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(result["verdict"], "accept")
         self.assertGreaterEqual(result["score"], 85)
         self.assertNotIn("scope compliance field is unclear", result["penalty_reasons"])
+        self.assertIn("malpractice_score", result)
+        self.assertIn("peer_review_required", result)
+        self.assertEqual(result["recommended_disposition"], "accept-findings")
 
     def test_weak_return_clarifies_or_rejects(self) -> None:
         result = make_acceptance_decision("Status: complete\nSummary: Looks fine.\n")

@@ -23,6 +23,13 @@
     "dispatch_mode": {"type": "string"},
     "acceptance_score": {"type": "integer"},
     "sabotage_score": {"type": ["integer", "null"]},
+    "malpractice_score": {"type": ["integer", "null"]},
+    "peer_review_required": {"type": ["boolean", "null"]},
+    "peer_review_status": {"type": ["string", "null"]},
+    "human_adjudication_required": {"type": ["boolean", "null"]},
+    "recommended_disposition": {"type": ["string", "null"]},
+    "provider_conflict_domains": {"type": "array", "items": {"type": "string"}},
+    "local_profile": {"type": ["string", "null"]},
     "quarantine_recommended": {"type": ["boolean", "null"]},
     "verdict": {"type": "string"},
     "event_hash": {"type": "string"}

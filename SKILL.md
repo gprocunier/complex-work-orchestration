@@ -78,6 +78,10 @@ Default roles:
 - **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
   local-worker review contracts after explicit `--local-ok`; output is evidence
   and still needs evaluator scoring plus architect adjudication.
+- **OpenShift AI vLLM Worker**: named local profile selected with
+  `--local-profile openshift-ai-vllm`. It uses an OpenAI-compatible endpoint
+  configured by environment variables and is still treated as bounded
+  local-worker evidence, not implementation authority.
 - **Local Secure Reviewer**: local read-only reviewer for security, peer-review,
   sabotage-review, or repo-review contracts. It can inspect approved repo
   context locally, but has no web, shell, or repo-write authority and is still
@@ -104,7 +108,9 @@ python3 scripts/route_work.py "<task text>"
    Repo-readonly and patch-branch packet builds require
    `--allow-disclosure-escalation`, not just `--external-ok`.
    For local inference, use `--local-ok` and only add `--prefer-local` when
-   low-risk local worker dispatch is the intended route.
+   low-risk local worker dispatch is the intended route. Use
+   `--local-profile openshift-ai-vllm` to require the OpenShift AI vLLM
+   executor profile.
 4. If launching agents, clean stale agent state first using the local harness convention.
 5. Check for Beads:
 
@@ -229,6 +235,11 @@ Add exactly one primary job-description label:
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery, observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost, resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing warnings, examples, and publishability.
+- `contract-jd-peer-review`: independent gate for contractor or local-worker
+  returns when route output sets `peer_review_required=true`.
+- `contract-jd-sabotage-review`: integrity review for suspected sabotage,
+  malpractice, fabricated evidence, provider conflict, or boundary-breaking
+  output.
 - `contract-jd-domain-<name>`: any other discipline-specific contract, such as `contract-jd-domain-selinux` or `contract-jd-domain-api-compat`.
 
 Use metadata to make the contract machine-readable:
@@ -341,9 +352,12 @@ python3 scripts/normalize_contractor_return.py \
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
-If evaluation returns `quarantine` or a high sabotage score, isolate the return,
-run peer review or local secure review as appropriate, and require architect
-adjudication before any implementation dependency is created.
+Evaluation emits `sabotage_score`, `malpractice_score`,
+`peer_review_required`, `peer_review_status`,
+`human_adjudication_required`, and `recommended_disposition`. If evaluation
+returns `quarantine`, a high sabotage score, or a high malpractice score,
+isolate the return, run peer review or local secure review as appropriate, and
+require architect adjudication before any implementation dependency is created.
 
 ## Contractor Interaction
 

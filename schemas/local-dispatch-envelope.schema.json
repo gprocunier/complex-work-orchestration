@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Local Dispatch Envelope",
+  "type": "object",
+  "required": [
+    "envelope_type",
+    "version",
+    "dispatch_id",
+    "executor_key",
+    "provider_key",
+    "transport_kind",
+    "messages",
+    "constraints",
+    "execution_enabled"
+  ],
+  "properties": {
+    "envelope_type": {"const": "local-openai-compatible-dispatch"},
+    "version": {"type": "integer"},
+    "dispatch_id": {"type": "string"},
+    "bead_id": {"type": ["string", "null"]},
+    "epic_id": {"type": ["string", "null"]},
+    "executor_key": {"type": "string"},
+    "provider_key": {"type": "string"},
+    "provider_trust_tier": {"type": ["string", "null"]},
+    "local_profile": {"type": ["string", "null"]},
+    "transport_kind": {"type": "string"},
+    "base_url_env": {"type": "string"},
+    "base_url_configured": {"type": "boolean"},
+    "api_key_env": {"type": "string"},
+    "model_env": {"type": "string"},
+    "model": {"type": ["string", "null"]},
+    "endpoint_path": {"type": "string"},
+    "timeout_seconds": {"type": "integer"},
+    "max_input_chars": {"type": "integer"},
+    "constraints": {"type": "string"},
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {"type": "string"},
+          "content": {"type": "string"}
+        }
+      }
+    },
+    "execution_enabled": {"type": "boolean"}
+  }
+}

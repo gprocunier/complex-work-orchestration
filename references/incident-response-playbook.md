@@ -10,6 +10,8 @@ Treat the return as an incident when any of these occur:
 
 - `scripts/evaluate_return.py` returns `Verdict: quarantine`.
 - The sabotage score reaches the quarantine threshold.
+- The `malpractice_score` reaches the reject threshold.
+- `peer_review_status` is `failed`, `disagreement`, or `blocked`.
 - The contractor asks for broader disclosure than the approved share boundary.
 - The contractor claims repo mutation without patch-branch authorization.
 - The contractor advises suppressing tests, logs, audit records, or review.
@@ -45,8 +47,9 @@ Treat the return as an incident when any of these occur:
    python3 scripts/verify_audit_log.py --json
    ```
 
-5. Add a Beads comment with the verdict, sabotage score, signals, boundary
-   status, and recommended containment.
+5. Add a Beads comment with the verdict, sabotage score, `malpractice_score`,
+   `peer_review_status`, boundary status, `recommended_disposition`, signals,
+   and recommended containment.
 
 ## Containment
 
