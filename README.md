@@ -7,6 +7,8 @@ outside model contractors, and a Beads-backed work graph.
 Use it when a project needs durable state, multiple agents, independent review,
 external reasoning, or careful release judgment.
 
+Project site: https://gprocunier.github.io/complex-work-orchestration/
+
 ## Installation
 
 Clone the repository and run the guided installer:
@@ -39,7 +41,7 @@ You can also point it at a Codex home:
 The installer copies the skill files directly into the selected skills
 directory: `README.md`, `LICENSE`, `SKILL.md`, `AGENTS.md`, `agents/`,
 `policy/`, `templates/`, `experts/`, `references/`, `schemas/`, `examples/`,
-and `scripts/`. It does not build or require a tarball.
+`docs/`, and `scripts/`. It does not build or require a tarball.
 
 ## Invocation
 

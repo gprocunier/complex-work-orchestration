@@ -23,6 +23,7 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
 }
 CI_REQUIRED_COMMANDS = [
     "python scripts/validate_repository.py",
+    "python scripts/validate_site.py",
     "python -m unittest discover -s tests",
     "bash examples/sample-prompt-coach-command.sh",
 ]
@@ -206,6 +207,7 @@ def validate_repository() -> list[str]:
         errors,
         "README.md",
         [
+            "https://gprocunier.github.io/complex-work-orchestration/",
             "scripts/coach_prompt.py",
             "references/prompt-coach.md",
             "prompt-coach results",
@@ -221,6 +223,28 @@ def validate_repository() -> list[str]:
             "schemas/local-dispatch-envelope.schema.json",
             "references/redhat-expert-catalog.md",
             "contract-jd-redhat-<name>",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/index.html",
+        [
+            "Complex Work Orchestration",
+            "Diátaxis documentation map",
+            "Two-minute version",
+            "Beads graph",
+            "Red Hat UX reference",
+            "https://github.com/gprocunier/complex-work-orchestration",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/styles.css",
+        [
+            ":focus-visible",
+            "@media",
+            "--red",
+            "system-map",
         ],
     )
     require_doc_terms(

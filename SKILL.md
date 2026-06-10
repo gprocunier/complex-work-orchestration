@@ -45,9 +45,9 @@ target:
 
 The installer does not build a tarball. It copies `README.md`, `LICENSE`,
 `SKILL.md`, `AGENTS.md`, `agents/`, `policy/`, `templates/`, `experts/`,
-`references/`, `schemas/`, `examples/`, and `scripts/` into the selected skills
-directory. It checks for the Beads CLI (`bd`) and never treats a missing Beads
-install as fatal. On Fedora/RPM-style hosts it prints package-install guidance,
+`references/`, `schemas/`, `examples/`, `docs/`, and `scripts/` into the
+selected skills directory. It checks for the Beads CLI (`bd`) and never treats
+a missing Beads install as fatal. On Fedora/RPM-style hosts it prints package-install guidance,
 including the public `greg-at-redhat/beads` COPR as a fallback when the user
 does not have their own Beads package source. Set `BEADS_COPR` to print a
 different COPR enable command. On other systems it prints a warning and leaves
