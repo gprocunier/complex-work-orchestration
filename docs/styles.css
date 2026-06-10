@@ -81,11 +81,12 @@ pre {
 .top-nav {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 1rem 1.25rem;
+  min-height: 3.7rem;
+  padding: 0.95rem 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .brand,
@@ -96,9 +97,11 @@ pre {
 }
 
 .brand {
+  flex: 0 0 auto;
   color: var(--ink);
   font-weight: 700;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .brand-mark {
@@ -114,13 +117,16 @@ pre {
 .nav-links {
   flex-wrap: wrap;
   justify-content: flex-end;
-  font-size: 0.95rem;
+  gap: 0.35rem 0.85rem;
+  font-size: 0.94rem;
+  line-height: 1.25;
 }
 
 .nav-links a {
   color: var(--ink);
   text-decoration: none;
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
 }
 
 .nav-links a:hover {
@@ -437,8 +443,11 @@ h3 {
 
 .doc-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 0.28fr) minmax(0, 1fr);
-  gap: 2.5rem;
+  grid-template-columns: minmax(11rem, 13.75rem) minmax(0, 51.25rem);
+  justify-content: start;
+  max-width: var(--max);
+  margin-inline: auto;
+  gap: 3rem;
   align-items: start;
 }
 
@@ -452,7 +461,8 @@ h3 {
   top: 1rem;
   display: grid;
   gap: 0.35rem;
-  padding: 1rem;
+  min-width: 0;
+  padding: 0.85rem 1rem;
   border-left: 5px solid var(--red);
   background: var(--gray-10);
 }
@@ -469,7 +479,8 @@ h3 {
 }
 
 .doc-body {
-  max-width: 850px;
+  min-width: 0;
+  max-width: none;
 }
 
 .doc-body > section {
@@ -576,7 +587,6 @@ blockquote {
 }
 
 @media (max-width: 920px) {
-  .top-nav,
   .hero,
   .split,
   .doc-layout,
@@ -597,12 +607,59 @@ blockquote {
 
   .page-nav {
     position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    align-items: center;
+    border-left: 0;
+    border-top: 5px solid var(--red);
   }
 }
 
 @media (max-width: 620px) {
+  .top-nav {
+    min-height: 0;
+    padding: 0.8rem 1rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .nav-links {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    max-width: 100%;
+    padding-bottom: 0.2rem;
+    scrollbar-width: thin;
+  }
+
+  .nav-links a {
+    flex: 0 0 auto;
+  }
+
   .hero {
     padding-top: 2.4rem;
+  }
+
+  .page-hero {
+    padding: 2.75rem 1rem 2rem;
+  }
+
+  .section.doc-layout {
+    gap: 1.5rem;
+    padding-block: 2.5rem 3rem;
+  }
+
+  .page-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 0.75rem 0.9rem;
+    scrollbar-width: thin;
+  }
+
+  .page-nav a {
+    flex: 0 0 auto;
   }
 
   h1 {
