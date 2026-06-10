@@ -219,6 +219,8 @@ def validate_repository() -> list[str]:
             "malpractice_score",
             "peer_review_required",
             "schemas/local-dispatch-envelope.schema.json",
+            "references/redhat-expert-catalog.md",
+            "contract-jd-redhat-<name>",
         ],
     )
     require_doc_terms(
@@ -234,6 +236,22 @@ def validate_repository() -> list[str]:
             "local-profile",
             "peer_review_required",
             "malpractice_score",
+            "references/redhat-expert-catalog.md",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "references/redhat-expert-catalog.md",
+        [
+            "contract-jd-redhat-openshift-platform",
+            "contract-jd-redhat-openshift-app-dev",
+            "contract-jd-redhat-openshift-ai",
+            "contract-jd-redhat-rhoso",
+            "contract-jd-redhat-rhacm",
+            "contract-jd-redhat-rhacs",
+            "contract-jd-redhat-rhel",
+            "Identity Management",
+            "Satellite",
         ],
     )
     require_doc_terms(

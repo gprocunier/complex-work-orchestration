@@ -151,7 +151,12 @@ def term_hits(text: str, terms: list[str]) -> list[str]:
     hits: list[str] = []
     for term in terms:
         needle = term.lower()
-        if needle and needle in haystack:
+        if not needle:
+            continue
+        prefix = r"(?<![a-z0-9])" if needle[0].isalnum() else ""
+        suffix = r"(?![a-z0-9])" if needle[-1].isalnum() else ""
+        pattern = f"{prefix}{re.escape(needle)}{suffix}"
+        if re.search(pattern, haystack):
             hits.append(term)
     return hits
 

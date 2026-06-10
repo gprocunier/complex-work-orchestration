@@ -519,6 +519,9 @@ Every outside contract also gets exactly one primary job-description label:
   fabricated, or boundary-breaking returns.
 - `contract-jd-domain-<name>`: any other discipline-specific contract, such as
   `contract-jd-domain-selinux` or `contract-jd-domain-api-compat`.
+- `contract-jd-redhat-<name>`: Red Hat product-focused Distinguished Engineer
+  lens, such as OpenShift Platform, OpenShift Application Developer,
+  OpenShift AI, RHOSO, RHACM, RHACS, or RHEL.
 
 The job-description label calibrates the outside model. A security contract
 should return security findings, not a generic project review.
@@ -773,11 +776,13 @@ python3 scripts/verify_audit_log.py --json
 See `references/prompt-coach.md` for prompt sizing and invocation guidance,
 `references/external-contracting.md` for the outside-contractor guide, and
 `references/local-inference.md` for OpenShift AI vLLM and other local
-OpenAI-compatible workers. Use `references/contractor-brief.md` as the reusable
-assignment brief for outside model contractors. Use `policy/`, `schemas/`,
-`templates/`, and `experts/` as the source of truth for route classification,
-job-description calibration, validation contracts, and reusable Beads bodies.
-Use `examples/` for smoke-test inputs and expected artifact shapes.
+OpenAI-compatible workers. See `references/redhat-expert-catalog.md` for the
+Red Hat product-focused Distinguished Engineer lenses. Use
+`references/contractor-brief.md` as the reusable assignment brief for outside
+model contractors. Use `policy/`, `schemas/`, `templates/`, and `experts/` as
+the source of truth for route classification, job-description calibration,
+validation contracts, and reusable Beads bodies. Use `examples/` for smoke-test
+inputs and expected artifact shapes.
 
 ## License
 

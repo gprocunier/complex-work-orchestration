@@ -62,9 +62,11 @@ bodies, `experts/` for discipline calibration, `schemas/` for helper output
 contracts, `examples/` for smoke-test artifacts, `references/external-contracting.md`
 when posting or reviewing outside model contracts,
 `references/incident-response-playbook.md` for quarantine or suspected
-sabotage, `references/prompt-coach.md` when sizing the invocation, and
-`references/contractor-brief.md` as the briefing artifact given to an outside
-contractor with a specific Beads assignment.
+sabotage, `references/prompt-coach.md` when sizing the invocation,
+`references/redhat-expert-catalog.md` when selecting Red Hat product-focused
+Distinguished Engineer lenses, and `references/contractor-brief.md` as the
+briefing artifact given to an outside contractor with a specific Beads
+assignment.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.
