@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Use the Complex Work Orchestration prompt coach to size Beads, validation, contractors, local workers, and publish gates."
+    >
+    <title>Prompt Coach | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html" aria-current="page">Prompt Coach</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">How-to</p>
+        <h1>Prompt Coach</h1>
+        <p class="lede">
+          The coach compiles a user request into the right orchestration shape:
+          in-thread work, lightweight Beads, full harness, outside contracts,
+          local-worker review, or publish-release gates.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <aside class="page-nav" aria-label="Page sections">
+          <a href="#run">Run It</a>
+          <a href="#levels">Output Levels</a>
+          <a href="#questions">Interactive Questions</a>
+          <a href="#defaults">Defaults</a>
+        </aside>
+        <div class="doc-body">
+          <section id="run">
+            <h2>Run It</h2>
+            <p>
+              Use the coach before scaffolding when the task could be too small
+              for a full harness or too risky for a single hidden thread.
+            </p>
+            <pre><code>python3 scripts/coach_prompt.py --json \
+  "Create public docs for outside model contractor packets."</code></pre>
+            <p>
+              The result includes a recommended orchestration level, route
+              summary, missing questions, enabled levers, disabled levers, and
+              a launch prompt that can be pasted back into Codex.
+            </p>
+          </section>
+
+          <section id="levels">
+            <h2>Output Levels</h2>
+            <div class="tile-grid">
+              <article>
+                <h3>In-thread</h3>
+                <p>Current-thread execution with one durable Beads task.</p>
+              </article>
+              <article>
+                <h3>Lightweight Beads</h3>
+                <p>Durable state without a full role graph.</p>
+              </article>
+              <article>
+                <h3>Full Harness</h3>
+                <p>Architect, PM, worker, validation, and handoff lanes.</p>
+              </article>
+              <article>
+                <h3>Publish Release</h3>
+                <p>Full validation and publish-sanitization before push, tag, or release.</p>
+              </article>
+            </div>
+          </section>
+
+          <section id="questions">
+            <h2>Interactive Questions</h2>
+            <p>
+              In Plan mode, Codex can turn the coach's
+              <code>interactive_questions</code> into selectable prompts. In
+              Default mode, Codex should ask only a blocking concise question
+              or apply the conservative default.
+            </p>
+            <div class="callout">
+              <strong>Useful choices:</strong>
+              harness size, outside-sharing boundary, local-worker opt-in, and
+              validation bar. These change execution behavior and should be
+              captured before dispatch.
+            </div>
+          </section>
+
+          <section id="defaults">
+            <h2>Defaults</h2>
+            <p>
+              Conservative defaults keep work inside Codex, require Beads
+              tracking, disable outside sharing until explicit opt-in, disable
+              local worker dispatch until explicit opt-in, and require
+              publish-grade validation for GitHub-facing work.
+            </p>
+            <pre><code>python3 scripts/route_work.py \
+  "Security review the auth token and shell command handling."</code></pre>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+      </nav>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Use local OpenAI-compatible workers with Complex Work Orchestration, with OpenShift AI as the exemplar model-serving platform."
+    >
+    <title>Local Workers | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html" aria-current="page">Local Workers</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">How-to</p>
+        <h1>Local Workers</h1>
+        <p class="lede">
+          Local workers are bounded evidence sources for low-risk review and
+          mechanical checks. OpenShift AI is the exemplar platform for this
+          model-serving lane, but the interface is OpenAI-compatible and not
+          limited to OpenShift AI.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <aside class="page-nav" aria-label="Page sections">
+          <a href="#why-local">Why Local</a>
+          <a href="#openshift-ai">OpenShift AI</a>
+          <a href="#profiles">Profiles</a>
+          <a href="#guardrails">Guardrails</a>
+        </aside>
+        <div class="doc-body">
+          <section id="why-local">
+            <h2>Why Local</h2>
+            <p>
+              Not every task needs frontier-model reasoning. You do not need a
+              frontier model to sanity-check a <code>curl</code> command, review
+              a small diff for command shape, summarize a bounded log excerpt,
+              or confirm that a prompt envelope contains the right fields.
+            </p>
+            <p>
+              Local workers are useful when the work is narrow, low risk,
+              private, repetitive, or mostly mechanical. They return evidence
+              that still needs evaluation and architect review before it affects
+              implementation.
+            </p>
+          </section>
+
+          <section id="openshift-ai">
+            <h2>OpenShift AI As Exemplar</h2>
+            <p>
+              OpenShift AI is the top-shelf exemplar for this kind of controlled
+              local or private model serving: platform integration, operational
+              boundaries, identity, auditability, and vLLM-backed inference can
+              all live close to the environment where the work is being done.
+            </p>
+            <p>
+              The skill does not require OpenShift AI. Any compatible local or
+              private model-serving stack can be wired through the generic
+              OpenAI-compatible profile. OpenShift AI is documented as the
+              reference-quality path, not a portability limit.
+            </p>
+          </section>
+
+          <section id="profiles">
+            <h2>Profiles</h2>
+            <p>
+              Registered local profiles live in the executor registry. Use
+              <code>openshift-ai-vllm</code> when targeting an OpenShift AI
+              vLLM endpoint, or the generic OpenAI-compatible profile for other
+              serving stacks.
+            </p>
+            <pre><code>python3 scripts/route_work.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --requested-role documentation \
+  "Documentation review for the public README examples."</code></pre>
+            <p>
+              Dispatch prepares a local envelope by default. It does not call
+              the endpoint unless <code>--execute-local</code> is set.
+            </p>
+            <pre><code>export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
+export CWO_OPENSHIFT_AI_VLLM_MODEL="vllm-local"
+
+python3 scripts/dispatch_work.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --dispatch-id dispatch-example \
+  --bead example \
+  --json \
+  "Summarize docs-review risks."</code></pre>
+          </section>
+
+          <section id="guardrails">
+            <h2>Guardrails</h2>
+            <p>
+              Local worker and secure-review executors must set
+              <code>codex_pickup=forbidden</code>. They should not have web
+              access, shell execution, or repository write authority.
+            </p>
+            <ol class="check-list">
+              <li>Use local workers only after explicit local opt-in.</li>
+              <li>Treat output as evidence, not implementation authority.</li>
+              <li>Normalize and evaluate local returns before use.</li>
+              <li>Quarantine failed, disputed, or suspicious returns.</li>
+            </ol>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+      </nav>
+    </footer>
+  </body>
+</html>

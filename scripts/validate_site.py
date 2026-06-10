@@ -9,6 +9,21 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
+REPO_URL = "https://github.com/gprocunier/complex-work-orchestration"
+REQUIRED_PAGES = [
+    "index.html",
+    "get-started.html",
+    "prompt-coach.html",
+    "external-contracting.html",
+    "local-workers.html",
+    "reference.html",
+]
+SOURCE_LINK_PATTERNS = [
+    REPO_URL,
+    f"{REPO_URL}/blob/main/LICENSE",
+    "https://ux.redhat.com/",
+    "https://diataxis.fr/",
+]
 
 PRIVATE_PATTERNS = [
     re.compile(r"/home/[A-Za-z0-9_.-]+"),
@@ -75,6 +90,14 @@ def validate_html(path: Path) -> list[str]:
     for href in parser.hrefs:
         parsed = urlparse(href)
         if parsed.scheme in {"http", "https", "mailto"}:
+            if parsed.scheme in {"http", "https"} and not any(
+                href == pattern or href.startswith(pattern + "#") for pattern in SOURCE_LINK_PATTERNS
+            ):
+                errors.append(f"{path.relative_to(ROOT)} links to non-source external URL: {href}")
+            if "github.com" in parsed.netloc and "/blob/main/" in parsed.path and not parsed.path.endswith("/LICENSE"):
+                errors.append(f"{path.relative_to(ROOT)} links to GitHub markdown/source blob instead of local docs: {href}")
+            if "github.com" in parsed.netloc and "/tree/main/" in parsed.path:
+                errors.append(f"{path.relative_to(ROOT)} links to GitHub tree instead of local docs: {href}")
             continue
         if href.startswith("#"):
             anchor = href[1:]
@@ -98,18 +121,21 @@ def validate_html(path: Path) -> list[str]:
 
 def main() -> int:
     errors: list[str] = []
-    required = [DOCS / "index.html", DOCS / "styles.css", DOCS / ".nojekyll"]
+    required = [DOCS / page for page in REQUIRED_PAGES] + [DOCS / "styles.css", DOCS / ".nojekyll"]
     for path in required:
         if not path.exists():
             errors.append(f"missing required site file: {path.relative_to(ROOT)}")
-    if (DOCS / "index.html").exists():
-        errors.extend(validate_html(DOCS / "index.html"))
+    for path in sorted(DOCS.glob("*.html")):
+        errors.extend(validate_html(path))
     if (DOCS / "styles.css").exists():
         css = (DOCS / "styles.css").read_text(encoding="utf-8")
         if "@media" not in css:
             errors.append("docs/styles.css missing responsive media query")
         if ":focus-visible" not in css:
             errors.append("docs/styles.css missing focus-visible styling")
+        for required_term in ["doc-layout", "page-nav", "callout", "tile-grid"]:
+            if required_term not in css:
+                errors.append(f"docs/styles.css missing docs component: {required_term}")
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

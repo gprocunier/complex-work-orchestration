@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Post outside model contracts safely with share boundaries, job-description labels, packet gates, and architect adjudication."
+    >
+    <title>External Contracting | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./external-contracting.html" aria-current="page">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">How-to</p>
+        <h1>External Contracting</h1>
+        <p class="lede">
+          Outside models are bounded contractors. They receive one Beads
+          assignment, one job-description label, one sharing boundary, and no
+          authority to publish, release, or become the project owner.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <aside class="page-nav" aria-label="Page sections">
+          <a href="#collaboration">Collaboration Question</a>
+          <a href="#labels">Labels</a>
+          <a href="#packet">Packet Gate</a>
+          <a href="#return">Return Review</a>
+        </aside>
+        <div class="doc-body">
+          <section id="collaboration">
+            <h2>Collaboration Question</h2>
+            <p>
+              Ask before any third-party context leaves the repo:
+            </p>
+            <blockquote>
+              Should this project use a third-party model contractor for deep
+              reasoning? If yes, what may be shared: redacted packet only, repo
+              read-only, patch branch, or no outside sharing?
+            </blockquote>
+            <p>
+              Default to no outside sharing. Model preference alone is not
+              consent to export repo state, private context, secrets, or
+              unreleased material.
+            </p>
+          </section>
+
+          <section id="labels">
+            <h2>Labels</h2>
+            <p>
+              Contractor work needs guard labels so normal Codex workers do not
+              claim it from the ready queue.
+            </p>
+            <pre><code>contractor-only
+no-codex-exec
+contract-jd-security-reasoning</code></pre>
+            <p>
+              Use exactly one primary job-description label. Split the work
+              into separate Beads when a security review, docs review, and
+              architecture critique all need independent reasoning.
+            </p>
+          </section>
+
+          <section id="packet">
+            <h2>Packet Gate</h2>
+            <p>
+              Build packets through the helper so share boundaries, opt-in,
+              snippets, provider binding, and expert profiles are checked
+              before a manual prompt is rendered.
+            </p>
+            <pre><code>python3 scripts/build_contractor_packet.py \
+  --bead &lt;id&gt; \
+  --executor external_security_reviewer \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --attest-packet \
+  --format json \
+  --output contractor-packet.json</code></pre>
+            <p>
+              Repo-readonly and patch-branch packets require an explicit
+              disclosure escalation flag in addition to external opt-in.
+            </p>
+          </section>
+
+          <section id="return">
+            <h2>Return Review</h2>
+            <p>
+              Do not turn contractor findings into implementation work until
+              the return has been normalized, evaluated, and adjudicated by the
+              architect.
+            </p>
+            <pre><code>python3 scripts/normalize_contractor_return.py \
+  --bead &lt;id&gt; \
+  --file contractor-return.md \
+  --output contractor-return-bundle.json
+
+python3 scripts/evaluate_return.py --bead &lt;id&gt; --file contractor-return.md</code></pre>
+            <div class="callout">
+              <strong>Quarantine rule:</strong>
+              High sabotage or malpractice scores isolate the return. No
+              implementation dependency should be created until adjudication is
+              complete.
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+      </nav>
+    </footer>
+  </body>
+</html>

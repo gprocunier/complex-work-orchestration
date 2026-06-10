@@ -20,10 +20,11 @@
           <span>Complex Work Orchestration</span>
         </a>
         <div class="nav-links">
-          <a href="#start">Start</a>
-          <a href="#docs">Docs</a>
-          <a href="#flow">Flow</a>
-          <a href="#reference">Reference</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
+          <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
@@ -41,7 +42,7 @@
             evidence.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="#start">Run the first workflow</a>
+            <a class="button primary" href="./get-started.html">Run the first workflow</a>
             <a class="button secondary" href="https://github.com/gprocunier/complex-work-orchestration">View source</a>
           </div>
         </div>
@@ -97,22 +98,22 @@ cd complex-work-orchestration
           <article class="doc-card">
             <h3>Tutorial</h3>
             <p>Install the skill, run the prompt coach, and create a small Beads-backed task.</p>
-            <a href="#tutorial">Run your first orchestration</a>
+            <a href="./get-started.html">Run your first orchestration</a>
           </article>
           <article class="doc-card">
             <h3>How-to guides</h3>
             <p>Route expert reviews, create contractor packets, validate returns, and resume work.</p>
-            <a href="#how-to">Complete specific tasks</a>
+            <a href="./external-contracting.html">Complete specific tasks</a>
           </article>
           <article class="doc-card">
             <h3>Reference</h3>
             <p>Inspect policies, schemas, helper scripts, expert labels, and share boundaries.</p>
-            <a href="#reference">Look up exact controls</a>
+            <a href="./reference.html">Look up exact controls</a>
           </article>
           <article class="doc-card">
             <h3>Explanation</h3>
             <p>Understand why the model separates architect authority, PM coordination, and contractor evidence.</p>
-            <a href="#explanation">Learn the operating model</a>
+            <a href="./prompt-coach.html">Learn the operating model</a>
           </article>
         </div>
       </section>
@@ -127,7 +128,7 @@ cd complex-work-orchestration
             <span>1</span>
             <div>
               <h3>Coach the prompt</h3>
-              <p>Use `scripts/coach_prompt.py` to choose the right harness level and validation bar.</p>
+              <p>Use <code>scripts/coach_prompt.py</code> to choose the right harness level and validation bar.</p>
             </div>
           </li>
           <li>
@@ -163,16 +164,17 @@ cd complex-work-orchestration
         </p>
         <pre><code>python3 scripts/coach_prompt.py \
   "Plan a multi-session cleanup of installer docs, tests, and handoff notes."</code></pre>
+        <p><a href="./get-started.html">Continue with the full getting started guide</a>.</p>
       </section>
 
       <section id="how-to" class="section narrow">
         <p class="eyebrow">How-to guides</p>
         <h2>Common operator tasks</h2>
         <ul class="link-list">
-          <li><a href="https://github.com/gprocunier/complex-work-orchestration#installation">Install the skill</a></li>
-          <li><a href="https://github.com/gprocunier/complex-work-orchestration#invocation">Choose the right invocation</a></li>
-          <li><a href="https://github.com/gprocunier/complex-work-orchestration#contractor-packet">Build a contractor packet</a></li>
-          <li><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/local-inference.md">Use local worker review safely</a></li>
+          <li><a href="./get-started.html">Install the skill</a></li>
+          <li><a href="./prompt-coach.html">Choose the right invocation</a></li>
+          <li><a href="./external-contracting.html">Build a contractor packet</a></li>
+          <li><a href="./local-workers.html">Use local worker review safely</a></li>
         </ul>
       </section>
 
@@ -182,19 +184,19 @@ cd complex-work-orchestration
         <div class="reference-table" role="table" aria-label="Repository reference links">
           <div role="row">
             <span role="cell">Policies</span>
-            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration/tree/main/policy">Route, executor, provider, peer-review, and acceptance controls</a>
+            <a role="cell" href="./reference.html#policies">Route, executor, provider, peer-review, and acceptance controls</a>
           </div>
           <div role="row">
             <span role="cell">Schemas</span>
-            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration/tree/main/schemas">Prompt coach, route result, packet, return, audit, and attestation contracts</a>
+            <a role="cell" href="./reference.html#schemas">Prompt coach, route result, packet, return, audit, and attestation contracts</a>
           </div>
           <div role="row">
             <span role="cell">Experts</span>
-            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration/tree/main/experts">Distinguished Engineer review lenses and job-description labels</a>
+            <a role="cell" href="./reference.html#experts">Distinguished Engineer review lenses and job-description labels</a>
           </div>
           <div role="row">
             <span role="cell">Scripts</span>
-            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration/tree/main/scripts">Coach, route, scaffold, packet, dispatch, evaluate, and validate helpers</a>
+            <a role="cell" href="./reference.html#scripts">Coach, route, scaffold, packet, dispatch, evaluate, and validate helpers</a>
           </div>
         </div>
       </section>
@@ -223,6 +225,8 @@ cd complex-work-orchestration
         <p>Public Codex skill for durable multi-agent work.</p>
       </div>
       <nav aria-label="Footer">
+        <a href="./get-started.html">Get Started</a>
+        <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
         <a href="https://ux.redhat.com/">Red Hat UX reference</a>

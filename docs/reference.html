@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Reference overview for Complex Work Orchestration policies, schemas, experts, scripts, and validation gates."
+    >
+    <title>Reference | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
+          <a href="./reference.html" aria-current="page">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Reference</p>
+        <h1>Control Plane</h1>
+        <p class="lede">
+          The skill is a small control plane over Beads: policy chooses routes,
+          schemas define exchanged artifacts, experts calibrate review lenses,
+          and scripts enforce gates.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <aside class="page-nav" aria-label="Page sections">
+          <a href="#policies">Policies</a>
+          <a href="#schemas">Schemas</a>
+          <a href="#experts">Experts</a>
+          <a href="#scripts">Scripts</a>
+          <a href="#validation">Validation</a>
+        </aside>
+        <div class="doc-body">
+          <section id="policies">
+            <h2>Policies</h2>
+            <p>
+              Policies are JSON-compatible YAML files used by helper scripts.
+              They describe route classes, executors, providers, experts,
+              sharing boundaries, peer-review requirements, acceptance rules,
+              and contracting controls.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Policy files">
+              <div role="row"><span role="cell">Routing</span><code role="cell">policy/routing-policy.yaml</code></div>
+              <div role="row"><span role="cell">Executors</span><code role="cell">policy/executor-registry.yaml</code></div>
+              <div role="row"><span role="cell">Providers</span><code role="cell">policy/provider-registry.yaml</code></div>
+              <div role="row"><span role="cell">Experts</span><code role="cell">policy/expert-registry.yaml</code></div>
+            </div>
+          </section>
+
+          <section id="schemas">
+            <h2>Schemas</h2>
+            <p>
+              Schemas make helper outputs reviewable: prompt coach results,
+              route results, contractor packets, contractor returns, local
+              dispatch envelopes, acceptance decisions, audit events, and
+              attestations.
+            </p>
+          </section>
+
+          <section id="experts">
+            <h2>Experts</h2>
+            <p>
+              Expert profiles calibrate the reasoning lens for documentation,
+              architecture, security, web design, Red Hat product areas, and
+              other disciplines. Contractor packets include the matched profile
+              by default so review output is grounded in the intended role.
+            </p>
+            <p>
+              Red Hat lenses include OpenShift Platform, OpenShift Application
+              Developer, OpenShift AI, Red Hat OpenStack Services on OpenShift,
+              Advanced Cluster Management, Advanced Cluster Security, and Red
+              Hat Enterprise Linux with Identity Management and Satellite
+              sub-specialties.
+            </p>
+          </section>
+
+          <section id="scripts">
+            <h2>Scripts</h2>
+            <p>
+              Helper scripts perform sizing, routing, scaffolding, packet
+              building, dispatch prompt rendering, return normalization,
+              evaluation, audit verification, and repository validation.
+            </p>
+            <pre><code>python3 scripts/coach_prompt.py "&lt;task text&gt;"
+python3 scripts/route_work.py "&lt;task text&gt;"
+python3 scripts/validate_repository.py
+python3 scripts/validate_site.py</code></pre>
+          </section>
+
+          <section id="validation">
+            <h2>Validation</h2>
+            <p>
+              Publication work should pass repository validation, site
+              validation, unit tests, install smoke checks, browser checks, and
+              publish sanitization before pushing upstream.
+            </p>
+            <ol class="check-list">
+              <li>Run validators locally.</li>
+              <li>Check desktop and mobile rendering.</li>
+              <li>Scan for local paths, private attribution, tokens, and keys.</li>
+              <li>Verify GitHub CI, Pages deploy, and live HTTP 200 after push.</li>
+            </ol>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

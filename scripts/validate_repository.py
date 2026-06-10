@@ -233,8 +233,69 @@ def validate_repository() -> list[str]:
             "Diátaxis documentation map",
             "Two-minute version",
             "Beads graph",
+            "./get-started.html",
+            "./prompt-coach.html",
+            "./external-contracting.html",
+            "./local-workers.html",
+            "./reference.html",
             "Red Hat UX reference",
             "https://github.com/gprocunier/complex-work-orchestration",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/get-started.html",
+        [
+            "Get Started",
+            "CODEX_SKILLS_DIR",
+            "scripts/coach_prompt.py",
+            "bd ready",
+            "no-codex-exec",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/prompt-coach.html",
+        [
+            "Prompt Coach",
+            "interactive_questions",
+            "Publish Release",
+            "outside-sharing boundary",
+            "local-worker opt-in",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/external-contracting.html",
+        [
+            "External Contracting",
+            "third-party model contractor",
+            "contractor-only",
+            "contract-jd-security-reasoning",
+            "normalize_contractor_return.py",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/local-workers.html",
+        [
+            "Local Workers",
+            "OpenShift AI As Exemplar",
+            "OpenAI-compatible",
+            "frontier model",
+            "curl",
+            "codex_pickup=forbidden",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/reference.html",
+        [
+            "Control Plane",
+            "policy/routing-policy.yaml",
+            "schemas",
+            "OpenShift AI",
+            "scripts/validate_site.py",
         ],
     )
     require_doc_terms(
@@ -245,6 +306,9 @@ def validate_repository() -> list[str]:
             "@media",
             "--red",
             "system-map",
+            "doc-layout",
+            "page-nav",
+            "callout",
         ],
     )
     require_doc_terms(

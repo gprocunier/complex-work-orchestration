@@ -127,6 +127,11 @@ pre {
   border-color: var(--red);
 }
 
+.nav-links a[aria-current="page"] {
+  border-color: var(--red);
+  font-weight: 700;
+}
+
 .hero {
   max-width: var(--max);
   margin: 0 auto;
@@ -172,6 +177,16 @@ h3 {
   max-width: 61ch;
   color: var(--ink-soft);
   font-size: 1.14rem;
+}
+
+.page-hero {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 4rem 1.25rem 2.5rem;
+}
+
+.page-hero h1 {
+  max-width: 14ch;
 }
 
 .hero-actions {
@@ -412,6 +427,125 @@ h3 {
   font-weight: 700;
 }
 
+.reference-table.compact {
+  margin-block: 1.4rem;
+}
+
+.reference-table code {
+  overflow-wrap: anywhere;
+}
+
+.doc-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.doc-layout > * {
+  max-width: none;
+  margin-inline: 0;
+}
+
+.page-nav {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border-left: 5px solid var(--red);
+  background: var(--gray-10);
+}
+
+.page-nav a {
+  color: var(--ink);
+  text-decoration: none;
+  padding-block: 0.25rem;
+}
+
+.page-nav a:hover {
+  color: var(--red-dark);
+  text-decoration: underline;
+}
+
+.doc-body {
+  max-width: 850px;
+}
+
+.doc-body > section {
+  padding-block: 0 2.6rem;
+}
+
+.doc-body > section + section {
+  padding-top: 2.6rem;
+  border-top: 1px solid var(--gray-20);
+}
+
+.doc-body h2 {
+  max-width: none;
+  margin-bottom: 1rem;
+  font-size: 2rem;
+}
+
+.doc-body h3 {
+  margin-bottom: 0.5rem;
+}
+
+.doc-body p,
+.doc-body li {
+  color: var(--ink-soft);
+}
+
+.doc-body code {
+  overflow-wrap: anywhere;
+}
+
+.callout {
+  margin-block: 1.4rem;
+  padding: 1rem;
+  border-left: 5px solid var(--red);
+  background: var(--gray-10);
+}
+
+.callout strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--ink);
+}
+
+blockquote {
+  margin: 1.4rem 0;
+  padding: 1rem 1.2rem;
+  border-left: 5px solid var(--ink);
+  background: var(--gray-10);
+  color: var(--ink-soft);
+}
+
+.check-list {
+  display: grid;
+  gap: 0.65rem;
+  padding-left: 1.35rem;
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-block: 1.4rem;
+}
+
+.tile-grid article {
+  min-height: 9rem;
+  padding: 1rem;
+  border: 1px solid var(--gray-20);
+  border-top: 5px solid var(--red);
+  border-radius: 4px;
+}
+
+.tile-grid p {
+  margin-bottom: 0;
+}
+
 .site-footer {
   padding: 2rem 1.25rem;
   background: #1f1f1f;
@@ -445,6 +579,7 @@ h3 {
   .top-nav,
   .hero,
   .split,
+  .doc-layout,
   .site-footer {
     grid-template-columns: 1fr;
     flex-direction: column;
@@ -458,6 +593,10 @@ h3 {
   .nav-links,
   .site-footer nav {
     justify-content: flex-start;
+  }
+
+  .page-nav {
+    position: static;
   }
 }
 
@@ -475,6 +614,7 @@ h3 {
   }
 
   .doc-grid,
+  .tile-grid,
   .reference-table > div {
     grid-template-columns: 1fr;
   }
