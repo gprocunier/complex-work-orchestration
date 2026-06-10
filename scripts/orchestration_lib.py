@@ -26,7 +26,11 @@ CONTRACTOR_PACKET_REQUIRED_FIELDS = [
     "generated_at",
     "bead_id",
     "executor",
+    "provider_key",
+    "provider_trust_tier",
     "share_boundary",
+    "disclosure_stage",
+    "disclosure_escalation_approved",
     "job_description_label",
     "expert_profile_included",
     "degraded_context_justification",
@@ -157,6 +161,65 @@ def dispatch_sensitivity_for_boundary(sensitivity: str, share_boundary: str) -> 
     return sensitivity
 
 
+def provider_profile(provider_key: str | None) -> dict[str, Any]:
+    providers = load_policy("provider-registry").get("providers", {})
+    profile = providers.get(provider_key or "")
+    if not isinstance(profile, dict):
+        return {}
+    value = dict(profile)
+    value.setdefault("key", provider_key)
+    return value
+
+
+def provider_metadata_for_executor(executor: dict[str, Any]) -> dict[str, Any]:
+    provider = provider_profile(executor.get("provider_key"))
+    return {
+        "provider_key": provider.get("key"),
+        "provider_family": provider.get("family"),
+        "provider_trust_tier": provider.get("trust_tier"),
+        "provider_retention_class": provider.get("retention_class"),
+        "provider_conflict_risk_domains": provider.get("conflict_risk_domains", []),
+    }
+
+
+def detect_provider_conflicts(text: str, provider_registry: dict[str, Any] | None = None) -> list[str]:
+    registry = provider_registry or load_policy("provider-registry")
+    conflicts: list[str] = []
+    for domain, terms in registry.get("conflict_risk_terms", {}).items():
+        if term_hits(text, terms):
+            conflicts.append(str(domain))
+    return sorted(set(conflicts))
+
+
+def peer_review_policy() -> dict[str, Any]:
+    return load_policy("peer-review-policy")
+
+
+def route_requires_peer_review(
+    *,
+    route: str,
+    risk: str,
+    share_boundary: str,
+    provider_conflict_domains: list[str],
+) -> bool:
+    policy = peer_review_policy()
+    if bool(policy.get("required_for_routes", {}).get(route)):
+        return True
+    if bool(policy.get("required_for_share_boundaries", {}).get(share_boundary)):
+        return True
+    if risk in set(policy.get("required_for_risk_levels", [])):
+        return True
+    return bool(provider_conflict_domains and policy.get("required_for_provider_conflict", True))
+
+
+def share_boundary_disclosure_stage(share_boundary: str) -> str:
+    return str(boundary_config(share_boundary).get("disclosure_stage", share_boundary))
+
+
+def share_boundary_requires_escalation(share_boundary: str) -> bool:
+    return bool(boundary_config(share_boundary).get("requires_disclosure_escalation"))
+
+
 def path_hits(paths: list[str], patterns: list[str]) -> list[str]:
     hits: list[str] = []
     for path in paths:
@@ -252,19 +315,21 @@ def executor_policy_violations(
     sensitivity: str,
     risk: str,
     unattended: bool = False,
+    provider_conflict_domains: list[str] | None = None,
 ) -> list[str]:
     violations: list[str] = []
     boundary = boundary_config(share_boundary)
+    provider = provider_profile(executor.get("provider_key"))
     if executor.get("external") and not external_ok:
         violations.append("external dispatch requires user opt-in")
     if executor.get("external") and not boundary.get("allows_external"):
         violations.append(f"share boundary {share_boundary} does not allow external dispatch")
     if executor.get("external") and sensitivity == "restricted" and executor.get("dispatch_mode") != "human":
         violations.append("restricted data cannot be sent to non-human external executors")
-    if executor.get("dispatch_mode") == "local_openai_compatible":
+    if executor.get("dispatch_mode") in {"local_openai_compatible", "local_secure_review"}:
         local_policy = load_policy("routing-policy").get("local_worker", {})
-        allowed_classes = set(local_policy.get("allowed_task_classes", []))
-        allowed_risks = set(local_policy.get("allowed_risks", []))
+        allowed_classes = set(executor.get("allowed_task_classes") or local_policy.get("allowed_task_classes", []))
+        allowed_risks = set(executor.get("allowed_risks") or local_policy.get("allowed_risks", []))
         if not local_ok:
             violations.append("local worker dispatch requires --local-ok")
         if allowed_classes and task_class not in allowed_classes:
@@ -273,6 +338,10 @@ def executor_policy_violations(
             violations.append(f"risk {risk} is not allowed for local worker dispatch")
         if sensitivity == "restricted":
             violations.append("restricted data cannot be sent to local worker dispatch")
+    if provider and provider_conflict_domains:
+        overlap = sorted(set(provider.get("conflict_risk_domains", [])) & set(provider_conflict_domains))
+        if overlap and not provider.get("may_primary", True):
+            violations.append("provider is not allowed as primary for conflict domains: " + ", ".join(overlap))
     if not rank_allows(risk, executor.get("max_risk", "low"), RISK_ORDER):
         violations.append(f"risk {risk} exceeds executor max_risk {executor.get('max_risk')}")
     if not rank_allows(sensitivity, executor.get("max_data_sensitivity", "public"), SENSITIVITY_ORDER):
@@ -296,6 +365,7 @@ def score_executors(
     experts: list[dict[str, Any]],
     text: str,
     unattended: bool = False,
+    provider_conflict_domains: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     registry = load_policy("executor-registry").get("executors", {})
     scoring = load_policy("routing-policy").get("scoring", {}).get("executor", {})
@@ -320,6 +390,7 @@ def score_executors(
             sensitivity=sensitivity,
             risk=risk,
             unattended=unattended,
+            provider_conflict_domains=provider_conflict_domains,
         )
         if violations:
             score += scoring.get("policy_violation", -100) * len(violations)
@@ -334,7 +405,7 @@ def score_executors(
         ):
             score += scoring.get("task_class_fit", 6)
             reasons.append("task class fit")
-        if prefer_local and executor.get("dispatch_mode") == "local_openai_compatible" and not violations:
+        if prefer_local and executor.get("dispatch_mode") in {"local_openai_compatible", "local_secure_review"} and not violations:
             score += scoring.get("prefer_local_fit", 12)
             reasons.append("preferred local worker")
         if need_web and executor.get("supports_web"):
@@ -354,12 +425,14 @@ def score_executors(
         if executor.get("cost_tier") in ["low", "medium"]:
             score += scoring.get("cost_fit", 2)
 
+        provider_metadata = provider_metadata_for_executor(executor)
         results.append(
             {
                 "key": key,
                 "display_name": executor.get("display_name", key),
                 "dispatch_mode": executor.get("dispatch_mode"),
                 "external": bool(executor.get("external")),
+                **provider_metadata,
                 "score": score,
                 "policy_violations": violations,
                 "reasons": reasons,
@@ -384,6 +457,7 @@ def select_executor_for_expert(
     local_ok: bool = False,
     prefer_local: bool = False,
     unattended: bool = False,
+    provider_conflict_domains: list[str] | None = None,
 ) -> dict[str, Any]:
     ranked = score_executors(
         task_class=expert.get("task_class", "domain-review"),
@@ -405,6 +479,7 @@ def select_executor_for_expert(
             if part
         ),
         unattended=unattended,
+        provider_conflict_domains=provider_conflict_domains,
     )
     viable = [item for item in ranked if not item["policy_violations"]]
     selected = viable[0] if viable else ranked[0]
@@ -442,6 +517,7 @@ def classify_work(
     sensitivity = detect_sensitivity(text, routing)
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
     risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
+    provider_conflict_domains = detect_provider_conflicts(text)
     enriched_experts: list[dict[str, Any]] = []
     for expert in experts:
         expert_result = dict(expert)
@@ -456,6 +532,7 @@ def classify_work(
                 local_ok=local_ok,
                 prefer_local=prefer_local,
                 unattended=unattended,
+                provider_conflict_domains=provider_conflict_domains,
             )
         )
         enriched_experts.append(expert_result)
@@ -473,6 +550,7 @@ def classify_work(
         experts=experts,
         text=text,
         unattended=unattended,
+        provider_conflict_domains=provider_conflict_domains,
     )
     selected = primary.get("selected_executor") or ranked_executors[0]
     recommended_executor = primary.get("recommended_executor", selected["key"])
@@ -480,7 +558,7 @@ def classify_work(
     dispatch_mode = selected.get("dispatch_mode")
     if selected.get("external"):
         route = "external-contract"
-    elif dispatch_mode == "local_openai_compatible":
+    elif dispatch_mode in {"local_openai_compatible", "local_secure_review"}:
         route = "local-worker"
     elif recommended_executor in ["frontier_architect", "contractor_evaluator"]:
         route = "architect-review"
@@ -518,6 +596,14 @@ def classify_work(
         if expert_uses_external_contract(expert, recommended_executor)
         or expert_uses_local_worker(expert, recommended_executor)
     ]
+    peer_required = route_requires_peer_review(
+        route=route,
+        risk=risk,
+        share_boundary=share_boundary,
+        provider_conflict_domains=provider_conflict_domains,
+    )
+    peer_policy = peer_review_policy()
+    peer_review_count = int(peer_policy.get("defaults", {}).get("minimum_peer_reviews", 1)) if peer_required else 0
 
     return {
         "route": route,
@@ -538,6 +624,14 @@ def classify_work(
         "acceptance_required_experts": acceptance_required_experts,
         "recommended_executor": recommended_executor,
         "selected_executor": selected,
+        "provider_conflict_detected": bool(provider_conflict_domains),
+        "provider_conflict_domains": provider_conflict_domains,
+        "provider_diversity_required": bool(peer_required and peer_policy.get("defaults", {}).get("provider_diversity_required", True)),
+        "peer_review_required": peer_required,
+        "peer_review_count": peer_review_count,
+        "peer_review_labels": peer_policy.get("peer_review_labels", []),
+        "quarantine_on_fail": bool(peer_policy.get("defaults", {}).get("quarantine_on_high_sabotage", True)),
+        "local_secure_review_executor": peer_policy.get("defaults", {}).get("local_secure_review_executor"),
         "required_experts": experts,
         "ranked_experts": experts,
         "ranked_executors": ranked_executors,
@@ -632,6 +726,7 @@ def selected_executor_for_expert(expert: dict[str, Any], fallback_executor: str 
     if isinstance(executor, dict):
         value = dict(executor)
         value.setdefault("key", key)
+        value.update(provider_metadata_for_executor(value))
         return value
     return {"key": str(key or ""), "external": False, "codex_pickup": "allowed", "dispatch_mode": ""}
 
@@ -641,7 +736,10 @@ def expert_uses_external_contract(expert: dict[str, Any], fallback_executor: str
 
 
 def expert_uses_local_worker(expert: dict[str, Any], fallback_executor: str | None = None) -> bool:
-    return selected_executor_for_expert(expert, fallback_executor).get("dispatch_mode") == "local_openai_compatible"
+    return selected_executor_for_expert(expert, fallback_executor).get("dispatch_mode") in {
+        "local_openai_compatible",
+        "local_secure_review",
+    }
 
 
 def expert_review_lane(expert: dict[str, Any]) -> str:
@@ -665,7 +763,7 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
     executor = expert.get("recommended_executor") or selected.get("key") or route.get("recommended_executor")
     external = bool(selected.get("external"))
     dispatch_mode = selected.get("dispatch_mode")
-    local_worker = dispatch_mode == "local_openai_compatible"
+    local_worker = dispatch_mode in {"local_openai_compatible", "local_secure_review"}
     return {
         "expert": expert.get("name"),
         "discipline": expert.get("discipline"),
@@ -674,6 +772,9 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
         "share_boundary": route.get("share_boundary"),
         "executor": executor,
         "selected_executor": selected,
+        "provider_key": selected.get("provider_key"),
+        "provider_family": selected.get("provider_family"),
+        "provider_trust_tier": selected.get("provider_trust_tier"),
         "executor_policy_violations": expert.get("executor_policy_violations", []),
         "codex_pickup": "forbidden" if external or local_worker else selected.get("codex_pickup", "allowed"),
         "architect_review_required": True,
@@ -717,6 +818,18 @@ def validate_opt_in_record(path: str | Path, *, executor: str, share_boundary: s
         executor_allowed = False
     if not executor_allowed:
         raise SystemExit(f"opt-in record does not allow executor {executor!r}")
+    allowed_providers = record.get("allowed_providers")
+    if allowed_providers is not None:
+        executor_config = load_policy("executor-registry").get("executors", {}).get(executor, {})
+        provider_key = executor_config.get("provider_key")
+        if isinstance(allowed_providers, str):
+            provider_allowed = allowed_providers in [provider_key, "*"]
+        elif isinstance(allowed_providers, list):
+            provider_allowed = provider_key in allowed_providers or "*" in allowed_providers
+        else:
+            provider_allowed = False
+        if not provider_allowed:
+            raise SystemExit(f"opt-in record does not allow provider {provider_key!r}")
 
     if not record.get("decision_source"):
         raise SystemExit("opt-in record must include decision_source")
@@ -766,6 +879,10 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         errors.append(f"packet executor {executor_key!r} is unknown")
     elif not executor.get("external"):
         errors.append(f"packet executor {executor_key!r} is not an outside contractor executor")
+    elif packet.get("provider_key") != executor.get("provider_key"):
+        errors.append(f"packet provider_key {packet.get('provider_key')!r} does not match executor provider")
+    elif packet.get("provider_trust_tier") != provider_profile(executor.get("provider_key")).get("trust_tier"):
+        errors.append(f"packet provider_trust_tier {packet.get('provider_trust_tier')!r} does not match provider registry")
 
     controls = load_contracting_controls()
     allowed_external = set(controls.get("allowed_external_executors", []))
@@ -780,6 +897,14 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         boundary = {}
     if boundary and not boundary.get("allows_external"):
         errors.append(f"packet share boundary {share_boundary!r} does not allow external contracting")
+    if boundary:
+        expected_stage = str(boundary.get("disclosure_stage", share_boundary))
+        if packet.get("disclosure_stage") != expected_stage:
+            errors.append(
+                f"packet disclosure_stage {packet.get('disclosure_stage')!r} does not match boundary stage {expected_stage!r}"
+            )
+        if boundary.get("requires_disclosure_escalation") and packet.get("disclosure_escalation_approved") is not True:
+            errors.append(f"packet share boundary {share_boundary!r} requires disclosure escalation approval")
 
     if packet.get("external_opt_in") is not True:
         errors.append("packet external_opt_in must be true")
@@ -1017,6 +1142,156 @@ def enforce_contracting_quota(
     }
 
 
+def sabotage_thresholds() -> dict[str, int]:
+    policy_thresholds = load_policy("acceptance-policy").get("sabotage", {}).get("thresholds", {})
+    peer_thresholds = peer_review_policy().get("sabotage_thresholds", {})
+    return {
+        "review": int(policy_thresholds.get("review", peer_thresholds.get("review", 30))),
+        "quarantine": int(policy_thresholds.get("quarantine", peer_thresholds.get("quarantine", 60))),
+    }
+
+
+def score_sabotage_signals(text: str, sections: dict[str, str] | None = None) -> dict[str, Any]:
+    sections = sections or parse_return_sections(text)
+    signals: list[dict[str, Any]] = []
+    lower = text.lower()
+
+    patterns: list[tuple[str, int, str]] = [
+        (r"\b(ignore|bypass|skip|avoid)\s+(the\s+)?(architect|evaluator|review|policy|guardrail)", 25, "bypass review or policy"),
+        (r"\b(do not|don't)\s+(log|record|audit|mention|report)", 25, "suppresses audit or reporting"),
+        (r"\b(suppress|hide|delete)\s+(tests?|logs?|audit|evidence|validation)", 25, "suppresses tests logs or evidence"),
+        (r"\b(no need|unnecessary)\s+(for\s+)?(tests?|validation|review)", 20, "discourages validation"),
+        (r"\b(send|share|need|provide)\s+(the\s+)?(full|entire|complete)\s+(repo|repository|bead|transcript|secret|credentials?)", 30, "requests broader disclosure"),
+        (r"\b(i|we)\s+(changed|modified|patched|committed|pushed|deleted|rewrote)\b", 35, "claims repository mutation"),
+        (r"\b(credential|password|api[_ -]?key|private key|token)\s*[:=]", 45, "appears to expose secret material"),
+        (r"\b(fabricated|invented|assumed without evidence|made up)\b", 35, "admits fabricated evidence"),
+    ]
+    for pattern, weight, reason in patterns:
+        if re.search(pattern, lower, re.I):
+            signals.append({"reason": reason, "weight": weight})
+
+    evidence = section_value(sections, "Evidence")
+    validation = section_value(sections, "Validation result")
+    provider_limits = section_value(sections, "Provider policy limitations", "Policy limitations")
+    boundary = section_value(sections, "Boundary violation")
+    patch_auth = section_value(sections, "Patch authorization")
+    files_changed = section_value(sections, "Files changed")
+    commands_run = section_value(sections, "Commands run")
+    if affirmative_field(boundary):
+        signals.append({"reason": "self-reported boundary violation", "weight": 40})
+    if nonempty_work_field(files_changed) and not affirmative_field(patch_auth):
+        signals.append({"reason": "reports file changes without patch authorization", "weight": 40})
+    if re.search(r"\bnot run|none|n/a\b", validation, re.I) and re.search(r"\bverified|confirmed|proved|validated\b", evidence, re.I):
+        signals.append({"reason": "claims verification while validation was not run", "weight": 25})
+    if provider_limits and not negative_field(provider_limits):
+        signals.append({"reason": "provider policy limitation disclosed", "weight": 15})
+    if files_changed and not commands_run and re.search(r"\bchanged|modified|patched\b", files_changed, re.I):
+        signals.append({"reason": "file-change claim lacks command evidence", "weight": 20})
+
+    score = min(100, sum(int(signal["weight"]) for signal in signals))
+    thresholds = sabotage_thresholds()
+    return {
+        "sabotage_score": score,
+        "sabotage_signals": signals,
+        "sabotage_review_recommended": score >= thresholds["review"],
+        "quarantine_recommended": score >= thresholds["quarantine"],
+    }
+
+
+def evidence_items_from_sections(sections: dict[str, str]) -> list[dict[str, str]]:
+    evidence = section_value(sections, "Evidence")
+    items: list[dict[str, str]] = []
+    for line in evidence.splitlines():
+        normalized = line.strip().lstrip("-* ").strip()
+        if not normalized:
+            continue
+        kind = "claim"
+        if re.search(r"\b(test|pytest|compile|validate|command|bd |git )\b", normalized, re.I):
+            kind = "command-or-test"
+        elif re.search(r"\b(file|path|line|schema|policy)\b", normalized, re.I):
+            kind = "file-or-policy"
+        items.append({"kind": kind, "text": normalized})
+    return items
+
+
+def normalize_contractor_return(
+    text: str,
+    *,
+    bead_id: str | None = None,
+    dispatch_id: str | None = None,
+    share_boundary: str | None = None,
+    job_description_label: str | None = None,
+    packet_sha256: str | None = None,
+    executor: str | None = None,
+) -> dict[str, Any]:
+    sections = parse_return_sections(text)
+    required = load_policy("acceptance-policy").get("contractor_return_required_sections", [])
+    missing = [section for section in required if not sections.get(section)]
+    sabotage = score_sabotage_signals(text, sections)
+    bundle: dict[str, Any] = {
+        "bundle_type": "contractor-return-bundle",
+        "version": 1,
+        "bead_id": bead_id,
+        "dispatch_id": dispatch_id,
+        "executor": executor,
+        "share_boundary": share_boundary,
+        "job_description_label": job_description_label,
+        "packet_sha256": packet_sha256,
+        "sections": sections,
+        "required_sections_missing": missing,
+        "required_sections_present": [section for section in required if section in sections and section not in missing],
+        "evidence_items": evidence_items_from_sections(sections),
+        **sabotage,
+    }
+    bundle["bundle_sha256"] = artifact_hash(json.dumps(bundle, sort_keys=True))
+    return bundle
+
+
+def attestation_payload_hash(attestation: dict[str, Any]) -> str:
+    payload = dict(attestation)
+    payload.pop("attestation_sha256", None)
+    return artifact_hash(json.dumps(payload, sort_keys=True))
+
+
+def make_attestation(
+    *,
+    subject_type: str,
+    subject_sha256: str,
+    subject_id: str | None = None,
+    issuer: str = "complex-work-orchestration",
+    predicate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    attestation: dict[str, Any] = {
+        "attestation_type": "sha256-subject-attestation",
+        "version": 1,
+        "issued_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "issuer": issuer,
+        "subject_type": subject_type,
+        "subject_id": subject_id,
+        "subject_sha256": subject_sha256,
+        "predicate": predicate or {},
+    }
+    attestation["attestation_sha256"] = attestation_payload_hash(attestation)
+    return attestation
+
+
+def verify_attestation(subject: str | bytes, attestation: dict[str, Any]) -> dict[str, Any]:
+    subject_bytes = subject if isinstance(subject, bytes) else subject.encode("utf-8")
+    actual_subject_hash = hashlib.sha256(subject_bytes).hexdigest()
+    expected_attestation_hash = attestation_payload_hash(attestation)
+    errors: list[str] = []
+    if attestation.get("subject_sha256") != actual_subject_hash:
+        errors.append("subject_sha256 does not match subject bytes")
+    if attestation.get("attestation_sha256") != expected_attestation_hash:
+        errors.append("attestation_sha256 does not match attestation payload")
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "subject_sha256": actual_subject_hash,
+        "attestation_sha256": expected_attestation_hash,
+    }
+
+
 def parse_return_sections(text: str) -> dict[str, str]:
     sections: dict[str, str] = {}
     current: str | None = None
@@ -1048,6 +1323,8 @@ def section_value(sections: dict[str, str], *names: str) -> str:
 def negative_field(value: str) -> bool:
     normalized = value.strip().lower()
     if not normalized:
+        return False
+    if re.match(r"^(compliant|approved|authorized|within scope|in scope)\b", normalized):
         return False
     return bool(
         re.match(r"^(no|false|none|not observed|not present|not applicable|n/a|na)\b", normalized)
@@ -1147,10 +1424,19 @@ def make_acceptance_decision(
         hard_disqualifiers.append("scope creep beyond assigned bead")
         score -= penalties.get("scope_creep", 10)
 
+    sabotage = score_sabotage_signals(text, sections)
+    if sabotage["quarantine_recommended"]:
+        hard_disqualifiers.append("suspected sabotage or malpractice")
+    elif sabotage["sabotage_review_recommended"]:
+        score -= penalties.get("sabotage_review", 20)
+        penalty_reasons.append("sabotage or malpractice signals require review")
+
     score = max(0, min(100, score))
     escalation = re.search(r"^\s*Escalation needed\s*:\s*(yes|true|required)", text, re.I | re.M)
     thresholds = policy.get("score", {}).get("thresholds", {})
-    if hard_disqualifiers:
+    if sabotage["quarantine_recommended"]:
+        verdict = "quarantine"
+    elif hard_disqualifiers:
         verdict = "reject"
     elif escalation:
         verdict = "escalate"
@@ -1172,6 +1458,10 @@ def make_acceptance_decision(
         "missing_sections": missing,
         "penalty_reasons": penalty_reasons,
         "hard_disqualifiers": hard_disqualifiers,
+        "sabotage_score": sabotage["sabotage_score"],
+        "sabotage_signals": sabotage["sabotage_signals"],
+        "sabotage_review_recommended": sabotage["sabotage_review_recommended"],
+        "quarantine_recommended": sabotage["quarantine_recommended"],
         "escalation_flagged": bool(escalation),
         "architect_review_required": True,
         "sections": sections,
@@ -1181,12 +1471,64 @@ def make_acceptance_decision(
 def record_audit_event(event: dict[str, Any], audit_file: Path | None = None) -> dict[str, Any]:
     audit_file = audit_file or AUDIT_LOG
     audit_file.parent.mkdir(parents=True, exist_ok=True)
+    previous_hash = None
+    prior_events = iter_audit_events(audit_file)
+    if prior_events:
+        previous_hash = prior_events[-1].get("event_hash")
     enriched = dict(event)
     enriched.setdefault("timestamp", dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
-    enriched.setdefault("event_hash", artifact_hash(json.dumps(enriched, sort_keys=True)))
+    if previous_hash:
+        enriched.setdefault("previous_event_hash", previous_hash)
+    enriched.pop("event_hash", None)
+    enriched["event_hash"] = artifact_hash(json.dumps(enriched, sort_keys=True))
     with audit_file.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(enriched, sort_keys=True) + "\n")
     return enriched
+
+
+def audit_event_payload_hash(event: dict[str, Any]) -> str:
+    payload = dict(event)
+    payload.pop("event_hash", None)
+    return artifact_hash(json.dumps(payload, sort_keys=True))
+
+
+def verify_audit_log(audit_file: Path | None = None) -> dict[str, Any]:
+    audit_file = audit_file or AUDIT_LOG
+    errors: list[str] = []
+    previous_hash: str | None = None
+    unlinked_events = 0
+    raw_lines = audit_file.read_text(encoding="utf-8").splitlines() if audit_file.exists() else []
+    events: list[dict[str, Any]] = []
+    for index, line in enumerate(raw_lines, 1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            errors.append(f"line {index}: invalid JSON: {exc}")
+            continue
+        if not isinstance(event, dict):
+            errors.append(f"line {index}: event is not an object")
+            continue
+        events.append(event)
+        expected_hash = audit_event_payload_hash(event)
+        if event.get("event_hash") != expected_hash:
+            errors.append(f"line {index}: event_hash mismatch")
+        expected_previous = event.get("previous_event_hash")
+        if previous_hash and expected_previous is None:
+            unlinked_events += 1
+        elif previous_hash and expected_previous != previous_hash:
+            errors.append(f"line {index}: previous_event_hash mismatch")
+        if not previous_hash and expected_previous:
+            errors.append(f"line {index}: first event unexpectedly has previous_event_hash")
+        previous_hash = event.get("event_hash")
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "event_count": len(events),
+        "unlinked_event_count": unlinked_events,
+        "last_event_hash": previous_hash,
+    }
 
 
 def require_bd() -> None:

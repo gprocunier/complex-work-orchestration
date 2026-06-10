@@ -59,9 +59,10 @@ external contracting, job-description labels, and Beads requirements. Use
 `policy/` as the machine-readable control plane, `templates/` for reusable Beads
 bodies, `experts/` for discipline calibration, `schemas/` for helper output
 contracts, `examples/` for smoke-test artifacts, `references/external-contracting.md`
-when posting or reviewing outside model contracts, and `references/contractor-brief.md`
-as the briefing artifact given to an outside contractor with a specific Beads
-assignment.
+when posting or reviewing outside model contracts,
+`references/incident-response-playbook.md` for quarantine or suspected
+sabotage, and `references/contractor-brief.md` as the briefing artifact given
+to an outside contractor with a specific Beads assignment.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.
@@ -77,6 +78,10 @@ Default roles:
 - **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
   local-worker review contracts after explicit `--local-ok`; output is evidence
   and still needs evaluator scoring plus architect adjudication.
+- **Local Secure Reviewer**: local read-only reviewer for security, peer-review,
+  sabotage-review, or repo-review contracts. It can inspect approved repo
+  context locally, but has no web, shell, or repo-write authority and is still
+  forbidden from normal Codex pickup.
 
 The main thread remains the final decision owner. Escalate architecture changes,
 scope changes, release decisions, destructive actions, secret handling, and
@@ -86,7 +91,8 @@ conflicting findings back to the architect.
 
 1. State whether the work is coherent in-thread or needs the harness.
 2. If the work is non-trivial, risky, or may use outside contractors, classify
-   it against the policy:
+   it against the policy. Read provider-conflict and peer-review fields as part
+   of the result:
 
 ```bash
 python3 scripts/route_work.py "<task text>"
@@ -95,6 +101,8 @@ python3 scripts/route_work.py "<task text>"
 3. If outside contracting may help, ask the third-party collaboration question
    unless the user already opted in. Default to `no-outside-sharing`; if the user
    permits sharing, re-run the route with `--external-ok --share-boundary <mode>`.
+   Repo-readonly and patch-branch packet builds require
+   `--allow-disclosure-escalation`, not just `--external-ok`.
    For local inference, use `--local-ok` and only add `--prefer-local` when
    low-risk local worker dispatch is the intended route.
 4. If launching agents, clean stale agent state first using the local harness convention.
@@ -133,6 +141,7 @@ Recommended lanes:
 - Implementation workerbee lane
 - Test/validation workerbee lane
 - Outside contractor lane with job-description contracts
+- Peer-review lane when route output sets `peer_review_required=true`
 - Release or publish sanitization lane, when relevant
 - Docs/handoff lane, when relevant
 
@@ -193,6 +202,14 @@ another outside model, treat that as model opt-in, but still confirm the sharing
 boundary before exporting private context, secrets, unreleased content, or repo
 state. Packet generation must still record explicit opt-in with `--external-ok`
 or `--opt-in-record`; model preference alone is not enough to export context.
+Structured opt-in records may also include `allowed_providers` to constrain
+which provider profile is approved.
+
+Provider identity is part of contractor control. Executors are bound to provider
+profiles in `policy/provider-registry.yaml`; route output can set
+`provider_conflict_detected` and list domains such as frontier model work or
+model-provider competition. Provider conflict forces peer review and architect
+adjudication before findings can become implementation direction.
 
 Every outside contract should have these guard labels:
 
@@ -264,6 +281,20 @@ python3 scripts/build_contractor_packet.py \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
+  --attest-packet \
+  --format json \
+  --output contractor-packet.json
+```
+
+For repo-readonly or patch-branch packets:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor external_security_reviewer \
+  --share-boundary repo-readonly \
+  --allow-disclosure-escalation \
+  --external-ok \
   --format json \
   --output contractor-packet.json
 ```
@@ -277,15 +308,16 @@ profile. Pass `--epic <id>` when an epic exists so dispatch quotas are scoped
 correctly. Use `--opt-in-record <path>` instead of `--external-ok` when opt-in
 is recorded in a structured local JSON audit note. Preferred opt-in records use
 `allowed_external_executors`, a timezone-aware `recorded_at`, optional
-`expires_at`, and project/epic/bead scope fields; legacy `allowed_executors`
-records remain accepted. Packet build audits by default; use `--no-audit` only
-for tests or dry rehearsals that must not consume quota.
+`expires_at`, optional `allowed_providers`, and project/epic/bead scope fields;
+legacy `allowed_executors` records remain accepted. Packet build audits by
+default; use `--no-audit` only for tests or dry rehearsals that must not
+consume quota.
 
 Generate the manual dispatch prompt from an approved packet. Do not claim that
 this helper called the outside model automatically. Dispatch revalidates the
-packet hash, executor, opt-in basis, boundary, expert profile, mandatory
-exclusions, selected snippets, and artifact whitelist before rendering. It also
-audits by default:
+packet hash, executor, provider binding, opt-in basis, boundary, disclosure
+stage, expert profile, mandatory exclusions, selected snippets, and artifact
+whitelist before rendering. It also audits by default:
 
 ```bash
 python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
@@ -299,8 +331,19 @@ After the contractor returns, evaluate the handoff before converting findings to
 implementation work:
 
 ```bash
+python3 scripts/normalize_contractor_return.py \
+  --bead <id> \
+  --dispatch-id <dispatch-id> \
+  --packet-sha256 <packet-sha256> \
+  --file contractor-return.md \
+  --output contractor-return-bundle.json
+
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
+
+If evaluation returns `quarantine` or a high sabotage score, isolate the return,
+run peer review or local secure review as appropriate, and require architect
+adjudication before any implementation dependency is created.
 
 ## Contractor Interaction
 
@@ -327,12 +370,15 @@ When this skill is used, produce a concise orchestration packet:
 
 - harness decision: in-thread, PM-only, or full architect/PM/workerbee/contractor setup
 - policy route: route class, task class, risk, data sensitivity, dispatch
-  sensitivity, share boundary, selected experts, and recommended executor
+  sensitivity, share boundary, provider conflict domains, peer-review status,
+  selected experts, and recommended executor
 - role roster with model/effort choices
 - Beads epic and task list, with IDs when created
 - dependency graph summary
 - contractor-ready assignments
 - dispatch, evaluation, and architect-adjudication requirements
+- return normalization, sabotage/quarantine handling, and attestation/audit
+  verification requirements when external or local contracts are used
 - validation matrix
 - escalation rules
 - resume instructions using `bd ready --json`

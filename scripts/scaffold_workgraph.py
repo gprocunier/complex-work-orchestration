@@ -78,6 +78,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     needs_acceptance = bool(acceptance_review_lanes) or route.get("route") in ["external-contract", "local-worker"]
+    peer_review_required = bool(route.get("peer_review_required"))
     graph: list[dict[str, Any]] = [
         {"title": title, "type": "epic", "labels": ["orchestration", "policy-routed"], "metadata": {"orchestration_route": route}},
         {"title": f"Architect frame: {title}", "type": "task", "lane": "architect", "labels": ["architect", "framing"]},
@@ -105,6 +106,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
         },
     ]
     if needs_acceptance:
+        peer_review_lanes = ["peer-review"] if peer_review_required else []
         graph.extend(
             [
                 {
@@ -114,12 +116,34 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                     "labels": ["dispatch", route["route"]],
                     "depends_on_lanes": ["pm"],
                 },
+                *(
+                    [
+                        {
+                            "title": f"Peer review return: {title}",
+                            "type": "task",
+                            "lane": "peer-review",
+                            "labels": route.get("peer_review_labels")
+                            or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"],
+                            "metadata": {
+                                "peer_review_count": route.get("peer_review_count", 1),
+                                "provider_diversity_required": route.get("provider_diversity_required", True),
+                                "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                                "local_secure_review_executor": route.get("local_secure_review_executor"),
+                                "codex_pickup": "forbidden",
+                                "architect_review_required": True,
+                            },
+                            "depends_on_lanes": ["external-dispatch"],
+                        }
+                    ]
+                    if peer_review_required
+                    else []
+                ),
                 {
                     "title": f"Evaluate return: {title}",
                     "type": "task",
                     "lane": "evaluation",
                     "labels": ["evaluation", "contractor-evaluator"],
-                    "depends_on_lanes": ["external-dispatch", *acceptance_review_lanes],
+                    "depends_on_lanes": ["external-dispatch", *peer_review_lanes, *acceptance_review_lanes],
                 },
                 {
                     "title": f"Architect adjudication: {title}",

@@ -14,9 +14,14 @@ def main() -> None:
     parser.add_argument("--dispatch-id", required=True)
     parser.add_argument("--bead", required=True)
     parser.add_argument("--executor")
+    parser.add_argument("--provider")
+    parser.add_argument("--provider-trust-tier")
     parser.add_argument("--share-boundary")
+    parser.add_argument("--disclosure-stage")
     parser.add_argument("--packet-sha256")
     parser.add_argument("--verdict")
+    parser.add_argument("--sabotage-score", type=int)
+    parser.add_argument("--quarantine-recommended", action="store_true")
     parser.add_argument("--audit-file")
     args = parser.parse_args()
 
@@ -26,9 +31,14 @@ def main() -> None:
             "dispatch_id": args.dispatch_id,
             "bead_id": args.bead,
             "executor_key": args.executor,
+            "provider_key": args.provider,
+            "provider_trust_tier": args.provider_trust_tier,
             "share_boundary": args.share_boundary,
+            "disclosure_stage": args.disclosure_stage,
             "packet_sha256": args.packet_sha256,
             "verdict": args.verdict,
+            "sabotage_score": args.sabotage_score,
+            "quarantine_recommended": args.quarantine_recommended or None,
         },
         Path(args.audit_file) if args.audit_file else None,
     )

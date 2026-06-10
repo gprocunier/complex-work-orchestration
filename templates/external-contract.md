@@ -42,7 +42,8 @@ low, medium, medium-high, high. Explain confidence when below high.
 Escalation triggers:
 Boundary violation, suspected secret exposure, missing context, scope change,
 architecture change, destructive command, production impact, release impact, or
-conflicting evidence.
+conflicting evidence. Also escalate if the provider policy, safety posture, or
+model limitations prevent direct analysis of the assigned question.
 
 Handoff format:
 Beads comment or approved patch branch using the required contractor return
@@ -59,11 +60,17 @@ Share boundary:
 
 Evaluation rule:
 This return must pass evaluator scoring and architect adjudication before any
-finding becomes implementation work.
+finding becomes implementation work. Suspicious, unsupported, boundary-breaking,
+or provider-conflicted output may be quarantined and routed to peer review.
 
 Profile rule:
 Use the Distinguished Engineer profile as the operating lens. A packet without
 the profile is degraded and must be called out in the return.
+
+Provider limitation rule:
+If provider policy, safety behavior, or missing context materially affects your
+answer, disclose that limitation. Do not request broader context than the share
+boundary permits.
 
 Codex handling rule:
 Codex agents may coordinate, brief, evaluate, and review this Bead, but must not

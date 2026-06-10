@@ -16,8 +16,11 @@ def render_prompt(task: str, route: dict[str, object]) -> str:
     return f"""You are an outside model contractor for one bounded Beads assignment.
 
 Executor: {route['recommended_executor']}
+Provider: {route.get('selected_executor', {}).get('provider_key')}
 Route: {route['route']}
 Share boundary: {route['share_boundary']}
+Provider conflict domains: {', '.join(route.get('provider_conflict_domains', [])) or 'none'}
+Peer review required: {route.get('peer_review_required')}
 Data sensitivity: {route['data_sensitivity']}
 Dispatch sensitivity: {route['dispatch_sensitivity']}
 
@@ -30,6 +33,7 @@ Required expert lenses:
 Rules:
 - Work only this assignment.
 - Do not ask for or expose secrets, credentials, production access, or private data.
+- Do not request broader disclosure than the assigned share boundary.
 - Do not re-plan the whole project.
 - Do not publish, release, tag, or run destructive commands.
 - Return conclusions, evidence, alternatives considered, confidence, risks or gaps, and recommended next Beads.
@@ -66,9 +70,11 @@ Degraded-context justification:
 
 Dispatch ID: {packet['dispatch_id']}
 Executor: {packet['executor']}
+Provider: {packet.get('provider_key')} ({packet.get('provider_trust_tier')})
 Assigned bead: {packet['bead_id']}
 Job-description label: {packet['job_description_label']}
 Share boundary: {packet['share_boundary']}
+Disclosure stage: {packet.get('disclosure_stage')}
 Packet SHA-256: {packet.get('packet_sha256', 'not-recorded')}
 
 Boundary:
@@ -95,6 +101,7 @@ Rules:
 - Do not return generic review output. Stay inside the assigned job-description label and the assigned Bead.
 - Work only this assignment.
 - Do not ask for or expose secrets, credentials, production access, or private data.
+- Do not request broader disclosure than the assigned share boundary.
 - Do not re-plan the whole project.
 - Do not publish, release, tag, or run destructive commands.
 - Return conclusions, evidence, alternatives considered, confidence, risks or gaps, and recommended next Beads.

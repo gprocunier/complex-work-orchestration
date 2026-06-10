@@ -5,6 +5,7 @@
   "bead_id": "example-epic.1",
   "share_boundary": "redacted-packet",
   "allowed_external_executors": ["claude_code_manual", "external_security_reviewer"],
+  "allowed_providers": ["anthropic_manual"],
   "decision_source": "user-chat-confirmation",
   "recorded_at": "2026-06-09T00:00:00Z",
   "expires_at": "2099-07-09T00:00:00Z",

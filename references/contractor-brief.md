@@ -24,6 +24,8 @@ Contractor job description:
 Contract labels:
 Discipline lens:
 Share boundary:
+Disclosure stage:
+Packet SHA-256:
 Allowed files or areas:
 Forbidden files or areas:
 Expected deliverable:
@@ -92,6 +94,7 @@ Escalate:
 - unclear validation
 - suspected secret exposure
 - production, release, tag, or public-publication impact
+- provider policy limitations that materially affect the answer
 
 Do not:
 
@@ -113,6 +116,7 @@ Summary:
 Files changed:
 Commands run:
 Validation result:
+Provider policy limitations:
 Evidence:
 Alternatives considered:
 Confidence:
@@ -134,5 +138,7 @@ The coordinator may run `scripts/evaluate_return.py` against your return. Missin
 required sections can send the assignment back for clarification before the
 architect reviews it. The evaluator checks structure, concrete evidence,
 validation, confidence, residual risk, recommended next Bead, and boundary
-violations. Passing evaluation does not mean the finding is accepted; architect
-adjudication is still required before Codex workers implement follow-up work.
+violations. It also scores sabotage or malpractice signals and may quarantine a
+return for peer review or architect adjudication. Passing evaluation does not
+mean the finding is accepted; architect adjudication is still required before
+Codex workers implement follow-up work.

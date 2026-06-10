@@ -8,6 +8,7 @@ Patch authorization: no patch access requested or used
 Secret or personal-data spill: none
 Scope compliance: compliant; no scope creep observed
 Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.
+Provider policy limitations: none
 Evidence:
 - Included artifacts list contains assignment summary and selected snippets only.
 - Excluded artifacts list explicitly names full Bead JSON and secrets.

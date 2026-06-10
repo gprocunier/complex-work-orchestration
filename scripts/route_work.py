@@ -15,6 +15,12 @@ def print_human(route: dict[str, object], top_n: int) -> None:
     print(f"Dispatch sensitivity: {route['dispatch_sensitivity']}")
     print(f"Share boundary: {route['share_boundary']}")
     print(f"Recommended executor: {route['recommended_executor']}")
+    print(f"Provider conflict detected: {route.get('provider_conflict_detected')}")
+    conflicts = route.get("provider_conflict_domains") or []
+    if conflicts:
+        print(f"Provider conflict domains: {', '.join(str(item) for item in conflicts)}")
+    print(f"Peer review required: {route.get('peer_review_required')}")
+    print(f"Peer review count: {route.get('peer_review_count')}")
     print(f"External contract allowed: {route['external_contract_allowed']}")
     print(f"Local worker allowed: {route['local_worker_allowed']}")
     print(f"Prefer local worker: {route['prefer_local_worker']}")
@@ -47,13 +53,16 @@ def print_human(route: dict[str, object], top_n: int) -> None:
         violations = "; ".join(expert.get("executor_policy_violations", [])) or "none"
         print(
             f"- {expert['name']} score={expert['score']} label={expert['job_description_label']} "
-            f"executor={executor} external={external} violations={violations}"
+            f"executor={executor} external={external} provider={selected.get('provider_key')} violations={violations}"
         )
 
     print("\nRanked executors:")
     for executor in route.get("ranked_executors", [])[:top_n]:  # type: ignore[index]
         violations = "; ".join(executor.get("policy_violations", [])) or "none"
-        print(f"- {executor['key']} score={executor['score']} mode={executor['dispatch_mode']} violations={violations}")
+        print(
+            f"- {executor['key']} score={executor['score']} mode={executor['dispatch_mode']} "
+            f"provider={executor.get('provider_key')} violations={violations}"
+        )
 
     labels = route.get("guard_labels", [])
     if labels:

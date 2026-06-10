@@ -55,8 +55,11 @@ def main() -> None:
             "bead_id": packet.get("bead_id"),
             "epic_id": packet.get("epic_id") or args.epic,
             "executor_key": packet.get("executor"),
+            "provider_key": packet.get("provider_key"),
+            "provider_trust_tier": packet.get("provider_trust_tier"),
             "dispatch_mode": "manual_ui",
             "share_boundary": packet.get("share_boundary"),
+            "disclosure_stage": packet.get("disclosure_stage"),
             "packet_sha256": packet.get("packet_sha256"),
             "manual_prompt": render_packet_prompt(packet),
             **quota_info,
@@ -70,9 +73,12 @@ def main() -> None:
                     "bead_id": artifact["bead_id"],
                     "epic_id": artifact["epic_id"],
                     "executor_key": artifact["executor_key"],
+                    "provider_key": artifact["provider_key"],
+                    "provider_trust_tier": artifact["provider_trust_tier"],
                     "executor_external": quota_info.get("executor_external"),
                     "dispatch_mode": artifact["dispatch_mode"],
                     "share_boundary": artifact["share_boundary"],
+                    "disclosure_stage": artifact["disclosure_stage"],
                     "quota_remaining": quota_info.get("quota_remaining"),
                     "packet_sha256": artifact["packet_sha256"],
                 }
@@ -108,9 +114,11 @@ def main() -> None:
         "manual_prompt": render_prompt(task, route) if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None,
         "local_envelope": {
             "task": task,
-            "constraints": "low-risk, reversible, evaluator review required",
+            "constraints": "local-only, reversible, evaluator review required, no web/shell/repo-write unless executor policy explicitly allows it",
+            "provider_key": route["selected_executor"].get("provider_key"),
+            "provider_trust_tier": route["selected_executor"].get("provider_trust_tier"),
         }
-        if route["selected_executor"]["dispatch_mode"] == "local_openai_compatible"
+        if route["selected_executor"]["dispatch_mode"] in {"local_openai_compatible", "local_secure_review"}
         else None,
         **quota_info,
     }
@@ -123,6 +131,8 @@ def main() -> None:
                 "bead_id": args.bead,
                 "epic_id": args.epic,
                 "executor_key": route["recommended_executor"],
+                "provider_key": route["selected_executor"].get("provider_key"),
+                "provider_trust_tier": route["selected_executor"].get("provider_trust_tier"),
                 "executor_external": quota_info.get("executor_external"),
                 "dispatch_mode": artifact["dispatch_mode"],
                 "share_boundary": args.share_boundary,

@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "providers": {
+    "internal_codex": {
+      "display_name": "Internal Codex",
+      "trust_tier": "trusted-internal",
+      "family": "openai",
+      "external": false,
+      "retention_class": "local-session",
+      "allowed_roles": ["architect", "evaluator", "workerbee", "peer-reviewer"],
+      "conflict_risk_domains": [],
+      "may_primary": true,
+      "may_peer_review": true,
+      "may_counter_review": true
+    },
+    "local_inference": {
+      "display_name": "Local inference endpoint",
+      "trust_tier": "local-untrusted",
+      "family": "local-openai-compatible",
+      "external": false,
+      "retention_class": "local",
+      "allowed_roles": ["local-worker", "local-secure-reviewer", "peer-reviewer"],
+      "conflict_risk_domains": [],
+      "may_primary": true,
+      "may_peer_review": true,
+      "may_counter_review": true
+    },
+    "openai_manual": {
+      "display_name": "OpenAI manual external model",
+      "trust_tier": "external-frontier",
+      "family": "openai",
+      "external": true,
+      "retention_class": "external-manual",
+      "allowed_roles": ["primary-contractor", "peer-reviewer"],
+      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition"],
+      "may_primary": true,
+      "may_peer_review": false,
+      "may_counter_review": true
+    },
+    "anthropic_manual": {
+      "display_name": "Anthropic manual external model",
+      "trust_tier": "external-frontier",
+      "family": "anthropic",
+      "external": true,
+      "retention_class": "external-manual",
+      "allowed_roles": ["primary-contractor", "peer-reviewer"],
+      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition"],
+      "may_primary": true,
+      "may_peer_review": false,
+      "may_counter_review": true
+    },
+    "human_specialist": {
+      "display_name": "Human specialist contractor",
+      "trust_tier": "contracted-human",
+      "family": "human",
+      "external": true,
+      "retention_class": "contractual",
+      "allowed_roles": ["primary-contractor", "peer-reviewer", "counter-reviewer"],
+      "conflict_risk_domains": [],
+      "may_primary": true,
+      "may_peer_review": true,
+      "may_counter_review": true
+    }
+  },
+  "conflict_risk_terms": {
+    "frontier-ai-development": [
+      "frontier model",
+      "llm training",
+      "pretraining",
+      "post-training",
+      "alignment",
+      "model weights",
+      "fine-tuning",
+      "finetune",
+      "eval harness",
+      "inference serving",
+      "embedding model",
+      "reranker",
+      "agent framework"
+    ],
+    "model-provider-competition": [
+      "anthropic",
+      "claude",
+      "mythos",
+      "opus",
+      "openai",
+      "chatgpt",
+      "model provider",
+      "provider conflict",
+      "competitor",
+      "sabotage"
+    ]
+  }
+}

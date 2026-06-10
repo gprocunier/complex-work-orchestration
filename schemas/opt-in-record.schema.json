@@ -32,6 +32,7 @@
     "share_boundary": {"type": "string"},
     "share_boundaries": {"type": "array", "items": {"type": "string"}},
     "allowed_external_executors": {"type": "array", "items": {"type": "string"}},
+    "allowed_providers": {"type": "array", "items": {"type": "string"}},
     "allowed_executors": {"type": "array", "items": {"type": "string"}},
     "executors": {"type": "array", "items": {"type": "string"}},
     "executor": {"type": "string"},

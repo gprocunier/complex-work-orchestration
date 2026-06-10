@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Contractor Return Bundle",
+  "type": "object",
+  "required": ["bundle_type", "version", "sections", "required_sections_missing", "evidence_items", "sabotage_score", "sabotage_signals", "quarantine_recommended", "bundle_sha256"],
+  "properties": {
+    "bundle_type": {"const": "contractor-return-bundle"},
+    "version": {"type": "integer"},
+    "bead_id": {"type": ["string", "null"]},
+    "dispatch_id": {"type": ["string", "null"]},
+    "executor": {"type": ["string", "null"]},
+    "share_boundary": {"type": ["string", "null"]},
+    "job_description_label": {"type": ["string", "null"]},
+    "packet_sha256": {"type": ["string", "null"]},
+    "sections": {"type": "object"},
+    "required_sections_missing": {"type": "array", "items": {"type": "string"}},
+    "required_sections_present": {"type": "array", "items": {"type": "string"}},
+    "evidence_items": {"type": "array", "items": {"type": "object"}},
+    "sabotage_score": {"type": "integer"},
+    "sabotage_signals": {"type": "array", "items": {"type": "object"}},
+    "sabotage_review_recommended": {"type": "boolean"},
+    "quarantine_recommended": {"type": "boolean"},
+    "bundle_sha256": {"type": "string"}
+  }
+}

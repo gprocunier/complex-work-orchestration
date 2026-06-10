@@ -36,6 +36,14 @@
     "ranked_executors": {"type": "array", "items": {"type": "object"}},
     "recommended_executor": {"type": "string"},
     "selected_executor": {"type": "object"},
+    "provider_conflict_detected": {"type": "boolean"},
+    "provider_conflict_domains": {"type": "array", "items": {"type": "string"}},
+    "provider_diversity_required": {"type": "boolean"},
+    "peer_review_required": {"type": "boolean"},
+    "peer_review_count": {"type": "integer", "minimum": 0},
+    "peer_review_labels": {"type": "array", "items": {"type": "string"}},
+    "quarantine_on_fail": {"type": "boolean"},
+    "local_secure_review_executor": {"type": ["string", "null"]},
     "guard_labels": {"type": "array", "items": {"type": "string"}},
     "hard_stops": {"type": "array", "items": {"type": "string"}}
   }

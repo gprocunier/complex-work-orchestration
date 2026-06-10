@@ -104,6 +104,32 @@ class PacketGateTests(unittest.TestCase):
             )
         self.assertEqual(basis, "audit-record")
 
+    def test_opt_in_record_can_scope_to_provider(self) -> None:
+        labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "allowed": True,
+                    "share_boundary": "redacted-packet",
+                    "allowed_external_executors": ["claude_code_manual"],
+                    "allowed_providers": ["anthropic_manual"],
+                    "decision_source": "test",
+                    "recorded_at": "2026-06-09T00:00:00Z",
+                    "scope": "provider scoped packet",
+                },
+                handle,
+            )
+            handle.flush()
+            basis = validate_gate(
+                "claude_code_manual",
+                "redacted-packet",
+                labels,
+                "contract-jd-security-reasoning",
+                external_ok=False,
+                opt_in_record=handle.name,
+            )
+        self.assertEqual(basis, "audit-record")
+
     def test_opt_in_record_rejects_expired_or_timezone_free_records(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
         cases = [

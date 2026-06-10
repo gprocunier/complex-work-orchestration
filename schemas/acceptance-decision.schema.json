@@ -6,7 +6,7 @@
   "properties": {
     "dispatch_id": {"type": ["string", "null"]},
     "bead_id": {"type": ["string", "null"]},
-    "verdict": {"enum": ["accept", "clarify", "partial-accept", "reject", "escalate"]},
+    "verdict": {"enum": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"]},
     "score": {"type": "integer"},
     "evaluator_scoring_final": {"type": "boolean"},
     "architect_review_required": {"type": "boolean"},
@@ -18,6 +18,10 @@
     "missing_sections": {"type": "array", "items": {"type": "string"}},
     "penalty_reasons": {"type": "array", "items": {"type": "string"}},
     "hard_disqualifiers": {"type": "array", "items": {"type": "string"}},
+    "sabotage_score": {"type": "integer"},
+    "sabotage_signals": {"type": "array", "items": {"type": "object"}},
+    "sabotage_review_recommended": {"type": "boolean"},
+    "quarantine_recommended": {"type": "boolean"},
     "escalation_flagged": {"type": "boolean"},
     "sections": {"type": "object"},
     "followup_beads": {"type": "array", "items": {"type": "string"}}

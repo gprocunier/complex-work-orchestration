@@ -14,6 +14,7 @@
     "secret_or_personal_data_spill": {"type": ["boolean", "string"]},
     "scope_compliance": {"type": "string"},
     "validation_result": {"type": "string"},
+    "provider_policy_limitations": {"type": "string"},
     "evidence": {"type": "array", "items": {"type": "string"}},
     "alternatives_considered": {"type": ["array", "string"], "items": {"type": "string"}},
     "confidence": {"type": "string"},

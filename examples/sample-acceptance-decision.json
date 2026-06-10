@@ -10,5 +10,9 @@
   "followup_beads": ["complex-work-orchestration-followup"],
   "architect_review_required": true,
   "architect_adjudication_required": true,
+  "sabotage_score": 0,
+  "sabotage_signals": [],
+  "sabotage_review_recommended": false,
+  "quarantine_recommended": false,
   "architect_signoff": true
 }

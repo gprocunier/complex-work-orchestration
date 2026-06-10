@@ -13,6 +13,8 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Score: {result['score']}")
     print(f"Architect review required: {result['architect_review_required']}")
     print(f"Escalation flagged: {result['escalation_flagged']}")
+    print(f"Sabotage score: {result.get('sabotage_score', 0)}")
+    print(f"Quarantine recommended: {result.get('quarantine_recommended', False)}")
 
     missing = result.get("missing_sections") or []
     print("\nMissing sections:")
@@ -35,6 +37,14 @@ def print_human(result: dict[str, object]) -> None:
     if hard:
         for reason in hard:  # type: ignore[assignment]
             print(f"- {reason}")
+    else:
+        print("- none")
+
+    sabotage = result.get("sabotage_signals") or []
+    print("\nSabotage or malpractice signals:")
+    if sabotage:
+        for signal in sabotage:  # type: ignore[assignment]
+            print(f"- {signal.get('reason')} ({signal.get('weight')})")
     else:
         print("- none")
 
@@ -68,6 +78,8 @@ def main() -> None:
                 "share_boundary": args.share_boundary,
                 "verdict": result["verdict"],
                 "acceptance_score": result["score"],
+                "sabotage_score": result.get("sabotage_score"),
+                "quarantine_recommended": result.get("quarantine_recommended"),
             },
             audit_path,
         )

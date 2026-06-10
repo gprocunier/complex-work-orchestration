@@ -25,11 +25,18 @@ Use the policy files as the source of truth for contractor routing:
 
 - `policy/routing-policy.yaml`: route classes, guard labels, and restricted
   terms.
-- `policy/executor-registry.yaml`: registered internal and outside executors.
+- `policy/executor-registry.yaml`: registered internal and outside executors
+  with provider bindings.
+- `policy/provider-registry.yaml`: provider trust tiers, retention classes, and
+  conflict-risk domains.
 - `policy/expert-registry.yaml`: discipline triggers, job-description labels,
   and expected reasoning lenses.
-- `policy/share-boundaries.yaml`: allowed sharing modes.
-- `policy/acceptance-policy.yaml`: required contractor return sections.
+- `policy/share-boundaries.yaml`: allowed sharing modes and disclosure-stage
+  escalation rules.
+- `policy/peer-review-policy.yaml`: when contractor results require independent
+  peer review.
+- `policy/acceptance-policy.yaml`: required contractor return sections,
+  sabotage/malpractice scoring, and quarantine.
 - `policy/contracting-controls.yaml`: manual dispatch, audit, and
   adjudication requirements.
 - `schemas/`: machine-readable shapes for route results, contractor packets,
@@ -44,6 +51,12 @@ by default. That profile is part of the contract artifact and gives the outside
 model the operating lens for the assigned discipline. A packet generated without
 the profile is degraded, must be built with `--degraded-context-justification`,
 and still requires `--allow-degraded-packet` before manual dispatch.
+
+Provider identity is explicit. Route output includes provider-conflict domains
+when the task text touches frontier model work, provider competition, or other
+configured conflict terms. Provider conflict is not an automatic rejection, but
+it forces peer review and architect adjudication before findings can affect the
+implementation plan.
 
 ## Invocation Patterns
 
@@ -95,6 +108,8 @@ Interpret the answer conservatively:
 
 Never share secrets, private credentials, production access, or unreleased
 third-party material unless the user explicitly authorizes that exact sharing.
+Repo read-only and patch-branch packet builds require
+`--allow-disclosure-escalation`; `--external-ok` alone is not enough.
 
 Run the route twice when needed: first with the default no-sharing boundary, then
 again after the user has explicitly approved a boundary:
@@ -310,12 +325,16 @@ python3 scripts/build_contractor_packet.py \
      --output contractor-packet.json
    ```
 
+  Add `--allow-disclosure-escalation` when `<mode>` is `repo-readonly` or
+  `patch-branch`.
+
   Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is
   recorded in a structured local JSON audit note. Preferred records include
   `allowed: true`, a matching share boundary, `allowed_external_executors`,
   decision source, timezone-aware `recorded_at`, optional `expires_at`, scope,
-  and optional project/epic/bead IDs; see `examples/sample-opt-in-record.json`.
-  Legacy records with `allowed_executors` remain accepted for compatibility.
+  optional `allowed_providers`, and optional project/epic/bead IDs; see
+  `examples/sample-opt-in-record.json`. Legacy records with `allowed_executors`
+  remain accepted for compatibility.
 
 5. PM verifies the packet includes the expert profile, opt-in basis, quota
    metadata, and only safe redacted snippets. Packet build audits by default;
@@ -325,24 +344,35 @@ python3 scripts/build_contractor_packet.py \
 6. PM gives the contractor `references/contractor-brief.md`, the packet, and
    the bead assignment.
 7. PM generates a manual dispatch prompt. Dispatch revalidates the packet hash,
-   executor, opt-in basis, boundary, expert-profile state, mandatory exclusions,
-   selected snippet fields, snippet line limits, snippet SHA-256 values, and
-   artifact whitelist before it records an audit event by default:
+   executor, provider binding, opt-in basis, boundary, disclosure stage,
+   expert-profile state, mandatory exclusions, selected snippet fields, snippet
+   line limits, snippet SHA-256 values, and artifact whitelist before it records
+   an audit event by default:
 
    ```bash
    python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
    ```
 
 8. Contractor returns a Beads comment or patch branch.
-9. PM checks the return format and evidence:
+9. PM normalizes the return and checks format, evidence, boundary fit, and
+   sabotage or malpractice signals:
 
    ```bash
+   python3 scripts/normalize_contractor_return.py \
+     --bead <id> \
+     --dispatch-id <dispatch-id> \
+     --packet-sha256 <packet-sha256> \
+     --file contractor-return.md \
+     --output contractor-return-bundle.json
+
    python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
    ```
 
-10. Architect reviews findings and decides what to accept, reject, or convert
+10. If evaluation returns `quarantine`, preserve artifacts, avoid implementation
+   dependencies, and use `references/incident-response-playbook.md`.
+11. Architect reviews findings and decides what to accept, reject, or convert
    into Codex workerbee tasks.
-11. PM updates dependencies and ready-work state.
+12. PM updates dependencies and ready-work state.
 
 ## Codex Worker Filters
 
@@ -369,6 +399,10 @@ expert-review beads use `local-worker-only` plus `no-codex-exec`, metadata sets
 `codex_pickup` to `forbidden`, and evaluator plus architect adjudication are
 required before accepted findings become normal Codex implementation beads.
 
+The local secure reviewer (`local_secure_review_worker`) is for read-only
+security, peer-review, repo-review, and sabotage-review work. It may inspect
+approved local repo context but has no web, shell, or repo-write authority.
+
 ## Handoff Format
 
 ```text
@@ -382,6 +416,7 @@ Patch authorization:
 Secret or personal-data spill:
 Scope compliance:
 Validation result:
+Provider policy limitations:
 Evidence:
 Alternatives considered:
 Confidence:

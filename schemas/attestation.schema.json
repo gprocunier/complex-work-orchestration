@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SHA-256 Subject Attestation",
+  "type": "object",
+  "required": ["attestation_type", "version", "issued_at", "issuer", "subject_type", "subject_sha256", "predicate", "attestation_sha256"],
+  "properties": {
+    "attestation_type": {"const": "sha256-subject-attestation"},
+    "version": {"type": "integer"},
+    "issued_at": {"type": "string"},
+    "issuer": {"type": "string"},
+    "subject_type": {"type": "string"},
+    "subject_id": {"type": ["string", "null"]},
+    "subject_sha256": {"type": "string"},
+    "predicate": {"type": "object"},
+    "attestation_sha256": {"type": "string"}
+  }
+}

@@ -69,13 +69,17 @@ Core policy files:
 - `policy/routing-policy.yaml`: route classes, restricted terms, default route,
   and contractor guard labels.
 - `policy/executor-registry.yaml`: internal and outside executor capabilities,
-  opt-in requirements, and Codex pickup rules.
+  provider bindings, opt-in requirements, and Codex pickup rules.
+- `policy/provider-registry.yaml`: provider trust tiers, retention classes,
+  conflict-risk domains, and provider-family metadata.
 - `policy/expert-registry.yaml`: discipline profiles, trigger terms,
   job-description labels, and expected output lenses.
 - `policy/share-boundaries.yaml`: allowed third-party sharing modes and
-  never-share categories.
-- `policy/acceptance-policy.yaml`: contractor return sections and architect
-  review rules.
+  never-share categories, including disclosure-stage escalation rules.
+- `policy/peer-review-policy.yaml`: when outside or local contract results need
+  independent peer review before evaluation.
+- `policy/acceptance-policy.yaml`: contractor return sections, sabotage and
+  malpractice scoring thresholds, quarantine, and architect review rules.
 - `policy/contracting-controls.yaml`: dispatch, audit, and adjudication
   controls for outside or local-worker contracts.
 
@@ -98,16 +102,23 @@ Helper scripts:
   `--dispatch-id` so quota checks, output, and audit records share the same
   identity.
 - `scripts/evaluate_return.py`: check contractor returns for required sections.
+- `scripts/normalize_contractor_return.py`: turn a contractor response into a
+  normalized return bundle with evidence items and sabotage scoring.
+- `scripts/verify_attestation.py`: verify SHA-256 subject attestations for
+  packets, return bundles, or other exported artifacts.
+- `scripts/verify_audit_log.py`: verify audit event hashes and hash-chain links.
 - `scripts/record_audit_event.py`: append a local audit entry for routing,
-  packet, dispatch, evaluation, and adjudication events.
+  packet, dispatch, evaluation, and adjudication events. New entries include a
+  previous-event hash when a prior event exists.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
   graph state.
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
   executor controls, or emitted packet artifact names drift apart.
 
 Schemas in `schemas/` describe route results, contractor packets, contractor
-returns, acceptance decisions, Beads metadata, and audit events. `examples/`
-contains small sample artifacts that can be used as smoke-test inputs.
+return bundles, attestations, acceptance decisions, Beads metadata, and audit
+events. `examples/` contains small sample artifacts that can be used as
+smoke-test inputs.
 
 Example route check:
 
@@ -229,7 +240,7 @@ flowchart TD
     Create --> Guard[Add contractor-only and no-codex-exec labels]
     Guard --> Metadata[Add executor, codex_pickup, discipline, share_boundary metadata]
     Metadata --> PMPacket[PM prepares boundary-gated packet]
-    PMPacket --> Validate[Validate packet hash, policy, opt-in, profile, snippets, exclusions, and artifacts]
+    PMPacket --> Validate[Validate packet hash, provider, disclosure stage, opt-in, profile, snippets, exclusions, and artifacts]
     Validate --> Dispatch[Generate manual dispatch prompt and audit event]
     Dispatch --> Outside[Outside model performs assigned review]
     Outside --> Return[Return Beads comment or patch branch]
@@ -238,6 +249,38 @@ flowchart TD
     Architect --> Accepted{Accepted?}
     Accepted -->|Yes| Followup[Create normal Codex-executable follow-up beads]
     Accepted -->|No| CloseLoop[Record rejected or superseded finding]
+```
+
+### Provider Integrity And Quarantine
+
+```mermaid
+flowchart TD
+    Request[Task text and requested discipline] --> Route[route_work.py]
+    Route --> Providers[policy/provider-registry.yaml]
+    Route --> Conflicts{Provider conflict terms hit?}
+    Route --> Boundary[policy/share-boundaries.yaml]
+    Boundary --> Disclosure{Disclosure stage requires escalation?}
+
+    Conflicts -->|Yes| PeerReq[peer_review_required=true]
+    Conflicts -->|No| NormalReview[normal evaluator path]
+    Disclosure -->|Yes| Escalation[operator must pass --allow-disclosure-escalation]
+    Disclosure -->|No| PacketGate[packet gate]
+    Escalation --> PacketGate
+
+    PacketGate --> Packet[contractor packet with packet_sha256]
+    Packet --> Attest[optional packet attestation sidecar]
+    Packet --> Dispatch[manual dispatch and audit event]
+    Dispatch --> Return[contractor return]
+    Return --> Normalize[normalize_contractor_return.py]
+    Normalize --> Score[sabotage and malpractice score]
+    Score --> Peer{Peer review required or sabotage review?}
+    Peer -->|Yes| PeerLane[peer-review Bead lane]
+    Peer -->|No| Eval[evaluate_return.py]
+    PeerLane --> Eval
+    Eval --> Quarantine{quarantine recommended?}
+    Quarantine -->|Yes| Hold[quarantine, no implementation dependency]
+    Quarantine -->|No| Architect[architect adjudication]
+    Architect --> Followup[normal Codex-executable follow-up beads]
 ```
 
 ### Beads Work Selection
@@ -289,18 +332,25 @@ flowchart LR
 8. Create role/lane tasks under the epic: architect framing, PM coordination,
    workerbee work, validation, docs/handoff, and any outside contracts.
 9. For outside work, post contractor-only Beads with job-description labels.
-   The scaffold wires dispatch, expert review, evaluation, and architect
-   adjudication as real Beads dependencies.
+   The scaffold wires dispatch, peer review when required, expert review,
+   evaluation, and architect adjudication as real Beads dependencies.
 10. PM prepares the contractor packet and a manual dispatch prompt. Packet
-   build and dispatch both record audit events unless `--no-audit` is used.
+   build and dispatch both record hash-chained audit events unless `--no-audit`
+   is used.
 11. Dispatch revalidates the packet hash, executor, boundary, opt-in basis,
-   expert profile, and artifact whitelist before rendering the prompt.
+   provider binding, disclosure stage, expert profile, and artifact whitelist
+   before rendering the prompt.
 12. The outside model returns findings through Beads comments or a patch branch.
-13. PM evaluates the return for required sections, evidence, confidence,
-   residual risk, explicit safety fields, and boundary fit.
-14. The architect reviews contractor findings before Codex workers implement
+13. PM normalizes the return into a return bundle and evaluates required
+   sections, evidence, confidence, residual risk, explicit safety fields,
+   boundary fit, and sabotage or malpractice signals.
+14. If peer review is required or the return trips the sabotage review
+   threshold, run the peer-review lane before implementation can proceed.
+15. If the return trips quarantine, do not convert findings into implementation
+   dependencies until the architect explicitly adjudicates the incident.
+16. The architect reviews contractor findings before Codex workers implement
    follow-up work or before release decisions are made.
-15. PM keeps dependencies, status, blockers, and resume instructions current.
+17. PM keeps dependencies, status, blockers, and resume instructions current.
 
 ## Beads Requirement
 
@@ -362,9 +412,16 @@ user has opted in, the selected share boundary allows outside work, the Bead has
 `contractor-only` and `no-codex-exec`, and an architect review is required
 before any finding becomes implementation work. Packet building enforces this:
 external packets require `--external-ok` or `--opt-in-record`, and unsafe files
-are rejected before they can enter the packet. Dispatch then revalidates the
-packet hash, executor, boundary, opt-in basis, expert profile, and artifact
-whitelist before any manual prompt is rendered.
+are rejected before they can enter the packet. Repo-readonly and patch-branch
+boundaries also require `--allow-disclosure-escalation`. Dispatch then
+revalidates the packet hash, executor, boundary, disclosure stage, opt-in basis,
+expert profile, and artifact whitelist before any manual prompt is rendered.
+
+Provider identity is explicit. Executors are bound to provider profiles in
+`policy/provider-registry.yaml`; routing reports provider-conflict domains such
+as frontier model work or model-provider competition. A conflict does not make
+the contractor unusable by itself, but it forces peer review and architect
+adjudication before findings can affect the implementation plan.
 
 Distinguished Engineer profiles are first-class packet artifacts. A normal
 contractor packet includes the matched `experts/<discipline>.md` profile and
@@ -479,6 +536,7 @@ python3 scripts/build_contractor_packet.py \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
+  --attest-packet \
   --format json \
   --output contractor-packet.json
 ```
@@ -491,6 +549,21 @@ Legacy records with `allowed_executors` still validate for compatibility. Pass
 `--epic <id>` when the contract belongs to a durable epic so quota checks are
 scoped to that epic. Without `--epic`, the helper uses the global dispatch
 bucket for quota accounting.
+Records may also include `allowed_providers` to constrain which provider family
+is approved for the packet.
+
+For repo-readonly or patch-branch disclosure, include an explicit escalation:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor external_security_reviewer \
+  --share-boundary repo-readonly \
+  --allow-disclosure-escalation \
+  --external-ok \
+  --format json \
+  --output contractor-packet.json
+```
 
 If an expert profile is intentionally omitted, name the reason in the packet:
 
@@ -506,10 +579,11 @@ python3 scripts/build_contractor_packet.py \
   --output contractor-packet.json
 ```
 
-Packet validation checks the packet hash, executor, boundary, opt-in basis,
-expert-profile state, mandatory exclusions (`full_bead_json`, `secrets`,
-`production_access`), artifact whitelist, snippet shape, snippet line limits,
-snippet SHA-256 values, and included-artifact consistency before dispatch.
+Packet validation checks the packet hash, executor, boundary, disclosure stage,
+opt-in basis, expert-profile state, mandatory exclusions (`full_bead_json`,
+`secrets`, `production_access`), artifact whitelist, snippet shape, snippet line
+limits, snippet SHA-256 values, and included-artifact consistency before
+dispatch.
 
 Manual dispatch prompts are generated from approved packets:
 
@@ -537,6 +611,9 @@ Local-worker output is treated like contractor evidence: evaluator scoring and
 architect adjudication are still required before follow-up work is implemented.
 Local-worker expert review beads are labeled `local-worker-only` and
 `no-codex-exec`, and their metadata sets `codex_pickup` to `forbidden`.
+The local secure reviewer (`local_secure_review_worker`) is read-only and local:
+it can inspect approved repo context for security, peer-review, repo-review, or
+sabotage-review work, but it has no web, shell, or repo-write authority.
 
 Direct route dispatch without a prebuilt packet can carry a stable dispatch ID:
 
@@ -570,12 +647,44 @@ Patch authorization:
 Secret or personal-data spill:
 Scope compliance:
 Validation result:
+Provider policy limitations:
 Evidence:
 Alternatives considered:
 Confidence:
 Risks or gaps:
 Recommended next bead:
 Escalation needed:
+```
+
+## Return Evaluation
+
+Normalize and evaluate contractor output before converting any finding into
+normal Codex work:
+
+```bash
+python3 scripts/normalize_contractor_return.py \
+  --bead <id> \
+  --dispatch-id <dispatch-id> \
+  --packet-sha256 <packet-sha256> \
+  --file contractor-return.md \
+  --output contractor-return-bundle.json
+
+python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
+```
+
+If the evaluator reports `Verdict: quarantine` or a high sabotage score, do not
+create implementation dependencies from the contractor output. Keep the return
+isolated, run peer review or local secure review as needed, and have the
+architect decide whether to reject, narrow, or re-post the contract.
+
+Audit and attestation checks:
+
+```bash
+python3 scripts/verify_attestation.py \
+  --file contractor-packet.json \
+  --attestation contractor-packet.json.attestation.json
+
+python3 scripts/verify_audit_log.py --json
 ```
 
 ## Reference

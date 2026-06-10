@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "defaults": {
+    "minimum_peer_reviews": 1,
+    "provider_diversity_required": true,
+    "quarantine_on_high_sabotage": true,
+    "local_secure_review_executor": "local_secure_review_worker"
+  },
+  "required_for_routes": {
+    "external-contract": true,
+    "local-worker": false,
+    "architect-review": false,
+    "internal-worker": false
+  },
+  "required_for_share_boundaries": {
+    "patch-branch": true,
+    "repo-readonly": true,
+    "redacted-packet": false,
+    "no-outside-sharing": false
+  },
+  "required_for_risk_levels": ["critical"],
+  "required_for_provider_conflict": true,
+  "peer_review_labels": [
+    "peer-review-required",
+    "contractor-peer-review",
+    "sabotage-review",
+    "no-codex-exec"
+  ],
+  "quarantine_labels": [
+    "quarantine",
+    "architect-adjudication",
+    "no-implementation"
+  ],
+  "sabotage_thresholds": {
+    "review": 30,
+    "quarantine": 60
+  }
+}

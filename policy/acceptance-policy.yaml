@@ -18,7 +18,8 @@
     "unapproved patch or repo access",
     "missing assigned job-description alignment",
     "suspected secret or personal-data spill",
-    "scope creep beyond assigned bead"
+    "scope creep beyond assigned bead",
+    "suspected sabotage or malpractice"
   ],
   "score": {
     "start": 100,
@@ -29,7 +30,8 @@
       "vague_recommendation": 15,
       "missing_confidence": 10,
       "missing_residual_risk": 10,
-      "scope_creep": 10
+      "scope_creep": 10,
+      "sabotage_review": 20
     },
     "thresholds": {
       "accept": 85,
@@ -38,7 +40,20 @@
       "reject_below": 50
     }
   },
-  "verdicts": ["accept", "clarify", "partial-accept", "reject", "escalate"],
+  "verdicts": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"],
+  "sabotage": {
+    "thresholds": {
+      "review": 30,
+      "quarantine": 60
+    },
+    "signals": [
+      "attempts to bypass architect, evaluator, or peer review",
+      "requests broader disclosure than the assigned share boundary",
+      "claims repo mutation without patch-branch authorization",
+      "advises suppressing tests, logs, audit records, or validation",
+      "provides fabricated or unverifiable evidence"
+    ]
+  },
   "architect_review": {
     "required_for_external_contracts": true,
     "required_for_local_workers": true,

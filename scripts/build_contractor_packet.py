@@ -16,11 +16,15 @@ from orchestration_lib import (
     file_snippet,
     load_expert_profile,
     load_policy,
+    make_attestation,
     make_dispatch_id,
     packet_payload_hash,
+    provider_metadata_for_executor,
     record_audit_event,
     redact_text,
     sanitize_bead,
+    share_boundary_disclosure_stage,
+    share_boundary_requires_escalation,
     show_bead_json,
     validate_opt_in_record,
 )
@@ -57,6 +61,7 @@ def validate_gate(
     *,
     external_ok: bool,
     opt_in_record: str | None,
+    allow_disclosure_escalation: bool = False,
 ) -> str:
     executors = load_policy("executor-registry").get("executors", {})
     if executor not in executors:
@@ -69,6 +74,10 @@ def validate_gate(
         validate_opt_in_record(opt_in_record, executor=executor, share_boundary=share_boundary)
     if not boundary_allows_external(share_boundary):
         raise SystemExit(f"share boundary {share_boundary!r} does not allow external contracting")
+    if share_boundary_requires_escalation(share_boundary) and not allow_disclosure_escalation:
+        raise SystemExit(
+            f"share boundary {share_boundary!r} requires --allow-disclosure-escalation before external packet build"
+        )
     missing = [label for label in ["contractor-only", "no-codex-exec"] if label not in labels]
     if missing:
         raise SystemExit(f"assigned Bead is missing contractor guard labels: {', '.join(missing)}")
@@ -116,8 +125,11 @@ def build_packet(
     opt_in_basis: str = "not-recorded",
     epic_id: str | None = None,
     quota_info: dict[str, Any] | None = None,
+    disclosure_escalation_approved: bool = False,
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
+    executor_config = load_policy("executor-registry").get("executors", {}).get(executor, {})
+    provider_metadata = provider_metadata_for_executor(executor_config)
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     dispatch_id = dispatch_id or make_dispatch_id(bead_id, now.replace("-", "").replace(":", ""))
     bead_summary = sanitize_bead(bead_json, share_boundary)
@@ -154,7 +166,13 @@ def build_packet(
         "bead_id": bead_id,
         "epic_id": epic_id,
         "executor": executor,
+        "provider_key": provider_metadata.get("provider_key"),
+        "provider_family": provider_metadata.get("provider_family"),
+        "provider_trust_tier": provider_metadata.get("provider_trust_tier"),
+        "provider_retention_class": provider_metadata.get("provider_retention_class"),
         "share_boundary": share_boundary,
+        "disclosure_stage": share_boundary_disclosure_stage(share_boundary),
+        "disclosure_escalation_approved": bool(disclosure_escalation_approved),
         "job_description_label": job_description_label,
         "expert_profile": expert_profile or None,
         "expert_profile_included": bool(expert_profile),
@@ -204,8 +222,11 @@ Justification:
 Dispatch ID: {packet['dispatch_id']}
 Assigned bead: {packet['bead_id']}
 Executor: {packet['executor']}
+Provider: {packet.get('provider_key')} ({packet.get('provider_trust_tier')})
 Job-description label: {packet['job_description_label']}
 Share boundary: {packet['share_boundary']}
+Disclosure stage: {packet['disclosure_stage']}
+Disclosure escalation approved: {packet['disclosure_escalation_approved']}
 Packet SHA-256: {packet['packet_sha256']}
 
 ## Boundary
@@ -251,6 +272,11 @@ def main() -> None:
     parser.add_argument("--bead", required=True)
     parser.add_argument("--executor", default="openai_deep_research_manual")
     parser.add_argument("--share-boundary", default="redacted-packet")
+    parser.add_argument(
+        "--allow-disclosure-escalation",
+        action="store_true",
+        help="Explicitly approve repo-readonly or patch-branch disclosure stage for this packet.",
+    )
     parser.add_argument("--job-description")
     parser.add_argument("--bead-json-file")
     parser.add_argument("--external-ok", action="store_true")
@@ -266,6 +292,11 @@ def main() -> None:
     parser.add_argument("--dispatch-id")
     parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
     parser.add_argument("--output")
+    parser.add_argument(
+        "--attest-packet",
+        action="store_true",
+        help="Write a packet attestation sidecar when --output is used.",
+    )
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
@@ -281,6 +312,7 @@ def main() -> None:
         job_label,
         external_ok=args.external_ok,
         opt_in_record=args.opt_in_record,
+        allow_disclosure_escalation=args.allow_disclosure_escalation,
     )
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead)
     quota_info = enforce_contracting_quota(
@@ -305,10 +337,29 @@ def main() -> None:
         opt_in_basis=opt_in_basis,
         epic_id=args.epic,
         quota_info=quota_info,
+        disclosure_escalation_approved=args.allow_disclosure_escalation,
     )
     rendered = json.dumps(packet, indent=2, sort_keys=True) if args.format == "json" else packet_markdown(packet)
     if args.output:
-        Path(args.output).write_text(rendered, encoding="utf-8")
+        output_path = Path(args.output)
+        output_path.write_text(rendered, encoding="utf-8")
+        if args.attest_packet:
+            attestation = make_attestation(
+                subject_type="contractor-packet",
+                subject_sha256=artifact_hash(rendered),
+                subject_id=packet["dispatch_id"],
+                predicate={
+                    "bead_id": args.bead,
+                    "executor": args.executor,
+                    "share_boundary": args.share_boundary,
+                    "disclosure_stage": packet["disclosure_stage"],
+                    "packet_sha256": packet["packet_sha256"],
+                },
+            )
+            output_path.with_suffix(output_path.suffix + ".attestation.json").write_text(
+                json.dumps(attestation, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
     else:
         print(rendered)
     if args.audit:

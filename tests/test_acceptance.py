@@ -16,6 +16,7 @@ class AcceptanceTests(unittest.TestCase):
         result = make_acceptance_decision(text, bead_id="example", dispatch_id="dispatch-example")
         self.assertEqual(result["verdict"], "accept")
         self.assertGreaterEqual(result["score"], 85)
+        self.assertNotIn("scope compliance field is unclear", result["penalty_reasons"])
 
     def test_weak_return_clarifies_or_rejects(self) -> None:
         result = make_acceptance_decision("Status: complete\nSummary: Looks fine.\n")
