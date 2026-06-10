@@ -8,7 +8,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import CONTRACTOR_PACKET_REQUIRED_FIELDS, LOCAL_DISPATCH_REQUIRED_FIELDS  # noqa: E402
+from orchestration_lib import (  # noqa: E402
+    CONTRACTOR_PACKET_REQUIRED_FIELDS,
+    LOCAL_DISPATCH_REQUIRED_FIELDS,
+    PROMPT_COACH_RESULT_REQUIRED_FIELDS,
+)
 
 
 def load_schema(name: str) -> dict[str, object]:
@@ -36,6 +40,10 @@ class SchemaParityTests(unittest.TestCase):
     def test_local_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("local-dispatch-envelope.schema.json")
         self.assertTrue(set(LOCAL_DISPATCH_REQUIRED_FIELDS).issubset(set(schema["required"])))
+
+    def test_prompt_coach_schema_matches_runtime_required_fields(self) -> None:
+        schema = load_schema("prompt-coach-result.schema.json")
+        self.assertTrue(set(PROMPT_COACH_RESULT_REQUIRED_FIELDS).issubset(set(schema["required"])))
 
     def test_opt_in_schema_supports_allowed_providers(self) -> None:
         properties = load_schema("opt-in-record.schema.json")["properties"]

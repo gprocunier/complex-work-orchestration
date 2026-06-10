@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Prompt Coach Result",
+  "type": "object",
+  "required": [
+    "coach_result_type",
+    "version",
+    "beads_tracking_required",
+    "recommended_orchestration_level",
+    "rationale",
+    "missing_questions",
+    "interactive_questions",
+    "enabled_levers",
+    "disabled_levers",
+    "route",
+    "paste_ready_prompt",
+    "warnings"
+  ],
+  "properties": {
+    "coach_result_type": {"const": "complex-work-orchestration-prompt-coach"},
+    "version": {"type": "integer"},
+    "beads_tracking_required": {"const": true},
+    "recommended_orchestration_level": {
+      "enum": [
+        "in-thread",
+        "lightweight-beads",
+        "full-harness",
+        "external-contract",
+        "local-worker",
+        "publish-release"
+      ]
+    },
+    "rationale": {"type": "array", "items": {"type": "string"}},
+    "missing_questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "question", "why", "default"],
+        "properties": {
+          "id": {"type": "string"},
+          "question": {"type": "string"},
+          "why": {"type": "string"},
+          "default": {"type": "string"}
+        }
+      }
+    },
+    "interactive_questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "header", "question", "why", "options"],
+        "properties": {
+          "id": {"type": "string"},
+          "header": {"type": "string", "maxLength": 12},
+          "question": {"type": "string"},
+          "why": {"type": "string"},
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "required": ["label", "value", "description"],
+              "properties": {
+                "label": {"type": "string"},
+                "value": {"type": "string"},
+                "description": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "enabled_levers": {"type": "array", "items": {"type": "string"}},
+    "disabled_levers": {"type": "array", "items": {"type": "string"}},
+    "route": {"type": "object"},
+    "paste_ready_prompt": {"type": "string"},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

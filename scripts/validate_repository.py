@@ -10,6 +10,7 @@ from orchestration_lib import (
     CONTRACTOR_PACKET_REQUIRED_FIELDS,
     LOCAL_DISPATCH_REQUIRED_FIELDS,
     POLICY_DIR,
+    PROMPT_COACH_RESULT_REQUIRED_FIELDS,
     REPO_ROOT,
     load_policy,
 )
@@ -20,6 +21,11 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
     "inline_snippet",
     "expert_profile",
 }
+CI_REQUIRED_COMMANDS = [
+    "python scripts/validate_repository.py",
+    "python -m unittest discover -s tests",
+    "bash examples/sample-prompt-coach-command.sh",
+]
 
 
 def load_json(path: Path) -> Any:
@@ -187,11 +193,27 @@ def validate_repository() -> list[str]:
         errors.append(
             "local dispatch envelope schema is missing runtime required fields: " + ", ".join(missing_local_required)
         )
+    prompt_coach_schema = load_json(REPO_ROOT / "schemas" / "prompt-coach-result.schema.json")
+    prompt_coach_required = set(prompt_coach_schema.get("required", []))
+    missing_prompt_coach_required = sorted(set(PROMPT_COACH_RESULT_REQUIRED_FIELDS) - prompt_coach_required)
+    if missing_prompt_coach_required:
+        errors.append(
+            "prompt coach result schema is missing runtime required fields: "
+            + ", ".join(missing_prompt_coach_required)
+        )
 
     require_doc_terms(
         errors,
         "README.md",
         [
+            "scripts/coach_prompt.py",
+            "references/prompt-coach.md",
+            "prompt-coach results",
+            "interactive_questions",
+            "beads_tracking_required",
+            "Beads tracking is mandatory",
+            "full-harness request",
+            "contractor lanes",
             "OpenShift AI vLLM",
             "references/local-inference.md",
             "malpractice_score",
@@ -202,7 +224,49 @@ def validate_repository() -> list[str]:
     require_doc_terms(
         errors,
         "SKILL.md",
-        ["OpenShift AI vLLM", "local-profile", "peer_review_required", "malpractice_score"],
+        [
+            "scripts/coach_prompt.py",
+            "references/prompt-coach.md",
+            "interactive_questions",
+            "Beads tracking is mandatory",
+            "beads_tracking_required",
+            "OpenShift AI vLLM",
+            "local-profile",
+            "peer_review_required",
+            "malpractice_score",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "references/prompt-coach.md",
+        [
+            "interactive_questions",
+            "beads_tracking_required",
+            "contractor lanes",
+            "in-thread",
+            "lightweight-beads",
+            "full-harness",
+            "external-contract",
+            "local-worker",
+            "publish-release",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "examples/prompt-coach-examples.md",
+        [
+            "interactive_questions",
+            "beads_tracking_required",
+            "Explicit Scaffold",
+            "Contractor Lane Scaffold",
+            "Narrow In-Thread Work",
+            "Lightweight Beads Plan",
+            "Full Harness",
+            "External Security Contractor",
+            "OpenShift AI vLLM Local Worker",
+            "Local Worker Mention Without Opt-In",
+            "Publish Release Gate",
+        ],
     )
     require_doc_terms(
         errors,
@@ -220,12 +284,19 @@ def validate_repository() -> list[str]:
         ["OpenShift AI vLLM", "CWO_OPENSHIFT_AI_VLLM_BASE_URL", "scripts/dispatch_work.py"],
     )
 
-    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    for term in ["python scripts/validate_repository.py", "python -m unittest discover -s tests"]:
-        if term not in ci:
-            errors.append(f"CI workflow is missing required command: {term}")
+    validate_ci_workflow(errors)
 
     return errors
+
+
+def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:
+    path = ci_path or REPO_ROOT / ".github" / "workflows" / "ci.yml"
+    if not path.is_file():
+        return
+    ci = path.read_text(encoding="utf-8")
+    for term in CI_REQUIRED_COMMANDS:
+        if term not in ci:
+            errors.append(f"CI workflow is missing required command: {term}")
 
 
 def require_schema_properties(

@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+
+from orchestration_lib import coach_orchestration_prompt, read_text_arg
+
+
+def print_human(result: dict[str, object]) -> None:
+    print(f"Recommended orchestration: {result['recommended_orchestration_level']}")
+    print(f"Beads tracking required: {result['beads_tracking_required']}")
+
+    print("\nRationale:")
+    for item in result.get("rationale", []):  # type: ignore[assignment]
+        print(f"- {item}")
+
+    warnings = result.get("warnings") or []
+    if warnings:
+        print("\nWarnings:")
+        for item in warnings:  # type: ignore[assignment]
+            print(f"- {item}")
+
+    questions = result.get("missing_questions") or []
+    print("\nMissing questions:")
+    if questions:
+        for item in questions:  # type: ignore[assignment]
+            print(f"- {item.get('question')} Default: {item.get('default')}")
+    else:
+        print("- none")
+
+    interactive_questions = result.get("interactive_questions") or []
+    if interactive_questions:
+        print("\nInteractive choices:")
+        for item in interactive_questions:  # type: ignore[assignment]
+            print(f"- {item.get('question')}")
+            for option in item.get("options", []):
+                print(f"  - {option.get('label')}: {option.get('description')}")
+
+    print("\nEnabled levers:")
+    for item in result.get("enabled_levers", []):  # type: ignore[assignment]
+        print(f"- {item}")
+
+    print("\nDisabled levers:")
+    for item in result.get("disabled_levers", []):  # type: ignore[assignment]
+        print(f"- {item}")
+
+    print("\nRecommended launch prompt:")
+    print(result["paste_ready_prompt"])
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compile a right-sized prompt for complex-work-orchestration before launching the harness."
+    )
+    parser.add_argument("text", nargs="*", help="Task text to coach.")
+    parser.add_argument("--file", help="Read task text from a file.")
+    parser.add_argument("--external-ok", action="store_true", help="User has opted in to third-party contracting.")
+    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
+    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
+    parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
+    parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument("--requested-role", action="append", default=[], help="Explicit expert role requested by the user.")
+    parser.add_argument("--file-path", action="append", default=[], help="Relevant repository path for path-pattern scoring.")
+    parser.add_argument("--stage", help="Review stage such as pre-implementation, implementation-review, or pre-release.")
+    parser.add_argument("--unattended", action="store_true", help="Penalize manual dispatch executors.")
+    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    args = parser.parse_args()
+
+    text = read_text_arg(" ".join(args.text).strip() or None, args.file)
+    result = coach_orchestration_prompt(
+        text,
+        external_ok=args.external_ok,
+        local_ok=args.local_ok,
+        prefer_local=args.prefer_local,
+        local_profile=args.local_profile,
+        share_boundary=args.share_boundary,
+        requested_roles=args.requested_role,
+        file_paths=args.file_path,
+        stage=args.stage,
+        unattended=args.unattended,
+    )
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print_human(result)
+
+
+if __name__ == "__main__":
+    main()

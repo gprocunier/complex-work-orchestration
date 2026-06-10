@@ -1,18 +1,34 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_repository import validate_repository  # noqa: E402
+from validate_repository import CI_REQUIRED_COMMANDS, validate_ci_workflow, validate_repository  # noqa: E402
 
 
 class ValidateRepositoryTests(unittest.TestCase):
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
+
+    def test_missing_ci_workflow_is_allowed_for_installed_skill_layout(self) -> None:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            validate_ci_workflow(errors, Path(tmpdir) / "missing.yml")
+        self.assertEqual(errors, [])
+
+    def test_present_ci_workflow_still_enforces_required_commands(self) -> None:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ci_path = Path(tmpdir) / "ci.yml"
+            ci_path.write_text(CI_REQUIRED_COMMANDS[0], encoding="utf-8")
+            validate_ci_workflow(errors, ci_path)
+        self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[1]}", errors)
+        self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[2]}", errors)
 
 
 if __name__ == "__main__":

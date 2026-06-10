@@ -49,6 +49,23 @@ Use the explicit trigger when you want the full scaffold:
 Use $complex-work-orchestration to scaffold this project.
 ```
 
+The prompt coach treats explicit scaffold language as a full-harness request.
+Terms such as `PM coordination`, `workerbee`, `epic`, and `contractor lanes`
+also size the work toward an architect/PM/workerbee graph. Contractor-lane
+language asks for the outside-sharing boundary before any external dispatch.
+
+If you are unsure how much of the harness to use, compile a right-sized launch
+prompt first:
+
+```bash
+python3 scripts/coach_prompt.py \
+  "Plan a multi-session cleanup of installer docs, tests, and handoff notes."
+```
+
+All work governed by this skill should leave a durable Beads story. A narrow
+task can still execute in the current thread, but the minimum tracking shape is
+one Beads task with evidence, validation, and handoff notes.
+
 The skill should also be used for requests that mention:
 
 - Mixture of Experts
@@ -85,6 +102,10 @@ Core policy files:
 
 Helper scripts:
 
+- `scripts/coach_prompt.py`: compile a right-sized invocation prompt before
+  launching the full harness, including bounded `interactive_questions` that
+  Codex can map to selectable Plan-mode prompts and a
+  `beads_tracking_required` flag that is always true for skill-governed work.
 - `scripts/route_work.py`: classify a request against the policy.
 - `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and lane
   tasks.
@@ -119,10 +140,10 @@ Helper scripts:
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
   executor controls, or emitted packet artifact names drift apart.
 
-Schemas in `schemas/` describe route results, contractor packets, contractor
-return bundles, local dispatch envelopes, attestations, acceptance decisions,
-Beads metadata, and audit events. `examples/` contains small sample artifacts
-that can be used as smoke-test inputs.
+Schemas in `schemas/` describe prompt-coach results, route results, contractor
+packets, contractor return bundles, local dispatch envelopes, attestations,
+acceptance decisions, Beads metadata, and audit events. `examples/` contains
+small sample artifacts that can be used as smoke-test inputs.
 
 Example route check:
 
@@ -207,18 +228,25 @@ flowchart TD
     Start[Request arrives] --> Trigger{Skill trigger?}
     Trigger -->|Explicit: Use $complex-work-orchestration| Harness[Use orchestration harness]
     Trigger -->|Mentions MoE, PM, workerbees, Claude, Beads, durable handoff| Harness
-    Trigger -->|Narrow single-thread fix| Local[Use normal local implementation flow]
+    Trigger -->|Unsure how much harness to use| Coach[coach_prompt.py]
+    Trigger -->|Narrow single-thread fix| Local[Use current-thread execution]
 
-    Harness --> Scope{Needs durable coordination?}
-    Scope -->|No| Thread[Keep work in thread with concise plan]
-    Scope -->|Yes| BeadsCheck[Check bd and .beads]
+    Coach --> Sizing{Recommended level}
+    Sizing -->|in-thread| BeadsCheck
+    Sizing -->|lightweight-beads| BeadsCheck
+    Sizing -->|full-harness or contract/local worker| Harness
+    Local --> BeadsCheck[Check bd and .beads]
+    Harness --> BeadsCheck
 
     BeadsCheck --> HasBeads{Beads available?}
     HasBeads -->|Yes| InitSync[bd init if needed, then bd sync]
     HasBeads -->|No| Markdown[Create temporary Markdown plan and warn durability is reduced]
 
-    InitSync --> Scaffold[Create epic and role/lane beads]
-    Markdown --> Scaffold
+    InitSync --> Size{Graph size}
+    Markdown --> Size
+    Size -->|narrow| SingleTask[Create or update one Beads task]
+    Size -->|complex| Scaffold[Create epic and role/lane beads]
+    SingleTask --> Packet[Return orchestration packet]
     Scaffold --> Packet[Return orchestration packet]
 ```
 
@@ -309,8 +337,20 @@ flowchart LR
 
 ## Operating Flow
 
-1. Decide whether the work is small enough to stay in-thread or needs the
-   orchestration harness.
+1. Decide whether the work is small enough to execute in-thread or needs the
+   full orchestration harness. Beads tracking is mandatory either way. If
+   unsure, run the prompt coach first:
+
+   ```bash
+   python3 scripts/coach_prompt.py "<task text>"
+   ```
+
+   The coach returns a recommended orchestration level,
+   `beads_tracking_required=true`, missing questions, bounded
+   `interactive_questions`, enabled/disabled levers, warnings, and a paste-ready
+   launch prompt. In Plan mode, use `interactive_questions` for selectable user
+   input when the answer changes execution behavior. In Default mode, ask only
+   the required concise question or apply the coach's safe default.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -333,8 +373,10 @@ flowchart LR
    adjudication before implementation. Use `--local-profile openshift-ai-vllm`
    when the target worker is an OpenShift AI vLLM endpoint.
 6. Check Beads and initialize or sync the work graph.
-7. Create one epic for the project goal.
-8. Create role/lane tasks under the epic: architect framing, PM coordination,
+7. Create or update one Beads task for narrow/current-thread work. Escalate to
+   an epic when multiple independent work streams, handoffs, contractors, or
+   release gates appear.
+8. For epic-sized work, create role/lane tasks under the epic: architect framing, PM coordination,
    workerbee work, validation, docs/handoff, and any outside contracts.
 9. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
@@ -359,8 +401,10 @@ flowchart LR
 
 ## Beads Requirement
 
-Beads is required for the full durable workflow. The installer warns if `bd` is
-missing but does not fail, because the skill can still be read and used manually.
+Beads is required for skill-governed work. The full durable workflow uses an
+epic and lane tasks, but even narrow current-thread work should create or update
+one Beads task. The installer warns if `bd` is missing but does not fail,
+because the skill can still be read and used manually.
 
 Use these checks at startup:
 
@@ -369,7 +413,7 @@ command -v bd
 test -d .beads && bd ready --json || true
 ```
 
-If the repo should own durable coordination and `.beads` is absent:
+If the repo should own the durable work story and `.beads` is absent:
 
 ```bash
 bd init
@@ -381,10 +425,10 @@ When a synced graph exists:
 bd sync
 ```
 
-If Beads is unavailable, create the same structure in a temporary Markdown plan
-and say that durability is reduced. Do not claim contractor-only filtering,
-shared ready-work semantics, or durable external handoff unless Beads or an
-equivalent tracker is actually in use.
+If Beads is unavailable, create the same task or graph structure in a temporary
+Markdown plan and say that durability is reduced. Do not claim contractor-only
+filtering, shared ready-work semantics, or durable external handoff unless
+Beads or an equivalent tracker is actually in use.
 
 On Fedora or EPEL-style systems, use your configured Beads package source. If
 you do not have one, the installer suggests the public `greg-at-redhat/beads`
@@ -726,8 +770,9 @@ python3 scripts/verify_audit_log.py --json
 
 ## Reference
 
-See `references/external-contracting.md` for a more detailed operator guide,
-and `references/local-inference.md` for OpenShift AI vLLM and other local
+See `references/prompt-coach.md` for prompt sizing and invocation guidance,
+`references/external-contracting.md` for the outside-contractor guide, and
+`references/local-inference.md` for OpenShift AI vLLM and other local
 OpenAI-compatible workers. Use `references/contractor-brief.md` as the reusable
 assignment brief for outside model contractors. Use `policy/`, `schemas/`,
 `templates/`, and `experts/` as the source of truth for route classification,

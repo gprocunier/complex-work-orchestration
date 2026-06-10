@@ -57,6 +57,20 @@ LOCAL_DISPATCH_REQUIRED_FIELDS = [
     "constraints",
     "execution_enabled",
 ]
+PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
+    "coach_result_type",
+    "version",
+    "beads_tracking_required",
+    "recommended_orchestration_level",
+    "rationale",
+    "missing_questions",
+    "interactive_questions",
+    "enabled_levers",
+    "disabled_levers",
+    "route",
+    "paste_ready_prompt",
+    "warnings",
+]
 BLOCKED_PACKET_PATH_PARTS = {".git", ".beads", ".orchestration-audit"}
 BLOCKED_PACKET_FILE_NAMES = {
     ".env",
@@ -686,6 +700,489 @@ def classify_work(
             "ranked experts: " + ", ".join(f"{item['name']}={item['score']}" for item in experts[:5]),
             "ranked executors: " + ", ".join(f"{item['key']}={item['score']}" for item in ranked_executors[:5]),
         ],
+    }
+
+
+def text_has_any(text: str, terms: list[str]) -> bool:
+    return bool(term_hits(text, terms))
+
+
+def prompt_coach_has_full_harness_signal(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "use $complex-work-orchestration to scaffold",
+            "$complex-work-orchestration to scaffold",
+            "scaffold this project",
+            "scaffold a project",
+            "scaffold the project",
+            "full scaffold",
+            "full harness",
+            "pm coordination",
+            "project manager",
+            "workerbee",
+            "workerbees",
+            "role/lane",
+            "role lane",
+            "role lanes",
+            "lane tasks",
+            "epic",
+            "contractor lane",
+            "contractor lanes",
+            "outside contractor lane",
+            "outside contractor lanes",
+        ],
+    )
+
+
+def prompt_coach_has_contractor_sharing_signal(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "claude",
+            "opus",
+            "mythos",
+            "outside model",
+            "external contractor",
+            "third-party",
+            "contractor lane",
+            "contractor lanes",
+            "outside contractor lane",
+            "outside contractor lanes",
+            "contractor review",
+            "external review",
+        ],
+    )
+
+
+def prompt_coach_level(route: dict[str, Any], text: str) -> str:
+    lower = text.lower()
+    publish_terms = [
+        "publish",
+        "release",
+        "push upstream",
+        "github",
+        "tag",
+        "public repo",
+        "sanitize",
+        "publication",
+    ]
+    durable_terms = [
+        "multi-session",
+        "handoff",
+        "beads",
+        "work graph",
+        "multiple agents",
+        "parallel",
+        "epic",
+        "project",
+    ]
+
+    if route.get("external_contract_allowed"):
+        return "external-contract"
+    if route.get("route") == "local-worker" and route.get("has_local_worker_contracts"):
+        return "local-worker"
+    if text_has_any(lower, publish_terms):
+        return "publish-release"
+    if prompt_coach_has_full_harness_signal(lower):
+        return "full-harness"
+    if route.get("risk_level") in {"high", "critical"} or route.get("peer_review_required"):
+        return "full-harness"
+    if text_has_any(lower, durable_terms) or route.get("route") == "architect-review":
+        return "lightweight-beads"
+    return "in-thread"
+
+
+def prompt_coach_missing_questions(route: dict[str, Any], text: str, file_paths: list[str] | None) -> list[dict[str, str]]:
+    lower = text.lower()
+    words = re.findall(r"[A-Za-z0-9_/-]+", text)
+    questions: list[dict[str, str]] = []
+
+    if len(words) < 4:
+        questions.append(
+            {
+                "id": "goal_success_criteria",
+                "question": "What is the concrete goal and what would make the work complete?",
+                "why": "The task text is too short for reliable sizing.",
+                "default": "Ask for goal, success criteria, and validation before scaffolding.",
+            }
+        )
+    if not file_paths and text_has_any(lower, ["repo", "code", "patch", "tests", "implementation", "publish", "release"]):
+        questions.append(
+            {
+                "id": "repo_or_paths",
+                "question": "Which repository, paths, or components are in scope?",
+                "why": "Path context changes expert routing, blast radius, and validation.",
+                "default": "Use the current working repository and ask before touching unclear paths.",
+            }
+        )
+    if text_has_any(lower, ["multi-session", "handoff", "parallel", "multiple agents", "epic", "work graph"]) and "beads" not in lower:
+        questions.append(
+            {
+                "id": "beads_graph_size",
+                "question": "Should this stay as a single Beads task or expand into an epic/work graph?",
+                "why": "Beads tracking is mandatory; this only decides the amount of graph structure.",
+                "default": "Start with one Beads task and escalate to an epic if independent work streams appear.",
+            }
+        )
+    if prompt_coach_has_contractor_sharing_signal(lower) and not route.get("external_opt_in"):
+        questions.append(
+            {
+                "id": "outside_sharing_boundary",
+                "question": "Is outside model contracting allowed, and what may be shared?",
+                "why": "Model preference is not enough to export context.",
+                "default": "Default to no outside sharing until the user chooses redacted-packet, repo-readonly, or patch-branch.",
+            }
+        )
+    local_terms = ["local inference", "local worker", "vllm", "openshift ai", "openai-compatible"]
+    if text_has_any(lower, local_terms) and not route.get("local_worker_allowed"):
+        questions.append(
+            {
+                "id": "local_worker_opt_in",
+                "question": "Should local inference be used, and which local profile should handle it?",
+                "why": "Local worker use is explicit opt-in and still requires evaluator plus architect review.",
+                "default": "Use --local-ok only for low-risk local-worker review; use openshift-ai-vllm when requested.",
+            }
+        )
+    if route.get("risk_level") in {"high", "critical"} or text_has_any(lower, ["security", "release", "publish", "production"]):
+        questions.append(
+            {
+                "id": "validation_bar",
+                "question": "What validation commands or evidence are required before the work is accepted?",
+                "why": "High-risk and publish/release work needs explicit acceptance evidence.",
+                "default": "Require tests, repository validation, docs/examples checks, and publish sanitization when applicable.",
+            }
+        )
+    return questions
+
+
+def prompt_coach_interactive_questions(
+    level: str,
+    route: dict[str, Any],
+    missing_questions: list[dict[str, str]],
+) -> list[dict[str, Any]]:
+    missing_ids = {question["id"] for question in missing_questions}
+    questions: list[dict[str, Any]] = []
+
+    if level in {"lightweight-beads", "full-harness", "publish-release"} or missing_ids & {
+        "goal_success_criteria",
+        "beads_graph_size",
+    }:
+        recommended = {
+            "in-thread": ("Beads task (Recommended)", "Use current-thread execution with one durable Beads task."),
+            "lightweight-beads": ("Light Beads (Recommended)", "Use a small Beads-backed plan without contractor lanes."),
+            "full-harness": ("Full harness (Recommended)", "Use architect, PM, workerbee, validation, and review lanes."),
+            "publish-release": ("Publish gate (Recommended)", "Use full harness plus publish-sanitization before push, release, or tag."),
+        }.get(level, ("Full harness (Recommended)", "Use the full orchestration harness."))
+        options = [
+            {"label": recommended[0], "value": level, "description": recommended[1]},
+            {
+                "label": "Beads task",
+                "value": "in-thread",
+                "description": "Use normal current-thread execution while recording the work in one Beads task.",
+            },
+            {
+                "label": "Light Beads",
+                "value": "lightweight-beads",
+                "description": "Track durable state with Beads while avoiding heavyweight review lanes.",
+            },
+        ]
+        if level in {"in-thread", "lightweight-beads"}:
+            options[2] = {
+                "label": "Full harness",
+                "value": "full-harness",
+                "description": "Use the full architect, PM, workerbee, validation, and review graph.",
+            }
+        questions.append(
+            {
+                "id": "orchestration_level",
+                "header": "Harness",
+                "question": "How much orchestration should Codex use?",
+                "why": "The answer changes graph size and review lanes; Beads tracking remains mandatory.",
+                "options": dedupe_interactive_options(options),
+            }
+        )
+
+    if "outside_sharing_boundary" in missing_ids:
+        questions.append(
+            {
+                "id": "outside_sharing_boundary",
+                "header": "Sharing",
+                "question": "Is outside model contracting allowed for this work?",
+                "why": "Codex must not export context until the sharing boundary is explicit.",
+                "options": [
+                    {
+                        "label": "No sharing (Recommended)",
+                        "value": "no-outside-sharing",
+                        "description": "Keep all context inside the Codex session and do not contract outside models.",
+                    },
+                    {
+                        "label": "Redacted packet",
+                        "value": "redacted-packet",
+                        "description": "Allow a minimal redacted contractor packet with no repo access.",
+                    },
+                    {
+                        "label": "Repo-readonly",
+                        "value": "repo-readonly",
+                        "description": "Allow read-only repo context only after disclosure escalation approval.",
+                    },
+                ],
+            }
+        )
+
+    if "local_worker_opt_in" in missing_ids:
+        profile = route.get("local_profile") or "generic-openai-compatible"
+        questions.append(
+            {
+                "id": "local_worker_opt_in",
+                "header": "Local AI",
+                "question": "Should a local inference worker be used?",
+                "why": "Local worker dispatch is opt-in and still needs evaluation plus architect adjudication.",
+                "options": [
+                    {
+                        "label": "No local (Recommended)",
+                        "value": "no-local-worker",
+                        "description": "Do not use local inference for this work.",
+                    },
+                    {
+                        "label": "Local review",
+                        "value": f"local-review:{profile}",
+                        "description": "Use a bounded local read-only review lane.",
+                    },
+                    {
+                        "label": "Prefer local",
+                        "value": f"prefer-local:{profile}",
+                        "description": "Prefer local-worker routing when policy permits it.",
+                    },
+                ],
+            }
+        )
+
+    if "validation_bar" in missing_ids:
+        if level == "publish-release":
+            first = {
+                "label": "Publish grade (Recommended)",
+                "value": "publish-grade",
+                "description": "Run tests, repository validation, docs/examples checks, and publish sanitization.",
+            }
+        else:
+            first = {
+                "label": "Repo validation (Recommended)",
+                "value": "repo-validation",
+                "description": "Run focused tests plus repository validation and report residual risk.",
+            }
+        questions.append(
+            {
+                "id": "validation_bar",
+                "header": "Validate",
+                "question": "What validation bar should Codex apply?",
+                "why": "The answer sets the acceptance evidence before implementation is considered complete.",
+                "options": dedupe_interactive_options([
+                    first,
+                    {
+                        "label": "Basic tests",
+                        "value": "basic-tests",
+                        "description": "Run only the smallest focused test set appropriate to the change.",
+                    },
+                    {
+                        "label": "Publish grade",
+                        "value": "publish-grade",
+                        "description": "Add docs/examples checks and publish-sanitization gates where applicable.",
+                    },
+                ]),
+            }
+        )
+
+    return questions
+
+
+def dedupe_interactive_options(options: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[str] = set()
+    deduped: list[dict[str, str]] = []
+    for option in options:
+        value = option["value"]
+        if value in seen:
+            continue
+        seen.add(value)
+        deduped.append(option)
+    return deduped[:3]
+
+
+def prompt_coach_enabled_levers(level: str, route: dict[str, Any]) -> list[str]:
+    levers = [
+        f"route={route.get('route')}",
+        f"risk={route.get('risk_level')}",
+        f"primary_expert={(route.get('ranked_experts') or [{}])[0].get('name', 'unknown')}",
+        f"executor={route.get('recommended_executor')}",
+        "beads-durable-state",
+        "beads-minimum-tracking",
+    ]
+    if level in {"full-harness", "external-contract", "local-worker", "publish-release"}:
+        levers.extend(["architect-review", "validation-lane"])
+    if level == "external-contract":
+        levers.extend(["contractor-only-bead", f"share-boundary={route.get('share_boundary')}"])
+    if level == "local-worker":
+        levers.append(f"local-profile={route.get('local_profile') or 'generic-openai-compatible'}")
+    if level == "publish-release":
+        levers.append("publish-sanitization")
+    if route.get("peer_review_required"):
+        levers.append("peer-review-required")
+    if route.get("provider_conflict_detected"):
+        levers.append("provider-conflict-review")
+    return levers
+
+
+def prompt_coach_disabled_levers(level: str, route: dict[str, Any]) -> list[str]:
+    levers: list[str] = []
+    if level == "in-thread":
+        levers.extend(["full-harness", "external-contracting", "local-worker-dispatch"])
+    elif level == "lightweight-beads":
+        levers.extend(["outside-contractor", "local-worker-dispatch", "full-contractor-packet"])
+    if not route.get("external_contract_allowed"):
+        levers.append("external-contracting-until-explicit-opt-in")
+    if not route.get("has_local_worker_contracts"):
+        levers.append("local-worker-dispatch-unless-explicitly-requested")
+    return sorted(set(levers))
+
+
+def prompt_coach_rationale(level: str, route: dict[str, Any], missing_questions: list[dict[str, str]]) -> list[str]:
+    rationale = [
+        f"Policy route is {route.get('route')} with {route.get('risk_level')} risk.",
+        f"Recommended executor is {route.get('recommended_executor')}.",
+    ]
+    if level == "in-thread":
+        rationale.append("The task can execute in the current thread, but it still requires a durable Beads record.")
+    elif level == "lightweight-beads":
+        rationale.append("Durable coordination is useful, but the full contractor/peer-review graph is not the default.")
+    elif level == "full-harness":
+        rationale.append("Risk, peer-review, or architecture signals justify architect/PM/validation lanes.")
+    elif level == "external-contract":
+        rationale.append("External contracting is both policy-selected and explicitly allowed for the selected boundary.")
+    elif level == "local-worker":
+        rationale.append("A local-worker route is selected and local inference was explicitly allowed.")
+    elif level == "publish-release":
+        rationale.append("Publish or release language requires sanitization and explicit validation evidence.")
+    if missing_questions:
+        rationale.append("The generated prompt includes missing-question guardrails before execution.")
+    return rationale
+
+
+def prompt_coach_warnings(route: dict[str, Any], missing_questions: list[dict[str, str]]) -> list[str]:
+    warnings: list[str] = []
+    hard_stops = route.get("hard_stops") or []
+    for stop in hard_stops:
+        warnings.append(f"Policy hard stop: {stop}")
+    if route.get("provider_conflict_detected"):
+        warnings.append("Provider conflict detected; keep peer review and architect adjudication in the flow.")
+    if route.get("peer_review_required"):
+        warnings.append("Peer review is required before findings become implementation direction.")
+    if any(question["id"] == "outside_sharing_boundary" for question in missing_questions):
+        warnings.append("Do not export context to outside models until the sharing boundary is explicitly answered.")
+    return warnings
+
+
+def render_coached_prompt(level: str, route: dict[str, Any], text: str, missing_questions: list[dict[str, str]]) -> str:
+    question_block = ""
+    if missing_questions:
+        question_block = "\n\nBefore execution, resolve:\n" + "\n".join(
+            f"- {item['question']} Default: {item['default']}" for item in missing_questions
+        )
+    validation = "Validation: report commands, evidence, and residual risk."
+    if level == "in-thread":
+        return (
+            "Handle this in the current thread with mandatory Beads tracking, without the full $complex-work-orchestration harness.\n"
+            f"Goal: {text}\n"
+            "Create or update one Beads task for the work story, evidence, validation, and handoff. "
+            "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
+            "or multiple independent work streams appear.\n"
+            f"{validation}{question_block}"
+        )
+    if level == "lightweight-beads":
+        return (
+            "Use $complex-work-orchestration for lightweight Beads-backed coordination.\n"
+            f"Goal: {text}\n"
+            "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
+            "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
+            f"{validation}{question_block}"
+        )
+    if level == "full-harness":
+        return (
+            "Use $complex-work-orchestration to scaffold a full architect/PM/workerbee/validation harness.\n"
+            f"Goal: {text}\n"
+            "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
+            "and any policy-required peer-review lanes. Keep final decisions with the architect.\n"
+            f"{validation}{question_block}"
+        )
+    if level == "external-contract":
+        expert = (route.get("ranked_experts") or [{}])[0]
+        return (
+            "Use $complex-work-orchestration with an outside contractor lane.\n"
+            f"Goal: {text}\n"
+            f"Share boundary: {route.get('share_boundary')}.\n"
+            f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
+            "Build a boundary-gated contractor packet, evaluate the return, run peer review if required, "
+            "and require architect adjudication before implementation.\n"
+            f"{validation}{question_block}"
+        )
+    if level == "local-worker":
+        return (
+            "Use $complex-work-orchestration with a bounded local-worker review lane.\n"
+            f"Goal: {text}\n"
+            f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
+            "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
+            "and require architect adjudication before follow-up implementation.\n"
+            f"{validation}{question_block}"
+        )
+    return (
+        "Use $complex-work-orchestration for publish/release-ready execution.\n"
+        f"Goal: {text}\n"
+        "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization lanes. "
+        "Do not push, release, or tag until validation and sanitization pass.\n"
+        f"{validation}{question_block}"
+    )
+
+
+def coach_orchestration_prompt(
+    text: str,
+    *,
+    external_ok: bool = False,
+    local_ok: bool = False,
+    prefer_local: bool = False,
+    local_profile: str | None = None,
+    share_boundary: str = "no-outside-sharing",
+    requested_roles: list[str] | None = None,
+    file_paths: list[str] | None = None,
+    stage: str | None = None,
+    unattended: bool = False,
+) -> dict[str, Any]:
+    route = classify_work(
+        text,
+        external_ok=external_ok,
+        local_ok=local_ok,
+        prefer_local=prefer_local,
+        local_profile=local_profile,
+        share_boundary=share_boundary,
+        requested_roles=requested_roles,
+        file_paths=file_paths,
+        stage=stage,
+        unattended=unattended,
+    )
+    level = prompt_coach_level(route, text)
+    questions = prompt_coach_missing_questions(route, text, file_paths)
+    interactive_questions = prompt_coach_interactive_questions(level, route, questions)
+    return {
+        "coach_result_type": "complex-work-orchestration-prompt-coach",
+        "version": 3,
+        "beads_tracking_required": True,
+        "recommended_orchestration_level": level,
+        "rationale": prompt_coach_rationale(level, route, questions),
+        "missing_questions": questions,
+        "interactive_questions": interactive_questions,
+        "enabled_levers": prompt_coach_enabled_levers(level, route),
+        "disabled_levers": prompt_coach_disabled_levers(level, route),
+        "route": route,
+        "paste_ready_prompt": render_coached_prompt(level, route, text, questions),
+        "warnings": prompt_coach_warnings(route, questions),
     }
 
 

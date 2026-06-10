@@ -22,7 +22,8 @@ Use this skill when any of these are true:
 - release, lab, production, or publication risk means final judgment must stay with a senior architect
 
 Do not use the full harness for a narrow single-thread fix. Use normal local
-implementation flow unless durable coordination would materially help.
+implementation flow for execution, but still create or update one Beads task so
+the work story, evidence, validation, and handoff are durable.
 
 ## Installation
 
@@ -61,8 +62,9 @@ bodies, `experts/` for discipline calibration, `schemas/` for helper output
 contracts, `examples/` for smoke-test artifacts, `references/external-contracting.md`
 when posting or reviewing outside model contracts,
 `references/incident-response-playbook.md` for quarantine or suspected
-sabotage, and `references/contractor-brief.md` as the briefing artifact given
-to an outside contractor with a specific Beads assignment.
+sabotage, `references/prompt-coach.md` when sizing the invocation, and
+`references/contractor-brief.md` as the briefing artifact given to an outside
+contractor with a specific Beads assignment.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.
@@ -93,8 +95,21 @@ conflicting findings back to the architect.
 
 ## Startup Protocol
 
-1. State whether the work is coherent in-thread or needs the harness.
-2. If the work is non-trivial, risky, or may use outside contractors, classify
+1. State whether the work is coherent in-thread or needs the harness. Beads tracking is mandatory either way; narrow in-thread work gets one Beads task.
+2. If the right amount of harness is unclear, compile a launch prompt before
+   scaffolding:
+
+```bash
+python3 scripts/coach_prompt.py "<task text>"
+```
+
+   Use the coach output to avoid under- or over-leveraging Beads, contractors,
+   local inference, peer review, or publish-sanitization.
+   If the result includes `interactive_questions` and Codex is in Plan mode,
+   present those as selectable prompts because the answer changes execution
+   behavior. In Default mode, ask only the concise blocking question or apply the
+   conservative default.
+3. If the work is non-trivial, risky, or may use outside contractors, classify
    it against the policy. Read provider-conflict and peer-review fields as part
    of the result:
 
@@ -102,7 +117,7 @@ conflicting findings back to the architect.
 python3 scripts/route_work.py "<task text>"
 ```
 
-3. If outside contracting may help, ask the third-party collaboration question
+4. If outside contracting may help, ask the third-party collaboration question
    unless the user already opted in. Default to `no-outside-sharing`; if the user
    permits sharing, re-run the route with `--external-ok --share-boundary <mode>`.
    Repo-readonly and patch-branch packet builds require
@@ -111,22 +126,22 @@ python3 scripts/route_work.py "<task text>"
    low-risk local worker dispatch is the intended route. Use
    `--local-profile openshift-ai-vllm` to require the OpenShift AI vLLM
    executor profile.
-4. If launching agents, clean stale agent state first using the local harness convention.
-5. Check for Beads:
+5. If launching agents, clean stale agent state first using the local harness convention.
+6. Check for Beads:
 
 ```bash
 command -v bd
 test -d .beads && bd ready --json || true
 ```
 
-6. If Beads is available and durable coordination is appropriate, initialize or sync it:
+7. If Beads is available, initialize or sync it:
 
 ```bash
-bd init    # only if this repo should own the work graph and .beads is absent
+bd init    # only if this repo should own the work story and .beads is absent
 bd sync    # when a remote/synced graph is configured
 ```
 
-7. If Beads is unavailable, create the same structure in a temporary Markdown plan and say that durability is reduced.
+8. If Beads is unavailable, create the same task or graph structure in a temporary Markdown plan and say that durability is reduced.
 
 ## Scaffold Shape
 
@@ -382,12 +397,15 @@ Contractor rules:
 
 When this skill is used, produce a concise orchestration packet:
 
-- harness decision: in-thread, PM-only, or full architect/PM/workerbee/contractor setup
+- harness decision: in-thread with Beads task, PM-only, or full architect/PM/workerbee/contractor setup
+- prompt coach result when sizing was unclear: recommended level, missing
+  questions, `beads_tracking_required`, enabled/disabled levers, warnings, and
+  paste-ready prompt
 - policy route: route class, task class, risk, data sensitivity, dispatch
   sensitivity, share boundary, provider conflict domains, peer-review status,
   selected experts, and recommended executor
 - role roster with model/effort choices
-- Beads epic and task list, with IDs when created
+- Beads task or epic/task list, with IDs when created
 - dependency graph summary
 - contractor-ready assignments
 - dispatch, evaluation, and architect-adjudication requirements
