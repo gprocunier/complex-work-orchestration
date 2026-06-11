@@ -242,10 +242,10 @@
       "preferred_executors": ["frontier_architect", "internal_worker"],
       "file_path_patterns": ["README.md", "SKILL.md", "docs/*", "docs/*.html", "docs/*.css", "references/*", "examples/*"],
       "trigger_terms": ["editor", "editorial review", "editor gate", "editorial gate", "copy edit", "final review", "ai slop", "slop", "redundant", "redundancy", "circular", "repetitive", "bad flow", "docs flow", "pages flow", "diataxis", "diátaxis", "github pages", "public docs"],
-      "required_inputs": ["target audience", "documentation map", "page flow", "Diataxis intent", "changed behavior", "publication constraints"],
-      "output_contract": ["editorial decision", "flow findings", "Diataxis fit", "redundancy removals", "AI-slop rewrites", "release-blocking gaps"],
-      "acceptance_checks": ["docs and pages flow together", "Diataxis role is explicit", "redundant or circular content is removed", "AI-slop wording is replaced", "public narrative is coherent"],
-      "escalation_rules": ["conflicting docs architecture", "public reader cannot complete the workflow", "repeated unsupported claims", "editorial gate cannot determine acceptance"]
+      "required_inputs": ["target audience", "documentation map", "page flow", "Diataxis intent", "changed behavior", "publication constraints", "prerequisites and setup paths"],
+      "output_contract": ["editorial decision", "flow findings", "reader-facing purpose fit", "redundancy removals", "AI-slop rewrites", "internal-monologue removals", "missing prerequisite or rationale gaps", "release-blocking gaps"],
+      "acceptance_checks": ["docs and pages flow together", "reader-facing page purpose is clear", "internal process labels do not leak into public copy", "required prerequisites and fallback paths are present", "redundant or circular content is removed", "AI-slop wording is replaced", "public narrative is coherent"],
+      "escalation_rules": ["conflicting docs architecture", "public reader cannot complete the workflow", "repeated unsupported claims", "missing install or setup prerequisites", "missing rationale for a workflow choice", "editorial gate cannot determine acceptance"]
     },
     "openshift_platform": {
       "display_name": "OpenShift Platform Distinguished Engineer",

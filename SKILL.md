@@ -87,7 +87,10 @@ Default roles:
 
 - **Architect**: Codex 5.5 x-high if available. Owns decomposition, architecture, final integration, acceptance, release judgment, and escalation decisions.
 - **Project Manager**: simpler model. Owns Beads graph hygiene, status, dependencies, assignments, stale-work detection, and handoff completeness. Coordinates; does not decide architecture.
-- **Workerbee**: Codex 5.3-spark if available. Owns bounded investigation, focused patches, test triage, file search, evidence gathering, and narrow validation tasks.
+- **Workerbee**: Codex 5.3-spark when available, otherwise the
+  smallest available capable review model. Owns bounded investigation, focused
+  patches, test triage, file search, evidence gathering, and narrow validation
+  tasks.
 - **Outside Contractor**: Claude or another external LLM. Receives one explicit bead/contract at a time, calibrated by a job-description label, and reports findings through Beads or a patch branch.
 - **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
   local-worker review contracts after explicit `--local-ok`; output is evidence
@@ -120,8 +123,9 @@ python3 scripts/coach_prompt.py "<task text>"
    Use the coach output to avoid under- or over-leveraging Beads, contractors,
    local inference, peer review, workerbee parallelism, or
    publish-sanitization. If `workerbee_parallelism.recommended_mode` is
-   `review-only`, call out Codex 5.3 Spark workerbees for bounded parallel
-   review or investigation lanes before automatic workerbee handling exists.
+   `review-only`, use Codex 5.3 Spark when available, or the smallest available
+   capable review model, for bounded parallel review or investigation lanes
+   before automatic workerbee handling exists.
    Use implementation workerbees only when file ownership or workstream
    boundaries are disjoint.
    If the result includes `interactive_questions` and Codex is in Plan mode,
@@ -153,14 +157,18 @@ command -v bd
 test -d .beads && bd ready --json || true
 ```
 
-7. If Beads is available, initialize or sync it:
+7. If Beads is available, initialize it when needed and check whether a Dolt
+   remote is configured:
 
 ```bash
 bd init    # only if this repo should own the work story and .beads is absent
-bd sync    # when a remote/synced graph is configured
+bd dolt remote list
+bd dolt pull    # only when a Dolt remote exists
 ```
 
-8. If Beads is unavailable, create the same task or graph structure in a temporary Markdown plan and say that durability is reduced.
+8. If Beads has no Dolt remote, keep the graph local and do not claim it is
+   synced. If Beads is unavailable, create the same task or graph structure in a
+   temporary Markdown plan and say that durability is reduced.
 
 ## Scaffold Shape
 
@@ -196,7 +204,8 @@ bd ready --json
 bd show <id> --json
 bd comment <id> "<evidence, findings, validation, risk>"
 bd close <id>
-bd sync
+bd dolt commit
+bd dolt push    # only when a Dolt remote exists
 ```
 
 Each task should include:
@@ -431,7 +440,8 @@ must name the job-description label and the discipline-specific review lens.
 
 Contractor rules:
 
-- start with `bd sync`, then `bd show <id> --json`
+- start with `bd dolt pull` only when a Dolt remote exists, then
+  `bd show <id> --json`
 - work only the assigned bead unless a blocker is discovered
 - honor the assigned job description; do not convert a security contract into a generic review
 - do not re-plan the whole project

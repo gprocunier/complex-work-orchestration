@@ -22,6 +22,7 @@ REQUIRED_PAGES = [
 SOURCE_LINK_PATTERNS = [
     REPO_URL,
     f"{REPO_URL}/blob/main/LICENSE",
+    "https://github.com/steveyegge/beads",
     "https://ux.redhat.com/",
     "https://diataxis.fr/",
 ]

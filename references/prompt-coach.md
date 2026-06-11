@@ -82,8 +82,9 @@ as the final validation-lane expert before publish sanitization.
 full-harness or publish-release work can still choose whether to use parallel
 workerbees. The conservative default for docs, Pages, policy, routing, tests,
 validation, and publish-sanitization work is `review-only` using Codex 5.3
-Spark workerbees. Implementation-capable workerbees require explicit disjoint
-write scopes; otherwise the main thread keeps file integration and acceptance.
+Spark when available, otherwise the smallest available capable review model.
+Implementation-capable workerbees require explicit disjoint write scopes;
+otherwise the main thread keeps file integration and acceptance.
 
 ## Missing Questions
 
@@ -113,8 +114,8 @@ Use these questions for decisions such as:
   lightweight Beads, full harness, or publish-grade execution
 - whether outside sharing is allowed: no sharing, redacted packet, or
   repo-readonly
-- whether to use Codex 5.3 Spark workerbees for bounded parallel review or
-  investigation
+- whether to use Codex 5.3 Spark, when available, or a smaller available review
+  workerbee for bounded parallel review or investigation
 - whether a local inference worker is allowed
 - what validation bar to apply
 

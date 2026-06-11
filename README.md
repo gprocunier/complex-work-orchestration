@@ -267,7 +267,7 @@ flowchart TD
     Harness --> BeadsCheck
 
     BeadsCheck --> HasBeads{Beads available?}
-    HasBeads -->|Yes| InitSync[bd init if needed, then bd sync]
+    HasBeads -->|Yes| InitSync[bd init if needed, then bd dolt pull if remote exists]
     HasBeads -->|No| Markdown[Create temporary Markdown plan and warn durability is reduced]
 
     InitSync --> Size{Graph size}
@@ -410,10 +410,11 @@ flowchart LR
    bounded `interactive_questions`, enabled/disabled levers, warnings, and a
    paste-ready launch prompt. In Plan mode, use `interactive_questions` for
    selectable user input when the answer changes execution behavior. If the
-   coach recommends `review-workerbees`, call out Codex 5.3 Spark workerbees for
-   parallel docs, tests, routing, validation, or publish-sanitization review
-   before that becomes automatic. In Default mode, ask only the required concise
-   question or apply the coach's safe default.
+   coach recommends `review-workerbees`, use Codex 5.3 Spark when available, or
+   the smallest available capable review model, for parallel docs, tests,
+   routing, validation, or publish-sanitization review before that becomes
+   automatic. In Default mode, ask only the required concise question or apply
+   the coach's safe default.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -484,11 +485,18 @@ If the repo should own the durable work story and `.beads` is absent:
 bd init
 ```
 
-When a synced graph exists:
+If a Dolt remote is configured, synchronize the Beads graph with the current
+`bd` command surface:
 
 ```bash
-bd sync
+bd dolt remote list
+bd dolt pull
+bd dolt commit
+bd dolt push
 ```
+
+If no Dolt remote is configured, the Beads graph is still durable local state,
+but it is not shared across machines until you add a remote.
 
 If Beads is unavailable, create the same task or graph structure in a temporary
 Markdown plan and say that durability is reduced. Do not claim contractor-only
@@ -498,7 +506,16 @@ Beads or an equivalent tracker is actually in use.
 On Fedora or EPEL-style systems, use your configured Beads package source. If
 you do not have one, the installer suggests the public `greg-at-redhat/beads`
 COPR. Set `BEADS_COPR=owner/project` before running the installer to point the
-hint at a different COPR.
+hint at a different COPR. The default Fedora/RHEL path is:
+
+```bash
+sudo dnf copr enable greg-at-redhat/beads
+sudo dnf install beads
+bd version
+```
+
+For non-RPM systems or source-based installs, use the upstream Beads project:
+<https://github.com/steveyegge/beads>.
 
 Normal Codex ready-work discovery should exclude outside and local-worker
 contracts:

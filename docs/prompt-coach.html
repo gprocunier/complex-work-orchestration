@@ -125,8 +125,9 @@ Create public docs for outside model contractor packets.</code></pre>
               broad docs, Pages, policy, routing, test, validation, and
               publish-sanitization work should surface a
               <code>workerbee_parallelism</code> choice. The default is
-              review-only Codex 5.3 Spark workerbees unless implementation
-              scopes are explicitly disjoint.
+              review-only workerbees using Codex 5.3 Spark when available, or
+              the smallest available capable review model. Implementation
+              workerbees still require explicitly disjoint scopes.
             </div>
             <div class="callout">
               <strong>Public docs/pages:</strong>
@@ -144,6 +145,15 @@ Create public docs for outside model contractor packets.</code></pre>
               <code>OpenShift AI</code>, or <code>local worker</code> makes the
               coach ask for local opt-in unless <code>--local-ok</code> is
               already present. The recommended default is no local dispatch.
+            </p>
+            <p>
+              The reason to use a local worker is not prestige; it is fit. A
+              bounded local reviewer can check command examples, logs, narrow
+              docs, and repetitive evidence without spending frontier-model
+              attention on work such as sanity-checking <code>curl</code>
+              output. OpenShift AI is the exemplar model-serving platform for
+              this workflow, but any approved OpenAI-compatible local endpoint
+              can fill the role when policy permits it.
             </p>
             <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
 Use an OpenShift AI vLLM local worker to review a bounded README command example.</code></pre>

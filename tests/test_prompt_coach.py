@@ -124,8 +124,8 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
-        self.assertIn("codex-5.3-spark-workerbees", result["enabled_levers"])
-        self.assertIn("Codex 5.3 Spark workerbees", result["paste_ready_prompt"])
+        self.assertIn("codex-5.3-spark-workerbees-when-available", result["enabled_levers"])
+        self.assertIn("Codex 5.3 Spark when available", result["paste_ready_prompt"])
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
         ]
@@ -141,7 +141,37 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
         self.assertFalse(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
+        self.assertIn("codex-5.3-spark-workerbees-when-available", result["enabled_levers"])
         self.assertFalse(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+
+    def test_unavailable_spark_mention_still_prompts_for_workerbee_parallelism(self) -> None:
+        result = coach_orchestration_prompt(
+            "Plan a docs and GitHub Pages correction. Codex 5.3 Spark may not be available in ChatGPT Pro."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
+        self.assertEqual(
+            result["workerbee_parallelism"]["recommended_model"],
+            "smallest-available-capable-review-workerbee",
+        )
+        self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
+        self.assertIn("workerbee-model-fallback-required", result["enabled_levers"])
+        self.assertIn("smallest available capable review workerbee", result["paste_ready_prompt"])
+        self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+
+    def test_conditional_workerbee_language_still_prompts_for_parallelism(self) -> None:
+        result = coach_orchestration_prompt(
+            "Plan docs and validation work. Use review-only workerbee lanes if selected by the coach."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
+        self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
+        self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+
+    def test_public_docs_editor_task_requires_editor_gate_in_coach(self) -> None:
+        result = coach_orchestration_prompt(
+            "Fix public-docs editor oversharing on the homepage and improve the Beads install section."
+        )
+        self.assertTrue(result["route"]["editor_gate_required"])
+        self.assertIn("editor", result["route"]["editor_gate_experts"])
 
     def test_narrow_work_does_not_prompt_for_workerbees(self) -> None:
         result = coach_orchestration_prompt("Fix typo in README.md")

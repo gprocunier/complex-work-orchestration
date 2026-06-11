@@ -129,7 +129,8 @@ Full external contracting expects Beads:
 ```bash
 command -v bd
 test -d .beads && bd ready --json || true
-bd sync
+bd dolt remote list
+bd dolt pull    # only when a Dolt remote exists
 ```
 
 Create the graph if this repo should own the work state:

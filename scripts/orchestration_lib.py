@@ -29,9 +29,18 @@ PUBLIC_DOCS_EDITOR_TEXT_TERMS = [
     "readme",
     "install docs",
     "installation docs",
+    "install section",
+    "beads install",
+    "beads setup",
     "operator docs",
     "github pages",
     "github page",
+    "homepage",
+    "home page",
+    "docs bug",
+    "public-docs editor",
+    "editor oversharing",
+    "internal monologue",
     "docs plus pages",
     "documentation plus github pages",
     "docs and pages",
@@ -872,7 +881,7 @@ def text_has_any(text: str, terms: list[str]) -> bool:
 
 
 def prompt_coach_has_full_harness_signal(text: str) -> bool:
-    return text_has_any(
+    if text_has_any(
         text,
         [
             "use $complex-work-orchestration to scaffold",
@@ -884,8 +893,6 @@ def prompt_coach_has_full_harness_signal(text: str) -> bool:
             "full harness",
             "pm coordination",
             "project manager",
-            "workerbee",
-            "workerbees",
             "role/lane",
             "role lane",
             "role lanes",
@@ -896,7 +903,61 @@ def prompt_coach_has_full_harness_signal(text: str) -> bool:
             "outside contractor lane",
             "outside contractor lanes",
         ],
+    ):
+        return True
+    return prompt_coach_has_explicit_workerbee_request(text)
+
+
+def prompt_coach_has_workerbee_availability_constraint(text: str) -> bool:
+    if "codex 5.3 spark" not in text:
+        return False
+    return text_has_any(
+        text,
+        [
+            "not available",
+            "unavailable",
+            "isn't available",
+            "is not available",
+            "not being available",
+            "cannot use",
+            "can't use",
+            "chatgpt pro",
+            "pro plan",
+            "fallback",
+            "fallbacks",
+            "tunable",
+        ],
     )
+
+
+def prompt_coach_has_conditional_workerbee_language(text: str) -> bool:
+    return bool(
+        re.search(r"\bif\s+selected\b.{0,80}\bworkerbee", text)
+        or re.search(r"\bworkerbee.{0,80}\bif\s+selected\b", text)
+        or re.search(r"\bif\s+.*\bcoach\b.{0,80}\bworkerbee", text)
+        or re.search(r"\bworkerbee.{0,80}\bif\s+.*\bcoach\b", text)
+    )
+
+
+def prompt_coach_has_explicit_workerbee_request(text: str) -> bool:
+    if prompt_coach_has_workerbee_availability_constraint(text):
+        return False
+    if prompt_coach_has_conditional_workerbee_language(text):
+        return False
+    explicit_patterns = [
+        r"\buse\s+(?:review-only\s+|parallel\s+|implementation\s+)?workerbees?\b",
+        r"\buse\s+codex\s+5\.3\s+spark(?:\s+workerbees?)?\b",
+        r"\bcall out\s+codex\s+5\.3\s+spark(?:\s+workerbees?)?\b",
+        r"\blaunch\s+workerbees?\b",
+        r"\bspawn\s+workerbees?\b",
+        r"\brun\s+workerbees?\b",
+        r"\bparallel\s+workerbees?\b",
+        r"\breview-only\s+workerbees?\b",
+        r"\bworkerbee\s+validation\b",
+        r"\bworkerbee\s+lanes?\b",
+        r"\bwith\s+workerbees?\b",
+    ]
+    return any(re.search(pattern, text) for pattern in explicit_patterns)
 
 
 def prompt_coach_has_contractor_sharing_signal(text: str) -> bool:
@@ -921,16 +982,8 @@ def prompt_coach_has_contractor_sharing_signal(text: str) -> bool:
 
 def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[str, Any]) -> dict[str, Any]:
     lower = text.lower()
-    explicit_workerbee = text_has_any(
-        lower,
-        [
-            "workerbee",
-            "workerbees",
-            "codex 5.3 spark",
-            "spark workerbee",
-            "spark workerbees",
-        ],
-    )
+    explicit_workerbee = prompt_coach_has_explicit_workerbee_request(lower)
+    model_unavailable = prompt_coach_has_workerbee_availability_constraint(lower)
     review_terms = [
         "parallel",
         "multiple agents",
@@ -998,7 +1051,13 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
 
     return {
         "recommended_mode": mode,
-        "recommended_model": "gpt-5.3-codex-spark" if mode != "none" else None,
+        "recommended_model": (
+            "smallest-available-capable-review-workerbee"
+            if mode != "none" and model_unavailable
+            else "gpt-5.3-codex-spark"
+            if mode != "none"
+            else None
+        ),
         "prompt_user_in_plan_mode": prompt_user,
         "suggested_lanes": suggested_lanes,
         "rationale": rationale,
@@ -1086,7 +1145,7 @@ def prompt_coach_missing_questions(
                 "id": "workerbee_parallelism",
                 "question": "Should Codex use parallel workerbees for bounded sidecar work?",
                 "why": "Parallel workerbees can review docs, tests, routing, validation, or disjoint implementation lanes while the main thread owns integration.",
-                "default": "Use review-only Codex 5.3 Spark workerbees for broad work; keep implementation authority in the main thread unless disjoint write scopes are explicit.",
+                "default": "Use review-only workerbees with Codex 5.3 Spark when available, or the smallest available capable review model; keep implementation authority in the main thread unless disjoint write scopes are explicit.",
             }
         )
     if prompt_coach_has_contractor_sharing_signal(lower) and not route.get("external_opt_in"):
@@ -1118,6 +1177,14 @@ def prompt_coach_missing_questions(
             }
         )
     return questions
+
+
+def workerbee_model_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
+    if not workerbee_parallelism:
+        return "Codex 5.3 Spark when available, otherwise the smallest available capable review model"
+    if workerbee_parallelism.get("recommended_model") == "smallest-available-capable-review-workerbee":
+        return "the smallest available capable review workerbee"
+    return "Codex 5.3 Spark when available, otherwise the smallest available capable review model"
 
 
 def prompt_coach_interactive_questions(
@@ -1171,11 +1238,12 @@ def prompt_coach_interactive_questions(
     if "workerbee_parallelism" in missing_ids:
         recommended = workerbee_parallelism or {}
         recommended_mode = recommended.get("recommended_mode") or "review-only"
+        model_phrase = workerbee_model_phrase(workerbee_parallelism)
         first = {
             "review-only": {
                 "label": "Review workerbees (Recommended)",
                 "value": "review-workerbees",
-                "description": "Use Codex 5.3 Spark workerbees for bounded review or investigation lanes.",
+                "description": f"Use {model_phrase} for bounded review or investigation lanes.",
             },
             "implementation-capable": {
                 "label": "Split implementation (Recommended)",
@@ -1185,7 +1253,7 @@ def prompt_coach_interactive_questions(
         }.get(recommended_mode, {
             "label": "Review workerbees (Recommended)",
             "value": "review-workerbees",
-            "description": "Use Codex 5.3 Spark workerbees for bounded review or investigation lanes.",
+            "description": f"Use {model_phrase} for bounded review or investigation lanes.",
         })
         questions.append(
             {
@@ -1340,12 +1408,11 @@ def prompt_coach_enabled_levers(
     if route.get("provider_conflict_detected"):
         levers.append("provider-conflict-review")
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
-        levers.extend(
-            [
-                f"workerbee-parallelism={workerbee_parallelism.get('recommended_mode')}",
-                "codex-5.3-spark-workerbees",
-            ]
-        )
+        levers.append(f"workerbee-parallelism={workerbee_parallelism.get('recommended_mode')}")
+        if workerbee_parallelism.get("recommended_model") == "smallest-available-capable-review-workerbee":
+            levers.append("workerbee-model-fallback-required")
+        else:
+            levers.append("codex-5.3-spark-workerbees-when-available")
     return levers
 
 
@@ -1395,7 +1462,8 @@ def prompt_coach_rationale(
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
         rationale.append(
             "Workerbee parallelism is recommended as "
-            f"{workerbee_parallelism.get('recommended_mode')} using Codex 5.3 Spark for bounded sidecar lanes."
+            f"{workerbee_parallelism.get('recommended_mode')} using {workerbee_model_phrase(workerbee_parallelism)} "
+            "for bounded sidecar lanes."
         )
     if missing_questions:
         rationale.append("The generated prompt includes missing-question guardrails before execution.")
@@ -1421,7 +1489,7 @@ def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
         return ""
     lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]
     return (
-        "Use Codex 5.3 Spark workerbees for "
+        f"Use {workerbee_model_phrase(workerbee_parallelism)} for "
         f"{workerbee_parallelism.get('recommended_mode')} parallelism on: "
         + ", ".join(str(item) for item in lanes)
         + ". Keep main-thread architecture, file integration, and acceptance decisions with the architect.\n"

@@ -77,7 +77,7 @@ the profile is missing.
 4. If blocked or underspecified, comment on the Bead instead of widening scope.
 
 ```bash
-bd sync
+bd dolt pull    # only when a Dolt remote exists
 bd show <assigned-id> --json
 ```
 
@@ -131,7 +131,8 @@ Confidence:
 Risks or gaps:
 Recommended next bead:
 Escalation needed:"
-bd sync
+bd dolt commit
+bd dolt push    # only when a Dolt remote exists
 ```
 
 If the assignment is blocked, leave the Bead open or blocked with a clear reason

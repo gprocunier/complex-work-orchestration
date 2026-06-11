@@ -67,7 +67,8 @@ Expected sizing: `publish-release` or `full-harness` depending policy route,
 with `workerbee_parallelism.recommended_mode=review-only`,
 `workerbee-parallelism=review-only`, and a Plan-mode
 `workerbee_parallelism` question whose recommended option is
-`review-workerbees`. Use Codex 5.3 Spark workerbees for bounded parallel
+`review-workerbees`. Use Codex 5.3 Spark when available, otherwise the
+smallest available capable review model, for bounded parallel
 review/investigation lanes while the main thread keeps integration and final
 acceptance.
 

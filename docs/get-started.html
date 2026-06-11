@@ -64,6 +64,26 @@ cd complex-work-orchestration
               For unattended installs, pass the destination explicitly:
             </p>
             <pre><code>./scripts/install.sh --skills-dir /path/to/codex/skills --yes</code></pre>
+            <p>
+              Beads is required for the durable workflow. The skill installer
+              only warns when <code>bd</code> is missing so the documentation can
+              still be installed and read.
+            </p>
+            <pre><code>command -v bd
+bd version</code></pre>
+            <p>
+              On Fedora, RHEL, or compatible systems, use your own Beads package
+              source if you have one. Otherwise the installer points at the
+              public <code>greg-at-redhat/beads</code> COPR. Set
+              <code>BEADS_COPR=owner/project</code> before running the installer
+              to show a different COPR hint.
+            </p>
+            <pre><code>sudo dnf copr enable greg-at-redhat/beads
+sudo dnf install beads</code></pre>
+            <p>
+              For other platforms, use the upstream Beads project at
+              <a href="https://github.com/steveyegge/beads">github.com/steveyegge/beads</a>.
+            </p>
           </section>
 
           <section id="coach">
@@ -93,12 +113,18 @@ Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code>
             <h2>Record Beads</h2>
             <p>
               Use Beads as the shared work story. If the repository should own
-              the durable state, initialize it once. For a synced graph, sync
-              before and after handoff when your Beads installation supports it.
+              the durable state, initialize it once. If a Dolt remote is
+              configured, pull before handoff work and commit or push after
+              recording evidence. Without a remote, the graph is durable local
+              state but not shared across machines.
             </p>
             <pre><code>command -v bd
 test -d .beads && bd ready --json || true
-bd init</code></pre>
+bd init
+bd dolt remote list
+bd dolt pull
+bd dolt commit
+bd dolt push</code></pre>
             <p>
               Generated Beads populate native fields for <code>skills</code>,
               <code>acceptance</code>, <code>design</code>, and
