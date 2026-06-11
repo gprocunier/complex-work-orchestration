@@ -1,3 +1,9 @@
+Native Beads fields:
+- skills:
+- acceptance:
+- design:
+- notes:
+
 Purpose:
 Run a bounded local-worker task that is reversible, low-risk, and easy to
 validate.

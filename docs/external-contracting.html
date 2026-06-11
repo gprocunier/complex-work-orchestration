@@ -80,6 +80,13 @@ contract-jd-security-reasoning</code></pre>
               into separate Beads when a security review, docs review, and
               architecture critique all need independent reasoning.
             </p>
+            <p>
+              Contract Beads should also populate native
+              <code>skills</code>, <code>acceptance</code>,
+              <code>design</code>, and <code>notes</code> fields. Avoid
+              literal <code>\n</code> text in multiline fields; use a heredoc
+              or file-backed input when creating contracts by hand.
+            </p>
           </section>
 
           <section id="packet">

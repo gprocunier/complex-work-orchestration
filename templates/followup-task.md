@@ -1,3 +1,9 @@
+Native Beads fields:
+- skills:
+- acceptance:
+- design:
+- notes:
+
 Purpose:
 Convert an accepted finding into normal Codex-executable work.
 

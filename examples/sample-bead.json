@@ -4,7 +4,10 @@
   "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
   "status": "open",
   "priority": "P1",
-  "description": "Review the redacted-packet boundary behavior without receiving full Bead JSON.",
+  "description": "Review the redacted-packet boundary behavior without receiving full Bead JSON.\n\n## Required Skills\nsecurity,contractor-control,beads",
+  "design": "Apply the security job-description lens to the approved redacted packet only; do not perform implementation work.",
+  "acceptance_criteria": "Security findings cite evidence, mitigations are testable, and architect review remains required.",
+  "notes": "Share boundary: redacted-packet. Codex pickup: forbidden. Return channel: bd-comment.",
   "metadata": {
     "executor": "claude_code_manual",
     "dispatch_mode": "manual_ui",

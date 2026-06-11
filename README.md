@@ -67,6 +67,13 @@ python3 scripts/coach_prompt.py \
 All work governed by this skill should leave a durable Beads story. A narrow
 task can still execute in the current thread, but the minimum tracking shape is
 one Beads task with evidence, validation, and handoff notes.
+Generated Beads should populate the native Beads fields for `skills`,
+`acceptance`, `design`, and `notes`; descriptions remain the human-readable
+assignment body.
+
+When creating Beads manually, do not type literal `\n` sequences into text
+fields. Use real newlines through a heredoc, `--body-file`, `--design-file`, or
+shell command substitution so rendered Beads do not show backslash-n text.
 
 The skill should also be used for requests that mention:
 
@@ -552,12 +559,8 @@ Codex handling rule:
 Example:
 
 ```bash
-bd create "Claude Opus review: security-focused reasoning for <scope>" \
-  --type task \
-  --labels contractor-only,no-codex-exec,contract-jd-security-reasoning \
-  --assignee external-claude-opus \
-  --metadata '{"executor":"external-llm","codex_pickup":"forbidden","job_description":"security-focused reasoning","discipline":"security","share_boundary":"redacted-packet","return_channel":"bd-comment","architect_review_required":true}' \
-  --description "Purpose:
+body=$(cat <<'EOF'
+Purpose:
 Scope:
 Inputs:
 Allowed changes:
@@ -569,7 +572,20 @@ Handoff format:
 Contractor job description:
 Contract labels:
 Share boundary:
-Codex handling rule: Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work."
+Codex handling rule: Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work.
+EOF
+)
+
+bd create "Claude Opus review: security-focused reasoning for <scope>" \
+  --type task \
+  --labels contractor-only,no-codex-exec,contract-jd-security-reasoning \
+  --assignee external-claude-opus \
+  --skills security,contractor-control,beads \
+  --acceptance "Security findings cite evidence, mitigations are testable, and architect review remains required." \
+  --design "Apply the security job-description lens within the approved share boundary; do not perform implementation work." \
+  --notes "Share boundary: redacted-packet. Codex pickup: forbidden. Return channel: bd-comment." \
+  --metadata '{"executor":"external-llm","codex_pickup":"forbidden","job_description":"security-focused reasoning","discipline":"security","share_boundary":"redacted-packet","return_channel":"bd-comment","architect_review_required":true}' \
+  --description "$body"
 ```
 
 ## Contractor Packet

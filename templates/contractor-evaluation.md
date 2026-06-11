@@ -1,3 +1,9 @@
+Native Beads fields:
+- skills:
+- acceptance:
+- design:
+- notes:
+
 Purpose:
 Evaluate a returned contractor or local-worker artifact before architect
 adjudication.

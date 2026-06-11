@@ -47,6 +47,136 @@ Handoff format:
 Beads comment with findings, validation, and next action."""
 
 
+def unique_strings(items: list[object]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
+
+
+def bullet_list(items: list[object], fallback: str) -> str:
+    values = unique_strings(items)
+    if not values:
+        values = [fallback]
+    return "\n".join(f"- {item}" for item in values)
+
+
+def route_notes(route: dict[str, Any]) -> str:
+    experts = [str(item.get("name")) for item in route.get("ranked_experts", [])[:5] if item.get("name")]
+    return "\n".join(
+        [
+            f"Route: {route.get('route')}",
+            f"Task class: {route.get('task_class')}",
+            f"Risk: {route.get('risk_level')}",
+            f"Share boundary: {route.get('share_boundary')}",
+            f"Recommended executor: {route.get('recommended_executor')}",
+            f"Peer review required: {bool(route.get('peer_review_required'))}",
+            f"Provider conflict detected: {bool(route.get('provider_conflict_detected'))}",
+            "Selected experts: " + (", ".join(experts) if experts else "none"),
+        ]
+    )
+
+
+LANE_FIELDS: dict[str, dict[str, object]] = {
+    "architect": {
+        "skills": ["architecture", "complex-work-orchestration", "beads"],
+        "acceptance": "Architecture boundaries, decomposition, acceptance gates, and escalation triggers are explicit.",
+        "design": "Frame the work before implementation and keep final architecture and release judgment with the architect.",
+    },
+    "pm": {
+        "skills": ["project-management", "beads", "handoff"],
+        "acceptance": "Dependencies, assignment status, stale work, evidence, and handoff state are current in Beads.",
+        "design": "Coordinate the graph without taking architecture or implementation authority.",
+    },
+    "implementation": {
+        "skills": ["implementation", "python", "complex-work-orchestration"],
+        "acceptance": "The scoped code change is complete, compatible with existing behavior, and ready for validation.",
+        "design": "Make the smallest code changes needed for the accepted design and preserve established interfaces.",
+    },
+    "validation": {
+        "skills": ["validation", "testing", "repository-validation"],
+        "acceptance": "Focused tests, repository validation, and residual-risk evidence are recorded.",
+        "design": "Validate behavior from the public helper interface and generated Beads output.",
+    },
+    "docs": {
+        "skills": ["documentation", "operator-guides", "handoff"],
+        "acceptance": "Docs, examples, and handoff instructions match the implemented behavior.",
+        "design": "Keep the skill entrypoint concise and place durable operator detail in README and references.",
+    },
+    "external-dispatch": {
+        "skills": ["contractor-control", "beads", "packet-dispatch"],
+        "acceptance": "Dispatch prerequisites, share boundary, opt-in basis, and no-codex-exec handling are explicit.",
+        "design": "Prepare contract work only after policy gates and user opt-in allow it.",
+    },
+    "peer-review": {
+        "skills": ["peer-review", "contractor-control", "acceptance"],
+        "acceptance": "Independent peer-review disposition is recorded before contractor/local-worker findings influence implementation.",
+        "design": "Keep peer-review work isolated from normal Codex pickup and require architect adjudication.",
+    },
+    "evaluation": {
+        "skills": ["evaluation", "acceptance", "contractor-control"],
+        "acceptance": "Contractor or local-worker returns are scored and dispositioned before follow-up implementation work is created.",
+        "design": "Use evaluator outputs as evidence for architect adjudication, not as direct implementation authority.",
+    },
+    "architect-adjudication": {
+        "skills": ["architecture", "adjudication", "acceptance"],
+        "acceptance": "The architect accepts, rejects, quarantines, or converts findings into normal follow-up Beads.",
+        "design": "Final decision stays with the architect after evaluation and any peer-review gates.",
+    },
+}
+
+
+def lane_fields(lane: str, route: dict[str, Any]) -> dict[str, object]:
+    defaults = {
+        "skills": ["complex-work-orchestration", "beads"],
+        "acceptance": f"The {lane} lane is complete, evidenced, validated as applicable, and ready for handoff.",
+        "design": f"Execute the {lane} lane within the parent epic boundary and escalate scope or risk changes.",
+    }
+    fields = {**defaults, **LANE_FIELDS.get(lane, {})}
+    return {
+        "skills": unique_strings([*fields["skills"], "beads"]),
+        "acceptance": str(fields["acceptance"]),
+        "design": str(fields["design"]),
+        "notes": route_notes(route),
+    }
+
+
+def expert_fields(expert: dict[str, Any], route: dict[str, Any]) -> dict[str, object]:
+    acceptance_checks = expert.get("acceptance_checks", [])
+    output_contract = expert.get("output_contract", [])
+    display_name = str(expert.get("display_name") or expert.get("name") or "Expert reviewer")
+    job_label = str(expert.get("job_description_label", "contract-jd-general-reasoning"))
+    stage = str(expert.get("review_stage", "pre-implementation"))
+    return {
+        "skills": unique_strings(
+            [
+                "expert-review",
+                "complex-work-orchestration",
+                "beads",
+                expert.get("discipline"),
+                expert.get("name"),
+                job_label,
+            ]
+        ),
+        "acceptance": "Review is complete when these checks pass:\n"
+        + bullet_list(list(acceptance_checks), "Findings are scoped, evidenced, and actionable."),
+        "design": (
+            f"Apply the {display_name} lens during {stage}. "
+            f"Honor job-description label {job_label}, share boundary {route.get('share_boundary')}, "
+            "and the Codex pickup rule recorded in metadata."
+        ),
+        "notes": route_notes(route)
+        + "\nOutput contract:\n"
+        + bullet_list(list(output_contract), "Findings, confidence, residual risk, and recommended next Beads."),
+    }
+
+
 def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
     expert_items: list[dict[str, Any]] = []
     acceptance_review_lanes: list[str] = []
@@ -74,21 +204,44 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                 "labels": expert_review_labels(expert, route),
                 "metadata": metadata,
                 "depends_on_lanes": depends_on,
+                **expert_fields(expert, route),
             }
         )
 
     needs_acceptance = bool(acceptance_review_lanes) or route.get("route") in ["external-contract", "local-worker"]
     peer_review_required = bool(route.get("peer_review_required"))
     graph: list[dict[str, Any]] = [
-        {"title": title, "type": "epic", "labels": ["orchestration", "policy-routed"], "metadata": {"orchestration_route": route}},
-        {"title": f"Architect frame: {title}", "type": "task", "lane": "architect", "labels": ["architect", "framing"]},
-        {"title": f"PM coordinate: {title}", "type": "task", "lane": "pm", "labels": ["pm", "coordination"]},
+        {
+            "title": title,
+            "type": "epic",
+            "labels": ["orchestration", "policy-routed"],
+            "metadata": {"orchestration_route": route},
+            "skills": ["complex-work-orchestration", "architecture", "project-management", "beads", "validation"],
+            "acceptance": "All lane work is complete, validated, evaluated, adjudicated, and ready for handoff.",
+            "design": "Policy-routed epic that coordinates architect, PM, workerbee, review, validation, and handoff lanes through Beads.",
+            "notes": route_notes(route),
+        },
+        {
+            "title": f"Architect frame: {title}",
+            "type": "task",
+            "lane": "architect",
+            "labels": ["architect", "framing"],
+            **lane_fields("architect", route),
+        },
+        {
+            "title": f"PM coordinate: {title}",
+            "type": "task",
+            "lane": "pm",
+            "labels": ["pm", "coordination"],
+            **lane_fields("pm", route),
+        },
         {
             "title": f"Implement: {title}",
             "type": "task",
             "lane": "implementation",
             "labels": ["workerbee", "implementation"],
             "depends_on_lanes": ["architect", *implementation_blocker_lanes],
+            **lane_fields("implementation", route),
         },
         {
             "title": f"Validate: {title}",
@@ -96,6 +249,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
             "lane": "validation",
             "labels": ["workerbee", "validation"],
             "depends_on_lanes": ["implementation", *validation_blocker_lanes],
+            **lane_fields("validation", route),
         },
         {
             "title": f"Docs and handoff: {title}",
@@ -103,6 +257,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
             "lane": "docs",
             "labels": ["docs", "handoff"],
             "depends_on_lanes": ["validation"],
+            **lane_fields("docs", route),
         },
     ]
     if needs_acceptance:
@@ -115,6 +270,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                     "lane": "external-dispatch",
                     "labels": ["dispatch", route["route"]],
                     "depends_on_lanes": ["pm"],
+                    **lane_fields("external-dispatch", route),
                 },
                 *(
                     [
@@ -137,6 +293,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                                 "architect_review_required": True,
                             },
                             "depends_on_lanes": ["external-dispatch"],
+                            **lane_fields("peer-review", route),
                         }
                     ]
                     if peer_review_required
@@ -148,6 +305,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                     "lane": "evaluation",
                     "labels": ["evaluation", "contractor-evaluator"],
                     "depends_on_lanes": ["external-dispatch", *peer_review_lanes, *acceptance_review_lanes],
+                    **lane_fields("evaluation", route),
                 },
                 {
                     "title": f"Architect adjudication: {title}",
@@ -155,6 +313,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
                     "lane": "architect-adjudication",
                     "labels": ["architect", "adjudication"],
                     "depends_on_lanes": ["evaluation"],
+                    **lane_fields("architect-adjudication", route),
                 },
             ]
         )
@@ -203,14 +362,18 @@ def main() -> None:
         return
 
     created: dict[str, str] = {}
+    epic_plan = plan[0]
     epic = create_bead(
-        args.title,
+        epic_plan["title"],
         issue_type="epic",
         priority=1,
-        labels=["orchestration", "policy-routed"],
+        labels=epic_plan["labels"],
+        skills=epic_plan["skills"],
         description=args.description or "Policy-routed complex work epic.",
-        acceptance="All lane work is complete, validated, evaluated, adjudicated, and ready for handoff.",
-        metadata={"orchestration_route": route},
+        acceptance=str(epic_plan["acceptance"]),
+        design=str(epic_plan["design"]),
+        notes=str(epic_plan["notes"]),
+        metadata=epic_plan["metadata"],
     )
     created["epic"] = epic["id"]
     print(f"Created epic: {epic['id']}")
@@ -221,7 +384,11 @@ def main() -> None:
             parent=epic["id"],
             priority=1 if item["lane"] in ["architect", "pm", "external-dispatch", "evaluation", "architect-adjudication"] else 2,
             labels=item["labels"],
+            skills=item["skills"],
             description=body(f"Complete the {item['lane']} lane.", f"Evidence and result for {item['lane']}."),
+            acceptance=str(item["acceptance"]),
+            design=str(item["design"]),
+            notes=str(item["notes"]),
             metadata=item.get("metadata"),
         )
         created[item["lane"]] = bead["id"]

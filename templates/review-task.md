@@ -1,3 +1,9 @@
+Native Beads fields:
+- skills:
+- acceptance:
+- design:
+- notes:
+
 Purpose:
 Review the assigned work before implementation, acceptance, or release moves
 forward.

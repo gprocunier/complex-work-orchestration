@@ -245,13 +245,8 @@ Domain reasoning:
 Security-focused example:
 
 ```bash
-bd create "Claude Opus review: security-focused reasoning for auth flow" \
-  --type task \
-  --parent "$EPIC_ID" \
-  --labels contractor-only,no-codex-exec,contract-jd-security-reasoning \
-  --assignee external-claude-opus \
-  --metadata '{"executor":"external-llm","codex_pickup":"forbidden","job_description":"security-focused reasoning","discipline":"security","share_boundary":"redacted-packet","return_channel":"bd-comment","architect_review_required":true}' \
-  --description "Purpose:
+body=$(cat <<'EOF'
+Purpose:
 Security-focused review of the auth flow before implementation continues.
 
 Scope:
@@ -293,8 +288,25 @@ redacted-packet
 
 Codex handling rule:
 Codex agents may coordinate, brief, and review this bead, but must not execute
-or close it as contractor work."
+or close it as contractor work.
+EOF
+)
+
+bd create "Claude Opus review: security-focused reasoning for auth flow" \
+  --type task \
+  --parent "$EPIC_ID" \
+  --labels contractor-only,no-codex-exec,contract-jd-security-reasoning \
+  --assignee external-claude-opus \
+  --skills security,contractor-control,beads \
+  --acceptance "Security findings cite evidence, mitigations are testable, and architect review remains required." \
+  --design "Apply the security job-description lens to the approved redacted packet only; do not perform implementation work." \
+  --notes "Share boundary: redacted-packet. Codex pickup: forbidden. Return channel: bd-comment." \
+  --metadata '{"executor":"external-llm","codex_pickup":"forbidden","job_description":"security-focused reasoning","discipline":"security","share_boundary":"redacted-packet","return_channel":"bd-comment","architect_review_required":true}' \
+  --description "$body"
 ```
+
+Avoid literal `\n` sequences in Beads text fields. Use a heredoc, `--body-file`,
+`--design-file`, or command substitution when a field needs multiple lines.
 
 For generated packets, create the contractor Bead first, then run:
 

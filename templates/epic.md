@@ -1,5 +1,11 @@
 # Epic: {{title}}
 
+Native Beads fields:
+- skills: {{skills}}
+- acceptance: {{acceptance}}
+- design: {{design}}
+- notes: {{notes}}
+
 Purpose:
 {{purpose}}
 

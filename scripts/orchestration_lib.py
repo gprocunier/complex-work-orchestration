@@ -2406,6 +2406,24 @@ def parse_created_issue_id(output: str) -> str:
     return ""
 
 
+def bead_field_value(value: str | list[str] | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value if item is not None and str(item).strip())
+    stripped = str(value).strip()
+    return stripped or None
+
+
+def bead_text_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = str(value).strip()
+    if not stripped:
+        return None
+    return stripped.replace("\\r\\n", "\n").replace("\\n", "\n")
+
+
 def create_bead(
     title: str,
     *,
@@ -2413,8 +2431,11 @@ def create_bead(
     priority: int = 2,
     parent: str | None = None,
     labels: list[str] | None = None,
+    skills: str | list[str] | None = None,
     description: str | None = None,
     acceptance: str | None = None,
+    design: str | None = None,
+    notes: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     args = ["create", title, "--type", issue_type, "--priority", str(priority)]
@@ -2422,10 +2443,21 @@ def create_bead(
         args.extend(["--parent", parent])
     if labels:
         args.extend(["--labels", ",".join(labels)])
-    if description:
-        args.extend(["--description", description])
-    if acceptance:
-        args.extend(["--acceptance", acceptance])
+    skills_value = bead_field_value(skills)
+    if skills_value:
+        args.extend(["--skills", skills_value])
+    description_value = bead_text_value(description)
+    if description_value:
+        args.extend(["--description", description_value])
+    acceptance_value = bead_text_value(acceptance)
+    if acceptance_value:
+        args.extend(["--acceptance", acceptance_value])
+    design_value = bead_text_value(design)
+    if design_value:
+        args.extend(["--design", design_value])
+    notes_value = bead_text_value(notes)
+    if notes_value:
+        args.extend(["--notes", notes_value])
     if metadata:
         args.extend(["--metadata", metadata_json(metadata)])
     output = run_bd(args)

@@ -93,6 +93,15 @@ cd complex-work-orchestration
 test -d .beads && bd ready --json || true
 bd init</code></pre>
             <p>
+              Generated Beads populate native fields for <code>skills</code>,
+              <code>acceptance</code>, <code>design</code>, and
+              <code>notes</code>. The description remains the readable
+              assignment body. When creating Beads manually, use real newlines
+              through a heredoc, <code>--body-file</code>,
+              <code>--design-file</code>, or command substitution instead of
+              typing literal <code>\n</code> sequences.
+            </p>
+            <p>
               Worker-facing ready work should exclude contractor and local
               worker guard labels:
             </p>

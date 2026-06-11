@@ -195,6 +195,19 @@ Escalation triggers:
 Handoff format:
 ```
 
+Generated Beads should also populate native `bd create` fields:
+
+```text
+--skills      Required skills or expert lens
+--acceptance  Concrete done criteria
+--design      Approach, boundaries, and control model
+--notes       Route summary, assumptions, and handoff context
+```
+
+When creating Beads manually, do not type literal `\n` into text fields. Use
+real newlines through a heredoc, `--body-file`, `--design-file`, or shell
+command substitution.
+
 For outside-contractor tasks, also include:
 
 ```text
@@ -262,12 +275,8 @@ Add exactly one primary job-description label:
 Use metadata to make the contract machine-readable:
 
 ```bash
-bd create "Claude Opus review: security-focused reasoning for <scope>" \
-  --type task \
-  --labels contractor-only,no-codex-exec,contract-jd-security-reasoning \
-  --assignee external-claude-opus \
-  --metadata '{"executor":"external-llm","codex_pickup":"forbidden","job_description":"security-focused reasoning","discipline":"security","share_boundary":"redacted-packet","return_channel":"bd-comment","architect_review_required":true}' \
-  --description "Purpose:
+body=$(cat <<'EOF'
+Purpose:
 Scope:
 Inputs:
 Allowed changes:
@@ -279,7 +288,20 @@ Handoff format:
 Contractor job description:
 Contract labels:
 Share boundary:
-Codex handling rule: Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work."
+Codex handling rule: Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work.
+EOF
+)
+
+bd create "Claude Opus review: security-focused reasoning for <scope>" \
+  --type task \
+  --labels contractor-only,no-codex-exec,contract-jd-security-reasoning \
+  --assignee external-claude-opus \
+  --skills security,contractor-control,beads \
+  --acceptance "Security findings cite evidence, mitigations are testable, and architect review remains required." \
+  --design "Apply the security job-description lens within the approved share boundary; do not perform implementation work." \
+  --notes "Share boundary: redacted-packet. Codex pickup: forbidden. Return channel: bd-comment." \
+  --metadata '{"executor":"external-llm","codex_pickup":"forbidden","job_description":"security-focused reasoning","discipline":"security","share_boundary":"redacted-packet","return_channel":"bd-comment","architect_review_required":true}' \
+  --description "$body"
 ```
 
 Codex agents should use ready-work filters that exclude contractor and

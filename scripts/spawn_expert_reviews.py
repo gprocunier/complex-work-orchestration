@@ -12,6 +12,7 @@ from orchestration_lib import (
     expert_uses_external_contract,
     read_text_arg,
 )
+from scaffold_workgraph import bullet_list, route_notes, unique_strings
 
 
 def review_body(expert: dict[str, object], route: dict[str, object]) -> str:
@@ -41,6 +42,40 @@ Codex handling rule:
 """
 
 
+def review_fields(expert: dict[str, object], route: dict[str, object]) -> dict[str, object]:
+    display_name = str(expert.get("display_name") or expert.get("name") or "Expert reviewer")
+    job_label = str(expert.get("job_description_label", "contract-jd-general-reasoning"))
+    stage = str(expert.get("review_stage", "pre-implementation"))
+    return {
+        "skills": unique_strings(
+            [
+                "expert-review",
+                "complex-work-orchestration",
+                "beads",
+                expert.get("discipline"),
+                expert.get("name"),
+                job_label,
+            ]
+        ),
+        "acceptance": "Review is complete when these checks pass:\n"
+        + bullet_list(
+            list(expert.get("acceptance_checks", [])),
+            "Findings are scoped, evidenced, and actionable.",
+        ),
+        "design": (
+            f"Apply the {display_name} lens during {stage}. "
+            f"Honor job-description label {job_label}, share boundary {route.get('share_boundary')}, "
+            "and the Codex pickup rule recorded in metadata."
+        ),
+        "notes": route_notes(route)
+        + "\nOutput contract:\n"
+        + bullet_list(
+            list(expert.get("output_contract", [])),
+            "Findings, confidence, residual risk, and recommended next Beads.",
+        ),
+    }
+
+
 def control_review_body(kind: str, route: dict[str, object]) -> str:
     return f"""Purpose:
 Perform {kind} for the contractor or local-worker return before findings are used for implementation.
@@ -60,6 +95,21 @@ Expected output:
 Codex handling rule:
 Codex may brief and evaluate this Bead, but must not execute it as contractor or local-worker review work.
 """
+
+
+def control_review_fields(kind: str, route: dict[str, object]) -> dict[str, object]:
+    return {
+        "skills": unique_strings(["contractor-control", "peer-review", "acceptance", "beads", kind]),
+        "acceptance": (
+            "Gate is complete when the return has an evidence-backed disposition, "
+            "boundary concerns are explicit, and architect adjudication remains required."
+        ),
+        "design": (
+            f"Run {kind} as an isolated review gate for contractor or local-worker returns. "
+            "Keep no-codex-exec handling intact and block implementation dependency creation until adjudicated."
+        ),
+        "notes": route_notes(route),
+    }
 
 
 def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[dict[str, object]]:
@@ -86,6 +136,7 @@ def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[di
                     "architect_review_required": True,
                 },
                 "description": control_review_body("independent peer review", route),
+                **control_review_fields("independent peer review", route),
             }
         )
     if route.get("provider_conflict_detected"):
@@ -107,6 +158,7 @@ def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[di
                     "architect_review_required": True,
                 },
                 "description": control_review_body("sabotage and malpractice review", route),
+                **control_review_fields("sabotage and malpractice review", route),
             }
         )
     return tasks
@@ -146,6 +198,7 @@ def main() -> None:
                 "labels": expert_review_labels(expert, route),
                 "metadata": expert_review_metadata(expert, route),
                 "description": review_body(expert, route),
+                **review_fields(expert, route),
             }
         )
     reviews.extend(control_review_tasks(args.title_prefix, route))
@@ -162,7 +215,11 @@ def main() -> None:
             parent=args.parent,
             priority=1,
             labels=review["labels"],
+            skills=review["skills"],
             description=review["description"],
+            acceptance=str(review["acceptance"]),
+            design=str(review["design"]),
+            notes=str(review["notes"]),
             metadata=review["metadata"],
         )
         print(f"Created review task: {bead['id']} {bead['title']}")
