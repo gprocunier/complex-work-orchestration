@@ -23,8 +23,6 @@
           <a href="./get-started.html" aria-current="page">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -70,9 +68,15 @@ cd complex-work-orchestration
           <section id="coach">
             <h2>Run the Coach</h2>
             <p>
-              Start with the prompt coach when the right amount of orchestration
-              is unclear. It emits the recommended level, missing questions,
-              enabled levers, disabled levers, and a paste-ready launch prompt.
+              In Codex, start with the prompt coach when the right amount of
+              orchestration is unclear. Codex can run the local helper, show
+              the recommended level, and ask any interactive questions before
+              execution starts.
+            </p>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
+Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code></pre>
+            <p>
+              Advanced operator-shell equivalent:
             </p>
             <pre><code>python3 scripts/coach_prompt.py \
   "Plan a multi-session cleanup of installer docs, tests, and handoff notes."</code></pre>
@@ -117,15 +121,14 @@ bd init</code></pre>
           <section id="execute">
             <h2>Execute Safely</h2>
             <p>
-              Use the full harness for multi-session work, outside contracts,
-              local-worker lanes, publication risk, or anything that needs
-              architect-level acceptance. Keep execution bounded: scope,
-              allowed changes, validation, escalation triggers, and handoff
-              format should be explicit before work begins.
+              Let the coach decide whether the work stays in-thread, becomes a
+              lightweight Beads task, or needs full architect/PM/worker lanes.
+              Outside contractors and local workers are optional lanes selected
+              later; they are not the starting point.
             </p>
             <ol class="check-list">
-              <li>Coach the prompt when sizing is unclear.</li>
-              <li>Route non-trivial work against the policy.</li>
+              <li>Invoke the skill from Codex when sizing is unclear.</li>
+              <li>Let Codex route non-trivial work against the policy.</li>
               <li>Create a Beads task or epic with dependencies.</li>
               <li>Run validation before accepting findings or publishing.</li>
             </ol>

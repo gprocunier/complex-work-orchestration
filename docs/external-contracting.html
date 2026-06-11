@@ -23,8 +23,6 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
-          <a href="./external-contracting.html" aria-current="page">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -36,9 +34,9 @@
         <p class="eyebrow">How-to</p>
         <h1>External Contracting</h1>
         <p class="lede">
-          Outside models are bounded contractors. They receive one Beads
-          assignment, one job-description label, one sharing boundary, and no
-          authority to publish, release, or become the project owner.
+          This is the deep dive for the contractor lane. Start with the
+          <a href="./workflows.html">guided workflow</a>; come here when the
+          coach and route say an outside model contract is appropriate.
         </p>
       </section>
 
@@ -48,11 +46,17 @@
           <a href="#labels">Labels</a>
           <a href="#packet">Packet Gate</a>
           <a href="#return">Return Review</a>
-          <a href="./workflows.html#contractor-dispatch">PM Dispatch</a>
+          <a href="./workflows.html#optional-lanes">Guided Workflow</a>
         </aside>
         <div class="doc-body">
           <section id="collaboration">
             <h2>Collaboration Question</h2>
+            <p>
+              Do not begin here as the default path. In Codex, first ask the
+              prompt coach to size the work; only create contractor Beads after
+              the user has approved third-party collaboration and a share
+              boundary.
+            </p>
             <p>
               Ask before any third-party context leaves the repo:
             </p>
@@ -99,8 +103,9 @@ contract-jd-security-reasoning</code></pre>
               before a manual prompt is rendered.
             </p>
             <p>
-              The <a href="./workflows.html#contractor-dispatch">PM dispatch
-              workflow</a> shows how that rendered prompt can be handed to
+              The <a href="./workflows.html#optional-lanes">guided workflow</a>
+              shows where the contractor lane fits and how the rendered prompt
+              can be handed to
               <code>claude -p</code> or <code>agy -p</code> by an operator.
             </p>
             <pre><code>python3 scripts/build_contractor_packet.py \
@@ -149,6 +154,7 @@ python3 scripts/evaluate_return.py --bead &lt;id&gt; --file contractor-return.md
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./local-workers.html">Local Workers</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>

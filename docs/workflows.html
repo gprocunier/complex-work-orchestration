@@ -23,8 +23,6 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html" aria-current="page">Workflows</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -36,74 +34,89 @@
         <p class="eyebrow">How-to</p>
         <h1>Workflows</h1>
         <p class="lede">
-          Run the helper scripts from inside Codex, let the main thread act as
-          project manager, and hand a bounded contractor prompt to Claude or agy
-          only after the packet gate passes.
+          Use the skill from inside Codex first. Codex runs the coach, turns
+          answers into a Beads-backed plan, and only then opens contractor or
+          local-worker lanes when the policy says they fit.
         </p>
       </section>
 
       <section class="section doc-layout">
         <aside class="page-nav" aria-label="Page sections">
-          <a href="#inside-codex">Inside Codex</a>
-          <a href="#pm-flow">PM Flow</a>
-          <a href="#contractor-dispatch">Contractor Dispatch</a>
-          <a href="#returns">Returns</a>
+          <a href="#invoke-codex">Invoke From Codex</a>
+          <a href="#coach-decide">Coach And Decide</a>
+          <a href="#beads-graph">Beads Work Graph</a>
+          <a href="#optional-lanes">Optional Lanes</a>
+          <a href="#validate-handoff">Validate And Handoff</a>
         </aside>
         <div class="doc-body">
-          <section id="inside-codex">
-            <h2>Inside Codex</h2>
+          <section id="invoke-codex">
+            <h2>Invoke From Codex</h2>
             <p>
-              The helper scripts are normal repository tools. When a user asks
-              Codex to use the prompt coach or orchestration harness, the main
-              Codex thread can run those scripts in the workspace and turn the
-              result into a plan, Beads graph, or contractor packet. The user
-              does not need to leave Codex unless they want automation or a
-              separate operator shell.
+              The normal interface is a Codex request, not a manual tour of
+              helper scripts. Ask for the skill and prompt coach in
+              <code>/plan</code>; Codex can run the local tools, summarize the
+              route, and ask only the choices that change execution.
             </p>
             <div class="workflow-diagram linear" role="img" aria-label="Plan mode request flows to the prompt coach, interactive questions, launch prompt, and Beads scaffold.">
               <div class="flow-card"><strong>User</strong><span>/plan request</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Codex</strong><span>runs coach</span></div>
+              <div class="flow-card"><strong>Codex</strong><span>uses skill</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Questions</strong><span>select levers</span></div>
+              <div class="flow-card"><strong>Coach</strong><span>sizes levers</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Launch</strong><span>scaffold Beads</span></div>
+              <div class="flow-card"><strong>Plan</strong><span>Beads-backed</span></div>
             </div>
             <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Create public docs for outside model contractor packets.</code></pre>
-            <pre><code>python3 scripts/coach_prompt.py --json \
-  "Create public docs for outside model contractor packets."
-
-python3 scripts/route_work.py \
-  "Create public docs for outside model contractor packets."</code></pre>
+Create a publish-ready documentation pass for the project.</code></pre>
             <div class="callout">
-              <strong>In-Codex rule:</strong>
-              Codex may run local helper scripts and summarize their output.
-              Outside sharing still stays disabled until the user chooses a
-              share boundary.
+              <strong>First-class path:</strong>
+              Stay in Codex for the conversation, choices, plan, and execution.
+              Drop to shell commands only for automation, CI, troubleshooting, or a
+              separate operator workflow.
             </div>
           </section>
 
-          <section id="pm-flow">
-            <h2>PM Flow</h2>
+          <section id="coach-decide">
+            <h2>Coach And Decide</h2>
             <p>
-              The project-manager role keeps the durable graph current. It
-              creates or updates Beads, filters ready work so Codex agents do
-              not pick up contractor-only tasks, and records validation evidence
-              before architect acceptance.
+              The coach decides whether the work should stay in-thread, use a
+              lightweight Beads task, scaffold a full harness, or add publish
+              gates. If the route involves outside sharing or local inference,
+              Codex asks for that explicit boundary before any packet exists.
+            </p>
+            <p>
+              What Codex may run behind the scenes:
+            </p>
+            <pre><code>python3 scripts/coach_prompt.py --json \
+  "Create a publish-ready documentation pass for the project."
+
+python3 scripts/route_work.py \
+  "Create a publish-ready documentation pass for the project."</code></pre>
+          </section>
+
+          <section id="beads-graph">
+            <h2>Beads Work Graph</h2>
+            <p>
+              Beads is mandatory durable memory. For narrow work, use one task.
+              For broader work, Codex creates an epic with lanes for architect
+              framing, implementation, review, validation, handoff, and
+              publish-sanitization.
             </p>
             <div class="workflow-diagram pm" role="img" aria-label="Project manager flow from route to workgraph, ready filters, validation, and handoff.">
-              <div class="flow-card"><strong>Route</strong><span>risk, experts, executor</span></div>
+              <div class="flow-card"><strong>Coach</strong><span>level and risk</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Graph</strong><span>epic and lanes</span></div>
+              <div class="flow-card"><strong>Graph</strong><span>epic or task</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Filters</strong><span>ready work only</span></div>
+              <div class="flow-card"><strong>Work</strong><span>bounded lanes</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Handoff</strong><span>evidence in Beads</span></div>
+              <div class="flow-card"><strong>Evidence</strong><span>notes in Beads</span></div>
             </div>
+            <p>
+              Advanced operator-shell equivalent:
+            </p>
             <pre><code>python3 scripts/scaffold_workgraph.py \
   --title "Public workflow docs" \
-  --description "Document in-Codex helper use and PM contractor dispatch."
+  --description "Document the guided Codex workflow."
 
 python3 scripts/spawn_expert_reviews.py \
   --parent "$EPIC_ID" \
@@ -116,25 +129,31 @@ python3 scripts/spawn_expert_reviews.py \
   --json</code></pre>
           </section>
 
-          <section id="contractor-dispatch">
-            <h2>Contractor Dispatch</h2>
+          <section id="optional-lanes">
+            <h2>Optional Lanes</h2>
             <p>
-              Contractor dispatch has two stages. The main thread prepares and
-              audits the packet; the operator chooses whether to hand the final
-              prompt to an external CLI. The helpers do not secretly call
-              Claude, agy, or any other outside model.
+              Contractors and local workers are specialized lanes selected by
+              the coach and route, not separate starting points. Use them only
+              after the user approves the relevant sharing or local-inference
+              boundary.
             </p>
             <div class="workflow-diagram contractor" role="img" aria-label="Contractor dispatch flow from contractor bead to packet, manual prompt, Claude or agy, evaluation, and architect adjudication.">
-              <div class="flow-card"><strong>Contract Bead</strong><span>guard labels</span></div>
+              <div class="flow-card"><strong>Route</strong><span>lane selected</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Packet Gate</strong><span>boundary checked</span></div>
+              <div class="flow-card"><strong>Boundary</strong><span>explicit opt-in</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Prompt</strong><span>dispatch_work.py</span></div>
+              <div class="flow-card"><strong>Packet</strong><span>audited prompt</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Claude / agy</strong><span>operator call</span></div>
+              <div class="flow-card"><strong>Return</strong><span>evidence only</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Adjudicate</strong><span>architect decides</span></div>
             </div>
+            <p>
+              Contractor deep dive: <a href="./external-contracting.html">share
+              boundaries, job labels, packet gates, and returns</a>. Local
+              worker deep dive: <a href="./local-workers.html">OpenShift AI
+              profiles, OpenAI-compatible endpoints, and guardrails</a>.
+            </p>
             <pre><code>python3 scripts/build_contractor_packet.py \
   --bead "$BEAD_ID" \
   --executor claude_code_manual \
@@ -163,12 +182,12 @@ agy -p "$(cat contractor-dispatch-prompt.md)" \
             </div>
           </section>
 
-          <section id="returns">
-            <h2>Returns</h2>
+          <section id="validate-handoff">
+            <h2>Validate And Handoff</h2>
             <p>
-              Contractor output is evidence, not implementation authority.
-              Normalize it, evaluate it, and let the architect decide whether
-              any finding becomes normal Codex-executable work.
+              Validation is the final gate, not a cleanup step. Record commands,
+              evidence, screenshots, return evaluation, and residual risk in
+              Beads before the architect accepts the work.
             </p>
             <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead "$BEAD_ID" \
@@ -181,9 +200,9 @@ python3 scripts/evaluate_return.py \
   --bead "$BEAD_ID" \
   --file contractor-return.md</code></pre>
             <p>
-              Quarantine, malpractice, provider-conflict, and peer-review
-              signals block implementation dependencies until architect
-              adjudication is complete.
+              For ordinary docs or release work, validation also includes
+              repository checks, site checks, tests, install smoke, visual
+              render checks, and publish sanitization before any upstream push.
             </p>
           </section>
         </div>

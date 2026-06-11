@@ -67,8 +67,9 @@ sabotage, `references/prompt-coach.md` when sizing the invocation,
 Distinguished Engineer lenses, and `references/contractor-brief.md` as the
 briefing artifact given to an outside contractor with a specific Beads
 assignment. Use `docs/workflows.html` for the publishable walkthrough of
-in-Codex helper-script use, project-manager dispatch, and manual
-`claude -p` or `agy -p` contractor handoff.
+Codex-native `/plan` invocation, prompt-coach sizing, Beads work-graph
+creation, optional contractor or local-worker lanes, validation, and manual
+`claude -p` or `agy -p` contractor handoff when external sharing is approved.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.
@@ -100,8 +101,10 @@ conflicting findings back to the architect.
 ## Startup Protocol
 
 1. State whether the work is coherent in-thread or needs the harness. Beads tracking is mandatory either way; narrow in-thread work gets one Beads task.
-2. If the right amount of harness is unclear, compile a launch prompt before
-   scaffolding:
+2. If the right amount of harness is unclear, use the prompt coach before
+   scaffolding. In Codex, this is normally triggered by a `/plan` request that
+   asks for `$complex-work-orchestration` prompt coaching; the helper command is
+   the local tool Codex can run to compile the launch prompt:
 
 ```bash
 python3 scripts/coach_prompt.py "<task text>"

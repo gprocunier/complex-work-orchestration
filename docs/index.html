@@ -23,8 +23,6 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -37,13 +35,13 @@
           <p class="eyebrow">Codex skill · Beads-backed coordination</p>
           <h1>Complex Work Orchestration</h1>
           <p class="lede">
-            Turn large, risky, or multi-agent work into a durable operating
-            model with architect judgment, project-manager coordination,
-            bounded workers, optional outside model contracts, and validation
-            evidence.
+            Start inside Codex with <code>/plan</code>, ask for the
+            <code>$complex-work-orchestration</code> prompt coach, and let the
+            main thread size the harness before any worker, contractor, or
+            release gate is dispatched.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="./get-started.html">Run the first workflow</a>
+            <a class="button primary" href="./workflows.html">Use the guided workflow</a>
             <a class="button secondary" href="https://github.com/gprocunier/complex-work-orchestration">View source</a>
           </div>
         </div>
@@ -66,26 +64,26 @@
       <section id="start" class="band intro">
         <div class="section-heading">
           <p class="eyebrow">Two-minute version</p>
-          <h2>Use the skill when work needs memory, roles, or release judgment.</h2>
+          <h2>The first-class interface is the Codex conversation.</h2>
         </div>
         <div class="split">
           <div>
             <p>
-              The skill helps Codex decide whether to stay in-thread, create a
-              lightweight Beads task, or scaffold a full architect/PM/worker
-              harness. It is especially useful when work spans sessions,
-              repositories, outside model reviewers, or publication gates.
+              Ask Codex to use the skill and coach the prompt before the work
+              graph is created. Codex can run the helper scripts in the
+              workspace, summarize the result, ask only the decisions that
+              change execution, and then create the Beads-backed plan.
             </p>
             <p>
-              Beads is the durable state layer. Outside contractors and local
-              workers are treated as bounded evidence sources; the main thread
-              remains the final decision owner.
+              Helper scripts are still available for operator shells and CI,
+              but the normal user path is guided: invoke the skill, answer the
+              coach questions, let Codex scaffold Beads, and validate before
+              accepting or publishing.
             </p>
           </div>
           <div class="command-panel" aria-label="Install command">
-            <pre><code>git clone https://github.com/gprocunier/complex-work-orchestration.git
-cd complex-work-orchestration
-./scripts/install.sh</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
+Create a publish-ready documentation pass for the project.</code></pre>
           </div>
         </div>
       </section>
@@ -93,7 +91,7 @@ cd complex-work-orchestration
       <section id="docs" class="section">
         <div class="section-heading">
           <p class="eyebrow">Diátaxis documentation map</p>
-          <h2>Find the right kind of help for the moment you are in.</h2>
+          <h2>Follow the guided path, then use deep dives when a lane appears.</h2>
         </div>
         <div class="doc-grid">
           <article class="doc-card">
@@ -102,19 +100,19 @@ cd complex-work-orchestration
             <a href="./get-started.html">Run your first orchestration</a>
           </article>
           <article class="doc-card">
-            <h3>How-to guides</h3>
-            <p>Route expert reviews, create contractor packets, validate returns, and resume work.</p>
-            <a href="./workflows.html">Run in-Codex workflows</a>
-          </article>
-          <article class="doc-card">
-            <h3>Workflows</h3>
-            <p>Use helper scripts from inside Codex and hand contractor prompts to Claude or agy.</p>
-            <a href="./workflows.html">See the PM dispatch flow</a>
+            <h3>Guided Workflows</h3>
+            <p>Use <code>/plan</code>, the skill, and the coach to decide the right amount of harness.</p>
+            <a href="./workflows.html">Use the Codex workflow</a>
           </article>
           <article class="doc-card">
             <h3>Reference</h3>
             <p>Inspect policies, schemas, helper scripts, expert labels, and share boundaries.</p>
             <a href="./reference.html">Look up exact controls</a>
+          </article>
+          <article class="doc-card">
+            <h3>Deep Dives</h3>
+            <p>Use contractor or local-worker pages only after the guided flow selects those lanes.</p>
+            <a href="./workflows.html#optional-lanes">Review optional lanes</a>
           </article>
           <article class="doc-card">
             <h3>Explanation</h3>
@@ -133,15 +131,15 @@ cd complex-work-orchestration
           <li>
             <span>1</span>
             <div>
-              <h3>Coach the prompt</h3>
-              <p>Use <code>scripts/coach_prompt.py</code> to choose the right harness level and validation bar.</p>
+              <h3>Invoke from Codex</h3>
+              <p>Use <code>/plan</code> with <code>$complex-work-orchestration</code> when the work needs durable coordination.</p>
             </div>
           </li>
           <li>
             <span>2</span>
             <div>
-              <h3>Route the work</h3>
-              <p>Use policy-backed routing to select experts, risk level, share boundary, and executor fit.</p>
+              <h3>Coach and route</h3>
+              <p>Let Codex run the coach and policy route, then answer only the choices that change execution.</p>
             </div>
           </li>
           <li>
@@ -155,7 +153,7 @@ cd complex-work-orchestration
             <span>4</span>
             <div>
               <h3>Validate before accepting</h3>
-              <p>Run tests, repository validation, packet checks, return evaluation, and publish-sanitization gates.</p>
+              <p>Use the selected validation gates before accepting findings, contractor returns, or publication work.</p>
             </div>
           </li>
         </ol>
@@ -165,11 +163,12 @@ cd complex-work-orchestration
         <p class="eyebrow">Tutorial</p>
         <h2>Run your first orchestration check</h2>
         <p>
-          Start with a bounded task. The coach returns a paste-ready prompt and
-          missing-question guardrails before the work graph is created.
+          Start from the Codex prompt. The coach returns a paste-ready launch
+          prompt and missing-question guardrails before the work graph is
+          created.
         </p>
-        <pre><code>python3 scripts/coach_prompt.py \
-  "Plan a multi-session cleanup of installer docs, tests, and handoff notes."</code></pre>
+        <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
+Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code></pre>
         <p><a href="./get-started.html">Continue with the full getting started guide</a>.</p>
       </section>
 
@@ -179,9 +178,9 @@ cd complex-work-orchestration
         <ul class="link-list">
           <li><a href="./get-started.html">Install the skill</a></li>
           <li><a href="./prompt-coach.html">Choose the right invocation</a></li>
-          <li><a href="./workflows.html">Run helper scripts from inside Codex</a></li>
-          <li><a href="./external-contracting.html">Build a contractor packet</a></li>
-          <li><a href="./local-workers.html">Use local worker review safely</a></li>
+          <li><a href="./workflows.html">Run the guided in-Codex workflow</a></li>
+          <li><a href="./workflows.html#optional-lanes">Decide whether contractor or local-worker lanes are needed</a></li>
+          <li><a href="./reference.html">Look up exact helper scripts and control-plane files</a></li>
         </ul>
       </section>
 

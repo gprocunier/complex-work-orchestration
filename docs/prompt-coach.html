@@ -23,8 +23,6 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html" aria-current="page">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -53,8 +51,15 @@
           <section id="run">
             <h2>Run It</h2>
             <p>
-              Use the coach before scaffolding when the task could be too small
-              for a full harness or too risky for a single hidden thread.
+              In normal use, ask Codex to run the coach from <code>/plan</code>
+              before scaffolding. The shell command is the helper Codex runs
+              behind the scenes or the equivalent for an operator working
+              outside the Codex session.
+            </p>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
+Create public docs for outside model contractor packets.</code></pre>
+            <p>
+              Advanced operator-shell equivalent:
             </p>
             <pre><code>python3 scripts/coach_prompt.py --json \
   "Create public docs for outside model contractor packets."</code></pre>

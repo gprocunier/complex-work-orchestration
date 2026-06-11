@@ -45,7 +45,16 @@ directory: `README.md`, `LICENSE`, `SKILL.md`, `AGENTS.md`, `agents/`,
 
 ## Invocation
 
-Use the explicit trigger when you want the full scaffold:
+The normal interface is the Codex conversation. When sizing is unclear, start
+in Plan mode and ask Codex to use the skill and prompt coach:
+
+```text
+/plan Use $complex-work-orchestration prompt coach to size this work:
+Plan a multi-session cleanup of installer docs, tests, and handoff notes.
+```
+
+Use the explicit scaffold trigger when you already know the work needs the full
+architect/PM/worker harness:
 
 ```text
 Use $complex-work-orchestration to scaffold this project.
@@ -56,8 +65,7 @@ Terms such as `PM coordination`, `workerbee`, `epic`, and `contractor lanes`
 also size the work toward an architect/PM/workerbee graph. Contractor-lane
 language asks for the outside-sharing boundary before any external dispatch.
 
-If you are unsure how much of the harness to use, compile a right-sized launch
-prompt first:
+Advanced operator-shell equivalent:
 
 ```bash
 python3 scripts/coach_prompt.py \
@@ -109,7 +117,11 @@ Core policy files:
 - `policy/contracting-controls.yaml`: dispatch, audit, and adjudication
   controls for outside or local-worker contracts.
 
-Helper scripts:
+Advanced helper scripts:
+
+These are the implementation tools Codex can run in the workspace and the
+operator-shell equivalents for automation or CI. They are not the first-class
+public user flow; start with `/plan` plus the skill when working interactively.
 
 - `scripts/coach_prompt.py`: compile a right-sized invocation prompt before
   launching the full harness, including bounded `interactive_questions` that

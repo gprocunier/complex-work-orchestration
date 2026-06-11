@@ -23,8 +23,6 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html" aria-current="page">Local Workers</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -36,10 +34,10 @@
         <p class="eyebrow">How-to</p>
         <h1>Local Workers</h1>
         <p class="lede">
-          Local workers are bounded evidence sources for low-risk review and
-          mechanical checks. OpenShift AI is the exemplar platform for this
-          model-serving lane, but the interface is OpenAI-compatible and not
-          limited to OpenShift AI.
+          This is the deep dive for the local-worker lane. Start with the
+          <a href="./workflows.html">guided workflow</a>; come here when the
+          coach and route say local inference is a good fit for bounded,
+          low-risk evidence.
         </p>
       </section>
 
@@ -49,6 +47,7 @@
           <a href="#openshift-ai">OpenShift AI</a>
           <a href="#profiles">Profiles</a>
           <a href="#guardrails">Guardrails</a>
+          <a href="./workflows.html#optional-lanes">Guided Workflow</a>
         </aside>
         <div class="doc-body">
           <section id="why-local">
@@ -65,6 +64,12 @@
               that still needs evaluation and architect review before it affects
               implementation.
             </p>
+            <div class="callout">
+              <strong>Start in Codex:</strong>
+              Ask the prompt coach to size the work before selecting this lane.
+              Local workers are opt-in evidence sources, not the default
+              interface for the skill.
+            </div>
           </section>
 
           <section id="openshift-ai">
@@ -140,6 +145,7 @@ python3 scripts/dispatch_work.py \
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
