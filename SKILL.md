@@ -70,6 +70,10 @@ assignment. Use `docs/workflows.html` for the publishable walkthrough of
 Codex-native `/plan` invocation, prompt-coach sizing, Beads work-graph
 creation, optional contractor or local-worker lanes, validation, and manual
 `claude -p` or `agy -p` contractor handoff when external sharing is approved.
+Use `docs/local-workers.html` for the first-class in-Codex local-worker flow,
+including coach opt-in, OpenShift AI vLLM profile selection, dispatch envelope
+generation, explicit `--execute-local`, return evaluation, and architect
+adjudication.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.

@@ -711,15 +711,30 @@ Both packet build and dispatch append audit entries by default. Use
 `--no-audit` only for tests or dry operator rehearsals that must not consume
 quota.
 
-For a low-risk local worker envelope, the operator must explicitly opt in:
+For a low-risk local worker envelope, start inside Codex and let the coach ask
+for explicit local opt-in:
+
+```text
+/plan Use $complex-work-orchestration prompt coach to size this work:
+Use a local OpenShift AI vLLM worker to review a bounded README command example.
+```
+
+After opt-in, Codex may run the local-worker helper path behind the scenes:
 
 ```bash
+python3 scripts/coach_prompt.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --requested-role documentation \
+  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
+
 python3 scripts/route_work.py \
   --local-ok \
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Documentation review for public README examples."
+  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
 ```
 
 Local-worker output is treated like contractor evidence: evaluator scoring and
@@ -730,7 +745,8 @@ The local secure reviewer (`local_secure_review_worker`) is read-only and local:
 it can inspect approved repo context for security, peer-review, repo-review, or
 sabotage-review work, but it has no web, shell, or repo-write authority.
 
-Direct route dispatch without a prebuilt packet can carry a stable dispatch ID:
+Direct route dispatch prepares a local dispatch envelope and can carry a stable
+dispatch ID:
 
 ```bash
 python3 scripts/dispatch_work.py \
@@ -740,6 +756,7 @@ python3 scripts/dispatch_work.py \
   --dispatch-id dispatch-<bead-id>-<timestamp> \
   --bead <id> \
   --epic <epic-id> \
+  --json \
   "Documentation review for public README examples."
 ```
 

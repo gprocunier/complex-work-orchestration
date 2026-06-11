@@ -46,6 +46,17 @@ local-worker opt-in before dispatch. Without `--local-ok`, the conservative
 default is current-thread execution with Beads tracking and local-worker
 dispatch disabled.
 
+First-class in-Codex local-worker invocation:
+
+```text
+/plan Use $complex-work-orchestration prompt coach to size this work:
+Use a local OpenShift AI vLLM worker to review a bounded README command example.
+```
+
+After explicit opt-in, the helper equivalent uses `--local-ok`; add
+`--prefer-local` only when local routing is intended, and use
+`--local-profile openshift-ai-vllm` for the OpenShift AI vLLM profile.
+
 Publish, release, GitHub, tag, and upstream-push language recommends
 `publish-release`; the generated prompt must include validation evidence and
 publish-sanitization before any formal push, release, or tag.

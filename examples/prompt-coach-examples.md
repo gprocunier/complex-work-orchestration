@@ -70,16 +70,26 @@ Expected sizing: `external-contract`.
 
 ## OpenShift AI vLLM Local Worker
 
+First-class in-Codex prompt:
+
+```text
+/plan Use $complex-work-orchestration prompt coach to size this work:
+Use a local OpenShift AI vLLM worker to review a bounded README command example.
+```
+
+Advanced operator-shell equivalent after explicit local opt-in:
+
 ```bash
 python3 scripts/coach_prompt.py \
   --local-ok \
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Documentation review for public README examples."
+  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
 ```
 
-Expected sizing: `local-worker`.
+Expected sizing: `local-worker`, with `local-worker-only`,
+`no-codex-exec`, evaluator requirement, and architect adjudication.
 
 ## Local Worker Mention Without Opt-In
 

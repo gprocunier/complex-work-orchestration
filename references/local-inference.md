@@ -8,6 +8,28 @@ work. A local worker receives a bounded prompt envelope, returns evidence, and
 cannot authorize implementation. Evaluator scoring and architect adjudication
 remain required.
 
+## In-Codex Invocation
+
+The first-class path is a Codex prompt. Ask the prompt coach to size the work
+and let it surface the local-worker opt-in question before any local dispatch
+exists:
+
+```text
+/plan Use $complex-work-orchestration prompt coach to size this work:
+Use a local OpenShift AI vLLM worker to review a bounded README command example.
+```
+
+After explicit opt-in, Codex may run the helper equivalent:
+
+```bash
+python3 scripts/coach_prompt.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --requested-role documentation \
+  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
+```
+
 ## Profiles
 
 Registered local profiles live in `policy/executor-registry.yaml`.

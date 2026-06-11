@@ -45,6 +45,7 @@
           <a href="#run">Run It</a>
           <a href="#levels">Output Levels</a>
           <a href="#questions">Interactive Questions</a>
+          <a href="#local">Local Workers</a>
           <a href="#defaults">Defaults</a>
         </aside>
         <div class="doc-body">
@@ -110,6 +111,32 @@ Create public docs for outside model contractor packets.</code></pre>
               validation bar. These change execution behavior and should be
               captured before dispatch.
             </div>
+          </section>
+
+          <section id="local">
+            <h2>Local Workers</h2>
+            <p>
+              Local-worker language such as <code>vLLM</code>,
+              <code>OpenShift AI</code>, or <code>local worker</code> makes the
+              coach ask for local opt-in unless <code>--local-ok</code> is
+              already present. The recommended default is no local dispatch.
+            </p>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
+Use an OpenShift AI vLLM local worker to review a bounded README command example.</code></pre>
+            <p>
+              Advanced operator-shell equivalent after explicit opt-in:
+            </p>
+            <pre><code>python3 scripts/coach_prompt.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --requested-role documentation \
+  "Use an OpenShift AI vLLM local worker to review a bounded README command example."</code></pre>
+            <p>
+              A local-worker result still needs a <code>local-worker-only</code>
+              / <code>no-codex-exec</code> Bead, dispatch envelope, evaluation,
+              and architect adjudication before any follow-up implementation.
+            </p>
           </section>
 
           <section id="defaults">

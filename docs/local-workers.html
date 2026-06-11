@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Use local OpenAI-compatible workers with Complex Work Orchestration, with OpenShift AI as the exemplar model-serving platform."
+      content="Use local workers from inside Codex with prompt-coach opt-in, OpenShift AI vLLM profile selection, dispatch envelopes, and return evaluation."
     >
     <title>Local Workers | Complex Work Orchestration</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -34,24 +34,54 @@
         <p class="eyebrow">How-to</p>
         <h1>Local Workers</h1>
         <p class="lede">
-          This is the deep dive for the local-worker lane. Start with the
-          <a href="./workflows.html">guided workflow</a>; come here when the
-          coach and route say local inference is a good fit for bounded,
-          low-risk evidence.
+          Use local workers from inside Codex first: ask the prompt coach to
+          size the request, opt in to local inference, select a profile such as
+          OpenShift AI vLLM, then evaluate the return before any finding becomes
+          implementation work.
         </p>
       </section>
 
       <section class="section doc-layout">
         <aside class="page-nav" aria-label="Page sections">
-          <a href="#why-local">Why Local</a>
-          <a href="#openshift-ai">OpenShift AI</a>
-          <a href="#profiles">Profiles</a>
-          <a href="#guardrails">Guardrails</a>
+          <a href="#invoke-codex">Invoke From Codex</a>
+          <a href="#coach-opt-in">Coach Local Opt-In</a>
+          <a href="#openshift-ai">OpenShift AI vLLM</a>
+          <a href="#dispatch-envelope">Dispatch Envelope</a>
+          <a href="#execute-local">Execute Explicitly</a>
+          <a href="#evaluate">Evaluate Returns</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
         </aside>
         <div class="doc-body">
-          <section id="why-local">
-            <h2>Why Local</h2>
+          <section id="invoke-codex">
+            <h2>Invoke From Codex</h2>
+            <p>
+              Start with the same workflow-first interface as any other
+              orchestration request. Ask Codex to use the skill and prompt
+              coach; Codex can run the helper, surface the local-worker opt-in
+              question, and prepare the Beads lane only after the user chooses
+              it.
+            </p>
+            <div class="workflow-diagram linear" role="img" aria-label="Codex local worker flow from plan prompt to coach opt-in, profile, envelope, return evaluation, and architect decision.">
+              <div class="flow-card"><strong>/plan</strong><span>ask coach</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Opt In</strong><span>local-ok</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Profile</strong><span>OpenShift AI vLLM</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Evaluate</strong><span>architect decides</span></div>
+            </div>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
+Use a local OpenShift AI vLLM worker to review a bounded README command example.</code></pre>
+            <div class="callout">
+              <strong>Default posture:</strong>
+              If the user mentions local workers but has not opted in, the
+              coach keeps local-worker dispatch disabled and asks whether local
+              inference should be used.
+            </div>
+          </section>
+
+          <section id="coach-opt-in">
+            <h2>Coach Local Opt-In</h2>
             <p>
               Not every task needs frontier-model reasoning. You do not need a
               frontier model to sanity-check a <code>curl</code> command, review
@@ -64,16 +94,25 @@
               that still needs evaluation and architect review before it affects
               implementation.
             </p>
-            <div class="callout">
-              <strong>Start in Codex:</strong>
-              Ask the prompt coach to size the work before selecting this lane.
-              Local workers are opt-in evidence sources, not the default
-              interface for the skill.
-            </div>
+            <p>
+              What Codex may run behind the scenes after explicit opt-in:
+            </p>
+            <pre><code>python3 scripts/coach_prompt.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --requested-role documentation \
+  "Use an OpenShift AI vLLM local worker to review a bounded README command example."</code></pre>
+            <p>
+              The route should return <code>route=local-worker</code>,
+              <code>local_worker_allowed=true</code>, guard labels
+              <code>local-worker-only</code> and <code>no-codex-exec</code>,
+              evaluator requirement, and architect adjudication requirement.
+            </p>
           </section>
 
           <section id="openshift-ai">
-            <h2>OpenShift AI As Exemplar</h2>
+            <h2>OpenShift AI vLLM Profile</h2>
             <p>
               OpenShift AI is the top-shelf exemplar for this kind of controlled
               local or private model serving: platform integration, operational
@@ -86,10 +125,6 @@
               OpenAI-compatible profile. OpenShift AI is documented as the
               reference-quality path, not a portability limit.
             </p>
-          </section>
-
-          <section id="profiles">
-            <h2>Profiles</h2>
             <p>
               Registered local profiles live in the executor registry. Use
               <code>openshift-ai-vllm</code> when targeting an OpenShift AI
@@ -102,9 +137,15 @@
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
   "Documentation review for the public README examples."</code></pre>
+          </section>
+
+          <section id="dispatch-envelope">
+            <h2>Dispatch Envelope</h2>
             <p>
-              Dispatch prepares a local envelope by default. It does not call
-              the endpoint unless <code>--execute-local</code> is set.
+              Dispatch prepares a local envelope by default. The envelope names
+              the endpoint environment variables and bounded prompt content; it
+              does not include API key values and it does not call the endpoint
+              unless <code>--execute-local</code> is set.
             </p>
             <pre><code>export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
 export CWO_OPENSHIFT_AI_VLLM_MODEL="vllm-local"
@@ -119,17 +160,41 @@ python3 scripts/dispatch_work.py \
   "Summarize docs-review risks."</code></pre>
           </section>
 
-          <section id="guardrails">
-            <h2>Guardrails</h2>
+          <section id="execute-local">
+            <h2>Execute Explicitly</h2>
+            <p>
+              A real local model call is never implicit. Use
+              <code>--execute-local</code> only after the operator has approved
+              the local profile, endpoint, prompt envelope, and Beads
+              assignment.
+            </p>
+            <pre><code>python3 scripts/dispatch_work.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --execute-local \
+  "Summarize docs-review risks."</code></pre>
+          </section>
+
+          <section id="evaluate">
+            <h2>Evaluate Returns</h2>
             <p>
               Local worker and secure-review executors must set
               <code>codex_pickup=forbidden</code>. They should not have web
               access, shell execution, or repository write authority.
             </p>
+            <pre><code>python3 scripts/normalize_contractor_return.py \
+  --file local-return.md \
+  --output local-return-bundle.json
+
+python3 scripts/evaluate_return.py \
+  --file local-return.md \
+  --peer-review-required</code></pre>
             <ol class="check-list">
               <li>Use local workers only after explicit local opt-in.</li>
               <li>Treat output as evidence, not implementation authority.</li>
               <li>Normalize and evaluate local returns before use.</li>
+              <li>Require architect adjudication before follow-up implementation.</li>
               <li>Quarantine failed, disputed, or suspicious returns.</li>
             </ol>
           </section>
