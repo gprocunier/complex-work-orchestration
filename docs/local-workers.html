@@ -20,6 +20,7 @@
           <span>Complex Work Orchestration</span>
         </a>
         <div class="nav-links">
+          <a href="./index.html">Home</a>
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
@@ -42,7 +43,7 @@
       </section>
 
       <section class="section doc-layout">
-        <aside class="page-nav" aria-label="Page sections">
+        <nav class="page-nav" aria-label="Page sections">
           <a href="#invoke-codex">Invoke From Codex</a>
           <a href="#coach-opt-in">Coach Local Opt-In</a>
           <a href="#openshift-ai">OpenShift AI vLLM</a>
@@ -50,7 +51,7 @@
           <a href="#execute-local">Execute Explicitly</a>
           <a href="#evaluate">Evaluate Returns</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
-        </aside>
+        </nav>
         <div class="doc-body">
           <section id="invoke-codex">
             <h2>Invoke From Codex</h2>
@@ -197,6 +198,14 @@ python3 scripts/evaluate_return.py \
               <li>Require architect adjudication before follow-up implementation.</li>
               <li>Quarantine failed, disputed, or suspicious returns.</li>
             </ol>
+            <div class="callout">
+              <strong>Publish-gate handoff:</strong>
+              If local-worker evidence changes public docs, README/install
+              docs, GitHub Pages, site flow, or Diataxis structure, the
+              follow-up work still needs documentation plus web-design review
+              and the <code>contract-jd-editorial-reasoning</code> editor gate
+              before publish sanitization.
+            </div>
           </section>
         </div>
       </section>
@@ -209,11 +218,14 @@ python3 scripts/evaluate_return.py \
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
-        <a href="./workflows.html">Workflows</a>
+        <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
         <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
       </nav>
     </footer>
   </body>

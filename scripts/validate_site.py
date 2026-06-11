@@ -25,6 +25,25 @@ SOURCE_LINK_PATTERNS = [
     "https://ux.redhat.com/",
     "https://diataxis.fr/",
 ]
+PRIMARY_NAV_HREFS = [
+    "./index.html",
+    "./get-started.html",
+    "./prompt-coach.html",
+    "./workflows.html",
+    "./reference.html",
+    REPO_URL,
+]
+FOOTER_HREFS = [
+    "./index.html",
+    "./get-started.html",
+    "./prompt-coach.html",
+    "./workflows.html",
+    "./external-contracting.html",
+    "./local-workers.html",
+    "./reference.html",
+    REPO_URL,
+    f"{REPO_URL}/blob/main/LICENSE",
+]
 
 PRIVATE_PATTERNS = [
     re.compile(r"/home/[A-Za-z0-9_.-]+"),
@@ -85,6 +104,22 @@ def validate_html(path: Path) -> list[str]:
         errors.append(f"{path.relative_to(ROOT)} missing <title>")
     if not any(tag == "h1" for tag, _ in parser.headings):
         errors.append(f"{path.relative_to(ROOT)} missing h1")
+    if '<aside class="page-nav"' in text:
+        errors.append(f"{path.relative_to(ROOT)} uses aside for page navigation instead of nav")
+    if '<div class="nav-links">' in text:
+        for href in PRIMARY_NAV_HREFS:
+            if f'href="{href}"' not in text:
+                errors.append(f"{path.relative_to(ROOT)} missing primary navigation link: {href}")
+    if '<footer class="site-footer">' in text:
+        for href in FOOTER_HREFS:
+            if f'href="{href}"' not in text:
+                errors.append(f"{path.relative_to(ROOT)} missing footer navigation link: {href}")
+    if path.name == "prompt-coach.html":
+        for term in ["External Contract", "Local Worker"]:
+            if term not in text:
+                errors.append(f"{path.relative_to(ROOT)} missing prompt-coach output level: {term}")
+    if path.name in {"external-contracting.html", "local-workers.html"} and "Publish-gate handoff" not in text:
+        errors.append(f"{path.relative_to(ROOT)} missing publish-gate handoff note")
     for landmark in ["main", "nav", "header", "footer"]:
         if landmark not in parser.landmarks:
             errors.append(f"{path.relative_to(ROOT)} missing {landmark} landmark")

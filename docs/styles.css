@@ -165,13 +165,13 @@ h3 {
 }
 
 h1 {
-  font-size: 4rem;
+  font-size: 3.25rem;
   max-width: 12ch;
   overflow-wrap: anywhere;
 }
 
 h2 {
-  font-size: 2.75rem;
+  font-size: 2.2rem;
   max-width: 18ch;
 }
 
@@ -686,24 +686,29 @@ blockquote {
   }
 
   .nav-links {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-start;
-    overflow-x: auto;
+    overflow-x: visible;
     max-width: 100%;
-    padding-bottom: 0.2rem;
-    scrollbar-width: thin;
+    gap: 0.45rem 0.8rem;
   }
 
   .nav-links a {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    white-space: normal;
   }
 
   .hero {
-    padding-top: 2.4rem;
+    padding: 2.4rem 1rem 2rem;
   }
 
   .page-hero {
     padding: 2.75rem 1rem 2rem;
+  }
+
+  .section,
+  .band {
+    padding: 2.2rem 1rem 2rem;
   }
 
   .section.doc-layout {
@@ -712,14 +717,14 @@ blockquote {
   }
 
   .page-nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow-x: visible;
     padding: 0.75rem 0.9rem;
-    scrollbar-width: thin;
+    gap: 0.4rem 0.9rem;
   }
 
   .page-nav a {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
   }
 
   h1 {

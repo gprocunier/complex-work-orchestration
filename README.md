@@ -395,11 +395,15 @@ flowchart LR
 
 1. Decide whether the work is small enough to execute in-thread or needs the
    full orchestration harness. Beads tracking is mandatory either way. If
-   unsure, run the prompt coach first:
+   unsure, ask Codex to run the prompt coach first:
 
-   ```bash
-   python3 scripts/coach_prompt.py "<task text>"
+   ```text
+   /plan Use $complex-work-orchestration prompt coach to size this work:
+   <task text>
    ```
+
+   Advanced operator-shell equivalent: `python3 scripts/coach_prompt.py
+   "<task text>"`.
 
    The coach returns a recommended orchestration level,
    `beads_tracking_required=true`, `workerbee_parallelism`, missing questions,
@@ -559,7 +563,11 @@ Every outside contract gets guard labels:
 - `contractor-only`
 - `no-codex-exec`
 
-Every outside contract also gets exactly one primary job-description label:
+Every contract-style review bead also gets exactly one primary
+job-description label. These labels calibrate outside contractors,
+local-worker review beads, peer-review gates, and editor gates; guard labels
+such as `contractor-only` or `local-worker-only` still determine who may pick
+up the work.
 
 - `contract-jd-general-reasoning`: assumptions, tradeoffs, failure modes,
   alternatives, and independent critique.
@@ -587,11 +595,10 @@ Every outside contract also gets exactly one primary job-description label:
   lens, such as OpenShift Platform, OpenShift Application Developer,
   OpenShift AI, RHOSO, RHACM, RHACS, or RHEL.
 
-The job-description label calibrates the outside model. A security contract
-should return security findings, not a generic project review.
-If work needs multiple disciplines, create multiple contractor Beads so each
-packet has exactly one primary job-description label and one matching expert
-profile.
+The job-description label calibrates the assigned reasoning lane. A security
+contract should return security findings, not a generic project review. If work
+needs multiple disciplines, create multiple Beads so each packet or review lane
+has exactly one primary job-description label and one matching expert profile.
 
 ## Contractor Bead Template
 

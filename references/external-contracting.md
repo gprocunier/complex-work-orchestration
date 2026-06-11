@@ -173,9 +173,12 @@ contract-jd-sabotage-review
 contract-jd-domain-<name>
 ```
 
-Use exactly one primary job-description label per contractor bead. If the work
-really needs two disciplines, create two beads so the findings remain
-separable.
+Use exactly one primary job-description label per contract-style bead. These
+labels intentionally calibrate outside contractors, local-worker review beads,
+peer-review gates, and editor gates. Guard labels such as
+`contractor-only` or `local-worker-only` still determine who may pick up the
+work. If the work really needs two disciplines, create two beads so the
+findings remain separable.
 
 ## Discipline Calibration
 

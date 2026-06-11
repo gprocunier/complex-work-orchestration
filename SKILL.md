@@ -277,6 +277,11 @@ Every local-worker review contract should have these guard labels:
 
 Add exactly one primary job-description label:
 
+The `contract-jd-*` labels calibrate the reasoning lens for any contract-style
+review lane. They are used by outside contractors, local-worker review beads,
+peer-review gates, and editor gates; guard labels such as `contractor-only` or
+`local-worker-only` still determine who may pick up the work.
+
 - `contract-jd-general-reasoning`: independent second opinion, assumptions, tradeoffs, failure modes, and alternative approaches.
 - `contract-jd-security-reasoning`: security-focused glance, threat model, privilege boundaries, input handling, authn/authz, secret exposure, dependency and supply-chain risk.
 - `contract-jd-architecture-reasoning`: system design, boundaries, coupling, migration paths, data flow, long-term maintainability, and reversibility.

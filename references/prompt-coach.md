@@ -11,12 +11,22 @@ disabled levers, warnings, `beads_tracking_required=true`,
 
 ## Basic Use
 
+First-class in-Codex use starts in `/plan`; Codex can run the helper, summarize
+the route, and turn any interactive questions into selectable choices:
+
+```text
+/plan Use $complex-work-orchestration prompt coach to size this work:
+Plan a multi-session cleanup of installer docs, tests, and handoff notes.
+```
+
+Advanced operator-shell equivalent:
+
 ```bash
 python3 scripts/coach_prompt.py \
   "Plan a multi-session cleanup of installer docs, tests, and handoff notes."
 ```
 
-For automation:
+Automation can consume JSON directly:
 
 ```bash
 python3 scripts/coach_prompt.py --json "<task text>"

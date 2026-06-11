@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -2797,6 +2798,20 @@ def create_bead(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     args = ["create", title, "--type", issue_type, "--priority", str(priority)]
+    temp_paths: list[Path] = []
+
+    def temp_file_arg(prefix: str, suffix: str, content: str) -> str:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            prefix=prefix,
+            suffix=suffix,
+            delete=False,
+        ) as handle:
+            handle.write(content)
+            temp_paths.append(Path(handle.name))
+            return handle.name
+
     if parent:
         args.extend(["--parent", parent])
     if labels:
@@ -2806,19 +2821,33 @@ def create_bead(
         args.extend(["--skills", skills_value])
     description_value = bead_text_value(description)
     if description_value:
-        args.extend(["--description", description_value])
+        if len(description_value) > 4000:
+            args.extend(["--body-file", temp_file_arg("cwo-bd-description-", ".md", description_value)])
+        else:
+            args.extend(["--description", description_value])
     acceptance_value = bead_text_value(acceptance)
     if acceptance_value:
         args.extend(["--acceptance", acceptance_value])
     design_value = bead_text_value(design)
     if design_value:
-        args.extend(["--design", design_value])
+        if len(design_value) > 4000:
+            args.extend(["--design-file", temp_file_arg("cwo-bd-design-", ".md", design_value)])
+        else:
+            args.extend(["--design", design_value])
     notes_value = bead_text_value(notes)
     if notes_value:
         args.extend(["--notes", notes_value])
     if metadata:
-        args.extend(["--metadata", metadata_json(metadata)])
-    output = run_bd(args)
+        metadata_path = temp_file_arg("cwo-bd-metadata-", ".json", metadata_json(metadata))
+        args.extend(["--metadata", f"@{metadata_path}"])
+    try:
+        output = run_bd(args)
+    finally:
+        for path in temp_paths:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
     return {"id": parse_created_issue_id(output), "title": title, "raw_output": output.strip()}
 
 
