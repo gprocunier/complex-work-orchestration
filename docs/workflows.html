@@ -92,7 +92,18 @@ Create a publish-ready documentation pass for the project.</code></pre>
   "Create a publish-ready documentation pass for the project."
 
 python3 scripts/route_work.py \
-  "Create a publish-ready documentation pass for the project."</code></pre>
+  "Create a publish-ready documentation pass for the project."
+
+python3 scripts/cleanup_stale_agents.py --json</code></pre>
+            <p>
+              Stale-agent cleanup runs before launch. It cleans harness-owned
+              stale sessions while protecting the current Codex process tree.
+              Run it from the target workspace, or pass
+              <code>--workspace-root</code> when Codex was launched from a
+              broader parent directory. Use
+              <code>--terminate-unowned-codex</code> only for an explicit
+              operator cleanup of stale unowned Codex, Claude, or Agy processes.
+            </p>
           </section>
 
           <section id="beads-graph">

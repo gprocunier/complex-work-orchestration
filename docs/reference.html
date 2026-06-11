@@ -113,9 +113,9 @@
               automation, and CI.
             </p>
             <p>
-              Scripts perform sizing, routing, scaffolding, packet building,
-              dispatch prompt rendering, return normalization, evaluation,
-              audit verification, and repository validation.
+              Scripts perform sizing, routing, stale-agent cleanup, scaffolding,
+              packet building, dispatch prompt rendering, return normalization,
+              evaluation, audit verification, and repository validation.
               Scaffolded and expert-review Beads carry native
               <code>skills</code>, <code>acceptance</code>,
               <code>design</code>, and <code>notes</code> fields so the work
@@ -123,6 +123,7 @@
             </p>
             <pre><code>python3 scripts/coach_prompt.py "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
+python3 scripts/cleanup_stale_agents.py --json
 python3 scripts/validate_repository.py
 python3 scripts/validate_site.py</code></pre>
             <p>

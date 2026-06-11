@@ -135,6 +135,11 @@ public user flow; start with `/plan` plus the skill when working interactively.
   Codex can map to selectable Plan-mode prompts and a
   `beads_tracking_required` flag that is always true for skill-governed work.
 - `scripts/route_work.py`: classify a request against the policy.
+- `scripts/cleanup_stale_agents.py`: automatically clean stale harness-owned
+  agent sessions before launch while protecting the current Codex process tree;
+  run it from the target workspace or pass `--workspace-root <path>`, and use
+  `--terminate-unowned-codex` only for explicit operator cleanup of stale
+  unowned Codex, Claude, or Agy processes in that workspace.
 - `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and lane
   tasks.
 - `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
@@ -436,34 +441,50 @@ flowchart LR
    `local-worker-only` and `no-codex-exec` and require evaluator plus architect
    adjudication before implementation. Use `--local-profile openshift-ai-vllm`
    when the target worker is an OpenShift AI vLLM endpoint.
-6. Check Beads and initialize or sync the work graph.
-7. Create or update one Beads task for narrow/current-thread work. Escalate to
+6. Before launching agents, run stale-agent cleanup:
+
+   ```bash
+   python3 scripts/cleanup_stale_agents.py --json
+   ```
+
+   This automatically cleans harness-owned stale sessions while protecting the
+   current Codex process tree. Run it from the target workspace, or pass
+   `--workspace-root <path>` when Codex was launched from a broader parent
+   directory. Broader cleanup of stale unowned Codex, Claude, or Agy processes
+   requires explicit operator intent:
+
+   ```bash
+   python3 scripts/cleanup_stale_agents.py --workspace-root /path/to/workspace --terminate-unowned-codex --json
+   ```
+
+7. Check Beads and initialize or sync the work graph.
+8. Create or update one Beads task for narrow/current-thread work. Escalate to
    an epic when multiple independent work streams, handoffs, contractors, or
    release gates appear.
-8. For epic-sized work, create role/lane tasks under the epic: architect
+9. For epic-sized work, create role/lane tasks under the epic: architect
    framing, PM coordination, review-only workerbee sidecar lanes,
    implementation workerbee lanes only when write ownership is disjoint,
    validation, docs/handoff, and any outside contracts.
-9. For outside work, post contractor-only Beads with job-description labels.
+10. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
    evaluation, and architect adjudication as real Beads dependencies.
-10. PM prepares the contractor packet and a manual dispatch prompt. Packet
+11. PM prepares the contractor packet and a manual dispatch prompt. Packet
    build and dispatch both record hash-chained audit events unless `--no-audit`
    is used.
-11. Dispatch revalidates the packet hash, executor, boundary, opt-in basis,
+12. Dispatch revalidates the packet hash, executor, boundary, opt-in basis,
    provider binding, disclosure stage, expert profile, and artifact whitelist
    before rendering the prompt.
-12. The outside model returns findings through Beads comments or a patch branch.
-13. PM normalizes the return into a return bundle and evaluates required
+13. The outside model returns findings through Beads comments or a patch branch.
+14. PM normalizes the return into a return bundle and evaluates required
    sections, evidence, confidence, residual risk, explicit safety fields,
    boundary fit, and sabotage or malpractice signals.
-14. If peer review is required or the return trips the sabotage review
+15. If peer review is required or the return trips the sabotage review
    threshold, run the peer-review lane before implementation can proceed.
-15. If the return trips quarantine, do not convert findings into implementation
+16. If the return trips quarantine, do not convert findings into implementation
    dependencies until the architect explicitly adjudicates the incident.
-16. The architect reviews contractor findings before Codex workers implement
+17. The architect reviews contractor findings before Codex workers implement
    follow-up work or before release decisions are made.
-17. PM keeps dependencies, status, blockers, and resume instructions current.
+18. PM keeps dependencies, status, blockers, and resume instructions current.
 
 ## Beads Requirement
 

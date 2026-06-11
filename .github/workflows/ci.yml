@@ -24,5 +24,7 @@ jobs:
         run: bash examples/sample-route-command.sh
       - name: Prompt coach dry run
         run: bash examples/sample-prompt-coach-command.sh
+      - name: Stale agent cleanup dry run
+        run: python scripts/cleanup_stale_agents.py --dry-run --json
       - name: Installer dry run
         run: ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run

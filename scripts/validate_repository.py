@@ -26,6 +26,7 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/validate_site.py",
     "python -m unittest discover -s tests",
     "bash examples/sample-prompt-coach-command.sh",
+    "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
 
 
@@ -211,6 +212,9 @@ def validate_repository() -> list[str]:
             "/plan Use $complex-work-orchestration prompt coach",
             "The normal interface is the Codex conversation",
             "scripts/coach_prompt.py",
+            "scripts/cleanup_stale_agents.py",
+            "--terminate-unowned-codex",
+            "--workspace-root",
             "Advanced helper scripts",
             "references/prompt-coach.md",
             "prompt-coach results",
@@ -322,6 +326,8 @@ def validate_repository() -> list[str]:
             "AI-slop wording",
             "/plan Use $complex-work-orchestration prompt coach",
             "scripts/coach_prompt.py",
+            "scripts/cleanup_stale_agents.py",
+            "--workspace-root",
             "scripts/scaffold_workgraph.py",
             "scripts/build_contractor_packet.py",
             "scripts/dispatch_work.py",
@@ -426,6 +432,9 @@ def validate_repository() -> list[str]:
         "SKILL.md",
         [
             "scripts/coach_prompt.py",
+            "scripts/cleanup_stale_agents.py",
+            "--terminate-unowned-codex",
+            "--workspace-root",
             "references/prompt-coach.md",
             "interactive_questions",
             "Beads tracking is mandatory",

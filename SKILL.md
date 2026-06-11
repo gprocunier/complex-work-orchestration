@@ -149,7 +149,19 @@ python3 scripts/route_work.py "<task text>"
    low-risk local worker dispatch is the intended route. Use
    `--local-profile openshift-ai-vllm` to require the OpenShift AI vLLM
    executor profile.
-5. If launching agents, clean stale agent state first using the local harness convention.
+5. Before launching agents, automatically clean stale harness-owned agent
+   sessions and local state:
+
+```bash
+python3 scripts/cleanup_stale_agents.py --json
+```
+
+   The helper protects the current Codex process tree. It terminates only
+   harness-owned stale sessions by default. Run it from the target workspace, or
+   pass `--workspace-root <path>` when Codex was launched from a broader parent
+   directory. Use `--terminate-unowned-codex` only when the operator explicitly
+   wants to clean stale unowned Codex, Claude, or Agy processes in that
+   workspace.
 6. Check for Beads:
 
 ```bash
