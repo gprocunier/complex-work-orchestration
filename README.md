@@ -117,6 +117,13 @@ Core policy files:
 - `policy/contracting-controls.yaml`: dispatch, audit, and adjudication
   controls for outside or local-worker contracts.
 
+Public documentation and GitHub Pages work has an additional editorial gate.
+When the route sees public docs, README/install docs, GitHub Pages, site flow,
+or Diataxis work, it selects the documentation expert, web-design expert when a
+site/page is involved, and the editor expert. The editor is the final internal
+validation gate for docs/pages coherence, Diataxis fit, redundancy, circular
+content, and AI-slop wording before publish sanitization.
+
 Advanced helper scripts:
 
 These are the implementation tools Codex can run in the workspace and the
@@ -395,11 +402,14 @@ flowchart LR
    ```
 
    The coach returns a recommended orchestration level,
-   `beads_tracking_required=true`, missing questions, bounded
-   `interactive_questions`, enabled/disabled levers, warnings, and a paste-ready
-   launch prompt. In Plan mode, use `interactive_questions` for selectable user
-   input when the answer changes execution behavior. In Default mode, ask only
-   the required concise question or apply the coach's safe default.
+   `beads_tracking_required=true`, `workerbee_parallelism`, missing questions,
+   bounded `interactive_questions`, enabled/disabled levers, warnings, and a
+   paste-ready launch prompt. In Plan mode, use `interactive_questions` for
+   selectable user input when the answer changes execution behavior. If the
+   coach recommends `review-workerbees`, call out Codex 5.3 Spark workerbees for
+   parallel docs, tests, routing, validation, or publish-sanitization review
+   before that becomes automatic. In Default mode, ask only the required concise
+   question or apply the coach's safe default.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -425,8 +435,10 @@ flowchart LR
 7. Create or update one Beads task for narrow/current-thread work. Escalate to
    an epic when multiple independent work streams, handoffs, contractors, or
    release gates appear.
-8. For epic-sized work, create role/lane tasks under the epic: architect framing, PM coordination,
-   workerbee work, validation, docs/handoff, and any outside contracts.
+8. For epic-sized work, create role/lane tasks under the epic: architect
+   framing, PM coordination, review-only workerbee sidecar lanes,
+   implementation workerbee lanes only when write ownership is disjoint,
+   validation, docs/handoff, and any outside contracts.
 9. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
    evaluation, and architect adjudication as real Beads dependencies.
@@ -562,6 +574,9 @@ Every outside contract also gets exactly one primary job-description label:
   resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing
   warnings, examples, and publishability.
+- `contract-jd-editorial-reasoning`: final public docs/pages editorial gate for
+  flow, Diataxis fit, redundancy, circular content, AI-slop wording, and
+  publishable narrative.
 - `contract-jd-peer-review`: independent acceptance gate for contractor or
   local-worker returns when `peer_review_required=true`.
 - `contract-jd-sabotage-review`: integrity review for suspicious, conflicted,
@@ -852,7 +867,8 @@ See `references/prompt-coach.md` for prompt sizing and invocation guidance,
 `references/external-contracting.md` for the outside-contractor guide, and
 `references/local-inference.md` for OpenShift AI vLLM and other local
 OpenAI-compatible workers. See `references/redhat-expert-catalog.md` for the
-Red Hat product-focused Distinguished Engineer lenses. Use
+Red Hat product-focused Distinguished Engineer lenses. Use `experts/editor.md`
+for the final editor gate on public documentation and GitHub Pages work. Use
 `references/contractor-brief.md` as the reusable assignment brief for outside
 model contractors. Use `policy/`, `schemas/`, `templates/`, and `experts/` as
 the source of truth for route classification, job-description calibration,

@@ -52,9 +52,24 @@ Expected sizing: `full-harness` with an `outside_sharing_boundary` question
 until the user explicitly chooses a sharing boundary.
 
 The JSON output includes `interactive_questions` for Plan-mode prompts when the
-recommended harness level, sharing boundary, local worker use, or validation bar
-needs user confirmation. Each question has two or three options with the
-recommended option first.
+recommended harness level, workerbee parallelism, sharing boundary, local
+worker use, or validation bar needs user confirmation. Each question has two or
+three options with the recommended option first.
+
+## Parallel Workerbee Review
+
+```bash
+python3 scripts/coach_prompt.py \
+  "Do a deep second pass on docs, GitHub Pages flow, routing policy, and tests."
+```
+
+Expected sizing: `publish-release` or `full-harness` depending policy route,
+with `workerbee_parallelism.recommended_mode=review-only`,
+`workerbee-parallelism=review-only`, and a Plan-mode
+`workerbee_parallelism` question whose recommended option is
+`review-workerbees`. Use Codex 5.3 Spark workerbees for bounded parallel
+review/investigation lanes while the main thread keeps integration and final
+acceptance.
 
 ## External Security Contractor
 
@@ -111,3 +126,15 @@ python3 scripts/coach_prompt.py \
 
 Expected sizing: `publish-release` with `publish-sanitization`, a validation
 bar, and repository/path confirmation before any formal push, release, or tag.
+
+## Public Docs Pages Editor Gate
+
+```bash
+python3 scripts/coach_prompt.py \
+  "Create documentation plus GitHub Pages for a project using Diataxis."
+```
+
+Expected sizing: `publish-release` with documentation, web design, and
+`contract-jd-editorial-reasoning`. The editor gate must check docs/pages flow,
+Diataxis fit, redundancy, circular content, AI-slop wording, and publishable
+narrative before publish sanitization.

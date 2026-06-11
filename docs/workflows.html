@@ -101,6 +101,9 @@ python3 scripts/route_work.py \
               For broader work, Codex creates an epic with lanes for architect
               framing, implementation, review, validation, handoff, and
               publish-sanitization.
+              Public docs and GitHub Pages work adds an editor gate so
+              documentation, web design, and final editorial review converge
+              before validation is accepted.
             </p>
             <div class="workflow-diagram pm" role="img" aria-label="Project manager flow from route to workgraph, ready filters, validation, and handoff.">
               <div class="flow-card"><strong>Coach</strong><span>level and risk</span></div>
@@ -122,6 +125,14 @@ python3 scripts/spawn_expert_reviews.py \
   --parent "$EPIC_ID" \
   --requested-role documentation \
   "Review the workflow docs before publish."</code></pre>
+            <div class="callout">
+              <strong>Editor gate:</strong>
+              public docs, README/install docs, GitHub Pages, site-flow, and
+              Diataxis work route through
+              <code>contract-jd-editorial-reasoning</code>. The editor checks
+              docs/pages flow, Diataxis fit, redundancy, circular content, and
+              AI-slop wording before publish sanitization.
+            </div>
             <pre><code>bd ready \
   --exclude-label contractor-only \
   --exclude-label local-worker-only \
@@ -229,7 +240,8 @@ python3 scripts/evaluate_return.py \
             <p>
               For ordinary docs or release work, validation also includes
               repository checks, site checks, tests, install smoke, visual
-              render checks, and publish sanitization before any upstream push.
+              render checks, editor-gate evidence when public docs/pages are in
+              scope, and publish sanitization before any upstream push.
             </p>
           </section>
         </div>

@@ -154,7 +154,7 @@ def validate_repository() -> list[str]:
         errors.append("contracting controls must define sabotage_policy.signal_weights")
     if not controls.get("malpractice_policy", {}).get("signal_weights"):
         errors.append("contracting controls must define malpractice_policy.signal_weights")
-    for required_expert in ["peer_review", "sabotage_review"]:
+    for required_expert in ["peer_review", "sabotage_review", "editor"]:
         if required_expert not in experts:
             errors.append(f"expert registry is missing required {required_expert!r} gate")
 
@@ -215,6 +215,9 @@ def validate_repository() -> list[str]:
             "references/prompt-coach.md",
             "prompt-coach results",
             "interactive_questions",
+            "workerbee_parallelism",
+            "review-workerbees",
+            "Codex 5.3 Spark workerbees",
             "beads_tracking_required",
             "Beads tracking is mandatory",
             "Main-Thread PM Dispatch Flow",
@@ -227,6 +230,8 @@ def validate_repository() -> list[str]:
             "`notes`",
             "full-harness request",
             "contractor lanes",
+            "editor gate",
+            "contract-jd-editorial-reasoning",
             "OpenShift AI vLLM",
             "--local-ok",
             "--prefer-local",
@@ -245,6 +250,8 @@ def validate_repository() -> list[str]:
         [
             "Complex Work Orchestration",
             "Diátaxis documentation map",
+            "editor gate",
+            "docs/pages flow",
             "Two-minute version",
             "The first-class interface is the Codex conversation",
             "/plan Use $complex-work-orchestration prompt coach",
@@ -284,7 +291,10 @@ def validate_repository() -> list[str]:
             "/plan Use $complex-work-orchestration prompt coach",
             "Advanced operator-shell equivalent",
             "interactive_questions",
+            "workerbee_parallelism",
+            "Codex 5.3 Spark workerbees",
             "Publish Release",
+            "contract-jd-editorial-reasoning",
             "outside-sharing boundary",
             "local-worker opt-in",
             "./workflows.html",
@@ -300,6 +310,9 @@ def validate_repository() -> list[str]:
             "Beads Work Graph",
             "Optional Lanes",
             "Validate And Handoff",
+            "Editor gate",
+            "contract-jd-editorial-reasoning",
+            "AI-slop wording",
             "/plan Use $complex-work-orchestration prompt coach",
             "scripts/coach_prompt.py",
             "scripts/scaffold_workgraph.py",
@@ -377,6 +390,8 @@ def validate_repository() -> list[str]:
             "--local-ok",
             "--local-profile openshift-ai-vllm",
             "architect adjudication",
+            "contract-jd-editorial-reasoning",
+            "AI-slop wording",
             "claude -p",
             "agy -p",
             "skills",
@@ -408,12 +423,15 @@ def validate_repository() -> list[str]:
             "interactive_questions",
             "Beads tracking is mandatory",
             "beads_tracking_required",
+            "workerbee_parallelism",
+            "Codex 5.3 Spark workerbees",
             "--skills",
             "--acceptance",
             "--design",
             "--notes",
             "docs/workflows.html",
             "docs/local-workers.html",
+            "contract-jd-editorial-reasoning",
             "/plan",
             "claude -p",
             "agy -p",
@@ -445,6 +463,8 @@ def validate_repository() -> list[str]:
         [
             "interactive_questions",
             "beads_tracking_required",
+            "workerbee_parallelism",
+            "review-only",
             "contractor lanes",
             "in-thread",
             "lightweight-beads",
@@ -452,6 +472,7 @@ def validate_repository() -> list[str]:
             "external-contract",
             "local-worker",
             "publish-release",
+            "contract-jd-editorial-reasoning",
         ],
     )
     require_doc_terms(
@@ -460,6 +481,9 @@ def validate_repository() -> list[str]:
         [
             "interactive_questions",
             "beads_tracking_required",
+            "Parallel Workerbee Review",
+            "workerbee_parallelism.recommended_mode=review-only",
+            "review-workerbees",
             "Explicit Scaffold",
             "Contractor Lane Scaffold",
             "Narrow In-Thread Work",
@@ -473,12 +497,27 @@ def validate_repository() -> list[str]:
             "architect adjudication",
             "Local Worker Mention Without Opt-In",
             "Publish Release Gate",
+            "Public Docs Pages Editor Gate",
+            "contract-jd-editorial-reasoning",
+            "AI-slop wording",
         ],
     )
     require_doc_terms(
         errors,
         "references/external-contracting.md",
-        ["Peer-review disposition", "malpractice_score", "contract-jd-sabotage-review"],
+        ["Peer-review disposition", "malpractice_score", "contract-jd-sabotage-review", "contract-jd-editorial-reasoning"],
+    )
+    require_doc_terms(
+        errors,
+        "experts/editor.md",
+        [
+            "Editor Distinguished Engineer",
+            "contract-jd-editorial-reasoning",
+            "Diataxis",
+            "docs/pages flow",
+            "AI-slop",
+            "Acceptance criteria",
+        ],
     )
     require_doc_terms(
         errors,

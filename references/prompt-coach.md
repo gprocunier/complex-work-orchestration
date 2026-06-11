@@ -6,8 +6,8 @@ Use the prompt coach when a user is unsure how much of
 The prompt coach is a compiler, not a second router. It calls the same policy
 router as `scripts/route_work.py`, then emits a right-sized launch prompt,
 missing high-value questions, bounded interactive questions, enabled levers,
-disabled levers, warnings, `beads_tracking_required=true`, and the underlying
-route result.
+disabled levers, warnings, `beads_tracking_required=true`,
+`workerbee_parallelism`, and the underlying route result.
 
 ## Basic Use
 
@@ -61,6 +61,20 @@ Publish, release, GitHub, tag, and upstream-push language recommends
 `publish-release`; the generated prompt must include validation evidence and
 publish-sanitization before any formal push, release, or tag.
 
+Public docs, README/install docs, GitHub Pages, site-flow, and Diataxis
+language also enables the editor gate. The route should include documentation,
+web design when a site/page is involved, and `contract-jd-editorial-reasoning`
+as the final validation-lane expert before publish sanitization.
+
+## Workerbee Parallelism
+
+`workerbee_parallelism` is separate from the orchestration level. Broad
+full-harness or publish-release work can still choose whether to use parallel
+workerbees. The conservative default for docs, Pages, policy, routing, tests,
+validation, and publish-sanitization work is `review-only` using Codex 5.3
+Spark workerbees. Implementation-capable workerbees require explicit disjoint
+write scopes; otherwise the main thread keeps file integration and acceptance.
+
 ## Missing Questions
 
 The coach asks only for information that materially changes sizing:
@@ -89,6 +103,8 @@ Use these questions for decisions such as:
   lightweight Beads, full harness, or publish-grade execution
 - whether outside sharing is allowed: no sharing, redacted packet, or
   repo-readonly
+- whether to use Codex 5.3 Spark workerbees for bounded parallel review or
+  investigation
 - whether a local inference worker is allowed
 - what validation bar to apply
 

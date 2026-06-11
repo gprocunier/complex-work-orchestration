@@ -73,7 +73,10 @@ creation, optional contractor or local-worker lanes, validation, and manual
 Use `docs/local-workers.html` for the first-class in-Codex local-worker flow,
 including coach opt-in, OpenShift AI vLLM profile selection, dispatch envelope
 generation, explicit `--execute-local`, return evaluation, and architect
-adjudication.
+adjudication. For public documentation, README/install docs, GitHub Pages,
+site-flow, or Diataxis work, route through documentation plus web-design when a
+site/page is involved, then require the internal editor expert as the final
+validation gate before publish sanitization.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.
@@ -115,7 +118,12 @@ python3 scripts/coach_prompt.py "<task text>"
 ```
 
    Use the coach output to avoid under- or over-leveraging Beads, contractors,
-   local inference, peer review, or publish-sanitization.
+   local inference, peer review, workerbee parallelism, or
+   publish-sanitization. If `workerbee_parallelism.recommended_mode` is
+   `review-only`, call out Codex 5.3 Spark workerbees for bounded parallel
+   review or investigation lanes before automatic workerbee handling exists.
+   Use implementation workerbees only when file ownership or workstream
+   boundaries are disjoint.
    If the result includes `interactive_questions` and Codex is in Plan mode,
    present those as selectable prompts because the answer changes execution
    behavior. In Default mode, ask only the concise blocking question or apply the
@@ -172,6 +180,7 @@ Recommended lanes:
 - Project manager coordination
 - Implementation workerbee lane
 - Test/validation workerbee lane
+- Review-only workerbee lane for parallel docs, policy, routing, validation, or publish-sanitization sidecar work
 - Outside contractor lane with job-description contracts
 - Peer-review lane when route output sets `peer_review_required=true`
 - Release or publish sanitization lane, when relevant
@@ -274,6 +283,7 @@ Add exactly one primary job-description label:
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery, observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost, resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing warnings, examples, and publishability.
+- `contract-jd-editorial-reasoning`: final public docs/pages editorial gate for flow, Diataxis fit, redundancy, circular content, AI-slop wording, and publishable narrative.
 - `contract-jd-peer-review`: independent gate for contractor or local-worker
   returns when route output sets `peer_review_required=true`.
 - `contract-jd-sabotage-review`: integrity review for suspected sabotage,

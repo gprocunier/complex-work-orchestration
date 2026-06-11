@@ -20,6 +20,47 @@ RISK_ORDER = ["low", "medium", "high", "critical"]
 SENSITIVITY_ORDER = ["public", "redacted", "internal", "restricted"]
 EXTERNAL_GUARD_LABELS = ["contractor-only", "no-codex-exec"]
 LOCAL_WORKER_GUARD_LABELS = ["local-worker-only", "no-codex-exec"]
+EDITOR_GATE_EXPERT = "editor"
+PUBLIC_DOCS_EDITOR_TEXT_TERMS = [
+    "public docs",
+    "public documentation",
+    "public guide",
+    "readme",
+    "install docs",
+    "installation docs",
+    "operator docs",
+    "github pages",
+    "github page",
+    "docs plus pages",
+    "documentation plus github pages",
+    "docs and pages",
+    "site flow",
+    "docs flow",
+    "pages flow",
+    "documentation architecture",
+    "diataxis",
+    "diátaxis",
+]
+PUBLIC_DOCS_PAGE_TEXT_TERMS = [
+    "github pages",
+    "github page",
+    "docs site",
+    "documentation site",
+    "website",
+    "web site",
+    "site flow",
+    "pages flow",
+    "web design",
+    "ux",
+    "ui",
+    "html",
+    "css",
+    "frontend",
+    "diataxis",
+    "diátaxis",
+]
+PUBLIC_DOCS_PATHS = {"README.md", "SKILL.md"}
+PUBLIC_DOCS_PAGE_SUFFIXES = {".html", ".css", ".js"}
 MANDATORY_EXCLUDED_ARTIFACTS = {"full_bead_json", "secrets", "production_access"}
 CONTRACTOR_PACKET_REQUIRED_FIELDS = [
     "dispatch_id",
@@ -67,6 +108,7 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "interactive_questions",
     "enabled_levers",
     "disabled_levers",
+    "workerbee_parallelism",
     "route",
     "paste_ready_prompt",
     "warnings",
@@ -259,6 +301,38 @@ def path_hits(paths: list[str], patterns: list[str]) -> list[str]:
     return hits
 
 
+def expert_result_from_profile(
+    name: str,
+    profile: dict[str, Any],
+    *,
+    triggers: list[str] | None = None,
+    paths_matched: list[str] | None = None,
+    score: int = 0,
+    reasons: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "display_name": profile.get("display_name", name),
+        "discipline": profile.get("discipline", name),
+        "persona_file": profile.get("persona_file"),
+        "job_description_label": profile.get("job_description_label", "contract-jd-general-reasoning"),
+        "task_class": profile.get("task_class", "domain-review"),
+        "review_stage": profile.get("review_stage", "pre-implementation"),
+        "default_risk": profile.get("default_risk", "medium"),
+        "default_share_boundary": profile.get("default_share_boundary", "redacted-packet"),
+        "preferred_executors": profile.get("preferred_executors", []),
+        "matched_terms": triggers or [],
+        "matched_paths": paths_matched or [],
+        "score": score,
+        "reasons": reasons or [],
+        "output_contract": profile.get("output_contract", []),
+        "acceptance_checks": profile.get("acceptance_checks", []),
+        "escalation_rules": profile.get("escalation_rules", []),
+        "validation_gate_required": bool(profile.get("validation_gate_required", False)),
+        "gate_scope": profile.get("gate_scope"),
+    }
+
+
 def score_experts_v2(
     text: str,
     expert_registry: dict[str, Any],
@@ -298,29 +372,88 @@ def score_experts_v2(
         if score <= 0:
             continue
 
-        result = {
-            "name": name,
-            "display_name": profile.get("display_name", name),
-            "discipline": profile.get("discipline", name),
-            "persona_file": profile.get("persona_file"),
-            "job_description_label": profile.get("job_description_label", "contract-jd-general-reasoning"),
-            "task_class": profile.get("task_class", "domain-review"),
-            "review_stage": profile.get("review_stage", "pre-implementation"),
-            "default_risk": profile.get("default_risk", "medium"),
-            "default_share_boundary": profile.get("default_share_boundary", "redacted-packet"),
-            "preferred_executors": profile.get("preferred_executors", []),
-            "matched_terms": triggers,
-            "matched_paths": paths_matched,
-            "score": score,
-            "reasons": reasons,
-            "output_contract": profile.get("output_contract", []),
-            "acceptance_checks": profile.get("acceptance_checks", []),
-            "escalation_rules": profile.get("escalation_rules", []),
-        }
+        result = expert_result_from_profile(
+            name,
+            profile,
+            triggers=triggers,
+            paths_matched=paths_matched,
+            score=score,
+            reasons=reasons,
+        )
         results.append(result)
 
     results.sort(key=lambda item: (-int(item["score"]), item["name"]))
     return results
+
+
+def is_public_docs_path(path: str) -> bool:
+    clean = path.strip().lstrip("./")
+    if clean in PUBLIC_DOCS_PATHS:
+        return True
+    return clean.startswith("docs/")
+
+
+def is_public_docs_page_path(path: str) -> bool:
+    clean = path.strip().lstrip("./")
+    if not clean.startswith("docs/"):
+        return False
+    return Path(clean).suffix in PUBLIC_DOCS_PAGE_SUFFIXES
+
+
+def public_docs_editor_gate_required(text: str, file_paths: list[str] | None = None) -> bool:
+    lowered = text.lower()
+    if any(term in lowered for term in PUBLIC_DOCS_EDITOR_TEXT_TERMS):
+        return True
+    return any(is_public_docs_path(path) for path in file_paths or [])
+
+
+def public_docs_page_review_required(text: str, file_paths: list[str] | None = None) -> bool:
+    lowered = text.lower()
+    if any(term in lowered for term in PUBLIC_DOCS_PAGE_TEXT_TERMS):
+        return True
+    return any(is_public_docs_page_path(path) for path in file_paths or [])
+
+
+def ensure_public_docs_gate_experts(
+    experts: list[dict[str, Any]],
+    expert_registry: dict[str, Any],
+    *,
+    text: str,
+    file_paths: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], bool, list[str]]:
+    if not public_docs_editor_gate_required(text, file_paths):
+        return experts, False, []
+
+    required = ["documentation", EDITOR_GATE_EXPERT]
+    if public_docs_page_review_required(text, file_paths):
+        required.insert(1, "web_design")
+
+    existing = {str(expert.get("name")) for expert in experts}
+    enriched = list(experts)
+    added: list[str] = []
+    for name in required:
+        if name in existing:
+            continue
+        profile = expert_registry.get("experts", {}).get(name)
+        if not profile:
+            continue
+        result = expert_result_from_profile(
+            name,
+            profile,
+            score=2,
+            reasons=["mandatory public docs/pages editor gate"],
+        )
+        enriched.append(result)
+        existing.add(name)
+        added.append(name)
+
+    for expert in enriched:
+        if expert.get("name") == EDITOR_GATE_EXPERT:
+            expert["validation_gate_required"] = True
+            expert["gate_scope"] = "public-docs-pages"
+
+    enriched.sort(key=lambda item: (-int(item["score"]), item["name"]))
+    return enriched, True, added
 
 
 def boundary_config(share_boundary: str) -> dict[str, Any]:
@@ -561,15 +694,29 @@ def classify_work(
     unattended: bool = False,
 ) -> dict[str, Any]:
     routing = load_policy("routing-policy")
+    expert_registry = load_policy("expert-registry")
     experts = score_experts_v2(
         text,
-        load_policy("expert-registry"),
+        expert_registry,
         requested_roles=requested_roles,
         file_paths=file_paths,
         stage=stage,
     )
     if not experts:
-        experts = score_experts_v2(text + " independent review", load_policy("expert-registry"))
+        experts = score_experts_v2(text + " independent review", expert_registry)
+    skip_editor_gate_for_local_review = bool(
+        local_ok and prefer_local and not public_docs_page_review_required(text, file_paths)
+    )
+    if skip_editor_gate_for_local_review:
+        editor_gate_required = False
+        editor_gate_added: list[str] = []
+    else:
+        experts, editor_gate_required, editor_gate_added = ensure_public_docs_gate_experts(
+            experts,
+            expert_registry,
+            text=text,
+            file_paths=file_paths,
+        )
 
     sensitivity = detect_sensitivity(text, routing)
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
@@ -695,6 +842,17 @@ def classify_work(
         "required_experts": experts,
         "ranked_experts": experts,
         "ranked_executors": ranked_executors,
+        "editor_gate_required": editor_gate_required,
+        "editor_gate_added_experts": editor_gate_added,
+        "editor_gate_experts": (
+            [
+                str(expert.get("name"))
+                for expert in experts
+                if expert.get("name") in {"documentation", "web_design", EDITOR_GATE_EXPERT}
+            ]
+            if editor_gate_required
+            else []
+        ),
         "guard_labels": guard_labels,
         "evaluator_required": evaluator_required,
         "architect_adjudication_required": architect_adjudication_required,
@@ -760,6 +918,92 @@ def prompt_coach_has_contractor_sharing_signal(text: str) -> bool:
     )
 
 
+def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[str, Any]) -> dict[str, Any]:
+    lower = text.lower()
+    explicit_workerbee = text_has_any(
+        lower,
+        [
+            "workerbee",
+            "workerbees",
+            "codex 5.3 spark",
+            "spark workerbee",
+            "spark workerbees",
+        ],
+    )
+    review_terms = [
+        "parallel",
+        "multiple agents",
+        "independent investigation",
+        "review pass",
+        "second pass",
+        "docs",
+        "documentation",
+        "github pages",
+        "site flow",
+        "diataxis",
+        "tests",
+        "validation",
+        "ci",
+        "policy",
+        "routing",
+        "scaffold",
+        "publish",
+        "release",
+    ]
+    implementation_terms = [
+        "parallel implementation",
+        "implementation workerbee",
+        "implementation workerbees",
+        "split implementation",
+        "disjoint patches",
+        "disjoint files",
+        "independent patches",
+    ]
+    suggested_lanes: list[str] = []
+    if text_has_any(lower, ["docs", "documentation", "readme", "github pages", "site flow", "diataxis", "diátaxis"]):
+        suggested_lanes.append("docs-flow-review")
+    if text_has_any(lower, ["policy", "routing", "route", "scaffold", "coach", "orchestration"]):
+        suggested_lanes.append("policy-routing-review")
+    if text_has_any(lower, ["tests", "validation", "ci", "schema"]):
+        suggested_lanes.append("test-gap-review")
+    if text_has_any(lower, ["publish", "release", "public", "sanitize", "sanitization"]):
+        suggested_lanes.append("publish-sanitization-review")
+
+    if not suggested_lanes and text_has_any(lower, review_terms):
+        suggested_lanes.append("bounded-investigation")
+
+    prompt_user = False
+    mode = "none"
+    rationale: list[str] = []
+    if text_has_any(lower, implementation_terms):
+        mode = "implementation-capable"
+        prompt_user = not explicit_workerbee
+        if explicit_workerbee:
+            rationale.append("The request explicitly asks for workerbee execution on separable implementation work.")
+        else:
+            rationale.append("The request names separable implementation work that may be safe to split by file ownership.")
+    elif level in {"full-harness", "publish-release"} or text_has_any(lower, review_terms):
+        mode = "review-only"
+        prompt_user = not explicit_workerbee and not prompt_coach_has_full_harness_signal(lower)
+        if explicit_workerbee:
+            rationale.append("The request explicitly asks for workerbee lanes.")
+        else:
+            rationale.append("Independent review, test, docs, policy, or validation lanes can run beside main-thread implementation.")
+
+    if mode == "none":
+        rationale.append("No clear parallel sidecar lane is needed; keep the work in the main thread.")
+    if route.get("route") in {"external-contract", "local-worker"} and mode != "none":
+        rationale.append("Workerbees are separate from contractor/local-worker dispatch; do not use them for no-codex-exec contract work.")
+
+    return {
+        "recommended_mode": mode,
+        "recommended_model": "gpt-5.3-codex-spark" if mode != "none" else None,
+        "prompt_user_in_plan_mode": prompt_user,
+        "suggested_lanes": suggested_lanes,
+        "rationale": rationale,
+    }
+
+
 def prompt_coach_level(route: dict[str, Any], text: str) -> str:
     lower = text.lower()
     publish_terms = [
@@ -798,7 +1042,12 @@ def prompt_coach_level(route: dict[str, Any], text: str) -> str:
     return "in-thread"
 
 
-def prompt_coach_missing_questions(route: dict[str, Any], text: str, file_paths: list[str] | None) -> list[dict[str, str]]:
+def prompt_coach_missing_questions(
+    route: dict[str, Any],
+    text: str,
+    file_paths: list[str] | None,
+    workerbee_parallelism: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
     lower = text.lower()
     words = re.findall(r"[A-Za-z0-9_/-]+", text)
     questions: list[dict[str, str]] = []
@@ -828,6 +1077,15 @@ def prompt_coach_missing_questions(route: dict[str, Any], text: str, file_paths:
                 "question": "Should this stay as a single Beads task or expand into an epic/work graph?",
                 "why": "Beads tracking is mandatory; this only decides the amount of graph structure.",
                 "default": "Start with one Beads task and escalate to an epic if independent work streams appear.",
+            }
+        )
+    if workerbee_parallelism and workerbee_parallelism.get("prompt_user_in_plan_mode"):
+        questions.append(
+            {
+                "id": "workerbee_parallelism",
+                "question": "Should Codex use parallel workerbees for bounded sidecar work?",
+                "why": "Parallel workerbees can review docs, tests, routing, validation, or disjoint implementation lanes while the main thread owns integration.",
+                "default": "Use review-only Codex 5.3 Spark workerbees for broad work; keep implementation authority in the main thread unless disjoint write scopes are explicit.",
             }
         )
     if prompt_coach_has_contractor_sharing_signal(lower) and not route.get("external_opt_in"):
@@ -865,6 +1123,7 @@ def prompt_coach_interactive_questions(
     level: str,
     route: dict[str, Any],
     missing_questions: list[dict[str, str]],
+    workerbee_parallelism: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     missing_ids = {question["id"] for question in missing_questions}
     questions: list[dict[str, Any]] = []
@@ -905,6 +1164,47 @@ def prompt_coach_interactive_questions(
                 "question": "How much orchestration should Codex use?",
                 "why": "The answer changes graph size and review lanes; Beads tracking remains mandatory.",
                 "options": dedupe_interactive_options(options),
+            }
+        )
+
+    if "workerbee_parallelism" in missing_ids:
+        recommended = workerbee_parallelism or {}
+        recommended_mode = recommended.get("recommended_mode") or "review-only"
+        first = {
+            "review-only": {
+                "label": "Review workerbees (Recommended)",
+                "value": "review-workerbees",
+                "description": "Use Codex 5.3 Spark workerbees for bounded review or investigation lanes.",
+            },
+            "implementation-capable": {
+                "label": "Split implementation (Recommended)",
+                "value": "implementation-workerbees",
+                "description": "Use workerbees only for disjoint file scopes with main-thread integration.",
+            },
+        }.get(recommended_mode, {
+            "label": "Review workerbees (Recommended)",
+            "value": "review-workerbees",
+            "description": "Use Codex 5.3 Spark workerbees for bounded review or investigation lanes.",
+        })
+        questions.append(
+            {
+                "id": "workerbee_parallelism",
+                "header": "Workers",
+                "question": "Should Codex parallelize bounded work with workerbees?",
+                "why": "The answer changes whether sidecar review or disjoint implementation work runs in parallel.",
+                "options": dedupe_interactive_options([
+                    first,
+                    {
+                        "label": "No workerbees",
+                        "value": "no-workerbees",
+                        "description": "Keep all work in the main thread while still using Beads tracking.",
+                    },
+                    {
+                        "label": "Review workerbees",
+                        "value": "review-workerbees",
+                        "description": "Use workerbees only for read-only review, test triage, or evidence gathering.",
+                    },
+                ]),
             }
         )
 
@@ -1013,7 +1313,11 @@ def dedupe_interactive_options(options: list[dict[str, str]]) -> list[dict[str, 
     return deduped[:3]
 
 
-def prompt_coach_enabled_levers(level: str, route: dict[str, Any]) -> list[str]:
+def prompt_coach_enabled_levers(
+    level: str,
+    route: dict[str, Any],
+    workerbee_parallelism: dict[str, Any] | None = None,
+) -> list[str]:
     levers = [
         f"route={route.get('route')}",
         f"risk={route.get('risk_level')}",
@@ -1034,15 +1338,30 @@ def prompt_coach_enabled_levers(level: str, route: dict[str, Any]) -> list[str]:
         levers.append("peer-review-required")
     if route.get("provider_conflict_detected"):
         levers.append("provider-conflict-review")
+    if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
+        levers.extend(
+            [
+                f"workerbee-parallelism={workerbee_parallelism.get('recommended_mode')}",
+                "codex-5.3-spark-workerbees",
+            ]
+        )
     return levers
 
 
-def prompt_coach_disabled_levers(level: str, route: dict[str, Any]) -> list[str]:
+def prompt_coach_disabled_levers(
+    level: str,
+    route: dict[str, Any],
+    workerbee_parallelism: dict[str, Any] | None = None,
+) -> list[str]:
     levers: list[str] = []
     if level == "in-thread":
         levers.extend(["full-harness", "external-contracting", "local-worker-dispatch"])
     elif level == "lightweight-beads":
         levers.extend(["outside-contractor", "local-worker-dispatch", "full-contractor-packet"])
+    if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") == "review-only":
+        levers.append("implementation-workerbees-until-disjoint-scope")
+    if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") == "none":
+        levers.append("workerbee-parallelism")
     if not route.get("external_contract_allowed"):
         levers.append("external-contracting-until-explicit-opt-in")
     if not route.get("has_local_worker_contracts"):
@@ -1050,7 +1369,12 @@ def prompt_coach_disabled_levers(level: str, route: dict[str, Any]) -> list[str]
     return sorted(set(levers))
 
 
-def prompt_coach_rationale(level: str, route: dict[str, Any], missing_questions: list[dict[str, str]]) -> list[str]:
+def prompt_coach_rationale(
+    level: str,
+    route: dict[str, Any],
+    missing_questions: list[dict[str, str]],
+    workerbee_parallelism: dict[str, Any] | None = None,
+) -> list[str]:
     rationale = [
         f"Policy route is {route.get('route')} with {route.get('risk_level')} risk.",
         f"Recommended executor is {route.get('recommended_executor')}.",
@@ -1067,6 +1391,11 @@ def prompt_coach_rationale(level: str, route: dict[str, Any], missing_questions:
         rationale.append("A local-worker route is selected and local inference was explicitly allowed.")
     elif level == "publish-release":
         rationale.append("Publish or release language requires sanitization and explicit validation evidence.")
+    if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
+        rationale.append(
+            "Workerbee parallelism is recommended as "
+            f"{workerbee_parallelism.get('recommended_mode')} using Codex 5.3 Spark for bounded sidecar lanes."
+        )
     if missing_questions:
         rationale.append("The generated prompt includes missing-question guardrails before execution.")
     return rationale
@@ -1086,17 +1415,37 @@ def prompt_coach_warnings(route: dict[str, Any], missing_questions: list[dict[st
     return warnings
 
 
-def render_coached_prompt(level: str, route: dict[str, Any], text: str, missing_questions: list[dict[str, str]]) -> str:
+def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
+    if not workerbee_parallelism or workerbee_parallelism.get("recommended_mode") == "none":
+        return ""
+    lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]
+    return (
+        "Use Codex 5.3 Spark workerbees for "
+        f"{workerbee_parallelism.get('recommended_mode')} parallelism on: "
+        + ", ".join(str(item) for item in lanes)
+        + ". Keep main-thread architecture, file integration, and acceptance decisions with the architect.\n"
+    )
+
+
+def render_coached_prompt(
+    level: str,
+    route: dict[str, Any],
+    text: str,
+    missing_questions: list[dict[str, str]],
+    workerbee_parallelism: dict[str, Any] | None = None,
+) -> str:
     question_block = ""
     if missing_questions:
         question_block = "\n\nBefore execution, resolve:\n" + "\n".join(
             f"- {item['question']} Default: {item['default']}" for item in missing_questions
         )
     validation = "Validation: report commands, evidence, and residual risk."
+    workerbees = workerbee_prompt_line(workerbee_parallelism)
     if level == "in-thread":
         return (
             "Handle this in the current thread with mandatory Beads tracking, without the full $complex-work-orchestration harness.\n"
             f"Goal: {text}\n"
+            f"{workerbees}"
             "Create or update one Beads task for the work story, evidence, validation, and handoff. "
             "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
             "or multiple independent work streams appear.\n"
@@ -1106,6 +1455,7 @@ def render_coached_prompt(level: str, route: dict[str, Any], text: str, missing_
         return (
             "Use $complex-work-orchestration for lightweight Beads-backed coordination.\n"
             f"Goal: {text}\n"
+            f"{workerbees}"
             "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
             "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
             f"{validation}{question_block}"
@@ -1114,6 +1464,7 @@ def render_coached_prompt(level: str, route: dict[str, Any], text: str, missing_
         return (
             "Use $complex-work-orchestration to scaffold a full architect/PM/workerbee/validation harness.\n"
             f"Goal: {text}\n"
+            f"{workerbees}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
             "and any policy-required peer-review lanes. Keep final decisions with the architect.\n"
             f"{validation}{question_block}"
@@ -1123,6 +1474,7 @@ def render_coached_prompt(level: str, route: dict[str, Any], text: str, missing_
         return (
             "Use $complex-work-orchestration with an outside contractor lane.\n"
             f"Goal: {text}\n"
+            f"{workerbees}"
             f"Share boundary: {route.get('share_boundary')}.\n"
             f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
             "Build a boundary-gated contractor packet, evaluate the return, run peer review if required, "
@@ -1133,6 +1485,7 @@ def render_coached_prompt(level: str, route: dict[str, Any], text: str, missing_
         return (
             "Use $complex-work-orchestration with a bounded local-worker review lane.\n"
             f"Goal: {text}\n"
+            f"{workerbees}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
             "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
             "and require architect adjudication before follow-up implementation.\n"
@@ -1141,6 +1494,7 @@ def render_coached_prompt(level: str, route: dict[str, Any], text: str, missing_
     return (
         "Use $complex-work-orchestration for publish/release-ready execution.\n"
         f"Goal: {text}\n"
+        f"{workerbees}"
         "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization lanes. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
         f"{validation}{question_block}"
@@ -1173,20 +1527,22 @@ def coach_orchestration_prompt(
         unattended=unattended,
     )
     level = prompt_coach_level(route, text)
-    questions = prompt_coach_missing_questions(route, text, file_paths)
-    interactive_questions = prompt_coach_interactive_questions(level, route, questions)
+    workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
+    questions = prompt_coach_missing_questions(route, text, file_paths, workerbee_parallelism)
+    interactive_questions = prompt_coach_interactive_questions(level, route, questions, workerbee_parallelism)
     return {
         "coach_result_type": "complex-work-orchestration-prompt-coach",
         "version": 3,
         "beads_tracking_required": True,
         "recommended_orchestration_level": level,
-        "rationale": prompt_coach_rationale(level, route, questions),
+        "rationale": prompt_coach_rationale(level, route, questions, workerbee_parallelism),
         "missing_questions": questions,
         "interactive_questions": interactive_questions,
-        "enabled_levers": prompt_coach_enabled_levers(level, route),
-        "disabled_levers": prompt_coach_disabled_levers(level, route),
+        "enabled_levers": prompt_coach_enabled_levers(level, route, workerbee_parallelism),
+        "disabled_levers": prompt_coach_disabled_levers(level, route, workerbee_parallelism),
+        "workerbee_parallelism": workerbee_parallelism,
         "route": route,
-        "paste_ready_prompt": render_coached_prompt(level, route, text, questions),
+        "paste_ready_prompt": render_coached_prompt(level, route, text, questions, workerbee_parallelism),
         "warnings": prompt_coach_warnings(route, questions),
     }
 
@@ -1322,6 +1678,8 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
         "codex_pickup": "forbidden" if external or local_worker else selected.get("codex_pickup", "allowed"),
         "architect_review_required": True,
         "acceptance_bead_required": external or local_worker,
+        "validation_gate_required": bool(expert.get("validation_gate_required")),
+        "gate_scope": expert.get("gate_scope"),
     }
 
 

@@ -228,6 +228,25 @@
       "acceptance_checks": ["accessibility criteria are explicit", "layout states are covered", "recommendations fit the app domain"],
       "escalation_rules": ["accessibility blocker", "brand/publication risk", "critical workflow ambiguity"]
     },
+    "editor": {
+      "display_name": "Editor Distinguished Engineer",
+      "discipline": "editorial-review",
+      "persona_file": "experts/editor.md",
+      "job_description_label": "contract-jd-editorial-reasoning",
+      "aliases": ["editor", "editorial", "editorial-review", "copy-editor", "docs-editor"],
+      "task_class": "docs-review",
+      "review_stage": "pre-release",
+      "default_risk": "medium",
+      "validation_gate_required": true,
+      "gate_scope": "public-docs-pages",
+      "preferred_executors": ["frontier_architect", "internal_worker"],
+      "file_path_patterns": ["README.md", "SKILL.md", "docs/*", "docs/*.html", "docs/*.css", "references/*", "examples/*"],
+      "trigger_terms": ["editor", "editorial review", "editor gate", "editorial gate", "copy edit", "final review", "ai slop", "slop", "redundant", "redundancy", "circular", "repetitive", "bad flow", "docs flow", "pages flow", "diataxis", "diátaxis", "github pages", "public docs"],
+      "required_inputs": ["target audience", "documentation map", "page flow", "Diataxis intent", "changed behavior", "publication constraints"],
+      "output_contract": ["editorial decision", "flow findings", "Diataxis fit", "redundancy removals", "AI-slop rewrites", "release-blocking gaps"],
+      "acceptance_checks": ["docs and pages flow together", "Diataxis role is explicit", "redundant or circular content is removed", "AI-slop wording is replaced", "public narrative is coherent"],
+      "escalation_rules": ["conflicting docs architecture", "public reader cannot complete the workflow", "repeated unsupported claims", "editorial gate cannot determine acceptance"]
+    },
     "openshift_platform": {
       "display_name": "OpenShift Platform Distinguished Engineer",
       "discipline": "openshift-platform",

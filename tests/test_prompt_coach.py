@@ -116,6 +116,39 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(len(validation_questions), 1)
         self.assertEqual(validation_questions[0]["options"][0]["value"], "publish-grade")
 
+    def test_parallelizable_work_asks_for_workerbees(self) -> None:
+        result = coach_orchestration_prompt(
+            "Do a deep second pass on docs, GitHub Pages flow, routing policy, and tests."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
+        self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
+        self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
+        self.assertIn("codex-5.3-spark-workerbees", result["enabled_levers"])
+        self.assertIn("Codex 5.3 Spark workerbees", result["paste_ready_prompt"])
+        worker_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
+        ]
+        self.assertEqual(len(worker_questions), 1)
+        self.assertEqual(worker_questions[0]["header"], "Workers")
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "review-workerbees")
+
+    def test_explicit_workerbee_request_does_not_double_prompt(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use $complex-work-orchestration to scaffold this project with PM coordination and workerbee validation."
+        )
+        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
+        self.assertFalse(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
+        self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
+        self.assertFalse(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+
+    def test_narrow_work_does_not_prompt_for_workerbees(self) -> None:
+        result = coach_orchestration_prompt("Fix typo in README.md")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "none")
+        self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
+        self.assertFalse(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+
     def test_cli_json_output_contains_prompt_and_route(self) -> None:
         output = subprocess.check_output(
             [
@@ -133,6 +166,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("paste_ready_prompt", result)
         self.assertIn("interactive_questions", result)
+        self.assertIn("workerbee_parallelism", result)
         self.assertIn("route", result)
 
     def test_in_thread_interactive_option_keeps_beads(self) -> None:

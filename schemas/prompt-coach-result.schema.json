@@ -12,6 +12,7 @@
     "interactive_questions",
     "enabled_levers",
     "disabled_levers",
+    "workerbee_parallelism",
     "route",
     "paste_ready_prompt",
     "warnings"
@@ -73,6 +74,30 @@
     },
     "enabled_levers": {"type": "array", "items": {"type": "string"}},
     "disabled_levers": {"type": "array", "items": {"type": "string"}},
+    "workerbee_parallelism": {
+      "type": "object",
+      "required": [
+        "recommended_mode",
+        "recommended_model",
+        "prompt_user_in_plan_mode",
+        "suggested_lanes",
+        "rationale"
+      ],
+      "properties": {
+        "recommended_mode": {
+          "enum": ["none", "review-only", "implementation-capable"]
+        },
+        "recommended_model": {
+          "anyOf": [
+            {"type": "string"},
+            {"type": "null"}
+          ]
+        },
+        "prompt_user_in_plan_mode": {"type": "boolean"},
+        "suggested_lanes": {"type": "array", "items": {"type": "string"}},
+        "rationale": {"type": "array", "items": {"type": "string"}}
+      }
+    },
     "route": {"type": "object"},
     "paste_ready_prompt": {"type": "string"},
     "warnings": {"type": "array", "items": {"type": "string"}}

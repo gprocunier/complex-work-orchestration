@@ -28,6 +28,9 @@ def print_human(route: dict[str, object], top_n: int) -> None:
         print(f"Local profile: {route['local_profile']}")
     print(f"Has external expert contracts: {route.get('has_external_expert_contracts')}")
     print(f"Has local worker contracts: {route.get('has_local_worker_contracts')}")
+    print(f"Editor gate required: {route.get('editor_gate_required')}")
+    if route.get("editor_gate_experts"):
+        print(f"Editor gate experts: {', '.join(str(item) for item in route.get('editor_gate_experts', []))}")
     print(f"Evaluator required: {route['evaluator_required']}")
     print(f"Architect adjudication required: {route['architect_adjudication_required']}")
 

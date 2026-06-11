@@ -57,6 +57,29 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIn("executor=", rendered)
         self.assertIn("violations=", rendered)
 
+    def test_public_docs_pages_require_editor_gate(self) -> None:
+        result = classify_work(
+            "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
+            file_paths=["docs/index.html", "README.md"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+        self.assertTrue(result["editor_gate_required"])
+        self.assertIn("documentation", names)
+        self.assertIn("web_design", names)
+        self.assertIn("editor", names)
+        editor = next(expert for expert in result["ranked_experts"] if expert["name"] == "editor")
+        self.assertTrue(editor["validation_gate_required"])
+        self.assertEqual(editor["job_description_label"], "contract-jd-editorial-reasoning")
+
+    def test_internal_docs_do_not_auto_require_editor_gate(self) -> None:
+        result = classify_work(
+            "Documentation review for internal Beads workgraph behavior.",
+            requested_roles=["documentation"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+        self.assertFalse(result["editor_gate_required"])
+        self.assertNotIn("editor", names)
+
     def test_red_hat_product_experts_route_by_requested_role(self) -> None:
         cases = [
             (

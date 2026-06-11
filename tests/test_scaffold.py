@@ -52,7 +52,7 @@ class ScaffoldTests(unittest.TestCase):
 
     def test_local_worker_route_marks_expert_reviews_forbidden_to_codex_pickup(self) -> None:
         route = classify_work(
-            "Documentation review for public README examples.",
+            "Documentation review for short internal example notes.",
             requested_roles=["documentation"],
             share_boundary="no-outside-sharing",
             local_ok=True,
@@ -76,6 +76,23 @@ class ScaffoldTests(unittest.TestCase):
             self.assertIn("no-codex-exec", item["labels"])
             self.assertIn(lane, by_lane["evaluation"]["depends_on_lanes"])
         self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+
+    def test_public_docs_pages_graph_uses_editor_validation_gate(self) -> None:
+        route = classify_work(
+            "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
+            file_paths=["docs/index.html", "README.md"],
+        )
+        graph = planned_graph("Public Docs Site", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertTrue(route["editor_gate_required"])
+        self.assertIn("expert-review-editor", by_lane)
+        self.assertIn("publish-sanitization", by_lane)
+        self.assertIn("expert-review-editor", by_lane["validation"]["depends_on_lanes"])
+        self.assertIn("expert-review-editor", by_lane["publish-sanitization"]["depends_on_lanes"])
+        self.assertEqual(by_lane["docs"]["depends_on_lanes"], ["publish-sanitization"])
+        self.assertTrue(by_lane["expert-review-editor"]["metadata"]["validation_gate_required"])
+        self.assertEqual(by_lane["expert-review-editor"]["metadata"]["gate_scope"], "public-docs-pages")
 
 
 if __name__ == "__main__":

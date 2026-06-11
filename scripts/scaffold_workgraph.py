@@ -104,6 +104,11 @@ LANE_FIELDS: dict[str, dict[str, object]] = {
         "acceptance": "Focused tests, repository validation, and residual-risk evidence are recorded.",
         "design": "Validate behavior from the public helper interface and generated Beads output.",
     },
+    "publish-sanitization": {
+        "skills": ["publish-sanitization", "public-artifact-review", "validation"],
+        "acceptance": "Published artifacts are free of local-only, transient, duplicate, circular, or non-fresh-deploy content.",
+        "design": "Run after validation and any editorial gate before push, release, tag, or public handoff.",
+    },
     "docs": {
         "skills": ["documentation", "operator-guides", "handoff"],
         "acceptance": "Docs, examples, and handoff instructions match the implemented behavior.",
@@ -182,6 +187,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
     acceptance_review_lanes: list[str] = []
     implementation_blocker_lanes: list[str] = []
     validation_blocker_lanes: list[str] = []
+    editor_gate_lanes: list[str] = []
 
     for expert in route.get("ranked_experts", []):
         lane = expert_review_lane(expert)
@@ -191,6 +197,9 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
             depends_on.append("external-dispatch")
         if metadata.get("acceptance_bead_required"):
             acceptance_review_lanes.append(lane)
+        elif metadata.get("validation_gate_required"):
+            editor_gate_lanes.append(lane)
+            validation_blocker_lanes.append(lane)
         elif expert.get("review_stage") in ["pre-implementation", "implementation-review"]:
             implementation_blocker_lanes.append(lane)
         elif expert.get("review_stage") in ["pre-validation", "pre-release"]:
@@ -210,6 +219,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
 
     needs_acceptance = bool(acceptance_review_lanes) or route.get("route") in ["external-contract", "local-worker"]
     peer_review_required = bool(route.get("peer_review_required"))
+    publish_sanitization_required = bool(route.get("editor_gate_required"))
     graph: list[dict[str, Any]] = [
         {
             "title": title,
@@ -251,15 +261,31 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
             "depends_on_lanes": ["implementation", *validation_blocker_lanes],
             **lane_fields("validation", route),
         },
+    ]
+    docs_dependency = "validation"
+    if publish_sanitization_required:
+        graph.append(
+            {
+                "title": f"Publish sanitization: {title}",
+                "type": "task",
+                "lane": "publish-sanitization",
+                "labels": ["publish-sanitization", "public-artifact-review"],
+                "depends_on_lanes": ["validation", *editor_gate_lanes],
+                **lane_fields("publish-sanitization", route),
+            }
+        )
+        docs_dependency = "publish-sanitization"
+
+    graph.append(
         {
             "title": f"Docs and handoff: {title}",
             "type": "task",
             "lane": "docs",
             "labels": ["docs", "handoff"],
-            "depends_on_lanes": ["validation"],
+            "depends_on_lanes": [docs_dependency],
             **lane_fields("docs", route),
-        },
-    ]
+        }
+    )
     if needs_acceptance:
         peer_review_lanes = ["peer-review"] if peer_review_required else []
         graph.extend(
