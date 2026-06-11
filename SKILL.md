@@ -66,7 +66,9 @@ sabotage, `references/prompt-coach.md` when sizing the invocation,
 `references/redhat-expert-catalog.md` when selecting Red Hat product-focused
 Distinguished Engineer lenses, and `references/contractor-brief.md` as the
 briefing artifact given to an outside contractor with a specific Beads
-assignment.
+assignment. Use `docs/workflows.html` for the publishable walkthrough of
+in-Codex helper-script use, project-manager dispatch, and manual
+`claude -p` or `agy -p` contractor handoff.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.

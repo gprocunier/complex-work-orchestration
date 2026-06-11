@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Use Complex Work Orchestration helper scripts from inside Codex and dispatch bounded contractor prompts to Claude or agy."
+    >
+    <title>Workflows | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./workflows.html" aria-current="page">Workflows</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">How-to</p>
+        <h1>Workflows</h1>
+        <p class="lede">
+          Run the helper scripts from inside Codex, let the main thread act as
+          project manager, and hand a bounded contractor prompt to Claude or agy
+          only after the packet gate passes.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <aside class="page-nav" aria-label="Page sections">
+          <a href="#inside-codex">Inside Codex</a>
+          <a href="#pm-flow">PM Flow</a>
+          <a href="#contractor-dispatch">Contractor Dispatch</a>
+          <a href="#returns">Returns</a>
+        </aside>
+        <div class="doc-body">
+          <section id="inside-codex">
+            <h2>Inside Codex</h2>
+            <p>
+              The helper scripts are normal repository tools. When a user asks
+              Codex to use the prompt coach or orchestration harness, the main
+              Codex thread can run those scripts in the workspace and turn the
+              result into a plan, Beads graph, or contractor packet. The user
+              does not need to leave Codex unless they want automation or a
+              separate operator shell.
+            </p>
+            <div class="workflow-diagram linear" role="img" aria-label="Plan mode request flows to the prompt coach, interactive questions, launch prompt, and Beads scaffold.">
+              <div class="flow-card"><strong>User</strong><span>/plan request</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Codex</strong><span>runs coach</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Questions</strong><span>select levers</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Launch</strong><span>scaffold Beads</span></div>
+            </div>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
+Create public docs for outside model contractor packets.</code></pre>
+            <pre><code>python3 scripts/coach_prompt.py --json \
+  "Create public docs for outside model contractor packets."
+
+python3 scripts/route_work.py \
+  "Create public docs for outside model contractor packets."</code></pre>
+            <div class="callout">
+              <strong>In-Codex rule:</strong>
+              Codex may run local helper scripts and summarize their output.
+              Outside sharing still stays disabled until the user chooses a
+              share boundary.
+            </div>
+          </section>
+
+          <section id="pm-flow">
+            <h2>PM Flow</h2>
+            <p>
+              The project-manager role keeps the durable graph current. It
+              creates or updates Beads, filters ready work so Codex agents do
+              not pick up contractor-only tasks, and records validation evidence
+              before architect acceptance.
+            </p>
+            <div class="workflow-diagram pm" role="img" aria-label="Project manager flow from route to workgraph, ready filters, validation, and handoff.">
+              <div class="flow-card"><strong>Route</strong><span>risk, experts, executor</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Graph</strong><span>epic and lanes</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Filters</strong><span>ready work only</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Handoff</strong><span>evidence in Beads</span></div>
+            </div>
+            <pre><code>python3 scripts/scaffold_workgraph.py \
+  --title "Public workflow docs" \
+  --description "Document in-Codex helper use and PM contractor dispatch."
+
+python3 scripts/spawn_expert_reviews.py \
+  --parent "$EPIC_ID" \
+  --requested-role documentation \
+  "Review the workflow docs before publish."</code></pre>
+            <pre><code>bd ready \
+  --exclude-label contractor-only \
+  --exclude-label local-worker-only \
+  --exclude-label no-codex-exec \
+  --json</code></pre>
+          </section>
+
+          <section id="contractor-dispatch">
+            <h2>Contractor Dispatch</h2>
+            <p>
+              Contractor dispatch has two stages. The main thread prepares and
+              audits the packet; the operator chooses whether to hand the final
+              prompt to an external CLI. The helpers do not secretly call
+              Claude, agy, or any other outside model.
+            </p>
+            <div class="workflow-diagram contractor" role="img" aria-label="Contractor dispatch flow from contractor bead to packet, manual prompt, Claude or agy, evaluation, and architect adjudication.">
+              <div class="flow-card"><strong>Contract Bead</strong><span>guard labels</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Packet Gate</strong><span>boundary checked</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Prompt</strong><span>dispatch_work.py</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Claude / agy</strong><span>operator call</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Adjudicate</strong><span>architect decides</span></div>
+            </div>
+            <pre><code>python3 scripts/build_contractor_packet.py \
+  --bead "$BEAD_ID" \
+  --executor claude_code_manual \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --epic "$EPIC_ID" \
+  --format json \
+  --output contractor-packet.json
+
+python3 scripts/dispatch_work.py \
+  --packet contractor-packet.json \
+  --mode manual \
+  &gt; contractor-dispatch-prompt.md</code></pre>
+            <pre><code># Operator-executed external calls:
+claude -p "$(cat contractor-dispatch-prompt.md)" \
+  &gt; contractor-return.md
+
+agy -p "$(cat contractor-dispatch-prompt.md)" \
+  &gt; contractor-return.md</code></pre>
+            <div class="callout">
+              <strong>Boundary rule:</strong>
+              Use <code>--external-ok</code> only after the user approves
+              third-party sharing. Use
+              <code>--allow-disclosure-escalation</code> for repo-readonly or
+              patch-branch packets.
+            </div>
+          </section>
+
+          <section id="returns">
+            <h2>Returns</h2>
+            <p>
+              Contractor output is evidence, not implementation authority.
+              Normalize it, evaluate it, and let the architect decide whether
+              any finding becomes normal Codex-executable work.
+            </p>
+            <pre><code>python3 scripts/normalize_contractor_return.py \
+  --bead "$BEAD_ID" \
+  --dispatch-id "$DISPATCH_ID" \
+  --packet-sha256 "$PACKET_SHA256" \
+  --file contractor-return.md \
+  --output contractor-return-bundle.json
+
+python3 scripts/evaluate_return.py \
+  --bead "$BEAD_ID" \
+  --file contractor-return.md</code></pre>
+            <p>
+              Quarantine, malpractice, provider-conflict, and peer-review
+              signals block implementation dependencies until architect
+              adjudication is complete.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+      </nav>
+    </footer>
+  </body>
+</html>

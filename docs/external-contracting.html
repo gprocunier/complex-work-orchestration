@@ -22,6 +22,7 @@
         <div class="nav-links">
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./workflows.html">Workflows</a>
           <a href="./external-contracting.html" aria-current="page">Contractors</a>
           <a href="./local-workers.html">Local Workers</a>
           <a href="./reference.html">Reference</a>
@@ -47,6 +48,7 @@
           <a href="#labels">Labels</a>
           <a href="#packet">Packet Gate</a>
           <a href="#return">Return Review</a>
+          <a href="./workflows.html#contractor-dispatch">PM Dispatch</a>
         </aside>
         <div class="doc-body">
           <section id="collaboration">
@@ -96,6 +98,11 @@ contract-jd-security-reasoning</code></pre>
               snippets, provider binding, and expert profiles are checked
               before a manual prompt is rendered.
             </p>
+            <p>
+              The <a href="./workflows.html#contractor-dispatch">PM dispatch
+              workflow</a> shows how that rendered prompt can be handed to
+              <code>claude -p</code> or <code>agy -p</code> by an operator.
+            </p>
             <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
   --executor external_security_reviewer \
@@ -141,6 +148,7 @@ python3 scripts/evaluate_return.py --bead &lt;id&gt; --file contractor-return.md
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
+        <a href="./workflows.html">Workflows</a>
         <a href="./local-workers.html">Local Workers</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>

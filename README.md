@@ -292,6 +292,34 @@ flowchart TD
     Accepted -->|No| CloseLoop[Record rejected or superseded finding]
 ```
 
+### Main-Thread PM Dispatch Flow
+
+```mermaid
+flowchart TD
+    User[User asks in Codex] --> Coach[Codex runs coach_prompt.py]
+    Coach --> Plan{Need contractor?}
+    Plan -->|No| Graph[Create normal Beads graph]
+    Plan -->|Yes| Boundary[Confirm share boundary and opt-in]
+
+    Boundary --> Contract[Create contractor-only Bead]
+    Contract --> Packet[build_contractor_packet.py]
+    Packet --> Prompt[dispatch_work.py renders manual prompt]
+
+    Prompt --> Choice{Operator dispatch target}
+    Choice --> Claude[claude -p prompt]
+    Choice --> Agy[agy -p prompt]
+    Choice --> Manual[Manual UI paste]
+
+    Claude --> Return[contractor-return.md]
+    Agy --> Return
+    Manual --> Return
+
+    Return --> Normalize[normalize_contractor_return.py]
+    Normalize --> Evaluate[evaluate_return.py]
+    Evaluate --> Architect[Architect adjudication]
+    Architect --> Followup[Normal Codex-executable follow-up Beads]
+```
+
 ### Provider Integrity And Quarantine
 
 ```mermaid

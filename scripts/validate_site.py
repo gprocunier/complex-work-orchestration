@@ -14,6 +14,7 @@ REQUIRED_PAGES = [
     "index.html",
     "get-started.html",
     "prompt-coach.html",
+    "workflows.html",
     "external-contracting.html",
     "local-workers.html",
     "reference.html",

@@ -364,7 +364,19 @@ python3 scripts/build_contractor_packet.py \
    an audit event by default:
 
    ```bash
-   python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
+   python3 scripts/dispatch_work.py \
+     --packet contractor-packet.json \
+     --mode manual \
+     > contractor-dispatch-prompt.md
+   ```
+
+   The helper renders and audits the prompt. It does not call the outside model
+   by itself. The project manager or operator can then hand the bounded prompt
+   to an approved external CLI:
+
+   ```bash
+   claude -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
+   agy -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
    ```
 
 8. Contractor returns a Beads comment or patch branch.
