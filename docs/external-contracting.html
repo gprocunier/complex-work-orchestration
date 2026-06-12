@@ -24,6 +24,7 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
+          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -47,6 +48,7 @@
           <a href="#labels">Labels</a>
           <a href="#packet">Packet Validation</a>
           <a href="#return">Return Review</a>
+          <a href="#demo-lessons">Demo Lessons</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
         </nav>
         <div class="doc-body">
@@ -158,6 +160,26 @@ python3 scripts/evaluate_return.py --bead &lt;id&gt; --file contractor-return.md
               publish sanitization.
             </div>
           </section>
+
+          <section id="demo-lessons">
+            <h2>Demo Lessons</h2>
+            <p>
+              The <a href="./contractor-demo.html">hello-world contractor demo</a>
+              is the concrete reference for manual outside dispatch. It used
+              separate patch branches for Antigravity documentation work and
+              Claude Code GitHub Pages work, then treated both returns as
+              evidence for Codex review rather than direct authority.
+            </p>
+            <p>
+              Useful lessons from the run: packet generation does not call the
+              model; <code>dispatch_work.py</code> renders a prompt for an
+              operator-run <code>agy -p</code> or <code>claude -p</code> call;
+              contractor artifacts should normally remain ignored; and public
+              docs need explicit checks for local paths, <code>file://</code>
+              links, provider attribution errors, and fabricated validation
+              claims.
+            </p>
+          </section>
         </div>
       </section>
     </main>
@@ -174,6 +196,7 @@ python3 scripts/evaluate_return.py --bead &lt;id&gt; --file contractor-return.md
         <a href="./workflows.html">Workflows</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

@@ -232,6 +232,10 @@ def validate_repository() -> list[str]:
             "claude -p",
             "agy -p",
             "native Beads fields",
+            "Hello-World Contractor Demo",
+            "hello-world-contractor-demo",
+            "dispatch_work.py renders manual prompts",
+            "Codex repairs public-doc issues",
             "`skills`",
             "`acceptance`",
             "`design`",
@@ -269,6 +273,7 @@ def validate_repository() -> list[str]:
             "./prompt-coach.html",
             "./workflows.html",
             "./workflows.html#optional-lanes",
+            "./contractor-demo.html",
             "./reference.html",
             "Red Hat UX reference",
             "https://github.com/gprocunier/complex-work-orchestration",
@@ -346,6 +351,8 @@ def validate_repository() -> list[str]:
             "contractor-dispatch-prompt.md",
             "normalize_contractor_return.py",
             "evaluate_return.py",
+            "Contractor Demo",
+            "./contractor-demo.html",
         ],
     )
     require_doc_terms(
@@ -364,6 +371,8 @@ def validate_repository() -> list[str]:
             "design",
             "notes",
             "./workflows.html#optional-lanes",
+            "./contractor-demo.html",
+            "Demo Lessons",
             "claude -p",
             "agy -p",
             "normalize_contractor_return.py",
@@ -421,6 +430,30 @@ def validate_repository() -> list[str]:
             "design",
             "notes",
             "scripts/validate_site.py",
+            "./contractor-demo.html",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/contractor-demo.html",
+        [
+            "Contractor Demo",
+            "hello-world contractor demo",
+            "gprocunier/hello-world-contractor-demo",
+            "https://gprocunier.github.io/hello-world-contractor-demo/",
+            "Codex PM",
+            "Antigravity",
+            "Claude Code",
+            "agy -p",
+            "claude -p",
+            "Packet generation is not dispatch",
+            "--allow-disclosure-escalation",
+            "contractor-return.md",
+            "normalize_contractor_return.py",
+            "evaluate_return.py",
+            "file://",
+            "Beads has no Dolt remote",
+            "architect responsibilities",
         ],
     )
     require_doc_terms(
@@ -536,7 +569,18 @@ def validate_repository() -> list[str]:
     require_doc_terms(
         errors,
         "references/external-contracting.md",
-        ["Peer-review disposition", "malpractice_score", "contract-jd-sabotage-review", "contract-jd-editorial-reasoning"],
+        [
+            "Peer-review disposition",
+            "malpractice_score",
+            "contract-jd-sabotage-review",
+            "contract-jd-editorial-reasoning",
+            "Hello-World Contractor Demo Lessons",
+            "gprocunier/hello-world-contractor-demo",
+            "agy -p",
+            "claude -p",
+            "dispatch prompt",
+            "file://",
+        ],
     )
     require_doc_terms(
         errors,

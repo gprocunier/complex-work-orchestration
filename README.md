@@ -95,6 +95,53 @@ The skill should also be used for requests that mention:
 - durable handoff or multi-session coordination
 - broad review, release, lab, production, or publication risk
 
+## Hello-World Contractor Demo
+
+The public
+[hello-world-contractor-demo](https://github.com/gprocunier/hello-world-contractor-demo)
+repository is a concrete case study for the Codex PM contractor workflow. The
+published demo site is at
+https://gprocunier.github.io/hello-world-contractor-demo/.
+
+The important lesson is that outside tools are dispatch targets, not project
+owners. Codex creates the Beads work graph, posts one bounded contract per
+outside tool, renders manual prompts, evaluates returns, repairs or rejects
+findings, integrates accepted patch-branch work after review, validates
+publication, and records the handoff evidence.
+
+```mermaid
+flowchart TD
+    User[User asks Codex for the demo] --> Coach[Prompt coach sizes the work]
+    Coach --> Graph[Beads epic and contractor tasks]
+    Graph --> Packets[PM builds contractor packets]
+    Packets --> Dispatch[dispatch_work.py renders manual prompts]
+    Dispatch --> Agy[agy -p docs branch]
+    Dispatch --> Claude[claude -p Pages branch]
+    Agy --> Returns[Contractor returns and patch branches]
+    Claude --> Returns
+    Returns --> Evaluate[Normalize and evaluate returns]
+    Evaluate --> Architect[Architect adjudicates findings]
+    Architect --> Repair[Codex repairs public-doc issues]
+    Repair --> Integrate[Integrate accepted branch work]
+    Integrate --> Validate[CI, Pages, live HTTP, and sanitization]
+    Validate --> Close[Close Beads and hand off evidence]
+```
+
+Practical findings from the demo are now documented in the Pages case study at
+`docs/contractor-demo.html`:
+
+- packet generation is not dispatch; the helper renders a prompt for an
+  operator-run `agy -p`, `claude -p`, or manual UI call
+- use one contractor Bead and one patch branch per outside tool
+- keep packet JSON, rendered prompts, and contractor returns ignored unless
+  intentionally sanitized for publication
+- external contractor output is evidence until Codex evaluates it and the
+  architect accepts it
+- public documentation needs explicit checks for local paths, `file://` links,
+  provider attribution errors, and fabricated validation claims
+- Beads may be local-only when no Dolt remote is configured; say that plainly
+  instead of claiming sync
+
 ## Policy Control Plane
 
 The skill is organized as a small control plane over Beads. The Markdown files

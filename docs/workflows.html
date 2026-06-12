@@ -24,6 +24,7 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html" aria-current="page">Workflows</a>
+          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -48,6 +49,7 @@
           <a href="#coach-decide">Coach And Decide</a>
           <a href="#beads-graph">Beads Task Graph</a>
           <a href="#optional-lanes">Optional Workstreams</a>
+          <a href="#contractor-demo">Contractor Demo</a>
           <a href="#validate-handoff">Validate And Handoff</a>
         </nav>
         <div class="doc-body">
@@ -251,6 +253,23 @@ agy -p "$(cat contractor-dispatch-prompt.md)" \
             </div>
           </section>
 
+          <section id="contractor-demo">
+            <h2>Contractor Demo</h2>
+            <p>
+              The public <a href="./contractor-demo.html">hello-world contractor demo</a>
+              shows this flow end to end. Codex created a small static project,
+              opened a Beads graph, assigned one Antigravity docs branch through
+              <code>agy -p</code>, assigned one Claude Code Pages branch through
+              <code>claude -p</code>, evaluated the returns, repaired public-doc
+              issues, integrated accepted work, and verified GitHub Pages.
+            </p>
+            <p>
+              The lesson for normal use is that outside CLIs are dispatch
+              targets, not project owners. Use the case study for the concrete
+              branch, artifact, return-review, and publish-gate details.
+            </p>
+          </section>
+
           <section id="validate-handoff">
             <h2>Validate And Handoff</h2>
             <p>
@@ -291,6 +310,7 @@ python3 scripts/evaluate_return.py \
         <a href="./workflows.html">Workflows</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

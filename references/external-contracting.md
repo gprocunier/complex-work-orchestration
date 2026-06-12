@@ -408,6 +408,32 @@ python3 scripts/build_contractor_packet.py \
    into Codex workerbee tasks.
 12. PM updates dependencies and ready-work state.
 
+## Hello-World Contractor Demo Lessons
+
+The public `gprocunier/hello-world-contractor-demo` project exercised this
+flow with two outside CLIs: Antigravity through `agy -p` and Claude Code through
+`claude -p`. Codex remained the architect, PM, integrator, and publisher.
+
+Use the demo as the concrete operator pattern:
+
+- create one Beads assignment per outside tool, with one patch branch or
+  worktree per contractor
+- generate the contractor packet first, then render a manual dispatch prompt;
+  neither step calls the outside model automatically
+- keep packet JSON, rendered prompts, and contractor-return files ignored unless
+  they have been intentionally sanitized for publication
+- give `agy -p` or `claude -p` an explicit branch, allowed path set, validation
+  command, and return format
+- when a contractor CLI runs under a different operating-system account, arrange
+  repository access so commands still run as the repository owner; document that
+  requirement generically rather than publishing local usernames or paths
+- treat parser failures, quarantine recommendations, or malpractice scores as
+  review triggers, not as automatic merge or rejection decisions
+- run a public-doc editor pass for attribution mistakes, absolute local paths,
+  `file://` links, fabricated validation claims, and unclear ownership
+- close the Beads publish task only after local validation, GitHub Actions,
+  Pages deployment, live HTTP checks, and publish sanitization pass
+
 ## Codex Worker Filters
 
 Codex agents should not pick up contractor-only work:

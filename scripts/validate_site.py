@@ -17,11 +17,14 @@ REQUIRED_PAGES = [
     "workflows.html",
     "external-contracting.html",
     "local-workers.html",
+    "contractor-demo.html",
     "reference.html",
 ]
 SOURCE_LINK_PATTERNS = [
     REPO_URL,
     f"{REPO_URL}/blob/main/LICENSE",
+    "https://github.com/gprocunier/hello-world-contractor-demo",
+    "https://gprocunier.github.io/hello-world-contractor-demo/",
     "https://github.com/steveyegge/beads",
     "https://ux.redhat.com/",
     "https://diataxis.fr/",
@@ -31,6 +34,7 @@ PRIMARY_NAV_HREFS = [
     "./get-started.html",
     "./prompt-coach.html",
     "./workflows.html",
+    "./contractor-demo.html",
     "./reference.html",
     REPO_URL,
 ]
@@ -41,6 +45,7 @@ FOOTER_HREFS = [
     "./workflows.html",
     "./external-contracting.html",
     "./local-workers.html",
+    "./contractor-demo.html",
     "./reference.html",
     REPO_URL,
     f"{REPO_URL}/blob/main/LICENSE",
@@ -48,6 +53,7 @@ FOOTER_HREFS = [
 
 PRIVATE_PATTERNS = [
     re.compile(r"/home/[A-Za-z0-9_.-]+"),
+    re.compile(r"file:///"),
     re.compile(r"codex@local"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"(?i)\b(password|api[_ -]?key|token)\s*[:=]\s*[^\\s<]+"),

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Case study showing a Codex PM using Beads, contractor packets, agy, and Claude Code to build and publish a small hello-world project."
+    >
+    <title>Contractor Demo | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./contractor-demo.html" aria-current="page">Demo</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Case study</p>
+        <h1>Contractor Demo</h1>
+        <p class="lede">
+          The hello-world contractor demo shows the intended operating model:
+          Codex acts as architect and project manager, Beads records the work
+          graph, Antigravity through <code>agy</code> and Claude Code receive
+          bounded contracts, and contractor output is reviewed before it
+          becomes project direction.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#project">Project</a>
+          <a href="#flow">Flow</a>
+          <a href="#dispatch">Dispatch Lessons</a>
+          <a href="#returns">Return Review</a>
+          <a href="#validation">Validation</a>
+          <a href="./external-contracting.html">Contractor Controls</a>
+          <a href="./workflows.html#optional-lanes">Guided Workflow</a>
+        </nav>
+        <div class="doc-body">
+          <section id="project">
+            <h2>Project</h2>
+            <p>
+              The demo repository is a small static site, intentionally simple
+              enough that the contractor workflow is the subject. Codex created
+              the baseline project, posted Beads-backed assignments, dispatched
+              two outside tools through manual prompts, reviewed both returns,
+              repaired public-doc issues, integrated accepted work, and
+              published GitHub Pages.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Demo project links">
+              <div role="row">
+                <span role="cell">Repository</span>
+                <a role="cell" href="https://github.com/gprocunier/hello-world-contractor-demo">gprocunier/hello-world-contractor-demo</a>
+              </div>
+              <div role="row">
+                <span role="cell">Published site</span>
+                <a role="cell" href="https://gprocunier.github.io/hello-world-contractor-demo/">hello-world-contractor-demo Pages</a>
+              </div>
+            </div>
+            <div class="callout">
+              <strong>Public boundary:</strong>
+              The case study names the public project and tools, but avoids
+              local account names, private paths, raw packet files, and
+              machine-specific shell history.
+            </div>
+          </section>
+
+          <section id="flow">
+            <h2>Flow</h2>
+            <p>
+              The important pattern is not that two outside tools were used.
+              The important pattern is that each tool received one bounded
+              contract and a patch branch, while Codex kept architecture, PM
+              work, integration, validation, and publish authority.
+            </p>
+            <div class="workflow-diagram contractor" role="img" aria-label="Codex PM flow from Beads graph to packet, agy or Claude branch, return evaluation, architect repair, and publish.">
+              <div class="flow-card"><strong>Beads</strong><span>epic and lanes</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Packet</strong><span>bounded prompt</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Branch</strong><span>agy or Claude</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Review</strong><span>evaluate return</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Publish</strong><span>Codex accepts</span></div>
+            </div>
+            <div class="tile-grid">
+              <article>
+                <h3>Codex PM</h3>
+                <p>Created the work graph, packet artifacts, dispatch prompts, review comments, merge decisions, and final evidence.</p>
+              </article>
+              <article>
+                <h3>Antigravity</h3>
+                <p>Used the <code>agy</code> CLI as an outside contractor on a documentation patch branch and returned a bounded docs update.</p>
+              </article>
+              <article>
+                <h3>Claude Code</h3>
+                <p>Worked on a Pages patch branch through a <code>claude -p</code> prompt and returned a bounded site update.</p>
+              </article>
+              <article>
+                <h3>Architect Gate</h3>
+                <p>Codex reviewed contractor output, fixed attribution and path issues, ran validation, and only then merged.</p>
+              </article>
+            </div>
+          </section>
+
+          <section id="dispatch">
+            <h2>Dispatch Lessons</h2>
+            <p>
+              Packet generation is not dispatch. The PM first creates a
+              contractor Bead, builds a policy-checked packet, then renders a
+              manual prompt. The operator executes the prompt with the approved
+              external CLI and captures the return artifact for review.
+            </p>
+            <pre><code>python3 scripts/build_contractor_packet.py \
+  --bead "$BEAD_ID" \
+  --executor claude_code_manual \
+  --share-boundary patch-branch \
+  --allow-disclosure-escalation \
+  --external-ok \
+  --epic "$EPIC_ID" \
+  --format json \
+  --output contractor-packet.json
+
+python3 scripts/dispatch_work.py \
+  --packet contractor-packet.json \
+  --mode manual \
+  &gt; contractor-dispatch-prompt.md</code></pre>
+            <p>
+              Use an isolated worktree or patch branch per contractor. When a
+              contractor tool runs under a different operating-system account,
+              arrange access so repository commands still run as the repo owner
+              and keep that detail out of public documentation. For
+              <code>agy -p</code>, pass the intended working directory when the
+              tool supports it. For <code>claude -p</code>, make the prompt
+              explicit about the branch, allowed paths, and command boundary.
+            </p>
+            <div class="callout">
+              <strong>Ignored artifacts:</strong>
+              Packet JSON, rendered prompts, and contractor returns are useful
+              evidence, but they should normally stay out of the public commit
+              unless intentionally sanitized and published.
+            </div>
+          </section>
+
+          <section id="returns">
+            <h2>Return Review</h2>
+            <p>
+              Contractor output is evidence, not authority. Normalize and
+              evaluate returns before using the work. Parser or heuristic
+              failures should trigger architect review; they are not automatic
+              proof that the patch is bad, and they are not permission to skip
+              review.
+            </p>
+            <pre><code>python3 scripts/normalize_contractor_return.py \
+  --bead "$BEAD_ID" \
+  --dispatch-id "$DISPATCH_ID" \
+  --packet-sha256 "$PACKET_SHA256" \
+  --file contractor-return.md \
+  --output contractor-return-bundle.json
+
+python3 scripts/evaluate_return.py \
+  --bead "$BEAD_ID" \
+  --file contractor-return.md</code></pre>
+            <p>
+              The demo exposed two practical quality gates. Return headings
+              should use the canonical labels expected by the evaluator, not
+              decorative heading variants. Public docs also need a human editor
+              pass for incorrect attribution, absolute paths,
+              <code>file://</code> links, fabricated validation claims, and
+              unclear ownership.
+            </p>
+          </section>
+
+          <section id="validation">
+            <h2>Validation</h2>
+            <p>
+              The final acceptance gate combines repository validation, public
+              docs checks, publish sanitization, GitHub Actions status, Pages
+              deployment, live HTTP verification, and closed Beads evidence.
+            </p>
+            <ol class="check-list">
+              <li>Run local validators before merging contractor branches.</li>
+              <li>Scan tracked files for private paths, local URLs, tokens, and private key markers.</li>
+              <li>Record accepted and rejected contractor findings in Beads.</li>
+              <li>Close the publish task only after CI, Pages deployment, and live content checks pass.</li>
+              <li>If Beads has no Dolt remote, say the work graph is local-only.</li>
+            </ol>
+            <div class="callout">
+              <strong>Operator takeaway:</strong>
+              Outside tools can produce useful patches, but the durable work
+              story, acceptance decision, and public release remain Codex PM and
+              architect responsibilities. Use the
+              <a href="./external-contracting.html">external contracting guide</a>
+              for the exact packet, label, and return-review controls.
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>
