@@ -47,6 +47,8 @@
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
           <a href="#project">Project</a>
+          <a href="#invocation">Invocation</a>
+          <a href="#executor-access">Executor Access</a>
           <a href="#flow">Flow</a>
           <a href="#dispatch">Dispatch Lessons</a>
           <a href="#returns">Return Review</a>
@@ -81,6 +83,67 @@
               local account names, private paths, raw packet files, and
               machine-specific shell history.
             </div>
+          </section>
+
+          <section id="invocation">
+            <h2>In-Codex Invocation</h2>
+            <p>
+              Start the demo from inside Codex with the prompt coach, then let
+              the resulting plan ask the collaboration, parallelism, and publish
+              validation questions before any contractor packet is built. This
+              example is intentionally generic operator guidance, not a copy of
+              local shell history or private prompts.
+            </p>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach to size a
+hello-world outside-contractor demo.
+
+Goal: Codex designs and publishes a small hello-world project on GitHub, creates
+Beads-backed outside-contractor contracts, dispatches Antigravity with agy -p
+for a documentation patch branch, dispatches Claude Code with claude -p for a
+GitHub Pages patch branch, evaluates both returns, integrates accepted work,
+validates CI, Pages, and live HTTP, and records the Beads handoff.
+
+Ask before external sharing, ask how much subagent parallelism to use, and make
+the validation and publish gates explicit before execution.</code></pre>
+            <p>
+              After reviewing the plan, the operator can approve execution in
+              the same Codex conversation. Codex should create the Beads graph
+              first, keep one contractor Bead and one patch branch or worktree
+              per outside tool, render packet-backed manual prompts, and treat
+              returned contractor work as evidence until architect review accepts
+              it.
+            </p>
+          </section>
+
+          <section id="executor-access">
+            <h2>Executor Access</h2>
+            <p>
+              The Codex runtime account must be able to invoke the approved
+              contractor CLIs, such as <code>agy -p</code> and
+              <code>claude -p</code>, or it must have operator-approved privilege escalation
+              to an operating-system account that can run those commands.
+              That escalation is prearranged environment setup; Codex should
+              not discover, mint, or own credential escalation while launching
+              the contract.
+              Without that access, Codex can still prepare a
+              packet and rendered prompt, but the actual dispatch becomes a
+              separate operator action.
+            </p>
+            <div class="callout">
+              <strong>Access boundary:</strong>
+              Privilege escalation is environment setup, not contractor
+              authority. A contractor packet does not grant shell access,
+              credentials, repository ownership, or permission to bypass the
+              approved share boundary. External CLIs receive only the rendered
+              prompt and sanctioned packet artifacts, not Beads authority, repo
+              policy control, or merge permission.
+            </div>
+            <p>
+              Keep this prerequisite generic in public docs. State that the
+              runtime account needs direct CLI access or approved escalation,
+              but do not publish local usernames, private home paths, sudoers
+              rules, hostnames, or account-specific command transcripts.
+            </p>
           </section>
 
           <section id="flow">

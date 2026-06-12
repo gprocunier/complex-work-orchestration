@@ -384,6 +384,20 @@ python3 scripts/build_contractor_packet.py \
    agy -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
    ```
 
+   When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
+   over putting large prompts in process arguments. If the CLI only accepts
+   `-p`, keep the packet, prompt, and return artifacts local and remember that
+   command arguments may be visible to local process observers.
+
+   Executor access prerequisite: the Codex runtime account must be able to
+   invoke the approved contractor CLI directly, or it must have
+   operator-approved privilege escalation to an operating-system account that
+   can run it. Treat that as operator-controlled environment setup; Codex
+   should not discover, mint, or own credential escalation while launching the
+   contract. The contractor packet does not grant shell access, credentials,
+   repository ownership, Beads authority, repo policy control, merge permission,
+   or permission to bypass the approved share boundary.
+
 8. Contractor returns a Beads comment or patch branch.
 9. PM normalizes the return and checks format, evidence, boundary fit, and
    sabotage or malpractice signals. Evaluator output includes
@@ -420,6 +434,13 @@ Use the demo as the concrete operator pattern:
   worktree per contractor
 - generate the contractor packet first, then render a manual dispatch prompt;
   neither step calls the outside model automatically
+- start the demo from an in-Codex `/plan Use $complex-work-orchestration prompt coach ...`
+  request so the coach can ask about outside sharing, subagent parallelism,
+  validation, and publish gates before execution
+- ensure the Codex runtime account can invoke `agy -p` and `claude -p`, or has
+  operator-approved privilege escalation to accounts that can run those
+  commands; keep local usernames, sudoers rules, private paths, and hostnames
+  out of public documentation
 - keep packet JSON, rendered prompts, and contractor-return files ignored unless
   they have been intentionally sanitized for publication
 - give `agy -p` or `claude -p` an explicit branch, allowed path set, validation

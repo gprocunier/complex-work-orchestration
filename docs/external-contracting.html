@@ -118,6 +118,15 @@ contract-jd-security-reasoning</code></pre>
               prompt can be handed to
               <code>claude -p</code> or <code>agy -p</code> by an operator.
             </p>
+            <div class="callout">
+              <strong>Executor access:</strong>
+              The Codex runtime account must be able to invoke the approved
+              contractor CLI directly, or use operator-approved privilege escalation
+              that has already been arranged by the environment.
+              External CLIs receive only the rendered prompt and sanctioned
+              packet artifacts; they do not receive Beads authority, repo
+              policy control, merge permission, or a broader share boundary.
+            </div>
             <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
   --executor external_security_reviewer \
@@ -174,8 +183,10 @@ python3 scripts/evaluate_return.py --bead &lt;id&gt; --file contractor-return.md
               Useful lessons from the run: packet generation does not call the
               model; <code>dispatch_work.py</code> renders a prompt for an
               operator-run <code>agy -p</code> or <code>claude -p</code> call;
-              contractor artifacts should normally remain ignored; and public
-              docs need explicit checks for local paths, <code>file://</code>
+              the in-Codex prompt coach should ask about outside sharing,
+              subagent parallelism, validation, and publish gates before
+              execution; contractor artifacts should normally remain ignored;
+              and public docs need explicit checks for local paths, <code>file://</code>
               links, provider attribution errors, and fabricated validation
               claims.
             </p>

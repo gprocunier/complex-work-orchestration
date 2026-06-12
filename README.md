@@ -130,8 +130,14 @@ flowchart TD
 Practical findings from the demo are now documented in the Pages case study at
 `docs/contractor-demo.html`:
 
+- start the demo from an in-Codex `/plan Use $complex-work-orchestration prompt coach ...`
+  request so the coach can ask about outside sharing, subagent parallelism, and
+  validation before execution
 - packet generation is not dispatch; the helper renders a prompt for an
   operator-run `agy -p`, `claude -p`, or manual UI call
+- the Codex runtime account must be able to run the approved contractor CLIs,
+  or have operator-approved privilege escalation to an account that can; this
+  is environment setup, not authority granted by the contractor packet
 - use one contractor Bead and one patch branch per outside tool
 - keep packet JSON, rendered prompts, and contractor returns ignored unless
   intentionally sanitized for publication
