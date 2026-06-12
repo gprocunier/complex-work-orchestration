@@ -142,10 +142,7 @@ pre {
   max-width: var(--max);
   margin: 0 auto;
   padding: 4rem 1.25rem 3rem;
-  display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
-  gap: 2.5rem;
-  align-items: center;
+  display: block;
 }
 
 .eyebrow {
@@ -485,6 +482,7 @@ h3 {
 
 .doc-body > section {
   padding-block: 0 2.6rem;
+  scroll-margin-top: 5rem;
 }
 
 .doc-body > section + section {
@@ -496,6 +494,11 @@ h3 {
   max-width: none;
   margin-bottom: 1rem;
   font-size: 2rem;
+  scroll-margin-top: 5rem;
+}
+
+.doc-body > section:target h2 {
+  color: var(--red-dark);
 }
 
 .doc-body h3 {
@@ -649,9 +652,11 @@ blockquote {
 @media (max-width: 920px) {
   .hero,
   .split,
-  .doc-layout,
-  .site-footer {
+  .doc-layout {
     grid-template-columns: 1fr;
+  }
+
+  .site-footer {
     flex-direction: column;
     align-items: stretch;
   }
@@ -673,6 +678,12 @@ blockquote {
     align-items: center;
     border-left: 0;
     border-top: 5px solid var(--red);
+  }
+}
+
+@media (max-width: 760px) {
+  .doc-grid {
+    grid-template-columns: 1fr;
   }
 }
 

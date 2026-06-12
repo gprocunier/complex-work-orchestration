@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Complex Work Orchestration is a Codex skill for architect-led, Beads-backed multi-agent work, outside contractor packets, validation, and handoff."
+      content="Complex Work Orchestration is a Codex skill for architect-led, Beads-backed multi-agent work, contractor handoff packets, validation, and handoff."
     >
     <title>Complex Work Orchestration</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -37,29 +37,15 @@
           <h1>Complex Work Orchestration</h1>
           <p class="lede">
             Start inside Codex with <code>/plan</code>, ask for the
-            <code>$complex-work-orchestration</code> prompt coach, and let the
-            main thread size the harness before any worker, contractor, or
-            release gate is dispatched.
+            <code>$complex-work-orchestration</code> prompt coach, and choose
+            how much task tracking, review, validation, and handoff structure
+            the work needs before execution starts.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
             <a class="button primary" href="./workflows.html">Use the guided workflow</a>
             <a class="button secondary" href="https://github.com/gprocunier/complex-work-orchestration">View source</a>
           </div>
         </div>
-
-        <figure class="system-map" aria-labelledby="system-map-title">
-          <figcaption id="system-map-title">Orchestration map</figcaption>
-          <div class="map-grid" role="img" aria-label="User request flows through architect, project manager, Beads, workers, contractor packets, validation, and handoff.">
-            <div class="map-node user">User request</div>
-            <div class="map-node architect">Architect</div>
-            <div class="map-node pm">Project manager</div>
-            <div class="map-node beads">Beads graph</div>
-            <div class="map-node worker">Workerbee</div>
-            <div class="map-node contractor">Contractor packet</div>
-            <div class="map-node validate">Validation</div>
-            <div class="map-node handoff">Handoff</div>
-          </div>
-        </figure>
       </section>
 
       <section id="start" class="band intro">
@@ -70,61 +56,23 @@
         <div class="split">
           <div>
             <p>
-              Ask Codex to use the skill and coach the prompt before the work
-              graph is created. Codex can run the helper scripts in the
-              workspace, summarize the result, ask only the decisions that
-              change execution, and then create the Beads-backed plan.
+              Ask Codex to use the skill and coach the prompt. Codex runs the
+              local helper, asks the decisions that change execution, creates a
+              durable Beads task graph when needed, and records validation
+              evidence before the work is accepted or published.
             </p>
             <p>
-              Helper scripts are still available for operator shells and CI,
-              but the normal user path is guided: invoke the skill, answer the
-              coach questions, let Codex scaffold Beads, and validate before
-              accepting or publishing.
+              A Beads task graph is the durable ledger of tasks, dependencies,
+              evidence, and handoff state. A review worker is a bounded
+              subagent that gathers evidence; the main Codex thread still owns
+              integration and final judgment. A contractor handoff packet is a
+              policy-checked brief for outside or local model review.
             </p>
           </div>
-          <div class="command-panel" aria-label="Install command">
+          <div class="command-panel" aria-label="Prompt coach example">
             <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
 Create a publish-ready documentation pass for the project.</code></pre>
           </div>
-        </div>
-      </section>
-
-      <section id="docs" class="section">
-        <div class="section-heading">
-          <p class="eyebrow">Documentation paths</p>
-          <h2>Follow the guided path, then use deep dives when a lane appears.</h2>
-          <p>
-            Public docs and GitHub Pages work gets a final editor gate for
-            docs/pages flow, Diataxis fit, redundancy, circular content, and
-            publishable narrative.
-          </p>
-        </div>
-        <div class="doc-grid">
-          <article class="doc-card">
-            <h3>Tutorial</h3>
-            <p>Install the skill, run the prompt coach, and create a small Beads-backed task.</p>
-            <a href="./get-started.html">Run your first orchestration</a>
-          </article>
-          <article class="doc-card">
-            <h3>Guided Workflows</h3>
-            <p>Use <code>/plan</code>, the skill, and the coach to decide the right amount of harness.</p>
-            <a href="./workflows.html">Use the Codex workflow</a>
-          </article>
-          <article class="doc-card">
-            <h3>Reference</h3>
-            <p>Inspect policies, schemas, helper scripts, expert labels, and share boundaries.</p>
-            <a href="./reference.html">Look up exact controls</a>
-          </article>
-          <article class="doc-card">
-            <h3>Deep Dives</h3>
-            <p>Use contractor or local-worker pages only after the guided flow selects those lanes.</p>
-            <a href="./workflows.html#optional-lanes">Review optional lanes</a>
-          </article>
-          <article class="doc-card">
-            <h3>Explanation</h3>
-            <p>Understand why the model separates architect authority, PM coordination, and contractor evidence.</p>
-            <a href="./prompt-coach.html">Learn the operating model</a>
-          </article>
         </div>
       </section>
 
@@ -163,6 +111,58 @@ Create a publish-ready documentation pass for the project.</code></pre>
             </div>
           </li>
         </ol>
+        <figure class="system-map" aria-labelledby="system-map-title">
+          <figcaption id="system-map-title">How the workflow maps to internal roles</figcaption>
+          <div class="map-grid" role="img" aria-label="User request flows through architect, project manager, Beads task graph, review workers, contractor handoff packets, validation, and handoff.">
+            <div class="map-node user">User request</div>
+            <div class="map-node architect">Architect</div>
+            <div class="map-node pm">Project manager</div>
+            <div class="map-node beads">Beads task graph</div>
+            <div class="map-node worker">Review worker</div>
+            <div class="map-node contractor">Contractor handoff packet</div>
+            <div class="map-node validate">Validation</div>
+            <div class="map-node handoff">Handoff</div>
+          </div>
+        </figure>
+      </section>
+
+      <section id="docs" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Documentation paths</p>
+          <h2>Follow the guided path first, then use deep dives when a workstream appears.</h2>
+          <p>
+            Public docs and GitHub Pages work gets a final editor gate for
+            docs/pages flow, Diataxis fit, redundancy, circular content, plain
+            terminology, and publishable narrative.
+          </p>
+        </div>
+        <div class="doc-grid">
+          <article class="doc-card">
+            <h3>Tutorial</h3>
+            <p>Install the skill, run the prompt coach, and create a small Beads-backed task.</p>
+            <a href="./get-started.html">Run your first orchestration</a>
+          </article>
+          <article class="doc-card">
+            <h3>Guided Workflows</h3>
+            <p>Use <code>/plan</code>, the skill, and the coach to choose the right amount of structure.</p>
+            <a href="./workflows.html">Use the Codex workflow</a>
+          </article>
+          <article class="doc-card">
+            <h3>Reference</h3>
+            <p>Look up policies, schemas, helper scripts, expert labels, and share boundaries after you know the flow.</p>
+            <a href="./reference.html">Look up exact controls</a>
+          </article>
+          <article class="doc-card">
+            <h3>Deep Dives</h3>
+            <p>Use contractor or local-worker pages only after the guided flow selects those workstreams.</p>
+            <a href="./workflows.html#optional-lanes">Review optional workstreams</a>
+          </article>
+          <article class="doc-card">
+            <h3>Explanation</h3>
+            <p>Understand why the model separates architect authority, PM coordination, and contractor evidence.</p>
+            <a href="./prompt-coach.html">Learn the operating model</a>
+          </article>
+        </div>
       </section>
 
       <section id="tutorial" class="section narrow">
@@ -181,11 +181,15 @@ Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code>
       <section id="how-to" class="section narrow">
         <p class="eyebrow">How-to guides</p>
         <h2>Common operator tasks</h2>
+        <p>
+          Use these after you understand the operating flow and need a specific
+          next step.
+        </p>
         <ul class="link-list">
           <li><a href="./get-started.html">Install the skill</a></li>
           <li><a href="./prompt-coach.html">Choose the right invocation</a></li>
           <li><a href="./workflows.html">Run the guided in-Codex workflow</a></li>
-          <li><a href="./workflows.html#optional-lanes">Decide whether contractor or local-worker lanes are needed</a></li>
+          <li><a href="./workflows.html#optional-lanes">Decide whether contractor or local-worker workstreams are needed</a></li>
           <li><a href="./reference.html">Look up exact helper scripts and control-plane files</a></li>
         </ul>
       </section>
@@ -193,6 +197,10 @@ Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code>
       <section id="reference" class="section narrow">
         <p class="eyebrow">Reference</p>
         <h2>Control-plane files</h2>
+        <p>
+          Flow comes first. Use these files when you need the exact policy,
+          schema, expert, or helper behavior behind a guided workflow decision.
+        </p>
         <div class="reference-table" role="table" aria-label="Repository reference links">
           <div role="row">
             <span role="cell">Policies</span>
@@ -200,7 +208,7 @@ Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code>
           </div>
           <div role="row">
             <span role="cell">Schemas</span>
-            <a role="cell" href="./reference.html#schemas">Prompt coach, route result, packet, return, audit, and attestation contracts</a>
+            <a role="cell" href="./reference.html#schemas">Prompt coach, route result, handoff packet, return, audit, and attestation contracts</a>
           </div>
           <div role="row">
             <span role="cell">Experts</span>
@@ -224,7 +232,7 @@ Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code>
           Complex work fails when planning, execution, validation, and final
           judgment collapse into one hidden thread. This skill keeps the main
           Codex thread as architect, records durable state in Beads, assigns
-          bounded work to workerbees, and treats outside or local models as
+          bounded work to internal review workers, and treats outside or local models as
           evidence sources rather than implementation authority.
         </p>
         <p>

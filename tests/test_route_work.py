@@ -71,6 +71,26 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(editor["validation_gate_required"])
         self.assertEqual(editor["job_description_label"], "contract-jd-editorial-reasoning")
 
+    def test_public_docs_page_path_alone_requires_editor_gate(self) -> None:
+        result = classify_work(
+            "Update landing page copy.",
+            file_paths=["docs/index.html"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+        self.assertTrue(result["editor_gate_required"])
+        self.assertIn("documentation", names)
+        self.assertIn("web_design", names)
+        self.assertIn("editor", names)
+
+    def test_non_public_doc_path_does_not_require_editor_gate(self) -> None:
+        result = classify_work(
+            "Update helper script copy.",
+            file_paths=["scripts/coach_prompt.py"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+        self.assertFalse(result["editor_gate_required"])
+        self.assertNotIn("editor", names)
+
     def test_internal_docs_do_not_auto_require_editor_gate(self) -> None:
         result = classify_work(
             "Documentation review for internal Beads workgraph behavior.",

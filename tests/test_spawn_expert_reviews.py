@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import classify_work, expert_review_labels  # noqa: E402
+from orchestration_lib import classify_work, expert_review_labels, expert_review_metadata  # noqa: E402
 from spawn_expert_reviews import control_review_tasks, review_fields  # noqa: E402
 
 
@@ -52,12 +52,15 @@ class SpawnExpertReviewsTests(unittest.TestCase):
         editor = next(expert for expert in route["ranked_experts"] if expert["name"] == "editor")
         fields = review_fields(editor, route)
         labels = expert_review_labels(editor, route)
+        metadata = expert_review_metadata(editor, route)
 
         self.assert_native_fields(fields)
         self.assertIn("contract-jd-editorial-reasoning", fields["skills"])
         self.assertIn("contract-jd-editorial-reasoning", labels)
         self.assertIn("pre-release", labels)
         self.assertIn("docs and pages flow together", fields["acceptance"])
+        self.assertTrue(metadata["validation_gate_required"])
+        self.assertEqual(metadata["gate_scope"], "public-docs-pages")
 
 
 if __name__ == "__main__":

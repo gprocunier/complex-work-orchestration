@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Post outside model contracts safely with share boundaries, job-description labels, packet gates, and architect adjudication."
+      content="Post outside model contracts safely with share boundaries, job-description labels, contractor handoff packets, validation checkpoints, and architect adjudication."
     >
     <title>External Contracting | Complex Work Orchestration</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -35,7 +35,7 @@
         <p class="eyebrow">How-to</p>
         <h1>External Contracting</h1>
         <p class="lede">
-          This is the deep dive for the contractor lane. Start with the
+          This is the deep dive for the contractor workstream. Start with the
           <a href="./workflows.html">guided workflow</a>; come here when the
           coach and route say an outside model contract is appropriate.
         </p>
@@ -45,7 +45,7 @@
         <nav class="page-nav" aria-label="Page sections">
           <a href="#collaboration">Collaboration Question</a>
           <a href="#labels">Labels</a>
-          <a href="#packet">Packet Gate</a>
+          <a href="#packet">Packet Validation</a>
           <a href="#return">Return Review</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
         </nav>
@@ -97,16 +97,23 @@ contract-jd-security-reasoning</code></pre>
           </section>
 
           <section id="packet">
-            <h2>Packet Gate</h2>
+            <h2>Packet Validation</h2>
+            <p>
+              A contractor handoff packet is a policy-checked brief for an
+              outside model. It contains the approved share boundary, job
+              labels, task summary, selected snippets, provider binding, and
+              expert profile.
+            </p>
             <p>
               Build packets through the helper so share boundaries, opt-in,
-              snippets, provider binding, and expert profiles are checked
-              before a manual prompt is rendered.
+              disclosure level, artifact whitelist, packet integrity, snippets,
+              provider binding, and expert profiles are checked before a manual
+              prompt is rendered.
             </p>
             <p>
               The <a href="./workflows.html#optional-lanes">guided workflow</a>
-              shows where the contractor lane fits and how the rendered prompt
-              can be handed to
+              shows where the contractor workstream fits and how the rendered
+              prompt can be handed to
               <code>claude -p</code> or <code>agy -p</code> by an operator.
             </p>
             <pre><code>python3 scripts/build_contractor_packet.py \
@@ -118,7 +125,7 @@ contract-jd-security-reasoning</code></pre>
   --format json \
   --output contractor-packet.json</code></pre>
             <p>
-              Repo-readonly and patch-branch packets require an explicit
+              Repo-readonly and patch-branch handoff packets require an explicit
               disclosure escalation flag in addition to external opt-in.
             </p>
           </section>

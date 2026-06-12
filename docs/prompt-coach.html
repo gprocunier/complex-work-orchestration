@@ -59,12 +59,17 @@
               outside the Codex session.
             </p>
             <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Create public docs for outside model contractor packets.</code></pre>
+Create public docs for outside model contractor handoff packets.</code></pre>
             <p>
-              Advanced operator-shell equivalent:
+              Equivalent shell command for automation or troubleshooting:
+            </p>
+            <p>
+              Use this outside a Codex <code>/plan</code> conversation when
+              you need the same coach result in CI, an operator shell, or a
+              debugging session.
             </p>
             <pre><code>python3 scripts/coach_prompt.py --json \
-  "Create public docs for outside model contractor packets."</code></pre>
+  "Create public docs for outside model contractor handoff packets."</code></pre>
             <p>
               The result includes a recommended orchestration level, route
               summary, missing questions, enabled levers, disabled levers, and
@@ -74,6 +79,18 @@ Create public docs for outside model contractor packets.</code></pre>
 
           <section id="levels">
             <h2>Output Levels</h2>
+            <p>
+              Output levels are the coach's work-sizing result. They tell Codex
+              whether to stay in the current thread, create a small durable
+              Beads task, open a full work graph, or add a publish, contractor,
+              or local-worker gate.
+            </p>
+            <p>
+              Default to the smallest level that captures the work story,
+              evidence, validation, and handoff. Escalate when risk,
+              publication, parallel review, or external/local model evidence
+              changes the acceptance path.
+            </p>
             <div class="tile-grid">
               <article>
                 <h3>In-thread</h3>
@@ -85,15 +102,15 @@ Create public docs for outside model contractor packets.</code></pre>
               </article>
               <article>
                 <h3>Full Harness</h3>
-                <p>Architect, PM, worker, validation, and handoff lanes.</p>
+                <p>Architect, PM, internal review worker, validation, and handoff workstreams.</p>
               </article>
               <article>
                 <h3>External Contract</h3>
-                <p>Contractor-only lane after explicit outside-sharing opt-in and share-boundary selection.</p>
+                <p>Contractor-only workstream after explicit outside-sharing opt-in and share-boundary selection.</p>
               </article>
               <article>
                 <h3>Local Worker</h3>
-                <p>Bounded local-worker review lane after explicit local opt-in, evaluator review, and architect adjudication.</p>
+                <p>Bounded local-worker review workstream after explicit local opt-in, evaluator review, and architect adjudication.</p>
               </article>
               <article>
                 <h3>Publish Release</h3>
@@ -116,18 +133,20 @@ Create public docs for outside model contractor packets.</code></pre>
             </p>
             <div class="callout">
               <strong>Useful choices:</strong>
-              harness size, workerbee parallelism, outside-sharing boundary,
+              harness size, subagent parallelism, outside-sharing boundary,
               local-worker opt-in, and validation bar. These change execution
               behavior and should be captured before dispatch.
             </div>
             <div class="callout">
-              <strong>Workerbees:</strong>
+              <strong>Subagents:</strong>
               broad docs, Pages, policy, routing, test, validation, and
               publish-sanitization work should surface a
-              <code>workerbee_parallelism</code> choice. The default is
-              review-only workerbees using Codex 5.3 Spark when available, or
-              the smallest available capable review model. Implementation
-              workerbees still require explicitly disjoint scopes.
+              <code>workerbee_parallelism</code> choice. The coach always asks
+              whether to parallelize with subagents. Narrow work can default to
+              no subagents; broad review work can use review-only or heavy
+              review subagents with Codex 5.3 Spark when available, or the
+              smallest available capable review model. Implementation
+              subagents still require explicitly disjoint scopes.
             </div>
             <div class="callout">
               <strong>Public docs/pages:</strong>
@@ -158,7 +177,7 @@ Create public docs for outside model contractor packets.</code></pre>
             <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
 Use an OpenShift AI vLLM local worker to review a bounded README command example.</code></pre>
             <p>
-              Advanced operator-shell equivalent after explicit opt-in:
+              Equivalent shell command after explicit opt-in:
             </p>
             <pre><code>python3 scripts/coach_prompt.py \
   --local-ok \

@@ -946,16 +946,30 @@ def prompt_coach_has_explicit_workerbee_request(text: str) -> bool:
         return False
     explicit_patterns = [
         r"\buse\s+(?:review-only\s+|parallel\s+|implementation\s+)?workerbees?\b",
+        r"\buse\s+(?:review-only\s+|parallel\s+|implementation\s+)?subagents?\b",
         r"\buse\s+codex\s+5\.3\s+spark(?:\s+workerbees?)?\b",
         r"\bcall out\s+codex\s+5\.3\s+spark(?:\s+workerbees?)?\b",
         r"\blaunch\s+workerbees?\b",
+        r"\blaunch\s+subagents?\b",
         r"\bspawn\s+workerbees?\b",
+        r"\bspawn\s+subagents?\b",
         r"\brun\s+workerbees?\b",
+        r"\brun\s+subagents?\b",
         r"\bparallel\s+workerbees?\b",
+        r"\bparallel\s+subagents?\b",
         r"\breview-only\s+workerbees?\b",
+        r"\breview-only\s+subagents?\b",
         r"\bworkerbee\s+validation\b",
         r"\bworkerbee\s+lanes?\b",
+        r"\bsubagent\s+validation\b",
+        r"\bsubagent\s+lanes?\b",
         r"\bwith\s+workerbees?\b",
+        r"\bwith\s+subagents?\b",
+        r"\bimplementation[-\s]+workerbees?\b",
+        r"\bimplementation[-\s]+subagents?\b",
+        r"\b(?:spawn|run|split|dispatch)\s+implementation[-\s]+workerbees?\b",
+        r"\b(?:spawn|run|split|dispatch)\s+implementation[-\s]+subagents?\b",
+        r"\bheav(?:y|ily)\s+parallel",
     ]
     return any(re.search(pattern, text) for pattern in explicit_patterns)
 
@@ -1008,14 +1022,29 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         "parallel implementation",
         "implementation workerbee",
         "implementation workerbees",
+        "implementation subagent",
+        "implementation subagents",
         "split implementation",
         "disjoint patches",
         "disjoint files",
         "independent patches",
     ]
+    heavy_review_terms = [
+        "heavily parallelize",
+        "heavy parallelization",
+        "heavy review parallelism",
+        "heavy parallel review",
+        "heavily parallelized",
+        "parallelize heavily",
+        "multiple parallel reviews",
+        "heavy subagent",
+        "heavy subagents",
+    ]
     suggested_lanes: list[str] = []
     if text_has_any(lower, ["docs", "documentation", "readme", "github pages", "site flow", "diataxis", "diátaxis"]):
         suggested_lanes.append("docs-flow-review")
+        suggested_lanes.append("terminology-review")
+        suggested_lanes.append("web-design-review")
     if text_has_any(lower, ["policy", "routing", "route", "scaffold", "coach", "orchestration"]):
         suggested_lanes.append("policy-routing-review")
     if text_has_any(lower, ["tests", "validation", "ci", "schema"]):
@@ -1026,26 +1055,28 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     if not suggested_lanes and text_has_any(lower, review_terms):
         suggested_lanes.append("bounded-investigation")
 
-    prompt_user = False
+    prompt_user = True
     mode = "none"
     rationale: list[str] = []
-    if text_has_any(lower, implementation_terms):
+    if text_has_any(lower, heavy_review_terms):
+        mode = "heavy-review"
+        rationale.append("The request explicitly asks to heavily parallelize bounded review work.")
+    elif text_has_any(lower, implementation_terms):
         mode = "implementation-capable"
-        prompt_user = not explicit_workerbee
         if explicit_workerbee:
             rationale.append("The request explicitly asks for workerbee execution on separable implementation work.")
         else:
             rationale.append("The request names separable implementation work that may be safe to split by file ownership.")
     elif level in {"full-harness", "publish-release"} or text_has_any(lower, review_terms):
         mode = "review-only"
-        prompt_user = not explicit_workerbee and not prompt_coach_has_full_harness_signal(lower)
         if explicit_workerbee:
-            rationale.append("The request explicitly asks for workerbee lanes.")
+            rationale.append("The request explicitly asks for workerbee or subagent workstreams.")
         else:
-            rationale.append("Independent review, test, docs, policy, or validation lanes can run beside main-thread implementation.")
+            rationale.append("Independent review, test, docs, policy, or validation workstreams can run beside main-thread implementation.")
 
     if mode == "none":
-        rationale.append("No clear parallel sidecar lane is needed; keep the work in the main thread.")
+        suggested_lanes = []
+        rationale.append("No clear parallel sidecar workstream is needed; ask anyway so the user can explicitly choose subagents or stay in-thread.")
     if route.get("route") in {"external-contract", "local-worker"} and mode != "none":
         rationale.append("Workerbees are separate from contractor/local-worker dispatch; do not use them for no-codex-exec contract work.")
 
@@ -1139,13 +1170,22 @@ def prompt_coach_missing_questions(
                 "default": "Start with one Beads task and escalate to an epic if independent work streams appear.",
             }
         )
-    if workerbee_parallelism and workerbee_parallelism.get("prompt_user_in_plan_mode"):
+    if workerbee_parallelism:
+        mode = str(workerbee_parallelism.get("recommended_mode") or "none")
+        if mode == "heavy-review":
+            default = "Use heavy review subagents for bounded docs-flow, terminology, web-design, validation, and publish-sanitization workstreams; keep implementation authority in the main thread."
+        elif mode == "implementation-capable":
+            default = "Use implementation subagents only for disjoint file scopes, with main-thread integration and acceptance."
+        elif mode == "review-only":
+            default = "Use review-only subagents with Codex 5.3 Spark when available, or the smallest available capable review model; keep implementation authority in the main thread."
+        else:
+            default = "Use no subagents by default for narrow work, but still present the parallelization choice so the user can opt into review subagents."
         questions.append(
             {
                 "id": "workerbee_parallelism",
-                "question": "Should Codex use parallel workerbees for bounded sidecar work?",
-                "why": "Parallel workerbees can review docs, tests, routing, validation, or disjoint implementation lanes while the main thread owns integration.",
-                "default": "Use review-only workerbees with Codex 5.3 Spark when available, or the smallest available capable review model; keep implementation authority in the main thread unless disjoint write scopes are explicit.",
+                "question": "Should Codex parallelize this work with subagents?",
+                "why": "Subagents can review docs, tests, routing, validation, terminology, or disjoint implementation workstreams while the main thread owns integration.",
+                "default": default,
             }
         )
     if prompt_coach_has_contractor_sharing_signal(lower) and not route.get("external_opt_in"):
@@ -1183,7 +1223,7 @@ def workerbee_model_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
     if not workerbee_parallelism:
         return "Codex 5.3 Spark when available, otherwise the smallest available capable review model"
     if workerbee_parallelism.get("recommended_model") == "smallest-available-capable-review-workerbee":
-        return "the smallest available capable review workerbee"
+        return "the smallest available capable review subagent"
     return "Codex 5.3 Spark when available, otherwise the smallest available capable review model"
 
 
@@ -1202,8 +1242,8 @@ def prompt_coach_interactive_questions(
     }:
         recommended = {
             "in-thread": ("Beads task (Recommended)", "Use current-thread execution with one durable Beads task."),
-            "lightweight-beads": ("Light Beads (Recommended)", "Use a small Beads-backed plan without contractor lanes."),
-            "full-harness": ("Full harness (Recommended)", "Use architect, PM, workerbee, validation, and review lanes."),
+            "lightweight-beads": ("Light Beads (Recommended)", "Use a small Beads-backed plan without contractor workstreams."),
+            "full-harness": ("Full harness (Recommended)", "Use architect, PM, subagents, validation, and review workstreams."),
             "publish-release": ("Publish gate (Recommended)", "Use full harness plus publish-sanitization before push, release, or tag."),
         }.get(level, ("Full harness (Recommended)", "Use the full orchestration harness."))
         options = [
@@ -1216,7 +1256,7 @@ def prompt_coach_interactive_questions(
             {
                 "label": "Light Beads",
                 "value": "lightweight-beads",
-                "description": "Track durable state with Beads while avoiding heavyweight review lanes.",
+                "description": "Track durable state with Beads while avoiding heavyweight review workstreams.",
             },
         ]
         if level in {"in-thread", "lightweight-beads"}:
@@ -1230,7 +1270,7 @@ def prompt_coach_interactive_questions(
                 "id": "orchestration_level",
                 "header": "Harness",
                 "question": "How much orchestration should Codex use?",
-                "why": "The answer changes graph size and review lanes; Beads tracking remains mandatory.",
+                "why": "The answer changes graph size and review workstreams; Beads tracking remains mandatory.",
                 "options": dedupe_interactive_options(options),
             }
         )
@@ -1239,41 +1279,36 @@ def prompt_coach_interactive_questions(
         recommended = workerbee_parallelism or {}
         recommended_mode = recommended.get("recommended_mode") or "review-only"
         model_phrase = workerbee_model_phrase(workerbee_parallelism)
-        first = {
+        option_map = {
+            "heavy-review": {
+                "label": "Heavy review subagents (Recommended)",
+                "value": "heavy-review-subagents",
+                "description": f"Use {model_phrase} for parallel docs-flow, terminology, web-design, validation, and publish checks.",
+            },
             "review-only": {
-                "label": "Review workerbees (Recommended)",
-                "value": "review-workerbees",
-                "description": f"Use {model_phrase} for bounded review or investigation lanes.",
+                "label": "Review subagents (Recommended)",
+                "value": "review-subagents",
+                "description": f"Use {model_phrase} for bounded review or investigation workstreams.",
             },
             "implementation-capable": {
                 "label": "Split implementation (Recommended)",
-                "value": "implementation-workerbees",
-                "description": "Use workerbees only for disjoint file scopes with main-thread integration.",
+                "value": "implementation-subagents",
+                "description": "Use subagents only for disjoint file scopes with main-thread integration.",
             },
-        }.get(recommended_mode, {
-            "label": "Review workerbees (Recommended)",
-            "value": "review-workerbees",
-            "description": f"Use {model_phrase} for bounded review or investigation lanes.",
-        })
+            "none": {
+                "label": "No subagents (Recommended)",
+                "value": "no-subagents",
+                "description": "Keep all work in the main thread while still using Beads tracking.",
+            },
+        }
+        first = option_map.get(str(recommended_mode), option_map["review-only"])
         questions.append(
             {
                 "id": "workerbee_parallelism",
-                "header": "Workers",
-                "question": "Should Codex parallelize bounded work with workerbees?",
+                "header": "Subagents",
+                "question": "Should Codex parallelize this work with subagents?",
                 "why": "The answer changes whether sidecar review or disjoint implementation work runs in parallel.",
-                "options": dedupe_interactive_options([
-                    first,
-                    {
-                        "label": "No workerbees",
-                        "value": "no-workerbees",
-                        "description": "Keep all work in the main thread while still using Beads tracking.",
-                    },
-                    {
-                        "label": "Review workerbees",
-                        "value": "review-workerbees",
-                        "description": "Use workerbees only for read-only review, test triage, or evidence gathering.",
-                    },
-                ]),
+                "options": workerbee_parallelism_options(str(recommended_mode), first, model_phrase),
             }
         )
 
@@ -1321,7 +1356,7 @@ def prompt_coach_interactive_questions(
                     {
                         "label": "Local review",
                         "value": f"local-review:{profile}",
-                        "description": "Use a bounded local read-only review lane.",
+                        "description": "Use a bounded local read-only review workstream.",
                     },
                     {
                         "label": "Prefer local",
@@ -1382,6 +1417,35 @@ def dedupe_interactive_options(options: list[dict[str, str]]) -> list[dict[str, 
     return deduped[:3]
 
 
+def workerbee_parallelism_options(
+    recommended_mode: str,
+    first: dict[str, str],
+    model_phrase: str,
+) -> list[dict[str, str]]:
+    heavy = {
+        "label": "Heavy review subagents",
+        "value": "heavy-review-subagents",
+        "description": f"Use {model_phrase} for multiple bounded review tracks before integration.",
+    }
+    review = {
+        "label": "Review subagents",
+        "value": "review-subagents",
+        "description": "Use subagents only for read-only review, test triage, or evidence gathering.",
+    }
+    no_subagents = {
+        "label": "No subagents",
+        "value": "no-subagents",
+        "description": "Keep all work in the main thread while still using Beads tracking.",
+    }
+    if recommended_mode == "implementation-capable":
+        return dedupe_interactive_options([first, heavy, no_subagents])
+    if recommended_mode == "heavy-review":
+        return dedupe_interactive_options([first, review, no_subagents])
+    if recommended_mode == "none":
+        return dedupe_interactive_options([first, review, heavy])
+    return dedupe_interactive_options([first, heavy, no_subagents])
+
+
 def prompt_coach_enabled_levers(
     level: str,
     route: dict[str, Any],
@@ -1394,6 +1458,7 @@ def prompt_coach_enabled_levers(
         f"executor={route.get('recommended_executor')}",
         "beads-durable-state",
         "beads-minimum-tracking",
+        "subagent-parallelism-question-required",
     ]
     if level in {"full-harness", "external-contract", "local-worker", "publish-release"}:
         levers.extend(["architect-review", "validation-lane"])
@@ -1408,6 +1473,7 @@ def prompt_coach_enabled_levers(
     if route.get("provider_conflict_detected"):
         levers.append("provider-conflict-review")
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
+        levers.append(f"subagent-parallelism={workerbee_parallelism.get('recommended_mode')}")
         levers.append(f"workerbee-parallelism={workerbee_parallelism.get('recommended_mode')}")
         if workerbee_parallelism.get("recommended_model") == "smallest-available-capable-review-workerbee":
             levers.append("workerbee-model-fallback-required")
@@ -1429,7 +1495,7 @@ def prompt_coach_disabled_levers(
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") == "review-only":
         levers.append("implementation-workerbees-until-disjoint-scope")
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") == "none":
-        levers.append("workerbee-parallelism")
+        levers.append("subagent-parallelism-unselected")
     if not route.get("external_contract_allowed"):
         levers.append("external-contracting-until-explicit-opt-in")
     if not route.get("has_local_worker_contracts"):
@@ -1452,7 +1518,7 @@ def prompt_coach_rationale(
     elif level == "lightweight-beads":
         rationale.append("Durable coordination is useful, but the full contractor/peer-review graph is not the default.")
     elif level == "full-harness":
-        rationale.append("Risk, peer-review, or architecture signals justify architect/PM/validation lanes.")
+        rationale.append("Risk, peer-review, or architecture signals justify architect/PM/validation workstreams.")
     elif level == "external-contract":
         rationale.append("External contracting is both policy-selected and explicitly allowed for the selected boundary.")
     elif level == "local-worker":
@@ -1461,9 +1527,9 @@ def prompt_coach_rationale(
         rationale.append("Publish or release language requires sanitization and explicit validation evidence.")
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
         rationale.append(
-            "Workerbee parallelism is recommended as "
+            "Subagent parallelism is recommended as "
             f"{workerbee_parallelism.get('recommended_mode')} using {workerbee_model_phrase(workerbee_parallelism)} "
-            "for bounded sidecar lanes."
+            "for bounded sidecar workstreams."
         )
     if missing_questions:
         rationale.append("The generated prompt includes missing-question guardrails before execution.")
@@ -1486,11 +1552,12 @@ def prompt_coach_warnings(route: dict[str, Any], missing_questions: list[dict[st
 
 def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
     if not workerbee_parallelism or workerbee_parallelism.get("recommended_mode") == "none":
-        return ""
+        return "Always ask the user whether to parallelize with subagents; default to no subagents for narrow work unless the user opts in.\n"
     lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]
+    prefix = "heavy review" if workerbee_parallelism.get("recommended_mode") == "heavy-review" else workerbee_parallelism.get("recommended_mode")
     return (
         f"Use {workerbee_model_phrase(workerbee_parallelism)} for "
-        f"{workerbee_parallelism.get('recommended_mode')} parallelism on: "
+        f"{prefix} parallelism on: "
         + ", ".join(str(item) for item in lanes)
         + ". Keep main-thread architecture, file integration, and acceptance decisions with the architect.\n"
     )
@@ -1531,17 +1598,17 @@ def render_coached_prompt(
         )
     if level == "full-harness":
         return (
-            "Use $complex-work-orchestration to scaffold a full architect/PM/workerbee/validation harness.\n"
+            "Use $complex-work-orchestration to scaffold a full architect/PM/subagent/validation harness.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
-            "and any policy-required peer-review lanes. Keep final decisions with the architect.\n"
+            "and any policy-required peer-review workstreams. Keep final decisions with the architect.\n"
             f"{validation}{question_block}"
         )
     if level == "external-contract":
         expert = (route.get("ranked_experts") or [{}])[0]
         return (
-            "Use $complex-work-orchestration with an outside contractor lane.\n"
+            "Use $complex-work-orchestration with an outside contractor workstream.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
             f"Share boundary: {route.get('share_boundary')}.\n"
@@ -1552,7 +1619,7 @@ def render_coached_prompt(
         )
     if level == "local-worker":
         return (
-            "Use $complex-work-orchestration with a bounded local-worker review lane.\n"
+            "Use $complex-work-orchestration with a bounded local-worker review workstream.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
@@ -1564,7 +1631,7 @@ def render_coached_prompt(
         "Use $complex-work-orchestration for publish/release-ready execution.\n"
         f"Goal: {text}\n"
         f"{workerbees}"
-        "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization lanes. "
+        "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization workstreams. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
         f"{validation}{question_block}"
     )

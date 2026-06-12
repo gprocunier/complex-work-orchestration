@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Use Complex Work Orchestration from inside Codex with prompt-coach sizing, Beads graphs, optional contractor or local-worker lanes, and validation."
+      content="Use Complex Work Orchestration from inside Codex with prompt-coach sizing, Beads task graphs, optional contractor or local-worker workstreams, and validation."
     >
     <title>Workflows | Complex Work Orchestration</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -36,8 +36,9 @@
         <h1>Workflows</h1>
         <p class="lede">
           Use the skill from inside Codex first. Codex runs the coach, turns
-          answers into a Beads-backed plan, and only then opens contractor or
-          local-worker lanes when the policy says they fit.
+          answers into a Beads-backed plan, and only then opens contractor,
+          local-worker, or review-worker workstreams when the policy says they
+          fit.
         </p>
       </section>
 
@@ -45,8 +46,8 @@
         <nav class="page-nav" aria-label="Page sections">
           <a href="#invoke-codex">Invoke From Codex</a>
           <a href="#coach-decide">Coach And Decide</a>
-          <a href="#beads-graph">Beads Work Graph</a>
-          <a href="#optional-lanes">Optional Lanes</a>
+          <a href="#beads-graph">Beads Task Graph</a>
+          <a href="#optional-lanes">Optional Workstreams</a>
           <a href="#validate-handoff">Validate And Handoff</a>
         </nav>
         <div class="doc-body">
@@ -83,7 +84,10 @@ Create a publish-ready documentation pass for the project.</code></pre>
               The coach decides whether the work should stay in-thread, use a
               lightweight Beads task, scaffold a full harness, or add publish
               gates. If the route involves outside sharing or local inference,
-              Codex asks for that explicit boundary before any packet exists.
+              Codex asks for that explicit boundary before any contractor
+              handoff packet exists. A packet is a policy-checked bundle of
+              share boundary, job labels, task context, and approved snippets
+              prepared for outside or local review.
             </p>
             <p>
               What Codex may run behind the scenes:
@@ -107,27 +111,36 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
           </section>
 
           <section id="beads-graph">
-            <h2>Beads Work Graph</h2>
+            <h2>Beads Task Graph</h2>
             <p>
-              Beads is mandatory durable memory. For narrow work, use one task.
-              For broader work, Codex creates an epic with lanes for architect
-              framing, implementation, review, validation, handoff, and
-              publish-sanitization.
+              Beads is mandatory durable memory. A Beads task graph is the
+              work ledger of tasks, dependencies, evidence, and handoff state.
+              For narrow work, use one task. For broader work, Codex creates
+              an epic with workstreams for architect framing, implementation,
+              review, validation, handoff, and publish-sanitization.
               Public docs and GitHub Pages work adds an editor gate so
               documentation, web design, and final editorial review converge
               before validation is accepted.
+            </p>
+            <p>
+              The diagram below is the internal view of that reader path:
+              coach result, task graph, bounded workstreams, and evidence.
             </p>
             <div class="workflow-diagram pm" role="img" aria-label="Project manager flow from route to workgraph, ready filters, validation, and handoff.">
               <div class="flow-card"><strong>Coach</strong><span>level and risk</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Graph</strong><span>epic or task</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Work</strong><span>bounded lanes</span></div>
+              <div class="flow-card"><strong>Work</strong><span>bounded workstreams</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Evidence</strong><span>notes in Beads</span></div>
             </div>
             <p>
-              Advanced operator-shell equivalent:
+              Equivalent shell commands for automation or troubleshooting:
+            </p>
+            <p>
+              Use these outside a Codex <code>/plan</code> conversation when
+              you need to scaffold or inspect the same task graph directly.
             </p>
             <pre><code>python3 scripts/scaffold_workgraph.py \
   --title "Public workflow docs" \
@@ -153,19 +166,25 @@ python3 scripts/spawn_expert_reviews.py \
           </section>
 
           <section id="optional-lanes">
-            <h2>Optional Lanes</h2>
+            <h2>Optional Workstreams</h2>
             <p>
-              Contractors and local workers are specialized lanes selected by
-              the coach and route, not separate starting points. Use them only
-              after the user approves the relevant sharing or local-inference
-              boundary.
+              Contractors and local workers are specialized workstreams
+              selected by the coach and route, not separate starting points.
+              Use them only after the user approves the relevant sharing or
+              local-inference boundary.
+            </p>
+            <p>
+              A packet validation checkpoint verifies the share boundary,
+              opt-in basis, disclosure level, artifact whitelist, expert
+              profile, and packet integrity before a manual dispatch prompt is
+              rendered.
             </p>
             <div class="workflow-diagram contractor" role="img" aria-label="Contractor dispatch flow from contractor bead to packet, manual prompt, Claude or agy, evaluation, and architect adjudication.">
-              <div class="flow-card"><strong>Route</strong><span>lane selected</span></div>
+              <div class="flow-card"><strong>Route</strong><span>workstream selected</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Boundary</strong><span>explicit opt-in</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Packet</strong><span>audited prompt</span></div>
+              <div class="flow-card"><strong>Packet</strong><span>validated brief</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Return</strong><span>evidence only</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
@@ -173,12 +192,12 @@ python3 scripts/spawn_expert_reviews.py \
             </div>
             <p>
               Contractor deep dive: <a href="./external-contracting.html">share
-              boundaries, job labels, packet gates, and returns</a>. Local
+              boundaries, job labels, packet validation checkpoints, and returns</a>. Local
               worker deep dive: <a href="./local-workers.html">OpenShift AI
               profiles, OpenAI-compatible endpoints, and guardrails</a>.
             </p>
             <p>
-              Local-worker lane from inside Codex:
+              Local-worker workstream from inside Codex:
             </p>
             <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
 Use a local OpenShift AI vLLM worker to review a bounded README command example.</code></pre>
@@ -228,7 +247,7 @@ agy -p "$(cat contractor-dispatch-prompt.md)" \
               Use <code>--external-ok</code> only after the user approves
               third-party sharing. Use
               <code>--allow-disclosure-escalation</code> for repo-readonly or
-              patch-branch packets.
+              patch-branch handoff packets.
             </div>
           </section>
 

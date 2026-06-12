@@ -41,7 +41,7 @@ python3 scripts/coach_prompt.py \
 
 Expected sizing: `full-harness`.
 
-## Contractor Lane Scaffold
+## Contractor Workstream Scaffold
 
 ```bash
 python3 scripts/coach_prompt.py \
@@ -51,12 +51,18 @@ python3 scripts/coach_prompt.py \
 Expected sizing: `full-harness` with an `outside_sharing_boundary` question
 until the user explicitly chooses a sharing boundary.
 
-The JSON output includes `interactive_questions` for Plan-mode prompts when the
-recommended harness level, workerbee parallelism, sharing boundary, local
-worker use, or validation bar needs user confirmation. Each question has two or
-three options with the recommended option first.
+The example uses legacy routing words that the coach still understands. In
+reader-facing docs, describe the same choice as internal review workers and
+contractor workstreams.
 
-## Parallel Workerbee Review
+The JSON output includes `interactive_questions` for Plan-mode prompts when the
+recommended harness level, sharing boundary, local worker use, or validation
+bar needs user confirmation. The subagent parallelization question is always
+present so the user can choose no subagents, review subagents, heavy review
+subagents, or split implementation when scopes are disjoint. Each question has
+two or three options with the recommended option first.
+
+## Parallel Subagent Review
 
 ```bash
 python3 scripts/coach_prompt.py \
@@ -67,10 +73,23 @@ Expected sizing: `publish-release` or `full-harness` depending policy route,
 with `workerbee_parallelism.recommended_mode=review-only`,
 `workerbee-parallelism=review-only`, and a Plan-mode
 `workerbee_parallelism` question whose recommended option is
-`review-workerbees`. Use Codex 5.3 Spark when available, otherwise the
+`review-subagents`. Use Codex 5.3 Spark when available, otherwise the
 smallest available capable review model, for bounded parallel
-review/investigation lanes while the main thread keeps integration and final
+review/investigation workstreams while the main thread keeps integration and final
 acceptance.
+
+## Heavy Subagent Review
+
+```bash
+python3 scripts/coach_prompt.py \
+  "Heavily parallelize docs, terminology, web design, validation, and publish review lanes."
+```
+
+Expected sizing includes
+`workerbee_parallelism.recommended_mode=heavy-review`,
+`workerbee-parallelism=heavy-review`, and a Plan-mode
+`workerbee_parallelism` question whose recommended option is
+`heavy-review-subagents`.
 
 ## External Security Contractor
 
@@ -79,7 +98,7 @@ python3 scripts/coach_prompt.py \
   --external-ok \
   --share-boundary redacted-packet \
   --requested-role security \
-  "Claude security review for contractor packet redaction and audit behavior."
+  "Claude security review for contractor handoff packet redaction and audit behavior."
 ```
 
 Expected sizing: `external-contract`.
@@ -93,7 +112,7 @@ First-class in-Codex prompt:
 Use a local OpenShift AI vLLM worker to review a bounded README command example.
 ```
 
-Advanced operator-shell equivalent after explicit local opt-in:
+Equivalent shell command after explicit local opt-in:
 
 ```bash
 python3 scripts/coach_prompt.py \

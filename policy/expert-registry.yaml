@@ -206,10 +206,10 @@
       "preferred_executors": ["frontier_architect", "openai_deep_research_manual", "local_openai_compatible_worker"],
       "file_path_patterns": ["README.md", "SKILL.md", "references/*", "templates/*", "examples/*"],
       "trigger_terms": ["docs", "documentation", "readme", "guide", "operator", "install", "publish", "public", "sanitized", "example", "skill"],
-      "required_inputs": ["target audience", "changed behavior", "install path", "known failure modes", "examples"],
-      "output_contract": ["doc correctness findings", "missing warnings", "audience fit", "example quality", "publishability risks"],
-      "acceptance_checks": ["examples run", "audience is clear", "private context is absent"],
-      "escalation_rules": ["public leakage risk", "install instructions wrong", "operator hazard"]
+      "required_inputs": ["target audience", "changed behavior", "install path", "known failure modes", "examples", "reader-facing terminology"],
+      "output_contract": ["doc correctness findings", "missing warnings", "audience fit", "example quality", "first-use terminology fixes", "publishability risks"],
+      "acceptance_checks": ["examples run", "audience is clear", "private context is absent", "workflow-specific terms are defined on first use", "reader rationale appears before command examples"],
+      "escalation_rules": ["public leakage risk", "install instructions wrong", "operator hazard", "reader cannot understand the workflow without private project vocabulary"]
     },
     "web_design": {
       "display_name": "Web Designer Distinguished Engineer",
@@ -223,10 +223,10 @@
       "preferred_executors": ["frontier_architect", "openai_deep_research_manual", "claude_code_manual"],
       "file_path_patterns": ["*.html", "*.css", "*.js", "assets/*", "README.md"],
       "trigger_terms": ["web design", "ux", "ui", "accessibility", "wcag", "responsive", "layout", "visual", "frontend", "design system", "interaction"],
-      "required_inputs": ["audience", "screen states", "content hierarchy", "accessibility constraints", "responsive targets"],
-      "output_contract": ["information architecture", "interaction risks", "accessibility findings", "responsive layout issues", "visual hierarchy recommendations"],
-      "acceptance_checks": ["accessibility criteria are explicit", "layout states are covered", "recommendations fit the app domain"],
-      "escalation_rules": ["accessibility blocker", "brand/publication risk", "critical workflow ambiguity"]
+      "required_inputs": ["audience", "screen states", "content hierarchy", "accessibility constraints", "responsive targets", "reader journey"],
+      "output_contract": ["information architecture", "interaction risks", "accessibility findings", "responsive layout issues", "visual hierarchy recommendations", "diagram placement findings"],
+      "acceptance_checks": ["accessibility criteria are explicit", "layout states are covered", "recommendations fit the app domain", "page order supports the reader journey", "diagrams clarify rather than introduce private vocabulary"],
+      "escalation_rules": ["accessibility blocker", "brand/publication risk", "critical workflow ambiguity", "scan path starts with internals before reader value"]
     },
     "editor": {
       "display_name": "Editor Distinguished Engineer",
@@ -242,10 +242,10 @@
       "preferred_executors": ["frontier_architect", "internal_worker"],
       "file_path_patterns": ["README.md", "SKILL.md", "docs/*", "docs/*.html", "docs/*.css", "references/*", "examples/*"],
       "trigger_terms": ["editor", "editorial review", "editor gate", "editorial gate", "copy edit", "final review", "ai slop", "slop", "redundant", "redundancy", "circular", "repetitive", "bad flow", "docs flow", "pages flow", "diataxis", "diátaxis", "github pages", "public docs"],
-      "required_inputs": ["target audience", "documentation map", "page flow", "Diataxis intent", "changed behavior", "publication constraints", "prerequisites and setup paths"],
-      "output_contract": ["editorial decision", "flow findings", "reader-facing purpose fit", "redundancy removals", "AI-slop rewrites", "internal-monologue removals", "missing prerequisite or rationale gaps", "release-blocking gaps"],
-      "acceptance_checks": ["docs and pages flow together", "reader-facing page purpose is clear", "internal process labels do not leak into public copy", "required prerequisites and fallback paths are present", "redundant or circular content is removed", "AI-slop wording is replaced", "public narrative is coherent"],
-      "escalation_rules": ["conflicting docs architecture", "public reader cannot complete the workflow", "repeated unsupported claims", "missing install or setup prerequisites", "missing rationale for a workflow choice", "editorial gate cannot determine acceptance"]
+      "required_inputs": ["target audience", "documentation map", "page flow", "Diataxis intent", "changed behavior", "publication constraints", "prerequisites and setup paths", "public terminology map"],
+      "output_contract": ["editorial decision", "flow findings", "reader-facing purpose fit", "redundancy removals", "AI-slop rewrites", "internal-monologue removals", "private-vocabulary removals", "missing prerequisite or rationale gaps", "release-blocking gaps"],
+      "acceptance_checks": ["docs and pages flow together", "reader-facing page purpose is clear", "reader journey appears before control-plane detail", "internal process labels do not leak into public copy", "private vocabulary is defined or translated before use", "required prerequisites and fallback paths are present", "redundant or circular content is removed", "AI-slop wording is replaced", "public narrative is coherent"],
+      "escalation_rules": ["conflicting docs architecture", "public reader cannot complete the workflow", "repeated unsupported claims", "missing install or setup prerequisites", "missing rationale for a workflow choice", "unexplained packet, lane, workerbee, or Beads terminology", "editorial gate cannot determine acceptance"]
     },
     "openshift_platform": {
       "display_name": "OpenShift Platform Distinguished Engineer",

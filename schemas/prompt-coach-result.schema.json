@@ -85,7 +85,7 @@
       ],
       "properties": {
         "recommended_mode": {
-          "enum": ["none", "review-only", "implementation-capable"]
+          "enum": ["none", "review-only", "heavy-review", "implementation-capable"]
         },
         "recommended_model": {
           "anyOf": [

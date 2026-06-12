@@ -1,8 +1,8 @@
 # Complex Work Orchestration
 
 This skill turns complex work into a controlled operating model with a senior
-architect, project-manager coordination, bounded Codex workerbees, optional
-outside model contractors, and a Beads-backed work graph.
+architect, project-manager coordination, bounded Codex review workers,
+optional outside model contractors, and a Beads-backed task graph.
 
 Use it when a project needs durable state, multiple agents, independent review,
 external reasoning, or careful release judgment.
@@ -61,16 +61,19 @@ Use $complex-work-orchestration to scaffold this project.
 ```
 
 The prompt coach treats explicit scaffold language as a full-harness request.
-Terms such as `PM coordination`, `workerbee`, `epic`, and `contractor lanes`
-also size the work toward an architect/PM/workerbee graph. Contractor-lane
+Internal terms such as `workerbee` still work as routing signals; in public
+docs, read that as an internal review worker or subagent. Contractor workstream
 language asks for the outside-sharing boundary before any external dispatch.
 
-Advanced operator-shell equivalent:
+Equivalent shell command for automation or troubleshooting:
 
 ```bash
 python3 scripts/coach_prompt.py \
   "Plan a multi-session cleanup of installer docs, tests, and handoff notes."
 ```
+
+Use the shell command outside a Codex `/plan` conversation when you need the
+same coach result in CI, an operator shell, or a debugging session.
 
 All work governed by this skill should leave a durable Beads story. A narrow
 task can still execute in the current thread, but the minimum tracking shape is
@@ -86,9 +89,9 @@ shell command substitution so rendered Beads do not show backslash-n text.
 The skill should also be used for requests that mention:
 
 - Mixture of Experts
-- architect, project manager, or workerbee roles
+- architect, project manager, or review worker roles
 - Claude, Opus, Mythos, or another outside contractor model
-- Beads work graphs
+- Beads task graphs
 - durable handoff or multi-session coordination
 - broad review, release, lab, production, or publication risk
 
@@ -127,8 +130,11 @@ content, and AI-slop wording before publish sanitization.
 Advanced helper scripts:
 
 These are the implementation tools Codex can run in the workspace and the
-operator-shell equivalents for automation or CI. They are not the first-class
+shell equivalents for automation or CI. They are not the first-class
 public user flow; start with `/plan` plus the skill when working interactively.
+A contractor handoff packet is a policy-checked brief that contains the
+approved share boundary, job labels, task context, selected snippets, provider
+binding, and expert profile for outside or local review.
 
 - `scripts/coach_prompt.py`: compile a right-sized invocation prompt before
   launching the full harness, including bounded `interactive_questions` that
@@ -140,7 +146,7 @@ public user flow; start with `/plan` plus the skill when working interactively.
   run it from the target workspace or pass `--workspace-root <path>`, and use
   `--terminate-unowned-codex` only for explicit operator cleanup of stale
   unowned Codex, Claude, or Agy processes in that workspace.
-- `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and lane
+- `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and workstream
   tasks.
 - `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
   Beads from routing triggers.
@@ -150,7 +156,7 @@ public user flow; start with `/plan` plus the skill when working interactively.
   default.
 - `scripts/generate_manual_dispatch_prompt.py`: turn an approved packet into a
   manual prompt for Claude, OpenAI deep research, or another contractor.
-- `scripts/dispatch_work.py`: revalidate a contractor packet, record a manual
+- `scripts/dispatch_work.py`: revalidate a contractor handoff packet, record a manual
   dispatch event by default, and produce the prompt without claiming that an
   external model was called automatically. Direct dispatch can use
   `--dispatch-id` so quota checks, output, and audit records share the same
@@ -208,11 +214,11 @@ flowchart TD
     Beads --> WorkerReady[Codex-ready beads]
     Beads --> ContractorReady[Contractor-only beads]
 
-    WorkerReady --> Workerbee[Codex workerbee]
+    WorkerReady --> Workerbee[Codex review worker]
     Workerbee --> Evidence[Patch, validation, evidence]
     Evidence --> Beads
 
-    ContractorReady --> Packet[Contractor packet]
+    ContractorReady --> Packet[Contractor handoff packet]
     Packet --> Outside[Outside LLM contractor]
     Outside --> Findings[Findings, risks, confidence, next actions]
     Findings --> Beads
@@ -260,7 +266,7 @@ flowchart TD
 flowchart TD
     Start[Request arrives] --> Trigger{Skill trigger?}
     Trigger -->|Explicit: Use $complex-work-orchestration| Harness[Use orchestration harness]
-    Trigger -->|Mentions MoE, PM, workerbees, Claude, Beads, durable handoff| Harness
+    Trigger -->|Mentions MoE, PM, review workers, Claude, Beads, durable handoff| Harness
     Trigger -->|Unsure how much harness to use| Coach[coach_prompt.py]
     Trigger -->|Narrow single-thread fix| Local[Use current-thread execution]
 
@@ -278,7 +284,7 @@ flowchart TD
     InitSync --> Size{Graph size}
     Markdown --> Size
     Size -->|narrow| SingleTask[Create or update one Beads task]
-    Size -->|complex| Scaffold[Create epic and role/lane beads]
+    Size -->|complex| Scaffold[Create epic and role/workstream beads]
     SingleTask --> Packet[Return orchestration packet]
     Scaffold --> Packet[Return orchestration packet]
 ```
@@ -322,7 +328,7 @@ flowchart TD
 flowchart TD
     User[User asks in Codex] --> Coach[Codex runs coach_prompt.py]
     Coach --> Plan{Need contractor?}
-    Plan -->|No| Graph[Create normal Beads graph]
+    Plan -->|No| Graph[Create normal Beads task graph]
     Plan -->|Yes| Boundary[Confirm share boundary and opt-in]
 
     Boundary --> Contract[Create contractor-only Bead]
@@ -357,17 +363,17 @@ flowchart TD
     Conflicts -->|Yes| PeerReq[peer_review_required=true]
     Conflicts -->|No| NormalReview[normal evaluator path]
     Disclosure -->|Yes| Escalation[operator must pass --allow-disclosure-escalation]
-    Disclosure -->|No| PacketGate[packet gate]
+    Disclosure -->|No| PacketGate[packet validation checkpoint]
     Escalation --> PacketGate
 
-    PacketGate --> Packet[contractor packet with packet_sha256]
+    PacketGate --> Packet[contractor handoff packet with packet_sha256]
     Packet --> Attest[optional packet attestation sidecar]
     Packet --> Dispatch[manual dispatch and audit event]
     Dispatch --> Return[contractor return]
     Return --> Normalize[normalize_contractor_return.py]
     Normalize --> Score[sabotage and malpractice score]
     Score --> Peer{Peer review required or sabotage review?}
-    Peer -->|Yes| PeerLane[peer-review Bead lane]
+    Peer -->|Yes| PeerLane[peer-review Bead workstream]
     Peer -->|No| Eval[evaluate_return.py]
     PeerLane --> Eval
     Eval --> Quarantine{quarantine recommended?}
@@ -381,7 +387,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     Ready[bd ready] --> Filter{Which actor is looking?}
-    Filter -->|Codex workerbee| CodexCmd[bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json]
+    Filter -->|Codex review worker| CodexCmd[bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json]
     Filter -->|PM or architect external dispatch| ContractorCmd[bd ready --label contractor-only --json]
     Filter -->|PM or architect local dispatch| LocalCmd[bd ready --label local-worker-only --json]
 
@@ -407,19 +413,20 @@ flowchart LR
    <task text>
    ```
 
-   Advanced operator-shell equivalent: `python3 scripts/coach_prompt.py
-   "<task text>"`.
+   Equivalent shell command for automation or troubleshooting:
+   `python3 scripts/coach_prompt.py "<task text>"`.
 
    The coach returns a recommended orchestration level,
    `beads_tracking_required=true`, `workerbee_parallelism`, missing questions,
    bounded `interactive_questions`, enabled/disabled levers, warnings, and a
    paste-ready launch prompt. In Plan mode, use `interactive_questions` for
-   selectable user input when the answer changes execution behavior. If the
-   coach recommends `review-workerbees`, use Codex 5.3 Spark when available, or
-   the smallest available capable review model, for parallel docs, tests,
-   routing, validation, or publish-sanitization review before that becomes
-   automatic. In Default mode, ask only the required concise question or apply
-   the coach's safe default.
+   selectable user input when the answer changes execution behavior. The coach
+   always asks whether to parallelize with subagents. If the coach recommends
+   `review-subagents` or `heavy-review-subagents`, use Codex 5.3 Spark when
+   available, or the smallest available capable review model, for parallel
+   docs, terminology, web-design, tests, routing, validation, or
+   publish-sanitization review. In Default mode, ask only the required concise
+   question or apply the coach's safe default.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -461,16 +468,18 @@ flowchart LR
 8. Create or update one Beads task for narrow/current-thread work. Escalate to
    an epic when multiple independent work streams, handoffs, contractors, or
    release gates appear.
-9. For epic-sized work, create role/lane tasks under the epic: architect
-   framing, PM coordination, review-only workerbee sidecar lanes,
-   implementation workerbee lanes only when write ownership is disjoint,
+9. For epic-sized work, create role/workstream tasks under the epic: architect
+   framing, PM coordination, review-only subagent sidecar workstreams,
+   implementation subagents only when write ownership is disjoint,
    validation, docs/handoff, and any outside contracts.
 10. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
    evaluation, and architect adjudication as real Beads dependencies.
-11. PM prepares the contractor packet and a manual dispatch prompt. Packet
-   build and dispatch both record hash-chained audit events unless `--no-audit`
-   is used.
+11. PM prepares the contractor handoff packet and a manual dispatch prompt. A
+   packet is a policy-checked bundle of share boundary, job labels, task
+   context, selected snippets, and expert profile for outside or local review.
+   Packet build and dispatch both record hash-chained audit events unless
+   `--no-audit` is used.
 12. Dispatch revalidates the packet hash, executor, boundary, opt-in basis,
    provider binding, disclosure stage, expert profile, and artifact whitelist
    before rendering the prompt.
@@ -479,7 +488,7 @@ flowchart LR
    sections, evidence, confidence, residual risk, explicit safety fields,
    boundary fit, and sabotage or malpractice signals.
 15. If peer review is required or the return trips the sabotage review
-   threshold, run the peer-review lane before implementation can proceed.
+   threshold, run the peer-review workstream before implementation can proceed.
 16. If the return trips quarantine, do not convert findings into implementation
    dependencies until the architect explicitly adjudicates the incident.
 17. The architect reviews contractor findings before Codex workers implement
@@ -489,7 +498,7 @@ flowchart LR
 ## Beads Requirement
 
 Beads is required for skill-governed work. The full durable workflow uses an
-epic and lane tasks, but even narrow current-thread work should create or update
+epic and workstream tasks, but even narrow current-thread work should create or update
 one Beads task. The installer warns if `bd` is missing but does not fail,
 because the skill can still be read and used manually.
 
@@ -506,7 +515,7 @@ If the repo should own the durable work story and `.beads` is absent:
 bd init
 ```
 
-If a Dolt remote is configured, synchronize the Beads graph with the current
+If a Dolt remote is configured, synchronize the Beads task graph with the current
 `bd` command surface:
 
 ```bash
@@ -516,7 +525,7 @@ bd dolt commit
 bd dolt push
 ```
 
-If no Dolt remote is configured, the Beads graph is still durable local state,
+If no Dolt remote is configured, the Beads task graph is still durable local state,
 but it is not shared across machines until you add a remote.
 
 If Beads is unavailable, create the same task or graph structure in a temporary
@@ -559,10 +568,10 @@ Outside models are contractors, not project owners. They receive one explicit
 bead at a time. They do not re-plan the project, close parent epics, publish,
 release, tag, rotate secrets, or run destructive commands.
 
-External contracting is fail-closed. A contractor packet is only valid when the
-user has opted in, the selected share boundary allows outside work, the Bead has
-`contractor-only` and `no-codex-exec`, and an architect review is required
-before any finding becomes implementation work. Packet building enforces this:
+External contracting is fail-closed. A contractor handoff packet is only valid
+when the user has opted in, the selected share boundary allows outside work, the
+Bead has `contractor-only` and `no-codex-exec`, and an architect review is
+required before any finding becomes implementation work. Packet building enforces this:
 external packets require `--external-ok` or `--opt-in-record`, and unsafe files
 are rejected before they can enter the packet. Repo-readonly and patch-branch
 boundaries also require `--allow-disclosure-escalation`. Dispatch then
@@ -576,11 +585,12 @@ the contractor unusable by itself, but it forces peer review and architect
 adjudication before findings can affect the implementation plan.
 
 Distinguished Engineer profiles are first-class packet artifacts. A normal
-contractor packet includes the matched `experts/<discipline>.md` profile and
-its SHA-256 so the outside model receives the full operating lens, not just a
-job-description label. A packet created with `--no-include-expert-profile` is
-degraded, must pass `--degraded-context-justification`, and still requires
-`--allow-degraded-packet` at dispatch time.
+contractor handoff packet includes the matched `experts/<discipline>.md`
+profile and its SHA-256 so the outside model receives the full operating lens,
+not just a job-description label. A packet created with
+`--no-include-expert-profile` is degraded, must pass
+`--degraded-context-justification`, and still requires `--allow-degraded-packet`
+at dispatch time.
 
 Use outside contracts for work that benefits from an independent reasoning lens:
 
@@ -592,7 +602,8 @@ Use outside contracts for work that benefits from an independent reasoning lens:
 - documentation and publishability review
 - discipline-specific review such as SELinux, API compatibility, packaging, or compliance
 
-The PM prepares the packet. The architect remains the final decision owner.
+The PM prepares the contractor handoff packet. The architect remains the final
+decision owner.
 
 ## Job Description Labels
 
@@ -633,10 +644,11 @@ up the work.
   lens, such as OpenShift Platform, OpenShift Application Developer,
   OpenShift AI, RHOSO, RHACM, RHACS, or RHEL.
 
-The job-description label calibrates the assigned reasoning lane. A security
+The job-description label calibrates the assigned reasoning workstream. A security
 contract should return security findings, not a generic project review. If work
-needs multiple disciplines, create multiple Beads so each packet or review lane
-has exactly one primary job-description label and one matching expert profile.
+needs multiple disciplines, create multiple Beads so each handoff packet or
+review workstream has exactly one primary job-description label and one
+matching expert profile.
 
 ## Contractor Bead Template
 
@@ -688,7 +700,7 @@ bd create "Claude Opus review: security-focused reasoning for <scope>" \
   --description "$body"
 ```
 
-## Contractor Packet
+## Contractor Handoff Packet
 
 Give the outside model:
 

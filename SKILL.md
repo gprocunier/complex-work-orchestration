@@ -86,7 +86,7 @@ run with the Python standard library only.
 Default roles:
 
 - **Architect**: Codex 5.5 x-high if available. Owns decomposition, architecture, final integration, acceptance, release judgment, and escalation decisions.
-- **Project Manager**: simpler model. Owns Beads graph hygiene, status, dependencies, assignments, stale-work detection, and handoff completeness. Coordinates; does not decide architecture.
+- **Project Manager**: simpler model. Owns Beads task-graph hygiene, status, dependencies, assignments, stale-work detection, and handoff completeness. Coordinates; does not decide architecture.
 - **Workerbee**: Codex 5.3-spark when available, otherwise the
   smallest available capable review model. Owns bounded investigation, focused
   patches, test triage, file search, evidence gathering, and narrow validation
@@ -122,10 +122,13 @@ python3 scripts/coach_prompt.py "<task text>"
 
    Use the coach output to avoid under- or over-leveraging Beads, contractors,
    local inference, peer review, workerbee parallelism, or
-   publish-sanitization. If `workerbee_parallelism.recommended_mode` is
-   `review-only`, use Codex 5.3 Spark when available, or the smallest available
-   capable review model, for bounded parallel review or investigation lanes
-   before automatic workerbee handling exists.
+   publish-sanitization. The coach always includes a subagent parallelization
+   choice in `interactive_questions`; surface it in Plan mode even when the
+   recommended default is no subagents. If
+   `workerbee_parallelism.recommended_mode` is `review-only` or `heavy-review`,
+   use Codex 5.3 Spark when available, or the smallest available capable review
+   model, for bounded parallel review or investigation lanes before automatic
+   workerbee handling exists.
    Use implementation workerbees only when file ownership or workstream
    boundaries are disjoint.
    If the result includes `interactive_questions` and Codex is in Plan mode,

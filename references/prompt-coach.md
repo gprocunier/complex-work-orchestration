@@ -19,12 +19,15 @@ the route, and turn any interactive questions into selectable choices:
 Plan a multi-session cleanup of installer docs, tests, and handoff notes.
 ```
 
-Advanced operator-shell equivalent:
+Equivalent shell command for automation or troubleshooting:
 
 ```bash
 python3 scripts/coach_prompt.py \
   "Plan a multi-session cleanup of installer docs, tests, and handoff notes."
 ```
+
+Use this outside a Codex `/plan` conversation when you need the same coach
+result in CI, an operator shell, or a debugging session.
 
 Automation can consume JSON directly:
 
@@ -34,20 +37,24 @@ python3 scripts/coach_prompt.py --json "<task text>"
 
 ## Output Levels
 
+Output levels are the coach's work-sizing result. They drive where execution
+starts and which acceptance gates are required.
+
 - `in-thread`: handle the work in the current thread with one durable Beads
   task; no full harness.
 - `lightweight-beads`: create durable Beads state without contractor/local
-  worker lanes.
-- `full-harness`: use architect, PM, workerbee, validation, and handoff lanes.
-- `external-contract`: create a contractor-only lane after explicit opt-in.
-- `local-worker`: create a bounded local-worker review lane after explicit
+  worker workstreams.
+- `full-harness`: use architect, PM, internal review worker, validation, and
+  handoff workstreams.
+- `external-contract`: create a contractor-only workstream after explicit opt-in.
+- `local-worker`: create a bounded local-worker review workstream after explicit
   local opt-in.
 - `publish-release`: include validation and publish-sanitization before any
   push, release, or tag.
 
 Explicit scaffold requests such as `Use $complex-work-orchestration to scaffold
 this project`, `full scaffold`, `PM coordination`, `workerbee`, `epic`, or
-`contractor lanes` recommend `full-harness`. Contractor-lane or contractor
+`contractor lanes` recommend `full-harness`. Contractor-workstream or contractor
 review language also asks for the outside-sharing boundary before any external
 dispatch is allowed.
 
@@ -74,16 +81,22 @@ publish-sanitization before any formal push, release, or tag.
 Public docs, README/install docs, GitHub Pages, site-flow, and Diataxis
 language also enables the editor gate. The route should include documentation,
 web design when a site/page is involved, and `contract-jd-editorial-reasoning`
-as the final validation-lane expert before publish sanitization.
+as the final validation-gate expert before publish sanitization.
 
-## Workerbee Parallelism
+## Subagent Parallelism
 
 `workerbee_parallelism` is separate from the orchestration level. Broad
 full-harness or publish-release work can still choose whether to use parallel
-workerbees. The conservative default for docs, Pages, policy, routing, tests,
-validation, and publish-sanitization work is `review-only` using Codex 5.3
-Spark when available, otherwise the smallest available capable review model.
-Implementation-capable workerbees require explicit disjoint write scopes;
+subagents. The coach always asks this question so the user can explicitly
+choose no subagents, review-only subagents, heavy review subagents, or split
+implementation when disjoint write scopes are clear.
+
+The conservative default for narrow work is no subagents. The default for broad
+docs, Pages, policy, routing, tests, validation, and publish-sanitization work
+is `review-only` using Codex 5.3 Spark when available, otherwise the smallest
+available capable review model. Heavy review parallelism uses separate bounded
+tracks for docs flow, terminology, web-design, validation, and publish checks.
+Implementation-capable subagents require explicit disjoint write scopes;
 otherwise the main thread keeps file integration and acceptance.
 
 ## Missing Questions
@@ -94,6 +107,7 @@ The coach asks only for information that materially changes sizing:
 - repo, paths, or components in scope
 - whether the mandatory Beads record should stay as one task or expand into an
   epic/work graph
+- whether to parallelize with subagents
 - outside-sharing boundary for Claude, Opus, Mythos, or another external model
 - local-worker opt-in and local profile
 - validation bar for security, production, publish, or release work
@@ -103,10 +117,11 @@ the user does not answer.
 
 ## Interactive Questions
 
-The JSON result includes `interactive_questions` when a user answer would change
-execution behavior. Each item is shaped for Codex Plan-mode selectable prompts:
-a short `header`, stable `id`, question text, and two or three options. The
-recommended option is first and its label ends with `(Recommended)`.
+The JSON result includes `interactive_questions` for decisions that change
+execution behavior. The subagent parallelization question is always present.
+Each item is shaped for Codex Plan-mode selectable prompts: a short `header`,
+stable `id`, question text, and two or three options. The recommended option is
+first and its label ends with `(Recommended)`.
 
 Use these questions for decisions such as:
 
@@ -114,8 +129,8 @@ Use these questions for decisions such as:
   lightweight Beads, full harness, or publish-grade execution
 - whether outside sharing is allowed: no sharing, redacted packet, or
   repo-readonly
-- whether to use Codex 5.3 Spark, when available, or a smaller available review
-  workerbee for bounded parallel review or investigation
+- whether to use no subagents, review-only subagents, heavy review subagents,
+  or implementation subagents for disjoint scopes
 - whether a local inference worker is allowed
 - what validation bar to apply
 

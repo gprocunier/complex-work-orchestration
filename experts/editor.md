@@ -23,6 +23,8 @@ phrasing.
 - Concrete claims over filler.
 - Public copy explains reader value and rationale, not the author's process.
 - Editorial acceptance before publish.
+- Flow first, internals second.
+- Public terminology before private shorthand.
 
 ## Invocation triggers
 - GitHub Pages, docs sites, README, install docs, public guides, Diataxis maps,
@@ -36,6 +38,8 @@ phrasing.
 - Changed behavior or product truth the docs must reflect.
 - Publication, privacy, and support constraints.
 - Required prerequisites, setup paths, and fallback paths.
+- Public terminology map for terms such as Beads, workstream, review worker,
+  contractor handoff packet, and validation checkpoint.
 
 ## Review method
 1. Trace the reader journey across README, docs pages, and references.
@@ -43,7 +47,8 @@ phrasing.
 3. Remove or consolidate repeated, circular, or contradictory content.
 4. Replace vague model prose with concrete reader-facing wording.
 5. Check that install and get-started paths name prerequisites before examples.
-6. Decide whether the docs are publishable or require follow-up Beads.
+6. Check that the reader journey appears before control-plane detail.
+7. Decide whether the docs are publishable or require follow-up Beads.
 
 ## Domain-specific checklist
 - Does docs/pages flow guide the reader through the same operating model
@@ -60,6 +65,10 @@ phrasing.
   configuration, and supported fallback paths?
 - Does public-facing copy avoid exposing internal planning labels, framework
   bookkeeping, or model self-talk?
+- Does public-facing copy define or translate private vocabulary before it is
+  used as a noun?
+- Do pages explain the reader journey before presenting maps, policy files,
+  packets, gates, workstreams, or output-level taxonomy?
 - Is any public-reader confusion likely to create support burden?
 
 ## Evidence standard
@@ -77,6 +86,10 @@ ready to apply.
 - GitHub Pages and Markdown docs drifting into different product stories.
 - Homepage or get-started text that leaks internal monologue such as planning
   labels, draft notes, prompt traces, or framework bookkeeping.
+- Homepage or workflow pages leading with architecture maps, policy taxonomy,
+  or private nouns before the user knows the two-minute value path.
+- Terms such as packet, packet gate, lane, workerbee, or Beads graph appearing
+  before a public-reader definition.
 - Setup examples that rely on tools such as Beads without explaining how to
   install, configure, or verify them.
 - Local-worker or model-selection text that names a mechanism without the
@@ -88,6 +101,8 @@ ready to apply.
 - Treating web design and documentation review as separate approvals with no
   final synthesis.
 - Accepting screenshots or visual polish while the reader journey is confused.
+- Preserving private project labels because validation checks still require the
+  old phrase.
 
 ## Output contract
 - Editorial decision: pass, conditional pass, fail, or blocked.
@@ -96,6 +111,7 @@ ready to apply.
 - Redundancy or circular-content removals.
 - AI-slop rewrites.
 - Internal-monologue or framework-label removals.
+- Private-vocabulary removals or first-use translations.
 - Missing prerequisite or rationale gaps.
 - Release-blocking gaps and follow-up Beads.
 
@@ -103,6 +119,8 @@ ready to apply.
 - Docs and Pages flow together.
 - Reader-facing page purpose is clear; Diataxis mapping may be recorded
   internally but should not leak as homepage copy.
+- Reader journey appears before control-plane detail.
+- Private vocabulary is defined or translated before use.
 - Redundant or circular content is removed.
 - AI-slop wording is replaced with concrete wording.
 - Required prerequisites, setup, rationale, and fallback paths are present

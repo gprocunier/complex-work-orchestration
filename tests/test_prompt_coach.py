@@ -43,7 +43,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("architect-review", result["enabled_levers"])
         self.assertIn("validation-lane", result["enabled_levers"])
-        self.assertIn("full architect/PM/workerbee/validation harness", result["paste_ready_prompt"])
+        self.assertIn("full architect/PM/subagent/validation harness", result["paste_ready_prompt"])
         harness_questions = [
             item for item in result["interactive_questions"] if item["id"] == "orchestration_level"
         ]
@@ -130,19 +130,52 @@ class PromptCoachTests(unittest.TestCase):
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
         ]
         self.assertEqual(len(worker_questions), 1)
-        self.assertEqual(worker_questions[0]["header"], "Workers")
-        self.assertEqual(worker_questions[0]["options"][0]["value"], "review-workerbees")
+        self.assertEqual(worker_questions[0]["header"], "Subagents")
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")
+        self.assertIn("heavy-review-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
-    def test_explicit_workerbee_request_does_not_double_prompt(self) -> None:
+    def test_explicit_workerbee_request_still_prompts_for_parallelism(self) -> None:
         result = coach_orchestration_prompt(
             "Use $complex-work-orchestration to scaffold this project with PM coordination and workerbee validation."
         )
         self.assertEqual(result["recommended_orchestration_level"], "full-harness")
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
-        self.assertFalse(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
+        self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
         self.assertIn("codex-5.3-spark-workerbees-when-available", result["enabled_levers"])
-        self.assertFalse(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+        worker_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
+        ]
+        self.assertEqual(len(worker_questions), 1)
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")
+
+    def test_heavy_parallelization_recommends_heavy_review_subagents(self) -> None:
+        result = coach_orchestration_prompt(
+            "Heavily parallelize docs, terminology, web design, validation, and publish review lanes."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "heavy-review")
+        self.assertIn("workerbee-parallelism=heavy-review", result["enabled_levers"])
+        self.assertIn("heavy review parallelism", result["paste_ready_prompt"])
+        worker_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
+        ]
+        self.assertEqual(len(worker_questions), 1)
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "heavy-review-subagents")
+        self.assertIn("review-subagents", [option["value"] for option in worker_questions[0]["options"]])
+        self.assertIn("no-subagents", [option["value"] for option in worker_questions[0]["options"]])
+
+    def test_implementation_subagent_request_recommends_split_implementation(self) -> None:
+        result = coach_orchestration_prompt(
+            "Spawn implementation-workerbees for disjoint files and keep main-thread integration."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "implementation-capable")
+        worker_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
+        ]
+        self.assertEqual(len(worker_questions), 1)
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "implementation-subagents")
+        self.assertIn("heavy-review-subagents", [option["value"] for option in worker_questions[0]["options"]])
+        self.assertIn("no-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
     def test_unavailable_spark_mention_still_prompts_for_workerbee_parallelism(self) -> None:
         result = coach_orchestration_prompt(
@@ -155,7 +188,7 @@ class PromptCoachTests(unittest.TestCase):
         )
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-model-fallback-required", result["enabled_levers"])
-        self.assertIn("smallest available capable review workerbee", result["paste_ready_prompt"])
+        self.assertIn("smallest available capable review subagent", result["paste_ready_prompt"])
         self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
 
     def test_conditional_workerbee_language_still_prompts_for_parallelism(self) -> None:
@@ -173,11 +206,17 @@ class PromptCoachTests(unittest.TestCase):
         self.assertTrue(result["route"]["editor_gate_required"])
         self.assertIn("editor", result["route"]["editor_gate_experts"])
 
-    def test_narrow_work_does_not_prompt_for_workerbees(self) -> None:
+    def test_narrow_work_still_prompts_for_subagent_parallelism(self) -> None:
         result = coach_orchestration_prompt("Fix typo in README.md")
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "none")
         self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
-        self.assertFalse(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+        self.assertEqual(result["workerbee_parallelism"]["suggested_lanes"], [])
+        worker_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
+        ]
+        self.assertEqual(len(worker_questions), 1)
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "no-subagents")
+        self.assertIn("review-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
     def test_cli_json_output_contains_prompt_and_route(self) -> None:
         output = subprocess.check_output(
