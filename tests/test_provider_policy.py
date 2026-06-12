@@ -46,6 +46,22 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertEqual(route["recommended_executor"], "local_secure_review_worker")
         self.assertEqual(route["selected_executor"]["dispatch_mode"], "local_secure_review")
 
+    def test_gemini_manual_executor_is_registered_as_external_contractor(self) -> None:
+        providers = load_policy("provider-registry")["providers"]
+        executors = load_policy("executor-registry")["executors"]
+        controls = load_policy("contracting-controls")
+
+        provider = providers["google_gemini_manual"]
+        executor = executors["gemini_3_1_pro_manual"]
+        self.assertTrue(provider["external"])
+        self.assertEqual(provider["family"], "google")
+        self.assertEqual(executor["provider_key"], "google_gemini_manual")
+        self.assertTrue(executor["external"])
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertTrue(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertIn("gemini_3_1_pro_manual", controls["allowed_external_executors"])
+
 
 if __name__ == "__main__":
     unittest.main()

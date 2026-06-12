@@ -141,6 +141,17 @@ contract-jd-security-reasoning</code></pre>
               Repo-readonly and patch-branch handoff packets require an explicit
               disclosure escalation flag in addition to external opt-in.
             </p>
+            <pre><code>python3 scripts/build_contractor_packet.py \
+  --bead &lt;id&gt; \
+  --executor gemini_3_1_pro_manual \
+  --share-boundary patch-branch \
+  --allow-disclosure-escalation \
+  --external-ok \
+  --job-description contract-jd-domain-web-design \
+  --allowed-file docs/index.html \
+  --allowed-file docs/styles.css \
+  --format json \
+  --output contractor-packet.json</code></pre>
           </section>
 
           <section id="return">

@@ -62,6 +62,18 @@
       "may_peer_review": false,
       "may_counter_review": true
     },
+    "google_gemini_manual": {
+      "display_name": "Google Gemini manual external model",
+      "trust_tier": "external-frontier",
+      "family": "google",
+      "external": true,
+      "retention_class": "external-manual",
+      "allowed_roles": ["primary-contractor", "peer-reviewer"],
+      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition"],
+      "may_primary": true,
+      "may_peer_review": false,
+      "may_counter_review": true
+    },
     "human_specialist": {
       "display_name": "Human specialist contractor",
       "trust_tier": "contracted-human",
@@ -101,7 +113,10 @@
       "model provider",
       "provider conflict",
       "competitor",
-      "sabotage"
+      "sabotage",
+      "google",
+      "gemini",
+      "antigravity"
     ]
   }
 }

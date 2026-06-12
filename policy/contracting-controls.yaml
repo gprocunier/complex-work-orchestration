@@ -6,6 +6,7 @@
   "allowed_external_executors": [
     "openai_deep_research_manual",
     "claude_code_manual",
+    "gemini_3_1_pro_manual",
     "human_specialist_contractor",
     "external_reasoner",
     "external_security_reviewer"

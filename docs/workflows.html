@@ -250,8 +250,16 @@ python3 scripts/dispatch_work.py \
 claude -p "$(cat contractor-dispatch-prompt.md)" \
   &gt; contractor-return.md
 
+gemini -p "$(cat contractor-dispatch-prompt.md)" \
+  &gt; contractor-return.md
+
 agy -p "$(cat contractor-dispatch-prompt.md)" \
   &gt; contractor-return.md</code></pre>
+            <p>
+              Policy can select <code>gemini_3_1_pro_manual</code> for focused
+              public GitHub Pages web-design work. Patch-branch packets also
+              require <code>--allow-disclosure-escalation</code>.
+            </p>
             <div class="callout">
               <strong>Boundary rule:</strong>
               Use <code>--external-ok</code> only after the user approves

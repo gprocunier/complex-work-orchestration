@@ -31,6 +31,8 @@ from orchestration_lib import (
 
 
 def extract_labels(bead: Any) -> list[str]:
+    if isinstance(bead, list) and len(bead) == 1:
+        bead = bead[0]
     if isinstance(bead, dict):
         source = bead.get("issue") if isinstance(bead.get("issue"), dict) else bead
         labels = source.get("labels") or source.get("label_names") or []

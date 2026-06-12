@@ -56,6 +56,11 @@ def main() -> None:
     parser.add_argument("text", nargs="*", help="Task text to coach.")
     parser.add_argument("--file", help="Read task text from a file.")
     parser.add_argument("--external-ok", action="store_true", help="User has opted in to third-party contracting.")
+    parser.add_argument(
+        "--allow-disclosure-escalation",
+        action="store_true",
+        help="Explicitly approve repo-readonly or patch-branch disclosure routing.",
+    )
     parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
@@ -71,6 +76,7 @@ def main() -> None:
     result = coach_orchestration_prompt(
         text,
         external_ok=args.external_ok,
+        allow_disclosure_escalation=args.allow_disclosure_escalation,
         local_ok=args.local_ok,
         prefer_local=args.prefer_local,
         local_profile=args.local_profile,

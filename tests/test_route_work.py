@@ -71,6 +71,43 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(editor["validation_gate_required"])
         self.assertEqual(editor["job_description_label"], "contract-jd-editorial-reasoning")
 
+    def test_patch_branch_gemini_contract_requires_disclosure_escalation(self) -> None:
+        text = (
+            "Contract Gemini 3.1 Pro for a public GitHub Pages web design refresh. "
+            "Keep the internal editor gate with Codex."
+        )
+        blocked = classify_work(
+            text,
+            external_ok=True,
+            share_boundary="patch-branch",
+            requested_roles=["web-design"],
+            file_paths=["docs/index.html", "docs/styles.css"],
+        )
+        self.assertNotEqual(blocked["route"], "external-contract")
+        web_design = next(expert for expert in blocked["ranked_experts"] if expert["name"] == "web_design")
+        gemini_candidate = next(
+            item for item in web_design["executor_candidates"] if item["key"] == "gemini_3_1_pro_manual"
+        )
+        self.assertIn(
+            "share boundary patch-branch requires disclosure escalation approval",
+            gemini_candidate["policy_violations"],
+        )
+
+        allowed = classify_work(
+            text,
+            external_ok=True,
+            allow_disclosure_escalation=True,
+            share_boundary="patch-branch",
+            requested_roles=["web-design"],
+            file_paths=["docs/index.html", "docs/styles.css"],
+        )
+        self.assertEqual(allowed["route"], "external-contract")
+        self.assertEqual(allowed["recommended_executor"], "gemini_3_1_pro_manual")
+        self.assertIn("contract-jd-domain-web-design", allowed["guard_labels"])
+        editor = next(expert for expert in allowed["ranked_experts"] if expert["name"] == "editor")
+        self.assertFalse(editor["selected_executor"]["external"])
+        self.assertEqual(editor["recommended_executor"], "frontier_architect")
+
     def test_public_docs_page_path_alone_requires_editor_gate(self) -> None:
         result = classify_work(
             "Update landing page copy.",

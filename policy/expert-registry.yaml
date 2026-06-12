@@ -220,7 +220,7 @@
       "task_class": "domain-review",
       "review_stage": "implementation-review",
       "default_risk": "medium",
-      "preferred_executors": ["frontier_architect", "openai_deep_research_manual", "claude_code_manual"],
+      "preferred_executors": ["frontier_architect", "gemini_3_1_pro_manual", "openai_deep_research_manual", "claude_code_manual"],
       "file_path_patterns": ["*.html", "*.css", "*.js", "assets/*", "README.md"],
       "trigger_terms": ["web design", "ux", "ui", "accessibility", "wcag", "responsive", "layout", "visual", "frontend", "design system", "interaction"],
       "required_inputs": ["audience", "screen states", "content hierarchy", "accessibility constraints", "responsive targets", "reader journey"],

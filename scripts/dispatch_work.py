@@ -175,6 +175,11 @@ def main() -> None:
     )
     parser.add_argument("--mode", choices=["manual"], default="manual")
     parser.add_argument("--external-ok", action="store_true")
+    parser.add_argument(
+        "--allow-disclosure-escalation",
+        action="store_true",
+        help="Explicitly approve repo-readonly or patch-branch disclosure routing.",
+    )
     parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument(
@@ -249,6 +254,7 @@ def main() -> None:
     route = classify_work(
         task,
         external_ok=args.external_ok,
+        allow_disclosure_escalation=args.allow_disclosure_escalation,
         local_ok=args.local_ok,
         prefer_local=args.prefer_local,
         local_profile=args.local_profile,

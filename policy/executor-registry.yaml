@@ -236,6 +236,35 @@
       "architect_review_required": true,
       "codex_pickup": "forbidden"
     },
+    "gemini_3_1_pro_manual": {
+      "display_name": "Gemini 3.1 Pro manual dispatch",
+      "role": "outside-contractor",
+      "provider_key": "google_gemini_manual",
+      "venue": "gemini-cli-or-google-ai-studio",
+      "dispatch_mode": "manual_ui",
+      "external": true,
+      "capabilities": ["repo-review", "shell-reasoning", "patch-prototype", "frontend-design"],
+      "allowed_task_classes": ["domain-review"],
+      "supports_web": true,
+      "supports_shell": true,
+      "supports_repo_read": true,
+      "supports_repo_write": false,
+      "privacy_class": "approved-repo-context",
+      "max_risk": "high",
+      "max_data_sensitivity": "internal",
+      "cost_tier": "high",
+      "latency_tier": "medium",
+      "manual_dispatch_required": true,
+      "explicit_opt_in_required": true,
+      "acceptance_required": true,
+      "architect_review_required": true,
+      "codex_pickup": "forbidden",
+      "transport": {
+        "kind": "manual-cli",
+        "default_command": "gemini -p",
+        "alternate_command": "agy -p"
+      }
+    },
     "human_specialist_contractor": {
       "display_name": "Human specialist contractor",
       "role": "outside-contractor",

@@ -208,7 +208,7 @@ binding, and expert profile for outside or local review.
   default audit recording, and a Distinguished Engineer profile included by
   default.
 - `scripts/generate_manual_dispatch_prompt.py`: turn an approved packet into a
-  manual prompt for Claude, OpenAI deep research, or another contractor.
+  manual prompt for Claude, Gemini, OpenAI deep research, or another contractor.
 - `scripts/dispatch_work.py`: revalidate a contractor handoff packet, record a manual
   dispatch event by default, and produce the prompt without claiming that an
   external model was called automatically. Direct dispatch can use
@@ -637,6 +637,11 @@ Provider identity is explicit. Executors are bound to provider profiles in
 as frontier model work or model-provider competition. A conflict does not make
 the contractor unusable by itself, but it forces peer review and architect
 adjudication before findings can affect the implementation plan.
+Registered manual outside executors include Claude Code, Gemini 3.1 Pro,
+OpenAI Deep Research, and human specialist contractors. The Gemini profile is
+intended for focused web-design or frontend-domain contracts through
+`gemini -p`; environments that expose Gemini through Google Antigravity can use
+`agy -p` as the local command surface after the same packet and opt-in gates.
 
 Distinguished Engineer profiles are first-class packet artifacts. A normal
 contractor handoff packet includes the matched `experts/<discipline>.md`
@@ -654,6 +659,7 @@ Use outside contracts for work that benefits from an independent reasoning lens:
 - reliability or operations review
 - performance analysis
 - documentation and publishability review
+- public GitHub Pages or frontend-design review
 - discipline-specific review such as SELinux, API compatibility, packaging, or compliance
 
 The PM prepares the contractor handoff packet. The architect remains the final
@@ -797,12 +803,28 @@ For repo-readonly or patch-branch disclosure, include an explicit escalation:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor external_security_reviewer \
-  --share-boundary repo-readonly \
+  --executor gemini_3_1_pro_manual \
+  --share-boundary patch-branch \
   --allow-disclosure-escalation \
   --external-ok \
+  --job-description contract-jd-domain-web-design \
+  --allowed-file docs/index.html \
+  --allowed-file docs/styles.css \
   --format json \
   --output contractor-packet.json
+```
+
+The matching route or coach command also carries the escalation approval:
+
+```bash
+python3 scripts/route_work.py \
+  --external-ok \
+  --allow-disclosure-escalation \
+  --share-boundary patch-branch \
+  --requested-role web-design \
+  --file-path docs/index.html \
+  --file-path docs/styles.css \
+  "Gemini web-design review for a public GitHub Pages refresh."
 ```
 
 If an expert profile is intentionally omitted, name the reason in the packet:

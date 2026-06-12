@@ -483,6 +483,7 @@ def executor_policy_violations(
     *,
     task_class: str,
     external_ok: bool,
+    allow_disclosure_escalation: bool = False,
     local_ok: bool = False,
     local_profile: str | None = None,
     share_boundary: str,
@@ -498,6 +499,8 @@ def executor_policy_violations(
         violations.append("external dispatch requires user opt-in")
     if executor.get("external") and not boundary.get("allows_external"):
         violations.append(f"share boundary {share_boundary} does not allow external dispatch")
+    if executor.get("external") and boundary.get("requires_disclosure_escalation") and not allow_disclosure_escalation:
+        violations.append(f"share boundary {share_boundary} requires disclosure escalation approval")
     if executor.get("external") and sensitivity == "restricted" and executor.get("dispatch_mode") != "human":
         violations.append("restricted data cannot be sent to non-human external executors")
     if executor.get("dispatch_mode") in {"local_openai_compatible", "local_secure_review"}:
@@ -536,6 +539,7 @@ def score_executors(
     sensitivity: str,
     share_boundary: str,
     external_ok: bool,
+    allow_disclosure_escalation: bool = False,
     local_ok: bool = False,
     prefer_local: bool = False,
     local_profile: str | None = None,
@@ -562,6 +566,7 @@ def score_executors(
             executor,
             task_class=task_class,
             external_ok=external_ok,
+            allow_disclosure_escalation=allow_disclosure_escalation,
             local_ok=local_ok,
             local_profile=local_profile,
             share_boundary=share_boundary,
@@ -651,6 +656,7 @@ def select_executor_for_expert(
     sensitivity: str,
     share_boundary: str,
     external_ok: bool,
+    allow_disclosure_escalation: bool = False,
     local_ok: bool = False,
     prefer_local: bool = False,
     local_profile: str | None = None,
@@ -663,7 +669,8 @@ def select_executor_for_expert(
         risk=rank_max([risk, expert.get("default_risk", "medium")], RISK_ORDER, "low"),
         sensitivity=sensitivity,
         share_boundary=share_boundary,
-        external_ok=external_ok,
+        external_ok=external_ok and not gate_requires_internal_review,
+        allow_disclosure_escalation=allow_disclosure_escalation and not gate_requires_internal_review,
         local_ok=local_ok and not gate_requires_internal_review,
         prefer_local=prefer_local and not gate_requires_internal_review,
         local_profile=local_profile,
@@ -695,6 +702,7 @@ def classify_work(
     text: str,
     *,
     external_ok: bool = False,
+    allow_disclosure_escalation: bool = False,
     local_ok: bool = False,
     prefer_local: bool = False,
     local_profile: str | None = None,
@@ -744,6 +752,7 @@ def classify_work(
                 sensitivity=dispatch_sensitivity,
                 share_boundary=share_boundary,
                 external_ok=external_ok,
+                allow_disclosure_escalation=allow_disclosure_escalation,
                 local_ok=local_ok,
                 prefer_local=prefer_local,
                 local_profile=local_profile,
@@ -754,13 +763,17 @@ def classify_work(
         enriched_experts.append(expert_result)
     experts = enriched_experts
     primary = experts[0] if experts else {}
-    task_class = primary.get("task_class", routing.get("defaults", {}).get("task_class", "implementation"))
-    ranked_executors = primary.get("executor_candidates") or score_executors(
+    primary_external = next((expert for expert in experts if expert_uses_external_contract(expert)), None)
+    primary_local = next((expert for expert in experts if expert_uses_local_worker(expert)), None)
+    route_primary = primary_external or primary_local or primary
+    task_class = route_primary.get("task_class", routing.get("defaults", {}).get("task_class", "implementation"))
+    ranked_executors = route_primary.get("executor_candidates") or score_executors(
         task_class=task_class,
         risk=risk,
         sensitivity=dispatch_sensitivity,
         share_boundary=share_boundary,
         external_ok=external_ok,
+        allow_disclosure_escalation=allow_disclosure_escalation,
         local_ok=local_ok,
         prefer_local=prefer_local,
         local_profile=local_profile,
@@ -769,8 +782,8 @@ def classify_work(
         unattended=unattended,
         provider_conflict_domains=provider_conflict_domains,
     )
-    selected = primary.get("selected_executor") or ranked_executors[0]
-    recommended_executor = primary.get("recommended_executor", selected["key"])
+    selected = route_primary.get("selected_executor") or ranked_executors[0]
+    recommended_executor = route_primary.get("recommended_executor", selected["key"])
 
     dispatch_mode = selected.get("dispatch_mode")
     if selected.get("external"):
@@ -785,9 +798,13 @@ def classify_work(
     hard_stops = selected.get("policy_violations", [])
     guard_labels: list[str] = []
     if route == "external-contract":
-        guard_labels = EXTERNAL_GUARD_LABELS + [primary.get("job_description_label", "contract-jd-general-reasoning")]
+        guard_labels = EXTERNAL_GUARD_LABELS + [
+            route_primary.get("job_description_label", "contract-jd-general-reasoning")
+        ]
     elif route == "local-worker":
-        guard_labels = LOCAL_WORKER_GUARD_LABELS + [primary.get("job_description_label", "contract-jd-general-reasoning")]
+        guard_labels = LOCAL_WORKER_GUARD_LABELS + [
+            route_primary.get("job_description_label", "contract-jd-general-reasoning")
+        ]
 
     evaluator_required = route in ["external-contract", "local-worker"]
     architect_adjudication_required = evaluator_required or route == "architect-review" or risk in ["high", "critical"]
@@ -830,6 +847,7 @@ def classify_work(
         "dispatch_sensitivity": dispatch_sensitivity,
         "share_boundary": share_boundary,
         "external_opt_in": external_ok,
+        "disclosure_escalation_approved": allow_disclosure_escalation,
         "external_contract_allowed": route == "external-contract" and not hard_stops,
         "local_worker_allowed": local_ok,
         "prefer_local_worker": prefer_local,
@@ -1607,7 +1625,14 @@ def render_coached_prompt(
             f"{validation}{question_block}"
         )
     if level == "external-contract":
-        expert = (route.get("ranked_experts") or [{}])[0]
+        expert = next(
+            (
+                item
+                for item in route.get("ranked_experts", [])
+                if isinstance(item, dict) and expert_uses_external_contract(item, route.get("recommended_executor"))
+            ),
+            (route.get("ranked_experts") or [{}])[0],
+        )
         return (
             "Use $complex-work-orchestration with an outside contractor workstream.\n"
             f"Goal: {text}\n"
@@ -1642,6 +1667,7 @@ def coach_orchestration_prompt(
     text: str,
     *,
     external_ok: bool = False,
+    allow_disclosure_escalation: bool = False,
     local_ok: bool = False,
     prefer_local: bool = False,
     local_profile: str | None = None,
@@ -1654,6 +1680,7 @@ def coach_orchestration_prompt(
     route = classify_work(
         text,
         external_ok=external_ok,
+        allow_disclosure_escalation=allow_disclosure_escalation,
         local_ok=local_ok,
         prefer_local=prefer_local,
         local_profile=local_profile,
@@ -1699,6 +1726,8 @@ def sanitize_bead(bead_json: Any, share_boundary: str) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
     whitelist = set(boundary.get("field_whitelist", []))
     forbidden = set(boundary.get("forbidden_fields", []))
+    if isinstance(bead_json, list) and len(bead_json) == 1 and isinstance(bead_json[0], dict):
+        bead_json = bead_json[0]
     if not isinstance(bead_json, dict):
         return {"raw_type": type(bead_json).__name__}
     source = bead_json.get("issue") if isinstance(bead_json.get("issue"), dict) else bead_json

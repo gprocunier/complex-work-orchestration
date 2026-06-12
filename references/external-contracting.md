@@ -119,6 +119,18 @@ python3 scripts/route_work.py \
   "<task text>"
 ```
 
+For repo-readonly or patch-branch contracting, route with the same explicit
+disclosure escalation that packet building requires:
+
+```bash
+python3 scripts/route_work.py \
+  --external-ok \
+  --allow-disclosure-escalation \
+  --share-boundary patch-branch \
+  --requested-role web-design \
+  "Gemini web-design review for a public GitHub Pages refresh."
+```
+
 ## Beads Setup
 
 Full external contracting expects Beads:
@@ -334,6 +346,7 @@ python3 scripts/build_contractor_packet.py \
    bd show <id> --json
    python3 scripts/build_contractor_packet.py \
      --bead <id> \
+     --executor gemini_3_1_pro_manual \
      --share-boundary <mode> \
      --external-ok \
      --epic <epic-id> \

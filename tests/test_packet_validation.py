@@ -8,7 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_contractor_packet import build_packet  # noqa: E402
-from orchestration_lib import packet_payload_hash, validate_contractor_packet  # noqa: E402
+from build_contractor_packet import extract_labels  # noqa: E402
+from orchestration_lib import packet_payload_hash, sanitize_bead, validate_contractor_packet  # noqa: E402
 
 
 def base_packet() -> dict:
@@ -92,6 +93,20 @@ class PacketValidationTests(unittest.TestCase):
                 external_opt_in=True,
                 opt_in_basis="cli-flag",
             )
+
+    def test_beads_show_list_shape_keeps_labels_and_summary(self) -> None:
+        bead = [
+            {
+                "id": "cwo-1",
+                "title": "Design review",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-domain-web-design"],
+                "status": "open",
+            }
+        ]
+        self.assertIn("contractor-only", extract_labels(bead))
+        summary = sanitize_bead(bead, "patch-branch")
+        self.assertEqual(summary["id"], "cwo-1")
+        self.assertEqual(summary["title"], "Design review")
 
 
 if __name__ == "__main__":
