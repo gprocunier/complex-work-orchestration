@@ -82,6 +82,24 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIn("web_design", names)
         self.assertIn("editor", names)
 
+    def test_prefer_local_does_not_skip_public_docs_editor_gate(self) -> None:
+        result = classify_work(
+            "Review public docs and README install guidance with local model evidence.",
+            file_paths=["README.md"],
+            local_ok=True,
+            prefer_local=True,
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+        self.assertTrue(result["editor_gate_required"])
+        self.assertIn("documentation", names)
+        self.assertIn("editor", names)
+        self.assertIn("editor", result["editor_gate_experts"])
+        editor = next(expert for expert in result["ranked_experts"] if expert["name"] == "editor")
+        self.assertNotIn(
+            editor["selected_executor"]["dispatch_mode"],
+            {"local_openai_compatible", "local_secure_review"},
+        )
+
     def test_non_public_doc_path_does_not_require_editor_gate(self) -> None:
         result = classify_work(
             "Update helper script copy.",

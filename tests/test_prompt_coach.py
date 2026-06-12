@@ -82,7 +82,7 @@ class PromptCoachTests(unittest.TestCase):
 
     def test_local_worker_profile_recommends_local_worker(self) -> None:
         result = coach_orchestration_prompt(
-            "Documentation review for public README examples.",
+            "Documentation review for internal example notes.",
             local_ok=True,
             prefer_local=True,
             local_profile="openshift-ai-vllm",

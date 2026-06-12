@@ -30,7 +30,7 @@ class FakeResponse:
 class LocalDispatchTests(unittest.TestCase):
     def test_openshift_profile_routes_to_openshift_executor(self) -> None:
         route = classify_work(
-            "Documentation review for public README examples.",
+            "Documentation review for internal example notes.",
             local_ok=True,
             prefer_local=True,
             local_profile="openshift-ai-vllm",
@@ -41,7 +41,7 @@ class LocalDispatchTests(unittest.TestCase):
 
     def test_local_envelope_uses_environment_variable_names_not_secret_values(self) -> None:
         route = classify_work(
-            "Documentation review for public README examples.",
+            "Documentation review for internal example notes.",
             local_ok=True,
             prefer_local=True,
             local_profile="openshift-ai-vllm",
@@ -60,7 +60,7 @@ class LocalDispatchTests(unittest.TestCase):
             clear=False,
         ):
             envelope = build_local_envelope(
-                task="Documentation review for public README examples.",
+                task="Documentation review for internal example notes.",
                 route=route,
                 dispatch_id="dispatch-local-test",
                 bead_id="cwo-local",
@@ -73,7 +73,7 @@ class LocalDispatchTests(unittest.TestCase):
 
     def test_execute_local_posts_openai_compatible_payload(self) -> None:
         route = classify_work(
-            "Documentation review for public README examples.",
+            "Documentation review for internal example notes.",
             local_ok=True,
             prefer_local=True,
             local_profile="openshift-ai-vllm",
@@ -95,7 +95,7 @@ class LocalDispatchTests(unittest.TestCase):
             clear=False,
         ):
             envelope = build_local_envelope(
-                task="Documentation review for public README examples.",
+                task="Documentation review for internal example notes.",
                 route=route,
                 dispatch_id="dispatch-local-test",
                 bead_id="cwo-local",

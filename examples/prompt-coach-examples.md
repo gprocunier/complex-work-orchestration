@@ -219,7 +219,7 @@ python3 scripts/coach_prompt.py \
 Expected sizing: `publish-release` with `publish-sanitization`, a validation
 bar, and repository/path confirmation before any formal push, release, or tag.
 
-## Public Docs Pages Editor Gate
+## Publication Editorial Review
 
 ```text
 /plan Use $complex-work-orchestration prompt coach:
@@ -234,6 +234,6 @@ python3 scripts/coach_prompt.py \
 ```
 
 Expected sizing: `publish-release` with documentation, web design, and
-`contract-jd-editorial-reasoning`. The editor gate must check docs/pages flow,
-Diataxis fit, redundancy, circular content, AI-slop wording, and publishable
-narrative before publish sanitization.
+editor review before publish sanitization. Narrative Pages should explain
+reader value and workflow rationale; exact contract labels belong in
+reference/operator lookup sections.

@@ -123,12 +123,12 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               For narrow work, use one task. For broader work, Codex creates
               an epic with workstreams for architect framing, implementation,
               review, validation, handoff, and publish-sanitization.
-              Public docs and GitHub Pages work adds an editor gate so
+              Public docs and GitHub Pages work adds a publication review so
               documentation, web design, and final editorial review converge
               before validation is accepted.
             </p>
             <p>
-              The diagram below is the internal view of that reader path:
+              The diagram below is the implementation view of that reader path:
               coach result, task graph, bounded workstreams, and evidence.
             </p>
             <div class="workflow-diagram pm" role="img" aria-label="Project manager flow from route to workgraph, ready filters, validation, and handoff.">
@@ -153,12 +153,12 @@ python3 scripts/spawn_expert_reviews.py \
   --requested-role documentation \
   "Review the workflow docs before publish."</code></pre>
             <div class="callout">
-              <strong>Editor gate:</strong>
-              public docs, README/install docs, GitHub Pages, site-flow, and
-              Diataxis work route through
-              <code>contract-jd-editorial-reasoning</code>. The editor checks
-              docs/pages flow, Diataxis fit, redundancy, circular content, and
-              AI-slop wording before publish sanitization.
+              <strong>Publication review:</strong>
+              Public docs, install guidance, and GitHub Pages changes get a
+              final editorial pass before publish. The review checks whether a
+              reader can follow the path, whether concepts appear in the right
+              order, and whether repeated or draft-like wording should be
+              removed.
             </div>
             <pre><code>bd ready \
   --exclude-label contractor-only \

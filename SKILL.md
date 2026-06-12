@@ -76,7 +76,11 @@ generation, explicit `--execute-local`, return evaluation, and architect
 adjudication. For public documentation, README/install docs, GitHub Pages,
 site-flow, or Diataxis work, route through documentation plus web-design when a
 site/page is involved, then require the internal editor expert as the final
-validation gate before publish sanitization.
+validation gate before publish sanitization. Public narrative pages must not
+expose internal planning labels, contract labels, framework bookkeeping, or
+editor-gate mechanics as reader-facing product copy; translate those details
+into plain reader value unless the page is an explicit reference/operator
+lookup.
 
 The policy files intentionally use JSON-compatible YAML so helper scripts can
 run with the Python standard library only.
@@ -320,7 +324,7 @@ peer-review gates, and editor gates; guard labels such as `contractor-only` or
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery, observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost, resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing warnings, examples, and publishability.
-- `contract-jd-editorial-reasoning`: final public docs/pages editorial gate for flow, Diataxis fit, redundancy, circular content, AI-slop wording, and publishable narrative.
+- `contract-jd-editorial-reasoning`: final public docs/pages editorial review for flow, documentation-architecture fit, redundancy, circular content, draft-like wording, and publishable narrative.
 - `contract-jd-peer-review`: independent gate for contractor or local-worker
   returns when route output sets `peer_review_required=true`.
 - `contract-jd-sabotage-review`: integrity review for suspected sabotage,

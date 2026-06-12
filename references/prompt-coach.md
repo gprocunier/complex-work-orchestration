@@ -76,10 +76,12 @@ Publish, release, GitHub, tag, and upstream-push language recommends
 `publish-release`; the generated prompt must include validation evidence and
 publish-sanitization before any formal push, release, or tag.
 
-Public docs, README/install docs, GitHub Pages, site-flow, and Diataxis
-language also enables the editor gate. The route should include documentation,
-web design when a site/page is involved, and `contract-jd-editorial-reasoning`
-as the final validation-gate expert before publish sanitization.
+Public docs, README/install docs, GitHub Pages, site flow, and
+documentation-architecture language also enables editor review. The route
+should include documentation, web design when a site/page is involved, and the
+editor as the final public-copy acceptance expert before publish sanitization.
+Exact contract labels belong in reference/operator surfaces, not narrative
+Pages copy.
 
 ## Subagent Parallelism
 

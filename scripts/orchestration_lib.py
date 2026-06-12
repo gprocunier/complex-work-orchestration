@@ -657,14 +657,15 @@ def select_executor_for_expert(
     unattended: bool = False,
     provider_conflict_domains: list[str] | None = None,
 ) -> dict[str, Any]:
+    gate_requires_internal_review = bool(expert.get("validation_gate_required"))
     ranked = score_executors(
         task_class=expert.get("task_class", "domain-review"),
         risk=rank_max([risk, expert.get("default_risk", "medium")], RISK_ORDER, "low"),
         sensitivity=sensitivity,
         share_boundary=share_boundary,
         external_ok=external_ok,
-        local_ok=local_ok,
-        prefer_local=prefer_local,
+        local_ok=local_ok and not gate_requires_internal_review,
+        prefer_local=prefer_local and not gate_requires_internal_review,
         local_profile=local_profile,
         experts=[expert],
         text=" ".join(
@@ -715,7 +716,7 @@ def classify_work(
     if not experts:
         experts = score_experts_v2(text + " independent review", expert_registry)
     skip_editor_gate_for_local_review = bool(
-        local_ok and prefer_local and not public_docs_page_review_required(text, file_paths)
+        local_ok and prefer_local and not public_docs_editor_gate_required(text, file_paths)
     )
     if skip_editor_gate_for_local_review:
         editor_gate_required = False

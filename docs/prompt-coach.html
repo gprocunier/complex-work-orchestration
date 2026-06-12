@@ -62,14 +62,14 @@
               outside the Codex session.
             </p>
             <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Publish-ready docs with validation and editor gate.</code></pre>
+Publish-ready docs with validation and editorial review.</code></pre>
             <p>
               Codex may run this helper behind the scenes. Use direct script execution only
               for automation, CI, troubleshooting, or an operator shell
               outside Codex.
             </p>
             <pre><code>python3 scripts/coach_prompt.py --json \
-  "Publish-ready docs with validation and editor gate."</code></pre>
+  "Publish-ready docs with validation and editorial review."</code></pre>
             <p>
               The result includes a recommended orchestration level, route
               summary, missing questions, enabled levers, disabled levers, and
@@ -149,11 +149,11 @@ Publish-ready docs with validation and editor gate.</code></pre>
               subagents still require explicitly disjoint scopes.
             </div>
             <div class="callout">
-              <strong>Public docs/pages:</strong>
-              README/install docs, GitHub Pages, site-flow, and Diataxis work
-              use an editor gate with
-              <code>contract-jd-editorial-reasoning</code> before publish
-              sanitization.
+              <strong>Publication work:</strong>
+              README, install docs, and GitHub Pages changes need a final
+              editorial review before publish sanitization. That review should
+              translate control-plane terms into reader-facing language unless
+              the page is an explicit reference.
             </div>
           </section>
 

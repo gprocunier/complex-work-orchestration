@@ -39,7 +39,7 @@ class RoutingTests(unittest.TestCase):
 
     def test_local_worker_requires_explicit_opt_in(self) -> None:
         result = classify_work(
-            "Documentation review for public README examples.",
+            "Documentation review for internal example notes.",
             requested_roles=["documentation"],
             share_boundary="no-outside-sharing",
             prefer_local=True,
@@ -50,7 +50,7 @@ class RoutingTests(unittest.TestCase):
 
     def test_prefer_local_selects_low_risk_local_worker_when_allowed(self) -> None:
         result = classify_work(
-            "Documentation review for public README examples.",
+            "Documentation review for internal example notes.",
             requested_roles=["documentation"],
             share_boundary="no-outside-sharing",
             local_ok=True,

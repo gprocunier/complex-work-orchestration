@@ -61,9 +61,10 @@ Use $complex-work-orchestration to scaffold this project.
 ```
 
 The prompt coach treats explicit scaffold language as a full-harness request.
-Internal terms such as `workerbee` still work as routing signals; in public
-docs, read that as an internal review worker or subagent. Contractor workstream
-language asks for the outside-sharing boundary before any external dispatch.
+Public docs call bounded helpers review workers or subagents; internal routing
+terms still work when you are using the operator reference. Contractor
+workstream language asks for the outside-sharing boundary before any external
+dispatch.
 
 Codex may run the helper behind the scenes. Use direct script execution only
 for automation, CI, troubleshooting, or an operator shell outside Codex:
@@ -171,12 +172,13 @@ Core policy files:
 - `policy/contracting-controls.yaml`: dispatch, audit, and adjudication
   controls for outside or local-worker contracts.
 
-Public documentation and GitHub Pages work has an additional editorial gate.
+Public documentation and GitHub Pages work has an additional editorial review.
 When the route sees public docs, README/install docs, GitHub Pages, site flow,
-or Diataxis work, it selects the documentation expert, web-design expert when a
-site/page is involved, and the editor expert. The editor is the final internal
-validation gate for docs/pages coherence, Diataxis fit, redundancy, circular
-content, and AI-slop wording before publish sanitization.
+or documentation-architecture work, it selects the documentation expert,
+web-design expert when a site/page is involved, and the editor expert. The
+editor is the final reader-facing acceptance check before publish sanitization:
+public copy should explain the workflow, prerequisites, and rationale without
+exposing internal planning labels as product language.
 
 Advanced helper scripts:
 
@@ -683,9 +685,9 @@ up the work.
   resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing
   warnings, examples, and publishability.
-- `contract-jd-editorial-reasoning`: final public docs/pages editorial gate for
-  flow, Diataxis fit, redundancy, circular content, AI-slop wording, and
-  publishable narrative.
+- `contract-jd-editorial-reasoning`: final public docs/pages editorial review
+  for flow, documentation-architecture fit, redundancy, circular content,
+  draft-like wording, and publishable narrative.
 - `contract-jd-peer-review`: independent acceptance gate for contractor or
   local-worker returns when `peer_review_required=true`.
 - `contract-jd-sabotage-review`: integrity review for suspicious, conflicted,

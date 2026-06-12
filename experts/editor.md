@@ -65,6 +65,9 @@ phrasing.
   configuration, and supported fallback paths?
 - Does public-facing copy avoid exposing internal planning labels, framework
   bookkeeping, or model self-talk?
+- Does narrative public copy translate contract labels, gate names, and
+  routing mechanics into reader-facing language unless the page is an explicit
+  reference/operator lookup?
 - Does public-facing copy define or translate private vocabulary before it is
   used as a noun?
 - Do pages explain the reader journey before presenting maps, policy files,
@@ -86,6 +89,9 @@ ready to apply.
 - GitHub Pages and Markdown docs drifting into different product stories.
 - Homepage or get-started text that leaks internal monologue such as planning
   labels, draft notes, prompt traces, or framework bookkeeping.
+- Narrative Pages that expose labels such as contract-jd-* or headings such as
+  editor gate instead of explaining the reader-facing review or publishing
+  outcome.
 - Homepage or workflow pages leading with architecture maps, policy taxonomy,
   or private nouns before the user knows the two-minute value path.
 - Terms such as packet, packet gate, lane, workerbee, or Beads graph appearing
@@ -139,3 +145,5 @@ ready to apply.
 - Only grammar fixes when structure or flow is the real issue.
 - Approval that ignores documentation architecture.
 - Recommendations that cannot become Beads tasks.
+- Approval of public Pages that still expose internal labels or gate mechanics
+  outside explicit reference/operator lookup surfaces.

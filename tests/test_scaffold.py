@@ -94,6 +94,23 @@ class ScaffoldTests(unittest.TestCase):
         self.assertTrue(by_lane["expert-review-editor"]["metadata"]["validation_gate_required"])
         self.assertEqual(by_lane["expert-review-editor"]["metadata"]["gate_scope"], "public-docs-pages")
 
+    def test_public_docs_prefer_local_graph_keeps_editor_before_publish(self) -> None:
+        route = classify_work(
+            "Review public docs and README install guidance with local model evidence.",
+            file_paths=["README.md"],
+            local_ok=True,
+            prefer_local=True,
+        )
+        graph = planned_graph("Public README Review", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertTrue(route["editor_gate_required"])
+        self.assertIn("expert-review-editor", by_lane)
+        self.assertIn("publish-sanitization", by_lane)
+        self.assertIn("expert-review-editor", by_lane["validation"]["depends_on_lanes"])
+        self.assertIn("expert-review-editor", by_lane["publish-sanitization"]["depends_on_lanes"])
+        self.assertTrue(by_lane["expert-review-editor"]["metadata"]["validation_gate_required"])
+
 
 if __name__ == "__main__":
     unittest.main()
