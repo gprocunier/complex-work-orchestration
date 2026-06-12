@@ -28,7 +28,8 @@ rules.
 
 ## Routing Notes
 
-Prefer an explicit requested role when the product lens matters:
+Prefer an explicit requested role when the product lens matters. Advanced route
+check:
 
 ```bash
 python3 scripts/route_work.py \

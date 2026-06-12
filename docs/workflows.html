@@ -24,6 +24,8 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html" aria-current="page">Workflows</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
@@ -70,8 +72,8 @@
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Plan</strong><span>Beads-backed</span></div>
             </div>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Create a publish-ready documentation pass for the project.</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+Publish-ready documentation pass.</code></pre>
             <div class="callout">
               <strong>First-class path:</strong>
               Stay in Codex for the conversation, choices, plan, and execution.
@@ -92,13 +94,14 @@ Create a publish-ready documentation pass for the project.</code></pre>
               prepared for outside or local review.
             </p>
             <p>
-              What Codex may run behind the scenes:
+              What Codex may run behind the scenes, or what an operator may run
+              directly for advanced automation and troubleshooting:
             </p>
             <pre><code>python3 scripts/coach_prompt.py --json \
-  "Create a publish-ready documentation pass for the project."
+  "Publish-ready documentation pass."
 
 python3 scripts/route_work.py \
-  "Create a publish-ready documentation pass for the project."
+  "Publish-ready documentation pass."
 
 python3 scripts/cleanup_stale_agents.py --json</code></pre>
             <p>
@@ -138,11 +141,8 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               <div class="flow-card"><strong>Evidence</strong><span>notes in Beads</span></div>
             </div>
             <p>
-              Equivalent shell commands for automation or troubleshooting:
-            </p>
-            <p>
-              Use these outside a Codex <code>/plan</code> conversation when
-              you need to scaffold or inspect the same task graph directly.
+              Codex normally creates the graph from the guided plan. Use direct
+              helper execution only for advanced automation or troubleshooting.
             </p>
             <pre><code>python3 scripts/scaffold_workgraph.py \
   --title "Public workflow docs" \
@@ -201,14 +201,19 @@ python3 scripts/spawn_expert_reviews.py \
             <p>
               Local-worker workstream from inside Codex:
             </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Use a local OpenShift AI vLLM worker to review a bounded README command example.</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+OpenShift AI vLLM local review of README command examples.</code></pre>
+            <p>
+              After explicit opt-in, Codex may run helper equivalents behind
+              the scenes. Use direct execution only for advanced automation or
+              troubleshooting:
+            </p>
             <pre><code>python3 scripts/coach_prompt.py \
   --local-ok \
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
+  "OpenShift AI vLLM local review of README command examples."
 
 python3 scripts/dispatch_work.py \
   --local-ok \
@@ -225,6 +230,9 @@ python3 scripts/dispatch_work.py \
               and <code>--execute-local</code> only when the operator approves a
               real endpoint call.
             </div>
+            <p>
+              Outside-contractor workstream after explicit sharing approval:
+            </p>
             <pre><code>python3 scripts/build_contractor_packet.py \
   --bead "$BEAD_ID" \
   --executor claude_code_manual \

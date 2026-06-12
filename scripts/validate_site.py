@@ -34,6 +34,8 @@ PRIMARY_NAV_HREFS = [
     "./get-started.html",
     "./prompt-coach.html",
     "./workflows.html",
+    "./external-contracting.html",
+    "./local-workers.html",
     "./contractor-demo.html",
     "./reference.html",
     REPO_URL,

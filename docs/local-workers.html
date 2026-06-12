@@ -24,6 +24,8 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html" aria-current="page">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
@@ -72,8 +74,8 @@
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Evaluate</strong><span>architect decides</span></div>
             </div>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Use a local OpenShift AI vLLM worker to review a bounded README command example.</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+OpenShift AI vLLM local review of README command examples.</code></pre>
             <div class="callout">
               <strong>Default posture:</strong>
               If the user mentions local workers but has not opted in, the
@@ -85,7 +87,7 @@ Use a local OpenShift AI vLLM worker to review a bounded README command example.
           <section id="coach-opt-in">
             <h2>Coach Local Opt-In</h2>
             <p>
-              Not every task needs frontier-model reasoning. You do not need a
+              Not every task needs frontier model reasoning. You do not need a
               frontier model to sanity-check a <code>curl</code> command, review
               a small diff for command shape, summarize a bounded log excerpt,
               or confirm that a prompt envelope contains the right fields.
@@ -104,7 +106,7 @@ Use a local OpenShift AI vLLM worker to review a bounded README command example.
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Use an OpenShift AI vLLM local worker to review a bounded README command example."</code></pre>
+  "OpenShift AI vLLM local review of README command examples."</code></pre>
             <p>
               The route should return <code>route=local-worker</code>,
               <code>local_worker_allowed=true</code>, guard labels
@@ -116,7 +118,7 @@ Use a local OpenShift AI vLLM worker to review a bounded README command example.
           <section id="openshift-ai">
             <h2>OpenShift AI vLLM Profile</h2>
             <p>
-              OpenShift AI is the top-shelf exemplar for this kind of controlled
+              OpenShift AI is the exemplar platform for this kind of controlled
               local or private model serving: platform integration, operational
               boundaries, identity, auditability, and vLLM-backed inference can
               all live close to the environment where the work is being done.
@@ -132,6 +134,10 @@ Use a local OpenShift AI vLLM worker to review a bounded README command example.
               <code>openshift-ai-vllm</code> when targeting an OpenShift AI
               vLLM endpoint, or the generic OpenAI-compatible profile for other
               serving stacks.
+            </p>
+            <p>
+              Codex may run the route helper behind the scenes. Use it directly
+              only for advanced automation or troubleshooting:
             </p>
             <pre><code>python3 scripts/route_work.py \
   --local-ok \

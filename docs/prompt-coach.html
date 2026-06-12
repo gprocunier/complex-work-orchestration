@@ -24,6 +24,8 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html" aria-current="page">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
@@ -59,18 +61,15 @@
               behind the scenes or the equivalent for an operator working
               outside the Codex session.
             </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Create public docs for outside model contractor handoff packets.</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+Publish-ready docs with validation and editor gate.</code></pre>
             <p>
-              Equivalent shell command for automation or troubleshooting:
-            </p>
-            <p>
-              Use this outside a Codex <code>/plan</code> conversation when
-              you need the same coach result in CI, an operator shell, or a
-              debugging session.
+              Codex may run this helper behind the scenes. Use direct script execution only
+              for automation, CI, troubleshooting, or an operator shell
+              outside Codex.
             </p>
             <pre><code>python3 scripts/coach_prompt.py --json \
-  "Create public docs for outside model contractor handoff packets."</code></pre>
+  "Publish-ready docs with validation and editor gate."</code></pre>
             <p>
               The result includes a recommended orchestration level, route
               summary, missing questions, enabled levers, disabled levers, and
@@ -169,23 +168,23 @@ Create public docs for outside model contractor handoff packets.</code></pre>
             <p>
               The reason to use a local worker is not prestige; it is fit. A
               bounded local reviewer can check command examples, logs, narrow
-              docs, and repetitive evidence without spending frontier-model
+              docs, and repetitive evidence without spending frontier model
               attention on work such as sanity-checking <code>curl</code>
               output. OpenShift AI is the exemplar model-serving platform for
               this workflow, but any approved OpenAI-compatible local endpoint
               can fill the role when policy permits it.
             </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Use an OpenShift AI vLLM local worker to review a bounded README command example.</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+OpenShift AI vLLM local review of README command examples.</code></pre>
             <p>
-              Equivalent shell command after explicit opt-in:
+              Codex may run the helper equivalent after explicit opt-in:
             </p>
             <pre><code>python3 scripts/coach_prompt.py \
   --local-ok \
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Use an OpenShift AI vLLM local worker to review a bounded README command example."</code></pre>
+  "OpenShift AI vLLM local review of README command examples."</code></pre>
             <p>
               A local-worker result still needs a <code>local-worker-only</code>
               / <code>no-codex-exec</code> Bead, dispatch envelope, evaluation,

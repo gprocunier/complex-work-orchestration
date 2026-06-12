@@ -15,11 +15,12 @@ and let it surface the local-worker opt-in question before any local dispatch
 exists:
 
 ```text
-/plan Use $complex-work-orchestration prompt coach to size this work:
-Use a local OpenShift AI vLLM worker to review a bounded README command example.
+/plan Use $complex-work-orchestration prompt coach:
+OpenShift AI vLLM local review of README command examples.
 ```
 
-After explicit opt-in, Codex may run the helper equivalent:
+After explicit opt-in, Codex may run the helper equivalent behind the scenes.
+Use direct script execution only for advanced automation or troubleshooting:
 
 ```bash
 python3 scripts/coach_prompt.py \
@@ -27,7 +28,7 @@ python3 scripts/coach_prompt.py \
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
+  "OpenShift AI vLLM local review of README command examples."
 ```
 
 ## Profiles

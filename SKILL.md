@@ -112,9 +112,17 @@ conflicting findings back to the architect.
 
 1. State whether the work is coherent in-thread or needs the harness. Beads tracking is mandatory either way; narrow in-thread work gets one Beads task.
 2. If the right amount of harness is unclear, use the prompt coach before
-   scaffolding. In Codex, this is normally triggered by a `/plan` request that
-   asks for `$complex-work-orchestration` prompt coaching; the helper command is
-   the local tool Codex can run to compile the launch prompt:
+   scaffolding. In Codex, this is normally triggered by a terse `/plan` request
+   that asks for `$complex-work-orchestration` prompt coaching:
+
+```text
+/plan Use $complex-work-orchestration prompt coach:
+<task text>
+```
+
+   Codex may run the helper behind the scenes to compile the launch prompt. Use
+   direct script execution only for advanced automation, CI, troubleshooting, or
+   an operator shell outside Codex:
 
 ```bash
 python3 scripts/coach_prompt.py "<task text>"

@@ -49,8 +49,8 @@ The normal interface is the Codex conversation. When sizing is unclear, start
 in Plan mode and ask Codex to use the skill and prompt coach:
 
 ```text
-/plan Use $complex-work-orchestration prompt coach to size this work:
-Plan a multi-session cleanup of installer docs, tests, and handoff notes.
+/plan Use $complex-work-orchestration prompt coach:
+Clean up installer docs, tests, and handoff notes.
 ```
 
 Use the explicit scaffold trigger when you already know the work needs the full
@@ -65,15 +65,13 @@ Internal terms such as `workerbee` still work as routing signals; in public
 docs, read that as an internal review worker or subagent. Contractor workstream
 language asks for the outside-sharing boundary before any external dispatch.
 
-Equivalent shell command for automation or troubleshooting:
+Codex may run the helper behind the scenes. Use direct script execution only
+for automation, CI, troubleshooting, or an operator shell outside Codex:
 
 ```bash
 python3 scripts/coach_prompt.py \
-  "Plan a multi-session cleanup of installer docs, tests, and handoff notes."
+  "Clean up installer docs, tests, and handoff notes."
 ```
-
-Use the shell command outside a Codex `/plan` conversation when you need the
-same coach result in CI, an operator shell, or a debugging session.
 
 All work governed by this skill should leave a durable Beads story. A narrow
 task can still execute in the current thread, but the minimum tracking shape is
@@ -462,11 +460,12 @@ flowchart LR
    unsure, ask Codex to run the prompt coach first:
 
    ```text
-   /plan Use $complex-work-orchestration prompt coach to size this work:
+   /plan Use $complex-work-orchestration prompt coach:
    <task text>
    ```
 
-   Equivalent shell command for automation or troubleshooting:
+   Codex may run this helper behind the scenes. Direct script execution is the
+   advanced automation or troubleshooting equivalent:
    `python3 scripts/coach_prompt.py "<task text>"`.
 
    The coach returns a recommended orchestration level,
@@ -840,11 +839,12 @@ For a low-risk local worker envelope, start inside Codex and let the coach ask
 for explicit local opt-in:
 
 ```text
-/plan Use $complex-work-orchestration prompt coach to size this work:
-Use a local OpenShift AI vLLM worker to review a bounded README command example.
+/plan Use $complex-work-orchestration prompt coach:
+OpenShift AI vLLM local review of README command examples.
 ```
 
-After opt-in, Codex may run the local-worker helper path behind the scenes:
+After opt-in, Codex may run the local-worker helper path behind the scenes.
+Use direct script execution only for advanced automation or troubleshooting:
 
 ```bash
 python3 scripts/coach_prompt.py \
@@ -852,14 +852,14 @@ python3 scripts/coach_prompt.py \
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
+  "OpenShift AI vLLM local review of README command examples."
 
 python3 scripts/route_work.py \
   --local-ok \
   --prefer-local \
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
-  "Use an OpenShift AI vLLM local worker to review a bounded README command example."
+  "OpenShift AI vLLM local review of README command examples."
 ```
 
 Local-worker output is treated like contractor evidence: evaluator scoring and

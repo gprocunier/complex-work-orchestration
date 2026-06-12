@@ -15,19 +15,17 @@ First-class in-Codex use starts in `/plan`; Codex can run the helper, summarize
 the route, and turn any interactive questions into selectable choices:
 
 ```text
-/plan Use $complex-work-orchestration prompt coach to size this work:
-Plan a multi-session cleanup of installer docs, tests, and handoff notes.
+/plan Use $complex-work-orchestration prompt coach:
+Clean up installer docs, tests, and handoff notes.
 ```
 
-Equivalent shell command for automation or troubleshooting:
+Codex may run this helper behind the scenes. Use direct script execution only
+for automation, CI, troubleshooting, or an operator shell outside Codex:
 
 ```bash
 python3 scripts/coach_prompt.py \
-  "Plan a multi-session cleanup of installer docs, tests, and handoff notes."
+  "Clean up installer docs, tests, and handoff notes."
 ```
-
-Use this outside a Codex `/plan` conversation when you need the same coach
-result in CI, an operator shell, or a debugging session.
 
 Automation can consume JSON directly:
 
@@ -66,8 +64,8 @@ dispatch disabled.
 First-class in-Codex local-worker invocation:
 
 ```text
-/plan Use $complex-work-orchestration prompt coach to size this work:
-Use a local OpenShift AI vLLM worker to review a bounded README command example.
+/plan Use $complex-work-orchestration prompt coach:
+OpenShift AI vLLM local review of README command examples.
 ```
 
 After explicit opt-in, the helper equivalent uses `--local-ok`; add

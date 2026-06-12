@@ -63,28 +63,25 @@ implementation plan.
 Full scaffold:
 
 ```text
-Use $complex-work-orchestration to scaffold this project.
+/plan Use $complex-work-orchestration prompt coach: full harness.
 ```
 
 Outside contractor scaffold:
 
 ```text
-Use $complex-work-orchestration and post an outside security reasoning contract
-for this work.
+/plan Use $complex-work-orchestration prompt coach: outside security review; ask sharing boundary.
 ```
 
 General reasoning review:
 
 ```text
-Use $complex-work-orchestration to create a general-reasoning outside contract
-for an independent second opinion.
+/plan Use $complex-work-orchestration prompt coach: outside general review; ask sharing boundary.
 ```
 
 Domain-specific review:
 
 ```text
-Use $complex-work-orchestration to create a contractor-only SELinux reasoning
-bead and keep Codex workers from picking it up.
+/plan Use $complex-work-orchestration prompt coach: outside SELinux review; ask sharing boundary.
 ```
 
 ## Third-Party Collaboration Question

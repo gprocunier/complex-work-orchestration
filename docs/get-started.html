@@ -24,6 +24,8 @@
           <a href="./get-started.html" aria-current="page">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
@@ -95,17 +97,15 @@ sudo dnf install beads</code></pre>
               the recommended level, and ask any interactive questions before
               execution starts.
             </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach to size this work:
-Plan a multi-session cleanup of installer docs, tests, and handoff notes.</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+Clean up installer docs, tests, and handoff notes.</code></pre>
             <p>
-              Equivalent shell command for automation or troubleshooting:
-            </p>
-            <p>
-              Use this outside a Codex <code>/plan</code> conversation when
-              you need the same coach result from a shell or CI job.
+              Codex may run this helper behind the scenes. Use direct script execution only
+              for automation, CI, troubleshooting, or an operator shell
+              outside Codex.
             </p>
             <pre><code>python3 scripts/coach_prompt.py \
-  "Plan a multi-session cleanup of installer docs, tests, and handoff notes."</code></pre>
+  "Clean up installer docs, tests, and handoff notes."</code></pre>
             <div class="callout">
               <strong>Default posture:</strong>
               The skill always expects durable Beads tracking. Narrow work can
