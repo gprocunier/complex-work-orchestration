@@ -88,23 +88,13 @@
           <section id="invocation">
             <h2>In-Codex Invocation</h2>
             <p>
-              Start the demo from inside Codex with the prompt coach, then let
-              the resulting plan ask the collaboration, parallelism, and publish
-              validation questions before any contractor packet is built. This
-              example is intentionally generic operator guidance, not a copy of
-              local shell history or private prompts.
+              Start with one compact prompt coach request. The coach should
+              size the graph before packet creation and still ask the
+              collaboration, parallelism, validation, and publish questions.
             </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach to size a
-hello-world outside-contractor demo.
-
-Goal: Codex designs and publishes a small hello-world project on GitHub, creates
-Beads-backed outside-contractor contracts, dispatches Antigravity with agy -p
-for a documentation patch branch, dispatches Claude Code with claude -p for a
-GitHub Pages patch branch, evaluates both returns, integrates accepted work,
-validates CI, Pages, and live HTTP, and records the Beads handoff.
-
-Ask before external sharing, ask how much subagent parallelism to use, and make
-the validation and publish gates explicit before execution.</code></pre>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach for a hello-world contractor demo:
+Beads graph, Codex PM + review, agy -p docs branch, claude -p Pages branch.
+Ask before external sharing; choose subagent parallelism; set validation + publish gates.</code></pre>
             <p>
               After reviewing the plan, the operator can approve execution in
               the same Codex conversation. Codex should create the Beads graph
