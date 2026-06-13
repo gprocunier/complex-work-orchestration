@@ -200,7 +200,8 @@ binding, and expert profile for outside or local review.
   `--terminate-unowned-codex` only for explicit operator cleanup of stale
   unowned Codex, Claude, or Agy processes in that workspace.
 - `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and workstream
-  tasks.
+  tasks; use `--dry-run --format beads-graph` to emit a `bd create --graph`
+  compatible JSON plan for validation or advanced automation.
 - `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
   Beads from routing triggers.
 - `scripts/build_contractor_packet.py`: generate a gated outside-contractor
@@ -214,9 +215,15 @@ binding, and expert profile for outside or local review.
   external model was called automatically. Direct dispatch can use
   `--dispatch-id` so quota checks, output, and audit records share the same
   identity.
-- `scripts/evaluate_return.py`: check contractor returns for required sections.
+- `scripts/workspace_mutation_guard.py`: snapshot and compare tracked git state
+  around tool-running external CLIs so unexpected checkout mutation becomes
+  evaluation evidence instead of an unnoticed side effect.
+- `scripts/evaluate_return.py`: check contractor returns for required sections,
+  sabotage or malpractice signals, peer-review disposition, and optional
+  workspace mutation reports.
 - `scripts/normalize_contractor_return.py`: turn a contractor response into a
-  normalized return bundle with evidence items and sabotage scoring.
+  normalized return bundle with evidence items, sabotage scoring, and optional
+  workspace mutation metadata.
 - `scripts/dispatch_work.py --local-profile openshift-ai-vllm`: prepare a
   local OpenAI-compatible dispatch envelope for OpenShift AI vLLM or another
   named local profile. The envelope shape is documented by
@@ -632,6 +639,13 @@ boundaries also require `--allow-disclosure-escalation`. Dispatch then
 revalidates the packet hash, executor, boundary, disclosure stage, opt-in basis,
 expert profile, and artifact whitelist before any manual prompt is rendered.
 
+The default contractor posture is output-only. The rendered prompt tells the
+contractor to return the exact `CONTRACTOR RETURN TEMPLATE - COPY EXACTLY`
+section labels, without a preamble, internal action narration, or hidden
+chain-of-thought. `patch-branch` means a diff, proposed patch, or branch
+reference by default; it does not authorize mutation of the active checkout
+unless the Bead and operator flow explicitly grant direct workspace mutation.
+
 Provider identity is explicit. Executors are bound to provider profiles in
 `policy/provider-registry.yaml`; routing reports provider-conflict domains such
 as frontier model work or model-provider competition. A conflict does not make
@@ -814,6 +828,19 @@ python3 scripts/build_contractor_packet.py \
   --output contractor-packet.json
 ```
 
+In patch-branch mode, the expected artifact is still a reviewed proposal unless
+direct workspace mutation is separately authorized. For tool-running CLIs such
+as `agy -p` or `claude -p`, capture tracked workspace state around the run when
+the contractor can see a checkout:
+
+```bash
+python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
+
+agy -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
+
+python3 scripts/workspace_mutation_guard.py --compare before.json --output mutation-report.json
+```
+
 The matching route or coach command also carries the escalation approval:
 
 ```bash
@@ -934,8 +961,9 @@ recommended next actions.
 
 ## Return Format
 
-Contractor results should come back as a Beads comment or a patch branch with a
-Beads comment pointing to it:
+Contractor results must come back as a Beads comment or a patch proposal with a
+Beads comment pointing to it. The labels below are the contract: output only
+this return, with no preamble or internal action narration.
 
 ```text
 Status:
@@ -972,9 +1000,13 @@ python3 scripts/normalize_contractor_return.py \
   --dispatch-id <dispatch-id> \
   --packet-sha256 <packet-sha256> \
   --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json \
   --output contractor-return-bundle.json
 
-python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
+python3 scripts/evaluate_return.py \
+  --bead <id> \
+  --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json
 ```
 
 Evaluator output includes `sabotage_score`, `malpractice_score`,
@@ -984,6 +1016,11 @@ a high sabotage score, or a high malpractice score, do not create
 implementation dependencies from the contractor output. Keep the return
 isolated, run peer review or local secure review as needed, and have the
 architect decide whether to reject, narrow, or re-post the contract.
+If `peer_review_required=true` or a provider-conflict domain is present, an
+unresolved, failed, or contractor-dismissed peer-review disposition blocks
+implementation conversion. Unexpected tracked-file mutation in a supplied
+workspace mutation report is treated as quarantine-worthy evidence unless the
+operator intentionally evaluates it with `--mutation-strategy warn`.
 
 Audit and attestation checks:
 

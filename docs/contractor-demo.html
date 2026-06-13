@@ -207,7 +207,19 @@ python3 scripts/dispatch_work.py \
               <code>agy -p</code>, pass the intended working directory when the
               tool supports it. For <code>claude -p</code>, make the prompt
               explicit about the branch, allowed paths, and command boundary.
+              Capture tracked workspace state before and after tool-running
+              contractors so unexpected mutation is review evidence.
             </p>
+            <pre><code>python3 scripts/workspace_mutation_guard.py \
+  --snapshot \
+  --output before.json
+
+agy -p "$(cat contractor-dispatch-prompt.md)" \
+  &gt; contractor-return.md
+
+python3 scripts/workspace_mutation_guard.py \
+  --compare before.json \
+  --output mutation-report.json</code></pre>
             <div class="callout">
               <strong>Ignored artifacts:</strong>
               Packet JSON, rendered prompts, and contractor returns are useful
@@ -227,19 +239,22 @@ python3 scripts/dispatch_work.py \
             </p>
             <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead "$BEAD_ID" \
-  --dispatch-id "$DISPATCH_ID" \
-  --packet-sha256 "$PACKET_SHA256" \
-  --file contractor-return.md \
-  --output contractor-return-bundle.json
+	  --dispatch-id "$DISPATCH_ID" \
+	  --packet-sha256 "$PACKET_SHA256" \
+	  --file contractor-return.md \
+	  --workspace-mutation-report mutation-report.json \
+	  --output contractor-return-bundle.json
 
-python3 scripts/evaluate_return.py \
-  --bead "$BEAD_ID" \
-  --file contractor-return.md</code></pre>
+	python3 scripts/evaluate_return.py \
+	  --bead "$BEAD_ID" \
+	  --file contractor-return.md \
+	  --workspace-mutation-report mutation-report.json</code></pre>
             <p>
               The demo exposed two practical quality gates. Return headings
-              should use the canonical labels expected by the evaluator, not
-              decorative heading variants. Public docs also need a human editor
-              pass for incorrect attribution, absolute paths,
+	              should use the canonical labels expected by the evaluator, and
+	              unexpected tracked-file mutation should block direct use until
+	              architect review. Public docs also need a human editor pass for
+	              incorrect attribution, absolute paths,
               <code>file://</code> links, fabricated validation claims, and
               unclear ownership.
             </p>

@@ -8,6 +8,39 @@ from typing import Any
 from orchestration_lib import classify_work, read_text_arg
 
 
+RETURN_TEMPLATE_SECTIONS = [
+    "Status",
+    "Contractor job description",
+    "Summary",
+    "Files changed",
+    "Commands run",
+    "Boundary violation",
+    "Patch authorization",
+    "Secret or personal-data spill",
+    "Scope compliance",
+    "Validation result",
+    "Provider policy limitations",
+    "Evidence",
+    "Evidence provenance",
+    "Attestation or reproducibility note",
+    "Share-boundary conformance",
+    "Peer-review disposition",
+    "Alternatives considered",
+    "Confidence",
+    "Risks or gaps",
+    "Recommended next bead",
+    "Escalation needed",
+]
+
+
+def contractor_return_template(required_sections: list[str] | None = None) -> str:
+    ordered: list[str] = []
+    for section in RETURN_TEMPLATE_SECTIONS + list(required_sections or []):
+        if section not in ordered:
+            ordered.append(section)
+    return "\n".join(f"{section}:" for section in ordered)
+
+
 def render_prompt(task: str, route: dict[str, object]) -> str:
     expert_lines = "\n".join(
         f"- {expert['display_name']} ({expert['job_description_label']})"
@@ -30,12 +63,19 @@ Assignment:
 Required expert lenses:
 {expert_lines}
 
+CONTRACTOR RETURN TEMPLATE - COPY EXACTLY:
+Output only the contractor return below. Do not include a preamble, internal action narration, hidden chain-of-thought, or step-by-step planning.
+
+{contractor_return_template()}
+
 Rules:
 - Work only this assignment.
 - Do not ask for or expose secrets, credentials, production access, or private data.
 - Do not request broader disclosure than the assigned share boundary.
 - Do not re-plan the whole project.
 - Do not publish, release, tag, or run destructive commands.
+- If the share boundary is patch-branch, return a diff, patch proposal, or branch reference by default. Do not mutate the active checkout unless direct workspace mutation is explicitly authorized.
+- If peer review is required or provider conflict domains are listed, do not claim peer review is unnecessary.
 - Return conclusions, evidence, alternatives considered, confidence, risks or gaps, and recommended next Beads.
 - Your output will be scored by an evaluator and adjudicated by the architect before implementation.
 """
@@ -46,7 +86,8 @@ def render_packet_prompt(packet: dict[str, Any]) -> str:
         f"- {item.get('type')}: {item.get('path', 'assignment')} sha256={item.get('sha256', 'n/a')}"
         for item in packet.get("included_artifacts", [])
     )
-    required_sections = "\n".join(f"- {section}" for section in packet.get("required_return_sections", []))
+    required_return_sections = list(packet.get("required_return_sections", []))
+    required_sections = "\n".join(f"- {section}" for section in required_return_sections)
     snippets = []
     for item in packet.get("selected_snippets", []):
         snippets.append(f"### {item.get('path')}\n\n```text\n{item.get('content', '')}\n```")
@@ -96,6 +137,11 @@ Selected snippets:
 Required return sections:
 {required_sections}
 
+CONTRACTOR RETURN TEMPLATE - COPY EXACTLY:
+Output only the contractor return below. Do not include a preamble, internal action narration, hidden chain-of-thought, or step-by-step planning.
+
+{contractor_return_template(required_return_sections)}
+
 Rules:
 - Use the Distinguished Engineer calibration profile as your operating lens.
 - Do not return generic review output. Stay inside the assigned job-description label and the assigned Bead.
@@ -104,6 +150,8 @@ Rules:
 - Do not request broader disclosure than the assigned share boundary.
 - Do not re-plan the whole project.
 - Do not publish, release, tag, or run destructive commands.
+- If the share boundary is patch-branch, return a diff, patch proposal, or branch reference by default. Do not mutate the active checkout unless direct workspace mutation is explicitly authorized in the assignment.
+- If peer review is required or provider conflict domains are listed, do not claim peer review is unnecessary.
 - Return conclusions, evidence, alternatives considered, confidence, risks or gaps, and recommended next Beads.
 - Your output will be scored by an evaluator and adjudicated by the architect before implementation.
 """

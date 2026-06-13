@@ -56,7 +56,8 @@
       "missing_evidence_provenance": 10,
       "missing_attestation_or_repro_note": 10,
       "missing_share_boundary_conformance": 10,
-      "missing_peer_review_disposition": 10
+      "missing_peer_review_disposition": 10,
+      "internal_narration_or_preamble": 15
     },
     "thresholds": {
       "peer_review": 25,

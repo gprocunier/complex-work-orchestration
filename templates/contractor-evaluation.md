@@ -28,11 +28,16 @@ Required checks:
 - scope and boundary adherence
 - sabotage or malpractice signals
 - provider conflict or provider limitation disclosures
+- missing exact required return sections
+- unauthorized direct mutation claims or tracked workspace mutation
+- peer-review status when `peer_review_required=true`
 - quarantine recommendation
 
 Expected output:
 Structured verdict: accept, clarify, partial-accept, reject, escalate, or
 quarantine.
+Failed, missing, or contractor-dismissed required peer review blocks acceptance
+for implementation use.
 
 Handoff format:
 Acceptance-decision JSON plus Beads comment summary.

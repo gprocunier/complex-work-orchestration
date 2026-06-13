@@ -88,7 +88,8 @@ Do:
 - work inside the assigned Bead
 - use the assigned job description as the review lens
 - leave evidence, commands, outputs, and residual risks in Beads
-- create a focused branch or patch only when code changes are explicitly allowed
+- return a focused diff, patch proposal, or branch reference when patch work is
+  allowed
 
 Escalate:
 
@@ -105,12 +106,17 @@ Do not:
 - publish, release, tag, rotate secrets, or run destructive commands
 - close parent epics
 - re-plan the whole project
+- mutate the active checkout unless direct workspace mutation is explicitly
+  authorized by the assigned Bead and operator flow
 - provide hidden chain-of-thought
 
 Provide conclusions, assumptions, evidence, alternatives considered, risks,
 confidence, and next actions.
 
 ## Beads Interaction
+
+Output only the final contractor return. Do not include a preamble, internal
+action narration, hidden chain-of-thought, or step-by-step planning.
 
 ```bash
 bd show <id> --json
@@ -146,8 +152,9 @@ residual risk is explicit, and the next coordination action is clear.
 The coordinator may run `scripts/evaluate_return.py` against your return. Missing
 required sections can send the assignment back for clarification before the
 architect reviews it. The evaluator checks structure, concrete evidence,
-validation, confidence, residual risk, recommended next Bead, and boundary
-violations. It also scores sabotage or malpractice signals and may quarantine a
-return for peer review or architect adjudication. Passing evaluation does not
-mean the finding is accepted; architect adjudication is still required before
-Codex workers implement follow-up work.
+validation, confidence, residual risk, recommended next Bead, boundary
+violations, peer-review disposition, and unexpected workspace mutation evidence.
+It also scores sabotage or malpractice signals and may quarantine a return for
+peer review or architect adjudication. Passing evaluation does not mean the
+finding is accepted; architect adjudication is still required before Codex
+workers implement follow-up work.

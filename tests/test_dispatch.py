@@ -20,6 +20,9 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("outside model contractor", prompt)
         self.assertIn("scored by an evaluator", prompt)
         self.assertIn("Share boundary", prompt)
+        self.assertIn("CONTRACTOR RETURN TEMPLATE - COPY EXACTLY", prompt)
+        self.assertIn("Output only the contractor return", prompt)
+        self.assertIn("Do not include a preamble", prompt)
 
     def test_packet_prompt_contains_assignment_and_required_sections(self) -> None:
         packet = {
@@ -40,6 +43,10 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("Dispatch ID: dispatch-test", prompt)
         self.assertIn("contract-jd-security-reasoning", prompt)
         self.assertIn("Recommended next bead", prompt)
+        self.assertIn("CONTRACTOR RETURN TEMPLATE - COPY EXACTLY", prompt)
+        self.assertIn("Patch authorization:", prompt)
+        self.assertIn("Do not mutate the active checkout", prompt)
+        self.assertIn("do not claim peer review is unnecessary", prompt)
         self.assertIn("token=[REDACTED]", prompt)
 
     def test_packet_prompt_contains_degraded_justification(self) -> None:

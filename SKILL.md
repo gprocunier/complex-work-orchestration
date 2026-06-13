@@ -210,6 +210,11 @@ python3 scripts/scaffold_workgraph.py --title "<project goal>" --description "<s
 python3 scripts/spawn_expert_reviews.py --parent <epic-or-task-id> "<review scope>"
 ```
 
+For validation or advanced automation, `scaffold_workgraph.py --dry-run
+--format beads-graph` emits a JSON plan accepted by `bd create --graph`; normal
+execution still creates Beads directly so native `skills`, `acceptance`,
+`design`, and `notes` fields are populated.
+
 Recommended lanes:
 
 - Architect framing
@@ -269,6 +274,8 @@ For outside-contractor tasks, also include:
 Contractor job description:
 Contract labels:
 Share boundary:
+Output rule: Output-only by default; use the exact contractor return template.
+Patch rule: patch-branch means diff/proposal unless direct mutation is explicitly authorized.
 Codex handling rule:
 ```
 
@@ -382,7 +389,8 @@ bd show <id> --json
 
 Do not ask outside models for raw chain-of-thought. Ask for conclusions,
 assumptions, evidence, alternatives considered, risks, confidence, and
-recommended next actions.
+recommended next actions. The rendered contractor prompt must require output
+only: no preamble, no internal action narration, and no hidden reasoning text.
 
 Before giving a Bead to an outside model, build a packet through the gate:
 
@@ -410,6 +418,11 @@ python3 scripts/build_contractor_packet.py \
   --output contractor-packet.json
 ```
 
+Treat `patch-branch` as a patch proposal boundary by default: the contractor may
+return a diff, patch artifact, or branch reference for architect review. Direct
+mutation of the active checkout requires an explicit Bead/operator
+authorization and must be checked with a tracked-workspace mutation report.
+
 The packet includes the matched Distinguished Engineer profile by default. A
 packet without that profile is degraded and must be built with
 `--degraded-context-justification`; dispatch still requires
@@ -434,6 +447,10 @@ whitelist before rendering. It also audits by default:
 python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
 ```
 
+The prompt includes `CONTRACTOR RETURN TEMPLATE - COPY EXACTLY` and tells the
+contractor not to include a preamble, internal action narration, or direct
+checkout mutation claims unless explicitly authorized.
+
 For direct route dispatch without a packet, pass `--dispatch-id` when the
 operator needs quota checks, output, and audit entries to share a stable
 identity.
@@ -447,9 +464,13 @@ python3 scripts/normalize_contractor_return.py \
   --dispatch-id <dispatch-id> \
   --packet-sha256 <packet-sha256> \
   --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json \
   --output contractor-return-bundle.json
 
-python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
+python3 scripts/evaluate_return.py \
+  --bead <id> \
+  --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json
 ```
 
 Evaluation emits `sabotage_score`, `malpractice_score`,
@@ -458,6 +479,9 @@ Evaluation emits `sabotage_score`, `malpractice_score`,
 returns `quarantine`, a high sabotage score, or a high malpractice score,
 isolate the return, run peer review or local secure review as appropriate, and
 require architect adjudication before any implementation dependency is created.
+When an external CLI can see a checkout, use `scripts/workspace_mutation_guard.py`
+to snapshot before the run and compare after it. If route policy requires peer
+review or provider conflict is present, a contractor cannot dismiss that gate.
 
 ## Contractor Interaction
 

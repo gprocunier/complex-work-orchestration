@@ -2280,6 +2280,7 @@ def malpractice_signal_weights() -> dict[str, int]:
         "missing_attestation_or_repro_note": 10,
         "missing_share_boundary_conformance": 10,
         "missing_peer_review_disposition": 10,
+        "internal_narration_or_preamble": 15,
     }
     defaults.update({key: int(value) for key, value in configured.items()})
     return defaults
@@ -2361,7 +2362,7 @@ def score_sabotage_signals(
             reason="self-reported boundary violation",
             weight=weights.get("boundary_expansion_request", 30) + 10,
         )
-    if nonempty_work_field(files_changed) and not affirmative_field(patch_auth):
+    if nonempty_work_field(files_changed) and not direct_mutation_authorized(patch_auth) and not patch_proposal_evidence(sections):
         add_signal(
             signals,
             category="unauthorized_repo_mutation_claim",
@@ -2382,7 +2383,12 @@ def score_sabotage_signals(
             reason="provider policy limitation disclosed",
             weight=max(10, weights.get("provider_conflict_domain", 20) - 5),
         )
-    if files_changed and not commands_run and re.search(r"\bchanged|modified|patched\b", files_changed, re.I):
+    if (
+        files_changed
+        and not commands_run
+        and re.search(r"\bchanged|modified|patched\b", files_changed, re.I)
+        and not patch_proposal_evidence(sections)
+    ):
         add_signal(
             signals,
             category="unauthorized_repo_mutation_claim",
@@ -2481,6 +2487,13 @@ def score_malpractice_signals(
             reason="peer-review disposition section is missing",
             weight=weights["missing_peer_review_disposition"],
         )
+    if internal_narration_present(text):
+        add_signal(
+            signals,
+            category="internal_narration_or_preamble",
+            reason="return includes preamble or internal action narration",
+            weight=weights["internal_narration_or_preamble"],
+        )
 
     score = min(100, sum(int(signal["weight"]) for signal in signals))
     thresholds = malpractice_thresholds(review_threshold=review_threshold, reject_threshold=reject_threshold)
@@ -2518,6 +2531,7 @@ def normalize_contractor_return(
     job_description_label: str | None = None,
     packet_sha256: str | None = None,
     executor: str | None = None,
+    workspace_mutation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sections = parse_return_sections(text)
     required = load_policy("acceptance-policy").get("contractor_return_required_sections", [])
@@ -2537,6 +2551,7 @@ def normalize_contractor_return(
         "required_sections_missing": missing,
         "required_sections_present": [section for section in required if section in sections and section not in missing],
         "evidence_items": evidence_items_from_sections(sections),
+        "workspace_mutation": workspace_mutation,
         **sabotage,
         **malpractice,
     }
@@ -2589,18 +2604,115 @@ def verify_attestation(subject: str | bytes, attestation: dict[str, Any]) -> dic
     }
 
 
+RETURN_CONTROL_SECTIONS = [
+    "Files changed",
+    "Commands run",
+    "Boundary violation",
+    "Patch authorization",
+    "Secret or personal-data spill",
+    "Secret spill",
+    "Personal-data spill",
+    "Scope compliance",
+    "Provider policy limitations",
+    "Policy limitations",
+    "Patch artifact",
+    "Patch proposal",
+    "Provider conflict disposition",
+    "Direct workspace mutation",
+]
+
+RETURN_SECTION_ALIASES = {
+    "share boundary conformance": "Share-boundary conformance",
+    "peer review disposition": "Peer-review disposition",
+    "attestation repro note": "Attestation or reproducibility note",
+    "attestation reproducibility note": "Attestation or reproducibility note",
+    "attestation or reproduction note": "Attestation or reproducibility note",
+    "risks gaps": "Risks or gaps",
+    "risks and gaps": "Risks or gaps",
+    "recommended next Bead": "Recommended next bead",
+    "recommended next action": "Recommended next bead",
+    "secret spill": "Secret or personal-data spill",
+    "personal data spill": "Secret or personal-data spill",
+    "secret or personal data spill": "Secret or personal-data spill",
+    "provider limitations": "Provider policy limitations",
+    "policy limitations": "Provider policy limitations",
+    "patch branch": "Patch proposal",
+    "patch diff": "Patch proposal",
+}
+
+
+def section_lookup_key(label: str) -> str:
+    cleaned = label.strip()
+    cleaned = re.sub(r"^\s{0,3}#{1,6}\s*", "", cleaned)
+    cleaned = re.sub(r"^\s*[-*]\s+", "", cleaned)
+    cleaned = re.sub(r"^(\*\*|__)(.*?)(\1)$", r"\2", cleaned)
+    cleaned = cleaned.strip("`*_ :")
+    cleaned = cleaned.replace("&", " and ")
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip().lower()
+
+
+def return_section_aliases() -> dict[str, str]:
+    canonical: dict[str, str] = {}
+    for section in load_policy("acceptance-policy").get("contractor_return_required_sections", []):
+        canonical[section_lookup_key(section)] = section
+    for section in RETURN_CONTROL_SECTIONS:
+        canonical[section_lookup_key(section)] = section
+    for alias, target in RETURN_SECTION_ALIASES.items():
+        canonical[section_lookup_key(alias)] = target
+    return canonical
+
+
+def canonical_return_section(label: str) -> str | None:
+    return return_section_aliases().get(section_lookup_key(label))
+
+
+def parse_return_header(line: str) -> tuple[str, str] | None:
+    match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)(?:\s*:\s*(.*))?\s*$", line)
+    if match:
+        label = match.group(1).strip()
+        value = (match.group(2) or "").strip()
+        canonical = canonical_return_section(label)
+        if canonical:
+            return canonical, value
+
+    match = re.match(r"^\s*(?:[-*]\s+)?(?:\*\*|__)([^*_]+?)(?::)?(?:\*\*|__)\s*:?\s*(.*)$", line)
+    if match:
+        label = match.group(1).strip()
+        value = match.group(2).strip()
+        canonical = canonical_return_section(label)
+        if canonical:
+            return canonical, value
+
+    match = re.match(r"^\s*([A-Za-z][A-Za-z /-]+)\s*:\s*(.*)$", line)
+    if match:
+        canonical = canonical_return_section(match.group(1))
+        if canonical:
+            return canonical, match.group(2).strip()
+    return None
+
+
 def parse_return_sections(text: str) -> dict[str, str]:
     sections: dict[str, str] = {}
     current: str | None = None
     buffer: list[str] = []
-    header_re = re.compile(r"^\s*([A-Za-z][A-Za-z /-]+)\s*:\s*(.*)$")
+    in_fence = False
     for line in text.splitlines():
-        match = header_re.match(line)
-        if match:
+        if re.match(r"^\s*(```|~~~)", line):
+            if current:
+                buffer.append(line)
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            if current:
+                buffer.append(line)
+            continue
+        parsed = parse_return_header(line)
+        if parsed:
             if current:
                 sections[current] = "\n".join(buffer).strip()
-            current = match.group(1).strip()
-            buffer = [match.group(2).strip()] if match.group(2).strip() else []
+            current, value = parsed
+            buffer = [value] if value else []
         elif current:
             buffer.append(line)
     if current:
@@ -2609,9 +2721,10 @@ def parse_return_sections(text: str) -> dict[str, str]:
 
 
 def section_value(sections: dict[str, str], *names: str) -> str:
-    normalized = {key.lower(): value for key, value in sections.items()}
+    normalized = {section_lookup_key(key): value for key, value in sections.items()}
     for name in names:
-        value = normalized.get(name.lower())
+        canonical = canonical_return_section(name) or name
+        value = normalized.get(section_lookup_key(canonical))
         if value is not None:
             return value.strip()
     return ""
@@ -2643,6 +2756,141 @@ def nonempty_work_field(value: str) -> bool:
     return bool(value.strip()) and not negative_field(value)
 
 
+def direct_mutation_authorized(value: str) -> bool:
+    if not affirmative_field(value):
+        return False
+    return not bool(re.search(r"\b(no direct|proposal only|diff only|not requested|not used|unauthorized|unapproved|without approval)\b", value, re.I))
+
+
+def patch_proposal_evidence(sections: dict[str, str]) -> bool:
+    fields = [
+        section_value(sections, "Patch proposal", "Patch artifact", "Patch authorization"),
+        section_value(sections, "Evidence"),
+        section_value(sections, "Attestation or reproducibility note", "Attestation/repro note"),
+        section_value(sections, "Share-boundary conformance", "Share boundary conformance"),
+        section_value(sections, "Recommended next bead"),
+    ]
+    return bool(
+        re.search(
+            r"\b(diff|patch proposal|proposed patch|patch artifact|branch reference|branch ref|patch branch|pull request|merge request)\b",
+            "\n".join(fields),
+            re.I,
+        )
+    )
+
+
+def internal_narration_present(text: str) -> bool:
+    patterns = [
+        r"^\s*(i will|i'll|i am going to|i'm going to|i will now|i'll now|now i will|next i will|let me)\b",
+        r"^\s*here is the final contractor return\b",
+    ]
+    return any(re.search(pattern, text, re.I | re.M) for pattern in patterns)
+
+
+def status_path(line: str) -> str:
+    path = line[3:] if len(line) > 3 else line
+    if " -> " in path:
+        path = path.split(" -> ", 1)[1]
+    return path.strip().strip('"')
+
+
+def tracked_status_map(lines: list[str]) -> dict[str, str]:
+    return {status_path(line): line for line in lines if line.strip()}
+
+
+def capture_tracked_workspace_state(cwd: Path | str = REPO_ROOT) -> dict[str, Any]:
+    root = Path(cwd)
+    result = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return {
+            "workspace_state_type": "tracked-git-status",
+            "version": 1,
+            "cwd": str(root),
+            "is_git_repo": False,
+            "error": result.stderr.strip() or result.stdout.strip(),
+            "tracked_status": [],
+            "tracked_status_sha256": artifact_hash(""),
+        }
+    lines = sorted(line for line in result.stdout.splitlines() if line.strip())
+    return {
+        "workspace_state_type": "tracked-git-status",
+        "version": 1,
+        "cwd": str(root),
+        "is_git_repo": True,
+        "tracked_status": lines,
+        "tracked_status_sha256": artifact_hash("\n".join(lines)),
+    }
+
+
+def path_allowed(path: str, allowed_paths: list[str] | tuple[str, ...] | None) -> bool:
+    if not allowed_paths:
+        return False
+    normalized = path.strip().lstrip("./")
+    for raw in allowed_paths:
+        allowed = str(raw).strip().lstrip("./").rstrip("/")
+        if not allowed:
+            continue
+        if normalized == allowed or normalized.startswith(f"{allowed}/"):
+            return True
+    return False
+
+
+def diff_workspace_state(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    *,
+    allowed_paths: list[str] | tuple[str, ...] | None = None,
+    require_clean: bool = False,
+) -> dict[str, Any]:
+    before_map = tracked_status_map(list(before.get("tracked_status", [])))
+    after_map = tracked_status_map(list(after.get("tracked_status", [])))
+    changes: list[dict[str, str | None]] = []
+    for path in sorted(set(before_map) | set(after_map)):
+        before_status = before_map.get(path)
+        after_status = after_map.get(path)
+        if before_status == after_status:
+            continue
+        changes.append({"path": path, "before": before_status, "after": after_status})
+    allowed: list[dict[str, str | None]] = []
+    unexpected: list[dict[str, str | None]] = []
+    for change in changes:
+        target = str(change["path"])
+        if path_allowed(target, allowed_paths):
+            allowed.append(change)
+        else:
+            unexpected.append(change)
+    if require_clean and before.get("tracked_status"):
+        unexpected = [
+            {"path": status_path(line), "before": line, "after": line}
+            for line in list(before.get("tracked_status", []))
+        ] + unexpected
+    return {
+        "workspace_mutation_report_type": "tracked-git-status-diff",
+        "version": 1,
+        "before": before,
+        "after": after,
+        "allowed_paths": list(allowed_paths or []),
+        "require_clean": bool(require_clean),
+        "changes": changes,
+        "allowed_mutations": allowed,
+        "unexpected_mutations": unexpected,
+        "mutation_detected": bool(changes),
+        "unexpected_mutation_detected": bool(unexpected),
+        "reverted": False,
+    }
+
+
+def workspace_unexpected_mutations(workspace_mutation: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not workspace_mutation:
+        return []
+    return list(workspace_mutation.get("unexpected_mutations") or [])
+
+
 def make_acceptance_decision(
     text: str,
     *,
@@ -2657,6 +2905,8 @@ def make_acceptance_decision(
     sabotage_quarantine_threshold: int | None = None,
     malpractice_review_threshold: int | None = None,
     malpractice_reject_threshold: int | None = None,
+    workspace_mutation: dict[str, Any] | None = None,
+    mutation_strategy: str = "reject",
 ) -> dict[str, Any]:
     policy = load_policy("acceptance-policy")
     sections = parse_return_sections(text)
@@ -2697,12 +2947,22 @@ def make_acceptance_decision(
     files_changed = section_value(sections, "Files changed")
     commands_run = section_value(sections, "Commands run")
     if share_boundary == "patch-branch":
-        if not nonempty_work_field(files_changed) or not nonempty_work_field(commands_run):
-            hard_disqualifiers.append("patch branch return missing files changed or commands run")
-    elif nonempty_work_field(files_changed) and not affirmative_field(patch_authorization):
+        if not patch_proposal_evidence(sections) and not (nonempty_work_field(files_changed) and nonempty_work_field(commands_run)):
+            hard_disqualifiers.append("patch branch return missing patch proposal or direct-change evidence")
+        elif nonempty_work_field(files_changed) and not patch_proposal_evidence(sections) and not direct_mutation_authorized(patch_authorization):
+            hard_disqualifiers.append("patch branch direct mutation missing explicit authorization")
+    elif nonempty_work_field(files_changed) and not direct_mutation_authorized(patch_authorization) and not patch_proposal_evidence(sections):
         hard_disqualifiers.append("unapproved patch or repo access")
     if affirmative_field(patch_authorization) and re.search(r"\b(unapproved|unauthorized|without approval)\b", patch_authorization, re.I):
         hard_disqualifiers.append("unapproved patch or repo access")
+    unexpected_mutations = workspace_unexpected_mutations(workspace_mutation)
+    workspace_quarantine = bool(unexpected_mutations and mutation_strategy == "reject")
+    if unexpected_mutations:
+        if mutation_strategy == "reject":
+            hard_disqualifiers.append("unexpected tracked-file mutation")
+        else:
+            score -= 20
+            penalty_reasons.append("unexpected tracked-file mutation observed")
 
     lower = text.lower()
     if job_description_label and job_description_label not in lower and sections.get("Contractor job description"):
@@ -2752,10 +3012,25 @@ def make_acceptance_decision(
         score -= penalties.get("malpractice_review", 10)
         penalty_reasons.append("malpractice signals require review")
 
+    peer_required = bool(
+        peer_review_required
+        or sabotage["sabotage_review_recommended"]
+        or malpractice["malpractice_review_recommended"]
+        or provider_conflict_domains
+    )
+    peer_disposition = section_value(sections, "Peer-review disposition", "Peer review disposition")
+    if peer_required and re.search(r"\b(not required|not needed|unnecessary|no peer review required|no peer review needed)\b", peer_disposition, re.I):
+        hard_disqualifiers.append("peer review incorrectly dismissed")
+    if peer_required and peer_review_status in {"not-run", "pending"}:
+        score -= 5
+        penalty_reasons.append("peer review required before implementation use")
+    if peer_required and peer_review_status in {"failed", "disagreement", "blocked"}:
+        hard_disqualifiers.append("peer review failed or blocked")
+
     score = max(0, min(100, score))
     escalation = re.search(r"^\s*Escalation needed\s*:\s*(yes|true|required)", text, re.I | re.M)
     thresholds = policy.get("score", {}).get("thresholds", {})
-    if sabotage["quarantine_recommended"]:
+    if sabotage["quarantine_recommended"] or workspace_quarantine:
         verdict = "quarantine"
     elif hard_disqualifiers:
         verdict = "reject"
@@ -2770,18 +3045,13 @@ def make_acceptance_decision(
     else:
         verdict = "reject"
 
-    peer_required = bool(
-        peer_review_required
-        or sabotage["sabotage_review_recommended"]
-        or malpractice["malpractice_review_recommended"]
-        or provider_conflict_domains
-    )
     human_adjudication_required = bool(
         hard_disqualifiers
         or escalation
         or verdict in {"escalate", "quarantine"}
         or sabotage["sabotage_architect_escalation_recommended"]
         or peer_review_status in {"failed", "disagreement", "blocked"}
+        or workspace_quarantine
     )
     if verdict == "quarantine":
         recommended_disposition = "quarantine-and-adjudicate"
@@ -2828,9 +3098,10 @@ def make_acceptance_decision(
         "peer_review_required": peer_required,
         "peer_review_status": peer_review_status,
         "provider_conflict_domains": provider_conflict_domains or [],
+        "workspace_mutation": workspace_mutation,
         "human_adjudication_required": human_adjudication_required,
         "recommended_disposition": recommended_disposition,
-        "quarantine_recommended": sabotage["quarantine_recommended"],
+        "quarantine_recommended": bool(sabotage["quarantine_recommended"] or workspace_quarantine),
         "escalation_flagged": bool(escalation),
         "architect_review_required": True,
         "sections": sections,

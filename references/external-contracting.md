@@ -390,8 +390,12 @@ python3 scripts/build_contractor_packet.py \
    to an approved external CLI:
 
    ```bash
+   python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
+
    claude -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
    agy -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
+
+   python3 scripts/workspace_mutation_guard.py --compare before.json --output mutation-report.json
    ```
 
    When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
@@ -407,6 +411,8 @@ python3 scripts/build_contractor_packet.py \
    contract. The contractor packet does not grant shell access, credentials,
    repository ownership, Beads authority, repo policy control, merge permission,
    or permission to bypass the approved share boundary.
+   `patch-branch` is a proposal lane by default: return a diff, patch artifact,
+   or branch reference unless direct checkout mutation is explicitly authorized.
 
 8. Contractor returns a Beads comment or patch branch.
 9. PM normalizes the return and checks format, evidence, boundary fit, and
@@ -499,6 +505,10 @@ settings are documented in `references/local-inference.md`.
 ## Handoff Format
 
 ```text
+CONTRACTOR RETURN TEMPLATE - COPY EXACTLY
+Output only this return. Do not include a preamble, internal action narration,
+hidden chain-of-thought, or step-by-step planning.
+
 Status:
 Contractor job description:
 Summary:

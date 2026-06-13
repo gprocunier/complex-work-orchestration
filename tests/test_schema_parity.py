@@ -34,8 +34,13 @@ class SchemaParityTests(unittest.TestCase):
             "peer_review_status",
             "human_adjudication_required",
             "recommended_disposition",
+            "workspace_mutation",
         ]:
             self.assertIn(field, properties)
+
+    def test_contractor_return_bundle_schema_supports_workspace_mutation(self) -> None:
+        properties = load_schema("contractor-return-bundle.schema.json")["properties"]
+        self.assertIn("workspace_mutation", properties)
 
     def test_local_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("local-dispatch-envelope.schema.json")

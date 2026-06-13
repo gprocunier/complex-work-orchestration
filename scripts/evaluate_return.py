@@ -20,6 +20,10 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Human adjudication required: {result.get('human_adjudication_required', False)}")
     print(f"Recommended disposition: {result.get('recommended_disposition', 'unknown')}")
     print(f"Quarantine recommended: {result.get('quarantine_recommended', False)}")
+    workspace_mutation = result.get("workspace_mutation") or {}
+    if isinstance(workspace_mutation, dict) and workspace_mutation:
+        print(f"Workspace mutation detected: {workspace_mutation.get('mutation_detected', False)}")
+        print(f"Unexpected workspace mutation: {workspace_mutation.get('unexpected_mutation_detected', False)}")
 
     missing = result.get("missing_sections") or []
     print("\nMissing sections:")
@@ -89,10 +93,26 @@ def main() -> None:
     parser.add_argument("--sabotage-quarantine-threshold", type=int, help="Override sabotage quarantine threshold.")
     parser.add_argument("--malpractice-review-threshold", type=int, help="Override malpractice peer-review threshold.")
     parser.add_argument("--malpractice-reject-threshold", type=int, help="Override malpractice reject threshold.")
+    parser.add_argument(
+        "--workspace-mutation-report",
+        help="JSON report from scripts/workspace_mutation_guard.py comparing pre/post contractor workspace state.",
+    )
+    parser.add_argument(
+        "--mutation-strategy",
+        choices=["reject", "warn"],
+        default="reject",
+        help="How to handle unexpected tracked-file mutations when a workspace mutation report is supplied.",
+    )
     parser.add_argument("--audit", action="store_true", help="Append an audit event.")
     parser.add_argument("--audit-file", help="Audit JSONL path; defaults to .orchestration-audit/audit.jsonl.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args()
+
+    workspace_mutation = (
+        json.loads(Path(args.workspace_mutation_report).read_text(encoding="utf-8"))
+        if args.workspace_mutation_report
+        else None
+    )
 
     result = make_acceptance_decision(
         Path(args.file).read_text(encoding="utf-8"),
@@ -107,6 +127,8 @@ def main() -> None:
         sabotage_quarantine_threshold=args.sabotage_quarantine_threshold,
         malpractice_review_threshold=args.malpractice_review_threshold,
         malpractice_reject_threshold=args.malpractice_reject_threshold,
+        workspace_mutation=workspace_mutation,
+        mutation_strategy=args.mutation_strategy,
     )
     if args.audit:
         audit_path = Path(args.audit_file) if args.audit_file else None
@@ -126,6 +148,7 @@ def main() -> None:
                 "recommended_disposition": result.get("recommended_disposition"),
                 "provider_conflict_domains": result.get("provider_conflict_domains"),
                 "quarantine_recommended": result.get("quarantine_recommended"),
+                "workspace_mutation": result.get("workspace_mutation"),
             },
             audit_path,
         )

@@ -29,6 +29,7 @@
     "human_adjudication_required": {"type": ["boolean", "null"]},
     "recommended_disposition": {"type": ["string", "null"]},
     "provider_conflict_domains": {"type": "array", "items": {"type": "string"}},
+    "workspace_mutation": {"type": ["object", "null"]},
     "local_profile": {"type": ["string", "null"]},
     "quarantine_recommended": {"type": ["boolean", "null"]},
     "verdict": {"type": "string"},

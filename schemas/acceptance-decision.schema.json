@@ -32,6 +32,7 @@
     "peer_review_required": {"type": "boolean"},
     "peer_review_status": {"enum": ["not-run", "pending", "passed", "failed", "disagreement", "blocked"]},
     "provider_conflict_domains": {"type": "array", "items": {"type": "string"}},
+    "workspace_mutation": {"type": ["object", "null"]},
     "human_adjudication_required": {"type": "boolean"},
     "recommended_disposition": {"type": "string"},
     "quarantine_recommended": {"type": "boolean"},

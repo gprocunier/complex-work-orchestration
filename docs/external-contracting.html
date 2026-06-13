@@ -140,6 +140,9 @@ contract-jd-security-reasoning</code></pre>
             <p>
               Repo-readonly and patch-branch handoff packets require an explicit
               disclosure escalation flag in addition to external opt-in.
+              Patch-branch is a proposal lane by default: the contractor returns
+              a diff, patch artifact, or branch reference unless direct checkout
+              mutation is explicitly authorized.
             </p>
             <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
@@ -159,19 +162,41 @@ contract-jd-security-reasoning</code></pre>
             <p>
               Do not turn contractor findings into implementation work until
               the return has been normalized, evaluated, and adjudicated by the
-              architect.
+              architect. The rendered prompt requires the exact contractor
+              return template, final answer only, with no preamble or internal
+              action narration.
             </p>
+            <pre><code>python3 scripts/workspace_mutation_guard.py \
+  --snapshot \
+  --output before.json
+
+agy -p "$(cat contractor-dispatch-prompt.md)" \
+  &gt; contractor-return.md
+
+python3 scripts/workspace_mutation_guard.py \
+  --compare before.json \
+  --output mutation-report.json</code></pre>
             <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead &lt;id&gt; \
   --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json \
   --output contractor-return-bundle.json
 
-python3 scripts/evaluate_return.py --bead &lt;id&gt; --file contractor-return.md</code></pre>
+python3 scripts/evaluate_return.py \
+  --bead &lt;id&gt; \
+  --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json</code></pre>
             <div class="callout">
               <strong>Quarantine rule:</strong>
               High sabotage or malpractice scores isolate the return. No
               implementation dependency should be created until adjudication is
               complete.
+            </div>
+            <div class="callout">
+              <strong>Peer-review rule:</strong>
+              If route policy or provider conflict requires peer review, a
+              contractor cannot dismiss that gate. Unexpected tracked-file
+              mutation also blocks direct implementation use.
             </div>
             <div class="callout">
               <strong>Publication handoff:</strong>

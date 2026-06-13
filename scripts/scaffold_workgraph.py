@@ -351,6 +351,85 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
     return graph
 
 
+def item_key(item: dict[str, Any], index: int) -> str:
+    if index == 0:
+        return "epic"
+    return str(item.get("lane") or f"item-{index}")
+
+
+def item_priority(item: dict[str, Any], index: int) -> int:
+    if index == 0:
+        return 1
+    lane = str(item.get("lane") or "")
+    if lane in ["architect", "pm", "external-dispatch", "evaluation", "architect-adjudication"]:
+        return 1
+    return 2
+
+
+def string_metadata(item: dict[str, Any]) -> dict[str, str]:
+    result = {
+        "cwo_lane": str(item.get("lane") or "epic"),
+        "cwo_depends_on_lanes": json.dumps(item.get("depends_on_lanes", []), sort_keys=True),
+        "cwo_skills": json.dumps(item.get("skills", []), sort_keys=True),
+        "cwo_acceptance": str(item.get("acceptance", "")),
+        "cwo_design": str(item.get("design", "")),
+        "cwo_notes": str(item.get("notes", "")),
+    }
+    for key, value in dict(item.get("metadata") or {}).items():
+        metadata_key = f"cwo_metadata_{key}"
+        if key == "orchestration_route" and isinstance(value, dict):
+            result[metadata_key] = json.dumps(
+                {
+                    "route": value.get("route"),
+                    "task_class": value.get("task_class"),
+                    "risk_level": value.get("risk_level"),
+                    "share_boundary": value.get("share_boundary"),
+                    "recommended_executor": value.get("recommended_executor"),
+                    "peer_review_required": bool(value.get("peer_review_required")),
+                    "provider_conflict_detected": bool(value.get("provider_conflict_detected")),
+                },
+                sort_keys=True,
+            )
+        elif isinstance(value, (str, int, float, bool)) or value is None:
+            result[metadata_key] = "" if value is None else str(value)
+        else:
+            result[metadata_key] = json.dumps(value, sort_keys=True)
+    return result
+
+
+def beads_graph_plan(plan: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    keys = {item_key(item, index): item for index, item in enumerate(plan)}
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+
+    for index, item in enumerate(plan):
+        key = item_key(item, index)
+        node = {
+            "key": key,
+            "title": str(item["title"]),
+            "type": str(item.get("type") or "task"),
+            "priority": item_priority(item, index),
+            "labels": list(item.get("labels", [])),
+            "metadata": string_metadata(item),
+        }
+        if index > 0:
+            node["parent_key"] = "epic"
+        nodes.append(node)
+
+        for blocker_lane in item.get("depends_on_lanes", []):
+            blocker_key = str(blocker_lane)
+            if blocker_key in keys:
+                edges.append(
+                    {
+                        "from_key": key,
+                        "to_key": blocker_key,
+                        "type": "blocks",
+                    }
+                )
+
+    return {"nodes": nodes, "edges": edges}
+
+
 def try_dep(blocked: str, blocker: str) -> None:
     try:
         add_dependency(blocked, blocker)
@@ -375,6 +454,12 @@ def main() -> None:
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--format",
+        choices=["cwo", "beads-graph"],
+        default="cwo",
+        help="Dry-run output format. 'cwo' is the internal scaffold; 'beads-graph' can be used with bd create --graph.",
+    )
     args = parser.parse_args()
 
     context = read_text_arg(f"{args.title}\n\n{args.description}".strip(), args.file)
@@ -390,8 +475,11 @@ def main() -> None:
     )
     plan = planned_graph(args.title, route)
     if args.dry_run:
-        print(json.dumps(plan, indent=2, sort_keys=True))
+        output: Any = beads_graph_plan(plan) if args.format == "beads-graph" else plan
+        print(json.dumps(output, indent=2, sort_keys=True))
         return
+    if args.format != "cwo":
+        parser.error("--format beads-graph requires --dry-run; normal execution creates Beads directly.")
 
     created: dict[str, str] = {}
     epic_plan = plan[0]

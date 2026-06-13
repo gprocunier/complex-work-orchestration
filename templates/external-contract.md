@@ -32,11 +32,37 @@ epic closure authority, release/tag authority, and anything outside the selected
 share boundary.
 
 Allowed changes:
-No direct repo changes unless the Bead explicitly authorizes `patch-branch`.
+Output-only by default: Beads comment, evidence, diff, patch proposal, or branch
+reference. No direct checkout mutation unless the Bead and operator flow
+explicitly authorize direct workspace mutation.
 
 Expected output:
-Findings, evidence, confidence, risks or gaps, validation result, and
-recommended next Beads.
+Final contractor return only. No preamble, internal action narration, hidden
+chain-of-thought, or step-by-step planning. Use the exact section labels below.
+
+```text
+Status:
+Contractor job description:
+Summary:
+Files changed:
+Commands run:
+Boundary violation:
+Patch authorization:
+Secret or personal-data spill:
+Scope compliance:
+Validation result:
+Provider policy limitations:
+Evidence:
+Evidence provenance:
+Attestation or reproducibility note:
+Share-boundary conformance:
+Peer-review disposition:
+Alternatives considered:
+Confidence:
+Risks or gaps:
+Recommended next bead:
+Escalation needed:
+```
 
 Evidence requirements:
 State whether each claim is based on code, documentation, command output, or
@@ -52,8 +78,9 @@ conflicting evidence. Also escalate if the provider policy, safety posture, or
 model limitations prevent direct analysis of the assigned question.
 
 Handoff format:
-Beads comment or approved patch branch using the required contractor return
-format.
+Beads comment or approved patch proposal using the required contractor return
+format. Patch-branch is a proposal lane unless direct mutation is explicitly
+authorized.
 
 Contractor job description:
 {{job_description_label}}
@@ -68,6 +95,8 @@ Evaluation rule:
 This return must pass evaluator scoring and architect adjudication before any
 finding becomes implementation work. Suspicious, unsupported, boundary-breaking,
 or provider-conflicted output may be quarantined and routed to peer review.
+If route policy requires peer review or provider conflict is present, the
+contractor cannot declare peer review unnecessary.
 
 Profile rule:
 Use the Distinguished Engineer profile as the operating lens. A packet without

@@ -17,8 +17,17 @@ def main() -> None:
     parser.add_argument("--job-description", help="Expected job-description label.")
     parser.add_argument("--packet-sha256", help="Packet hash the return is responding to.")
     parser.add_argument("--executor", help="Executor key that produced the return.")
+    parser.add_argument(
+        "--workspace-mutation-report",
+        help="JSON report from scripts/workspace_mutation_guard.py comparing pre/post contractor workspace state.",
+    )
     parser.add_argument("--output", help="Optional JSON output path.")
     args = parser.parse_args()
+    workspace_mutation = (
+        json.loads(Path(args.workspace_mutation_report).read_text(encoding="utf-8"))
+        if args.workspace_mutation_report
+        else None
+    )
 
     bundle = normalize_contractor_return(
         Path(args.file).read_text(encoding="utf-8"),
@@ -28,6 +37,7 @@ def main() -> None:
         job_description_label=args.job_description,
         packet_sha256=args.packet_sha256,
         executor=args.executor,
+        workspace_mutation=workspace_mutation,
     )
     rendered = json.dumps(bundle, indent=2, sort_keys=True)
     if args.output:
