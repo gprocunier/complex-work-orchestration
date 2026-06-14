@@ -66,7 +66,9 @@ sabotage, `references/prompt-coach.md` when sizing the invocation,
 `references/redhat-expert-catalog.md` when selecting Red Hat product-focused
 Distinguished Engineer lenses, and `references/contractor-brief.md` as the
 briefing artifact given to an outside contractor with a specific Beads
-assignment. Use `docs/workflows.html` for the publishable walkthrough of
+assignment. Use `scripts/close_bead_with_summary.py` when closing meaningful
+Beads so the final comment preserves compact agent-memory context before the
+short close reason is recorded. Use `docs/workflows.html` for the publishable walkthrough of
 Codex-native `/plan` invocation, prompt-coach sizing, Beads work-graph
 creation, optional contractor or local-worker lanes, validation, and manual
 `claude -p`, `gemini -p`, `agy -p`, or ChatGPT Pro browser contractor handoff
@@ -251,6 +253,28 @@ bd comment <id> "<evidence, findings, validation, risk>"
 bd close <id>
 bd dolt commit
 bd dolt push    # only when a Dolt remote exists
+```
+
+Before closing a non-trivial Bead, add a final closure-memory comment. This is
+required for epics, contractor or local-worker lanes, evaluation and architect
+adjudication lanes, validation and publish-sanitization lanes, abandoned or
+superseded work, and any task with a non-obvious technical decision. The close
+reason should stay terse; the final comment should preserve disposition, why it
+closed, key decisions, evidence, residual risk, and follow-up. Tiny mechanical
+leaf tasks may rely on the close reason only when it fully explains the outcome.
+
+Preferred helper:
+
+```bash
+python3 scripts/close_bead_with_summary.py \
+  --bead <id> \
+  --disposition completed \
+  --why "accepted change validated" \
+  --decision "kept close_reason terse and stored reusable context in the final comment" \
+  --evidence "python scripts/validate_repository.py" \
+  --residual-risk "none known" \
+  --follow-up "none" \
+  --close
 ```
 
 Each task should include:

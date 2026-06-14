@@ -573,7 +573,8 @@ python3 scripts/build_contractor_packet.py \
    and use `references/incident-response-playbook.md`.
 11. Architect reviews findings and decides what to accept, reject, or convert
    into Codex workerbee tasks.
-12. PM updates dependencies and ready-work state.
+12. PM records the final closure-memory comment on meaningful Beads before
+   closing them, then updates dependencies and ready-work state.
 
 ## Hello-World Contractor Demo Lessons
 
@@ -606,7 +607,8 @@ Use the demo as the concrete operator pattern:
 - run a public-doc editor pass for attribution mistakes, absolute local paths,
   `file://` links, fabricated validation claims, and unclear ownership
 - close the Beads publish task only after local validation, GitHub Actions,
-  Pages deployment, live HTTP checks, and publish sanitization pass
+  Pages deployment, live HTTP checks, publish sanitization, and a final
+  closure-memory comment pass
 
 ## Codex Worker Filters
 

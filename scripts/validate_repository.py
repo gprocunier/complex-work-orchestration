@@ -26,6 +26,7 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/validate_site.py",
     "python -m unittest discover -s tests",
     "bash examples/sample-prompt-coach-command.sh",
+    "python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why \"validated\" --follow-up none --dry-run --json",
     "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
 
@@ -215,6 +216,7 @@ def validate_repository() -> list[str]:
             "Use direct script execution only",
             "scripts/coach_prompt.py",
             "scripts/cleanup_stale_agents.py",
+            "scripts/close_bead_with_summary.py",
             "scripts/workspace_mutation_guard.py",
             "--terminate-unowned-codex",
             "--workspace-root",
@@ -229,6 +231,7 @@ def validate_repository() -> list[str]:
             "smallest available capable review model",
             "beads_tracking_required",
             "Beads tracking is mandatory",
+            "closure-memory comment",
             "bd dolt remote list",
             "sudo dnf copr enable greg-at-redhat/beads",
             "Main-Thread PM Dispatch Flow",
@@ -357,6 +360,7 @@ def validate_repository() -> list[str]:
             "/plan Use $complex-work-orchestration prompt coach",
             "scripts/coach_prompt.py",
             "scripts/cleanup_stale_agents.py",
+            "scripts/close_bead_with_summary.py",
             "scripts/workspace_mutation_guard.py",
             "--workspace-root",
             "helper execution only for advanced automation",
@@ -376,6 +380,7 @@ def validate_repository() -> list[str]:
             "evaluate_return.py",
             "workspace_mutation_guard.py",
             "Contractor Demo",
+            "closure-memory comment",
             "./contractor-demo.html",
         ],
     )
@@ -412,6 +417,7 @@ def validate_repository() -> list[str]:
             "in-Codex prompt coach should ask about outside sharing",
             "normalize_contractor_return.py",
             "workspace_mutation_guard.py",
+            "closure-memory comment",
             "Unexpected tracked-file",
         ],
     )
@@ -473,6 +479,7 @@ def validate_repository() -> list[str]:
             "notes",
             "scripts/validate_site.py",
             "workspace_mutation_guard.py",
+            "closure-memory comments",
             "./contractor-demo.html",
         ],
     )
@@ -496,6 +503,7 @@ def validate_repository() -> list[str]:
             "A contractor packet does not grant shell access",
             "External CLIs receive only the rendered",
             "not Beads authority",
+            "closure-memory comment",
             "agy -p",
             "claude -p",
             "Packet generation is not dispatch",
@@ -557,6 +565,7 @@ def validate_repository() -> list[str]:
             "malpractice_score",
             "CONTRACTOR RETURN TEMPLATE - COPY EXACTLY",
             "references/redhat-expert-catalog.md",
+            "scripts/close_bead_with_summary.py",
         ],
     )
     require_doc_terms(
@@ -653,8 +662,15 @@ def validate_repository() -> list[str]:
             "scripts/chatgpt_browser_review.py",
             "scripts/ingest_chatgpt_share_return.py",
             "CWO_CHATGPT_BROWSER_CONFIG",
+            "closure-memory comment",
         ],
     )
+    require_doc_terms(errors, "templates/work-task.md", ["closure-memory comment"])
+    require_doc_terms(errors, "templates/review-task.md", ["closure-memory comment"])
+    require_doc_terms(errors, "templates/external-contract.md", ["closure-memory"])
+    require_doc_terms(errors, "templates/contractor-evaluation.md", ["closure-memory comment"])
+    require_doc_terms(errors, "templates/acceptance-decision.md", ["closure-memory comment"])
+    require_doc_terms(errors, "templates/followup-task.md", ["closure summary", "closure-memory comment"])
     require_doc_terms(
         errors,
         "experts/editor.md",

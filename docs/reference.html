@@ -149,8 +149,9 @@
             </p>
             <p>
               Scripts perform sizing, routing, stale-agent cleanup, scaffolding,
-              packet building, dispatch prompt rendering, return normalization,
-              evaluation, audit verification, and repository validation.
+              closure-memory comments, packet building, dispatch prompt rendering,
+              return normalization, evaluation, audit verification, and
+              repository validation.
               Scaffolded and expert-review Beads carry native
               <code>skills</code>, <code>acceptance</code>,
               <code>design</code>, and <code>notes</code> fields so the work
@@ -159,6 +160,7 @@
             <pre><code>python3 scripts/coach_prompt.py "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
 python3 scripts/cleanup_stale_agents.py --json
+python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --follow-up none --dry-run --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --confirm-only --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
@@ -208,7 +210,10 @@ python3 scripts/validate_site.py</code></pre>
             <p>
               Publication work should pass repository validation, site
               validation, unit tests, install smoke checks, browser checks, and
-              publish sanitization before pushing upstream.
+              publish sanitization before pushing upstream. For meaningful
+              Beads, add a final closure-memory comment before closing so future
+              agents can recover disposition, rationale, evidence, residual risk,
+              and follow-up from the work graph.
             </p>
             <ol class="check-list">
               <li>Run validators locally.</li>

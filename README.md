@@ -81,6 +81,13 @@ Generated Beads should populate the native Beads fields for `skills`,
 `acceptance`, `design`, and `notes`; descriptions remain the human-readable
 assignment body.
 
+Non-trivial closed Beads should also receive a final closure-memory comment
+before `bd close`. Keep `close_reason` short; put reusable context in the
+comment: disposition, why it closed, key decisions, evidence, residual risk,
+and follow-up. This lets a spawned agent with no transcript, or a compacted
+session with fuzzy memory, rehydrate what happened without guessing from git
+history alone.
+
 When creating Beads manually, do not type literal `\n` sequences into text
 fields. Use real newlines through a heredoc, `--body-file`, `--design-file`, or
 shell command substitution so rendered Beads do not show backslash-n text.
@@ -199,6 +206,9 @@ binding, and expert profile for outside or local review.
   run it from the target workspace or pass `--workspace-root <path>`, and use
   `--terminate-unowned-codex` only for explicit operator cleanup of stale
   unowned Codex, Claude, or Agy processes in that workspace.
+- `scripts/close_bead_with_summary.py`: add a final closure-memory comment
+  with disposition, why, decisions, evidence, residual risk, and follow-up;
+  pass `--close` only when the helper should also run `bd close`.
 - `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and workstream
   tasks; use `--dry-run --format beads-graph` to emit a `bd create --graph`
   compatible JSON plan for validation or advanced automation.
@@ -562,6 +572,9 @@ flowchart LR
 17. The architect reviews contractor findings before Codex workers implement
    follow-up work or before release decisions are made.
 18. PM keeps dependencies, status, blockers, and resume instructions current.
+19. Before closing meaningful Beads, PM or the responsible agent posts a final
+   closure-memory comment with disposition, rationale, decisions, evidence,
+   residual risk, and follow-up, then records a terse close reason.
 
 ## Beads Requirement
 
@@ -595,6 +608,24 @@ bd dolt push
 
 If no Dolt remote is configured, the Beads task graph is still durable local state,
 but it is not shared across machines until you add a remote.
+
+Closure comments are part of the Beads requirement. They are required for
+epics, contractor or local-worker lanes, evaluation and architect adjudication
+lanes, validation and publish-sanitization lanes, abandoned or superseded work,
+and any task with a non-obvious technical decision. Tiny mechanical leaf tasks
+may rely on the close reason only when it fully explains the outcome.
+
+```bash
+python3 scripts/close_bead_with_summary.py \
+  --bead <id> \
+  --disposition completed \
+  --why "accepted change validated" \
+  --decision "close_reason stays terse; durable context lives in the final comment" \
+  --evidence "python scripts/validate_repository.py" \
+  --residual-risk "none known" \
+  --follow-up "none" \
+  --close
+```
 
 If Beads is unavailable, create the same task or graph structure in a temporary
 Markdown plan and say that durability is reduced. Do not claim contractor-only

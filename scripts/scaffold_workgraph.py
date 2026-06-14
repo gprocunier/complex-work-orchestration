@@ -44,7 +44,9 @@ Escalation triggers:
 Architecture change, scope change, security risk, missing context, destructive action, or conflicting evidence.
 
 Handoff format:
-Beads comment with findings, validation, and next action."""
+Beads comment with findings, validation, and next action.
+Before meaningful closure, add a final closure-memory comment with disposition,
+why, key decisions, evidence, residual risk, and follow-up."""
 
 
 def unique_strings(items: list[object]) -> list[str]:

@@ -41,3 +41,6 @@ for implementation use.
 
 Handoff format:
 Acceptance-decision JSON plus Beads comment summary.
+Before meaningful closure, add a final closure-memory comment with evaluator
+disposition, accepted or rejected findings, evidence quality, residual risk,
+peer-review state, and follow-up Beads.

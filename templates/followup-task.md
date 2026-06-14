@@ -23,3 +23,7 @@ Architect acceptance condition:
 
 Handoff format:
 Patch, commands run, validation output, risks, and follow-up recommendations.
+Reference the source Bead's closure summary when this task converts accepted
+findings into implementation work. Before meaningful closure, add a final
+closure-memory comment with disposition, why, key decisions, evidence, residual
+risk, and follow-up.

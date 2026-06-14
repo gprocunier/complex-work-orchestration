@@ -27,3 +27,7 @@ Acceptance:
 Resume:
 - `bd ready --exclude-label contractor-only --exclude-label no-codex-exec --json`
 - `bd ready --label contractor-only --json`
+
+Closure:
+Before closing the epic, add a final closure-memory comment with disposition,
+why, key decisions, evidence, residual risk, and follow-up.

@@ -27,3 +27,6 @@ Release or publication impact:
 
 Handoff format:
 Create normal Codex-executable follow-up Beads for accepted findings only.
+Before meaningful closure, add a final closure-memory comment with architect
+disposition, accepted and rejected findings, release impact, residual risk, and
+follow-up.
