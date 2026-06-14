@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from chatgpt_browser_review import (  # noqa: E402
+    DEFAULT_MODEL_LABEL,
+    DEFAULT_REASONING_LABEL,
     EXECUTOR_KEY,
     PlaywrightChatGPTRunner,
     build_result,
@@ -49,7 +51,35 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         rendered = json.dumps(summary, sort_keys=True)
         self.assertTrue(summary["chrome_user_data_dir_configured"])
         self.assertTrue(summary["local_clipboard_fallback"])
+        self.assertTrue(summary["require_model_confirmation"])
+        self.assertFalse(summary["model_confirmation_configured"])
         self.assertNotIn(str(Path(tmpdir) / "profile"), rendered)
+
+    def test_config_summary_reports_confirmation_selectors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = self.write_config(Path(tmpdir))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["selectors"] = {
+                "model_label_confirmation_selector": "[data-testid='model-switcher']",
+                "reasoning_label_confirmation_selector": "[data-testid='reasoning-switcher']",
+            }
+            path.write_text(json.dumps(data), encoding="utf-8")
+            config = load_browser_config(path)
+            summary = config_summary(config, path)
+        self.assertTrue(summary["model_confirmation_configured"])
+
+    def test_config_null_model_labels_default_to_required_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            path = self.write_config(tmp)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["model_label"] = None
+            data["reasoning_label"] = ""
+            path.write_text(json.dumps(data), encoding="utf-8")
+            config = load_browser_config(path)
+        self.assertEqual(config["model_label"], DEFAULT_MODEL_LABEL)
+        self.assertEqual(config["reasoning_label"], DEFAULT_REASONING_LABEL)
+        self.assertTrue(config["require_model_confirmation"])
 
     def test_config_rejects_credential_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -136,6 +166,107 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertEqual(runner._create_share_link(page, 1, TimeoutError), "")
         self.assertFalse(page.evaluated)
 
+    def test_model_confirmation_requires_explicit_selectors(self) -> None:
+        runner = PlaywrightChatGPTRunner(
+            {
+                "selectors": {},
+                "model_label": DEFAULT_MODEL_LABEL,
+                "reasoning_label": DEFAULT_REASONING_LABEL,
+                "require_model_confirmation": True,
+            }
+        )
+        with self.assertRaises(SystemExit):
+            runner._confirm_configured_labels(object(), 1)
+
+    def test_model_confirmation_records_attestation(self) -> None:
+        class FakeLocator:
+            @property
+            def first(self) -> "FakeLocator":
+                return self
+
+            def wait_for(self, timeout: int) -> None:
+                return None
+
+            def inner_text(self, timeout: int) -> str:
+                return "ChatGPT Pro 5.5 Extended Reasoning"
+
+            def get_attribute(self, name: str, timeout: int) -> str | None:
+                return None
+
+        class FakePage:
+            def locator(self, selector: str) -> FakeLocator:
+                return FakeLocator()
+
+        runner = PlaywrightChatGPTRunner(
+            {
+                "selectors": {
+                    "model_label_confirmation_selector": "[data-testid='model-switcher']",
+                    "reasoning_label_confirmation_selector": "[data-testid='reasoning-switcher']",
+                },
+                "model_label": DEFAULT_MODEL_LABEL,
+                "reasoning_label": DEFAULT_REASONING_LABEL,
+                "require_model_confirmation": True,
+            }
+        )
+        attestation = runner._confirm_configured_labels(FakePage(), 1)
+        self.assertEqual(attestation["status"], "confirmed")
+        self.assertEqual(attestation["labels"]["model_label"]["expected"], DEFAULT_MODEL_LABEL)
+        self.assertEqual(attestation["labels"]["reasoning_label"]["expected"], DEFAULT_REASONING_LABEL)
+
+    def test_model_confirmation_rejects_mismatched_visible_label(self) -> None:
+        class FakeLocator:
+            @property
+            def first(self) -> "FakeLocator":
+                return self
+
+            def wait_for(self, timeout: int) -> None:
+                return None
+
+            def inner_text(self, timeout: int) -> str:
+                return "ChatGPT 5.5 Instant"
+
+            def get_attribute(self, name: str, timeout: int) -> str | None:
+                return None
+
+        class FakePage:
+            def locator(self, selector: str) -> FakeLocator:
+                return FakeLocator()
+
+        runner = PlaywrightChatGPTRunner(
+            {
+                "selectors": {
+                    "model_label_confirmation_selector": "[data-testid='model-switcher']",
+                    "reasoning_label_confirmation_selector": "[data-testid='reasoning-switcher']",
+                },
+                "model_label": DEFAULT_MODEL_LABEL,
+                "reasoning_label": DEFAULT_REASONING_LABEL,
+                "require_model_confirmation": True,
+            }
+        )
+        with self.assertRaises(SystemExit):
+            runner._confirm_configured_labels(FakePage(), 1)
+
+    def test_selection_does_not_click_loose_text_when_confirmation_required(self) -> None:
+        class FakePage:
+            def __init__(self) -> None:
+                self.loose_text_clicked = False
+
+            def get_by_text(self, label: str, exact: bool = False) -> object:
+                self.loose_text_clicked = True
+                raise AssertionError("loose text selection should not be used")
+
+        page = FakePage()
+        runner = PlaywrightChatGPTRunner(
+            {
+                "selectors": {},
+                "model_label": DEFAULT_MODEL_LABEL,
+                "reasoning_label": DEFAULT_REASONING_LABEL,
+                "require_model_confirmation": True,
+            }
+        )
+        runner._select_configured_labels(page, 1, TimeoutError)
+        self.assertFalse(page.loose_text_clicked)
+
     def test_read_local_clipboard_accepts_only_chatgpt_share_urls(self) -> None:
         completed = type("Completed", (), {"stdout": "https://chatgpt.com/share/abc\n"})()
         with patch("shutil.which", return_value="/usr/bin/wl-paste"):
@@ -194,6 +325,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--config",
                     str(config),
                     "--dry-run",
+                    "--json",
                     "--no-audit",
                 ],
             ):

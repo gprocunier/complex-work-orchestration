@@ -142,8 +142,10 @@ Publish-ready docs with validation and editorial review.</code></pre>
               A prompt such as “Use Gemini via agy for a second opinion
               critique of the Codex architect design” should surface the
               outside-sharing boundary. With explicit opt-in, the coach can
-              route a redacted architecture packet to
-              <code>gemini_3_1_pro_preview_agy</code>.
+              route a redacted architecture packet to the architecture review
+              contractor. The outside-sharing question appears automatically
+              when explicit external-model or contractor cues exist; otherwise
+              the user can request external review directly.
             </div>
             <div class="callout">
               <strong>Master review:</strong>
@@ -218,6 +220,13 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
             </p>
             <pre><code>python3 scripts/route_work.py \
   "Security review the auth token and shell command handling."</code></pre>
+            <div class="callout">
+              <strong>Durability fallback:</strong> If Beads is unavailable,
+              the coach and scaffold can record the task or graph in a
+              temporary Markdown plan file. Durability is reduced, and
+              contractor-only filtering or automatic ready-work features are
+              unavailable.
+            </div>
           </section>
         </div>
       </section>

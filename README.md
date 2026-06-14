@@ -916,6 +916,35 @@ Chrome profile that can already use ChatGPT. Never put Google credentials,
 browser session material, packet secrets, or private repo content in prompts,
 Beads comments, audit logs, or public docs. The helper logs hashes and status,
 not prompt text or credentials.
+
+ChatGPT Pro master reviews are fail-closed by default. With
+`require_model_confirmation` enabled, the helper refuses to submit the prompt
+until the local config provides confirmation selectors and the observed browser
+text proves both `model_label` and `reasoning_label`. A returned share link is
+valid master-review evidence only when the dispatch JSON includes a confirmed
+`model_attestation`. If the visible response was not produced by ChatGPT Pro
+5.5 Extended Reasoning, invalidate it in the Beads task and rerun only after
+the model and effort confirmation is fixed.
+
+Minimal local config shape:
+
+```json
+{
+  "chrome_user_data_dir": "/path/to/operator/chatgpt-profile",
+  "model_label": "ChatGPT Pro 5.5",
+  "reasoning_label": "Extended Reasoning",
+  "require_model_confirmation": true,
+  "selectors": {
+    "model_label_confirmation_selector": "<selector for the visible model control>",
+    "reasoning_label_confirmation_selector": "<selector for the visible effort control>"
+  }
+}
+```
+
+The confirmation selectors must match the current ChatGPT UI and expose the
+expected label through visible text, `aria-label`, or `title`. Use `--dry-run`
+to verify that `require_model_confirmation` is true and
+`model_confirmation_configured` is true before spending a Pro query.
 If Cloudflare or account prompts block automation-launched Chrome, start Chrome
 yourself with the same profile and a local debugging port, complete the prompt,
 then set `connect_over_cdp_url` to the local endpoint:

@@ -127,6 +127,14 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               documentation, web design, and final editorial review converge
               before validation is accepted.
             </p>
+            <div class="callout">
+              <strong>Durability fallback:</strong>
+              If Beads is unavailable, record the same task or graph structure
+              in a temporary Markdown plan file and note that durability is
+              reduced. Do not claim contractor-only filtering, shared ready-work
+              semantics, or durable external handoff unless Beads or an
+              equivalent tracker is actually in use.
+            </div>
             <p>
               The diagram below is the implementation view of that reader path:
               coach result, task graph, bounded workstreams, and evidence.
@@ -193,109 +201,40 @@ python3 scripts/spawn_expert_reviews.py \
               <div class="flow-card"><strong>Adjudicate</strong><span>architect decides</span></div>
             </div>
             <p>
-              Contractor deep dive: <a href="./external-contracting.html">share
-              boundaries, job labels, packet validation checkpoints, and returns</a>. Local
-              worker deep dive: <a href="./local-workers.html">OpenShift AI
+              Local worker deep dive: <a href="./local-workers.html">OpenShift AI
               profiles, OpenAI-compatible endpoints, and guardrails</a>.
+              Contractor deep dive: <a href="./external-contracting.html">share
+              boundaries, job labels, packet validation checkpoints, and returns</a>.
             </p>
             <p>
-              Local-worker workstream from inside Codex:
-            </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach:
-OpenShift AI vLLM local review of README command examples.</code></pre>
-            <p>
-              After explicit opt-in, Codex may run helper equivalents behind
-              the scenes. Use direct execution only for advanced automation or
-              troubleshooting:
-            </p>
-            <pre><code>python3 scripts/coach_prompt.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --requested-role documentation \
-  "OpenShift AI vLLM local review of README command examples."
-
-python3 scripts/dispatch_work.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --dispatch-id dispatch-example \
-  --bead example \
-  --json \
-  "Summarize docs-review risks."</code></pre>
-            <div class="callout">
-              <strong>Local rule:</strong>
-              <code>--local-ok</code> is explicit opt-in. Use
-              <code>--prefer-local</code> only when local routing is intended,
-              and <code>--execute-local</code> only when the operator approves a
-              real endpoint call.
-            </div>
-            <p>
-              Outside-contractor workstream after explicit sharing approval:
-            </p>
-            <pre><code>python3 scripts/build_contractor_packet.py \
-  --bead "$BEAD_ID" \
-  --executor claude_code_manual \
-  --share-boundary redacted-packet \
-  --external-ok \
-  --epic "$EPIC_ID" \
-  --format json \
-  --output contractor-packet.json
-
-python3 scripts/dispatch_work.py \
-  --packet contractor-packet.json \
-  --mode manual \
-  &gt; contractor-dispatch-prompt.md</code></pre>
-            <pre><code># Operator-executed external calls:
-python3 scripts/workspace_mutation_guard.py \
-  --snapshot \
-  --output before.json
-
-claude -p "$(cat contractor-dispatch-prompt.md)" \
-  &gt; contractor-return.md
-
-gemini -p "$(cat contractor-dispatch-prompt.md)" \
-  &gt; contractor-return.md
-
-agy -p "$(cat contractor-dispatch-prompt.md)" \
-  &gt; contractor-return.md
-
-python3 scripts/workspace_mutation_guard.py \
-  --compare before.json \
-  --output mutation-report.json</code></pre>
-            <p>
-              Policy can select <code>gemini_3_1_pro_manual</code> for focused
-              public GitHub Pages web-design work. Patch-branch packets also
-              require <code>--allow-disclosure-escalation</code>, and mean
-              diff or patch proposal by default.
+              <strong>Local-worker workstream:</strong> If the coach indicates
+              a local worker is appropriate and you opt in from Codex, the
+              toolchain can prepare a local-worker dispatch. The
+              <a href="./local-workers.html">Local Workers guide</a> covers the
+              exact <code>--local-ok</code>, <code>--prefer-local</code>,
+              <code>--local-profile openshift-ai-vllm</code>,
+              <code>--execute-local</code>, <code>scripts/dispatch_work.py</code>,
+              and <code>workspace_mutation_guard.py</code> path.
             </p>
             <p>
-              Policy can also select
-              <code>gemini_3_1_pro_preview_agy</code> when the user explicitly
-              asks for a Gemini/Agy second-opinion critique of a Codex
-              architect design. That workstream uses the architecture
-              reasoning lens, starts with a redacted packet by default, and
-              remains evidence for architect adjudication.
+              <strong>Outside-contractor workstream:</strong> If the coach
+              suggests outside contracting and the user approves third-party
+              sharing, Codex can build the contractor lane. The
+              <a href="./external-contracting.html">External Contracting guide</a>
+              shows packet building, prompt rendering, mutation guards,
+              <code>claude -p</code> and <code>agy -p</code> calls, and browser
+              master-review ingestion.
             </p>
             <p>
-              If the user explicitly asks for ChatGPT Pro 5.5 Extended
-              Reasoning to review the final execution plan or total work
-              packet, route a redacted packet to the browser-mediated master
-              review lane and ingest the resulting share link before revising
-              the plan. Do not treat this as Deep Research unless the user asks
-              for that separate research lane.
+              The underlying helpers are
+              <code>scripts/build_contractor_packet.py</code>,
+              <code>scripts/dispatch_work.py</code>,
+              <code>scripts/workspace_mutation_guard.py</code>,
+              <code>scripts/chatgpt_browser_review.py</code>, and
+              <code>scripts/ingest_chatgpt_share_return.py</code>; the rendered
+              contractor prompt is typically captured as
+              <code>contractor-dispatch-prompt.md</code>.
             </p>
-            <pre><code>python3 scripts/chatgpt_browser_review.py \
-  --packet master-plan-review-packet.json \
-  --json \
-  &gt; master-plan-review-dispatch.json
-
-python3 scripts/ingest_chatgpt_share_return.py \
-  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
-  --bead "$BEAD_ID" \
-  --dispatch-id "$DISPATCH_ID" \
-  --packet-sha256 "$PACKET_SHA256" \
-  --output master-plan-review-return.md</code></pre>
             <div class="callout">
               <strong>Boundary rule:</strong>
               Use <code>--external-ok</code> only after the user approves

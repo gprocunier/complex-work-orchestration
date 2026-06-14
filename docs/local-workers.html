@@ -82,6 +82,13 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               coach keeps local-worker dispatch disabled and asks whether local
               inference should be used.
             </div>
+            <div class="callout">
+              <strong>Durability fallback:</strong> If Beads is unavailable to
+              track local-worker tasks, record the same task structure in a
+              temporary Markdown plan file. Durability is reduced, and
+              ready-work filters such as <code>local-worker-only</code>
+              exclusion are not enforced by the toolchain.
+            </div>
           </section>
 
           <section id="coach-opt-in">
@@ -191,13 +198,37 @@ python3 scripts/dispatch_work.py \
               <code>codex_pickup=forbidden</code>. They should not have web
               access, shell execution, or repository write authority.
             </p>
-            <pre><code>python3 scripts/normalize_contractor_return.py \
-  --file local-return.md \
-  --output local-return-bundle.json
+            <p>
+              Before running, capture the workspace state to verify the local
+              worker did not perform unauthorized mutations.
+            </p>
+            <pre><code>python3 scripts/workspace_mutation_guard.py \
+  --snapshot \
+  --output before.json
 
-python3 scripts/evaluate_return.py \
+# (Run local model dispatch or CLI redirect to local-return.md)
+
+python3 scripts/workspace_mutation_guard.py \
+  --compare before.json \
+  --output mutation-report.json</code></pre>
+            <p>
+              Normalize the return using the target Bead ID and the workspace
+              mutation report:
+            </p>
+            <pre><code>python3 scripts/normalize_contractor_return.py \
+  --bead &lt;id&gt; \
   --file local-return.md \
-  --peer-review-required</code></pre>
+  --workspace-mutation-report mutation-report.json \
+  --output local-return-bundle.json</code></pre>
+            <p>
+              Evaluate the return against the acceptance policy. Pass
+              <code>--peer-review-required</code> only if route policy or
+              provider-conflict flags require it:
+            </p>
+            <pre><code>python3 scripts/evaluate_return.py \
+  --bead &lt;id&gt; \
+  --file local-return.md \
+  --workspace-mutation-report mutation-report.json</code></pre>
             <ol class="check-list">
               <li>Use local workers only after explicit local opt-in.</li>
               <li>Treat output as evidence, not implementation authority.</li>

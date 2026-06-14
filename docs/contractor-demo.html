@@ -191,7 +191,6 @@ Ask before external sharing; choose subagent parallelism; set validation + publi
   --share-boundary patch-branch \
   --allow-disclosure-escalation \
   --external-ok \
-  --epic "$EPIC_ID" \
   --format json \
   --output contractor-packet.json
 
@@ -239,22 +238,22 @@ python3 scripts/workspace_mutation_guard.py \
             </p>
             <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead "$BEAD_ID" \
-	  --dispatch-id "$DISPATCH_ID" \
-	  --packet-sha256 "$PACKET_SHA256" \
-	  --file contractor-return.md \
-	  --workspace-mutation-report mutation-report.json \
-	  --output contractor-return-bundle.json
+  --dispatch-id "$DISPATCH_ID" \
+  --packet-sha256 "$PACKET_SHA256" \
+  --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json \
+  --output contractor-return-bundle.json
 
-	python3 scripts/evaluate_return.py \
-	  --bead "$BEAD_ID" \
-	  --file contractor-return.md \
-	  --workspace-mutation-report mutation-report.json</code></pre>
+python3 scripts/evaluate_return.py \
+  --bead "$BEAD_ID" \
+  --file contractor-return.md \
+  --workspace-mutation-report mutation-report.json</code></pre>
             <p>
               The demo exposed two practical quality gates. Return headings
-	              should use the canonical labels expected by the evaluator, and
-	              unexpected tracked-file mutation should block direct use until
-	              architect review. Public docs also need a human editor pass for
-	              incorrect attribution, absolute paths,
+              should use the canonical labels expected by the evaluator, and
+              unexpected tracked-file mutation should block direct use until
+              architect review. Public docs also need a human editor pass for
+              incorrect attribution, absolute paths,
               <code>file://</code> links, fabricated validation claims, and
               unclear ownership.
             </p>

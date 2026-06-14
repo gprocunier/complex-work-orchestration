@@ -25,6 +25,8 @@ from orchestration_lib import (
 EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
 DEFAULT_CONFIG_PATH = "~/.config/cwo/chatgpt-browser.json"
+DEFAULT_MODEL_LABEL = "ChatGPT Pro 5.5"
+DEFAULT_REASONING_LABEL = "Extended Reasoning"
 CHATGPT_HOSTS = {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}
 LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
 FORBIDDEN_CONFIG_KEYS = {
@@ -83,13 +85,16 @@ def load_browser_config(path: Path) -> dict[str, Any]:
             "ChatGPT browser config must not contain credentials or session material: " + ", ".join(forbidden)
         )
     config.setdefault("chatgpt_url", "https://chatgpt.com/")
-    config.setdefault("model_label", "ChatGPT Pro 5.5")
-    config.setdefault("reasoning_label", "Extended Reasoning")
+    if config.get("model_label") in {None, ""}:
+        config["model_label"] = DEFAULT_MODEL_LABEL
+    if config.get("reasoning_label") in {None, ""}:
+        config["reasoning_label"] = DEFAULT_REASONING_LABEL
     config.setdefault("response_timeout_seconds", 1800)
     config.setdefault("stable_wait_seconds", 8)
     config.setdefault("headless", False)
     config.setdefault("share_link_required", True)
     config.setdefault("local_clipboard_fallback", True)
+    config.setdefault("require_model_confirmation", True)
     config.setdefault("selectors", {})
     cdp_url = config.get("connect_over_cdp_url") or config.get("cdp_url")
     if cdp_url:
@@ -108,6 +113,11 @@ def load_browser_config(path: Path) -> dict[str, Any]:
 
 
 def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
+    selectors = dict(config.get("selectors") or {})
+    confirmation_configured = all(
+        bool(selectors.get(f"{key}_confirmation_selector") or config.get(f"{key}_confirmation_selector"))
+        for key in ["model_label", "reasoning_label"]
+    )
     return {
         "config_path": str(config_path),
         "chrome_user_data_dir_configured": bool(config.get("chrome_user_data_dir")),
@@ -117,6 +127,8 @@ def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
         "response_timeout_seconds": int(config.get("response_timeout_seconds", 1800)),
         "share_link_required": bool(config.get("share_link_required", True)),
         "local_clipboard_fallback": bool(config.get("local_clipboard_fallback", True)),
+        "require_model_confirmation": bool(config.get("require_model_confirmation", True)),
+        "model_confirmation_configured": confirmation_configured,
         "headless": bool(config.get("headless", False)),
     }
 
@@ -211,6 +223,7 @@ class PlaywrightChatGPTRunner:
             page.goto(str(self.config.get("chatgpt_url")), wait_until="domcontentloaded", timeout=timeout_ms)
             self._wait_for_prompt(page, timeout_ms)
             self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
+            model_attestation = self._confirm_configured_labels(page, timeout_ms)
             before_text = self._conversation_text(page)
             self._submit_prompt(page, prompt, timeout_ms)
             response_text = self._wait_for_stable_response(page, before_text, response_timeout, stable_wait)
@@ -219,7 +232,7 @@ class PlaywrightChatGPTRunner:
                 context.close()
         if self.config.get("share_link_required", True) and not valid_chatgpt_share_url(share_url):
             raise SystemExit("ChatGPT share-link creation failed or returned a non-ChatGPT share URL")
-        return {"share_url": share_url, "response_chars": len(response_text)}
+        return {"share_url": share_url, "response_chars": len(response_text), "model_attestation": model_attestation}
 
     def _select_page(self, context: Any) -> Any:
         for page in context.pages:
@@ -244,10 +257,58 @@ class PlaywrightChatGPTRunner:
             try:
                 if selector:
                     page.locator(str(selector)).first.click(timeout=timeout_ms)
+                elif self.config.get("require_model_confirmation", True):
+                    # Do not click loose page text for expensive ChatGPT Pro
+                    # work; the same label often appears inside the prompt or
+                    # conversation transcript. Confirmation below must prove
+                    # the preselected state before submission.
+                    continue
                 else:
                     page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)
             except timeout_type as exc:
                 raise SystemExit(f"Could not select ChatGPT option {label!r}; update selectors in the local config") from exc
+
+    def _confirm_configured_labels(self, page: Any, timeout_ms: int) -> dict[str, Any]:
+        if not self.config.get("require_model_confirmation", True):
+            return {"required": False, "status": "skipped"}
+        attestation: dict[str, Any] = {"required": True, "status": "confirmed", "labels": {}}
+        for label_key in ["model_label", "reasoning_label"]:
+            label = str(self.config.get(label_key) or "").strip()
+            if not label:
+                raise SystemExit(f"ChatGPT browser config must set {label_key} when model confirmation is required")
+            selector_key = f"{label_key}_confirmation_selector"
+            selector = self.selectors.get(selector_key) or self.config.get(selector_key)
+            if not selector:
+                raise SystemExit(
+                    "ChatGPT browser dispatch refused to submit without "
+                    f"{selector_key}. Configure a stable UI selector that proves {label_key}={label!r}, "
+                    "or explicitly set require_model_confirmation=false for non-Pro test runs."
+                )
+            confirmation_text = str(self.config.get(f"{label_key}_confirmation_text") or label).strip()
+            locator = page.locator(str(selector)).first
+            try:
+                locator.wait_for(timeout=timeout_ms)
+                observed_parts = [
+                    locator.inner_text(timeout=timeout_ms),
+                    locator.get_attribute("aria-label", timeout=timeout_ms) or "",
+                    locator.get_attribute("title", timeout=timeout_ms) or "",
+                ]
+            except Exception as exc:
+                raise SystemExit(
+                    f"ChatGPT browser dispatch refused to submit because {selector_key} did not resolve"
+                ) from exc
+            observed = " ".join(part.strip() for part in observed_parts if part and part.strip())
+            if confirmation_text.lower() not in observed.lower():
+                raise SystemExit(
+                    "ChatGPT browser dispatch refused to submit because "
+                    f"{selector_key} observed {observed!r}, expected text containing {confirmation_text!r}"
+                )
+            attestation["labels"][label_key] = {
+                "expected": label,
+                "confirmation_text": confirmation_text,
+                "selector": str(selector),
+            }
+        return attestation
 
     def _submit_prompt(self, page: Any, prompt: str, timeout_ms: int) -> None:
         prompt_box = page.locator(self.selector("prompt_box", "textarea, [contenteditable='true']")).last
@@ -361,6 +422,7 @@ def build_result(
         "config": config_summary(config, config_path),
         "share_url": (browser_result or {}).get("share_url"),
         "response_chars": (browser_result or {}).get("response_chars"),
+        "model_attestation": (browser_result or {}).get("model_attestation"),
     }
 
 
@@ -377,6 +439,7 @@ def main() -> None:
     parser.add_argument("--share-boundary", default="redacted-packet")
     parser.add_argument("--allow-degraded-packet", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Validate prompt/config and print the redacted dispatch plan.")
+    parser.add_argument("--json", action="store_true", help="Compatibility flag; output is always JSON.")
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
@@ -412,6 +475,7 @@ def main() -> None:
                 "packet_sha256": result["packet_sha256"],
                 "prompt_sha256": result["prompt_sha256"],
                 "share_url_present": bool(result.get("share_url")),
+                "model_attestation_present": bool(result.get("model_attestation")),
                 "status": result["status"],
             }
         )

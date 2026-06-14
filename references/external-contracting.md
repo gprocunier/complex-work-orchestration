@@ -203,6 +203,16 @@ repository, must not be group/world accessible, and should point at an
 operator-managed Chrome profile that can already use ChatGPT. Do not store
 Google credentials, browser session data, packet secrets, or private repo
 content in Beads, prompts, audit logs, or public docs.
+
+The ChatGPT Pro lane is intentionally fail-closed. Keep
+`require_model_confirmation` enabled for real Pro work and configure selectors
+that prove the selected model and effort before prompt submission. The dispatch
+JSON must contain a confirmed `model_attestation`; otherwise the response is
+not valid master-review evidence, even if the share link ingests cleanly. Wrong
+model, wrong effort, or unproven effort returns should be invalidated in the
+assigned Beads task and rerun only after the browser confirmation is fixed.
+Use `--dry-run` first and confirm the summary reports
+`model_confirmation_configured: true`; dry runs do not submit the prompt.
 If a normal browser session is required for Cloudflare or account prompts,
 start Chrome manually with `--remote-debugging-address=127.0.0.1` and
 `--remote-debugging-port=<port>`, complete the prompts, then set
@@ -524,8 +534,8 @@ python3 scripts/build_contractor_packet.py \
    ```
 
    The share link is a return channel, not a new share boundary. Evaluate the
-   rendered return before revising the plan, and keep Deep Research as a later
-   explicit opt-in.
+   rendered return and confirm the dispatch `model_attestation` before revising
+   the plan. Keep Deep Research as a later explicit opt-in.
 
 8. Contractor returns a Beads comment or patch branch.
 9. PM normalizes the return and checks format, evidence, boundary fit, and

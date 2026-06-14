@@ -1429,6 +1429,11 @@ def prompt_coach_interactive_questions(
                         "value": "repo-readonly",
                         "description": "Allow read-only repo context only after disclosure escalation approval.",
                     },
+                    {
+                        "label": "Patch-branch",
+                        "value": "patch-branch",
+                        "description": "Allow patch-proposal repo context only after disclosure escalation approval.",
+                    },
                 ],
             }
         )

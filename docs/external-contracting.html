@@ -64,7 +64,8 @@
               boundary.
             </p>
             <p>
-              Ask before any third-party context leaves the repo:
+              Codex should make the export decision explicit before any
+              third-party context leaves the repo:
             </p>
             <blockquote>
               Should this project use a third-party model contractor for deep
@@ -118,8 +119,8 @@ contract-jd-security-reasoning</code></pre>
             <p>
               The <a href="./workflows.html#optional-lanes">guided workflow</a>
               shows where the contractor workstream fits and how the rendered
-              prompt can be handed to
-              <code>claude -p</code> or <code>agy -p</code> by an operator.
+              prompt can be handed to <code>claude -p</code> or
+              <code>agy -p</code> by an operator.
             </p>
             <div class="callout">
               <strong>Executor access:</strong>
@@ -130,7 +131,18 @@ contract-jd-security-reasoning</code></pre>
               packet artifacts; they do not receive Beads authority, repo
               policy control, merge permission, or a broader share boundary.
             </div>
-            <pre><code>python3 scripts/build_contractor_packet.py \
+
+            <details>
+              <summary><strong>Operator Reference: Building Packets</strong></summary>
+              <p>
+                Use these commands to build packets for specific review lanes.
+                This operator reference intentionally shows executor IDs and
+                job-description labels.
+              </p>
+              <p>
+                <strong>Security review packet:</strong>
+              </p>
+              <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
@@ -138,13 +150,13 @@ contract-jd-security-reasoning</code></pre>
   --attest-packet \
   --format json \
   --output contractor-packet.json</code></pre>
-            <p>
-              Architect-design second opinions use the architecture reasoning
-              label and the dedicated Antigravity executor. Treat the return as
-              critique evidence for Codex architect adjudication, not as a new
-              implementation plan.
-            </p>
-            <pre><code>python3 scripts/build_contractor_packet.py \
+              <p>
+                <strong>Architect-design critique packet:</strong> Second
+                opinions use the architecture reasoning label and the
+                dedicated Antigravity executor. Treat the return as critique
+                evidence for Codex architect adjudication.
+              </p>
+              <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
   --executor gemini_3_1_pro_preview_agy \
   --share-boundary redacted-packet \
@@ -153,14 +165,13 @@ contract-jd-security-reasoning</code></pre>
   --attest-packet \
   --format json \
   --output architect-critique-packet.json</code></pre>
-            <p>
-              Repo-readonly and patch-branch handoff packets require an explicit
-              disclosure escalation flag in addition to external opt-in.
-              Patch-branch is a proposal lane by default: the contractor returns
-              a diff, patch artifact, or branch reference unless direct checkout
-              mutation is explicitly authorized.
-            </p>
-            <pre><code>python3 scripts/build_contractor_packet.py \
+              <p>
+                <strong>Web-design packet (patch-branch):</strong>
+                Repo-readonly and patch-branch handoff packets require an
+                explicit disclosure escalation flag in addition to external
+                opt-in.
+              </p>
+              <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
   --executor gemini_3_1_pro_manual \
   --share-boundary patch-branch \
@@ -171,6 +182,7 @@ contract-jd-security-reasoning</code></pre>
   --allowed-file docs/styles.css \
   --format json \
   --output contractor-packet.json</code></pre>
+            </details>
           </section>
 
           <section id="master-review">
@@ -182,7 +194,13 @@ contract-jd-security-reasoning</code></pre>
               packet, use a redacted packet and require a share-link return.
               Keep Deep Research as a separate later opt-in for research tasks.
             </p>
-            <pre><code>python3 scripts/build_contractor_packet.py \
+
+            <details>
+              <summary><strong>Operator Reference: Master Review Commands</strong></summary>
+              <p>
+                Use the browser-mediated master review lane (using ChatGPT Pro 5.5 Extended Reasoning) to build and ingest the plan review:
+              </p>
+              <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
   --executor chatgpt_pro_5_5_extended_reasoning_browser \
   --share-boundary redacted-packet \
@@ -203,6 +221,7 @@ python3 scripts/ingest_chatgpt_share_return.py \
   --dispatch-id &lt;dispatch-id&gt; \
   --packet-sha256 &lt;packet-sha256&gt; \
   --output master-plan-review-return.md</code></pre>
+            </details>
             <div class="callout">
               <strong>Browser rule:</strong>
               Configure browser automation with
@@ -213,6 +232,17 @@ python3 scripts/ingest_chatgpt_share_return.py \
               Do not put Google credentials, browser session data, packet
               secrets, or private repo content in prompts, Beads comments,
               audit logs, or public docs.
+            </div>
+            <div class="callout">
+              <strong>Model confirmation:</strong>
+              ChatGPT Pro reviews are fail-closed. The helper must confirm the
+              selected model and reasoning effort before it submits the prompt.
+              Treat a share link as valid master-review evidence only when the
+              dispatch JSON includes a confirmed
+              <code>model_attestation</code>. Wrong-model or unproven-effort
+              responses are invalidated in Beads and rerun only after the
+              confirmation config is fixed. Use a dry run first and confirm
+              <code>model_confirmation_configured</code> is true.
             </div>
             <div class="callout">
               <strong>Attach mode:</strong>

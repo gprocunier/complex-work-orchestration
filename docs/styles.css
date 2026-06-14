@@ -52,14 +52,34 @@ summary:focus-visible {
   outline-offset: 3px;
 }
 
+code, pre {
+  font-family: "RedHatMono", "Red Hat Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+code {
+  font-size: 0.9em;
+  background-color: var(--gray-10);
+  padding: 0.15em 0.3em;
+  border-radius: 3px;
+  color: var(--ink);
+}
+
+pre code {
+  font-size: 0.9rem;
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+
 pre {
   overflow-x: auto;
-  margin: 0;
-  padding: 1rem;
+  margin-block: 1.25rem;
+  padding: 1.25rem;
   background: #101010;
   color: #fff;
   border-radius: 4px;
-  font-size: 0.95rem;
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -507,7 +527,9 @@ h3 {
 .page-nav a {
   color: var(--ink);
   text-decoration: none;
-  padding-block: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  margin-inline: -0.25rem;
+  display: block;
   border-radius: 3px;
 }
 
@@ -694,9 +716,24 @@ blockquote {
 
 @media (max-width: 920px) {
   .hero,
-  .split,
+  .split {
+    grid-template-columns: 1fr;
+  }
+
   .doc-layout {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .top-nav {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .nav-links {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.4rem 0.6rem;
   }
 
   .site-footer {
@@ -708,7 +745,6 @@ blockquote {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .nav-links,
   .site-footer nav {
     justify-content: flex-start;
   }
@@ -721,6 +757,11 @@ blockquote {
     align-items: center;
     border-left: 0;
     border-top: 5px solid var(--red);
+  }
+
+  .page-nav a {
+    margin: 0;
+    padding: 0.4rem 0.6rem;
   }
 }
 
@@ -801,6 +842,8 @@ blockquote {
   .flow-arrow,
   .flow-branch {
     transform: rotate(90deg);
+    margin-block: 0.5rem;
+    display: inline-block;
   }
 
   .map-grid {

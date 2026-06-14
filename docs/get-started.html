@@ -45,50 +45,13 @@
 
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
-          <a href="#install">Install</a>
           <a href="#coach">Run the Coach</a>
           <a href="#beads">Record Beads</a>
           <a href="#execute">Execute Safely</a>
+          <a href="#install">Install the Skill</a>
           <a href="./workflows.html">Workflows</a>
         </nav>
         <div class="doc-body">
-          <section id="install">
-            <h2>Install</h2>
-            <p>
-              Clone the repository and run the guided installer. It detects a
-              Codex skills directory from <code>CODEX_SKILLS_DIR</code>,
-              <code>CODEX_HOME</code>, or <code>$HOME/.codex/skills</code>,
-              then prompts before copying files.
-            </p>
-            <pre><code>git clone https://github.com/gprocunier/complex-work-orchestration.git
-cd complex-work-orchestration
-./scripts/install.sh</code></pre>
-            <p>
-              For unattended installs, pass the destination explicitly:
-            </p>
-            <pre><code>./scripts/install.sh --skills-dir /path/to/codex/skills --yes</code></pre>
-            <p>
-              Beads is required for the durable workflow. The skill installer
-              only warns when <code>bd</code> is missing so the documentation can
-              still be installed and read.
-            </p>
-            <pre><code>command -v bd
-bd version</code></pre>
-            <p>
-              On Fedora, RHEL, or compatible systems, use your own Beads package
-              source if you have one. Otherwise the installer points at the
-              public <code>greg-at-redhat/beads</code> COPR. Set
-              <code>BEADS_COPR=owner/project</code> before running the installer
-              to show a different COPR hint.
-            </p>
-            <pre><code>sudo dnf copr enable greg-at-redhat/beads
-sudo dnf install beads</code></pre>
-            <p>
-              For other platforms, use the upstream Beads project at
-              <a href="https://github.com/steveyegge/beads">github.com/steveyegge/beads</a>.
-            </p>
-          </section>
-
           <section id="coach">
             <h2>Run the Coach</h2>
             <p>
@@ -130,6 +93,9 @@ bd dolt remote list
 bd dolt pull
 bd dolt commit
 bd dolt push</code></pre>
+            <div class="callout">
+              <strong>Durability fallback:</strong> If Beads is unavailable or cannot be installed, record the same task or graph structure in a temporary Markdown plan file and note that durability is reduced. Do not claim contractor-only filtering, shared ready-work semantics, or durable external handoff unless Beads or an equivalent tracker is actually in use.
+            </div>
             <p>
               Generated Beads populate native fields for <code>skills</code>,
               <code>acceptance</code>, <code>design</code>, and
@@ -165,6 +131,43 @@ bd dolt push</code></pre>
               <li>Create a Beads task or epic with dependencies.</li>
               <li>Run validation before accepting findings or publishing.</li>
             </ol>
+          </section>
+
+          <section id="install">
+            <h2>Install the Skill</h2>
+            <p>
+              Clone the repository and run the guided installer. It detects a
+              Codex skills directory from <code>CODEX_SKILLS_DIR</code>,
+              <code>CODEX_HOME</code>, or <code>$HOME/.codex/skills</code>,
+              then prompts before copying files.
+            </p>
+            <pre><code>git clone https://github.com/gprocunier/complex-work-orchestration.git
+cd complex-work-orchestration
+./scripts/install.sh</code></pre>
+            <p>
+              For unattended installs, pass the destination explicitly:
+            </p>
+            <pre><code>./scripts/install.sh --skills-dir /path/to/codex/skills --yes</code></pre>
+            <p>
+              Beads is required for the durable workflow. The skill installer
+              only warns when <code>bd</code> is missing so the documentation can
+              still be installed and read.
+            </p>
+            <pre><code>command -v bd
+bd version</code></pre>
+            <p>
+              On Fedora, RHEL, or compatible systems, use your own Beads package
+              source if you have one. Otherwise the installer points at the
+              public <code>greg-at-redhat/beads</code> COPR. Set
+              <code>BEADS_COPR=owner/project</code> before running the installer
+              to show a different COPR hint.
+            </p>
+            <pre><code>sudo dnf copr enable greg-at-redhat/beads
+sudo dnf install beads</code></pre>
+            <p>
+              For other platforms, use the upstream Beads project at
+              <a href="https://github.com/steveyegge/beads">github.com/steveyegge/beads</a>.
+            </p>
           </section>
         </div>
       </section>

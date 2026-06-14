@@ -96,6 +96,13 @@
               grounded in the intended role.
             </p>
             <p>
+              <strong>Operator terminology:</strong> The exact job-description
+              labels, such as <code>contract-jd-security-reasoning</code>, and
+              executor IDs, such as <code>gemini_3_1_pro_preview_agy</code>,
+              are technical reference terms. Narrative pages introduce the
+              plain workflow first.
+            </p>
+            <p>
               The editor profile uses
               <code>contract-jd-editorial-reasoning</code> as the final
               reference label for public docs, README/install docs, GitHub
@@ -118,7 +125,10 @@
               the final execution plan or total work packet, routing can select
               <code>chatgpt_pro_5_5_extended_reasoning_browser</code>. The
               result is share-link evidence for Codex plan revision, not
-              implementation authority and not OpenAI Deep Research.
+              implementation authority and not OpenAI Deep Research. For real
+              Pro reviews, the dispatch JSON must include a confirmed
+              <code>model_attestation</code>; otherwise the return is
+              invalidated instead of used.
             </p>
             <p>
               Red Hat lenses include OpenShift Platform, OpenShift Application

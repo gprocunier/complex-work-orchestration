@@ -487,6 +487,15 @@ The browser config comes from `CWO_CHATGPT_BROWSER_CONFIG` or
 `0600` and operator-managed browser authentication. Do not put Google
 credentials, browser session material, or private packet content in prompts,
 Beads comments, audit logs, or public docs.
+ChatGPT Pro reviews are expensive and slow, so the browser helper is
+fail-closed by default. With `require_model_confirmation` enabled, it must
+observe configured selectors proving both `model_label` and `reasoning_label`
+before submitting the prompt. Treat a share link as valid master-review
+evidence only when the dispatch result includes `model_attestation.status` of
+`confirmed`. If the visible answer came from the wrong model or unproven effort,
+record the invalidation in Beads and do not use it to revise the plan. Use
+`--dry-run` before live Pro work and require
+`model_confirmation_configured: true` in the summary.
 When Cloudflare or account prompts require a normal browser session, launch
 Chrome manually with the dedicated profile and a localhost remote-debugging
 port, then set `connect_over_cdp_url` in the local config. CDP attach URLs must

@@ -301,10 +301,21 @@ class PromptCoachTests(unittest.TestCase):
         for question in questions:
             self.assertLessEqual(len(question["header"]), 12)
             self.assertGreaterEqual(len(question["options"]), 2)
-            self.assertLessEqual(len(question["options"]), 3)
+            self.assertLessEqual(len(question["options"]), 4)
             self.assertIn("(Recommended)", question["options"][0]["label"])
             values = [option["value"] for option in question["options"]]
             self.assertEqual(len(values), len(set(values)))
+
+    def test_outside_sharing_boundary_has_patch_branch_option(self) -> None:
+        result = coach_orchestration_prompt(
+            "Claude security review for production release readiness.",
+            requested_roles=["security"],
+        )
+        sharing_question = next(
+            q for q in result["interactive_questions"] if q["id"] == "outside_sharing_boundary"
+        )
+        option_values = [opt["value"] for opt in sharing_question["options"]]
+        self.assertIn("patch-branch", option_values)
 
     def test_publish_validation_dedupes_interactive_options(self) -> None:
         result = coach_orchestration_prompt("Publish the skill to GitHub after release validation.")
