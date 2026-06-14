@@ -95,14 +95,15 @@ def collect_snippets(paths: list[str], max_lines: int) -> list[dict[str, Any]]:
     return snippets
 
 
-def inline_snippet(snippet: str, *, index: int, max_lines: int) -> dict[str, Any]:
+def inline_snippet(snippet: str, *, index: int, max_lines: int, path: str | None = None) -> dict[str, Any]:
     redacted = redact_text(snippet)
     lines = redacted.splitlines()
     if max_lines and len(lines) > max_lines:
-        raise SystemExit(f"inline snippet {index} exceeds boundary line limit {max_lines}")
+        label = path or f"inline snippet {index}"
+        raise SystemExit(f"{label} exceeds boundary line limit {max_lines}")
     return {
         "type": "inline_snippet",
-        "path": f"inline-{index}",
+        "path": path or f"inline-{index}",
         "line_count": len(lines),
         "truncated": False,
         "sha256": artifact_hash(redacted),
@@ -119,6 +120,7 @@ def build_packet(
     job_description_label: str,
     allowed_files: list[str],
     inline_snippets: list[str],
+    snippet_files: list[str] | None = None,
     dispatch_id: str | None = None,
     expert_profile_path: str | None = None,
     include_expert_profile: bool = True,
@@ -140,9 +142,27 @@ def build_packet(
     expert_profile = load_expert_profile(profile_path) if include_expert_profile and profile_path else {}
     if not expert_profile and not degraded_context_justification.strip():
         raise SystemExit("degraded packet requires --degraded-context-justification")
+    snippet_files = snippet_files or []
     for index, snippet in enumerate(inline_snippets, 1):
         selected_snippets.append(
             inline_snippet(snippet, index=index, max_lines=int(boundary.get("snippet_line_limit", 80)))
+        )
+    offset = len(inline_snippets)
+    for index, raw_path in enumerate(snippet_files, 1):
+        path = (REPO_ROOT / raw_path).resolve() if not Path(raw_path).is_absolute() else Path(raw_path).resolve()
+        if not path.is_file():
+            raise SystemExit(f"snippet file not found: {raw_path}")
+        try:
+            display_path = path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            display_path = f"snippet-file:{path.name}"
+        selected_snippets.append(
+            inline_snippet(
+                path.read_text(encoding="utf-8"),
+                index=offset + index,
+                max_lines=int(boundary.get("snippet_line_limit", 80)),
+                path=display_path,
+            )
         )
 
     included = [
@@ -291,6 +311,7 @@ def main() -> None:
     parser.add_argument("--degraded-context-justification", default="")
     parser.add_argument("--allowed-file", action="append", default=[])
     parser.add_argument("--snippet", action="append", default=[], help="Inline snippet to include after redaction.")
+    parser.add_argument("--snippet-file", action="append", default=[], help="Text file to include as a redacted inline snippet.")
     parser.add_argument("--dispatch-id")
     parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
     parser.add_argument("--output")
@@ -331,6 +352,7 @@ def main() -> None:
         job_description_label=job_label,
         allowed_files=args.allowed_file,
         inline_snippets=args.snippet,
+        snippet_files=args.snippet_file,
         dispatch_id=dispatch_id,
         expert_profile_path=args.expert_profile,
         include_expert_profile=args.include_expert_profile,

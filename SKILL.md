@@ -466,9 +466,32 @@ contractor not to include a preamble, internal action narration, or direct
 checkout mutation claims unless explicitly authorized.
 
 For ChatGPT Pro 5.5 Extended Reasoning master-plan review, use the dedicated
-browser helper instead of `dispatch_work.py`:
+browser helper instead of `dispatch_work.py`. First assemble the final plan
+bundle from `templates/master-review-plan-packet.md`; the packet must include
+the execution plan, Beads graph summary, validation plan, repository evidence,
+route/coach outputs, known risks, and open questions:
 
 ```bash
+cp templates/master-review-plan-packet.md /tmp/master-review-plan.md
+# Fill /tmp/master-review-plan.md with the actual plan and evidence.
+
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-master-plan-review \
+  --snippet-file /tmp/master-review-plan.md \
+  --attest-packet \
+  --format json \
+  --output master-plan-review-packet.json
+
+python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --confirm-only \
+  --json \
+  > master-plan-review-confirmation.json
+
 python3 scripts/chatgpt_browser_review.py \
   --packet master-plan-review-packet.json \
   --json \

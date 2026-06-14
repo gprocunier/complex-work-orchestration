@@ -879,18 +879,31 @@ Architect adjudication should classify each critique finding as `accepted`,
 quarantined returns go through the incident-response path before use.
 
 For a ChatGPT Pro 5.5 Extended Reasoning master-plan review, use a redacted
-packet and require a share-link return:
+packet with an explicit plan bundle and require a share-link return. Start from
+`templates/master-review-plan-packet.md` and fill in the objective, Beads graph,
+execution sequence, evidence, validation plan, risks, and open questions before
+building the packet:
 
 ```bash
+cp templates/master-review-plan-packet.md /tmp/master-review-plan.md
+# Edit /tmp/master-review-plan.md with the final plan and validation evidence.
+
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor chatgpt_pro_5_5_extended_reasoning_browser \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
+  --snippet-file /tmp/master-review-plan.md \
   --attest-packet \
   --format json \
   --output master-plan-review-packet.json
+
+python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --confirm-only \
+  --json \
+  > master-plan-review-confirmation.json
 
 python3 scripts/chatgpt_browser_review.py \
   --packet master-plan-review-packet.json \
@@ -925,6 +938,8 @@ valid master-review evidence only when the dispatch JSON includes a confirmed
 `model_attestation`. If the visible response was not produced by ChatGPT Pro
 5.5 Extended Reasoning, invalidate it in the Beads task and rerun only after
 the model and effort confirmation is fixed.
+Use `--confirm-only` to prove the live browser attestation before submitting the
+packet.
 
 Minimal local config shape:
 

@@ -192,10 +192,16 @@ python3 scripts/build_contractor_packet.py \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
+  --snippet-file /tmp/master-review-plan.md \
   --attest-packet \
   --format json \
   --output master-plan-review-packet.json
 ```
+
+Use `templates/master-review-plan-packet.md` for the snippet file. Fill it with
+the actual final plan, Beads graph summary, route and coach outputs, validation
+plan, repository evidence, risks, and open questions; a metadata-only Bead
+summary is not sufficient for master review.
 
 Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
 `$HOME/.config/cwo/chatgpt-browser.json`. The config must live outside the
@@ -213,6 +219,8 @@ model, wrong effort, or unproven effort returns should be invalidated in the
 assigned Beads task and rerun only after the browser confirmation is fixed.
 Use `--dry-run` first and confirm the summary reports
 `model_confirmation_configured: true`; dry runs do not submit the prompt.
+Then run `--confirm-only` to prove the live browser has a confirmed
+`model_attestation` before spending a Pro query.
 If a normal browser session is required for Cloudflare or account prompts,
 start Chrome manually with `--remote-debugging-address=127.0.0.1` and
 `--remote-debugging-port=<port>`, complete the prompts, then set
@@ -520,6 +528,12 @@ python3 scripts/build_contractor_packet.py \
    and ingests the returned share link through the local reader:
 
    ```bash
+   python3 scripts/chatgpt_browser_review.py \
+     --packet master-plan-review-packet.json \
+     --confirm-only \
+     --json \
+     > master-plan-review-confirmation.json
+
    python3 scripts/chatgpt_browser_review.py \
      --packet master-plan-review-packet.json \
      --json \

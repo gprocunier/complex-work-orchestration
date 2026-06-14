@@ -200,15 +200,25 @@ contract-jd-security-reasoning</code></pre>
               <p>
                 Use the browser-mediated master review lane (using ChatGPT Pro 5.5 Extended Reasoning) to build and ingest the plan review:
               </p>
-              <pre><code>python3 scripts/build_contractor_packet.py \
+              <pre><code>cp templates/master-review-plan-packet.md /tmp/master-review-plan.md
+# Fill /tmp/master-review-plan.md with the final plan and evidence.
+
+python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
   --executor chatgpt_pro_5_5_extended_reasoning_browser \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
+  --snippet-file /tmp/master-review-plan.md \
   --attest-packet \
   --format json \
   --output master-plan-review-packet.json
+
+python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --confirm-only \
+  --json \
+  &gt; master-plan-review-confirmation.json
 
 python3 scripts/chatgpt_browser_review.py \
   --packet master-plan-review-packet.json \
@@ -242,7 +252,8 @@ python3 scripts/ingest_chatgpt_share_return.py \
               <code>model_attestation</code>. Wrong-model or unproven-effort
               responses are invalidated in Beads and rerun only after the
               confirmation config is fixed. Use a dry run first and confirm
-              <code>model_confirmation_configured</code> is true.
+              <code>model_confirmation_configured</code> is true, then run
+              <code>--confirm-only</code> before submitting.
             </div>
             <div class="callout">
               <strong>Attach mode:</strong>

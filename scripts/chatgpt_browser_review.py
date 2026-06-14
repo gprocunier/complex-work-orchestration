@@ -196,6 +196,36 @@ class PlaywrightChatGPTRunner:
     def selector(self, key: str, default: str) -> str:
         return str(self.selectors.get(key) or default)
 
+    def confirm_model_only(self) -> dict[str, Any]:
+        try:
+            from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+            from playwright.sync_api import sync_playwright
+        except Exception as exc:  # pragma: no cover - depends on host install
+            raise SystemExit("Playwright is required for ChatGPT browser dispatch") from exc
+
+        timeout_ms = int(self.config.get("page_timeout_seconds", 30)) * 1000
+        with sync_playwright() as playwright:
+            browser = None
+            attached = False
+            if self.config.get("connect_over_cdp_url"):
+                attached = True
+                browser = playwright.chromium.connect_over_cdp(str(self.config["connect_over_cdp_url"]))
+                context = browser.contexts[0] if browser.contexts else browser.new_context()
+            else:
+                context = playwright.chromium.launch_persistent_context(
+                    self.config["chrome_user_data_dir"],
+                    executable_path=self.config.get("chrome_executable_path"),
+                    headless=bool(self.config.get("headless", False)),
+                )
+            page = self._select_page(context)
+            page.goto(str(self.config.get("chatgpt_url")), wait_until="domcontentloaded", timeout=timeout_ms)
+            self._wait_for_prompt(page, timeout_ms)
+            self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
+            model_attestation = self._confirm_configured_labels(page, timeout_ms)
+            if not attached:
+                context.close()
+        return {"model_attestation": model_attestation}
+
     def run(self, prompt: str) -> dict[str, Any]:
         try:
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -254,8 +284,12 @@ class PlaywrightChatGPTRunner:
                 continue
             selector_key = f"{label_key}_selector"
             selector = self.selectors.get(selector_key)
+            open_selector = self.selectors.get(f"{label_key}_open_selector") or self.config.get(
+                f"{label_key}_open_selector"
+            )
             try:
                 if selector:
+                    self._open_target_if_needed(page, str(selector), open_selector, timeout_ms)
                     page.locator(str(selector)).first.click(timeout=timeout_ms)
                 elif self.config.get("require_model_confirmation", True):
                     # Do not click loose page text for expensive ChatGPT Pro
@@ -267,6 +301,17 @@ class PlaywrightChatGPTRunner:
                     page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)
             except timeout_type as exc:
                 raise SystemExit(f"Could not select ChatGPT option {label!r}; update selectors in the local config") from exc
+
+    def _open_target_if_needed(self, page: Any, target_selector: str, open_selector: Any, timeout_ms: int) -> None:
+        try:
+            page.locator(target_selector).first.wait_for(state="visible", timeout=500)
+            return
+        except Exception:
+            pass
+        if not open_selector:
+            return
+        page.locator(str(open_selector)).first.click(timeout=timeout_ms)
+        page.locator(target_selector).first.wait_for(state="visible", timeout=timeout_ms)
 
     def _confirm_configured_labels(self, page: Any, timeout_ms: int) -> dict[str, Any]:
         if not self.config.get("require_model_confirmation", True):
@@ -284,7 +329,15 @@ class PlaywrightChatGPTRunner:
                     f"{selector_key}. Configure a stable UI selector that proves {label_key}={label!r}, "
                     "or explicitly set require_model_confirmation=false for non-Pro test runs."
                 )
-            confirmation_text = str(self.config.get(f"{label_key}_confirmation_text") or label).strip()
+            confirmation_text = str(
+                self.config.get(f"{label_key}_confirmation_text")
+                or self.selectors.get(f"{label_key}_confirmation_text")
+                or label
+            ).strip()
+            open_selector = self.selectors.get(f"{label_key}_confirmation_open_selector") or self.config.get(
+                f"{label_key}_confirmation_open_selector"
+            )
+            self._open_target_if_needed(page, str(selector), open_selector, timeout_ms)
             locator = page.locator(str(selector)).first
             try:
                 locator.wait_for(timeout=timeout_ms)
@@ -303,11 +356,31 @@ class PlaywrightChatGPTRunner:
                     "ChatGPT browser dispatch refused to submit because "
                     f"{selector_key} observed {observed!r}, expected text containing {confirmation_text!r}"
                 )
+            attribute_name = self.config.get(f"{label_key}_confirmation_attribute") or self.selectors.get(
+                f"{label_key}_confirmation_attribute"
+            )
+            attribute_value = self.config.get(f"{label_key}_confirmation_attribute_value") or self.selectors.get(
+                f"{label_key}_confirmation_attribute_value"
+            )
+            observed_attribute = None
+            if attribute_name:
+                observed_attribute = locator.get_attribute(str(attribute_name), timeout=timeout_ms)
+                if attribute_value is not None and str(observed_attribute) != str(attribute_value):
+                    raise SystemExit(
+                        "ChatGPT browser dispatch refused to submit because "
+                        f"{selector_key} had {attribute_name}={observed_attribute!r}, expected {attribute_value!r}"
+                    )
             attestation["labels"][label_key] = {
                 "expected": label,
                 "confirmation_text": confirmation_text,
                 "selector": str(selector),
+                "attribute": str(attribute_name) if attribute_name else None,
+                "attribute_value": str(observed_attribute) if observed_attribute is not None else None,
             }
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
         return attestation
 
     def _submit_prompt(self, page: Any, prompt: str, timeout_ms: int) -> None:
@@ -346,14 +419,47 @@ class PlaywrightChatGPTRunner:
             if text != last_text:
                 last_text = text
                 last_change = time.monotonic()
-            if saw_growth and time.monotonic() - last_change >= stable_wait:
+            if saw_growth and time.monotonic() - last_change >= stable_wait and not self._response_in_progress(page):
                 return text
             time.sleep(2)
         raise SystemExit("Timed out waiting for ChatGPT response to finish")
 
+    def _response_in_progress(self, page: Any) -> bool:
+        try:
+            return bool(
+                page.evaluate(
+                    r"""() => [...document.querySelectorAll('button,[role="button"]')]
+                      .some(el => /stop answering|stop generating|stop response/i.test(
+                        [el.getAttribute('aria-label') || '', el.innerText || el.textContent || ''].join(' ')
+                      ))"""
+                )
+            )
+        except Exception:
+            return False
+
+    def _wait_for_share_ready(self, page: Any, timeout_ms: int) -> None:
+        selector = self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")
+        deadline = time.monotonic() + timeout_ms / 1000
+        while time.monotonic() < deadline:
+            try:
+                ready = page.locator(selector).first.evaluate(
+                    "(el) => !(el.disabled || el.hasAttribute('disabled') || el.hasAttribute('data-disabled') || el.hasAttribute('data-visually-disabled'))"
+                )
+                if ready:
+                    return
+            except Exception:
+                pass
+            time.sleep(1)
+        raise SystemExit("ChatGPT share button did not become ready before timeout")
+
     def _create_share_link(self, page: Any, timeout_ms: int, timeout_type: type[Exception]) -> str:
         clipboard_before = read_local_clipboard_share_url() if self.config.get("local_clipboard_fallback", True) else ""
-        page.locator(self.selector("share_button", "button[aria-label*='Share']")).first.click(timeout=timeout_ms)
+        self._wait_for_share_ready(page, timeout_ms)
+        share_button = page.locator(self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")).first
+        try:
+            share_button.click(timeout=timeout_ms)
+        except timeout_type:
+            share_button.click(timeout=timeout_ms, force=True)
         create_selector = self.selectors.get("create_link_button")
         if create_selector:
             try:
@@ -383,15 +489,18 @@ class PlaywrightChatGPTRunner:
                 except Exception:
                     continue
         if self.config.get("local_clipboard_fallback", True):
-            value = read_local_clipboard_share_url()
-            if value:
-                body_text = ""
-                try:
-                    body_text = str(page.locator("body").inner_text(timeout=1000)).lower()
-                except Exception:
-                    pass
-                if value != clipboard_before or "link copied" in body_text or "public link copied" in body_text:
-                    return value
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                value = read_local_clipboard_share_url()
+                if value:
+                    body_text = ""
+                    try:
+                        body_text = str(page.locator("body").inner_text(timeout=1000)).lower()
+                    except Exception:
+                        pass
+                    if value != clipboard_before or "link copied" in body_text or "public link copied" in body_text:
+                        return value
+                time.sleep(1)
         return ""
 
 
@@ -439,6 +548,7 @@ def main() -> None:
     parser.add_argument("--share-boundary", default="redacted-packet")
     parser.add_argument("--allow-degraded-packet", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Validate prompt/config and print the redacted dispatch plan.")
+    parser.add_argument("--confirm-only", action="store_true", help="Open ChatGPT and confirm configured model/effort without submitting the prompt.")
     parser.add_argument("--json", action="store_true", help="Compatibility flag; output is always JSON.")
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
@@ -448,8 +558,20 @@ def main() -> None:
     config_path = resolve_config_path(args.config)
     config = load_browser_config(config_path)
     prompt, metadata = load_prompt_from_args(args)
+    if args.dry_run and args.confirm_only:
+        raise SystemExit("--dry-run and --confirm-only are mutually exclusive")
     if args.dry_run:
         result = build_result(prompt=prompt, metadata=metadata, config=config, config_path=config_path, browser_result=None, status="dry-run")
+    elif args.confirm_only:
+        browser_result = PlaywrightChatGPTRunner(config).confirm_model_only()
+        result = build_result(
+            prompt=prompt,
+            metadata=metadata,
+            config=config,
+            config_path=config_path,
+            browser_result=browser_result,
+            status="model-confirmed",
+        )
     else:
         browser_result = PlaywrightChatGPTRunner(config).run(prompt)
         result = build_result(

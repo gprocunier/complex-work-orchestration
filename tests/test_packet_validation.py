@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -93,6 +94,51 @@ class PacketValidationTests(unittest.TestCase):
                 external_opt_in=True,
                 opt_in_basis="cli-flag",
             )
+
+    def test_snippet_file_is_included_as_redacted_inline_snippet(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snippet_path = Path(tmpdir) / "master-plan.md"
+            snippet_path.write_text("Final plan\napi_key=plain-secret\nValidation: run tests\n", encoding="utf-8")
+            packet = build_packet(
+                bead_id="cwo-1",
+                bead_json={
+                    "id": "cwo-1",
+                    "title": "Master plan review",
+                    "labels": ["contractor-only", "no-codex-exec"],
+                },
+                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                share_boundary="redacted-packet",
+                job_description_label="contract-jd-master-plan-review",
+                allowed_files=[],
+                inline_snippets=[],
+                snippet_files=[str(snippet_path)],
+                dispatch_id="dispatch-validation",
+                external_opt_in=True,
+                opt_in_basis="cli-flag",
+            )
+        snippet = packet["selected_snippets"][0]
+        self.assertEqual(snippet["path"], "snippet-file:master-plan.md")
+        self.assertIn("Final plan", snippet["content"])
+        self.assertIn("[REDACTED]", snippet["content"])
+        artifact_paths = [artifact["path"] for artifact in packet["included_artifacts"] if artifact["type"] == "inline_snippet"]
+        self.assertIn("snippet-file:master-plan.md", artifact_paths)
+
+    def test_missing_snippet_file_fails_cleanly(self) -> None:
+        with self.assertRaises(SystemExit) as exc:
+            build_packet(
+                bead_id="cwo-1",
+                bead_json={"id": "cwo-1", "title": "Master plan review"},
+                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                share_boundary="redacted-packet",
+                job_description_label="contract-jd-master-plan-review",
+                allowed_files=[],
+                inline_snippets=[],
+                snippet_files=["does-not-exist.md"],
+                dispatch_id="dispatch-validation",
+                external_opt_in=True,
+                opt_in_basis="cli-flag",
+            )
+        self.assertIn("snippet file not found", str(exc.exception))
 
     def test_beads_show_list_shape_keeps_labels_and_summary(self) -> None:
         bead = [

@@ -137,12 +137,15 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
 
     def test_create_share_link_does_not_read_clipboard(self) -> None:
         class FakeLocator:
-            def click(self, timeout: int) -> None:
+            def click(self, timeout: int, force: bool = False) -> None:
                 return None
 
             @property
             def first(self) -> "FakeLocator":
                 return self
+
+            def evaluate(self, script: str) -> bool:
+                return True
 
             def input_value(self, timeout: int) -> str:
                 raise RuntimeError("no input")
@@ -246,6 +249,90 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             runner._confirm_configured_labels(FakePage(), 1)
 
+    def test_model_confirmation_requires_selected_attribute_when_configured(self) -> None:
+        class FakeLocator:
+            @property
+            def first(self) -> "FakeLocator":
+                return self
+
+            def wait_for(self, *args: object, **kwargs: object) -> None:
+                return None
+
+            def inner_text(self, timeout: int) -> str:
+                return "Pro • Extended"
+
+            def get_attribute(self, name: str, timeout: int) -> str | None:
+                if name == "aria-checked":
+                    return "true"
+                return None
+
+        class FakePage:
+            def locator(self, selector: str) -> FakeLocator:
+                return FakeLocator()
+
+        runner = PlaywrightChatGPTRunner(
+            {
+                "selectors": {
+                    "model_label_confirmation_selector": "[data-testid='model-switcher-gpt-5-5-pro']",
+                    "reasoning_label_confirmation_selector": "[data-testid='model-switcher-gpt-5-5-pro']",
+                    "model_label_confirmation_text": "Pro",
+                    "model_label_confirmation_attribute": "aria-checked",
+                    "model_label_confirmation_attribute_value": "true",
+                    "reasoning_label_confirmation_text": "Extended",
+                },
+                "model_label": DEFAULT_MODEL_LABEL,
+                "reasoning_label": DEFAULT_REASONING_LABEL,
+                "require_model_confirmation": True,
+            }
+        )
+        attestation = runner._confirm_configured_labels(FakePage(), 1)
+        self.assertEqual(attestation["labels"]["model_label"]["attribute"], "aria-checked")
+        self.assertEqual(attestation["labels"]["model_label"]["attribute_value"], "true")
+
+    def test_selection_opens_menu_before_clicking_option(self) -> None:
+        class FakeLocator:
+            def __init__(self, page: "FakePage", selector: str) -> None:
+                self.page = page
+                self.selector = selector
+
+            @property
+            def first(self) -> "FakeLocator":
+                return self
+
+            def wait_for(self, *args: object, **kwargs: object) -> None:
+                if self.selector == "[data-testid='model-switcher-gpt-5-5-pro']" and not self.page.menu_open:
+                    raise TimeoutError("not visible")
+
+            def click(self, timeout: int) -> None:
+                if self.selector == "button:has-text('Extended')":
+                    self.page.menu_open = True
+                if self.selector == "[data-testid='model-switcher-gpt-5-5-pro']":
+                    self.page.option_clicked = True
+
+        class FakePage:
+            def __init__(self) -> None:
+                self.menu_open = False
+                self.option_clicked = False
+
+            def locator(self, selector: str) -> FakeLocator:
+                return FakeLocator(self, selector)
+
+        page = FakePage()
+        runner = PlaywrightChatGPTRunner(
+            {
+                "selectors": {
+                    "model_label_open_selector": "button:has-text('Extended')",
+                    "model_label_selector": "[data-testid='model-switcher-gpt-5-5-pro']",
+                },
+                "model_label": DEFAULT_MODEL_LABEL,
+                "reasoning_label": "",
+                "require_model_confirmation": True,
+            }
+        )
+        runner._select_configured_labels(page, 1, TimeoutError)
+        self.assertTrue(page.menu_open)
+        self.assertTrue(page.option_clicked)
+
     def test_selection_does_not_click_loose_text_when_confirmation_required(self) -> None:
         class FakePage:
             def __init__(self) -> None:
@@ -334,6 +421,45 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
 
                     chatgpt_browser_review.main()
         self.assertTrue(mocked_print.called)
+
+    def test_confirm_only_cli_records_model_attestation_without_submission(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            config = self.write_config(tmp)
+            prompt = tmp / "prompt.md"
+            prompt.write_text("Review this final plan.", encoding="utf-8")
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "chatgpt_browser_review.py",
+                    "--prompt-file",
+                    str(prompt),
+                    "--config",
+                    str(config),
+                    "--confirm-only",
+                    "--json",
+                    "--no-audit",
+                ],
+            ):
+                with patch.object(
+                    PlaywrightChatGPTRunner,
+                    "confirm_model_only",
+                    return_value={
+                        "model_attestation": {
+                            "required": True,
+                            "status": "confirmed",
+                            "labels": {},
+                        }
+                    },
+                ):
+                    with patch("builtins.print") as mocked_print:
+                        import chatgpt_browser_review
+
+                        chatgpt_browser_review.main()
+        rendered = mocked_print.call_args.args[0]
+        self.assertIn('"status": "model-confirmed"', rendered)
+        self.assertIn('"model_attestation"', rendered)
 
 
 if __name__ == "__main__":
