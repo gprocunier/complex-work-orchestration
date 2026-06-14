@@ -138,6 +138,22 @@ Publish-ready docs with validation and editorial review.</code></pre>
               behavior and should be captured before dispatch.
             </div>
             <div class="callout">
+              <strong>Architect critique:</strong>
+              A prompt such as “Use Gemini via agy for a second opinion
+              critique of the Codex architect design” should surface the
+              outside-sharing boundary. With explicit opt-in, the coach can
+              route a redacted architecture packet to
+              <code>gemini_3_1_pro_preview_agy</code>.
+            </div>
+            <div class="callout">
+              <strong>Master review:</strong>
+              A prompt such as “Use ChatGPT Pro 5.5 Extended Reasoning to
+              review the final execution plan” should surface the
+              outside-sharing boundary and a redacted-packet default. The coach
+              keeps this separate from Deep Research, which remains an explicit
+              research opt-in.
+            </div>
+            <div class="callout">
               <strong>Subagents:</strong>
               broad docs, Pages, policy, routing, test, validation, and
               publish-sanitization work should surface a

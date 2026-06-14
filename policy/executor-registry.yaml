@@ -213,6 +213,40 @@
       "architect_review_required": true,
       "codex_pickup": "forbidden"
     },
+    "chatgpt_pro_5_5_extended_reasoning_browser": {
+      "display_name": "ChatGPT Pro 5.5 Extended Reasoning browser reviewer",
+      "role": "outside-contractor",
+      "provider_key": "openai_manual",
+      "venue": "chatgpt-pro-browser",
+      "dispatch_mode": "browser_automation",
+      "external": true,
+      "capabilities": ["master-plan-review", "architecture-review", "general-review", "docs-review"],
+      "allowed_task_classes": ["master-plan-review", "architecture-review", "general-review"],
+      "supports_web": true,
+      "supports_shell": false,
+      "supports_repo_read": false,
+      "supports_repo_write": false,
+      "privacy_class": "redacted",
+      "max_risk": "high",
+      "max_data_sensitivity": "redacted",
+      "cost_tier": "high",
+      "latency_tier": "very-high",
+      "manual_dispatch_required": true,
+      "explicit_opt_in_required": true,
+      "acceptance_required": true,
+      "architect_review_required": true,
+      "codex_pickup": "forbidden",
+      "critique_mode": "master-plan-review",
+      "transport": {
+        "kind": "chatgpt-browser",
+        "config_env": "CWO_CHATGPT_BROWSER_CONFIG",
+        "default_config": "~/.config/cwo/chatgpt-browser.json",
+        "default_model_label": "ChatGPT Pro 5.5",
+        "default_reasoning_label": "Extended Reasoning",
+        "share_link_required": true,
+        "response_timeout_seconds": 1800
+      }
+    },
     "claude_code_manual": {
       "display_name": "Claude Code manual dispatch",
       "role": "outside-contractor",
@@ -263,6 +297,35 @@
         "kind": "manual-cli",
         "default_command": "gemini -p",
         "alternate_command": "agy -p"
+      }
+    },
+    "gemini_3_1_pro_preview_agy": {
+      "display_name": "Gemini 3.1 Pro Preview architecture critic via Agy",
+      "role": "outside-contractor",
+      "provider_key": "google_gemini_manual",
+      "venue": "google-antigravity",
+      "dispatch_mode": "manual_ui",
+      "external": true,
+      "capabilities": ["architecture-review", "general-review", "domain-review", "repo-review", "shell-reasoning"],
+      "allowed_task_classes": ["architecture-review", "general-review", "domain-review"],
+      "supports_web": true,
+      "supports_shell": true,
+      "supports_repo_read": true,
+      "supports_repo_write": false,
+      "privacy_class": "approved-repo-context",
+      "max_risk": "high",
+      "max_data_sensitivity": "internal",
+      "cost_tier": "high",
+      "latency_tier": "medium",
+      "manual_dispatch_required": true,
+      "explicit_opt_in_required": true,
+      "acceptance_required": true,
+      "architect_review_required": true,
+      "codex_pickup": "forbidden",
+      "critique_mode": "architect-design-second-opinion",
+      "transport": {
+        "kind": "manual-cli",
+        "default_command": "agy --model gemini-3.1-pro-preview -p"
       }
     },
     "human_specialist_contractor": {

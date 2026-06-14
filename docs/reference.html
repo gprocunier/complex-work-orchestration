@@ -104,6 +104,23 @@
               publishable narrative before publish sanitization.
             </p>
             <p>
+              The architecture profile uses
+              <code>contract-jd-architecture-reasoning</code>. When the user
+              explicitly asks for a Gemini/Agy second opinion on a Codex
+              architect design, routing can create a contractor-only critique
+              lane with <code>gemini_3_1_pro_preview_agy</code>. The return is
+              evaluated evidence, not replacement architecture authority.
+            </p>
+            <p>
+              The master-plan profile uses
+              <code>contract-jd-master-plan-review</code>. When the user
+              explicitly asks for ChatGPT Pro 5.5 Extended Reasoning to review
+              the final execution plan or total work packet, routing can select
+              <code>chatgpt_pro_5_5_extended_reasoning_browser</code>. The
+              result is share-link evidence for Codex plan revision, not
+              implementation authority and not OpenAI Deep Research.
+            </p>
+            <p>
               Red Hat lenses include OpenShift Platform, OpenShift Application
               Developer, OpenShift AI, Red Hat OpenStack Services on OpenShift,
               Advanced Cluster Management, Advanced Cluster Security, and Red
@@ -132,6 +149,8 @@
             <pre><code>python3 scripts/coach_prompt.py "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
 python3 scripts/cleanup_stale_agents.py --json
+python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
+python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py
 python3 scripts/validate_site.py</code></pre>

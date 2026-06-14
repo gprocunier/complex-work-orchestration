@@ -62,6 +62,42 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertFalse(executor["supports_repo_write"])
         self.assertIn("gemini_3_1_pro_manual", controls["allowed_external_executors"])
 
+    def test_gemini_agy_architecture_critic_is_registered_as_external_contractor(self) -> None:
+        providers = load_policy("provider-registry")["providers"]
+        executors = load_policy("executor-registry")["executors"]
+        controls = load_policy("contracting-controls")
+
+        provider = providers["google_gemini_manual"]
+        executor = executors["gemini_3_1_pro_preview_agy"]
+        self.assertTrue(provider["external"])
+        self.assertEqual(executor["provider_key"], "google_gemini_manual")
+        self.assertTrue(executor["external"])
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertEqual(executor["critique_mode"], "architect-design-second-opinion")
+        self.assertTrue(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertIn("architecture-review", executor["allowed_task_classes"])
+        self.assertIn("gemini_3_1_pro_preview_agy", controls["allowed_external_executors"])
+
+    def test_chatgpt_pro_browser_reviewer_is_registered_as_external_contractor(self) -> None:
+        providers = load_policy("provider-registry")["providers"]
+        executors = load_policy("executor-registry")["executors"]
+        controls = load_policy("contracting-controls")
+
+        provider = providers["openai_manual"]
+        executor = executors["chatgpt_pro_5_5_extended_reasoning_browser"]
+        self.assertTrue(provider["external"])
+        self.assertEqual(provider["family"], "openai")
+        self.assertEqual(executor["provider_key"], "openai_manual")
+        self.assertTrue(executor["external"])
+        self.assertEqual(executor["dispatch_mode"], "browser_automation")
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertEqual(executor["critique_mode"], "master-plan-review")
+        self.assertFalse(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertIn("master-plan-review", executor["allowed_task_classes"])
+        self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", controls["allowed_external_executors"])
+
 
 if __name__ == "__main__":
     unittest.main()

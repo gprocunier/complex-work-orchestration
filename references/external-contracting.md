@@ -78,6 +78,24 @@ General reasoning review:
 /plan Use $complex-work-orchestration prompt coach: outside general review; ask sharing boundary.
 ```
 
+Architect design second opinion:
+
+```text
+/plan Use $complex-work-orchestration prompt coach:
+Use Gemini via agy for a second opinion critique of the Codex architect design.
+Share a redacted packet only. Treat Gemini output as evidence and require
+return evaluation plus architect adjudication before implementation.
+```
+
+Master plan review:
+
+```text
+/plan Use $complex-work-orchestration prompt coach:
+Use ChatGPT Pro 5.5 Extended Reasoning as a master reviewer for the final
+execution plan and total work packet. Share a redacted packet only. Treat the
+return as critique evidence for Codex plan revision before implementation.
+```
+
 Domain-specific review:
 
 ```text
@@ -130,6 +148,71 @@ python3 scripts/route_work.py \
   --requested-role web-design \
   "Gemini web-design review for a public GitHub Pages refresh."
 ```
+
+For the architect-design second-opinion lane, route and packet with the
+dedicated Antigravity executor:
+
+```bash
+python3 scripts/route_work.py \
+  --external-ok \
+  --share-boundary redacted-packet \
+  --requested-role architecture \
+  "Use Gemini via agy for a second opinion critique of the Codex architect design."
+
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor gemini_3_1_pro_preview_agy \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-architecture-reasoning \
+  --attest-packet \
+  --format json \
+  --output architect-critique-packet.json
+```
+
+The returned critique is evidence for the architect. Accepted concerns become
+new Beads only after evaluation, required peer review, and architect
+adjudication.
+
+For ChatGPT Pro 5.5 Extended Reasoning master-plan review, route and packet
+with the browser executor. This lane is not OpenAI Deep Research; use Deep
+Research only when the user explicitly asks for research rather than plan
+review:
+
+```bash
+python3 scripts/route_work.py \
+  --external-ok \
+  --share-boundary redacted-packet \
+  --requested-role master-plan-review \
+  "Use ChatGPT Pro 5.5 Extended Reasoning as a master reviewer for the final execution plan."
+
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-master-plan-review \
+  --attest-packet \
+  --format json \
+  --output master-plan-review-packet.json
+```
+
+Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
+`$HOME/.config/cwo/chatgpt-browser.json`. The config must live outside the
+repository, must not be group/world accessible, and should point at an
+operator-managed Chrome profile that can already use ChatGPT. Do not store
+Google credentials, browser session data, packet secrets, or private repo
+content in Beads, prompts, audit logs, or public docs.
+
+Use these adjudication dispositions for contractor critique findings:
+
+- `accepted`: create or update a follow-up Bead.
+- `accepted-with-modification`: capture the useful part and discard the rest.
+- `needs-investigation`: create a bounded investigation Bead before deciding.
+- `rejected`: record why the evidence, scope, or tradeoff does not hold.
+- `deferred`: keep the finding visible without blocking current acceptance.
+- `quarantined`: isolate the return because sabotage, malpractice, boundary,
+  or mutation signals need review.
 
 ## Beads Setup
 
@@ -413,6 +496,27 @@ python3 scripts/build_contractor_packet.py \
    or permission to bypass the approved share boundary.
    `patch-branch` is a proposal lane by default: return a diff, patch artifact,
    or branch reference unless direct checkout mutation is explicitly authorized.
+
+   For the ChatGPT Pro browser lane, the PM uses the dedicated browser helper
+   and ingests the returned share link through the local reader:
+
+   ```bash
+   python3 scripts/chatgpt_browser_review.py \
+     --packet master-plan-review-packet.json \
+     --json \
+     > master-plan-review-dispatch.json
+
+   python3 scripts/ingest_chatgpt_share_return.py \
+     "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+     --bead <id> \
+     --dispatch-id <dispatch-id> \
+     --packet-sha256 <packet-sha256> \
+     --output master-plan-review-return.md
+   ```
+
+   The share link is a return channel, not a new share boundary. Evaluate the
+   rendered return before revising the plan, and keep Deep Research as a later
+   explicit opt-in.
 
 8. Contractor returns a Beads comment or patch branch.
 9. PM normalizes the return and checks format, evidence, boundary fit, and

@@ -85,6 +85,61 @@ class DispatchTests(unittest.TestCase):
         )
         require_valid_contractor_packet(packet)
 
+    def test_gemini_agy_architecture_critic_packet_is_provider_bound(self) -> None:
+        packet = build_packet(
+            bead_id="cwo-arch-1",
+            bead_json={
+                "id": "cwo-arch-1",
+                "title": "Gemini architect critique",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
+            },
+            executor="gemini_3_1_pro_preview_agy",
+            share_boundary="redacted-packet",
+            job_description_label="contract-jd-architecture-reasoning",
+            allowed_files=[],
+            inline_snippets=["Design scope: critique the proposed architecture, do not implement it."],
+            dispatch_id="dispatch-gemini-critic",
+            external_opt_in=True,
+            opt_in_basis="cli-flag",
+        )
+        require_valid_contractor_packet(packet)
+        self.assertEqual(packet["provider_key"], "google_gemini_manual")
+        self.assertEqual(packet["provider_trust_tier"], "external-frontier")
+        self.assertTrue(packet["expert_profile_included"])
+        self.assertEqual(packet["expert_profile"]["path"], "experts/architecture.md")
+        prompt = render_packet_prompt(packet)
+        self.assertIn("gemini_3_1_pro_preview_agy", prompt)
+        self.assertIn("contract-jd-architecture-reasoning", prompt)
+        self.assertIn("Do not mutate the active checkout", prompt)
+        self.assertIn("Output only the contractor return", prompt)
+
+    def test_chatgpt_pro_browser_reviewer_packet_is_provider_bound(self) -> None:
+        packet = build_packet(
+            bead_id="cwo-plan-1",
+            bead_json={
+                "id": "cwo-plan-1",
+                "title": "ChatGPT Pro master plan review",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
+            },
+            executor="chatgpt_pro_5_5_extended_reasoning_browser",
+            share_boundary="redacted-packet",
+            job_description_label="contract-jd-master-plan-review",
+            allowed_files=[],
+            inline_snippets=["Final plan scope: review execution readiness, do not implement it."],
+            dispatch_id="dispatch-chatgpt-plan-review",
+            external_opt_in=True,
+            opt_in_basis="cli-flag",
+        )
+        require_valid_contractor_packet(packet)
+        self.assertEqual(packet["provider_key"], "openai_manual")
+        self.assertEqual(packet["provider_trust_tier"], "external-frontier")
+        self.assertTrue(packet["expert_profile_included"])
+        self.assertEqual(packet["expert_profile"]["path"], "experts/master-plan-review.md")
+        prompt = render_packet_prompt(packet)
+        self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", prompt)
+        self.assertIn("contract-jd-master-plan-review", prompt)
+        self.assertIn("Output only the contractor return", prompt)
+
     def test_dispatch_packet_validation_rejects_tampering(self) -> None:
         packet = build_packet(
             bead_id="cwo-1",

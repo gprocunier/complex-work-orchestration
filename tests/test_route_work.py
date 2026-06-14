@@ -108,6 +108,100 @@ class RouteWorkTests(unittest.TestCase):
         self.assertFalse(editor["selected_executor"]["external"])
         self.assertEqual(editor["recommended_executor"], "frontier_architect")
 
+    def test_gemini_agy_architect_critique_requires_external_opt_in(self) -> None:
+        text = "Use Gemini via agy for a second opinion critique of the Codex architect design."
+        blocked = classify_work(
+            text,
+            requested_roles=["architecture"],
+            share_boundary="redacted-packet",
+        )
+        self.assertNotEqual(blocked["route"], "external-contract")
+        candidate = next(
+            item for item in blocked["ranked_executors"] if item["key"] == "gemini_3_1_pro_preview_agy"
+        )
+        self.assertIn("external dispatch requires user opt-in", candidate["policy_violations"])
+
+        allowed = classify_work(
+            text,
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(allowed["route"], "external-contract")
+        self.assertEqual(allowed["recommended_executor"], "gemini_3_1_pro_preview_agy")
+        self.assertEqual(allowed["guard_labels"], [
+            "contractor-only",
+            "no-codex-exec",
+            "contract-jd-architecture-reasoning",
+        ])
+        self.assertEqual(allowed["external_experts"], ["architecture"])
+        self.assertTrue(allowed["peer_review_required"])
+        self.assertTrue(allowed["architect_adjudication_required"])
+
+    def test_chatgpt_pro_master_plan_review_requires_external_opt_in(self) -> None:
+        text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
+        blocked = classify_work(text, share_boundary="redacted-packet")
+        self.assertNotEqual(blocked["route"], "external-contract")
+        candidate = next(
+            item for item in blocked["ranked_executors"] if item["key"] == "chatgpt_pro_5_5_extended_reasoning_browser"
+        )
+        self.assertIn("external dispatch requires user opt-in", candidate["policy_violations"])
+
+        allowed = classify_work(text, external_ok=True, share_boundary="redacted-packet")
+        self.assertEqual(allowed["route"], "external-contract")
+        self.assertEqual(allowed["task_class"], "master-plan-review")
+        self.assertEqual(allowed["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(allowed["guard_labels"], [
+            "contractor-only",
+            "no-codex-exec",
+            "contract-jd-master-plan-review",
+        ])
+        self.assertEqual(allowed["external_experts"], ["master_plan_review"])
+        self.assertTrue(allowed["peer_review_required"])
+        self.assertTrue(allowed["architect_adjudication_required"])
+
+    def test_chatgpt_pro_master_plan_review_keeps_deep_research_separate(self) -> None:
+        master_review = classify_work(
+            "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer; Deep Research is a later opt-in.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(master_review["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+
+        deep_research = classify_work(
+            "Use OpenAI Deep Research for external standards research before planning.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(deep_research["recommended_executor"], "openai_deep_research_manual")
+
+    def test_chatgpt_pro_master_plan_patch_branch_requires_disclosure_escalation(self) -> None:
+        text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan."
+        blocked = classify_work(text, external_ok=True, share_boundary="patch-branch")
+        candidate = next(
+            item for item in blocked["ranked_executors"] if item["key"] == "chatgpt_pro_5_5_extended_reasoning_browser"
+        )
+        self.assertIn(
+            "share boundary patch-branch requires disclosure escalation approval",
+            candidate["policy_violations"],
+        )
+
+        escalated = classify_work(
+            text,
+            external_ok=True,
+            allow_disclosure_escalation=True,
+            share_boundary="patch-branch",
+        )
+        escalated_candidate = next(
+            item for item in escalated["ranked_executors"] if item["key"] == "chatgpt_pro_5_5_extended_reasoning_browser"
+        )
+        self.assertIn(
+            "sensitivity internal exceeds executor max_data_sensitivity redacted",
+            escalated_candidate["policy_violations"],
+        )
+        self.assertNotEqual(escalated["recommended_executor"], "gemini_3_1_pro_preview_agy")
+        self.assertNotEqual(escalated["route"], "external-contract")
+
     def test_public_docs_page_path_alone_requires_editor_gate(self) -> None:
         result = classify_work(
             "Update landing page copy.",

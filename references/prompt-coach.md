@@ -56,6 +56,12 @@ this project`, `full scaffold`, `PM coordination`, `workerbee`, `epic`, or
 review language also asks for the outside-sharing boundary before any external
 dispatch is allowed.
 
+ChatGPT Pro 5.5 Extended Reasoning language paired with "master plan",
+"final execution plan", or "total work packet" asks for the outside-sharing
+boundary and routes to the browser-mediated master-plan review lane after
+explicit opt-in. This is separate from OpenAI Deep Research; mentioning Deep
+Research should not happen implicitly during an Extended Reasoning plan review.
+
 Local-worker language such as `vLLM`, `local worker`, or `OpenShift AI` asks for
 local-worker opt-in before dispatch. Without `--local-ok`, the conservative
 default is current-thread execution with Beads tracking and local-worker
@@ -109,6 +115,8 @@ The coach asks only for information that materially changes sizing:
   epic/work graph
 - whether to parallelize with subagents
 - outside-sharing boundary for Claude, Opus, Mythos, or another external model
+- outside-sharing boundary for ChatGPT Pro 5.5 Extended Reasoning master-plan
+  review when the user explicitly asks for it
 - local-worker opt-in and local profile
 - validation bar for security, production, publish, or release work
 

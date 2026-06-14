@@ -130,6 +130,58 @@ class PacketGateTests(unittest.TestCase):
             )
         self.assertEqual(basis, "audit-record")
 
+    def test_gemini_agy_architecture_critic_accepts_scoped_opt_in_record(self) -> None:
+        labels = ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"]
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "allowed": True,
+                    "share_boundary": "redacted-packet",
+                    "allowed_external_executors": ["gemini_3_1_pro_preview_agy"],
+                    "allowed_providers": ["google_gemini_manual"],
+                    "decision_source": "test",
+                    "recorded_at": "2026-06-09T00:00:00Z",
+                    "scope": "architecture second-opinion critique",
+                },
+                handle,
+            )
+            handle.flush()
+            basis = validate_gate(
+                "gemini_3_1_pro_preview_agy",
+                "redacted-packet",
+                labels,
+                "contract-jd-architecture-reasoning",
+                external_ok=False,
+                opt_in_record=handle.name,
+            )
+        self.assertEqual(basis, "audit-record")
+
+    def test_chatgpt_pro_browser_reviewer_accepts_scoped_opt_in_record(self) -> None:
+        labels = ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"]
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "allowed": True,
+                    "share_boundary": "redacted-packet",
+                    "allowed_external_executors": ["chatgpt_pro_5_5_extended_reasoning_browser"],
+                    "allowed_providers": ["openai_manual"],
+                    "decision_source": "test",
+                    "recorded_at": "2026-06-09T00:00:00Z",
+                    "scope": "ChatGPT Pro master plan review",
+                },
+                handle,
+            )
+            handle.flush()
+            basis = validate_gate(
+                "chatgpt_pro_5_5_extended_reasoning_browser",
+                "redacted-packet",
+                labels,
+                "contract-jd-master-plan-review",
+                external_ok=False,
+                opt_in_record=handle.name,
+            )
+        self.assertEqual(basis, "audit-record")
+
     def test_opt_in_record_rejects_expired_or_timezone_free_records(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
         cases = [

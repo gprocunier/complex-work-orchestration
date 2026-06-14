@@ -69,6 +69,17 @@ class PromptCoachTests(unittest.TestCase):
         self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
         self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
 
+    def test_gemini_agy_critique_without_opt_in_asks_for_boundary(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Gemini via agy for a second opinion critique of the Codex architect design.",
+            requested_roles=["architecture"],
+        )
+        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
+        self.assertFalse(result["route"]["external_contract_allowed"])
+        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["missing_questions"]))
+        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
+        self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
+
     def test_external_opt_in_recommends_external_contract(self) -> None:
         result = coach_orchestration_prompt(
             "Claude security review for contractor packet redaction.",
@@ -79,6 +90,39 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["recommended_orchestration_level"], "external-contract")
         self.assertIn("contractor-only-bead", result["enabled_levers"])
         self.assertIn("contractor-only bead", result["paste_ready_prompt"])
+
+    def test_gemini_agy_critique_opt_in_recommends_external_contract(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Gemini via agy for a second opinion critique of the Codex architect design.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
+        self.assertEqual(result["route"]["recommended_executor"], "gemini_3_1_pro_preview_agy")
+        self.assertIn("contractor-only-bead", result["enabled_levers"])
+        self.assertIn("contract-jd-architecture-reasoning", result["paste_ready_prompt"])
+
+    def test_chatgpt_pro_master_plan_without_opt_in_asks_for_boundary(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
+        )
+        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
+        self.assertFalse(result["route"]["external_contract_allowed"])
+        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["missing_questions"]))
+        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
+        self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
+
+    def test_chatgpt_pro_master_plan_opt_in_recommends_external_contract(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
+        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertIn("contractor-only-bead", result["enabled_levers"])
+        self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
 
     def test_local_worker_profile_recommends_local_worker(self) -> None:
         result = coach_orchestration_prompt(

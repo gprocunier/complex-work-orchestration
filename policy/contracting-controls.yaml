@@ -5,8 +5,10 @@
   "default_share_boundary": "no-outside-sharing",
   "allowed_external_executors": [
     "openai_deep_research_manual",
+    "chatgpt_pro_5_5_extended_reasoning_browser",
     "claude_code_manual",
     "gemini_3_1_pro_manual",
+    "gemini_3_1_pro_preview_agy",
     "human_specialist_contractor",
     "external_reasoner",
     "external_security_reviewer"

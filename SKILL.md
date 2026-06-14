@@ -69,13 +69,13 @@ briefing artifact given to an outside contractor with a specific Beads
 assignment. Use `docs/workflows.html` for the publishable walkthrough of
 Codex-native `/plan` invocation, prompt-coach sizing, Beads work-graph
 creation, optional contractor or local-worker lanes, validation, and manual
-`claude -p`, `gemini -p`, or `agy -p` contractor handoff when external
-sharing is approved.
+`claude -p`, `gemini -p`, `agy -p`, or ChatGPT Pro browser contractor handoff
+when external sharing is approved.
 Use `docs/local-workers.html` for the first-class in-Codex local-worker flow,
 including coach opt-in, OpenShift AI vLLM profile selection, dispatch envelope
 generation, explicit `--execute-local`, return evaluation, and architect
 adjudication. For public documentation, README/install docs, GitHub Pages,
-site-flow, or Diataxis work, route through documentation plus web-design when a
+site structure, or Diataxis work, route through documentation plus web-design when a
 site/page is involved, then require the internal editor expert as the final
 validation gate before publish sanitization. Public narrative pages must not
 expose internal planning labels, contract labels, framework bookkeeping, or
@@ -97,6 +97,16 @@ Default roles:
   patches, test triage, file search, evidence gathering, and narrow validation
   tasks.
 - **Outside Contractor**: Claude or another external LLM. Receives one explicit bead/contract at a time, calibrated by a job-description label, and reports findings through Beads or a patch branch.
+- **Gemini/Agy Architect Critic**: opt-in outside-contractor lane for
+  `agy --model gemini-3.1-pro-preview` second-opinion critique of a Codex
+  architect design. It uses `contract-jd-architecture-reasoning`, starts with a
+  redacted packet by default, and produces evidence for evaluation and
+  architect adjudication, not implementation authority.
+- **ChatGPT Pro Master Reviewer**: opt-in browser-mediated outside-contractor
+  lane for ChatGPT Pro 5.5 Extended Reasoning review of the final architect
+  plan or total work packet. It uses `contract-jd-master-plan-review`, starts
+  with a redacted packet by default, requires a share-link return, and remains
+  evidence for Codex plan revision. It is separate from Deep Research.
 - **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
   local-worker review contracts after explicit `--local-ok`; output is evidence
   and still needs evaluator scoring plus architect adjudication.
@@ -223,6 +233,8 @@ Recommended lanes:
 - Test/validation workerbee lane
 - Review-only workerbee lane for parallel docs, policy, routing, validation, or publish-sanitization sidecar work
 - Outside contractor lane with job-description contracts
+- ChatGPT Pro master-plan review lane when explicitly requested before
+  implementation handoff
 - Peer-review lane when route output sets `peer_review_required=true`
 - Release or publish sanitization lane, when relevant
 - Docs/handoff lane, when relevant
@@ -329,6 +341,8 @@ peer-review gates, and editor gates; guard labels such as `contractor-only` or
 - `contract-jd-general-reasoning`: independent second opinion, assumptions, tradeoffs, failure modes, and alternative approaches.
 - `contract-jd-security-reasoning`: security-focused glance, threat model, privilege boundaries, input handling, authn/authz, secret exposure, dependency and supply-chain risk.
 - `contract-jd-architecture-reasoning`: system design, boundaries, coupling, migration paths, data flow, long-term maintainability, and reversibility.
+- `contract-jd-master-plan-review`: independent master review of the final
+  execution plan or total work packet before implementation handoff.
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery, observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost, resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing warnings, examples, and publishability.
@@ -450,6 +464,29 @@ python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
 The prompt includes `CONTRACTOR RETURN TEMPLATE - COPY EXACTLY` and tells the
 contractor not to include a preamble, internal action narration, or direct
 checkout mutation claims unless explicitly authorized.
+
+For ChatGPT Pro 5.5 Extended Reasoning master-plan review, use the dedicated
+browser helper instead of `dispatch_work.py`:
+
+```bash
+python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --json \
+  > master-plan-review-dispatch.json
+
+python3 scripts/ingest_chatgpt_share_return.py \
+  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+  --bead <id> \
+  --dispatch-id <dispatch-id> \
+  --packet-sha256 <packet-sha256> \
+  --output master-plan-review-return.md
+```
+
+The browser config comes from `CWO_CHATGPT_BROWSER_CONFIG` or
+`$HOME/.config/cwo/chatgpt-browser.json`; keep it outside the repo with mode
+`0600` and operator-managed browser authentication. Do not put Google
+credentials, browser session material, or private packet content in prompts,
+Beads comments, audit logs, or public docs.
 
 For direct route dispatch without a packet, pass `--dispatch-id` when the
 operator needs quota checks, output, and audit entries to share a stable

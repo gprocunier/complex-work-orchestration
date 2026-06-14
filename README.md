@@ -89,7 +89,7 @@ The skill should also be used for requests that mention:
 
 - Mixture of Experts
 - architect, project manager, or review worker roles
-- Claude, Opus, Mythos, or another outside contractor model
+- Claude, Opus, Mythos, ChatGPT Pro, or another outside contractor model
 - Beads task graphs
 - durable handoff or multi-session coordination
 - broad review, release, lab, production, or publication risk
@@ -215,6 +215,13 @@ binding, and expert profile for outside or local review.
   external model was called automatically. Direct dispatch can use
   `--dispatch-id` so quota checks, output, and audit records share the same
   identity.
+- `scripts/chatgpt_browser_review.py`: opt-in browser dispatch for a redacted
+  master-plan review with `chatgpt_pro_5_5_extended_reasoning_browser`.
+  Configure it with `CWO_CHATGPT_BROWSER_CONFIG`; keep the config outside the
+  repository with operator-managed browser authentication and mode `0600`.
+- `scripts/ingest_chatgpt_share_return.py`: read the resulting ChatGPT share
+  link through the local `chatgpt-share-local-reader` skill and render a
+  contractor-return template for evaluation.
 - `scripts/workspace_mutation_guard.py`: snapshot and compare tracked git state
   around tool-running external CLIs so unexpected checkout mutation becomes
   evaluation evidence instead of an unnoticed side effect.
@@ -656,6 +663,18 @@ OpenAI Deep Research, and human specialist contractors. The Gemini profile is
 intended for focused web-design or frontend-domain contracts through
 `gemini -p`; environments that expose Gemini through Google Antigravity can use
 `agy -p` as the local command surface after the same packet and opt-in gates.
+For architect-design critique, use the dedicated
+`gemini_3_1_pro_preview_agy` executor. That lane is a second-opinion evidence
+source for an existing Codex architect design; it does not transfer design
+authority to Gemini and still requires return evaluation, any required peer
+review, and architect adjudication.
+The ChatGPT Pro 5.5 Extended Reasoning browser lane is different from OpenAI
+Deep Research. Use `chatgpt_pro_5_5_extended_reasoning_browser` only when the
+user explicitly wants ChatGPT Pro to review the final architect plan or total
+work packet before execution. It starts from a redacted packet by default,
+uses browser authentication controlled by the operator, requires a share link
+return, and remains critique evidence for Codex plan revision. Deep Research
+stays a separate opt-in lane for research tasks.
 
 Distinguished Engineer profiles are first-class packet artifacts. A normal
 contractor handoff packet includes the matched `experts/<discipline>.md`
@@ -699,6 +718,8 @@ up the work.
   risk.
 - `contract-jd-architecture-reasoning`: system boundaries, coupling,
   migration paths, data flow, maintainability, and reversibility.
+- `contract-jd-master-plan-review`: independent master review of the final
+  execution plan or total work packet before handoff to implementation.
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery,
   observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost,
@@ -827,6 +848,74 @@ python3 scripts/build_contractor_packet.py \
   --format json \
   --output contractor-packet.json
 ```
+
+For a redacted architect-design critique through Antigravity, keep the packet
+small and use the architecture job-description label:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor gemini_3_1_pro_preview_agy \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-architecture-reasoning \
+  --attest-packet \
+  --format json \
+  --output architect-critique-packet.json
+
+python3 scripts/dispatch_work.py \
+  --packet architect-critique-packet.json \
+  --mode manual \
+  > architect-critique-dispatch-prompt.md
+
+agy --model gemini-3.1-pro-preview \
+  -p "Read architect-critique-dispatch-prompt.md and output only the contractor return template." \
+  > architect-critique-return.md
+```
+
+Architect adjudication should classify each critique finding as `accepted`,
+`accepted-with-modification`, `needs-investigation`, `rejected`, `deferred`, or
+`quarantined`. Only accepted or modified findings become follow-up Beads, and
+quarantined returns go through the incident-response path before use.
+
+For a ChatGPT Pro 5.5 Extended Reasoning master-plan review, use a redacted
+packet and require a share-link return:
+
+```bash
+python3 scripts/build_contractor_packet.py \
+  --bead <id> \
+  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-master-plan-review \
+  --attest-packet \
+  --format json \
+  --output master-plan-review-packet.json
+
+python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --json \
+  > master-plan-review-dispatch.json
+
+python3 scripts/ingest_chatgpt_share_return.py \
+  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+  --bead <id> \
+  --dispatch-id <dispatch-id> \
+  --packet-sha256 <packet-sha256> \
+  --output master-plan-review-return.md
+
+python3 scripts/evaluate_return.py \
+  --bead <id> \
+  --file master-plan-review-return.md
+```
+
+Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
+`$HOME/.config/cwo/chatgpt-browser.json`. The file must live outside the repo,
+must not be group/world accessible, and should point at an operator-managed
+Chrome profile that can already use ChatGPT. Never put Google credentials,
+browser session material, packet secrets, or private repo content in prompts,
+Beads comments, audit logs, or public docs. The helper logs hashes and status,
+not prompt text or credentials.
 
 In patch-branch mode, the expected artifact is still a reviewed proposal unless
 direct workspace mutation is separately authorized. For tool-running CLIs such

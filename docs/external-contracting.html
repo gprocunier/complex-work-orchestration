@@ -49,6 +49,7 @@
           <a href="#collaboration">Collaboration Question</a>
           <a href="#labels">Labels</a>
           <a href="#packet">Packet Validation</a>
+          <a href="#master-review">Master Review</a>
           <a href="#return">Return Review</a>
           <a href="#demo-lessons">Demo Lessons</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
@@ -138,6 +139,21 @@ contract-jd-security-reasoning</code></pre>
   --format json \
   --output contractor-packet.json</code></pre>
             <p>
+              Architect-design second opinions use the architecture reasoning
+              label and the dedicated Antigravity executor. Treat the return as
+              critique evidence for Codex architect adjudication, not as a new
+              implementation plan.
+            </p>
+            <pre><code>python3 scripts/build_contractor_packet.py \
+  --bead &lt;id&gt; \
+  --executor gemini_3_1_pro_preview_agy \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-architecture-reasoning \
+  --attest-packet \
+  --format json \
+  --output architect-critique-packet.json</code></pre>
+            <p>
               Repo-readonly and patch-branch handoff packets require an explicit
               disclosure escalation flag in addition to external opt-in.
               Patch-branch is a proposal lane by default: the contractor returns
@@ -155,6 +171,49 @@ contract-jd-security-reasoning</code></pre>
   --allowed-file docs/styles.css \
   --format json \
   --output contractor-packet.json</code></pre>
+          </section>
+
+          <section id="master-review">
+            <h2>Master Review</h2>
+            <p>
+              Some plans benefit from a slow, independent review before Codex
+              starts implementation. When the user explicitly asks for ChatGPT
+              Pro 5.5 Extended Reasoning to review the final plan or total work
+              packet, use a redacted packet and require a share-link return.
+              Keep Deep Research as a separate later opt-in for research tasks.
+            </p>
+            <pre><code>python3 scripts/build_contractor_packet.py \
+  --bead &lt;id&gt; \
+  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-master-plan-review \
+  --attest-packet \
+  --format json \
+  --output master-plan-review-packet.json
+
+python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --json \
+  &gt; master-plan-review-dispatch.json
+
+python3 scripts/ingest_chatgpt_share_return.py \
+  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+  --bead &lt;id&gt; \
+  --dispatch-id &lt;dispatch-id&gt; \
+  --packet-sha256 &lt;packet-sha256&gt; \
+  --output master-plan-review-return.md</code></pre>
+            <div class="callout">
+              <strong>Browser rule:</strong>
+              Configure browser automation with
+              <code>CWO_CHATGPT_BROWSER_CONFIG</code> or
+              <code>$HOME/.config/cwo/chatgpt-browser.json</code>. Keep the
+              config outside the repo, restrict file permissions, and use an
+              operator-managed browser profile that can already use ChatGPT.
+              Do not put Google credentials, browser session data, packet
+              secrets, or private repo content in prompts, Beads comments,
+              audit logs, or public docs.
+            </div>
           </section>
 
           <section id="return">
@@ -197,6 +256,12 @@ python3 scripts/evaluate_return.py \
               If route policy or provider conflict requires peer review, a
               contractor cannot dismiss that gate. Unexpected tracked-file
               mutation also blocks direct implementation use.
+            </div>
+            <div class="callout">
+              <strong>Critique rule:</strong>
+              A Gemini/Agy architect-design critique can be accepted, modified,
+              investigated, rejected, deferred, or quarantined by the architect
+              after evaluation. It never creates implementation work directly.
             </div>
             <div class="callout">
               <strong>Publication handoff:</strong>

@@ -33,6 +33,17 @@ Validation required:
 Deadline or stopping point:
 ```
 
+For architect-design critique assignments, also include:
+
+```text
+Design scope:
+Affected interfaces or modules:
+Migration constraints:
+Rollback or reversibility expectations:
+Known non-goals:
+Residual risks already identified:
+```
+
 ## Operating Model
 
 - Architect: owns architecture, final integration, acceptance, release
@@ -56,6 +67,8 @@ other discipline-specific contract into a generic project review.
   authn/authz, inputs, secrets, dependencies, and supply-chain risk.
 - `contract-jd-architecture-reasoning`: system boundaries, coupling, migration
   paths, data flow, maintainability, and reversibility.
+- `contract-jd-master-plan-review`: final execution plan or total work packet
+  review before implementation handoff.
 - `contract-jd-peer-review`: independent gate for contractor or local-worker
   returns before implementation use.
 - `contract-jd-sabotage-review`: integrity review for suspected sabotage,
@@ -68,6 +81,11 @@ profile. Use that profile as the operating lens for the assignment. If the
 packet says no profile was included, treat the context as degraded and say so in
 your return; use the packet's degraded-context justification to understand why
 the profile is missing.
+
+For ChatGPT Pro browser-mediated master-plan review, the share link is the
+return channel. Do not ask for raw hidden reasoning. Return conclusions,
+evidence, plan risks, rejected alternatives, recommended revisions, confidence,
+and escalation triggers in the required contractor return template.
 
 ## Required Startup
 

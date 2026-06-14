@@ -269,6 +269,33 @@ python3 scripts/workspace_mutation_guard.py \
               require <code>--allow-disclosure-escalation</code>, and mean
               diff or patch proposal by default.
             </p>
+            <p>
+              Policy can also select
+              <code>gemini_3_1_pro_preview_agy</code> when the user explicitly
+              asks for a Gemini/Agy second-opinion critique of a Codex
+              architect design. That workstream uses the architecture
+              reasoning lens, starts with a redacted packet by default, and
+              remains evidence for architect adjudication.
+            </p>
+            <p>
+              If the user explicitly asks for ChatGPT Pro 5.5 Extended
+              Reasoning to review the final execution plan or total work
+              packet, route a redacted packet to the browser-mediated master
+              review lane and ingest the resulting share link before revising
+              the plan. Do not treat this as Deep Research unless the user asks
+              for that separate research lane.
+            </p>
+            <pre><code>python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --json \
+  &gt; master-plan-review-dispatch.json
+
+python3 scripts/ingest_chatgpt_share_return.py \
+  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+  --bead "$BEAD_ID" \
+  --dispatch-id "$DISPATCH_ID" \
+  --packet-sha256 "$PACKET_SHA256" \
+  --output master-plan-review-return.md</code></pre>
             <div class="callout">
               <strong>Boundary rule:</strong>
               Use <code>--external-ok</code> only after the user approves

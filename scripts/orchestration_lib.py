@@ -273,6 +273,39 @@ def detect_provider_conflicts(text: str, provider_registry: dict[str, Any] | Non
     return sorted(set(conflicts))
 
 
+def explicit_gemini_architect_critique_requested(text: str) -> bool:
+    """Return true only for the opt-in Gemini/Agy design-critic pattern."""
+    return bool(
+        term_hits(text, ["gemini", "agy", "antigravity"])
+        and term_hits(text, ["architect", "architecture", "design"])
+        and term_hits(text, ["second opinion", "critique", "critic"])
+    )
+
+
+def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
+    """Return true for the ChatGPT Pro Extended Reasoning plan-review lane."""
+    return bool(
+        term_hits(text, ["chatgpt", "gpt 5.5", "5.5 pro", "openai"])
+        and term_hits(
+            text,
+            [
+                "extended reasoning",
+                "master plan",
+                "master reviewer",
+                "total work packet",
+                "work packet reviewer",
+                "final execution plan",
+                "final plan review",
+            ],
+        )
+    )
+
+
+def explicit_openai_deep_research_requested(text: str) -> bool:
+    """Return true for the separate ChatGPT Deep Research opt-in lane."""
+    return bool(term_hits(text, ["deep research"]))
+
+
 def peer_review_policy() -> dict[str, Any]:
     return load_policy("peer-review-policy")
 
@@ -618,6 +651,25 @@ def score_executors(
             score += scoring.get("latency_fit", 3)
         if executor.get("cost_tier") in ["low", "medium"]:
             score += scoring.get("cost_fit", 2)
+        if key == "gemini_3_1_pro_preview_agy" and explicit_gemini_architect_critique_requested(text):
+            score += 30
+            reasons.append("explicit Gemini/Agy architect critique request")
+        if key == "chatgpt_pro_5_5_extended_reasoning_browser" and explicit_chatgpt_master_plan_review_requested(text):
+            score += 36
+            reasons.append("explicit ChatGPT Pro Extended Reasoning master plan review request")
+        if key == "openai_deep_research_manual" and explicit_openai_deep_research_requested(text):
+            score += 30
+            reasons.append("explicit Deep Research request")
+        if key == "openai_deep_research_manual" and explicit_chatgpt_master_plan_review_requested(text):
+            score -= 12
+            reasons.append("Extended Reasoning master review is distinct from Deep Research")
+        if (
+            explicit_chatgpt_master_plan_review_requested(text)
+            and key != "chatgpt_pro_5_5_extended_reasoning_browser"
+            and executor.get("external")
+        ):
+            score -= 80
+            reasons.append("explicit ChatGPT request does not authorize alternate external provider")
 
         provider_metadata = provider_metadata_for_executor(executor)
         results.append(
@@ -641,6 +693,7 @@ def score_executors(
                 "codex_pickup": executor.get("codex_pickup", "allowed"),
                 "acceptance_required": bool(executor.get("acceptance_required")),
                 "architect_review_required": bool(executor.get("architect_review_required")),
+                "critique_mode": executor.get("critique_mode"),
             }
         )
 
@@ -723,6 +776,19 @@ def classify_work(
     )
     if not experts:
         experts = score_experts_v2(text + " independent review", expert_registry)
+    requested = {role.lower() for role in (requested_roles or [])}
+    if (
+        explicit_gemini_architect_critique_requested(text)
+        and any(expert.get("name") == "architecture" for expert in experts)
+        and not {"general", "general_reasoning", "contract-jd-general-reasoning"} & requested
+    ):
+        experts = [expert for expert in experts if expert.get("name") != "general_reasoning"]
+    if (
+        explicit_chatgpt_master_plan_review_requested(text)
+        and any(expert.get("name") == "master_plan_review" for expert in experts)
+        and not {"general", "general_reasoning", "contract-jd-general-reasoning"} & requested
+    ):
+        experts = [expert for expert in experts if expert.get("name") != "general_reasoning"]
     skip_editor_gate_for_local_review = bool(
         local_ok and prefer_local and not public_docs_editor_gate_required(text, file_paths)
     )
@@ -998,8 +1064,17 @@ def prompt_coach_has_contractor_sharing_signal(text: str) -> bool:
         text,
         [
             "claude",
+            "chatgpt",
+            "openai deep research",
+            "gpt 5.5",
+            "extended reasoning",
+            "gemini",
+            "agy",
+            "antigravity",
             "opus",
             "mythos",
+            "master plan reviewer",
+            "total work packet",
             "outside model",
             "external contractor",
             "third-party",
