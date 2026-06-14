@@ -54,6 +54,15 @@ class ValidateSiteTests(unittest.TestCase):
         self.assertIn("Editor gate:", rendered)
         self.assertIn("AI-slop wording", rendered)
 
+    def test_rejects_design_source_as_public_reference_copy(self) -> None:
+        errors = self.validate_snippet(
+            "index.html",
+            "<section id='reference'><p><a href='https://ux.redhat.com/'>Red Hat UX reference for the public docs site</a></p></section>",
+        )
+        rendered = "\n".join(errors)
+        self.assertIn("Red Hat UX reference", rendered)
+        self.assertIn("non-source external URL", rendered)
+
     def test_allows_contract_label_in_pre_code_block(self) -> None:
         errors = self.validate_snippet(
             "workflows.html",

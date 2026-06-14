@@ -290,7 +290,6 @@ def validate_repository() -> list[str]:
             "./workflows.html#optional-lanes",
             "./contractor-demo.html",
             "./reference.html",
-            "Red Hat UX reference",
             "https://github.com/gprocunier/complex-work-orchestration",
         ],
     )
@@ -666,6 +665,7 @@ def validate_repository() -> list[str]:
             "docs/pages flow",
             "AI-slop",
             "internal process leakage",
+            "Design-source or design-corpus",
             "private vocabulary",
             "reference/operator lookup",
             "Required prerequisites",

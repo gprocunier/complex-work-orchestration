@@ -26,7 +26,6 @@ SOURCE_LINK_PATTERNS = [
     "https://github.com/gprocunier/hello-world-contractor-demo",
     "https://gprocunier.github.io/hello-world-contractor-demo/",
     "https://github.com/steveyegge/beads",
-    "https://ux.redhat.com/",
     "https://diataxis.fr/",
 ]
 PRIMARY_NAV_HREFS = [
@@ -66,6 +65,9 @@ PUBLIC_COPY_FORBIDDEN_PATTERNS = [
     re.compile(r"\bAI-slop wording\b", re.IGNORECASE),
     re.compile(r"\bdocs/pages flow\b", re.IGNORECASE),
     re.compile(r"\bsite-flow\b", re.IGNORECASE),
+    re.compile(r"\bRed Hat UX reference\b", re.IGNORECASE),
+    re.compile(r"\bRed Hat UX design corpus\b", re.IGNORECASE),
+    re.compile(r"\bdesign corpus\b", re.IGNORECASE),
 ]
 INTERNAL_LABEL_REFERENCE_PAGES = {"reference.html"}
 

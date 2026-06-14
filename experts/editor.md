@@ -89,6 +89,9 @@ ready to apply.
 - GitHub Pages and Markdown docs drifting into different product stories.
 - Homepage or get-started text that leaks internal monologue such as planning
   labels, draft notes, prompt traces, or framework bookkeeping.
+- Design-source or design-corpus references, such as Red Hat UX or Diataxis,
+  presented as public reader content instead of kept as internal implementation
+  provenance.
 - Narrative Pages that expose labels such as contract-jd-* or headings such as
   editor gate instead of explaining the reader-facing review or publishing
   outcome.
