@@ -916,6 +916,24 @@ Chrome profile that can already use ChatGPT. Never put Google credentials,
 browser session material, packet secrets, or private repo content in prompts,
 Beads comments, audit logs, or public docs. The helper logs hashes and status,
 not prompt text or credentials.
+If Cloudflare or account prompts block automation-launched Chrome, start Chrome
+yourself with the same profile and a local debugging port, complete the prompt,
+then set `connect_over_cdp_url` to the local endpoint:
+
+```bash
+google-chrome-stable \
+  --user-data-dir="$HOME/.local/share/cwo/chatgpt-master-reviewer-profile" \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 \
+  --new-window https://chatgpt.com/
+```
+
+The helper accepts only localhost CDP URLs and still rejects credential or
+session material in the config.
+Current ChatGPT sharing UI may copy the public link directly to the local OS
+clipboard. The helper may read the local clipboard after pressing Share, but it
+accepts only validated ChatGPT share URLs and does not ask the ChatGPT page for
+clipboard-read permission.
 
 In patch-branch mode, the expected artifact is still a reviewed proposal unless
 direct workspace mutation is separately authorized. For tool-running CLIs such

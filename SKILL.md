@@ -487,6 +487,14 @@ The browser config comes from `CWO_CHATGPT_BROWSER_CONFIG` or
 `0600` and operator-managed browser authentication. Do not put Google
 credentials, browser session material, or private packet content in prompts,
 Beads comments, audit logs, or public docs.
+When Cloudflare or account prompts require a normal browser session, launch
+Chrome manually with the dedicated profile and a localhost remote-debugging
+port, then set `connect_over_cdp_url` in the local config. CDP attach URLs must
+be unauthenticated localhost URLs; do not expose the debugging port remotely.
+If the ChatGPT sharing UI copies the public link directly to the OS clipboard,
+the helper may read the local clipboard after pressing Share and accept only a
+validated ChatGPT share URL. Do not grant ChatGPT page-side clipboard-read
+permission for this workflow.
 
 For direct route dispatch without a packet, pass `--dispatch-id` when the
 operator needs quota checks, output, and audit entries to share a stable

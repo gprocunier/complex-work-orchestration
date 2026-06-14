@@ -214,6 +214,20 @@ python3 scripts/ingest_chatgpt_share_return.py \
               secrets, or private repo content in prompts, Beads comments,
               audit logs, or public docs.
             </div>
+            <div class="callout">
+              <strong>Attach mode:</strong>
+              If a normal browser is needed for account or Cloudflare prompts,
+              start Chrome with a localhost debugging port, complete the prompt
+              manually, and set <code>connect_over_cdp_url</code> to that local
+              endpoint. Do not expose the debugging port remotely.
+            </div>
+            <div class="callout">
+              <strong>Share link:</strong>
+              If ChatGPT copies the public link directly to the OS clipboard,
+              the helper can read the local clipboard after pressing Share and
+              accepts only validated ChatGPT share URLs. Do not grant the page
+              clipboard-read permission for this workflow.
+            </div>
           </section>
 
           <section id="return">

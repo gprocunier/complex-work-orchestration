@@ -15,10 +15,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from chatgpt_browser_review import (  # noqa: E402
     EXECUTOR_KEY,
+    PlaywrightChatGPTRunner,
     build_result,
     config_summary,
     load_browser_config,
     load_prompt_from_args,
+    read_local_clipboard_share_url,
     valid_chatgpt_share_url,
 )
 
@@ -46,6 +48,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             summary = config_summary(config, path)
         rendered = json.dumps(summary, sort_keys=True)
         self.assertTrue(summary["chrome_user_data_dir_configured"])
+        self.assertTrue(summary["local_clipboard_fallback"])
         self.assertNotIn(str(Path(tmpdir) / "profile"), rendered)
 
     def test_config_rejects_credential_fields(self) -> None:
@@ -54,6 +57,29 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             path = self.write_config(tmp)
             data = json.loads(path.read_text(encoding="utf-8"))
             data["google_password"] = "not-a-real-password"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                load_browser_config(path)
+
+    def test_config_accepts_local_cdp_attach_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            path = self.write_config(tmp)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["connect_over_cdp_url"] = "http://127.0.0.1:9222"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            config = load_browser_config(path)
+            summary = config_summary(config, path)
+        self.assertEqual(config["connect_over_cdp_url"], "http://127.0.0.1:9222")
+        self.assertTrue(summary["connect_over_cdp_configured"])
+        self.assertNotIn("127.0.0.1:9222", json.dumps(summary))
+
+    def test_config_rejects_remote_cdp_attach_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            path = self.write_config(tmp)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["connect_over_cdp_url"] = "http://example.com:9222"
             path.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaises(SystemExit):
                 load_browser_config(path)
@@ -78,6 +104,49 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertTrue(valid_chatgpt_share_url("https://chatgpt.com/s/t_abc"))
         self.assertTrue(valid_chatgpt_share_url("https://chatgpt.com/share/abc"))
         self.assertFalse(valid_chatgpt_share_url("https://example.com/s/t_abc"))
+
+    def test_create_share_link_does_not_read_clipboard(self) -> None:
+        class FakeLocator:
+            def click(self, timeout: int) -> None:
+                return None
+
+            @property
+            def first(self) -> "FakeLocator":
+                return self
+
+            def input_value(self, timeout: int) -> str:
+                raise RuntimeError("no input")
+
+            def get_attribute(self, name: str, timeout: int) -> str | None:
+                return None
+
+        class FakePage:
+            def __init__(self) -> None:
+                self.evaluated = False
+
+            def locator(self, selector: str) -> FakeLocator:
+                return FakeLocator()
+
+            def evaluate(self, script: str) -> str:
+                self.evaluated = True
+                raise AssertionError("clipboard read should not be attempted")
+
+        page = FakePage()
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
+        self.assertEqual(runner._create_share_link(page, 1, TimeoutError), "")
+        self.assertFalse(page.evaluated)
+
+    def test_read_local_clipboard_accepts_only_chatgpt_share_urls(self) -> None:
+        completed = type("Completed", (), {"stdout": "https://chatgpt.com/share/abc\n"})()
+        with patch("shutil.which", return_value="/usr/bin/wl-paste"):
+            with patch("subprocess.run", return_value=completed):
+                self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/share/abc")
+
+    def test_read_local_clipboard_ignores_non_share_clipboard(self) -> None:
+        completed = type("Completed", (), {"stdout": "plain private clipboard text"})()
+        with patch("shutil.which", return_value="/usr/bin/wl-paste"):
+            with patch("subprocess.run", return_value=completed):
+                self.assertEqual(read_local_clipboard_share_url(), "")
 
     def test_prompt_file_dispatch_metadata_uses_executor_without_leaking_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

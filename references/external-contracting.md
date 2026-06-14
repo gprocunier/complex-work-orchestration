@@ -203,6 +203,15 @@ repository, must not be group/world accessible, and should point at an
 operator-managed Chrome profile that can already use ChatGPT. Do not store
 Google credentials, browser session data, packet secrets, or private repo
 content in Beads, prompts, audit logs, or public docs.
+If a normal browser session is required for Cloudflare or account prompts,
+start Chrome manually with `--remote-debugging-address=127.0.0.1` and
+`--remote-debugging-port=<port>`, complete the prompts, then set
+`connect_over_cdp_url` to that localhost endpoint. Never expose the debugging
+port remotely.
+If ChatGPT copies the public share URL directly to the OS clipboard, the helper
+may read the local clipboard after pressing Share. It accepts only validated
+ChatGPT share URLs and does not ask the ChatGPT page to read clipboard
+contents.
 
 Use these adjudication dispositions for contractor critique findings:
 

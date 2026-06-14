@@ -5,7 +5,9 @@ import argparse
 import datetime as dt
 import json
 import os
+import shutil
 import stat
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,7 @@ EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
 DEFAULT_CONFIG_PATH = "~/.config/cwo/chatgpt-browser.json"
 CHATGPT_HOSTS = {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}
+LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
 FORBIDDEN_CONFIG_KEYS = {
     "google_email",
     "google_password",
@@ -86,11 +89,21 @@ def load_browser_config(path: Path) -> dict[str, Any]:
     config.setdefault("stable_wait_seconds", 8)
     config.setdefault("headless", False)
     config.setdefault("share_link_required", True)
+    config.setdefault("local_clipboard_fallback", True)
     config.setdefault("selectors", {})
+    cdp_url = config.get("connect_over_cdp_url") or config.get("cdp_url")
+    if cdp_url:
+        parsed = urlparse(str(cdp_url))
+        if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+            raise SystemExit("ChatGPT browser CDP URL must be an unauthenticated local HTTP(S) URL")
+        if (parsed.hostname or "").lower() not in LOCAL_CDP_HOSTS:
+            raise SystemExit("ChatGPT browser CDP URL must point at localhost")
+        config["connect_over_cdp_url"] = str(cdp_url)
     profile_dir = config.get("chrome_user_data_dir") or config.get("user_data_dir")
-    if not profile_dir:
+    if not profile_dir and not cdp_url:
         raise SystemExit("ChatGPT browser config must set chrome_user_data_dir")
-    config["chrome_user_data_dir"] = str(Path(str(profile_dir)).expanduser().resolve())
+    if profile_dir:
+        config["chrome_user_data_dir"] = str(Path(str(profile_dir)).expanduser().resolve())
     return config
 
 
@@ -98,10 +111,12 @@ def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
     return {
         "config_path": str(config_path),
         "chrome_user_data_dir_configured": bool(config.get("chrome_user_data_dir")),
+        "connect_over_cdp_configured": bool(config.get("connect_over_cdp_url")),
         "model_label": config.get("model_label"),
         "reasoning_label": config.get("reasoning_label"),
         "response_timeout_seconds": int(config.get("response_timeout_seconds", 1800)),
         "share_link_required": bool(config.get("share_link_required", True)),
+        "local_clipboard_fallback": bool(config.get("local_clipboard_fallback", True)),
         "headless": bool(config.get("headless", False)),
     }
 
@@ -142,6 +157,25 @@ def valid_chatgpt_share_url(value: str) -> bool:
     )
 
 
+def read_local_clipboard_share_url() -> str:
+    commands = [
+        ["wl-paste", "--no-newline"],
+        ["xclip", "-selection", "clipboard", "-o"],
+        ["xsel", "--clipboard", "--output"],
+    ]
+    for command in commands:
+        if not shutil.which(command[0]):
+            continue
+        try:
+            result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=3)
+        except Exception:
+            continue
+        value = result.stdout.strip()
+        if valid_chatgpt_share_url(value):
+            return value
+    return ""
+
+
 class PlaywrightChatGPTRunner:
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
@@ -161,12 +195,19 @@ class PlaywrightChatGPTRunner:
         response_timeout = int(self.config.get("response_timeout_seconds", 1800))
         stable_wait = int(self.config.get("stable_wait_seconds", 8))
         with sync_playwright() as playwright:
-            context = playwright.chromium.launch_persistent_context(
-                self.config["chrome_user_data_dir"],
-                executable_path=self.config.get("chrome_executable_path"),
-                headless=bool(self.config.get("headless", False)),
-            )
-            page = context.pages[0] if context.pages else context.new_page()
+            browser = None
+            attached = False
+            if self.config.get("connect_over_cdp_url"):
+                attached = True
+                browser = playwright.chromium.connect_over_cdp(str(self.config["connect_over_cdp_url"]))
+                context = browser.contexts[0] if browser.contexts else browser.new_context()
+            else:
+                context = playwright.chromium.launch_persistent_context(
+                    self.config["chrome_user_data_dir"],
+                    executable_path=self.config.get("chrome_executable_path"),
+                    headless=bool(self.config.get("headless", False)),
+                )
+            page = self._select_page(context)
             page.goto(str(self.config.get("chatgpt_url")), wait_until="domcontentloaded", timeout=timeout_ms)
             self._wait_for_prompt(page, timeout_ms)
             self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
@@ -174,10 +215,20 @@ class PlaywrightChatGPTRunner:
             self._submit_prompt(page, prompt, timeout_ms)
             response_text = self._wait_for_stable_response(page, before_text, response_timeout, stable_wait)
             share_url = self._create_share_link(page, timeout_ms, PlaywrightTimeoutError)
-            context.close()
+            if not attached:
+                context.close()
         if self.config.get("share_link_required", True) and not valid_chatgpt_share_url(share_url):
             raise SystemExit("ChatGPT share-link creation failed or returned a non-ChatGPT share URL")
         return {"share_url": share_url, "response_chars": len(response_text)}
+
+    def _select_page(self, context: Any) -> Any:
+        for page in context.pages:
+            try:
+                if "chatgpt.com" in page.url or "chat.openai.com" in page.url:
+                    return page
+            except Exception:
+                continue
+        return context.pages[0] if context.pages else context.new_page()
 
     def _wait_for_prompt(self, page: Any, timeout_ms: int) -> None:
         prompt_selector = self.selector("prompt_box", "textarea, [contenteditable='true']")
@@ -240,6 +291,7 @@ class PlaywrightChatGPTRunner:
         raise SystemExit("Timed out waiting for ChatGPT response to finish")
 
     def _create_share_link(self, page: Any, timeout_ms: int, timeout_type: type[Exception]) -> str:
+        clipboard_before = read_local_clipboard_share_url() if self.config.get("local_clipboard_fallback", True) else ""
         page.locator(self.selector("share_button", "button[aria-label*='Share']")).first.click(timeout=timeout_ms)
         create_selector = self.selectors.get("create_link_button")
         if create_selector:
@@ -269,12 +321,16 @@ class PlaywrightChatGPTRunner:
                         return href
                 except Exception:
                     continue
-        try:
-            value = page.evaluate("navigator.clipboard.readText()")
-            if isinstance(value, str) and valid_chatgpt_share_url(value):
-                return value
-        except Exception:
-            pass
+        if self.config.get("local_clipboard_fallback", True):
+            value = read_local_clipboard_share_url()
+            if value:
+                body_text = ""
+                try:
+                    body_text = str(page.locator("body").inner_text(timeout=1000)).lower()
+                except Exception:
+                    pass
+                if value != clipboard_before or "link copied" in body_text or "public link copied" in body_text:
+                    return value
         return ""
 
 
