@@ -8,7 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_repository import CI_REQUIRED_COMMANDS, validate_ci_workflow, validate_repository  # noqa: E402
+from validate_repository import (  # noqa: E402
+    CI_REQUIRED_COMMANDS,
+    validate_ci_workflow,
+    validate_local_inference_peer_review_guidance,
+    validate_repository,
+)
 
 
 class ValidateRepositoryTests(unittest.TestCase):
@@ -29,6 +34,25 @@ class ValidateRepositoryTests(unittest.TestCase):
             validate_ci_workflow(errors, ci_path)
         self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[1]}", errors)
         self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[2]}", errors)
+
+    def test_local_inference_evaluator_peer_review_guidance_is_route_derived(self) -> None:
+        errors: list[str] = []
+        validate_local_inference_peer_review_guidance(
+            errors,
+            content=(
+                "python3 scripts/evaluate_return.py --file local-return.md\n"
+                "Add `--peer-review-required` only when route_work.py or evaluator policy requires it.\n"
+            ),
+        )
+        self.assertEqual(errors, [])
+
+    def test_local_inference_rejects_unconditional_peer_review_flag(self) -> None:
+        errors: list[str] = []
+        validate_local_inference_peer_review_guidance(
+            errors,
+            content="python3 scripts/evaluate_return.py --file local-return.md --peer-review-required\n",
+        )
+        self.assertTrue(any("unconditional --peer-review-required" in error for error in errors))
 
 
 if __name__ == "__main__":

@@ -459,6 +459,7 @@ def validate_repository() -> list[str]:
             "--local-ok",
             "--local-profile openshift-ai-vllm",
             "architect adjudication",
+            "Add <code>--peer-review-required</code> only when route policy",
             "reference label for public docs",
             "draft-like wording",
             "chatgpt_pro_5_5_extended_reasoning_browser",
@@ -691,6 +692,7 @@ def validate_repository() -> list[str]:
             "architect adjudication",
         ],
     )
+    validate_local_inference_peer_review_guidance(errors)
 
     validate_ci_workflow(errors)
 
@@ -729,6 +731,31 @@ def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -
     missing = [term for term in terms if term not in content]
     if missing:
         errors.append(f"{relative_path} is missing required terms: {', '.join(missing)}")
+
+
+def validate_local_inference_peer_review_guidance(
+    errors: list[str], content: str | None = None, relative_path: str = "references/local-inference.md"
+) -> None:
+    if content is None:
+        path = REPO_ROOT / relative_path
+        if not path.is_file():
+            return
+        content = path.read_text(encoding="utf-8")
+    unconditional_command = "python3 scripts/evaluate_return.py --file local-return.md --peer-review-required"
+    baseline_section = content.split("Add `--peer-review-required` only when", 1)[0]
+    if unconditional_command in baseline_section:
+        errors.append(
+            f"{relative_path} must show local-worker evaluation without unconditional --peer-review-required"
+        )
+    required_terms = [
+        "python3 scripts/evaluate_return.py --file local-return.md",
+        "Add `--peer-review-required` only when",
+        "route_work.py",
+        "evaluator policy",
+    ]
+    missing = [term for term in required_terms if term not in content]
+    if missing:
+        errors.append(f"{relative_path} is missing route-derived peer-review guidance: {', '.join(missing)}")
 
 
 def main() -> None:

@@ -96,6 +96,13 @@ Local outputs must go through:
 
 ```bash
 python3 scripts/normalize_contractor_return.py --file local-return.md --output local-return-bundle.json
+python3 scripts/evaluate_return.py --file local-return.md
+```
+
+Add `--peer-review-required` only when `route_work.py`, the Beads lane, or
+the evaluator policy says that peer review is required for that return:
+
+```bash
 python3 scripts/evaluate_return.py --file local-return.md --peer-review-required
 ```
 
