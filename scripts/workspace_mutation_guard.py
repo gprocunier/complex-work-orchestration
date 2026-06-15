@@ -17,6 +17,11 @@ def main() -> None:
     parser.add_argument("--compare", metavar="BEFORE_JSON", help="Compare a prior snapshot with current state.")
     parser.add_argument("--allow-path", action="append", default=[], help="Path prefix allowed to change.")
     parser.add_argument(
+        "--include-untracked",
+        action="store_true",
+        help="Include untracked files in the snapshot/compare. Default is tracked files only.",
+    )
+    parser.add_argument(
         "--require-clean",
         action="store_true",
         help="Treat any pre-existing tracked-file change in the before snapshot as unexpected.",
@@ -28,10 +33,10 @@ def main() -> None:
         raise SystemExit("choose exactly one of --snapshot or --compare BEFORE_JSON")
 
     if args.snapshot:
-        result = capture_tracked_workspace_state(Path(args.workspace_root))
+        result = capture_tracked_workspace_state(Path(args.workspace_root), include_untracked=args.include_untracked)
     else:
         before = json.loads(Path(args.compare).read_text(encoding="utf-8"))
-        after = capture_tracked_workspace_state(Path(args.workspace_root))
+        after = capture_tracked_workspace_state(Path(args.workspace_root), include_untracked=args.include_untracked)
         result = diff_workspace_state(
             before,
             after,

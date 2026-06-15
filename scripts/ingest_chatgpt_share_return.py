@@ -44,12 +44,16 @@ def locate_reader(explicit: str | None = None) -> Path:
 
 
 def run_reader(reader: Path, source: str, timeout: int) -> dict[str, Any]:
-    result = subprocess.run(
-        [sys.executable, str(reader), source, "--timeout", str(timeout), "--format", "json"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, str(reader), source, "--timeout", str(timeout), "--format", "json"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"ChatGPT share extraction timed out after {timeout}s") from exc
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip() or f"reader exited {result.returncode}"
         raise SystemExit(f"ChatGPT share extraction failed: {message}")

@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import classify_work, load_policy  # noqa: E402
+from orchestration_lib import classify_work, load_policy, validate_peer_review_controls  # noqa: E402
 
 
 class ProviderPolicyTests(unittest.TestCase):
@@ -23,6 +23,34 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertTrue(route["peer_review_required"])
         self.assertGreaterEqual(route["peer_review_count"], 1)
         self.assertIn("provider_key", route["selected_executor"])
+
+    def test_peer_review_controls_enforce_count_and_provider_diversity(self) -> None:
+        result = validate_peer_review_controls(
+            primary_provider_family="openai",
+            peer_reviews=[{"status": "passed", "provider_family": "openai"}],
+            minimum_peer_reviews=1,
+            provider_diversity_required=True,
+        )
+        self.assertFalse(result["valid"])
+        self.assertIn("provider diversity not satisfied", result["errors"])
+
+        result = validate_peer_review_controls(
+            primary_provider_family="openai",
+            peer_reviews=[{"status": "passed", "provider_family": "anthropic"}],
+            minimum_peer_reviews=1,
+            provider_diversity_required=True,
+        )
+        self.assertTrue(result["valid"])
+
+    def test_peer_review_controls_require_minimum_passed_reviews(self) -> None:
+        result = validate_peer_review_controls(
+            primary_provider_family="openai",
+            peer_reviews=[{"status": "pending", "provider_family": "anthropic"}],
+            minimum_peer_reviews=1,
+            provider_diversity_required=False,
+        )
+        self.assertFalse(result["valid"])
+        self.assertIn("minimum peer reviews not satisfied: required=1 passed=0", result["errors"])
 
     def test_local_secure_reviewer_is_repo_read_only_and_not_codex_pickup(self) -> None:
         executor = load_policy("executor-registry")["executors"]["local_secure_review_worker"]

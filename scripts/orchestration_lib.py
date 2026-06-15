@@ -426,6 +426,55 @@ def route_requires_peer_review(
     return bool(provider_conflict_domains and policy.get("required_for_provider_conflict", True))
 
 
+def validate_peer_review_controls(
+    *,
+    primary_provider_family: str | None = None,
+    peer_reviews: list[dict[str, Any]] | None = None,
+    minimum_peer_reviews: int | None = None,
+    provider_diversity_required: bool | None = None,
+) -> dict[str, Any]:
+    policy_defaults = peer_review_policy().get("defaults", {})
+    minimum = int(
+        minimum_peer_reviews
+        if minimum_peer_reviews is not None
+        else policy_defaults.get("minimum_peer_reviews", 1)
+    )
+    diversity_required = bool(
+        provider_diversity_required
+        if provider_diversity_required is not None
+        else policy_defaults.get("provider_diversity_required", True)
+    )
+    reviews = [review for review in (peer_reviews or []) if isinstance(review, dict)]
+    passed = [
+        review
+        for review in reviews
+        if str(review.get("status", "")).strip().lower() in {"passed", "pass", "approved", "complete", "completed"}
+    ]
+    errors: list[str] = []
+    if len(passed) < minimum:
+        errors.append(f"minimum peer reviews not satisfied: required={minimum} passed={len(passed)}")
+    primary = (primary_provider_family or "").strip().lower()
+    passed_families = {
+        str(review.get("provider_family", "") or review.get("provider", "")).strip().lower()
+        for review in passed
+        if str(review.get("provider_family", "") or review.get("provider", "")).strip()
+    }
+    if diversity_required and primary:
+        if not passed_families:
+            errors.append("provider diversity cannot be verified: peer review provider_family missing")
+        elif not any(family != primary for family in passed_families):
+            errors.append("provider diversity not satisfied")
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "minimum_peer_reviews": minimum,
+        "passed_peer_reviews": len(passed),
+        "provider_diversity_required": diversity_required,
+        "primary_provider_family": primary_provider_family,
+        "passed_provider_families": sorted(passed_families),
+    }
+
+
 def share_boundary_disclosure_stage(share_boundary: str) -> str:
     return str(boundary_config(share_boundary).get("disclosure_stage", share_boundary))
 
@@ -2271,9 +2320,9 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         errors.append("packet_sha256 does not match packet payload")
 
     forbidden_fields = set(boundary.get("forbidden_fields", [])) if boundary else set()
-    forbidden_hits = find_forbidden_fields(packet.get("bead_summary", {}), forbidden_fields)
+    forbidden_hits = find_forbidden_fields(packet, forbidden_fields)
     if forbidden_hits:
-        errors.append("bead_summary contains forbidden boundary fields: " + ", ".join(sorted(forbidden_hits)))
+        errors.append("packet contains forbidden boundary fields: " + ", ".join(sorted(forbidden_hits)))
 
     excluded_types = {
         artifact.get("type")
@@ -2951,12 +3000,26 @@ def section_lookup_key(label: str) -> str:
 
 
 def return_section_aliases() -> dict[str, str]:
+    policy = load_policy("acceptance-policy")
     canonical: dict[str, str] = {}
-    for section in load_policy("acceptance-policy").get("contractor_return_required_sections", []):
+    canonical_sections = list(policy.get("contractor_return_required_sections", [])) + list(RETURN_CONTROL_SECTIONS)
+    for section in policy.get("contractor_return_required_sections", []):
         canonical[section_lookup_key(section)] = section
     for section in RETURN_CONTROL_SECTIONS:
         canonical[section_lookup_key(section)] = section
-    for alias, target in RETURN_SECTION_ALIASES.items():
+    alias_source = str(policy.get("return_section_alias_source", "")).strip().lower()
+    if alias_source == "legacy":
+        configured_aliases = RETURN_SECTION_ALIASES
+    elif alias_source == "policy":
+        configured_aliases = policy.get("return_section_aliases")
+        if not isinstance(configured_aliases, dict):
+            raise SystemExit("acceptance-policy.yaml return_section_alias_source=policy requires return_section_aliases")
+    else:
+        raise SystemExit("acceptance-policy.yaml must set return_section_alias_source to 'policy' or 'legacy'")
+    valid_targets = {section_lookup_key(section) for section in canonical_sections}
+    for alias, target in configured_aliases.items():
+        if section_lookup_key(str(target)) not in valid_targets:
+            raise SystemExit(f"acceptance-policy.yaml alias {alias!r} points at unknown return section {target!r}")
         canonical[section_lookup_key(alias)] = target
     return canonical
 
@@ -3054,10 +3117,37 @@ def nonempty_work_field(value: str) -> bool:
     return bool(value.strip()) and not negative_field(value)
 
 
+def classify_patch_authorization(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return "absent"
+    proposal_pattern = (
+        r"\b(no direct|proposal only|diff only|patch proposal only|proposed patch only|"
+        r"not a direct mutation|no direct workspace mutation)\b"
+    )
+    deny_pattern = (
+        r"\b(unauthorized|unapproved|without approval|not authorized|not approved|not requested|not used|"
+        r"no patch access|not permitted|forbidden)\b"
+    )
+    allow_pattern = (
+        r"\b(explicit(?:ly)?\s+)?(authorized|approved)\b|"
+        r"\bdirect workspace mutation\s+(authorized|approved)\b|"
+        r"\bpatch access\s+(authorized|approved)\b|"
+        r"\b(user|operator)\s+(approved|authorized)\b"
+    )
+    if re.search(proposal_pattern, normalized, re.I):
+        return "proposal-only"
+    if negative_field(normalized) or re.search(deny_pattern, normalized, re.I):
+        return "explicit-deny"
+    if re.search(allow_pattern, normalized, re.I):
+        return "explicit-allow"
+    if affirmative_field(normalized):
+        return "ambiguous"
+    return "absent"
+
+
 def direct_mutation_authorized(value: str) -> bool:
-    if not affirmative_field(value):
-        return False
-    return not bool(re.search(r"\b(no direct|proposal only|diff only|not requested|not used|unauthorized|unapproved|without approval)\b", value, re.I))
+    return classify_patch_authorization(value) == "explicit-allow"
 
 
 def patch_proposal_evidence(sections: dict[str, str]) -> bool:
@@ -3096,30 +3186,36 @@ def tracked_status_map(lines: list[str]) -> dict[str, str]:
     return {status_path(line): line for line in lines if line.strip()}
 
 
-def capture_tracked_workspace_state(cwd: Path | str = REPO_ROOT) -> dict[str, Any]:
+def capture_tracked_workspace_state(cwd: Path | str = REPO_ROOT, *, include_untracked: bool = False) -> dict[str, Any]:
     root = Path(cwd)
+    untracked_flag = "--untracked-files=all" if include_untracked else "--untracked-files=no"
+    scope = "tracked-and-untracked" if include_untracked else "tracked"
     result = subprocess.run(
-        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+        ["git", "-C", str(root), "status", "--porcelain", untracked_flag],
         check=False,
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         return {
-            "workspace_state_type": "tracked-git-status",
+            "workspace_state_type": "git-status",
             "version": 1,
             "cwd": str(root),
             "is_git_repo": False,
+            "status_scope": scope,
+            "include_untracked": bool(include_untracked),
             "error": result.stderr.strip() or result.stdout.strip(),
             "tracked_status": [],
             "tracked_status_sha256": artifact_hash(""),
         }
     lines = sorted(line for line in result.stdout.splitlines() if line.strip())
     return {
-        "workspace_state_type": "tracked-git-status",
+        "workspace_state_type": "git-status",
         "version": 1,
         "cwd": str(root),
         "is_git_repo": True,
+        "status_scope": scope,
+        "include_untracked": bool(include_untracked),
         "tracked_status": lines,
         "tracked_status_sha256": artifact_hash("\n".join(lines)),
     }
@@ -3167,9 +3263,12 @@ def diff_workspace_state(
             {"path": status_path(line), "before": line, "after": line}
             for line in list(before.get("tracked_status", []))
         ] + unexpected
+    include_untracked = bool(before.get("include_untracked") or after.get("include_untracked"))
     return {
-        "workspace_mutation_report_type": "tracked-git-status-diff",
+        "workspace_mutation_report_type": "git-status-diff",
         "version": 1,
+        "status_scope": "tracked-and-untracked" if include_untracked else "tracked",
+        "include_untracked": include_untracked,
         "before": before,
         "after": after,
         "allowed_paths": list(allowed_paths or []),
@@ -3242,16 +3341,17 @@ def make_acceptance_decision(
         hard_disqualifiers.append("boundary violation")
 
     patch_authorization = section_value(sections, "Patch authorization")
+    patch_authorization_state = classify_patch_authorization(patch_authorization)
     files_changed = section_value(sections, "Files changed")
     commands_run = section_value(sections, "Commands run")
     if share_boundary == "patch-branch":
         if not patch_proposal_evidence(sections) and not (nonempty_work_field(files_changed) and nonempty_work_field(commands_run)):
             hard_disqualifiers.append("patch branch return missing patch proposal or direct-change evidence")
-        elif nonempty_work_field(files_changed) and not patch_proposal_evidence(sections) and not direct_mutation_authorized(patch_authorization):
+        elif nonempty_work_field(files_changed) and not patch_proposal_evidence(sections) and patch_authorization_state != "explicit-allow":
             hard_disqualifiers.append("patch branch direct mutation missing explicit authorization")
-    elif nonempty_work_field(files_changed) and not direct_mutation_authorized(patch_authorization) and not patch_proposal_evidence(sections):
+    elif nonempty_work_field(files_changed) and patch_authorization_state != "explicit-allow":
         hard_disqualifiers.append("unapproved patch or repo access")
-    if affirmative_field(patch_authorization) and re.search(r"\b(unapproved|unauthorized|without approval)\b", patch_authorization, re.I):
+    if patch_authorization_state == "explicit-deny" and affirmative_field(patch_authorization):
         hard_disqualifiers.append("unapproved patch or repo access")
     unexpected_mutations = workspace_unexpected_mutations(workspace_mutation)
     workspace_quarantine = bool(unexpected_mutations and mutation_strategy == "reject")
@@ -3316,12 +3416,12 @@ def make_acceptance_decision(
         or malpractice["malpractice_review_recommended"]
         or provider_conflict_domains
     )
+    peer_pending_block = peer_required and peer_review_status in {"not-run", "pending"}
     peer_disposition = section_value(sections, "Peer-review disposition", "Peer review disposition")
     if peer_required and re.search(r"\b(not required|not needed|unnecessary|no peer review required|no peer review needed)\b", peer_disposition, re.I):
         hard_disqualifiers.append("peer review incorrectly dismissed")
-    if peer_required and peer_review_status in {"not-run", "pending"}:
-        score -= 5
-        penalty_reasons.append("peer review required before implementation use")
+    if peer_pending_block:
+        hard_disqualifiers.append("peer review required before implementation use")
     if peer_required and peer_review_status in {"failed", "disagreement", "blocked"}:
         hard_disqualifiers.append("peer review failed or blocked")
 
@@ -3353,10 +3453,10 @@ def make_acceptance_decision(
     )
     if verdict == "quarantine":
         recommended_disposition = "quarantine-and-adjudicate"
+    elif peer_pending_block and set(hard_disqualifiers) <= {"peer review required before implementation use"}:
+        recommended_disposition = "run-peer-review"
     elif hard_disqualifiers:
         recommended_disposition = "reject"
-    elif peer_required and peer_review_status in {"not-run", "pending"}:
-        recommended_disposition = "run-peer-review"
     elif human_adjudication_required:
         recommended_disposition = "architect-adjudication"
     elif verdict == "accept":
@@ -3395,6 +3495,7 @@ def make_acceptance_decision(
         "signal_categories": signal_categories,
         "peer_review_required": peer_required,
         "peer_review_status": peer_review_status,
+        "patch_authorization_state": patch_authorization_state,
         "provider_conflict_domains": provider_conflict_domains or [],
         "workspace_mutation": workspace_mutation,
         "human_adjudication_required": human_adjudication_required,

@@ -46,6 +46,29 @@ class WorkspaceMutationGuardTests(unittest.TestCase):
         self.assertFalse(report["unexpected_mutation_detected"])
         self.assertEqual(report["allowed_mutations"][0]["path"], "tracked.txt")
 
+    def test_untracked_files_are_ignored_by_default(self) -> None:
+        root = self.make_repo()
+        before = capture_tracked_workspace_state(root)
+        (root / "new.txt").write_text("untracked\n", encoding="utf-8")
+        after = capture_tracked_workspace_state(root)
+        report = diff_workspace_state(before, after)
+
+        self.assertEqual(report["status_scope"], "tracked")
+        self.assertFalse(report["mutation_detected"])
+        self.assertFalse(report["unexpected_mutation_detected"])
+
+    def test_include_untracked_detects_untracked_files(self) -> None:
+        root = self.make_repo()
+        before = capture_tracked_workspace_state(root, include_untracked=True)
+        (root / "new.txt").write_text("untracked\n", encoding="utf-8")
+        after = capture_tracked_workspace_state(root, include_untracked=True)
+        report = diff_workspace_state(before, after)
+
+        self.assertEqual(report["status_scope"], "tracked-and-untracked")
+        self.assertTrue(report["mutation_detected"])
+        self.assertTrue(report["unexpected_mutation_detected"])
+        self.assertEqual(report["unexpected_mutations"][0]["path"], "new.txt")
+
 
 if __name__ == "__main__":
     unittest.main()

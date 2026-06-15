@@ -11,7 +11,7 @@ import subprocess
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt
 from orchestration_lib import (
@@ -50,6 +50,14 @@ FORBIDDEN_CONFIG_KEYS = {
     "token",
     "token_file",
 }
+
+
+class ChatGPTBrowserReviewError(RuntimeError):
+    def __init__(self, stage: str, reason: str, browser_result: dict[str, Any] | None = None) -> None:
+        super().__init__(reason)
+        self.stage = stage
+        self.reason = reason
+        self.browser_result = browser_result or {}
 
 
 def now_utc() -> str:
@@ -201,6 +209,7 @@ class PlaywrightChatGPTRunner:
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
         self.selectors = dict(config.get("selectors") or {})
+        self.last_share_link_method: str | None = None
 
     def selector(self, key: str, default: str) -> str:
         return str(self.selectors.get(key) or default)
@@ -245,6 +254,10 @@ class PlaywrightChatGPTRunner:
         timeout_ms = int(self.config.get("page_timeout_seconds", 30)) * 1000
         response_timeout = int(self.config.get("response_timeout_seconds", 1800))
         stable_wait = int(self.config.get("stable_wait_seconds", 8))
+        stage = "browser-start"
+        model_attestation: dict[str, Any] | None = None
+        share_url = ""
+        response_text = ""
         with sync_playwright() as playwright:
             browser = None
             attached = False
@@ -258,20 +271,67 @@ class PlaywrightChatGPTRunner:
                     executable_path=self.config.get("chrome_executable_path"),
                     headless=bool(self.config.get("headless", False)),
                 )
-            page = self._select_page(context)
-            page.goto(str(self.config.get("chatgpt_url")), wait_until="domcontentloaded", timeout=timeout_ms)
-            self._wait_for_prompt(page, timeout_ms)
-            self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
-            model_attestation = self._confirm_configured_labels(page, timeout_ms)
-            before_text = self._conversation_text(page)
-            self._submit_prompt(page, prompt, timeout_ms)
-            response_text = self._wait_for_stable_response(page, before_text, response_timeout, stable_wait)
-            share_url = self._create_share_link(page, timeout_ms, PlaywrightTimeoutError)
-            if not attached:
-                context.close()
+            try:
+                stage = "page-load"
+                page = self._select_page(context)
+                page.goto(str(self.config.get("chatgpt_url")), wait_until="domcontentloaded", timeout=timeout_ms)
+                stage = "prompt-ready"
+                self._wait_for_prompt(page, timeout_ms)
+                stage = "model-selection"
+                self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
+                stage = "model-confirmation"
+                model_attestation = self._confirm_configured_labels(page, timeout_ms)
+                before_text = self._conversation_text(page)
+                stage = "prompt-submit"
+                self._submit_prompt(page, prompt, timeout_ms)
+                stage = "response-wait"
+                response_text = self._wait_for_stable_response(page, before_text, response_timeout, stable_wait)
+                stage = "share-link"
+                share_url = self._create_share_link(page, timeout_ms, PlaywrightTimeoutError)
+            except ChatGPTBrowserReviewError:
+                raise
+            except SystemExit as exc:
+                raise ChatGPTBrowserReviewError(
+                    stage,
+                    str(exc),
+                    {
+                        "share_url": share_url,
+                        "response_chars": len(response_text),
+                        "model_attestation": model_attestation,
+                        "share_link_method": self.last_share_link_method,
+                    },
+                ) from exc
+            except Exception as exc:
+                raise ChatGPTBrowserReviewError(
+                    stage,
+                    str(exc),
+                    {
+                        "share_url": share_url,
+                        "response_chars": len(response_text),
+                        "model_attestation": model_attestation,
+                        "share_link_method": self.last_share_link_method,
+                    },
+                ) from exc
+            finally:
+                if not attached:
+                    context.close()
         if self.config.get("share_link_required", True) and not valid_chatgpt_share_url(share_url):
-            raise SystemExit("ChatGPT share-link creation failed or returned a non-ChatGPT share URL")
-        return {"share_url": share_url, "response_chars": len(response_text), "model_attestation": model_attestation}
+            raise ChatGPTBrowserReviewError(
+                "share-link",
+                "ChatGPT share-link creation failed or returned a non-ChatGPT share URL",
+                {
+                    "share_url": share_url,
+                    "response_chars": len(response_text),
+                    "model_attestation": model_attestation,
+                    "share_link_method": self.last_share_link_method,
+                },
+            )
+        return {
+            "share_url": share_url,
+            "response_chars": len(response_text),
+            "model_attestation": model_attestation,
+            "share_link_method": self.last_share_link_method,
+        }
 
     def _select_page(self, context: Any) -> Any:
         for page in context.pages:
@@ -471,15 +531,12 @@ class PlaywrightChatGPTRunner:
             pass
 
     def _create_share_link(self, page: Any, timeout_ms: int, timeout_type: type[Exception]) -> str:
+        self.last_share_link_method = None
         clipboard_before = read_local_clipboard_share_url() if self.config.get("local_clipboard_fallback", True) else ""
         self._click_scroll_to_bottom_if_present(page)
         self._wait_for_share_ready(page, timeout_ms)
         self._click_scroll_to_bottom_if_present(page)
-        share_button = page.locator(self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")).first
-        try:
-            share_button.click(timeout=timeout_ms)
-        except timeout_type:
-            share_button.click(timeout=timeout_ms, force=True)
+        self._click_share_button(page, timeout_ms, timeout_type)
         create_selector = self.selectors.get("create_link_button")
         if create_selector:
             try:
@@ -492,22 +549,12 @@ class PlaywrightChatGPTRunner:
                 page.locator(str(copy_selector)).first.click(timeout=timeout_ms)
             except timeout_type:
                 pass
-        for selector in [
-            self.selector("share_url", "input[value*='chatgpt.com'], textarea"),
-            "a[href*='chatgpt.com/s/'], a[href*='chatgpt.com/share/']",
-        ]:
-            try:
-                locator = page.locator(selector).first
-                value = locator.input_value(timeout=3000)
-                if valid_chatgpt_share_url(value):
-                    return value
-            except Exception:
-                try:
-                    href = locator.get_attribute("href", timeout=3000)
-                    if href and valid_chatgpt_share_url(href):
-                        return href
-                except Exception:
-                    continue
+        share_url = self._extract_share_url_from_page(page)
+        if share_url:
+            return share_url
+        share_url = self._try_social_share_url(page, timeout_ms, timeout_type)
+        if share_url:
+            return share_url
         if self.config.get("local_clipboard_fallback", True):
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
@@ -519,8 +566,110 @@ class PlaywrightChatGPTRunner:
                     except Exception:
                         pass
                     if value != clipboard_before or "link copied" in body_text or "public link copied" in body_text:
+                        self.last_share_link_method = "clipboard"
                         return value
                 time.sleep(1)
+        return ""
+
+    def _click_share_button(self, page: Any, timeout_ms: int, timeout_type: type[Exception]) -> None:
+        selector = self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")
+        locator = page.locator(selector)
+        candidates: list[Any] = []
+        try:
+            count = int(locator.count())
+            if count > 1:
+                candidates.append(locator.nth(count - 1))
+        except Exception:
+            pass
+        for attribute in ["last", "first"]:
+            try:
+                candidates.append(getattr(locator, attribute))
+            except Exception:
+                pass
+        candidates.append(locator)
+        seen: set[int] = set()
+        for candidate in candidates:
+            marker = id(candidate)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            try:
+                candidate.click(timeout=timeout_ms)
+                return
+            except timeout_type:
+                try:
+                    candidate.click(timeout=timeout_ms, force=True)
+                    return
+                except Exception:
+                    continue
+            except Exception:
+                continue
+        raise ChatGPTBrowserReviewError("share-link", "ChatGPT share button could not be clicked")
+
+    def _extract_share_url_from_page(self, page: Any) -> str:
+        for selector, method in [
+            (self.selector("share_url", "input[value*='chatgpt.com'], textarea"), "dom-input"),
+            ("a[href*='chatgpt.com/s/'], a[href*='chatgpt.com/share/']", "dom-anchor"),
+        ]:
+            try:
+                locator = page.locator(selector).first
+                value = locator.input_value(timeout=3000)
+                if valid_chatgpt_share_url(value):
+                    self.last_share_link_method = method
+                    return value
+            except Exception:
+                try:
+                    href = locator.get_attribute("href", timeout=3000)
+                    if href and valid_chatgpt_share_url(href):
+                        self.last_share_link_method = method
+                        return href
+                except Exception:
+                    continue
+        return ""
+
+    def _try_social_share_url(self, page: Any, timeout_ms: int, timeout_type: type[Exception]) -> str:
+        selector = self.selector(
+            "social_share_button",
+            "a[href*='twitter.com/intent'], a[href*='x.com/intent'], button:has-text('X'), a:has-text('X')",
+        )
+        context = getattr(page, "context", None)
+        if context is None or not hasattr(context, "expect_page"):
+            return ""
+        try:
+            with context.expect_page(timeout=min(timeout_ms, 5000)) as popup_info:
+                page.locator(selector).first.click(timeout=min(timeout_ms, 5000))
+            popup = popup_info.value
+            share_url = self._share_url_from_social_intent(str(getattr(popup, "url", "") or ""))
+            try:
+                popup.close()
+            except Exception:
+                pass
+            if share_url:
+                self.last_share_link_method = "social-intent"
+                return share_url
+        except timeout_type:
+            return ""
+        except Exception:
+            return ""
+        return ""
+
+    def _share_url_from_social_intent(self, value: str) -> str:
+        parsed = urlparse(value)
+        query = parse_qs(parsed.query)
+        for key in ["url", "u", "text"]:
+            for candidate in query.get(key, []):
+                if valid_chatgpt_share_url(candidate):
+                    return candidate
+                match = next(
+                    (
+                        part
+                        for part in candidate.replace("\n", " ").split()
+                        if valid_chatgpt_share_url(part.strip(".,;()[]<>"))
+                    ),
+                    "",
+                )
+                if match:
+                    return match.strip(".,;()[]<>")
         return ""
 
 
@@ -533,12 +682,16 @@ def build_result(
     browser_result: dict[str, Any] | None,
     status: str,
     error: str | None = None,
+    failure_stage: str | None = None,
+    failure_reason: str | None = None,
 ) -> dict[str, Any]:
     return {
         "dispatch_result_type": "chatgpt-browser-review-dispatch",
         "version": 1,
         "status": status,
         "error": error,
+        "failure_stage": failure_stage or (browser_result or {}).get("failure_stage"),
+        "failure_reason": failure_reason or (browser_result or {}).get("failure_reason"),
         "generated_at": now_utc(),
         "dispatch_id": metadata.get("dispatch_id"),
         "bead_id": metadata.get("bead_id"),
@@ -550,6 +703,7 @@ def build_result(
         "prompt_sha256": artifact_hash(prompt),
         "config": config_summary(config, config_path),
         "share_url": (browser_result or {}).get("share_url"),
+        "share_link_method": (browser_result or {}).get("share_link_method"),
         "response_chars": (browser_result or {}).get("response_chars"),
         "model_attestation": (browser_result or {}).get("model_attestation"),
     }
@@ -593,15 +747,33 @@ def main() -> None:
             status="model-confirmed",
         )
     else:
-        browser_result = PlaywrightChatGPTRunner(config).run(prompt)
-        result = build_result(
-            prompt=prompt,
-            metadata=metadata,
-            config=config,
-            config_path=config_path,
-            browser_result=browser_result,
-            status="completed",
-        )
+        exit_message = ""
+        try:
+            browser_result = PlaywrightChatGPTRunner(config).run(prompt)
+            result = build_result(
+                prompt=prompt,
+                metadata=metadata,
+                config=config,
+                config_path=config_path,
+                browser_result=browser_result,
+                status="completed",
+            )
+        except ChatGPTBrowserReviewError as exc:
+            browser_result = dict(exc.browser_result)
+            browser_result["failure_stage"] = exc.stage
+            browser_result["failure_reason"] = exc.reason
+            result = build_result(
+                prompt=prompt,
+                metadata=metadata,
+                config=config,
+                config_path=config_path,
+                browser_result=browser_result,
+                status="failed",
+                error=exc.reason,
+                failure_stage=exc.stage,
+                failure_reason=exc.reason,
+            )
+            exit_message = f"{exc.stage}: {exc.reason}"
     if args.audit:
         record_audit_event(
             {
@@ -617,8 +789,10 @@ def main() -> None:
                 "packet_sha256": result["packet_sha256"],
                 "prompt_sha256": result["prompt_sha256"],
                 "share_url_present": bool(result.get("share_url")),
+                "share_link_method": result.get("share_link_method"),
                 "model_attestation_present": bool(result.get("model_attestation")),
                 "status": result["status"],
+                "failure_stage": result.get("failure_stage"),
             }
         )
     rendered = json.dumps(result, indent=2, sort_keys=True)
@@ -626,6 +800,8 @@ def main() -> None:
         Path(args.output).write_text(rendered + "\n", encoding="utf-8")
     else:
         print(rendered)
+    if "exit_message" in locals() and exit_message:
+        raise SystemExit(exit_message)
 
 
 if __name__ == "__main__":

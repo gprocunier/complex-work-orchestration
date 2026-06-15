@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from chatgpt_browser_review import (  # noqa: E402
+    ChatGPTBrowserReviewError,
     DEFAULT_MODEL_LABEL,
     DEFAULT_REASONING_LABEL,
     EXECUTOR_KEY,
@@ -138,6 +139,11 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertTrue(valid_chatgpt_share_url("https://chatgpt.com/s/t_abc"))
         self.assertTrue(valid_chatgpt_share_url("https://chatgpt.com/share/abc"))
         self.assertFalse(valid_chatgpt_share_url("https://example.com/s/t_abc"))
+
+    def test_social_intent_parser_extracts_chatgpt_share_url(self) -> None:
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
+        value = "https://twitter.com/intent/tweet?url=https%3A%2F%2Fchatgpt.com%2Fs%2Ft_abc"
+        self.assertEqual(runner._share_url_from_social_intent(value), "https://chatgpt.com/s/t_abc")
 
     def test_create_share_link_does_not_read_clipboard(self) -> None:
         class FakeLocator:
@@ -441,6 +447,47 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             )
         self.assertEqual(metadata["executor"], EXECUTOR_KEY)
         self.assertEqual(result["share_url"], "https://chatgpt.com/s/t_abc")
+        self.assertNotIn("Review this final plan.", json.dumps(result))
+
+    def test_failed_live_cli_writes_structured_failure_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            config = self.write_config(tmp)
+            prompt = tmp / "prompt.md"
+            output = tmp / "result.json"
+            prompt.write_text("Review this final plan.", encoding="utf-8")
+            failure = ChatGPTBrowserReviewError(
+                "share-link",
+                "ChatGPT share-link creation failed",
+                {
+                    "response_chars": 123,
+                    "share_link_method": "social-intent",
+                    "model_attestation": {"required": True, "status": "confirmed", "labels": {}},
+                },
+            )
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "chatgpt_browser_review.py",
+                    "--prompt-file",
+                    str(prompt),
+                    "--config",
+                    str(config),
+                    "--output",
+                    str(output),
+                    "--no-audit",
+                ],
+            ):
+                with patch.object(PlaywrightChatGPTRunner, "run", side_effect=failure):
+                    import chatgpt_browser_review
+
+                    with self.assertRaises(SystemExit):
+                        chatgpt_browser_review.main()
+            result = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["failure_stage"], "share-link")
+        self.assertEqual(result["share_link_method"], "social-intent")
         self.assertNotIn("Review this final plan.", json.dumps(result))
 
     def test_dry_run_cli_validates_config_without_audit(self) -> None:

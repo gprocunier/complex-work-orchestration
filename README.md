@@ -245,7 +245,9 @@ binding, and expert profile for outside or local review.
   contractor-return template for evaluation.
 - `scripts/workspace_mutation_guard.py`: snapshot and compare tracked git state
   around tool-running external CLIs so unexpected checkout mutation becomes
-  evaluation evidence instead of an unnoticed side effect.
+  evaluation evidence instead of an unnoticed side effect. Pass
+  `--include-untracked` when newly created untracked files should also block
+  acceptance.
 - `scripts/evaluate_return.py`: check contractor returns for required sections,
   sabotage or malpractice signals, peer-review disposition, and optional
   workspace mutation reports.
@@ -1073,6 +1075,10 @@ In patch-branch mode, the expected artifact is still a reviewed proposal unless
 direct workspace mutation is separately authorized. For tool-running CLIs such
 as `agy -p` or `claude -p`, capture tracked workspace state around the run when
 the contractor can see a checkout:
+
+By default the guard records tracked-file state only. Add
+`--include-untracked` to both commands when a contractor CLI may create new
+files and those files should count as unauthorized workspace mutation.
 
 For `redacted-packet` contracts, run the external CLI from a neutral directory
 unless the CLI is proven unable to inspect the current checkout. If a return

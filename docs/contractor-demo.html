@@ -207,7 +207,9 @@ python3 scripts/dispatch_work.py \
               tool supports it. For <code>claude -p</code>, make the prompt
               explicit about the branch, allowed paths, and command boundary.
               Capture tracked workspace state before and after tool-running
-              contractors so unexpected mutation is review evidence.
+              contractors so unexpected mutation is review evidence. Add
+              <code>--include-untracked</code> to both guard commands when new
+              untracked files should count as mutation.
             </p>
             <pre><code>python3 scripts/workspace_mutation_guard.py \
   --snapshot \

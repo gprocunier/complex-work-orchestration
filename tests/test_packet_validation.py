@@ -40,6 +40,12 @@ class PacketValidationTests(unittest.TestCase):
         errors = validate_contractor_packet(rehash(packet))
         self.assertTrue(any("forbidden boundary fields" in error for error in errors))
 
+    def test_rejects_forbidden_fields_nested_outside_bead_summary(self) -> None:
+        packet = base_packet()
+        packet["selected_snippets"][0]["metadata"] = {"credentials": "must not be shared"}
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("selected_snippets[0].metadata.credentials" in error for error in errors))
+
     def test_rejects_missing_mandatory_exclusions(self) -> None:
         packet = base_packet()
         packet["excluded_artifacts"] = [

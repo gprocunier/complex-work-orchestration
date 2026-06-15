@@ -198,7 +198,10 @@ python3 scripts/dispatch_work.py \
             </p>
             <p>
               Before running, capture the workspace state to verify the local
-              worker did not perform unauthorized mutations.
+              worker did not perform unauthorized mutations. The guard is
+              tracked-only by default; add <code>--include-untracked</code> to
+              both commands when newly created files should also block
+              acceptance.
             </p>
             <pre><code>python3 scripts/workspace_mutation_guard.py \
   --snapshot \

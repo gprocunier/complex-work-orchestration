@@ -17,6 +17,25 @@
     "Recommended next bead",
     "Escalation needed"
   ],
+  "return_section_alias_source": "policy",
+  "return_section_aliases": {
+    "share boundary conformance": "Share-boundary conformance",
+    "peer review disposition": "Peer-review disposition",
+    "attestation repro note": "Attestation or reproducibility note",
+    "attestation reproducibility note": "Attestation or reproducibility note",
+    "attestation or reproduction note": "Attestation or reproducibility note",
+    "risks gaps": "Risks or gaps",
+    "risks and gaps": "Risks or gaps",
+    "recommended next Bead": "Recommended next bead",
+    "recommended next action": "Recommended next bead",
+    "secret spill": "Secret or personal-data spill",
+    "personal data spill": "Secret or personal-data spill",
+    "secret or personal data spill": "Secret or personal-data spill",
+    "provider limitations": "Provider policy limitations",
+    "policy limitations": "Provider policy limitations",
+    "patch branch": "Patch proposal",
+    "patch diff": "Patch proposal"
+  },
   "hard_disqualifiers": [
     "boundary violation",
     "unapproved patch or repo access",

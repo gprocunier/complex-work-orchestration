@@ -31,6 +31,7 @@
     "signal_categories": {"type": "array", "items": {"type": "string"}},
     "peer_review_required": {"type": "boolean"},
     "peer_review_status": {"enum": ["not-run", "pending", "passed", "failed", "disagreement", "blocked"]},
+    "patch_authorization_state": {"enum": ["explicit-allow", "explicit-deny", "proposal-only", "ambiguous", "absent"]},
     "provider_conflict_domains": {"type": "array", "items": {"type": "string"}},
     "workspace_mutation": {"type": ["object", "null"]},
     "human_adjudication_required": {"type": "boolean"},

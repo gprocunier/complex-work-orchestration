@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -55,6 +56,19 @@ class ChatGPTShareIngestTests(unittest.TestCase):
         self.assertEqual(parsed["messages"][0]["text"], "Plan looks ready.")
         self.assertIn("--format", mocked.call_args.args[0])
         self.assertIn("json", mocked.call_args.args[0])
+        self.assertEqual(mocked.call_args.kwargs["timeout"], 30)
+
+    def test_run_reader_times_out_wedged_reader(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            reader = Path(tmpdir) / "reader.py"
+            reader.write_text("# test\n", encoding="utf-8")
+            with patch(
+                "ingest_chatgpt_share_return.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["reader.py"], 1),
+            ):
+                with self.assertRaises(SystemExit) as exc:
+                    run_reader(reader, "https://chatgpt.com/s/t_abc", 1)
+        self.assertIn("timed out", str(exc.exception))
 
     def test_extract_assistant_text_prefers_last_assistant_message(self) -> None:
         payload = {

@@ -322,7 +322,9 @@ python3 scripts/ingest_chatgpt_share_return.py \
               the return has been normalized, evaluated, and adjudicated by the
               architect. The rendered prompt requires the exact contractor
               return template, final answer only, with no preamble or internal
-              action narration.
+              action narration. The mutation guard is tracked-only by default;
+              add <code>--include-untracked</code> to both guard commands when
+              newly created files should also block acceptance.
             </p>
             <pre><code>python3 scripts/workspace_mutation_guard.py \
   --snapshot \
