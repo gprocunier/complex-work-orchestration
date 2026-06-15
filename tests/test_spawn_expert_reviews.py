@@ -7,7 +7,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import classify_work, expert_review_labels, expert_review_metadata  # noqa: E402
+from cwo_core.routing import (  # noqa: E402
+    classify_work,
+    expert_review_labels,
+    expert_review_metadata,
+)
 from spawn_expert_reviews import control_review_tasks, review_fields  # noqa: E402
 
 

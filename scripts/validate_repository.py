@@ -3,17 +3,20 @@ from __future__ import annotations
 
 import json
 import sys
+import ast
 from pathlib import Path
 from typing import Any
 
-from orchestration_lib import (
+from cwo_core.packets import (
     CONTRACTOR_PACKET_REQUIRED_FIELDS,
     LOCAL_DISPATCH_REQUIRED_FIELDS,
-    POLICY_DIR,
-    PROMPT_COACH_RESULT_REQUIRED_FIELDS,
-    REPO_ROOT,
-    load_policy,
 )
+from cwo_core.paths import (
+    POLICY_DIR,
+    REPO_ROOT,
+)
+from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS
+from cwo_core.policy import load_policy
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
     "assignment_summary",
@@ -29,6 +32,18 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why \"validated\" --follow-up none --dry-run --json",
     "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
+CWO_CORE_ALLOWED_IMPORTS = {
+    "paths": set(),
+    "util": set(),
+    "policy": {"paths", "util"},
+    "routing": {"policy", "util"},
+    "coach": {"routing", "util"},
+    "packets": {"paths", "policy", "util"},
+    "returns": {"policy", "util"},
+    "workspace": {"paths", "util"},
+    "audit": {"paths", "policy", "util"},
+    "beads": {"paths", "util"},
+}
 
 
 def load_json(path: Path) -> Any:
@@ -40,6 +55,7 @@ def load_json(path: Path) -> Any:
 
 def validate_repository() -> list[str]:
     errors: list[str] = []
+    validate_cwo_core_contract(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
         try:
@@ -739,6 +755,52 @@ def validate_repository() -> list[str]:
     validate_ci_workflow(errors)
 
     return errors
+
+
+def validate_cwo_core_contract(errors: list[str]) -> None:
+    core_dir = REPO_ROOT / "scripts" / "cwo_core"
+    legacy_name = "orchestration" + "_lib"
+    old_module = REPO_ROOT / "scripts" / f"{legacy_name}.py"
+    if old_module.exists():
+        errors.append("legacy monolith file remains under scripts/")
+
+    for directory in [REPO_ROOT / "scripts", REPO_ROOT / "tests"]:
+        for path in sorted(directory.rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            if legacy_name in text:
+                errors.append(f"legacy monolith reference remains in {path.relative_to(REPO_ROOT)}")
+
+    for module_name in CWO_CORE_ALLOWED_IMPORTS:
+        module_path = core_dir / f"{module_name}.py"
+        if not module_path.is_file():
+            errors.append(f"missing cwo_core module: {module_path.relative_to(REPO_ROOT)}")
+
+    for path in sorted(core_dir.glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        module_name = path.stem
+        allowed = CWO_CORE_ALLOWED_IMPORTS.get(module_name)
+        if allowed is None:
+            errors.append(f"unexpected cwo_core module: {path.relative_to(REPO_ROOT)}")
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError as exc:
+            errors.append(f"{path.relative_to(REPO_ROOT)} has invalid Python syntax: {exc}")
+            continue
+        for node in ast.walk(tree):
+            imported: str | None = None
+            if isinstance(node, ast.ImportFrom):
+                if node.level == 1 and node.module:
+                    imported = node.module.split(".", 1)[0]
+                elif node.module and node.module.startswith("cwo_core."):
+                    imported = node.module.split(".", 1)[1].split(".", 1)[0]
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("cwo_core."):
+                        imported = alias.name.split(".", 1)[1].split(".", 1)[0]
+            if imported and imported != module_name and imported not in allowed:
+                errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
 
 
 def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:

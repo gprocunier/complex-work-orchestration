@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from orchestration_lib import verify_audit_log
+from cwo_core.audit import verify_audit_log
 
 
 def main() -> None:

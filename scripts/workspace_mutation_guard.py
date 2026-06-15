@@ -5,7 +5,10 @@ import argparse
 import json
 from pathlib import Path
 
-from orchestration_lib import capture_tracked_workspace_state, diff_workspace_state
+from cwo_core.workspace import (
+    capture_tracked_workspace_state,
+    diff_workspace_state,
+)
 
 
 def main() -> None:

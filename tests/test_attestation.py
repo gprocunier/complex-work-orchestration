@@ -7,7 +7,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import artifact_hash, make_attestation, verify_attestation  # noqa: E402
+from cwo_core.util import artifact_hash  # noqa: E402
+from cwo_core.packets import (  # noqa: E402
+    make_attestation,
+    verify_attestation,
+)
 
 
 class AttestationTests(unittest.TestCase):

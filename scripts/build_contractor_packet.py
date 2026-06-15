@@ -7,28 +7,36 @@ import json
 from pathlib import Path
 from typing import Any
 
-from orchestration_lib import (
+from cwo_core.paths import (
     REPO_ROOT,
     assert_repo_safe_path,
+)
+from cwo_core.util import (
     artifact_hash,
-    boundary_allows_external,
-    boundary_config,
-    enforce_contracting_quota,
-    file_snippet,
-    load_expert_profile,
-    load_policy,
-    make_attestation,
     make_dispatch_id,
     packet_payload_hash,
+)
+from cwo_core.policy import (
+    boundary_allows_external,
+    boundary_config,
+    load_policy,
     provider_metadata_for_executor,
-    record_audit_event,
-    redact_text,
-    sanitize_bead,
     share_boundary_disclosure_stage,
     share_boundary_requires_escalation,
-    show_bead_json,
+)
+from cwo_core.audit import (
+    enforce_contracting_quota,
+    record_audit_event,
+)
+from cwo_core.packets import (
+    file_snippet,
+    load_expert_profile,
+    make_attestation,
+    redact_text,
+    sanitize_bead,
     validate_opt_in_record,
 )
+from cwo_core.beads import show_bead_json
 
 
 def extract_labels(bead: Any) -> list[str]:

@@ -9,7 +9,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
-from orchestration_lib import classify_work, require_valid_contractor_packet, validate_contractor_packet  # noqa: E402
+from cwo_core.routing import classify_work  # noqa: E402
+from cwo_core.packets import (  # noqa: E402
+    require_valid_contractor_packet,
+    validate_contractor_packet,
+)
 
 
 class DispatchTests(unittest.TestCase):

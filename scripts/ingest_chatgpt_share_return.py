@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from orchestration_lib import artifact_hash
+from cwo_core.util import artifact_hash
 
 CHATGPT_HOSTS = {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}
 DEFAULT_EXECUTOR = "chatgpt_pro_5_5_extended_reasoning_browser"

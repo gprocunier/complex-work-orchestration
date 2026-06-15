@@ -10,7 +10,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import record_audit_event, verify_audit_log  # noqa: E402
+from cwo_core.audit import (  # noqa: E402
+    record_audit_event,
+    verify_audit_log,
+)
 
 
 def write_audit_events(audit_path: str, worker: int, count: int) -> None:

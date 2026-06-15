@@ -7,16 +7,18 @@ import re
 import sys
 from typing import Any
 
-from orchestration_lib import (
+from cwo_core.beads import (
     add_dependency,
-    classify_work,
     create_bead,
+)
+from cwo_core.routing import (
+    classify_work,
     expert_review_labels,
     expert_review_lane,
     expert_review_metadata,
     expert_uses_external_contract,
-    read_text_arg,
 )
+from cwo_core.util import read_text_arg
 
 
 def body(purpose: str, expected: str) -> str:

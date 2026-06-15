@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_contractor_packet  # noqa: E402
-import orchestration_lib as lib  # noqa: E402
-from orchestration_lib import record_audit_event  # noqa: E402
+import cwo_core.audit as lib  # noqa: E402
+from cwo_core.audit import record_audit_event  # noqa: E402
 
 
 class AuditTests(unittest.TestCase):

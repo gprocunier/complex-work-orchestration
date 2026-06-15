@@ -9,7 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import capture_tracked_workspace_state, diff_workspace_state  # noqa: E402
+from cwo_core.workspace import (  # noqa: E402
+    capture_tracked_workspace_state,
+    diff_workspace_state,
+)
 
 
 class WorkspaceMutationGuardTests(unittest.TestCase):

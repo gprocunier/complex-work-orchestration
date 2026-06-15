@@ -7,7 +7,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import classify_work, load_policy, validate_peer_review_controls  # noqa: E402
+from cwo_core.routing import classify_work  # noqa: E402
+from cwo_core.policy import (  # noqa: E402
+    load_policy,
+    validate_peer_review_controls,
+)
 
 
 class ProviderPolicyTests(unittest.TestCase):

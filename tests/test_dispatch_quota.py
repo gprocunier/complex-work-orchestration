@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import dispatch_work  # noqa: E402
-import orchestration_lib as lib  # noqa: E402
+import cwo_core.audit as lib  # noqa: E402
 
 
 class DispatchQuotaTests(unittest.TestCase):

@@ -8,7 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_contractor_packet import build_packet, validate_gate  # noqa: E402
-from orchestration_lib import packet_payload_hash, validate_contractor_packet  # noqa: E402
+from cwo_core.util import packet_payload_hash  # noqa: E402
+from cwo_core.packets import validate_contractor_packet  # noqa: E402
 
 
 class DifferentialDisclosureTests(unittest.TestCase):

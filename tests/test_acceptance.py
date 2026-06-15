@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import make_acceptance_decision  # noqa: E402
+from cwo_core.returns import make_acceptance_decision  # noqa: E402
 
 
 class AcceptanceTests(unittest.TestCase):

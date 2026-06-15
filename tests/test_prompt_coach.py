@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import coach_orchestration_prompt  # noqa: E402
+from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 
 
 class PromptCoachTests(unittest.TestCase):

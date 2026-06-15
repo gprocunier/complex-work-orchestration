@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from orchestration_lib import record_audit_event
+from cwo_core.audit import record_audit_event
 
 
 def main() -> None:

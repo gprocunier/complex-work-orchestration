@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from orchestration_lib import normalize_contractor_return
+from cwo_core.returns import normalize_contractor_return
 
 
 def main() -> None:

@@ -10,7 +10,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import orchestration_lib as lib  # noqa: E402
+import cwo_core.beads as lib  # noqa: E402
 
 
 class RunBdTests(unittest.TestCase):

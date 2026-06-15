@@ -5,7 +5,8 @@ import argparse
 import json
 from typing import Any
 
-from orchestration_lib import classify_work, read_text_arg
+from cwo_core.routing import classify_work
+from cwo_core.util import read_text_arg
 
 
 RETURN_TEMPLATE_SECTIONS = [

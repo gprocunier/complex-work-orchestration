@@ -5,7 +5,7 @@ import argparse
 import json
 from typing import Any
 
-from orchestration_lib import run_bd
+from cwo_core.beads import run_bd
 
 
 def bd_json(args: list[str]) -> Any:

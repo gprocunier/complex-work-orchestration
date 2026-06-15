@@ -10,15 +10,17 @@ from urllib import request
 from urllib.error import HTTPError, URLError
 
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt
-from orchestration_lib import (
-    classify_work,
+from cwo_core.routing import classify_work
+from cwo_core.audit import (
     enforce_contracting_quota,
-    load_policy,
+    record_audit_event,
+)
+from cwo_core.policy import load_policy
+from cwo_core.util import (
     make_dispatch_id,
     read_text_arg,
-    record_audit_event,
-    require_valid_contractor_packet,
 )
+from cwo_core.packets import require_valid_contractor_packet
 
 
 def local_executor_fallback(executor_key: str) -> dict[str, Any]:

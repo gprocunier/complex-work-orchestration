@@ -7,7 +7,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import classify_patch_authorization, make_acceptance_decision, parse_return_sections  # noqa: E402
+from cwo_core.returns import (  # noqa: E402
+    classify_patch_authorization,
+    make_acceptance_decision,
+    parse_return_sections,
+)
 
 
 class EvaluateReturnTests(unittest.TestCase):

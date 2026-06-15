@@ -6,7 +6,7 @@ import json
 import sys
 from typing import Any
 
-from orchestration_lib import run_bd
+from cwo_core.beads import run_bd
 
 NO_VALUE = "None recorded."
 

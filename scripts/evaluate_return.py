@@ -5,7 +5,8 @@ import argparse
 import json
 from pathlib import Path
 
-from orchestration_lib import make_acceptance_decision, record_audit_event
+from cwo_core.returns import make_acceptance_decision
+from cwo_core.audit import record_audit_event
 
 
 def print_human(result: dict[str, object]) -> None:

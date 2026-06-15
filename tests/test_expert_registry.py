@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import load_expert_profile  # noqa: E402
+from cwo_core.packets import load_expert_profile  # noqa: E402
 
 REQUIRED_SECTIONS = [
     "## Charter",

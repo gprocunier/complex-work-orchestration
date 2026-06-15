@@ -8,11 +8,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import (  # noqa: E402
+from cwo_core.packets import (  # noqa: E402
     CONTRACTOR_PACKET_REQUIRED_FIELDS,
     LOCAL_DISPATCH_REQUIRED_FIELDS,
-    PROMPT_COACH_RESULT_REQUIRED_FIELDS,
 )
+from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS  # noqa: E402
 
 
 def load_schema(name: str) -> dict[str, object]:

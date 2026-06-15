@@ -14,13 +14,13 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt
-from orchestration_lib import (
-    REPO_ROOT,
+from cwo_core.paths import REPO_ROOT
+from cwo_core.util import (
     artifact_hash,
     make_dispatch_id,
-    record_audit_event,
-    require_valid_contractor_packet,
 )
+from cwo_core.audit import record_audit_event
+from cwo_core.packets import require_valid_contractor_packet
 
 EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"

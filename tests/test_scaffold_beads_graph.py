@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import classify_work  # noqa: E402
+from cwo_core.routing import classify_work  # noqa: E402
 from scaffold_workgraph import beads_graph_plan, planned_graph  # noqa: E402
 
 

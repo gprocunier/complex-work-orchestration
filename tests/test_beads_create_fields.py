@@ -9,7 +9,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from orchestration_lib import create_bead  # noqa: E402
+from cwo_core.beads import create_bead  # noqa: E402
 
 
 class BeadsCreateFieldsTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class BeadsCreateFieldsTests(unittest.TestCase):
             metadata_seen.update(json.loads(metadata_path.read_text(encoding="utf-8")))
             return "Created issue: example-1\n"
 
-        with patch("orchestration_lib.run_bd", side_effect=fake_run_bd):
+        with patch("cwo_core.beads.run_bd", side_effect=fake_run_bd):
             result = create_bead(
                 "Example",
                 labels=["one", "two"],
@@ -63,7 +63,7 @@ class BeadsCreateFieldsTests(unittest.TestCase):
             self.assertEqual(design_path.read_text(encoding="utf-8"), large_design.strip())
             return "Created issue: example-2\n"
 
-        with patch("orchestration_lib.run_bd", side_effect=fake_run_bd):
+        with patch("cwo_core.beads.run_bd", side_effect=fake_run_bd):
             result = create_bead(
                 "Large Example",
                 description=large_description,

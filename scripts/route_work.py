@@ -4,7 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 
-from orchestration_lib import classify_work, read_text_arg
+from cwo_core.routing import classify_work
+from cwo_core.util import read_text_arg
 
 
 def print_human(route: dict[str, object], top_n: int) -> None:

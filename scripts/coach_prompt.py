@@ -4,7 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 
-from orchestration_lib import coach_orchestration_prompt, read_text_arg
+from cwo_core.coach import coach_orchestration_prompt
+from cwo_core.util import read_text_arg
 
 
 def print_human(result: dict[str, object]) -> None:

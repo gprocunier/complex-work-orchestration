@@ -10,7 +10,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_contractor_packet import build_packet  # noqa: E402
 from build_contractor_packet import extract_labels  # noqa: E402
-from orchestration_lib import packet_payload_hash, sanitize_bead, validate_contractor_packet  # noqa: E402
+from cwo_core.util import packet_payload_hash  # noqa: E402
+from cwo_core.packets import (  # noqa: E402
+    sanitize_bead,
+    validate_contractor_packet,
+)
 
 
 def base_packet() -> dict:
