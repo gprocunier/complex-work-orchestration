@@ -44,6 +44,11 @@ Known non-goals:
 Residual risks already identified:
 ```
 
+When the selected executor is Claude Opus 4.6, use `--effort high` as the
+floor. Use `--effort xhigh` or `--effort max` only when the Codex architect or
+route metadata marks the architecture as broad, cross-cutting, persistent-state,
+public-contract, or otherwise high complexity.
+
 ## Operating Model
 
 - Architect: owns architecture, final integration, acceptance, release

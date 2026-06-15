@@ -79,6 +79,27 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertIn("architecture-review", executor["allowed_task_classes"])
         self.assertIn("gemini_3_1_pro_preview_agy", controls["allowed_external_executors"])
 
+    def test_claude_opus_architecture_critic_is_registered_as_external_contractor(self) -> None:
+        providers = load_policy("provider-registry")["providers"]
+        executors = load_policy("executor-registry")["executors"]
+        controls = load_policy("contracting-controls")
+
+        provider = providers["anthropic_manual"]
+        executor = executors["claude_opus_4_6_architecture_critic"]
+        self.assertTrue(provider["external"])
+        self.assertEqual(provider["family"], "anthropic")
+        self.assertEqual(executor["provider_key"], "anthropic_manual")
+        self.assertTrue(executor["external"])
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertEqual(executor["critique_mode"], "architect-design-second-opinion")
+        self.assertTrue(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertIn("architecture-review", executor["allowed_task_classes"])
+        self.assertEqual(executor["transport"]["model"], "claude-opus-4-6")
+        self.assertEqual(executor["transport"]["minimum_effort"], "high")
+        self.assertIn("--effort high", executor["transport"]["default_command"])
+        self.assertIn("claude_opus_4_6_architecture_critic", controls["allowed_external_executors"])
+
     def test_chatgpt_pro_browser_reviewer_is_registered_as_external_contractor(self) -> None:
         providers = load_policy("provider-registry")["providers"]
         executors = load_policy("executor-registry")["executors"]

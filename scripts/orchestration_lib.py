@@ -282,6 +282,70 @@ def explicit_gemini_architect_critique_requested(text: str) -> bool:
     )
 
 
+def explicit_claude_architect_critique_requested(text: str) -> bool:
+    """Return true only for the opt-in Claude Opus design-critic pattern."""
+    return bool(
+        term_hits(text, ["claude", "opus", "anthropic"])
+        and term_hits(text, ["architect", "architecture", "design"])
+        and term_hits(text, ["second opinion", "critique", "critic", "review"])
+    )
+
+
+def requested_architecture_critic_executor_keys(text: str) -> list[str]:
+    keys: list[str] = []
+    if explicit_claude_architect_critique_requested(text):
+        keys.append("claude_opus_4_6_architecture_critic")
+    if explicit_gemini_architect_critique_requested(text):
+        keys.append("gemini_3_1_pro_preview_agy")
+    return keys
+
+
+def architecture_review_complexity(text: str, risk: str) -> str:
+    if risk == "critical" or term_hits(
+        text,
+        [
+            "total-system",
+            "total system",
+            "irreversible",
+            "high-cost",
+            "high cost",
+            "blast radius",
+            "mission critical",
+        ],
+    ):
+        return "critical"
+    if term_hits(
+        text,
+        [
+            "cross-cutting",
+            "cross cutting",
+            "security-sensitive",
+            "security sensitive",
+            "persistent-state",
+            "persistent state",
+            "public-contract",
+            "public contract",
+            "multi-provider",
+            "multi provider",
+            "architecture migration",
+        ],
+    ):
+        return "high"
+    return "medium"
+
+
+def claude_architecture_effort(complexity: str) -> str:
+    if complexity == "critical":
+        return "max"
+    if complexity == "high":
+        return "xhigh"
+    return "high"
+
+
+def command_with_claude_effort(command: str, effort: str) -> str:
+    return re.sub(r"--effort\s+\S+", f"--effort {effort}", command)
+
+
 def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
     """Return true for the ChatGPT Pro Extended Reasoning plan-review lane."""
     return bool(
@@ -654,6 +718,9 @@ def score_executors(
         if key == "gemini_3_1_pro_preview_agy" and explicit_gemini_architect_critique_requested(text):
             score += 30
             reasons.append("explicit Gemini/Agy architect critique request")
+        if key == "claude_opus_4_6_architecture_critic" and explicit_claude_architect_critique_requested(text):
+            score += 32
+            reasons.append("explicit Claude Opus architect critique request")
         if key == "chatgpt_pro_5_5_extended_reasoning_browser" and explicit_chatgpt_master_plan_review_requested(text):
             score += 36
             reasons.append("explicit ChatGPT Pro Extended Reasoning master plan review request")
@@ -778,6 +845,15 @@ def classify_work(
         experts = score_experts_v2(text + " independent review", expert_registry)
     requested = {role.lower() for role in (requested_roles or [])}
     if (
+        requested_architecture_critic_executor_keys(text)
+        and any(expert.get("name") == "architecture" for expert in experts)
+        and requested <= {"architecture", "architect", "system-design", "design-review", "architect-critique", "architecture-critique"}
+    ):
+        keep_names = {"architecture"}
+        if explicit_chatgpt_master_plan_review_requested(text):
+            keep_names.add("master_plan_review")
+        experts = [expert for expert in experts if expert.get("name") in keep_names]
+    if (
         explicit_gemini_architect_critique_requested(text)
         and any(expert.get("name") == "architecture" for expert in experts)
         and not {"general", "general_reasoning", "contract-jd-general-reasoning"} & requested
@@ -850,6 +926,39 @@ def classify_work(
     )
     selected = route_primary.get("selected_executor") or ranked_executors[0]
     recommended_executor = route_primary.get("recommended_executor", selected["key"])
+    architecture_complexity = architecture_review_complexity(text, risk)
+    claude_effort = claude_architecture_effort(architecture_complexity)
+    requested_critic_keys = requested_architecture_critic_executor_keys(text)
+    ranked_by_key = {str(item.get("key")): item for item in ranked_executors}
+    architecture_critic_contracts: list[dict[str, Any]] = []
+    for key in requested_critic_keys:
+        candidate = ranked_by_key.get(key)
+        if not candidate or candidate.get("policy_violations"):
+            continue
+        contract = {
+            "executor": key,
+            "display_name": candidate.get("display_name", key),
+            "provider_key": candidate.get("provider_key"),
+            "provider_family": candidate.get("provider_family"),
+            "provider_trust_tier": candidate.get("provider_trust_tier"),
+            "job_description_label": "contract-jd-architecture-reasoning",
+            "critique_mode": candidate.get("critique_mode"),
+            "share_boundary": share_boundary,
+            "codex_pickup": "forbidden",
+            "architect_review_required": True,
+            "acceptance_required": True,
+            "selected_executor": candidate,
+        }
+        transport = candidate.get("transport") if isinstance(candidate.get("transport"), dict) else {}
+        default_command = str(transport.get("default_command", ""))
+        if key == "claude_opus_4_6_architecture_critic":
+            contract["architecture_complexity"] = architecture_complexity
+            contract["claude_effort"] = claude_effort
+            if default_command:
+                contract["manual_command"] = command_with_claude_effort(default_command, claude_effort)
+        elif default_command:
+            contract["manual_command"] = default_command
+        architecture_critic_contracts.append(contract)
 
     dispatch_mode = selected.get("dispatch_mode")
     if selected.get("external"):
@@ -926,6 +1035,10 @@ def classify_work(
         "acceptance_required_experts": acceptance_required_experts,
         "recommended_executor": recommended_executor,
         "selected_executor": selected,
+        "architecture_review_complexity": architecture_complexity,
+        "claude_architecture_effort": claude_effort,
+        "requested_architecture_critic_executors": requested_critic_keys,
+        "architecture_critic_contracts": architecture_critic_contracts,
         "provider_conflict_detected": bool(provider_conflict_domains),
         "provider_conflict_domains": provider_conflict_domains,
         "provider_diversity_required": bool(peer_required and peer_policy.get("defaults", {}).get("provider_diversity_required", True)),
@@ -1563,6 +1676,16 @@ def prompt_coach_enabled_levers(
         levers.extend(["architect-review", "validation-lane"])
     if level == "external-contract":
         levers.extend(["contractor-only-bead", f"share-boundary={route.get('share_boundary')}"])
+    critic_contracts = route.get("architecture_critic_contracts") or []
+    if critic_contracts:
+        levers.append("architecture-second-opinion-critics")
+        if len(critic_contracts) > 1:
+            levers.append("parallel-architecture-critic-contracts")
+        for contract in critic_contracts:
+            if isinstance(contract, dict) and contract.get("executor"):
+                levers.append(f"architecture-critic={contract['executor']}")
+            if isinstance(contract, dict) and contract.get("claude_effort"):
+                levers.append(f"claude-effort={contract['claude_effort']}")
     if level == "local-worker":
         levers.append(f"local-profile={route.get('local_profile') or 'generic-openai-compatible'}")
     if level == "publish-release":
@@ -1620,6 +1743,11 @@ def prompt_coach_rationale(
         rationale.append("Risk, peer-review, or architecture signals justify architect/PM/validation workstreams.")
     elif level == "external-contract":
         rationale.append("External contracting is both policy-selected and explicitly allowed for the selected boundary.")
+        critic_contracts = route.get("architecture_critic_contracts") or []
+        if critic_contracts:
+            rationale.append(
+                "Architecture second-opinion critics are independent evidence lanes; the Codex architect must adjudicate them."
+            )
     elif level == "local-worker":
         rationale.append("A local-worker route is selected and local inference was explicitly allowed.")
     elif level == "publish-release":
@@ -1713,6 +1841,25 @@ def render_coached_prompt(
             ),
             (route.get("ranked_experts") or [{}])[0],
         )
+        critic_contracts = route.get("architecture_critic_contracts") or []
+        if critic_contracts:
+            critic_lines = "\n".join(
+                f"- {contract.get('display_name', contract.get('executor'))}: {contract.get('manual_command', contract.get('executor'))}"
+                for contract in critic_contracts
+                if isinstance(contract, dict)
+            )
+            return (
+                "Use $complex-work-orchestration with outside architecture critic workstreams.\n"
+                f"Goal: {text}\n"
+                f"{workerbees}"
+                f"Share boundary: {route.get('share_boundary')}.\n"
+                "Create one contractor-only/no-codex-exec Bead per selected architecture critic, all using "
+                "contract-jd-architecture-reasoning. Dispatch them independently from the same Codex architect proposal:\n"
+                f"{critic_lines}\n"
+                "Evaluate each return, run peer review if required, and require Codex architect adjudication before "
+                "the plan changes or implementation begins. Add ChatGPT Pro master review only after explicit opt-in.\n"
+                f"{validation}{question_block}"
+            )
         return (
             "Use $complex-work-orchestration with an outside contractor workstream.\n"
             f"Goal: {text}\n"
@@ -1909,7 +2056,7 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
     external = bool(selected.get("external"))
     dispatch_mode = selected.get("dispatch_mode")
     local_worker = dispatch_mode in {"local_openai_compatible", "local_secure_review"}
-    return {
+    metadata = {
         "expert": expert.get("name"),
         "discipline": expert.get("discipline"),
         "job_description_label": expert.get("job_description_label"),
@@ -1927,6 +2074,26 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
         "validation_gate_required": bool(expert.get("validation_gate_required")),
         "gate_scope": expert.get("gate_scope"),
     }
+    contract = expert.get("contractor_contract") if isinstance(expert.get("contractor_contract"), dict) else {}
+    if contract:
+        metadata["architecture_critic_contract"] = {
+            key: value
+            for key, value in contract.items()
+            if key
+            in {
+                "executor",
+                "display_name",
+                "provider_key",
+                "provider_family",
+                "provider_trust_tier",
+                "job_description_label",
+                "critique_mode",
+                "manual_command",
+                "architecture_complexity",
+                "claude_effort",
+            }
+        }
+    return metadata
 
 
 def validate_opt_in_record(path: str | Path, *, executor: str, share_boundary: str) -> dict[str, Any]:

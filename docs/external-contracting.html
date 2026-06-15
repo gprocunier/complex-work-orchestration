@@ -151,13 +151,35 @@ contract-jd-security-reasoning</code></pre>
   --format json \
   --output contractor-packet.json</code></pre>
               <p>
-                <strong>Architect-design critique packet:</strong> Second
-                opinions use the architecture reasoning label and the
-                dedicated Antigravity executor. Treat the return as critique
-                evidence for Codex architect adjudication.
+                <strong>Architect-design critique packets:</strong> Second
+                opinions use the architecture reasoning label and dedicated
+                critic executors. Claude Opus 4.6 uses the Claude CLI with
+                <code>--effort high</code> as the floor, while Gemini 3.1 Pro
+                Preview uses Antigravity. When both are requested, create one
+                contractor-only Bead per critic from the same Codex architect
+                proposal. Treat returns as critique evidence for Codex
+                architect adjudication.
               </p>
               <pre><code>python3 scripts/build_contractor_packet.py \
-  --bead &lt;id&gt; \
+  --bead &lt;claude-critic-bead&gt; \
+  --executor claude_opus_4_6_architecture_critic \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-architecture-reasoning \
+  --attest-packet \
+  --format json \
+  --output claude-architect-critique-packet.json
+
+python3 scripts/dispatch_work.py \
+  --packet claude-architect-critique-packet.json \
+  --mode manual \
+  &gt; claude-architect-critique-dispatch-prompt.md
+
+claude --model claude-opus-4-6 --effort high \
+  -p "Read claude-architect-critique-dispatch-prompt.md and output only the contractor return template." \
+  &gt; claude-architect-critique-return.md</code></pre>
+              <pre><code>python3 scripts/build_contractor_packet.py \
+  --bead &lt;gemini-critic-bead&gt; \
   --executor gemini_3_1_pro_preview_agy \
   --share-boundary redacted-packet \
   --external-ok \
@@ -314,9 +336,10 @@ python3 scripts/evaluate_return.py \
             </div>
             <div class="callout">
               <strong>Critique rule:</strong>
-              A Gemini/Agy architect-design critique can be accepted, modified,
-              investigated, rejected, deferred, or quarantined by the architect
-              after evaluation. It never creates implementation work directly.
+              Claude and Gemini architect-design critiques can be accepted,
+              modified, investigated, rejected, deferred, or quarantined by the
+              architect after evaluation. They never create implementation work
+              directly.
             </div>
             <div class="callout">
               <strong>Publication handoff:</strong>

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from typing import Any
 
 from orchestration_lib import (
@@ -12,6 +13,7 @@ from orchestration_lib import (
     expert_review_labels,
     expert_review_lane,
     expert_review_metadata,
+    expert_uses_external_contract,
     read_text_arg,
 )
 
@@ -160,6 +162,14 @@ def expert_fields(expert: dict[str, Any], route: dict[str, Any]) -> dict[str, ob
     display_name = str(expert.get("display_name") or expert.get("name") or "Expert reviewer")
     job_label = str(expert.get("job_description_label", "contract-jd-general-reasoning"))
     stage = str(expert.get("review_stage", "pre-implementation"))
+    notes = route_notes(route) + "\nOutput contract:\n" + bullet_list(
+        list(output_contract), "Findings, confidence, residual risk, and recommended next Beads."
+    )
+    contract = expert.get("contractor_contract") if isinstance(expert.get("contractor_contract"), dict) else {}
+    if contract.get("manual_command"):
+        notes += f"\nManual dispatch command:\n- {contract['manual_command']}"
+    if contract.get("claude_effort"):
+        notes += f"\nClaude effort:\n- {contract['claude_effort']}"
     return {
         "skills": unique_strings(
             [
@@ -178,10 +188,66 @@ def expert_fields(expert: dict[str, Any], route: dict[str, Any]) -> dict[str, ob
             f"Honor job-description label {job_label}, share boundary {route.get('share_boundary')}, "
             "and the Codex pickup rule recorded in metadata."
         ),
-        "notes": route_notes(route)
-        + "\nOutput contract:\n"
-        + bullet_list(list(output_contract), "Findings, confidence, residual risk, and recommended next Beads."),
+        "notes": notes,
     }
+
+
+def architecture_critic_experts(route: dict[str, Any]) -> list[dict[str, Any]]:
+    contracts = route.get("architecture_critic_contracts", [])
+    if not isinstance(contracts, list) or not contracts:
+        return []
+    base = next(
+        (expert for expert in route.get("ranked_experts", []) if expert.get("name") == "architecture"),
+        {
+            "display_name": "Architecture Distinguished Engineer",
+            "discipline": "architecture",
+            "persona_file": "experts/architecture.md",
+            "job_description_label": "contract-jd-architecture-reasoning",
+            "task_class": "architecture-review",
+            "review_stage": "pre-implementation",
+            "output_contract": [
+                "target boundaries",
+                "tradeoffs",
+                "rejected alternatives",
+                "migration risk",
+                "rollback path",
+                "follow-up beads",
+            ],
+            "acceptance_checks": [
+                "boundary impact is explicit",
+                "migration path is reversible",
+                "compatibility risk is named",
+            ],
+            "escalation_rules": [
+                "system-wide redesign",
+                "public contract change",
+                "persistent state migration",
+                "release blocker",
+            ],
+        },
+    )
+    experts: list[dict[str, Any]] = []
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            continue
+        executor = str(contract.get("executor") or "")
+        if not executor:
+            continue
+        slug = re.sub(r"[^a-z0-9]+", "-", executor.lower()).strip("-")
+        expert = dict(base)
+        expert.update(
+            {
+                "name": f"architecture-critic-{slug}",
+                "display_name": f"{contract.get('display_name', executor)}",
+                "preferred_executors": [executor],
+                "recommended_executor": executor,
+                "selected_executor": contract.get("selected_executor"),
+                "executor_policy_violations": [],
+                "contractor_contract": contract,
+            }
+        )
+        experts.append(expert)
+    return experts
 
 
 def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
@@ -191,7 +257,15 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
     validation_blocker_lanes: list[str] = []
     editor_gate_lanes: list[str] = []
 
-    for expert in route.get("ranked_experts", []):
+    critic_contracts = route.get("architecture_critic_contracts", [])
+    source_experts = [
+        expert
+        for expert in route.get("ranked_experts", [])
+        if not (critic_contracts and expert.get("name") == "architecture" and expert_uses_external_contract(expert))
+    ]
+    source_experts.extend(architecture_critic_experts(route))
+
+    for expert in source_experts:
         lane = expert_review_lane(expert)
         metadata = expert_review_metadata(expert, route)
         depends_on = ["architect"]

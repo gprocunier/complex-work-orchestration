@@ -41,11 +41,40 @@ def contractor_return_template(required_sections: list[str] | None = None) -> st
     return "\n".join(f"{section}:" for section in ordered)
 
 
+def manual_command_for_route(route: dict[str, object]) -> str:
+    selected = route.get("selected_executor", {})
+    if not isinstance(selected, dict):
+        return ""
+    transport = selected.get("transport", {})
+    if not isinstance(transport, dict):
+        return ""
+    command = str(transport.get("default_command", "")).strip()
+    if selected.get("key") == "claude_opus_4_6_architecture_critic":
+        effort = str(route.get("claude_architecture_effort") or transport.get("minimum_effort") or "high")
+        command = command.replace("--effort high", f"--effort {effort}")
+    return command
+
+
+def architecture_critic_contract_lines(route: dict[str, object]) -> str:
+    contracts = route.get("architecture_critic_contracts", [])
+    if not isinstance(contracts, list) or not contracts:
+        return "- none"
+    lines: list[str] = []
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            continue
+        command = contract.get("manual_command") or "manual dispatch command not recorded"
+        lines.append(f"- {contract.get('display_name', contract.get('executor'))}: {command}")
+    return "\n".join(lines) if lines else "- none"
+
+
 def render_prompt(task: str, route: dict[str, object]) -> str:
     expert_lines = "\n".join(
         f"- {expert['display_name']} ({expert['job_description_label']})"
         for expert in route.get("ranked_experts", [])[:3]  # type: ignore[index]
     )
+    manual_command = manual_command_for_route(route)
+    command_line = f"Manual dispatch command: {manual_command}\n" if manual_command else ""
     return f"""You are an outside model contractor for one bounded Beads assignment.
 
 Executor: {route['recommended_executor']}
@@ -56,6 +85,8 @@ Provider conflict domains: {', '.join(route.get('provider_conflict_domains', [])
 Peer review required: {route.get('peer_review_required')}
 Data sensitivity: {route['data_sensitivity']}
 Dispatch sensitivity: {route['dispatch_sensitivity']}
+{command_line}Architecture critic contracts:
+{architecture_critic_contract_lines(route)}
 
 Assignment:
 {task}
@@ -107,6 +138,8 @@ SHA-256: {profile.get('sha256')}
 
 Degraded-context justification:
 {justification}"""
+    manual_command = packet.get("manual_command")
+    command_line = f"Manual dispatch command: {manual_command}\n" if manual_command else ""
     return f"""You are an outside model contractor for one bounded Beads assignment.
 
 Dispatch ID: {packet['dispatch_id']}
@@ -117,6 +150,7 @@ Job-description label: {packet['job_description_label']}
 Share boundary: {packet['share_boundary']}
 Disclosure stage: {packet.get('disclosure_stage')}
 Packet SHA-256: {packet.get('packet_sha256', 'not-recorded')}
+{command_line}
 
 Boundary:
 {packet.get('boundary_description', 'No boundary description provided.')}

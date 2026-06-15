@@ -113,6 +113,41 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("Do not mutate the active checkout", prompt)
         self.assertIn("Output only the contractor return", prompt)
 
+    def test_claude_opus_architecture_critic_prompt_and_packet_include_model_and_effort(self) -> None:
+        route = classify_work(
+            "Use Claude Opus 4.6 as a second opinion critique of the Codex architect design.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        prompt = render_prompt("Architecture critique", route)
+        self.assertIn("Manual dispatch command: claude --model claude-opus-4-6 --effort high -p", prompt)
+        self.assertIn("Architecture critic contracts:", prompt)
+
+        packet = build_packet(
+            bead_id="cwo-arch-2",
+            bead_json={
+                "id": "cwo-arch-2",
+                "title": "Claude architect critique",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
+            },
+            executor="claude_opus_4_6_architecture_critic",
+            share_boundary="redacted-packet",
+            job_description_label="contract-jd-architecture-reasoning",
+            allowed_files=[],
+            inline_snippets=["Design scope: critique the proposed architecture, do not implement it."],
+            dispatch_id="dispatch-claude-critic",
+            external_opt_in=True,
+            opt_in_basis="cli-flag",
+        )
+        require_valid_contractor_packet(packet)
+        self.assertEqual(packet["provider_key"], "anthropic_manual")
+        self.assertEqual(packet["manual_command"], "claude --model claude-opus-4-6 --effort high -p")
+        packet_prompt = render_packet_prompt(packet)
+        self.assertIn("claude_opus_4_6_architecture_critic", packet_prompt)
+        self.assertIn("Manual dispatch command: claude --model claude-opus-4-6 --effort high -p", packet_prompt)
+        self.assertIn("contract-jd-architecture-reasoning", packet_prompt)
+
     def test_chatgpt_pro_browser_reviewer_packet_is_provider_bound(self) -> None:
         packet = build_packet(
             bead_id="cwo-plan-1",

@@ -138,6 +138,60 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(allowed["peer_review_required"])
         self.assertTrue(allowed["architect_adjudication_required"])
 
+    def test_claude_opus_architect_critique_requires_external_opt_in(self) -> None:
+        text = "Use Claude Opus 4.6 for a second opinion critique of the Codex architect design."
+        blocked = classify_work(
+            text,
+            requested_roles=["architecture"],
+            share_boundary="redacted-packet",
+        )
+        self.assertNotEqual(blocked["route"], "external-contract")
+        candidate = next(
+            item for item in blocked["ranked_executors"] if item["key"] == "claude_opus_4_6_architecture_critic"
+        )
+        self.assertIn("external dispatch requires user opt-in", candidate["policy_violations"])
+
+        allowed = classify_work(
+            text,
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(allowed["route"], "external-contract")
+        self.assertEqual(allowed["recommended_executor"], "claude_opus_4_6_architecture_critic")
+        self.assertEqual(allowed["requested_architecture_critic_executors"], ["claude_opus_4_6_architecture_critic"])
+        self.assertEqual(len(allowed["architecture_critic_contracts"]), 1)
+        self.assertEqual(allowed["architecture_critic_contracts"][0]["manual_command"], "claude --model claude-opus-4-6 --effort high -p")
+        self.assertEqual(allowed["architecture_critic_contracts"][0]["claude_effort"], "high")
+        self.assertEqual(allowed["guard_labels"], [
+            "contractor-only",
+            "no-codex-exec",
+            "contract-jd-architecture-reasoning",
+        ])
+        self.assertEqual(allowed["external_experts"], ["architecture"])
+        self.assertTrue(allowed["peer_review_required"])
+        self.assertTrue(allowed["architect_adjudication_required"])
+
+    def test_dual_architecture_critics_are_preserved_as_independent_contracts(self) -> None:
+        result = classify_work(
+            "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
+            "of the Codex architect design for a cross-cutting public contract architecture migration.",
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(result["recommended_executor"], "claude_opus_4_6_architecture_critic")
+        self.assertEqual(
+            result["requested_architecture_critic_executors"],
+            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+        )
+        self.assertEqual(
+            [contract["executor"] for contract in result["architecture_critic_contracts"]],
+            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+        )
+        self.assertEqual(result["architecture_review_complexity"], "high")
+        self.assertEqual(result["claude_architecture_effort"], "xhigh")
+
     def test_chatgpt_pro_master_plan_review_requires_external_opt_in(self) -> None:
         text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
         blocked = classify_work(text, share_boundary="redacted-packet")

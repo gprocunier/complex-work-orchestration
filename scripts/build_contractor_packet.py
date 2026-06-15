@@ -134,6 +134,8 @@ def build_packet(
     boundary = boundary_config(share_boundary)
     executor_config = load_policy("executor-registry").get("executors", {}).get(executor, {})
     provider_metadata = provider_metadata_for_executor(executor_config)
+    transport = executor_config.get("transport") if isinstance(executor_config.get("transport"), dict) else {}
+    manual_command = str(transport.get("default_command", "")).strip()
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     dispatch_id = dispatch_id or make_dispatch_id(bead_id, now.replace("-", "").replace(":", ""))
     bead_summary = sanitize_bead(bead_json, share_boundary)
@@ -192,6 +194,8 @@ def build_packet(
         "provider_family": provider_metadata.get("provider_family"),
         "provider_trust_tier": provider_metadata.get("provider_trust_tier"),
         "provider_retention_class": provider_metadata.get("provider_retention_class"),
+        "executor_transport": transport or None,
+        "manual_command": manual_command or None,
         "share_boundary": share_boundary,
         "disclosure_stage": share_boundary_disclosure_stage(share_boundary),
         "disclosure_escalation_approved": bool(disclosure_escalation_approved),

@@ -689,16 +689,21 @@ Provider identity is explicit. Executors are bound to provider profiles in
 as frontier model work or model-provider competition. A conflict does not make
 the contractor unusable by itself, but it forces peer review and architect
 adjudication before findings can affect the implementation plan.
-Registered manual outside executors include Claude Code, Gemini 3.1 Pro,
-OpenAI Deep Research, and human specialist contractors. The Gemini profile is
-intended for focused web-design or frontend-domain contracts through
-`gemini -p`; environments that expose Gemini through Google Antigravity can use
-`agy -p` as the local command surface after the same packet and opt-in gates.
+Registered manual outside executors include Claude Code, Claude Opus 4.6,
+Gemini 3.1 Pro, OpenAI Deep Research, and human specialist contractors. The
+Gemini profile is intended for focused web-design or frontend-domain contracts
+through `gemini -p`; environments that expose Gemini through Google
+Antigravity can use `agy -p` as the local command surface after the same packet
+and opt-in gates.
 For architect-design critique, use the dedicated
-`gemini_3_1_pro_preview_agy` executor. That lane is a second-opinion evidence
-source for an existing Codex architect design; it does not transfer design
-authority to Gemini and still requires return evaluation, any required peer
-review, and architect adjudication.
+`claude_opus_4_6_architecture_critic` and
+`gemini_3_1_pro_preview_agy` executors. Claude uses
+`claude --model claude-opus-4-6 --effort high -p` by default, with `xhigh` or
+`max` effort reserved for broader architecture complexity. Gemini uses
+`agy --model gemini-3.1-pro-preview -p`. Either or both lanes are
+second-opinion evidence sources for an existing Codex architect design; they do
+not transfer design authority and still require return evaluation, any required
+peer review, and architect adjudication.
 The ChatGPT Pro 5.5 Extended Reasoning browser lane is different from OpenAI
 Deep Research. Use `chatgpt_pro_5_5_extended_reasoning_browser` only when the
 user explicitly wants ChatGPT Pro to review the final architect plan or total
@@ -880,12 +885,42 @@ python3 scripts/build_contractor_packet.py \
   --output contractor-packet.json
 ```
 
-For a redacted architect-design critique through Antigravity, keep the packet
-small and use the architecture job-description label:
+For redacted architect-design critique, keep each packet small and use the
+architecture job-description label. Claude and Gemini can be requested
+independently from the same initial Codex architect proposal:
+
+```bash
+python3 scripts/route_work.py \
+  --external-ok \
+  --share-boundary redacted-packet \
+  --requested-role architecture \
+  "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics of the Codex architect design."
+
+python3 scripts/build_contractor_packet.py \
+  --bead <claude-critic-bead> \
+  --executor claude_opus_4_6_architecture_critic \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-architecture-reasoning \
+  --attest-packet \
+  --format json \
+  --output claude-architect-critique-packet.json
+
+python3 scripts/dispatch_work.py \
+  --packet claude-architect-critique-packet.json \
+  --mode manual \
+  > claude-architect-critique-dispatch-prompt.md
+
+claude --model claude-opus-4-6 --effort high \
+  -p "Read claude-architect-critique-dispatch-prompt.md and output only the contractor return template." \
+  > claude-architect-critique-return.md
+```
+
+For a matching Gemini/Agy critique:
 
 ```bash
 python3 scripts/build_contractor_packet.py \
-  --bead <id> \
+  --bead <gemini-critic-bead> \
   --executor gemini_3_1_pro_preview_agy \
   --share-boundary redacted-packet \
   --external-ok \

@@ -84,7 +84,7 @@
       "task_class": "architecture-review",
       "review_stage": "pre-implementation",
       "default_risk": "high",
-      "preferred_executors": ["frontier_architect", "claude_code_manual", "openai_deep_research_manual", "gemini_3_1_pro_preview_agy"],
+      "preferred_executors": ["frontier_architect", "claude_opus_4_6_architecture_critic", "claude_code_manual", "openai_deep_research_manual", "gemini_3_1_pro_preview_agy"],
       "file_path_patterns": ["README.md", "SKILL.md", "policy/*", "scripts/*", "templates/*", "schemas/*"],
       "trigger_terms": ["architecture", "architect design", "design critique", "architecture critique", "design", "boundary", "migration", "interface", "api", "coupling", "module", "reversibility", "compatibility"],
       "required_inputs": ["design brief", "affected modules", "interfaces", "migration constraints", "rollback constraints"],

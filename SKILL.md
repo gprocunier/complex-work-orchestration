@@ -99,11 +99,15 @@ Default roles:
   patches, test triage, file search, evidence gathering, and narrow validation
   tasks.
 - **Outside Contractor**: Claude or another external LLM. Receives one explicit bead/contract at a time, calibrated by a job-description label, and reports findings through Beads or a patch branch.
-- **Gemini/Agy Architect Critic**: opt-in outside-contractor lane for
-  `agy --model gemini-3.1-pro-preview` second-opinion critique of a Codex
-  architect design. It uses `contract-jd-architecture-reasoning`, starts with a
-  redacted packet by default, and produces evidence for evaluation and
-  architect adjudication, not implementation authority.
+- **Architecture Critic Contractors**: opt-in outside-contractor lanes for
+  second-opinion critique of a Codex architect design. Claude Opus 4.6 uses
+  `claude --model claude-opus-4-6 --effort high -p` or stronger effort when
+  architecture complexity warrants it. Gemini 3.1 Pro Preview uses
+  `agy --model gemini-3.1-pro-preview -p`. Either or both can run as
+  independent contractor-only Beads from the same proposal. They use
+  `contract-jd-architecture-reasoning`, start with a redacted packet by
+  default, and produce evidence for evaluation and architect adjudication, not
+  implementation authority.
 - **ChatGPT Pro Master Reviewer**: opt-in browser-mediated outside-contractor
   lane for ChatGPT Pro 5.5 Extended Reasoning review of the final architect
   plan or total work packet. It uses `contract-jd-master-plan-review`, starts

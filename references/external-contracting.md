@@ -82,9 +82,10 @@ Architect design second opinion:
 
 ```text
 /plan Use $complex-work-orchestration prompt coach:
-Use Gemini via agy for a second opinion critique of the Codex architect design.
-Share a redacted packet only. Treat Gemini output as evidence and require
-return evaluation plus architect adjudication before implementation.
+Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion
+critics of the Codex architect design. Share redacted packets only. Treat both
+returns as evidence and require return evaluation plus architect adjudication
+before implementation.
 ```
 
 Master plan review:
@@ -149,18 +150,42 @@ python3 scripts/route_work.py \
   "Gemini web-design review for a public GitHub Pages refresh."
 ```
 
-For the architect-design second-opinion lane, route and packet with the
-dedicated Antigravity executor:
+For architect-design second-opinion lanes, route and packet with the dedicated
+critic executors. Claude Opus 4.6 uses the Claude CLI with `--effort high` as
+the floor; raise it to `xhigh` or `max` only when the architecture is broad,
+cross-cutting, persistent-state, public-contract, or otherwise high complexity.
+Gemini 3.1 Pro Preview uses the Antigravity command surface. If both are
+requested, create one contractor-only Bead per critic and dispatch them from
+the same initial Codex architect proposal:
 
 ```bash
 python3 scripts/route_work.py \
   --external-ok \
   --share-boundary redacted-packet \
   --requested-role architecture \
-  "Use Gemini via agy for a second opinion critique of the Codex architect design."
+  "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics of the Codex architect design."
 
 python3 scripts/build_contractor_packet.py \
-  --bead <id> \
+  --bead <claude-critic-bead> \
+  --executor claude_opus_4_6_architecture_critic \
+  --share-boundary redacted-packet \
+  --external-ok \
+  --job-description contract-jd-architecture-reasoning \
+  --attest-packet \
+  --format json \
+  --output claude-architect-critique-packet.json
+
+python3 scripts/dispatch_work.py \
+  --packet claude-architect-critique-packet.json \
+  --mode manual \
+  > claude-architect-critique-dispatch-prompt.md
+
+claude --model claude-opus-4-6 --effort high \
+  -p "Read claude-architect-critique-dispatch-prompt.md and output only the contractor return template." \
+  > claude-architect-critique-return.md
+
+python3 scripts/build_contractor_packet.py \
+  --bead <gemini-critic-bead> \
   --executor gemini_3_1_pro_preview_agy \
   --share-boundary redacted-packet \
   --external-ok \
@@ -172,7 +197,8 @@ python3 scripts/build_contractor_packet.py \
 
 The returned critique is evidence for the architect. Accepted concerns become
 new Beads only after evaluation, required peer review, and architect
-adjudication.
+adjudication. ChatGPT Pro master review remains a later explicit opt-in after
+the Codex architect has amended the plan.
 
 For ChatGPT Pro 5.5 Extended Reasoning master-plan review, route and packet
 with the browser executor. This lane is not OpenAI Deep Research; use Deep

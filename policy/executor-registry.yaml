@@ -270,6 +270,42 @@
       "architect_review_required": true,
       "codex_pickup": "forbidden"
     },
+    "claude_opus_4_6_architecture_critic": {
+      "display_name": "Claude Opus 4.6 architecture critic via Claude CLI",
+      "role": "outside-contractor",
+      "provider_key": "anthropic_manual",
+      "venue": "claude-code-cli",
+      "dispatch_mode": "manual_ui",
+      "external": true,
+      "capabilities": ["architecture-review", "general-review", "domain-review", "repo-review", "shell-reasoning"],
+      "allowed_task_classes": ["architecture-review", "general-review", "domain-review"],
+      "supports_web": false,
+      "supports_shell": true,
+      "supports_repo_read": true,
+      "supports_repo_write": false,
+      "privacy_class": "approved-repo-context",
+      "max_risk": "high",
+      "max_data_sensitivity": "internal",
+      "cost_tier": "high",
+      "latency_tier": "medium",
+      "manual_dispatch_required": true,
+      "explicit_opt_in_required": true,
+      "acceptance_required": true,
+      "architect_review_required": true,
+      "codex_pickup": "forbidden",
+      "critique_mode": "architect-design-second-opinion",
+      "transport": {
+        "kind": "manual-cli",
+        "default_command": "claude --model claude-opus-4-6 --effort high -p",
+        "model": "claude-opus-4-6",
+        "minimum_effort": "high",
+        "effort_policy": {
+          "default": "high",
+          "high_complexity": "xhigh",
+          "critical_complexity": "max"
+        }
+      }
+    },
     "gemini_3_1_pro_manual": {
       "display_name": "Gemini 3.1 Pro manual dispatch",
       "role": "outside-contractor",

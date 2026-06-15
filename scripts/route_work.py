@@ -26,6 +26,13 @@ def print_human(route: dict[str, object], top_n: int) -> None:
     print(f"Prefer local worker: {route['prefer_local_worker']}")
     if route.get("local_profile"):
         print(f"Local profile: {route['local_profile']}")
+    if route.get("requested_architecture_critic_executors"):
+        print(
+            "Requested architecture critics: "
+            + ", ".join(str(item) for item in route.get("requested_architecture_critic_executors", []))
+        )
+        print(f"Architecture review complexity: {route.get('architecture_review_complexity')}")
+        print(f"Claude architecture effort: {route.get('claude_architecture_effort')}")
     print(f"Has external expert contracts: {route.get('has_external_expert_contracts')}")
     print(f"Has local worker contracts: {route.get('has_local_worker_contracts')}")
     print(f"Editor gate required: {route.get('editor_gate_required')}")
@@ -49,6 +56,15 @@ def print_human(route: dict[str, object], top_n: int) -> None:
         print("\nHard stops:")
         for stop in hard_stops:  # type: ignore[assignment]
             print(f"- {stop}")
+
+    critic_contracts = route.get("architecture_critic_contracts") or []
+    if critic_contracts:
+        print("\nArchitecture critic contracts:")
+        for contract in critic_contracts:  # type: ignore[assignment]
+            print(
+                f"- {contract.get('executor')} provider={contract.get('provider_key')} "
+                f"command={contract.get('manual_command', 'manual dispatch')}"
+            )
 
     print("\nRanked experts:")
     for expert in route.get("ranked_experts", [])[:top_n]:  # type: ignore[index]

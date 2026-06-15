@@ -77,6 +77,31 @@ class ScaffoldTests(unittest.TestCase):
             self.assertIn(lane, by_lane["evaluation"]["depends_on_lanes"])
         self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
 
+    def test_dual_architecture_critics_create_independent_contractor_lanes(self) -> None:
+        route = classify_work(
+            "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
+            "of the Codex architect design for a cross-cutting public contract architecture migration.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        graph = planned_graph("Dual Critic Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        claude_lane = "expert-review-architecture-critic-claude-opus-4-6-architecture-critic"
+        gemini_lane = "expert-review-architecture-critic-gemini-3-1-pro-preview-agy"
+        self.assertIn(claude_lane, by_lane)
+        self.assertIn(gemini_lane, by_lane)
+        self.assertIn(claude_lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertIn(gemini_lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertNotIn("expert-review-architecture", by_lane)
+        self.assertEqual(by_lane[claude_lane]["metadata"]["codex_pickup"], "forbidden")
+        self.assertEqual(by_lane[gemini_lane]["metadata"]["codex_pickup"], "forbidden")
+        self.assertEqual(
+            by_lane[claude_lane]["metadata"]["architecture_critic_contract"]["manual_command"],
+            "claude --model claude-opus-4-6 --effort xhigh -p",
+        )
+
     def test_public_docs_pages_graph_uses_editor_validation_gate(self) -> None:
         route = classify_work(
             "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",

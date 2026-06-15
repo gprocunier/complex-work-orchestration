@@ -156,6 +156,32 @@ class PacketGateTests(unittest.TestCase):
             )
         self.assertEqual(basis, "audit-record")
 
+    def test_claude_opus_architecture_critic_accepts_scoped_opt_in_record(self) -> None:
+        labels = ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"]
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "allowed": True,
+                    "share_boundary": "redacted-packet",
+                    "allowed_external_executors": ["claude_opus_4_6_architecture_critic"],
+                    "allowed_providers": ["anthropic_manual"],
+                    "decision_source": "test",
+                    "recorded_at": "2026-06-09T00:00:00Z",
+                    "scope": "architecture second-opinion critique",
+                },
+                handle,
+            )
+            handle.flush()
+            basis = validate_gate(
+                "claude_opus_4_6_architecture_critic",
+                "redacted-packet",
+                labels,
+                "contract-jd-architecture-reasoning",
+                external_ok=False,
+                opt_in_record=handle.name,
+            )
+        self.assertEqual(basis, "audit-record")
+
     def test_chatgpt_pro_browser_reviewer_accepts_scoped_opt_in_record(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"]
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:

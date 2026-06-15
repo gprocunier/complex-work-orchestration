@@ -103,6 +103,25 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("contractor-only-bead", result["enabled_levers"])
         self.assertIn("contract-jd-architecture-reasoning", result["paste_ready_prompt"])
 
+    def test_claude_and_gemini_architecture_critics_are_coached_as_parallel_contracts(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
+            "of the Codex architect design for a cross-cutting public contract architecture migration.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
+        self.assertEqual(result["route"]["recommended_executor"], "claude_opus_4_6_architecture_critic")
+        self.assertIn("parallel-architecture-critic-contracts", result["enabled_levers"])
+        self.assertIn("architecture-critic=claude_opus_4_6_architecture_critic", result["enabled_levers"])
+        self.assertIn("architecture-critic=gemini_3_1_pro_preview_agy", result["enabled_levers"])
+        self.assertIn("claude-effort=xhigh", result["enabled_levers"])
+        self.assertIn("one contractor-only/no-codex-exec Bead per selected architecture critic", result["paste_ready_prompt"])
+        self.assertIn("claude --model claude-opus-4-6 --effort xhigh -p", result["paste_ready_prompt"])
+        self.assertIn("agy --model gemini-3.1-pro-preview -p", result["paste_ready_prompt"])
+        self.assertIn("Add ChatGPT Pro master review only after explicit opt-in", result["paste_ready_prompt"])
+
     def test_chatgpt_pro_master_plan_without_opt_in_asks_for_boundary(self) -> None:
         result = coach_orchestration_prompt(
             "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
