@@ -13,6 +13,7 @@ __all__ = [
     "policy",
     "returns",
     "routing",
+    "synthesis",
     "util",
     "workspace",
 ]

@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from .routing import classify_work, expert_uses_external_contract
+from .synthesis import recommend_model_synthesis
 from .util import term_hits
 
 
@@ -18,6 +19,7 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "enabled_levers",
     "disabled_levers",
     "workerbee_parallelism",
+    "model_synthesis",
     "route",
     "paste_ready_prompt",
     "warnings",
@@ -295,6 +297,7 @@ def prompt_coach_missing_questions(
     text: str,
     file_paths: list[str] | None,
     workerbee_parallelism: dict[str, Any] | None = None,
+    model_synthesis: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     lower = text.lower()
     words = re.findall(r"[A-Za-z0-9_/-]+", text)
@@ -345,6 +348,15 @@ def prompt_coach_missing_questions(
                 "default": default,
             }
         )
+    if model_synthesis and model_synthesis.get("recommended_mode") == "recommended":
+        questions.append(
+            {
+                "id": "model_synthesis_opt_in",
+                "question": "Should Codex add a model-synthesis lane for this work?",
+                "why": "Synthesis changes the graph from independent review lanes to independent lanes plus a provenance-preserving consensus/disagreement artifact.",
+                "default": "Offer CWO-native synthesis as an opt-in choice; if unselected, keep independent reviews and normal architect adjudication.",
+            }
+        )
     if prompt_coach_has_contractor_sharing_signal(lower) and not route.get("external_opt_in"):
         questions.append(
             {
@@ -389,6 +401,7 @@ def prompt_coach_interactive_questions(
     route: dict[str, Any],
     missing_questions: list[dict[str, str]],
     workerbee_parallelism: dict[str, Any] | None = None,
+    model_synthesis: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     missing_ids = {question["id"] for question in missing_questions}
     questions: list[dict[str, Any]] = []
@@ -466,6 +479,36 @@ def prompt_coach_interactive_questions(
                 "question": "Should Codex parallelize this work with subagents?",
                 "why": "The answer changes whether sidecar review or disjoint implementation work runs in parallel.",
                 "options": workerbee_parallelism_options(str(recommended_mode), first, model_phrase),
+            }
+        )
+
+    if "model_synthesis_opt_in" in missing_ids:
+        pattern = "independent-then-synthesize"
+        if model_synthesis:
+            pattern = str(model_synthesis.get("synthesis_pattern") or pattern)
+        questions.append(
+            {
+                "id": "model_synthesis_opt_in",
+                "header": "Synthesis",
+                "question": "Should CWO synthesize independent model outputs?",
+                "why": "The answer adds or skips a synthesis/adjudication support lane after independent returns.",
+                "options": [
+                    {
+                        "label": "Use synthesis (Recommended)",
+                        "value": "model-synthesis",
+                        "description": f"Add a CWO-native {pattern} lane with provenance and disagreement tracking.",
+                    },
+                    {
+                        "label": "Independent lanes",
+                        "value": "independent-lanes",
+                        "description": "Keep separate review lanes and let the architect adjudicate them directly.",
+                    },
+                    {
+                        "label": "No synthesis",
+                        "value": "no-synthesis",
+                        "description": "Use the normal route without a synthesis artifact.",
+                    },
+                ],
             }
         )
 
@@ -612,6 +655,7 @@ def prompt_coach_enabled_levers(
     level: str,
     route: dict[str, Any],
     workerbee_parallelism: dict[str, Any] | None = None,
+    model_synthesis: dict[str, Any] | None = None,
 ) -> list[str]:
     levers = [
         f"route={route.get('route')}",
@@ -651,6 +695,15 @@ def prompt_coach_enabled_levers(
             levers.append("workerbee-model-fallback-required")
         else:
             levers.append("codex-5.3-spark-workerbees-when-available")
+    if model_synthesis and model_synthesis.get("recommended_mode") != "none":
+        mode = str(model_synthesis.get("recommended_mode"))
+        levers.append(f"model-synthesis={mode}")
+        levers.append(f"synthesis-pattern={model_synthesis.get('synthesis_pattern')}")
+        levers.append(f"synthesis-owner={model_synthesis.get('synthesis_owner')}")
+        if mode == "recommended":
+            levers.append("model-synthesis-opt-in-choice")
+        else:
+            levers.append("model-synthesis-lane")
     return levers
 
 
@@ -658,6 +711,7 @@ def prompt_coach_disabled_levers(
     level: str,
     route: dict[str, Any],
     workerbee_parallelism: dict[str, Any] | None = None,
+    model_synthesis: dict[str, Any] | None = None,
 ) -> list[str]:
     levers: list[str] = []
     if level == "in-thread":
@@ -672,6 +726,17 @@ def prompt_coach_disabled_levers(
         levers.append("external-contracting-until-explicit-opt-in")
     if not route.get("has_local_worker_contracts"):
         levers.append("local-worker-dispatch-unless-explicitly-requested")
+    synthesis_mode = str((model_synthesis or {}).get("recommended_mode") or "none")
+    if synthesis_mode == "none":
+        levers.append("model-synthesis-unselected")
+    elif synthesis_mode == "recommended":
+        levers.append("model-synthesis-until-opt-in")
+    if (
+        model_synthesis
+        and model_synthesis.get("external_reviewers_require_opt_in")
+        and not route.get("external_opt_in")
+    ):
+        levers.append("external-synthesis-reviewers-until-sharing-opt-in")
     return sorted(set(levers))
 
 
@@ -680,6 +745,7 @@ def prompt_coach_rationale(
     route: dict[str, Any],
     missing_questions: list[dict[str, str]],
     workerbee_parallelism: dict[str, Any] | None = None,
+    model_synthesis: dict[str, Any] | None = None,
 ) -> list[str]:
     rationale = [
         f"Policy route is {route.get('route')} with {route.get('risk_level')} risk.",
@@ -708,12 +774,24 @@ def prompt_coach_rationale(
             f"{workerbee_parallelism.get('recommended_mode')} using {workerbee_model_phrase(workerbee_parallelism)} "
             "for bounded sidecar workstreams."
         )
+    if model_synthesis and model_synthesis.get("recommended_mode") == "requested":
+        rationale.append(
+            "CWO-native model synthesis is requested; independent evidence lanes should be synthesized before architect adjudication."
+        )
+    elif model_synthesis and model_synthesis.get("recommended_mode") == "recommended":
+        rationale.append(
+            "CWO-native model synthesis is recommended as an opt-in choice because risk, creativity, provider conflict, or multi-camp signals warrant more eyes."
+        )
     if missing_questions:
         rationale.append("The generated prompt includes missing-question guardrails before execution.")
     return rationale
 
 
-def prompt_coach_warnings(route: dict[str, Any], missing_questions: list[dict[str, str]]) -> list[str]:
+def prompt_coach_warnings(
+    route: dict[str, Any],
+    missing_questions: list[dict[str, str]],
+    model_synthesis: dict[str, Any] | None = None,
+) -> list[str]:
     warnings: list[str] = []
     hard_stops = route.get("hard_stops") or []
     for stop in hard_stops:
@@ -724,6 +802,8 @@ def prompt_coach_warnings(route: dict[str, Any], missing_questions: list[dict[st
         warnings.append("Peer review is required before findings become implementation direction.")
     if any(question["id"] == "outside_sharing_boundary" for question in missing_questions):
         warnings.append("Do not export context to outside models until the sharing boundary is explicitly answered.")
+    if model_synthesis and model_synthesis.get("recommended_mode") != "none":
+        warnings.append("Model synthesis is evidence collation; it must preserve per-model provenance and cannot replace architect adjudication.")
     return warnings
 
 
@@ -740,12 +820,41 @@ def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
     )
 
 
+def synthesis_prompt_line(model_synthesis: dict[str, Any] | None) -> str:
+    if not model_synthesis or model_synthesis.get("recommended_mode") == "none":
+        return ""
+    panel = [
+        str(item.get("executor"))
+        for item in model_synthesis.get("recommended_panel", [])
+        if isinstance(item, dict) and item.get("executor")
+    ]
+    panel_text = ", ".join(panel) if panel else "selected independent reviewers"
+    boundary = model_synthesis.get("required_share_boundary") or "redacted-packet"
+    base = (
+        "Preserve each model return as separate evidence, then create a synthesis artifact "
+        "covering consensus, material disagreements, unsupported claims, risk deltas, and recommended plan revisions. "
+        "Keep final decisions with the Codex architect."
+    )
+    if model_synthesis.get("recommended_mode") == "requested":
+        return (
+            "Use CWO-native model synthesis after independent review returns. "
+            f"Pattern: {model_synthesis.get('synthesis_pattern')}; panel: {panel_text}; "
+            f"outside share boundary: {boundary}. {base}\n"
+        )
+    return (
+        "Offer CWO-native model synthesis as an opt-in choice. "
+        f"If selected, use pattern {model_synthesis.get('synthesis_pattern')} with panel {panel_text}; "
+        f"outside share boundary: {boundary}. {base}\n"
+    )
+
+
 def render_coached_prompt(
     level: str,
     route: dict[str, Any],
     text: str,
     missing_questions: list[dict[str, str]],
     workerbee_parallelism: dict[str, Any] | None = None,
+    model_synthesis: dict[str, Any] | None = None,
 ) -> str:
     question_block = ""
     if missing_questions:
@@ -754,11 +863,13 @@ def render_coached_prompt(
         )
     validation = "Validation: report commands, evidence, and residual risk."
     workerbees = workerbee_prompt_line(workerbee_parallelism)
+    synthesis = synthesis_prompt_line(model_synthesis)
     if level == "in-thread":
         return (
             "Handle this in the current thread with mandatory Beads tracking, without the full $complex-work-orchestration harness.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
+            f"{synthesis}"
             "Create or update one Beads task for the work story, evidence, validation, and handoff. "
             "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
             "or multiple independent work streams appear.\n"
@@ -769,6 +880,7 @@ def render_coached_prompt(
             "Use $complex-work-orchestration for lightweight Beads-backed coordination.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
+            f"{synthesis}"
             "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
             "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
             f"{validation}{question_block}"
@@ -778,6 +890,7 @@ def render_coached_prompt(
             "Use $complex-work-orchestration to scaffold a full architect/PM/subagent/validation harness.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
+            f"{synthesis}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
             "and any policy-required peer-review workstreams. Keep final decisions with the architect.\n"
             f"{validation}{question_block}"
@@ -802,6 +915,7 @@ def render_coached_prompt(
                 "Use $complex-work-orchestration with outside architecture critic workstreams.\n"
                 f"Goal: {text}\n"
                 f"{workerbees}"
+                f"{synthesis}"
                 f"Share boundary: {route.get('share_boundary')}.\n"
                 "Create one contractor-only/no-codex-exec Bead per selected architecture critic, all using "
                 "contract-jd-architecture-reasoning. Dispatch them independently from the same Codex architect proposal:\n"
@@ -814,6 +928,7 @@ def render_coached_prompt(
             "Use $complex-work-orchestration with an outside contractor workstream.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
+            f"{synthesis}"
             f"Share boundary: {route.get('share_boundary')}.\n"
             f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
             "Build a boundary-gated contractor packet, evaluate the return, run peer review if required, "
@@ -825,6 +940,7 @@ def render_coached_prompt(
             "Use $complex-work-orchestration with a bounded local-worker review workstream.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
+            f"{synthesis}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
             "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
             "and require architect adjudication before follow-up implementation.\n"
@@ -834,6 +950,7 @@ def render_coached_prompt(
         "Use $complex-work-orchestration for publish/release-ready execution.\n"
         f"Goal: {text}\n"
         f"{workerbees}"
+        f"{synthesis}"
         "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization workstreams. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
         f"{validation}{question_block}"
@@ -869,20 +986,35 @@ def coach_orchestration_prompt(
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
-    questions = prompt_coach_missing_questions(route, text, file_paths, workerbee_parallelism)
-    interactive_questions = prompt_coach_interactive_questions(level, route, questions, workerbee_parallelism)
+    model_synthesis = recommend_model_synthesis(text, route)
+    questions = prompt_coach_missing_questions(route, text, file_paths, workerbee_parallelism, model_synthesis)
+    interactive_questions = prompt_coach_interactive_questions(
+        level,
+        route,
+        questions,
+        workerbee_parallelism,
+        model_synthesis,
+    )
     return {
         "coach_result_type": "complex-work-orchestration-prompt-coach",
-        "version": 3,
+        "version": 4,
         "beads_tracking_required": True,
         "recommended_orchestration_level": level,
-        "rationale": prompt_coach_rationale(level, route, questions, workerbee_parallelism),
+        "rationale": prompt_coach_rationale(level, route, questions, workerbee_parallelism, model_synthesis),
         "missing_questions": questions,
         "interactive_questions": interactive_questions,
-        "enabled_levers": prompt_coach_enabled_levers(level, route, workerbee_parallelism),
-        "disabled_levers": prompt_coach_disabled_levers(level, route, workerbee_parallelism),
+        "enabled_levers": prompt_coach_enabled_levers(level, route, workerbee_parallelism, model_synthesis),
+        "disabled_levers": prompt_coach_disabled_levers(level, route, workerbee_parallelism, model_synthesis),
         "workerbee_parallelism": workerbee_parallelism,
+        "model_synthesis": model_synthesis,
         "route": route,
-        "paste_ready_prompt": render_coached_prompt(level, route, text, questions, workerbee_parallelism),
-        "warnings": prompt_coach_warnings(route, questions),
+        "paste_ready_prompt": render_coached_prompt(
+            level,
+            route,
+            text,
+            questions,
+            workerbee_parallelism,
+            model_synthesis,
+        ),
+        "warnings": prompt_coach_warnings(route, questions, model_synthesis),
     }

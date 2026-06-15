@@ -13,6 +13,7 @@
     "enabled_levers",
     "disabled_levers",
     "workerbee_parallelism",
+    "model_synthesis",
     "route",
     "paste_ready_prompt",
     "warnings"
@@ -95,6 +96,55 @@
         },
         "prompt_user_in_plan_mode": {"type": "boolean"},
         "suggested_lanes": {"type": "array", "items": {"type": "string"}},
+        "rationale": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "model_synthesis": {
+      "type": "object",
+      "required": [
+        "recommended_mode",
+        "prompt_user_in_plan_mode",
+        "synthesis_pattern",
+        "synthesis_owner",
+        "trigger_reasons",
+        "recommended_panel",
+        "mentioned_provider_camps",
+        "required_share_boundary",
+        "external_reviewers_require_opt_in",
+        "artifact_contract",
+        "rationale"
+      ],
+      "properties": {
+        "recommended_mode": {
+          "enum": ["none", "requested", "recommended"]
+        },
+        "prompt_user_in_plan_mode": {"type": "boolean"},
+        "synthesis_pattern": {"type": "string"},
+        "synthesis_owner": {"type": "string"},
+        "trigger_reasons": {"type": "array", "items": {"type": "string"}},
+        "recommended_panel": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["executor", "role", "provider_camp", "effort", "external"],
+            "properties": {
+              "executor": {"type": "string"},
+              "role": {"type": "string"},
+              "provider_camp": {"type": "string"},
+              "effort": {"type": "string"},
+              "external": {"type": "boolean"}
+            }
+          }
+        },
+        "mentioned_provider_camps": {"type": "array", "items": {"type": "string"}},
+        "required_share_boundary": {
+          "anyOf": [
+            {"type": "string"},
+            {"type": "null"}
+          ]
+        },
+        "external_reviewers_require_opt_in": {"type": "boolean"},
+        "artifact_contract": {"type": "array", "items": {"type": "string"}},
         "rationale": {"type": "array", "items": {"type": "string"}}
       }
     },

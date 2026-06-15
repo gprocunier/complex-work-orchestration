@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "mode": "cwo-native",
+  "default_pattern": "independent-then-synthesize",
+  "synthesis_owner": "frontier_architect",
+  "default_share_boundary": "redacted-packet",
+  "explicit_terms": [
+    "synthesize",
+    "synthesis",
+    "model synthesis",
+    "fusion",
+    "model fusion",
+    "openrouter fusion",
+    "ensemble",
+    "combine answers",
+    "consensus",
+    "model camps",
+    "work together",
+    "more eyes",
+    "avengers",
+    "joint answer",
+    "unified answer"
+  ],
+  "creativity_terms": [
+    "creative",
+    "creativity",
+    "novel",
+    "new capability",
+    "design space",
+    "brainstorm",
+    "explore alternatives",
+    "union",
+    "intersection",
+    "trade space"
+  ],
+  "architecture_terms": [
+    "architecture",
+    "architect",
+    "control plane",
+    "policy",
+    "routing",
+    "schema",
+    "public contract",
+    "cross-cutting",
+    "migration"
+  ],
+  "provider_camps": {
+    "codex": {
+      "terms": ["codex", "workerbee", "subagent", "gpt-5.3", "gpt 5.3", "gpt-5.5", "gpt 5.5"],
+      "executor": "frontier_architect"
+    },
+    "openai": {
+      "terms": ["chatgpt", "openai", "chatgpt pro", "extended reasoning"],
+      "executor": "chatgpt_pro_5_5_extended_reasoning_browser"
+    },
+    "anthropic": {
+      "terms": ["claude", "opus", "anthropic"],
+      "executor": "claude_opus_4_6_architecture_critic"
+    },
+    "google": {
+      "terms": ["gemini", "agy", "antigravity", "google"],
+      "executor": "gemini_3_1_pro_preview_agy"
+    },
+    "local": {
+      "terms": ["local worker", "local inference", "vllm", "openshift ai"],
+      "executor": "local_secure_review_worker"
+    }
+  },
+  "default_panel": [
+    {
+      "executor": "frontier_architect",
+      "role": "synthesis-owner",
+      "provider_camp": "codex",
+      "effort": "xhigh",
+      "external": false
+    },
+    {
+      "executor": "internal_worker",
+      "role": "codex-review-workerbee",
+      "provider_camp": "codex",
+      "effort": "review-only",
+      "external": false
+    },
+    {
+      "executor": "claude_opus_4_6_architecture_critic",
+      "role": "architecture-critic",
+      "provider_camp": "anthropic",
+      "effort": "high-or-stronger",
+      "external": true
+    },
+    {
+      "executor": "gemini_3_1_pro_preview_agy",
+      "role": "architecture-critic",
+      "provider_camp": "google",
+      "effort": "pro-preview",
+      "external": true
+    },
+    {
+      "executor": "chatgpt_pro_5_5_extended_reasoning_browser",
+      "role": "master-plan-review",
+      "provider_camp": "openai",
+      "effort": "extended-reasoning",
+      "external": true
+    }
+  ],
+  "artifact_contract": [
+    "consensus points",
+    "material disagreements",
+    "unsupported claims",
+    "risk deltas",
+    "evidence provenance",
+    "recommended plan revisions"
+  ]
+}

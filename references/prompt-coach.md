@@ -7,7 +7,7 @@ The prompt coach is a compiler, not a second router. It calls the same policy
 router as `scripts/route_work.py`, then emits a right-sized launch prompt,
 missing high-value questions, bounded interactive questions, enabled levers,
 disabled levers, warnings, `beads_tracking_required=true`,
-`workerbee_parallelism`, and the underlying route result.
+`workerbee_parallelism`, `model_synthesis`, and the underlying route result.
 
 ## Basic Use
 
@@ -105,6 +105,29 @@ tracks for docs flow, terminology, web-design, validation, and publish checks.
 Implementation-capable subagents require explicit disjoint write scopes;
 otherwise the main thread keeps file integration and acceptance.
 
+## Model Synthesis
+
+`model_synthesis` is separate from the orchestration level and from
+`workerbee_parallelism`. It answers whether independent model outputs should
+remain separate evidence only, or whether CWO should add a synthesis lane that
+summarizes consensus, material disagreements, unsupported claims, risk deltas,
+evidence provenance, and recommended plan revisions.
+
+Explicit synthesis language such as `synthesize`, `fusion`, `ensemble`,
+`combine answers`, `consensus`, `model camps`, `work together`, `more eyes`, or
+`avengers` sets `model_synthesis.recommended_mode=requested`. Conservative
+high-leverage signals such as high-risk architecture, provider conflict, or
+novel/creative design set `recommended_mode=recommended` and add a
+`model_synthesis_opt_in` interactive question. Low-risk work remains
+`recommended_mode=none`.
+
+The v1 implementation is CWO-native. It does not call OpenRouter Fusion
+directly. External panel members such as Claude Opus, Gemini, or ChatGPT Pro
+still require explicit outside-sharing opt-in and a selected share boundary;
+the default boundary is `redacted-packet`. The synthesis artifact is evidence
+for architect adjudication, not authority to bypass evaluator, peer-review, or
+architect gates.
+
 ## Missing Questions
 
 The coach asks only for information that materially changes sizing:
@@ -114,6 +137,8 @@ The coach asks only for information that materially changes sizing:
 - whether the mandatory Beads record should stay as one task or expand into an
   epic/work graph
 - whether to parallelize with subagents
+- whether to add a model-synthesis lane when conservative synthesis triggers
+  match but the user did not explicitly request synthesis
 - outside-sharing boundary for Claude, Opus, Mythos, or another external model
 - outside-sharing boundary for ChatGPT Pro 5.5 Extended Reasoning master-plan
   review when the user explicitly asks for it
@@ -139,6 +164,7 @@ Use these questions for decisions such as:
   repo-readonly
 - whether to use no subagents, review-only subagents, heavy review subagents,
   or implementation subagents for disjoint scopes
+- whether to add CWO-native model synthesis for independent model outputs
 - whether a local inference worker is allowed
 - what validation bar to apply
 

@@ -18,6 +18,7 @@ from cwo_core.routing import (
     expert_review_metadata,
     expert_uses_external_contract,
 )
+from cwo_core.synthesis import recommend_model_synthesis, synthesis_lane_enabled
 from cwo_core.util import read_text_arg
 
 
@@ -76,18 +77,26 @@ def bullet_list(items: list[object], fallback: str) -> str:
 
 def route_notes(route: dict[str, Any]) -> str:
     experts = [str(item.get("name")) for item in route.get("ranked_experts", [])[:5] if item.get("name")]
-    return "\n".join(
-        [
-            f"Route: {route.get('route')}",
-            f"Task class: {route.get('task_class')}",
-            f"Risk: {route.get('risk_level')}",
-            f"Share boundary: {route.get('share_boundary')}",
-            f"Recommended executor: {route.get('recommended_executor')}",
-            f"Peer review required: {bool(route.get('peer_review_required'))}",
-            f"Provider conflict detected: {bool(route.get('provider_conflict_detected'))}",
-            "Selected experts: " + (", ".join(experts) if experts else "none"),
-        ]
-    )
+    lines = [
+        f"Route: {route.get('route')}",
+        f"Task class: {route.get('task_class')}",
+        f"Risk: {route.get('risk_level')}",
+        f"Share boundary: {route.get('share_boundary')}",
+        f"Recommended executor: {route.get('recommended_executor')}",
+        f"Peer review required: {bool(route.get('peer_review_required'))}",
+        f"Provider conflict detected: {bool(route.get('provider_conflict_detected'))}",
+        "Selected experts: " + (", ".join(experts) if experts else "none"),
+    ]
+    synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
+    if synthesis and synthesis.get("recommended_mode") != "none":
+        lines.extend(
+            [
+                f"Model synthesis: {synthesis.get('recommended_mode')}",
+                f"Synthesis pattern: {synthesis.get('synthesis_pattern')}",
+                f"Synthesis owner: {synthesis.get('synthesis_owner')}",
+            ]
+        )
+    return "\n".join(lines)
 
 
 LANE_FIELDS: dict[str, dict[str, object]] = {
@@ -135,6 +144,11 @@ LANE_FIELDS: dict[str, dict[str, object]] = {
         "skills": ["evaluation", "acceptance", "contractor-control"],
         "acceptance": "Contractor or local-worker returns are scored and dispositioned before follow-up implementation work is created.",
         "design": "Use evaluator outputs as evidence for architect adjudication, not as direct implementation authority.",
+    },
+    "model-synthesis": {
+        "skills": ["synthesis", "adjudication", "contractor-control", "beads"],
+        "acceptance": "Consensus, material disagreements, unsupported claims, risk deltas, evidence provenance, and recommended plan revisions are recorded.",
+        "design": "Preserve independent model outputs as evidence, synthesize only after the required review/evaluation gates, and leave final authority with architect adjudication.",
     },
     "architect-adjudication": {
         "skills": ["architecture", "adjudication", "acceptance"],
@@ -299,6 +313,7 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
     needs_acceptance = bool(acceptance_review_lanes) or route.get("route") in ["external-contract", "local-worker"]
     peer_review_required = bool(route.get("peer_review_required"))
     publish_sanitization_required = bool(route.get("editor_gate_required"))
+    model_synthesis_required = synthesis_lane_enabled(route.get("model_synthesis"))
     graph: list[dict[str, Any]] = [
         {
             "title": title,
@@ -367,57 +382,97 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
     )
     if needs_acceptance:
         peer_review_lanes = ["peer-review"] if peer_review_required else []
+        acceptance_lanes: list[dict[str, Any]] = [
+            {
+                "title": f"Dispatch: {title}",
+                "type": "task",
+                "lane": "external-dispatch",
+                "labels": ["dispatch", route["route"]],
+                "depends_on_lanes": ["pm"],
+                **lane_fields("external-dispatch", route),
+            },
+            *(
+                [
+                    {
+                        "title": f"Peer review return: {title}",
+                        "type": "task",
+                        "lane": "peer-review",
+                        "labels": [
+                            *(route.get("peer_review_labels")
+                              or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
+                            "contract-jd-peer-review",
+                        ],
+                        "metadata": {
+                            "job_description_label": "contract-jd-peer-review",
+                            "peer_review_count": route.get("peer_review_count", 1),
+                            "provider_diversity_required": route.get("provider_diversity_required", True),
+                            "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                            "local_secure_review_executor": route.get("local_secure_review_executor"),
+                            "codex_pickup": "forbidden",
+                            "architect_review_required": True,
+                        },
+                        "depends_on_lanes": ["external-dispatch"],
+                        **lane_fields("peer-review", route),
+                    }
+                ]
+                if peer_review_required
+                else []
+            ),
+            {
+                "title": f"Evaluate return: {title}",
+                "type": "task",
+                "lane": "evaluation",
+                "labels": ["evaluation", "contractor-evaluator"],
+                "depends_on_lanes": ["external-dispatch", *peer_review_lanes, *acceptance_review_lanes],
+                **lane_fields("evaluation", route),
+            },
+        ]
+        adjudication_dependencies = ["evaluation"]
+        if model_synthesis_required:
+            acceptance_lanes.append(
+                {
+                    "title": f"Model synthesis: {title}",
+                    "type": "task",
+                    "lane": "model-synthesis",
+                    "labels": ["synthesis", "adjudication-support"],
+                    "metadata": {"model_synthesis": route.get("model_synthesis")},
+                    "depends_on_lanes": ["evaluation"],
+                    **lane_fields("model-synthesis", route),
+                }
+            )
+            adjudication_dependencies = ["model-synthesis"]
+        acceptance_lanes.append(
+            {
+                "title": f"Architect adjudication: {title}",
+                "type": "task",
+                "lane": "architect-adjudication",
+                "labels": ["architect", "adjudication"],
+                "depends_on_lanes": adjudication_dependencies,
+                **lane_fields("architect-adjudication", route),
+            }
+        )
+        graph.extend(acceptance_lanes)
+        for item in graph:
+            if item.get("lane") == "implementation":
+                item.setdefault("depends_on_lanes", []).append("architect-adjudication")
+    elif model_synthesis_required:
         graph.extend(
             [
                 {
-                    "title": f"Dispatch: {title}",
+                    "title": f"Model synthesis: {title}",
                     "type": "task",
-                    "lane": "external-dispatch",
-                    "labels": ["dispatch", route["route"]],
-                    "depends_on_lanes": ["pm"],
-                    **lane_fields("external-dispatch", route),
-                },
-                *(
-                    [
-                        {
-                            "title": f"Peer review return: {title}",
-                            "type": "task",
-                            "lane": "peer-review",
-                            "labels": [
-                                *(route.get("peer_review_labels")
-                                  or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
-                                "contract-jd-peer-review",
-                            ],
-                            "metadata": {
-                                "job_description_label": "contract-jd-peer-review",
-                                "peer_review_count": route.get("peer_review_count", 1),
-                                "provider_diversity_required": route.get("provider_diversity_required", True),
-                                "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                                "local_secure_review_executor": route.get("local_secure_review_executor"),
-                                "codex_pickup": "forbidden",
-                                "architect_review_required": True,
-                            },
-                            "depends_on_lanes": ["external-dispatch"],
-                            **lane_fields("peer-review", route),
-                        }
-                    ]
-                    if peer_review_required
-                    else []
-                ),
-                {
-                    "title": f"Evaluate return: {title}",
-                    "type": "task",
-                    "lane": "evaluation",
-                    "labels": ["evaluation", "contractor-evaluator"],
-                    "depends_on_lanes": ["external-dispatch", *peer_review_lanes, *acceptance_review_lanes],
-                    **lane_fields("evaluation", route),
+                    "lane": "model-synthesis",
+                    "labels": ["synthesis", "adjudication-support"],
+                    "metadata": {"model_synthesis": route.get("model_synthesis")},
+                    "depends_on_lanes": ["architect", *implementation_blocker_lanes],
+                    **lane_fields("model-synthesis", route),
                 },
                 {
                     "title": f"Architect adjudication: {title}",
                     "type": "task",
                     "lane": "architect-adjudication",
                     "labels": ["architect", "adjudication"],
-                    "depends_on_lanes": ["evaluation"],
+                    "depends_on_lanes": ["model-synthesis"],
                     **lane_fields("architect-adjudication", route),
                 },
             ]
@@ -440,7 +495,7 @@ def item_priority(item: dict[str, Any], index: int) -> int:
     if index == 0:
         return 1
     lane = str(item.get("lane") or "")
-    if lane in ["architect", "pm", "external-dispatch", "evaluation", "architect-adjudication"]:
+    if lane in ["architect", "pm", "external-dispatch", "evaluation", "model-synthesis", "architect-adjudication"]:
         return 1
     return 2
 
@@ -466,6 +521,11 @@ def string_metadata(item: dict[str, Any]) -> dict[str, str]:
                     "recommended_executor": value.get("recommended_executor"),
                     "peer_review_required": bool(value.get("peer_review_required")),
                     "provider_conflict_detected": bool(value.get("provider_conflict_detected")),
+                    "model_synthesis": (
+                        value.get("model_synthesis", {}).get("recommended_mode")
+                        if isinstance(value.get("model_synthesis"), dict)
+                        else None
+                    ),
                 },
                 sort_keys=True,
             )
@@ -552,6 +612,11 @@ def main() -> None:
     parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[])
+    parser.add_argument(
+        "--model-synthesis",
+        action="store_true",
+        help="Add a CWO-native synthesis lane after independent review/evaluation returns.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--format",
@@ -572,6 +637,9 @@ def main() -> None:
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
     )
+    model_synthesis = recommend_model_synthesis(context, route, force_requested=args.model_synthesis)
+    if model_synthesis.get("recommended_mode") == "requested":
+        route = {**route, "model_synthesis": model_synthesis}
     plan = planned_graph(args.title, route)
     if args.dry_run:
         output: Any = beads_graph_plan(plan) if args.format == "beads-graph" else plan
@@ -604,7 +672,7 @@ def main() -> None:
             bead = create_bead(
                 item["title"],
                 parent=epic["id"],
-                priority=1 if item["lane"] in ["architect", "pm", "external-dispatch", "evaluation", "architect-adjudication"] else 2,
+                priority=1 if item["lane"] in ["architect", "pm", "external-dispatch", "evaluation", "model-synthesis", "architect-adjudication"] else 2,
                 labels=item["labels"],
                 skills=item["skills"],
                 description=body(f"Complete the {item['lane']} lane.", f"Evidence and result for {item['lane']}."),

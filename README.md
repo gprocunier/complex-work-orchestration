@@ -561,16 +561,23 @@ flowchart LR
    `python3 scripts/coach_prompt.py "<task text>"`.
 
    The coach returns a recommended orchestration level,
-   `beads_tracking_required=true`, `workerbee_parallelism`, missing questions,
-   bounded `interactive_questions`, enabled/disabled levers, warnings, and a
-   paste-ready launch prompt. In Plan mode, use `interactive_questions` for
-   selectable user input when the answer changes execution behavior. The coach
-   always asks whether to parallelize with subagents. If the coach recommends
+   `beads_tracking_required=true`, `workerbee_parallelism`, `model_synthesis`,
+   missing questions, bounded `interactive_questions`, enabled/disabled
+   levers, warnings, and a paste-ready launch prompt. In Plan mode, use
+   `interactive_questions` for selectable user input when the answer changes
+   execution behavior. The coach always asks whether to parallelize with
+   subagents. If the coach recommends
    `review-subagents` or `heavy-review-subagents`, use Codex 5.3 Spark when
    available, or the smallest available capable review model, for parallel
    docs, terminology, web-design, tests, routing, validation, or
    publish-sanitization review. In Default mode, ask only the required concise
    question or apply the coach's safe default.
+   `model_synthesis` is separate from workerbee parallelism: explicit fusion,
+   synthesis, ensemble, model-camp, or "more eyes" language enables a
+   CWO-native synthesis lane; high-risk architecture, provider-conflict, or
+   creative design signals only recommend synthesis as an opt-in choice.
+   Synthesis preserves independent returns, records consensus and
+   disagreements, and still requires architect adjudication.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -615,7 +622,9 @@ flowchart LR
 9. For epic-sized work, create role/workstream tasks under the epic: architect
    framing, PM coordination, review-only subagent sidecar workstreams,
    implementation subagents only when write ownership is disjoint,
-   validation, docs/handoff, and any outside contracts.
+   validation, docs/handoff, any outside contracts, and an optional
+   model-synthesis lane when synthesis was explicitly requested or accepted
+   from the prompt coach.
 10. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
    evaluation, and architect adjudication as real Beads dependencies.

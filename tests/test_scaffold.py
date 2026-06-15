@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.routing import classify_work  # noqa: E402
+from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
 from scaffold_workgraph import planned_graph, recovery_summary  # noqa: E402
 
 
@@ -101,6 +102,42 @@ class ScaffoldTests(unittest.TestCase):
             by_lane[claude_lane]["metadata"]["architecture_critic_contract"]["manual_command"],
             "claude --model claude-opus-4-6 --effort xhigh -p",
         )
+
+    def test_model_synthesis_sits_between_evaluation_and_adjudication(self) -> None:
+        text = (
+            "Use model synthesis with Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent "
+            "second opinion critics of the Codex architect design."
+        )
+        route = classify_work(
+            text,
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        route = {**route, "model_synthesis": recommend_model_synthesis(text, route)}
+        graph = planned_graph("Synthesis External Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertIn("model-synthesis", by_lane)
+        self.assertEqual(by_lane["model-synthesis"]["depends_on_lanes"], ["evaluation"])
+        self.assertEqual(by_lane["architect-adjudication"]["depends_on_lanes"], ["model-synthesis"])
+        self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+        self.assertEqual(
+            by_lane["model-synthesis"]["metadata"]["model_synthesis"]["recommended_mode"],
+            "requested",
+        )
+
+    def test_internal_model_synthesis_adds_adjudication_before_implementation(self) -> None:
+        text = "Use model synthesis for the Codex architecture review of routing and schema policy."
+        route = classify_work(text, requested_roles=["architecture"])
+        route = {**route, "model_synthesis": recommend_model_synthesis(text, route)}
+        graph = planned_graph("Synthesis Internal Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertIn("model-synthesis", by_lane)
+        self.assertEqual(by_lane["architect-adjudication"]["depends_on_lanes"], ["model-synthesis"])
+        self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+        self.assertNotIn("evaluation", by_lane)
 
     def test_public_docs_pages_graph_uses_editor_validation_gate(self) -> None:
         route = classify_work(

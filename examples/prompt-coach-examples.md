@@ -144,6 +144,30 @@ Expected sizing includes
 `workerbee_parallelism` question whose recommended option is
 `heavy-review-subagents`.
 
+## Model Synthesis
+
+```text
+/plan Use $complex-work-orchestration prompt coach:
+Use model synthesis to combine Claude Opus, Gemini, and ChatGPT Pro findings
+into consensus, disagreements, and recommended plan revisions.
+```
+
+Advanced helper equivalent after explicit outside-sharing opt-in:
+
+```bash
+python3 scripts/coach_prompt.py \
+  --external-ok \
+  --share-boundary redacted-packet \
+  --requested-role architecture \
+  --requested-role master-plan-review \
+  "Use model synthesis to combine Claude Opus, Gemini, and ChatGPT Pro findings."
+```
+
+Expected sizing includes `model_synthesis.recommended_mode=requested`,
+`model-synthesis=requested`, and a CWO-native synthesis lane when scaffolding.
+The lane preserves separate model evidence, captures consensus and
+disagreement, and remains input to architect adjudication.
+
 ## External Security Contractor
 
 ```text

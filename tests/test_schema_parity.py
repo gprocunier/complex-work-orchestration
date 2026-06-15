@@ -49,6 +49,8 @@ class SchemaParityTests(unittest.TestCase):
     def test_prompt_coach_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("prompt-coach-result.schema.json")
         self.assertTrue(set(PROMPT_COACH_RESULT_REQUIRED_FIELDS).issubset(set(schema["required"])))
+        self.assertIn("model_synthesis", schema["properties"])
+        self.assertIn("recommended_mode", schema["properties"]["model_synthesis"]["properties"])
 
     def test_opt_in_schema_supports_allowed_providers(self) -> None:
         properties = load_schema("opt-in-record.schema.json")["properties"]

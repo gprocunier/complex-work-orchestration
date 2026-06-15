@@ -16,11 +16,13 @@ class PromptCoachTests(unittest.TestCase):
     def test_narrow_work_recommends_in_thread(self) -> None:
         result = coach_orchestration_prompt("Fix typo in README.md")
         self.assertEqual(result["recommended_orchestration_level"], "in-thread")
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "none")
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("mandatory Beads tracking", result["paste_ready_prompt"])
         self.assertIn("beads-durable-state", result["enabled_levers"])
         self.assertIn("beads-minimum-tracking", result["enabled_levers"])
         self.assertIn("full-harness", result["disabled_levers"])
+        self.assertIn("model-synthesis-unselected", result["disabled_levers"])
         self.assertNotIn("beads-work-graph", result["disabled_levers"])
 
     def test_multi_session_work_recommends_lightweight_beads(self) -> None:
@@ -36,6 +38,17 @@ class PromptCoachTests(unittest.TestCase):
         )
         self.assertEqual(result["recommended_orchestration_level"], "full-harness")
         self.assertIn("architect-review", result["enabled_levers"])
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "recommended")
+        self.assertTrue(result["model_synthesis"]["prompt_user_in_plan_mode"])
+        self.assertIn("model-synthesis=recommended", result["enabled_levers"])
+        self.assertIn("model-synthesis-opt-in-choice", result["enabled_levers"])
+        self.assertIn("model-synthesis-until-opt-in", result["disabled_levers"])
+        self.assertTrue(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
+        synthesis_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "model_synthesis_opt_in"
+        ]
+        self.assertEqual(len(synthesis_questions), 1)
+        self.assertEqual(synthesis_questions[0]["options"][0]["value"], "model-synthesis")
 
     def test_explicit_scaffold_recommends_full_harness(self) -> None:
         result = coach_orchestration_prompt("Use $complex-work-orchestration to scaffold this project.")
@@ -163,6 +176,26 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["recommended_orchestration_level"], "external-contract")
         self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
         self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
+
+    def test_explicit_model_synthesis_request_is_enabled(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use model synthesis to combine Claude Opus, Gemini, and ChatGPT Pro findings "
+            "into consensus, disagreements, and recommended plan revisions.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture", "master-plan-review"],
+        )
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "requested")
+        self.assertFalse(result["model_synthesis"]["prompt_user_in_plan_mode"])
+        self.assertIn("model-synthesis=requested", result["enabled_levers"])
+        self.assertIn("model-synthesis-lane", result["enabled_levers"])
+        self.assertIn("CWO-native model synthesis", result["paste_ready_prompt"])
+        self.assertIn("architect adjudication", " ".join(result["model_synthesis"]["rationale"]).lower())
+        executors = [item["executor"] for item in result["model_synthesis"]["recommended_panel"]]
+        self.assertIn("claude_opus_4_6_architecture_critic", executors)
+        self.assertIn("gemini_3_1_pro_preview_agy", executors)
+        self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", executors)
+        self.assertFalse(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
 
     def test_generic_weigh_in_does_not_coach_chatgpt_master_review(self) -> None:
         result = coach_orchestration_prompt(
@@ -323,11 +356,12 @@ class PromptCoachTests(unittest.TestCase):
         )
         result = json.loads(output)
         self.assertEqual(result["coach_result_type"], "complex-work-orchestration-prompt-coach")
-        self.assertEqual(result["version"], 3)
+        self.assertEqual(result["version"], 4)
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("paste_ready_prompt", result)
         self.assertIn("interactive_questions", result)
         self.assertIn("workerbee_parallelism", result)
+        self.assertIn("model_synthesis", result)
         self.assertIn("route", result)
 
     def test_in_thread_interactive_option_keeps_beads(self) -> None:

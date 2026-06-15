@@ -113,6 +113,12 @@ Default roles:
   plan or total work packet. It uses `contract-jd-master-plan-review`, starts
   with a redacted packet by default, requires a share-link return, and remains
   evidence for Codex plan revision. It is separate from Deep Research.
+- **Model Synthesis Lane**: opt-in coordination lane that combines independent
+  Codex, local, and outside-model evidence only after the individual returns
+  exist. It records consensus, material disagreements, unsupported claims,
+  risk deltas, evidence provenance, and recommended plan revisions. It is
+  CWO-native evidence collation, not direct OpenRouter Fusion API dispatch, and
+  architect adjudication remains the final authority.
 - **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
   local-worker review contracts after explicit `--local-ok`; output is evidence
   and still needs evaluator scoring plus architect adjudication.
@@ -150,7 +156,7 @@ python3 scripts/coach_prompt.py "<task text>"
 ```
 
    Use the coach output to avoid under- or over-leveraging Beads, contractors,
-   local inference, peer review, workerbee parallelism, or
+   local inference, peer review, workerbee parallelism, model synthesis, or
    publish-sanitization. The coach always includes a subagent parallelization
    choice in `interactive_questions`; surface it in Plan mode even when the
    recommended default is no subagents. If
@@ -160,6 +166,11 @@ python3 scripts/coach_prompt.py "<task text>"
    workerbee handling exists.
    Use implementation workerbees only when file ownership or workstream
    boundaries are disjoint.
+   `model_synthesis` is separate from workerbee parallelism. Explicit fusion,
+   synthesis, ensemble, model-camp, or "more eyes" language enables synthesis.
+   High-risk architecture, provider-conflict, or creative design signals only
+   recommend synthesis as an opt-in prompt-coach choice. Outside synthesis
+   panel members still require explicit share-boundary opt-in.
    If the result includes `interactive_questions` and Codex is in Plan mode,
    present those as selectable prompts because the answer changes execution
    behavior. In Default mode, ask only the concise blocking question or apply the

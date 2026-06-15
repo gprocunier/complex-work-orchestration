@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.routing import classify_work  # noqa: E402
+from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
 from scaffold_workgraph import beads_graph_plan, planned_graph  # noqa: E402
 
 
@@ -51,6 +52,20 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertTrue(cwo["cwo_acceptance"])
         self.assertTrue(cwo["cwo_design"])
         self.assertTrue(cwo["cwo_notes"])
+
+    def test_beads_graph_plan_exports_model_synthesis_lane(self) -> None:
+        text = "Use model synthesis for architecture routing and schema policy."
+        route = classify_work(text, requested_roles=["architecture"])
+        route = {**route, "model_synthesis": recommend_model_synthesis(text, route)}
+        graph = beads_graph_plan(planned_graph("Synthesis Graph", route))
+        by_key = {node["key"]: node for node in graph["nodes"]}
+
+        self.assertIn("model-synthesis", by_key)
+        self.assertEqual(by_key["model-synthesis"]["metadata"]["cwo_lane"], "model-synthesis")
+        self.assertIn(
+            {"from_key": "architect-adjudication", "to_key": "model-synthesis", "type": "blocks"},
+            graph["edges"],
+        )
 
     def test_cli_beads_graph_output_validates_with_bd_create_graph_dry_run(self) -> None:
         bd = shutil.which("bd")
