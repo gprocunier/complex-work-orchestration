@@ -67,8 +67,11 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               for automation, CI, troubleshooting, or an operator shell
               outside Codex.
             </p>
-            <pre><code>python3 scripts/coach_prompt.py \
+            <details>
+              <summary><strong>Operator Reference: Coach Helper</strong></summary>
+              <pre><code>python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."</code></pre>
+            </details>
             <div class="callout">
               <strong>Default posture:</strong>
               The skill always expects durable Beads tracking. Narrow work can
@@ -86,16 +89,22 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               recording evidence. Without a remote, the graph is durable local
               state but not shared across machines.
             </p>
-            <pre><code>command -v bd
+            <details>
+              <summary><strong>Operator Reference: Beads Checks</strong></summary>
+              <pre><code>command -v bd
 test -d .beads && bd ready --json || true
 bd init
 bd dolt remote list
 bd dolt pull
 bd dolt commit
 bd dolt push</code></pre>
-            <div class="callout">
-              <strong>Durability fallback:</strong> If Beads is unavailable or cannot be installed, record the same task or graph structure in a temporary Markdown plan file and note that durability is reduced. Do not claim contractor-only filtering, shared ready-work semantics, or durable external handoff unless Beads or an equivalent tracker is actually in use.
-            </div>
+            </details>
+            <p>
+              If Beads is unavailable or cannot be installed, record the same
+              task or graph structure in a temporary Markdown plan file and
+              note that durability is reduced. The full workflow and fallback
+              limits are covered in <a href="./workflows.html#beads-graph">Workflows</a>.
+            </p>
             <p>
               Generated Beads populate native fields for <code>skills</code>,
               <code>acceptance</code>, <code>design</code>, and
@@ -109,11 +118,14 @@ bd dolt push</code></pre>
               Worker-facing ready work should exclude contractor and local
               worker guard labels:
             </p>
-            <pre><code>bd ready \
+            <details>
+              <summary><strong>Operator Reference: Ready Work Filter</strong></summary>
+              <pre><code>bd ready \
   --exclude-label contractor-only \
   --exclude-label local-worker-only \
   --exclude-label no-codex-exec \
   --json</code></pre>
+            </details>
           </section>
 
           <section id="execute">

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Understand why Complex Work Orchestration separates architect authority, Beads memory, review workers, outside contractors, local workers, validation, and handoff."
+    >
+    <title>Explanation | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
+          <a href="./contractor-demo.html">Demo</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Explanation</p>
+        <h1>Why The Workflow Is Structured This Way</h1>
+        <p class="lede">
+          Complex work needs more than one long prompt. The skill separates
+          planning, durable memory, evidence gathering, validation, and final
+          judgment so a later agent can understand what happened without
+          inheriting the whole transcript.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#roles">Role Separation</a>
+          <a href="#memory">Durable Memory</a>
+          <a href="#evidence">Evidence Boundaries</a>
+          <a href="#publication">Publication Quality</a>
+          <a href="#failure-modes">Failure Modes</a>
+          <a href="./workflows.html">Workflows</a>
+        </nav>
+        <div class="doc-body">
+          <section id="roles">
+            <h2>Role Separation</h2>
+            <p>
+              The main Codex thread acts as the architect. It owns scope,
+              design tradeoffs, integration, validation judgment, and release
+              decisions. The project-manager layer keeps the work graph current
+              and makes sure each lane has a clear assignment and handoff.
+            </p>
+            <p>
+              Review workers, outside models, and local models are deliberately
+              narrower. They investigate, critique, summarize, or return a
+              bounded patch. Their output is useful because it is focused, but
+              it is not authority. The architect still decides what to accept.
+            </p>
+          </section>
+
+          <section id="memory">
+            <h2>Durable Memory</h2>
+            <p>
+              Chat history is not a reliable project database. A spawned agent
+              may start with no transcript, and a long-running session may be
+              compacted into a fuzzy summary. Beads gives the project a durable
+              work graph with task scope, dependencies, evidence, decisions,
+              validation, and handoff notes.
+            </p>
+            <p>
+              That is why meaningful closures need a final summary before the
+              task is closed. The close reason stays short; the useful memory
+              lives in the comment: why it closed, what was decided, what
+              evidence passed, what risk remains, and what should happen next.
+            </p>
+            <div class="callout">
+              <strong>Local-only mode:</strong>
+              If the repository has no Beads remote, the graph is still useful
+              durable local state. It is not synced to another machine until a
+              remote exists and the operator pushes it.
+            </div>
+          </section>
+
+          <section id="evidence">
+            <h2>Evidence Boundaries</h2>
+            <p>
+              Outside and local model workstreams are opt-in. A handoff packet
+              defines what can be shared, which files or snippets are allowed,
+              what question is being asked, and how the return will be judged.
+              A contractor can provide a strong second opinion, but the return
+              is still evidence until it is evaluated and adjudicated.
+            </p>
+            <p>
+              This matters most when a tool can see more than the packet was
+              supposed to expose. If a redacted review accidentally uses local
+              repository context, that extra evidence should be rejected or
+              quarantined instead of folded into the plan without review.
+            </p>
+          </section>
+
+          <section id="publication">
+            <h2>Publication Quality</h2>
+            <p>
+              Public documentation has a different bar than internal planning.
+              A reader should see prerequisites, the first action to take, the
+              reason behind a workflow, and the reference surface when they
+              need exact commands. They should not have to sort through
+              planning labels, draft notes, repeated lifecycle prose, or
+              private implementation assumptions.
+            </p>
+            <p>
+              That is the purpose of the final editorial review for public
+              docs and GitHub Pages: check the reader journey, remove repeated
+              or circular wording, keep rationale where it helps, and make sure
+              operator details are presented as reference material.
+            </p>
+          </section>
+
+          <section id="failure-modes">
+            <h2>Failure Modes The Harness Avoids</h2>
+            <ol class="check-list">
+              <li>Starting a large task without a durable work graph.</li>
+              <li>Letting contractor output become implementation authority.</li>
+              <li>Publishing docs that expose internal planning language.</li>
+              <li>Repeating the same workflow across several pages until they drift.</li>
+              <li>Claiming validation, sync, or share-boundary behavior that did not happen.</li>
+            </ol>
+            <p>
+              The <a href="./workflows.html">Workflows guide</a> shows how to
+              run the process. The <a href="./reference.html">Reference</a>
+              page gives exact policy and helper details when you need them.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

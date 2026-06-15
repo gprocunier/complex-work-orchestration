@@ -53,6 +53,7 @@
           <a href="#optional-lanes">Optional Workstreams</a>
           <a href="#contractor-demo">Contractor Demo</a>
           <a href="#validate-handoff">Validate And Handoff</a>
+          <a href="./explanation.html">Why this structure</a>
         </nav>
         <div class="doc-body">
           <section id="invoke-codex">
@@ -94,16 +95,24 @@ Publish-ready documentation pass.</code></pre>
               prepared for outside or local review.
             </p>
             <p>
+              This page owns the full lifecycle. The
+              <a href="./prompt-coach.html">Prompt Coach guide</a> owns the
+              narrower request-sizing details and launch-prompt composition.
+            </p>
+            <p>
               What Codex may run behind the scenes, or what an operator may run
               directly for advanced automation and troubleshooting:
             </p>
-            <pre><code>python3 scripts/coach_prompt.py --json \
+            <details>
+              <summary><strong>Operator Reference: Coach And Route Helpers</strong></summary>
+              <pre><code>python3 scripts/coach_prompt.py --json \
   "Publish-ready documentation pass."
 
 python3 scripts/route_work.py \
   "Publish-ready documentation pass."
 
 python3 scripts/cleanup_stale_agents.py --json</code></pre>
+            </details>
             <p>
               Stale-agent cleanup runs before launch. It cleans harness-owned
               stale sessions while protecting the current Codex process tree.
@@ -152,7 +161,9 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               Codex normally creates the graph from the guided plan. Use direct
               helper execution only for advanced automation or troubleshooting.
             </p>
-            <pre><code>python3 scripts/scaffold_workgraph.py \
+            <details>
+              <summary><strong>Operator Reference: Graph Helpers</strong></summary>
+              <pre><code>python3 scripts/scaffold_workgraph.py \
   --title "Public workflow docs" \
   --description "Document the guided Codex workflow."
 
@@ -160,6 +171,7 @@ python3 scripts/spawn_expert_reviews.py \
   --parent "$EPIC_ID" \
   --requested-role documentation \
   "Review the workflow docs before publish."</code></pre>
+            </details>
             <div class="callout">
               <strong>Publication review:</strong>
               Public docs, install guidance, and GitHub Pages changes get a
@@ -168,11 +180,14 @@ python3 scripts/spawn_expert_reviews.py \
               order, and whether repeated or draft-like wording should be
               removed.
             </div>
-            <pre><code>bd ready \
+            <details>
+              <summary><strong>Operator Reference: Ready Work Filter</strong></summary>
+              <pre><code>bd ready \
   --exclude-label contractor-only \
   --exclude-label local-worker-only \
   --exclude-label no-codex-exec \
   --json</code></pre>
+            </details>
           </section>
 
           <section id="optional-lanes">
@@ -242,6 +257,12 @@ python3 scripts/spawn_expert_reviews.py \
               <code>--allow-disclosure-escalation</code> for repo-readonly or
               patch-branch handoff packets.
             </div>
+            <div class="callout">
+              <strong>Redacted CLI dispatch:</strong>
+              If an external CLI can inspect the current directory, run a
+              redacted-packet prompt from a neutral directory or treat any
+              unapproved repository inspection as invalid contractor evidence.
+            </div>
           </section>
 
           <section id="contractor-demo">
@@ -298,8 +319,17 @@ python3 scripts/evaluate_return.py \
             <p>
               For ordinary docs or release work, validation also includes
               repository checks, site checks, tests, install smoke, visual
-              render checks, editor-gate evidence when public docs/pages are in
-              scope, and publish sanitization before any upstream push.
+              render checks, editorial review evidence when public docs/pages
+              are in scope, and publish sanitization before any upstream push.
+              Suspected sabotage, malpractice, or quarantine cases should use
+              the canonical
+              <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">incident-response playbook</a>.
+            </p>
+            <p>
+              Before editing public pages, inventory the existing page URLs and
+              section anchors that callers may link to. After editing, verify
+              the same public pages remain available or have an intentional
+              replacement path.
             </p>
           </section>
         </div>

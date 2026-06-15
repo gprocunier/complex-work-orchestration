@@ -9,6 +9,13 @@ external reasoning, or careful release judgment.
 
 Project site: https://gprocunier.github.io/complex-work-orchestration/
 
+Start with the published guide when you are using the skill interactively:
+
+- Get Started: https://gprocunier.github.io/complex-work-orchestration/get-started.html
+- Workflows: https://gprocunier.github.io/complex-work-orchestration/workflows.html
+- Explanation: https://gprocunier.github.io/complex-work-orchestration/explanation.html
+- Reference: https://gprocunier.github.io/complex-work-orchestration/reference.html
+
 ## Installation
 
 Clone the repository and run the guided installer:
@@ -1049,6 +1056,11 @@ In patch-branch mode, the expected artifact is still a reviewed proposal unless
 direct workspace mutation is separately authorized. For tool-running CLIs such
 as `agy -p` or `claude -p`, capture tracked workspace state around the run when
 the contractor can see a checkout:
+
+For `redacted-packet` contracts, run the external CLI from a neutral directory
+unless the CLI is proven unable to inspect the current checkout. If a return
+uses repository context that was not approved by the share boundary, mark that
+evidence invalid or quarantine it for architect adjudication.
 
 ```bash
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json

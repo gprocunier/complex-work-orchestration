@@ -288,12 +288,31 @@ def validate_repository() -> list[str]:
             "Beads task graph",
             "Contractor handoff packet",
             "./get-started.html",
+            "./explanation.html",
             "./prompt-coach.html",
             "./workflows.html",
             "./workflows.html#optional-lanes",
             "./contractor-demo.html",
             "./reference.html",
             "https://github.com/gprocunier/complex-work-orchestration",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/explanation.html",
+        [
+            "Why The Workflow Is Structured This Way",
+            "Role Separation",
+            "Durable Memory",
+            "Evidence Boundaries",
+            "Publication Quality",
+            "Failure Modes The Harness Avoids",
+            "no transcript",
+            "compacted",
+            "evidence until it is evaluated and adjudicated",
+            "redacted review accidentally uses local",
+            "./workflows.html",
+            "./reference.html",
         ],
     )
     require_doc_terms(
@@ -382,6 +401,9 @@ def validate_repository() -> list[str]:
             "Contractor Demo",
             "closure-memory comment",
             "./contractor-demo.html",
+            "./explanation.html",
+            "incident-response playbook",
+            "inventory the existing page URLs",
         ],
     )
     require_doc_terms(
@@ -455,10 +477,13 @@ def validate_repository() -> list[str]:
         [
             "Control Plane",
             "Start with the guided workflow",
+            "Flow References",
+            "Operator Controls",
             "policy/routing-policy.yaml",
             "schemas",
             "OpenShift AI",
             "./workflows.html",
+            "./explanation.html",
             "./external-contracting.html",
             "./local-workers.html",
             "--local-ok",
@@ -480,6 +505,7 @@ def validate_repository() -> list[str]:
             "scripts/validate_site.py",
             "workspace_mutation_guard.py",
             "closure-memory comments",
+            "incident-response playbook",
             "./contractor-demo.html",
         ],
     )

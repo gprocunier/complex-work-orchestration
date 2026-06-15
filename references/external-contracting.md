@@ -534,6 +534,12 @@ python3 scripts/build_contractor_packet.py \
    python3 scripts/workspace_mutation_guard.py --compare before.json --output mutation-report.json
    ```
 
+   For `redacted-packet` contracts, run the external CLI from a neutral
+   directory unless the CLI is proven unable to inspect the current checkout.
+   If a return uses repository context that was not approved by the share
+   boundary, mark that evidence invalid or quarantine it for architect
+   adjudication.
+
    When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
    over putting large prompts in process arguments. If the CLI only accepts
    `-p`, keep the packet, prompt, and return artifacts local and remember that

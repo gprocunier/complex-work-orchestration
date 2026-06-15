@@ -83,11 +83,9 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               inference should be used.
             </div>
             <div class="callout">
-              <strong>Durability fallback:</strong> If Beads is unavailable to
-              track local-worker tasks, record the same task structure in a
-              temporary Markdown plan file. Durability is reduced, and
-              ready-work filters such as <code>local-worker-only</code>
-              exclusion are not enforced by the toolchain.
+              <strong>Durable state:</strong> Local-worker tasks still need a
+              Beads record. The fallback behavior and its limits are covered in
+              <a href="./workflows.html#beads-graph">Workflows</a>.
             </div>
           </section>
 

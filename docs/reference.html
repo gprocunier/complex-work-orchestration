@@ -47,14 +47,38 @@
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
           <a href="#policies">Policies</a>
+          <a href="#operator-controls">Operator Controls</a>
           <a href="#schemas">Schemas</a>
           <a href="#experts">Experts</a>
           <a href="#scripts">Scripts</a>
           <a href="#deep-dives">Deep Dives</a>
           <a href="#validation">Validation</a>
+          <a href="./explanation.html">Explanation</a>
           <a href="./workflows.html">Workflows</a>
         </nav>
         <div class="doc-body">
+          <section id="flow-references">
+            <h2>Flow References</h2>
+            <p>
+              Use <a href="./get-started.html">Get Started</a> for the
+              tutorial, <a href="./workflows.html">Workflows</a> for the
+              end-to-end how-to, <a href="./prompt-coach.html">Prompt Coach</a>
+              for request sizing, and <a href="./explanation.html">Explanation</a>
+              for the rationale behind role separation, durable memory, and
+              evidence boundaries.
+            </p>
+          </section>
+
+          <section id="operator-controls">
+            <h2>Operator Controls</h2>
+            <p>
+              The sections below are exact lookup surfaces for policies,
+              schemas, expert labels, scripts, and validation gates. Use them
+              after the guided workflow has selected a route or when automation
+              needs the same controls Codex runs behind the scenes.
+            </p>
+          </section>
+
           <section id="policies">
             <h2>Policies</h2>
             <p>
@@ -124,6 +148,10 @@
               or stronger effort for higher-complexity architecture. The
               returns are evaluated evidence, not replacement architecture
               authority.
+            </p>
+            <p>
+              <code>agy -p</code> is the local CLI surface for the
+              <code>gemini_3_1_pro_preview_agy</code> executor key.
             </p>
             <p>
               The master-plan profile uses
@@ -208,6 +236,7 @@ python3 scripts/validate_site.py</code></pre>
             <ul class="link-list">
               <li><a href="./external-contracting.html">External contracting controls</a></li>
               <li><a href="./local-workers.html">Local worker and OpenShift AI controls</a></li>
+              <li><a href="./explanation.html">Operating model explanation</a></li>
               <li><a href="./contractor-demo.html">Hello-world contractor demo case study</a></li>
             </ul>
           </section>
@@ -227,6 +256,7 @@ python3 scripts/validate_site.py</code></pre>
               <li>Check desktop and mobile rendering.</li>
               <li>Scan for local paths, private attribution, tokens, and keys.</li>
               <li>Verify GitHub CI, Pages deploy, and live HTTP 200 after push.</li>
+              <li>Use the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">incident-response playbook</a> for sabotage, malpractice, or quarantine cases.</li>
             </ol>
           </section>
         </div>

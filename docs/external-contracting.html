@@ -122,6 +122,14 @@ contract-jd-security-reasoning</code></pre>
               prompt can be handed to <code>claude -p</code> or
               <code>agy -p</code> by an operator.
             </p>
+            <p>
+              <code>agy -p</code> is the local CLI surface for the
+              <code>gemini_3_1_pro_preview_agy</code> executor key. For a
+              redacted-packet review, run CLIs from a neutral directory unless
+              the tool is proven unable to inspect the current repository. If a
+              return uses unapproved repo context, treat that evidence as
+              invalid until the architect adjudicates it.
+            </p>
             <div class="callout">
               <strong>Executor access:</strong>
               The Codex runtime account must be able to invoke the approved
@@ -326,7 +334,9 @@ python3 scripts/evaluate_return.py \
               <strong>Quarantine rule:</strong>
               High sabotage or malpractice scores isolate the return. No
               implementation dependency should be created until adjudication is
-              complete.
+              complete. Use the canonical
+              <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">incident-response playbook</a>
+              for suspected sabotage, malpractice, or quarantine handling.
             </div>
             <div class="callout">
               <strong>Peer-review rule:</strong>

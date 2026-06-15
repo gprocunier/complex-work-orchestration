@@ -146,6 +146,8 @@ Publish-ready docs with validation and editorial review.</code></pre>
               selected critic. The outside-sharing question appears
               automatically when explicit external-model or contractor cues
               exist; otherwise the user can request external review directly.
+              <code>agy -p</code> is the local CLI surface for the
+              <code>gemini_3_1_pro_preview_agy</code> executor key.
             </div>
             <div class="callout">
               <strong>Master review:</strong>
@@ -215,8 +217,9 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
             <p>
               Conservative defaults keep work inside Codex, require Beads
               tracking, disable outside sharing until explicit opt-in, disable
-              local worker dispatch until explicit opt-in, and require
-              publish-grade validation for GitHub-facing work.
+              local worker dispatch until explicit opt-in, and ask for explicit
+              publish, release, or high-risk signals before forcing
+              publish-grade validation.
             </p>
             <pre><code>python3 scripts/route_work.py \
   "Security review the auth token and shell command handling."</code></pre>

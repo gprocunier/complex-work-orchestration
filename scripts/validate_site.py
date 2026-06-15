@@ -10,9 +10,11 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 REPO_URL = "https://github.com/gprocunier/complex-work-orchestration"
+INCIDENT_PLAYBOOK_URL = f"{REPO_URL}/blob/main/references/incident-response-playbook.md"
 REQUIRED_PAGES = [
     "index.html",
     "get-started.html",
+    "explanation.html",
     "prompt-coach.html",
     "workflows.html",
     "external-contracting.html",
@@ -23,6 +25,7 @@ REQUIRED_PAGES = [
 SOURCE_LINK_PATTERNS = [
     REPO_URL,
     f"{REPO_URL}/blob/main/LICENSE",
+    INCIDENT_PLAYBOOK_URL,
     "https://github.com/gprocunier/hello-world-contractor-demo",
     "https://gprocunier.github.io/hello-world-contractor-demo/",
     "https://github.com/steveyegge/beads",
@@ -186,7 +189,12 @@ def validate_html(path: Path) -> list[str]:
                 href == pattern or href.startswith(pattern + "#") for pattern in SOURCE_LINK_PATTERNS
             ):
                 errors.append(f"{path.relative_to(ROOT)} links to non-source external URL: {href}")
-            if "github.com" in parsed.netloc and "/blob/main/" in parsed.path and not parsed.path.endswith("/LICENSE"):
+            if (
+                "github.com" in parsed.netloc
+                and "/blob/main/" in parsed.path
+                and href != INCIDENT_PLAYBOOK_URL
+                and not parsed.path.endswith("/LICENSE")
+            ):
                 errors.append(f"{path.relative_to(ROOT)} links to GitHub markdown/source blob instead of local docs: {href}")
             if "github.com" in parsed.netloc and "/tree/main/" in parsed.path:
                 errors.append(f"{path.relative_to(ROOT)} links to GitHub tree instead of local docs: {href}")
