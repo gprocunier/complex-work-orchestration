@@ -9,6 +9,7 @@ from typing import Any
 
 from orchestration_lib import (
     REPO_ROOT,
+    assert_repo_safe_path,
     artifact_hash,
     boundary_allows_external,
     boundary_config,
@@ -151,16 +152,18 @@ def build_packet(
         )
     offset = len(inline_snippets)
     for index, raw_path in enumerate(snippet_files, 1):
-        path = (REPO_ROOT / raw_path).resolve() if not Path(raw_path).is_absolute() else Path(raw_path).resolve()
-        if not path.is_file():
+        candidate = (REPO_ROOT / raw_path) if not Path(raw_path).is_absolute() else Path(raw_path)
+        if not candidate.exists():
             raise SystemExit(f"snippet file not found: {raw_path}")
+        path = assert_repo_safe_path(candidate)
+        display_path = path.relative_to(REPO_ROOT).as_posix()
         try:
-            display_path = path.relative_to(REPO_ROOT).as_posix()
-        except ValueError:
-            display_path = f"snippet-file:{path.name}"
+            content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise SystemExit(f"refusing non-UTF-8 snippet file: {display_path}") from exc
         selected_snippets.append(
             inline_snippet(
-                path.read_text(encoding="utf-8"),
+                content,
                 index=offset + index,
                 max_lines=int(boundary.get("snippet_line_limit", 80)),
                 path=display_path,

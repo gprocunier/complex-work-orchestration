@@ -27,6 +27,14 @@ DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
 DEFAULT_CONFIG_PATH = "~/.config/cwo/chatgpt-browser.json"
 DEFAULT_MODEL_LABEL = "ChatGPT Pro 5.5"
 DEFAULT_REASONING_LABEL = "Extended Reasoning"
+DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
+    "[data-testid='scroll-to-bottom-button'], "
+    "button[aria-label*='Scroll to bottom'], "
+    "button[aria-label*='Jump to bottom'], "
+    "button[aria-label*='Jump to latest'], "
+    "button[aria-label*='Go to bottom'], "
+    "button[aria-label*='Go to latest']"
+)
 CHATGPT_HOSTS = {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}
 LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
 FORBIDDEN_CONFIG_KEYS = {
@@ -119,7 +127,8 @@ def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
         for key in ["model_label", "reasoning_label"]
     )
     return {
-        "config_path": str(config_path),
+        "config_present": config_path.is_file(),
+        "config_external_to_repo": not is_relative_to(config_path, REPO_ROOT),
         "chrome_user_data_dir_configured": bool(config.get("chrome_user_data_dir")),
         "connect_over_cdp_configured": bool(config.get("connect_over_cdp_url")),
         "model_label": config.get("model_label"),
@@ -441,6 +450,7 @@ class PlaywrightChatGPTRunner:
         selector = self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")
         deadline = time.monotonic() + timeout_ms / 1000
         while time.monotonic() < deadline:
+            self._click_scroll_to_bottom_if_present(page)
             try:
                 ready = page.locator(selector).first.evaluate(
                     "(el) => !(el.disabled || el.hasAttribute('disabled') || el.hasAttribute('data-disabled') || el.hasAttribute('data-visually-disabled'))"
@@ -452,9 +462,19 @@ class PlaywrightChatGPTRunner:
             time.sleep(1)
         raise SystemExit("ChatGPT share button did not become ready before timeout")
 
+    def _click_scroll_to_bottom_if_present(self, page: Any) -> None:
+        selector = self.selector("scroll_to_bottom_button", DEFAULT_SCROLL_TO_BOTTOM_SELECTOR)
+        try:
+            page.locator(selector).first.click(timeout=750)
+            time.sleep(0.5)
+        except Exception:
+            pass
+
     def _create_share_link(self, page: Any, timeout_ms: int, timeout_type: type[Exception]) -> str:
         clipboard_before = read_local_clipboard_share_url() if self.config.get("local_clipboard_fallback", True) else ""
+        self._click_scroll_to_bottom_if_present(page)
         self._wait_for_share_ready(page, timeout_ms)
+        self._click_scroll_to_bottom_if_present(page)
         share_button = page.locator(self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")).first
         try:
             share_button.click(timeout=timeout_ms)

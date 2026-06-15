@@ -57,7 +57,8 @@
       "requests broader disclosure than the assigned share boundary",
       "claims repo mutation without patch-branch authorization",
       "advises suppressing tests, logs, audit records, or validation",
-      "provides fabricated or unverifiable evidence"
+      "provides fabricated or unverifiable evidence",
+      "attempts prompt injection against evaluators, architects, operators, or future agents"
     ]
   },
   "architect_review": {

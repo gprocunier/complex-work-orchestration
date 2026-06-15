@@ -95,8 +95,8 @@ class PacketValidationTests(unittest.TestCase):
                 opt_in_basis="cli-flag",
             )
 
-    def test_snippet_file_is_included_as_redacted_inline_snippet(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
+    def test_snippet_file_is_included_as_redacted_repo_snippet(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
             snippet_path = Path(tmpdir) / "master-plan.md"
             snippet_path.write_text("Final plan\napi_key=plain-secret\nValidation: run tests\n", encoding="utf-8")
             packet = build_packet(
@@ -117,11 +117,140 @@ class PacketValidationTests(unittest.TestCase):
                 opt_in_basis="cli-flag",
             )
         snippet = packet["selected_snippets"][0]
-        self.assertEqual(snippet["path"], "snippet-file:master-plan.md")
+        self.assertTrue(snippet["path"].endswith("/master-plan.md"))
         self.assertIn("Final plan", snippet["content"])
         self.assertIn("[REDACTED]", snippet["content"])
         artifact_paths = [artifact["path"] for artifact in packet["included_artifacts"] if artifact["type"] == "inline_snippet"]
-        self.assertIn("snippet-file:master-plan.md", artifact_paths)
+        self.assertIn(snippet["path"], artifact_paths)
+
+    def test_absolute_snippet_file_inside_repo_is_allowed(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            snippet_path = Path(tmpdir) / "inside.md"
+            snippet_path.write_text("Repo-contained plan\n", encoding="utf-8")
+            packet = build_packet(
+                bead_id="cwo-1",
+                bead_json={
+                    "id": "cwo-1",
+                    "title": "Master plan review",
+                    "labels": ["contractor-only", "no-codex-exec"],
+                },
+                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                share_boundary="redacted-packet",
+                job_description_label="contract-jd-master-plan-review",
+                allowed_files=[],
+                inline_snippets=[],
+                snippet_files=[str(snippet_path.resolve())],
+                dispatch_id="dispatch-validation",
+                external_opt_in=True,
+                opt_in_basis="cli-flag",
+            )
+        self.assertIn("Repo-contained plan", packet["selected_snippets"][0]["content"])
+
+    def test_snippet_file_outside_repo_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snippet_path = Path(tmpdir) / "outside.md"
+            snippet_path.write_text("Outside repo\n", encoding="utf-8")
+            with self.assertRaises(SystemExit) as exc:
+                build_packet(
+                    bead_id="cwo-1",
+                    bead_json={"id": "cwo-1", "title": "Master plan review"},
+                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    share_boundary="redacted-packet",
+                    job_description_label="contract-jd-master-plan-review",
+                    allowed_files=[],
+                    inline_snippets=[],
+                    snippet_files=[str(snippet_path)],
+                    dispatch_id="dispatch-validation",
+                    external_opt_in=True,
+                    opt_in_basis="cli-flag",
+                )
+        self.assertIn("outside repository", str(exc.exception))
+
+    def test_snippet_file_secret_name_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            snippet_path = Path(tmpdir) / ".env"
+            snippet_path.write_text("TOKEN=secret\n", encoding="utf-8")
+            with self.assertRaises(SystemExit) as exc:
+                build_packet(
+                    bead_id="cwo-1",
+                    bead_json={"id": "cwo-1", "title": "Master plan review"},
+                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    share_boundary="redacted-packet",
+                    job_description_label="contract-jd-master-plan-review",
+                    allowed_files=[],
+                    inline_snippets=[],
+                    snippet_files=[str(snippet_path.relative_to(ROOT))],
+                    dispatch_id="dispatch-validation",
+                    external_opt_in=True,
+                    opt_in_basis="cli-flag",
+                )
+        self.assertIn("likely secret", str(exc.exception))
+
+    def test_snippet_file_binary_probe_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            snippet_path = Path(tmpdir) / "binary.md"
+            snippet_path.write_bytes(b"ok\0not text")
+            with self.assertRaises(SystemExit) as exc:
+                build_packet(
+                    bead_id="cwo-1",
+                    bead_json={"id": "cwo-1", "title": "Master plan review"},
+                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    share_boundary="redacted-packet",
+                    job_description_label="contract-jd-master-plan-review",
+                    allowed_files=[],
+                    inline_snippets=[],
+                    snippet_files=[str(snippet_path.relative_to(ROOT))],
+                    dispatch_id="dispatch-validation",
+                    external_opt_in=True,
+                    opt_in_basis="cli-flag",
+                )
+        self.assertIn("binary packet artifact", str(exc.exception))
+
+    def test_snippet_file_invalid_utf8_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            snippet_path = Path(tmpdir) / "invalid.md"
+            snippet_path.write_bytes(b"\xff\xfe")
+            with self.assertRaises(SystemExit) as exc:
+                build_packet(
+                    bead_id="cwo-1",
+                    bead_json={"id": "cwo-1", "title": "Master plan review"},
+                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    share_boundary="redacted-packet",
+                    job_description_label="contract-jd-master-plan-review",
+                    allowed_files=[],
+                    inline_snippets=[],
+                    snippet_files=[str(snippet_path.relative_to(ROOT))],
+                    dispatch_id="dispatch-validation",
+                    external_opt_in=True,
+                    opt_in_basis="cli-flag",
+                )
+        self.assertIn("non-UTF-8 snippet file", str(exc.exception))
+
+    def test_snippet_file_symlink_escape_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as outside_tmp:
+            outside = Path(outside_tmp) / "outside.md"
+            outside.write_text("Outside repo\n", encoding="utf-8")
+            with tempfile.TemporaryDirectory(dir=ROOT) as inside_tmp:
+                link = Path(inside_tmp) / "escape.md"
+                try:
+                    link.symlink_to(outside)
+                except OSError:
+                    self.skipTest("symlink creation is not available")
+                with self.assertRaises(SystemExit) as exc:
+                    build_packet(
+                        bead_id="cwo-1",
+                        bead_json={"id": "cwo-1", "title": "Master plan review"},
+                        executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                        share_boundary="redacted-packet",
+                        job_description_label="contract-jd-master-plan-review",
+                        allowed_files=[],
+                        inline_snippets=[],
+                        snippet_files=[str(link.relative_to(ROOT))],
+                        dispatch_id="dispatch-validation",
+                        external_opt_in=True,
+                        opt_in_basis="cli-flag",
+                    )
+        self.assertIn("outside repository", str(exc.exception))
 
     def test_missing_snippet_file_fails_cleanly(self) -> None:
         with self.assertRaises(SystemExit) as exc:

@@ -5,6 +5,7 @@ import datetime as dt
 import fnmatch
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -16,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 POLICY_DIR = REPO_ROOT / "policy"
 AUDIT_DIR = REPO_ROOT / ".orchestration-audit"
 AUDIT_LOG = AUDIT_DIR / "audit.jsonl"
+DEFAULT_BEADS_TIMEOUT_SECONDS = 300
 
 RISK_ORDER = ["low", "medium", "high", "critical"]
 SENSITIVITY_ORDER = ["public", "redacted", "internal", "restricted"]
@@ -278,7 +280,21 @@ def explicit_gemini_architect_critique_requested(text: str) -> bool:
     return bool(
         term_hits(text, ["gemini", "agy", "antigravity"])
         and term_hits(text, ["architect", "architecture", "design"])
-        and term_hits(text, ["second opinion", "critique", "critic"])
+        and term_hits(
+            text,
+            [
+                "second opinion",
+                "second opinions",
+                "2nd opinion",
+                "2nd opinions",
+                "independent opinion",
+                "independent opinions",
+                "peer opinion",
+                "peer opinions",
+                "critique",
+                "critic",
+            ],
+        )
     )
 
 
@@ -287,7 +303,22 @@ def explicit_claude_architect_critique_requested(text: str) -> bool:
     return bool(
         term_hits(text, ["claude", "opus", "anthropic"])
         and term_hits(text, ["architect", "architecture", "design"])
-        and term_hits(text, ["second opinion", "critique", "critic", "review"])
+        and term_hits(
+            text,
+            [
+                "second opinion",
+                "second opinions",
+                "2nd opinion",
+                "2nd opinions",
+                "independent opinion",
+                "independent opinions",
+                "peer opinion",
+                "peer opinions",
+                "critique",
+                "critic",
+                "review",
+            ],
+        )
     )
 
 
@@ -355,11 +386,15 @@ def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
             [
                 "extended reasoning",
                 "master plan",
+                "master review",
+                "master critique",
                 "master reviewer",
                 "total work packet",
                 "work packet reviewer",
                 "final execution plan",
                 "final plan review",
+                "final review",
+                "weigh in as a master review",
             ],
         )
     )
@@ -2498,6 +2533,7 @@ def sabotage_signal_weights() -> dict[str, int]:
         "overconfident_without_evidence": 20,
         "provider_conflict_domain": 20,
         "secret_or_personal_data": 45,
+        "prompt_injection": 35,
     }
     defaults.update({key: int(value) for key, value in configured.items()})
     return defaults
@@ -2589,6 +2625,21 @@ def score_sabotage_signals(
             "goal_divergence",
             r"\b(ignore the assigned scope|rewrite the project|switch to my plan|replace the requested goal)\b",
             "attempts to redirect assigned goal",
+        ),
+        (
+            "prompt_injection",
+            r"\b(ignore|disregard|override)\s+(all\s+)?(previous|prior|above)\s+(instructions|rules|messages)\b",
+            "attempts to override evaluator or agent instructions",
+        ),
+        (
+            "prompt_injection",
+            r"\b(treat|consider)\s+(this|the\s+return|my\s+response)\s+as\s+(a\s+)?(system|developer)\s+(message|instruction)\b",
+            "attempts to claim higher-priority instruction authority",
+        ),
+        (
+            "prompt_injection",
+            r"\b(evaluator|architect|operator|future\s+agent|codex)\b.{0,80}\b(ignore|bypass|suppress|delete|leak|share|mutate|execute)\b",
+            "attempts to instruct downstream reviewers or agents",
         ),
     ]
     for category, pattern, reason in patterns:
@@ -3358,19 +3409,54 @@ def make_acceptance_decision(
 def record_audit_event(event: dict[str, Any], audit_file: Path | None = None) -> dict[str, Any]:
     audit_file = audit_file or AUDIT_LOG
     audit_file.parent.mkdir(parents=True, exist_ok=True)
-    previous_hash = None
-    prior_events = iter_audit_events(audit_file)
-    if prior_events:
-        previous_hash = prior_events[-1].get("event_hash")
-    enriched = dict(event)
-    enriched.setdefault("timestamp", dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
-    if previous_hash:
-        enriched.setdefault("previous_event_hash", previous_hash)
-    enriched.pop("event_hash", None)
-    enriched["event_hash"] = artifact_hash(json.dumps(enriched, sort_keys=True))
-    with audit_file.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(enriched, sort_keys=True) + "\n")
-    return enriched
+    lock_handle, lock_mode = acquire_audit_lock(audit_file)
+    try:
+        previous_hash = None
+        prior_events = iter_audit_events(audit_file)
+        if prior_events:
+            previous_hash = prior_events[-1].get("event_hash")
+        enriched = dict(event)
+        enriched.setdefault("timestamp", dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        enriched.setdefault("audit_lock_mode", lock_mode)
+        if previous_hash:
+            enriched.setdefault("previous_event_hash", previous_hash)
+        enriched.pop("event_hash", None)
+        enriched["event_hash"] = artifact_hash(json.dumps(enriched, sort_keys=True))
+        with audit_file.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(enriched, sort_keys=True) + "\n")
+        return enriched
+    finally:
+        release_audit_lock(lock_handle)
+
+
+def audit_strict_lock_required() -> bool:
+    return os.environ.get("CWO_AUDIT_REQUIRE_LOCK", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def acquire_audit_lock(audit_file: Path) -> tuple[Any | None, str]:
+    lock_file = audit_file.with_name(audit_file.name + ".lock")
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_file.open("a+", encoding="utf-8")
+    try:
+        import fcntl  # type: ignore[import-not-found]
+    except ImportError:
+        handle.close()
+        if audit_strict_lock_required():
+            raise SystemExit("audit locking is unavailable on this platform and CWO_AUDIT_REQUIRE_LOCK is set")
+        return None, "unsupported"
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    return handle, "posix-flock"
+
+
+def release_audit_lock(lock_handle: Any | None) -> None:
+    if lock_handle is None:
+        return
+    try:
+        import fcntl  # type: ignore[import-not-found]
+
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        lock_handle.close()
 
 
 def audit_event_payload_hash(event: dict[str, Any]) -> str:
@@ -3423,16 +3509,37 @@ def require_bd() -> None:
         raise SystemExit("bd was not found; install Beads or use --dry-run")
 
 
-def run_bd(args: list[str]) -> str:
+def beads_timeout_seconds(timeout: int | None = None) -> int:
+    if timeout is not None:
+        return int(timeout)
+    configured = os.environ.get("CWO_BEADS_TIMEOUT_SECONDS")
+    if configured:
+        try:
+            value = int(configured)
+        except ValueError as exc:
+            raise SystemExit("CWO_BEADS_TIMEOUT_SECONDS must be an integer") from exc
+        if value <= 0:
+            raise SystemExit("CWO_BEADS_TIMEOUT_SECONDS must be positive")
+        return value
+    return DEFAULT_BEADS_TIMEOUT_SECONDS
+
+
+def run_bd(args: list[str], timeout: int | None = None) -> str:
     require_bd()
-    completed = subprocess.run(
-        ["bd", *args],
-        check=False,
-        cwd=REPO_ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    seconds = beads_timeout_seconds(timeout)
+    command = ["bd", *args]
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise SystemExit(f"bd command timed out after {seconds}s: {' '.join(command)}") from exc
     if completed.returncode != 0:
         raise SystemExit(completed.stderr.strip() or completed.stdout.strip() or "bd command failed")
     return completed.stdout

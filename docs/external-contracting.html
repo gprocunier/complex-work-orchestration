@@ -230,8 +230,9 @@ claude --model claude-opus-4-6 --effort high \
               <p>
                 Use the browser-mediated master review lane (using ChatGPT Pro 5.5 Extended Reasoning) to build and ingest the plan review:
               </p>
-              <pre><code>cp templates/master-review-plan-packet.md /tmp/master-review-plan.md
-# Fill /tmp/master-review-plan.md with the final plan and evidence.
+              <pre><code>mkdir -p work-packets
+cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
+# Fill work-packets/master-review-plan.md with the final plan and evidence.
 
 python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
@@ -239,7 +240,7 @@ python3 scripts/build_contractor_packet.py \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
-  --snippet-file /tmp/master-review-plan.md \
+  --snippet-file work-packets/master-review-plan.md \
   --attest-packet \
   --format json \
   --output master-plan-review-packet.json
@@ -262,6 +263,14 @@ python3 scripts/ingest_chatgpt_share_return.py \
   --packet-sha256 &lt;packet-sha256&gt; \
   --output master-plan-review-return.md</code></pre>
             </details>
+            <div class="callout">
+              <strong>Snippet boundary:</strong>
+              <code>--snippet-file</code> accepts only repository-safe text
+              files. Use an ignored repo-local path such as
+              <code>work-packets/</code>; outside paths, secret-looking names,
+              control directories, binary files, and private-key suffixes are
+              rejected.
+            </div>
             <div class="callout">
               <strong>Browser rule:</strong>
               Configure browser automation with
@@ -298,6 +307,11 @@ python3 scripts/ingest_chatgpt_share_return.py \
               the helper can read the local clipboard after pressing Share and
               accepts only validated ChatGPT share URLs. Do not grant the page
               clipboard-read permission for this workflow.
+              If a Pro response leaves the page above the final answer, the
+              helper attempts to click ChatGPT's scroll-to-bottom control before
+              opening Share. Override the selector with
+              <code>selectors.scroll_to_bottom_button</code> when the UI
+              changes.
             </div>
           </section>
 

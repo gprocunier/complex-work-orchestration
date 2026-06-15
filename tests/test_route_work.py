@@ -192,6 +192,28 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(result["architecture_review_complexity"], "high")
         self.assertEqual(result["claude_architecture_effort"], "xhigh")
 
+    def test_dual_architecture_critics_accept_2nd_opinions_wording(self) -> None:
+        result = classify_work(
+            "Have Claude Opus and Gemini provide 2nd opinions of the architect design.",
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(
+            result["requested_architecture_critic_executors"],
+            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+        )
+
+    def test_generic_second_opinion_does_not_authorize_external_critic(self) -> None:
+        result = classify_work(
+            "Get a second opinion on the architect design.",
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertNotIn("claude_opus_4_6_architecture_critic", result["requested_architecture_critic_executors"])
+        self.assertNotIn("gemini_3_1_pro_preview_agy", result["requested_architecture_critic_executors"])
+
     def test_chatgpt_pro_master_plan_review_requires_external_opt_in(self) -> None:
         text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
         blocked = classify_work(text, share_boundary="redacted-packet")
@@ -213,6 +235,23 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(allowed["external_experts"], ["master_plan_review"])
         self.assertTrue(allowed["peer_review_required"])
         self.assertTrue(allowed["architect_adjudication_required"])
+
+    def test_chatgpt_pro_master_review_weigh_in_wording_routes_to_master_review(self) -> None:
+        result = classify_work(
+            "Tap in ChatGPT Pro 5.5 to weigh in as a master review of the final architect plan.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(result["task_class"], "master-plan-review")
+        self.assertEqual(result["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+
+    def test_generic_weigh_in_does_not_route_to_chatgpt_master_review(self) -> None:
+        result = classify_work(
+            "Have someone weigh in on this plan.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertNotEqual(result["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
 
     def test_chatgpt_pro_master_plan_review_keeps_deep_research_separate(self) -> None:
         master_review = classify_work(

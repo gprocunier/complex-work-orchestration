@@ -41,7 +41,8 @@
       "goal_divergence": 20,
       "overconfident_without_evidence": 20,
       "provider_conflict_domain": 20,
-      "secret_or_personal_data": 45
+      "secret_or_personal_data": 45,
+      "prompt_injection": 35
     },
     "thresholds": {
       "peer_review": 20,

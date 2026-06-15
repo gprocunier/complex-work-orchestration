@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import sys
 import tempfile
 import unittest
@@ -12,6 +13,18 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from orchestration_lib import record_audit_event, verify_audit_log  # noqa: E402
 
 
+def write_audit_events(audit_path: str, worker: int, count: int) -> None:
+    for index in range(count):
+        record_audit_event(
+            {
+                "event_type": "packet_built",
+                "dispatch_id": f"d-{worker}-{index}",
+                "bead_id": f"b-{worker}",
+            },
+            Path(audit_path),
+        )
+
+
 class AuditVerificationTests(unittest.TestCase):
     def test_hash_chained_audit_log_verifies(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -19,6 +32,7 @@ class AuditVerificationTests(unittest.TestCase):
             first = record_audit_event({"event_type": "packet_built", "dispatch_id": "d1", "bead_id": "b1"}, audit_file)
             second = record_audit_event({"event_type": "return_evaluated", "dispatch_id": "d1", "bead_id": "b1"}, audit_file)
             self.assertEqual(second["previous_event_hash"], first["event_hash"])
+            self.assertEqual(first["audit_lock_mode"], "posix-flock")
             self.assertTrue(verify_audit_log(audit_file)["valid"])
 
     def test_hash_chained_audit_log_rejects_tamper(self) -> None:
@@ -31,6 +45,25 @@ class AuditVerificationTests(unittest.TestCase):
             result = verify_audit_log(audit_file)
             self.assertFalse(result["valid"])
             self.assertTrue(any("event_hash mismatch" in error for error in result["errors"]))
+
+    def test_concurrent_audit_writes_do_not_lose_events_or_break_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit_file = Path(tmp) / "audit.jsonl"
+            process_count = 4
+            events_per_process = 8
+            processes = [
+                multiprocessing.Process(target=write_audit_events, args=(str(audit_file), worker, events_per_process))
+                for worker in range(process_count)
+            ]
+            for process in processes:
+                process.start()
+            for process in processes:
+                process.join(10)
+            for process in processes:
+                self.assertEqual(process.exitcode, 0)
+            result = verify_audit_log(audit_file)
+            self.assertTrue(result["valid"], result["errors"])
+            self.assertEqual(result["event_count"], process_count * events_per_process)
 
 
 if __name__ == "__main__":

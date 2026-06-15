@@ -500,8 +500,9 @@ the execution plan, Beads graph summary, validation plan, repository evidence,
 route/coach outputs, known risks, and open questions:
 
 ```bash
-cp templates/master-review-plan-packet.md /tmp/master-review-plan.md
-# Fill /tmp/master-review-plan.md with the actual plan and evidence.
+mkdir -p work-packets
+cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
+# Fill work-packets/master-review-plan.md with the actual plan and evidence.
 
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
@@ -509,7 +510,7 @@ python3 scripts/build_contractor_packet.py \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
-  --snippet-file /tmp/master-review-plan.md \
+  --snippet-file work-packets/master-review-plan.md \
   --attest-packet \
   --format json \
   --output master-plan-review-packet.json
@@ -533,6 +534,12 @@ python3 scripts/ingest_chatgpt_share_return.py \
   --output master-plan-review-return.md
 ```
 
+`--snippet-file` accepts only repository-safe text files. Absolute paths are
+allowed only when they resolve inside the repository; outside-repository paths,
+secret-looking names, blocked control directories, binary files, and private-key
+suffixes are rejected. Use an ignored repo-local path such as `work-packets/`
+for operator work packets.
+
 The browser config comes from `CWO_CHATGPT_BROWSER_CONFIG` or
 `$HOME/.config/cwo/chatgpt-browser.json`; keep it outside the repo with mode
 `0600` and operator-managed browser authentication. Do not put Google
@@ -555,6 +562,9 @@ If the ChatGPT sharing UI copies the public link directly to the OS clipboard,
 the helper may read the local clipboard after pressing Share and accept only a
 validated ChatGPT share URL. Do not grant ChatGPT page-side clipboard-read
 permission for this workflow.
+If a Pro response leaves the page above the final answer, the helper attempts
+to click ChatGPT's scroll-to-bottom control before opening Share. Override the
+default selector with `selectors.scroll_to_bottom_button` when the UI changes.
 
 For direct route dispatch without a packet, pass `--dispatch-id` when the
 operator needs quota checks, output, and audit entries to share a stable

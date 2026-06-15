@@ -49,10 +49,14 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             config = load_browser_config(path)
             summary = config_summary(config, path)
         rendered = json.dumps(summary, sort_keys=True)
+        self.assertTrue(summary["config_present"])
+        self.assertTrue(summary["config_external_to_repo"])
         self.assertTrue(summary["chrome_user_data_dir_configured"])
         self.assertTrue(summary["local_clipboard_fallback"])
         self.assertTrue(summary["require_model_confirmation"])
         self.assertFalse(summary["model_confirmation_configured"])
+        self.assertNotIn(str(path), rendered)
+        self.assertNotIn(str(Path(tmpdir)), rendered)
         self.assertNotIn(str(Path(tmpdir) / "profile"), rendered)
 
     def test_config_summary_reports_confirmation_selectors(self) -> None:
@@ -168,6 +172,49 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
         self.assertEqual(runner._create_share_link(page, 1, TimeoutError), "")
         self.assertFalse(page.evaluated)
+
+    def test_create_share_link_clicks_scroll_to_bottom_before_share(self) -> None:
+        class FakeLocator:
+            def __init__(self, page: "FakePage", selector: str) -> None:
+                self.page = page
+                self.selector = selector
+
+            @property
+            def first(self) -> "FakeLocator":
+                return self
+
+            def click(self, timeout: int, force: bool = False) -> None:
+                self.page.clicks.append(self.selector)
+
+            def evaluate(self, script: str) -> bool:
+                return True
+
+            def input_value(self, timeout: int) -> str:
+                raise RuntimeError("no input")
+
+            def get_attribute(self, name: str, timeout: int) -> str | None:
+                return None
+
+        class FakePage:
+            def __init__(self) -> None:
+                self.clicks: list[str] = []
+
+            def locator(self, selector: str) -> FakeLocator:
+                return FakeLocator(self, selector)
+
+        page = FakePage()
+        runner = PlaywrightChatGPTRunner(
+            {
+                "selectors": {
+                    "scroll_to_bottom_button": "button[aria-label='Jump to latest']",
+                    "share_button": "button[aria-label='Share']",
+                },
+                "local_clipboard_fallback": False,
+            }
+        )
+        self.assertEqual(runner._create_share_link(page, 1, TimeoutError), "")
+        self.assertEqual(page.clicks[:2], ["button[aria-label='Jump to latest']", "button[aria-label='Jump to latest']"])
+        self.assertIn("button[aria-label='Share']", page.clicks)
 
     def test_model_confirmation_requires_explicit_selectors(self) -> None:
         runner = PlaywrightChatGPTRunner(

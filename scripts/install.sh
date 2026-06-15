@@ -173,7 +173,7 @@ copy_item() {
 install_skill() {
   local skills_dir="$1"
   local target_dir="$skills_dir/$SKILL_NAME"
-  local items="README.md LICENSE SKILL.md AGENTS.md agents policy templates experts references schemas examples docs scripts"
+  local items="README.md LICENSE SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts"
 
   say ""
   say "Install plan:"

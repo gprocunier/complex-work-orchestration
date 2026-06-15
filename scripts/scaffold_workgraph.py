@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from typing import Any
 
 from orchestration_lib import (
@@ -513,6 +514,26 @@ def try_dep(blocked: str, blocker: str) -> None:
         print(f"warning: could not add dependency {blocked} -> {blocker}: {exc}")
 
 
+def recovery_summary(created: dict[str, str], failed_step: str, error: object) -> str:
+    lines = [
+        "Partial Beads graph creation detected.",
+        f"Failed step: {failed_step}",
+        f"Error: {error}",
+        "Created IDs:",
+    ]
+    for lane, bead_id in created.items():
+        lines.append(f"- {lane}: {bead_id}")
+    lines.extend(
+        [
+            "Recommended recovery:",
+            "- Inspect created work with `bd show <id> --json`.",
+            "- Prefer `--dry-run --format beads-graph` plus `bd create --graph` for the next attempt.",
+            "- Close, reuse, or delete partial work explicitly; this helper will not silently reuse existing Beads.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create a policy-shaped Beads graph for complex work.")
     parser.add_argument("--title", required=True)
@@ -558,46 +579,54 @@ def main() -> None:
         parser.error("--format beads-graph requires --dry-run; normal execution creates Beads directly.")
 
     created: dict[str, str] = {}
-    epic_plan = plan[0]
-    epic = create_bead(
-        epic_plan["title"],
-        issue_type="epic",
-        priority=1,
-        labels=epic_plan["labels"],
-        skills=epic_plan["skills"],
-        description=args.description or "Policy-routed complex work epic.",
-        acceptance=str(epic_plan["acceptance"]),
-        design=str(epic_plan["design"]),
-        notes=str(epic_plan["notes"]),
-        metadata=epic_plan["metadata"],
-    )
-    created["epic"] = epic["id"]
-    print(f"Created epic: {epic['id']}")
-
-    for item in plan[1:]:
-        bead = create_bead(
-            item["title"],
-            parent=epic["id"],
-            priority=1 if item["lane"] in ["architect", "pm", "external-dispatch", "evaluation", "architect-adjudication"] else 2,
-            labels=item["labels"],
-            skills=item["skills"],
-            description=body(f"Complete the {item['lane']} lane.", f"Evidence and result for {item['lane']}."),
-            acceptance=str(item["acceptance"]),
-            design=str(item["design"]),
-            notes=str(item["notes"]),
-            metadata=item.get("metadata"),
+    failed_step = "create epic"
+    try:
+        epic_plan = plan[0]
+        epic = create_bead(
+            epic_plan["title"],
+            issue_type="epic",
+            priority=1,
+            labels=epic_plan["labels"],
+            skills=epic_plan["skills"],
+            description=args.description or "Policy-routed complex work epic.",
+            acceptance=str(epic_plan["acceptance"]),
+            design=str(epic_plan["design"]),
+            notes=str(epic_plan["notes"]),
+            metadata=epic_plan["metadata"],
         )
-        created[item["lane"]] = bead["id"]
-        print(f"Created task: {bead['id']} {bead['title']}")
+        created["epic"] = epic["id"]
+        print(f"Created epic: {epic['id']}")
 
-    for item in plan[1:]:
-        blocked = created.get(item["lane"])
-        if not blocked:
-            continue
-        for blocker_lane in item.get("depends_on_lanes", []):
-            blocker = created.get(blocker_lane)
-            if blocker:
-                try_dep(blocked, blocker)
+        for item in plan[1:]:
+            failed_step = f"create {item['lane']}"
+            bead = create_bead(
+                item["title"],
+                parent=epic["id"],
+                priority=1 if item["lane"] in ["architect", "pm", "external-dispatch", "evaluation", "architect-adjudication"] else 2,
+                labels=item["labels"],
+                skills=item["skills"],
+                description=body(f"Complete the {item['lane']} lane.", f"Evidence and result for {item['lane']}."),
+                acceptance=str(item["acceptance"]),
+                design=str(item["design"]),
+                notes=str(item["notes"]),
+                metadata=item.get("metadata"),
+            )
+            created[item["lane"]] = bead["id"]
+            print(f"Created task: {bead['id']} {bead['title']}")
+
+        for item in plan[1:]:
+            blocked = created.get(item["lane"])
+            if not blocked:
+                continue
+            for blocker_lane in item.get("depends_on_lanes", []):
+                blocker = created.get(blocker_lane)
+                if blocker:
+                    failed_step = f"add dependency {item['lane']} -> {blocker_lane}"
+                    try_dep(blocked, blocker)
+    except SystemExit as exc:
+        if created:
+            print(recovery_summary(created, failed_step, exc), file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":

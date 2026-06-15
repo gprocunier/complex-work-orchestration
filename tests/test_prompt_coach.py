@@ -122,6 +122,17 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("agy --model gemini-3.1-pro-preview -p", result["paste_ready_prompt"])
         self.assertIn("Add ChatGPT Pro master review only after explicit opt-in", result["paste_ready_prompt"])
 
+    def test_claude_and_gemini_2nd_opinions_wording_is_coached_as_parallel_contracts(self) -> None:
+        result = coach_orchestration_prompt(
+            "Have Claude Opus and Gemini provide 2nd opinions of the Codex architect design.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        self.assertIn("parallel-architecture-critic-contracts", result["enabled_levers"])
+        self.assertIn("architecture-critic=claude_opus_4_6_architecture_critic", result["enabled_levers"])
+        self.assertIn("architecture-critic=gemini_3_1_pro_preview_agy", result["enabled_levers"])
+
     def test_chatgpt_pro_master_plan_without_opt_in_asks_for_boundary(self) -> None:
         result = coach_orchestration_prompt(
             "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
@@ -142,6 +153,24 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
         self.assertIn("contractor-only-bead", result["enabled_levers"])
         self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
+
+    def test_chatgpt_pro_weigh_in_master_review_wording_is_coached(self) -> None:
+        result = coach_orchestration_prompt(
+            "Tap in ChatGPT Pro 5.5 to weigh in as a master review of the final architect plan.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
+        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
+
+    def test_generic_weigh_in_does_not_coach_chatgpt_master_review(self) -> None:
+        result = coach_orchestration_prompt(
+            "Have someone weigh in on this plan.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertNotEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
 
     def test_local_worker_profile_recommends_local_worker(self) -> None:
         result = coach_orchestration_prompt(

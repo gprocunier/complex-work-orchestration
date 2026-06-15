@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from orchestration_lib import classify_work  # noqa: E402
-from scaffold_workgraph import planned_graph  # noqa: E402
+from scaffold_workgraph import planned_graph, recovery_summary  # noqa: E402
 
 
 class ScaffoldTests(unittest.TestCase):
@@ -135,6 +135,17 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("expert-review-editor", by_lane["validation"]["depends_on_lanes"])
         self.assertIn("expert-review-editor", by_lane["publish-sanitization"]["depends_on_lanes"])
         self.assertTrue(by_lane["expert-review-editor"]["metadata"]["validation_gate_required"])
+
+    def test_recovery_summary_includes_created_ids_and_safe_rerun_guidance(self) -> None:
+        summary = recovery_summary(
+            {"epic": "cwo-epic", "architect": "cwo-architect"},
+            "create implementation",
+            "bd command timed out",
+        )
+        self.assertIn("Partial Beads graph creation detected.", summary)
+        self.assertIn("- epic: cwo-epic", summary)
+        self.assertIn("bd create --graph", summary)
+        self.assertIn("will not silently reuse existing Beads", summary)
 
 
 if __name__ == "__main__":
