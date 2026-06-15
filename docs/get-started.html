@@ -24,6 +24,7 @@
           <a href="./get-started.html" aria-current="page">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
           <a href="./external-contracting.html">Contractors</a>
           <a href="./local-workers.html">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
@@ -49,6 +50,7 @@
           <a href="#beads">Record Beads</a>
           <a href="#execute">Execute Safely</a>
           <a href="#install">Install the Skill</a>
+          <a href="./use-cases.html#simple-use-cases">Simple Use Case</a>
           <a href="./workflows.html">Workflows</a>
         </nav>
         <div class="doc-body">
@@ -62,6 +64,14 @@
             </p>
             <pre><code>/plan Use $complex-work-orchestration prompt coach:
 Clean up installer docs, tests, and handoff notes.</code></pre>
+            <p>
+              The simple path is five steps: ask for the coach, answer any
+              execution-changing choices, create or update one Beads task,
+              validate the work, and close the task with a recovery-quality
+              closure-memory comment. The
+              <a href="./use-cases.html#simple-use-cases">simple use case</a>
+              shows that sequence without the full contractor workflow.
+            </p>
             <p>
               Codex may run this helper behind the scenes. Use direct script execution only
               for automation, CI, troubleshooting, or an operator shell
@@ -104,6 +114,12 @@ bd dolt push</code></pre>
               task or graph structure in a temporary Markdown plan file and
               note that durability is reduced. The full workflow and fallback
               limits are covered in <a href="./workflows.html#beads-graph">Workflows</a>.
+            </p>
+            <p>
+              When the work closes, the useful memory should be in the final
+              comment, not the terse close reason. Capture what changed, why it
+              closed, how it was validated, when it closed, where it ran, any
+              residual risk, and follow-up.
             </p>
             <p>
               Generated Beads populate native fields for <code>skills</code>,
@@ -195,6 +211,7 @@ sudo dnf install beads</code></pre>
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
         <a href="./contractor-demo.html">Demo</a>

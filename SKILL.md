@@ -263,9 +263,10 @@ Before closing a non-trivial Bead, add a final closure-memory comment. This is
 required for epics, contractor or local-worker lanes, evaluation and architect
 adjudication lanes, validation and publish-sanitization lanes, abandoned or
 superseded work, and any task with a non-obvious technical decision. The close
-reason should stay terse; the final comment should preserve disposition, why it
-closed, key decisions, evidence, residual risk, and follow-up. Tiny mechanical
-leaf tasks may rely on the close reason only when it fully explains the outcome.
+reason should stay terse; the final comment should preserve what changed, why
+it closed, how it was validated, when it closed, where it ran, key decisions,
+evidence, residual risk, and follow-up. Tiny mechanical leaf tasks may rely on
+the close reason only when it fully explains the outcome.
 
 Preferred helper:
 
@@ -274,6 +275,10 @@ python3 scripts/close_bead_with_summary.py \
   --bead <id> \
   --disposition completed \
   --why "accepted change validated" \
+  --what "files, behavior, or workstream result" \
+  --how "validation commands, review evidence, CI, or install smoke" \
+  --when "branch, commit, run ID, or date" \
+  --where "repo path, branch, environment, and Beads local-only or Dolt-backed mode" \
   --decision "kept close_reason terse and stored reusable context in the final comment" \
   --evidence "python scripts/validate_repository.py" \
   --residual-risk "none known" \

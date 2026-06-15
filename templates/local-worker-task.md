@@ -28,5 +28,6 @@ it becomes project direction.
 
 Handoff format:
 Structured return using the same contractor return sections.
-Before meaningful closure, add a final closure-memory comment with disposition,
-why, evidence, residual risk, evaluator state, and follow-up.
+Before meaningful closure, add a final closure-memory comment with what changed,
+why closed, how validated, when closed, where executed, evaluator state,
+evidence, residual risk, and follow-up.

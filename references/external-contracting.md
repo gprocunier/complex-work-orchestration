@@ -619,9 +619,11 @@ python3 scripts/build_contractor_packet.py \
    failed peer review, preserve artifacts, avoid implementation dependencies,
    and use `references/incident-response-playbook.md`.
 11. Architect reviews findings and decides what to accept, reject, or convert
-   into Codex workerbee tasks.
+    into Codex workerbee tasks.
 12. PM records the final closure-memory comment on meaningful Beads before
-   closing them, then updates dependencies and ready-work state.
+    closing them. The comment records what changed, why closed, how validated,
+    when closed, where executed, residual risk, and follow-up, then PM updates
+    dependencies and ready-work state.
 
 ## Hello-World Contractor Demo Lessons
 

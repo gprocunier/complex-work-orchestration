@@ -248,6 +248,11 @@ def validate_repository() -> list[str]:
             "beads_tracking_required",
             "Beads tracking is mandatory",
             "closure-memory comment",
+            "What changed",
+            "How validated",
+            "When closed",
+            "Where executed",
+            "Complex Multi-Expert Review Pattern",
             "bd dolt remote list",
             "sudo dnf copr enable greg-at-redhat/beads",
             "Main-Thread PM Dispatch Flow",
@@ -307,6 +312,7 @@ def validate_repository() -> list[str]:
             "./explanation.html",
             "./prompt-coach.html",
             "./workflows.html",
+            "./use-cases.html",
             "./workflows.html#optional-lanes",
             "./contractor-demo.html",
             "./reference.html",
@@ -350,6 +356,9 @@ def validate_repository() -> list[str]:
             "acceptance",
             "design",
             "notes",
+            "simple use case",
+            "what changed",
+            "how it was validated",
         ],
     )
     require_doc_terms(
@@ -387,6 +396,9 @@ def validate_repository() -> list[str]:
             "Beads Task Graph",
             "Optional Workstreams",
             "Validate And Handoff",
+            "./use-cases.html",
+            "./use-cases.html#simple-use-cases",
+            "./use-cases.html#complex-use-cases",
             "handoff packet",
             "packet validation checkpoint",
             "Publication review",
@@ -416,10 +428,39 @@ def validate_repository() -> list[str]:
             "workspace_mutation_guard.py",
             "Contractor Demo",
             "closure-memory comment",
+            "--what",
+            "--how",
+            "--when",
+            "--where",
             "./contractor-demo.html",
             "./explanation.html",
             "incident-response playbook",
             "inventory the existing page URLs",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/use-cases.html",
+        [
+            "Use Cases",
+            "Simple Use Cases",
+            "Complex Use Cases",
+            "Durable Work Log",
+            "Acceptance Gates",
+            "/plan Use $complex-work-orchestration prompt coach",
+            "closure-memory comment",
+            "--what",
+            "--how",
+            "--when",
+            "--where",
+            "Gemini",
+            "Claude Opus",
+            "ChatGPT Pro 5.5 Extended Reasoning",
+            "dispatch ID",
+            "packet hash",
+            "model/share-link evidence",
+            "./external-contracting.html#multi-expert-review",
+            "./reference.html#experts",
         ],
     )
     require_doc_terms(
@@ -431,6 +472,7 @@ def validate_repository() -> list[str]:
             "third-party model contractor",
             "contractor handoff packet",
             "Packet Validation",
+            "Multi-Expert Review",
             "contractor-only",
             "contract-jd-security-reasoning",
             "skills",
@@ -449,6 +491,7 @@ def validate_repository() -> list[str]:
             "Beads authority",
             "merge permission",
             "Master Review",
+            "./use-cases.html#complex-use-cases",
             "chatgpt_pro_5_5_extended_reasoning_browser",
             "CWO_CHATGPT_BROWSER_CONFIG",
             "ingest_chatgpt_share_return.py",
@@ -521,6 +564,11 @@ def validate_repository() -> list[str]:
             "scripts/validate_site.py",
             "workspace_mutation_guard.py",
             "closure-memory comments",
+            "Durable Memory",
+            "what changed",
+            "how validated",
+            "when closed",
+            "where executed",
             "incident-response playbook",
             "./contractor-demo.html",
         ],
@@ -595,6 +643,10 @@ def validate_repository() -> list[str]:
             "--acceptance",
             "--design",
             "--notes",
+            "--what",
+            "--how",
+            "--when",
+            "--where",
             "docs/workflows.html",
             "docs/local-workers.html",
             "explicit reference/operator",
@@ -707,12 +759,22 @@ def validate_repository() -> list[str]:
             "closure-memory comment",
         ],
     )
-    require_doc_terms(errors, "templates/work-task.md", ["closure-memory comment"])
-    require_doc_terms(errors, "templates/review-task.md", ["closure-memory comment"])
-    require_doc_terms(errors, "templates/external-contract.md", ["closure-memory"])
-    require_doc_terms(errors, "templates/contractor-evaluation.md", ["closure-memory comment"])
-    require_doc_terms(errors, "templates/acceptance-decision.md", ["closure-memory comment"])
-    require_doc_terms(errors, "templates/followup-task.md", ["closure summary", "closure-memory comment"])
+    for template_path in [
+        "templates/work-task.md",
+        "templates/review-task.md",
+        "templates/external-contract.md",
+        "templates/contractor-evaluation.md",
+        "templates/acceptance-decision.md",
+        "templates/followup-task.md",
+        "templates/local-worker-task.md",
+        "templates/epic.md",
+    ]:
+        require_doc_terms(
+            errors,
+            template_path,
+            ["closure-memory", "what changed", "how validated", "when closed", "where executed"],
+        )
+    require_doc_terms(errors, "templates/followup-task.md", ["closure summary"])
     require_doc_terms(
         errors,
         "experts/editor.md",

@@ -82,8 +82,9 @@ Beads comment or approved patch proposal using the required contractor return
 format. Patch-branch is a proposal lane unless direct mutation is explicitly
 authorized.
 Before meaningful closure, the coordinator must add a final closure-memory
-comment with disposition, why, key decisions, evidence, residual risk, and
-follow-up. Keep the close reason terse.
+comment with what changed, why closed, how validated, when closed, where executed,
+key decisions, evidence, residual risk, and follow-up. Keep the close reason
+terse.
 
 Contractor job description:
 {{job_description_label}}

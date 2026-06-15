@@ -24,6 +24,7 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
           <a href="./external-contracting.html">Contractors</a>
           <a href="./local-workers.html">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
@@ -52,6 +53,7 @@
           <a href="#experts">Experts</a>
           <a href="#scripts">Scripts</a>
           <a href="#deep-dives">Deep Dives</a>
+          <a href="#durable-memory">Durable Memory</a>
           <a href="#validation">Validation</a>
           <a href="./explanation.html">Explanation</a>
           <a href="./workflows.html">Workflows</a>
@@ -195,7 +197,7 @@
             <pre><code>python3 scripts/coach_prompt.py "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
 python3 scripts/cleanup_stale_agents.py --json
-python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --follow-up none --dry-run --json
+python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --follow-up none --dry-run --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --confirm-only --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
@@ -241,6 +243,36 @@ python3 scripts/validate_site.py</code></pre>
             </ul>
           </section>
 
+          <section id="durable-memory">
+            <h2>Durable Memory</h2>
+            <p>
+              Closure-memory comments are the compact recovery record for
+              future agents. Use <code>scripts/close_bead_with_summary.py</code>
+              before closing meaningful Beads and fill the recovery fields:
+              what changed, why closed, how validated, when closed, where
+              executed, decisions, evidence, residual risk, and follow-up.
+            </p>
+            <pre><code>python3 scripts/close_bead_with_summary.py \
+  --bead "&lt;id&gt;" \
+  --disposition completed \
+  --why "accepted change validated" \
+  --what "docs/use-cases.html added" \
+  --how "python3 scripts/validate_repository.py and python3 scripts/validate_site.py" \
+  --when "main at &lt;commit-sha&gt;; CI run &lt;id&gt;" \
+  --where "repo path; branch main; Beads local-only or Dolt-backed" \
+  --decision "kept exact contract labels in reference pages" \
+  --evidence "Pages deploy run &lt;id&gt;" \
+  --residual-risk "none known" \
+  --follow-up "none" \
+  --close</code></pre>
+            <p>
+              If <code>bd dolt remote list</code> reports no remotes, record
+              Beads as local-only in the <code>--where</code> field. Do not
+              claim remote sync, CI success, Pages deployment, or publication
+              until those checks have actually completed.
+            </p>
+          </section>
+
           <section id="validation">
             <h2>Validation</h2>
             <p>
@@ -248,8 +280,9 @@ python3 scripts/validate_site.py</code></pre>
               validation, unit tests, install smoke checks, browser checks, and
               publish sanitization before pushing upstream. For meaningful
               Beads, add a final closure-memory comment before closing so future
-              agents can recover disposition, rationale, evidence, residual risk,
-              and follow-up from the work graph.
+              agents can recover what changed, why it closed, how it was
+              validated, when it closed, where executed, residual risk, and
+              follow-up from the work graph.
             </p>
             <ol class="check-list">
               <li>Run validators locally.</li>
@@ -273,6 +306,7 @@ python3 scripts/validate_site.py</code></pre>
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
         <a href="./contractor-demo.html">Demo</a>

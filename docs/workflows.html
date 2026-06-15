@@ -24,6 +24,7 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html" aria-current="page">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
           <a href="./external-contracting.html">Contractors</a>
           <a href="./local-workers.html">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
@@ -51,6 +52,7 @@
           <a href="#coach-decide">Coach And Decide</a>
           <a href="#beads-graph">Beads Task Graph</a>
           <a href="#optional-lanes">Optional Workstreams</a>
+          <a href="./use-cases.html">Use Cases</a>
           <a href="#contractor-demo">Contractor Demo</a>
           <a href="#validate-handoff">Validate And Handoff</a>
           <a href="./explanation.html">Why this structure</a>
@@ -63,6 +65,13 @@
               helper scripts. Ask for the skill and prompt coach in
               <code>/plan</code>; Codex can run the local tools, summarize the
               route, and ask only the choices that change execution.
+            </p>
+            <p>
+              If you need examples before choosing a route, start with the
+              <a href="./use-cases.html#simple-use-cases">simple prompt-coach
+              path</a> or the
+              <a href="./use-cases.html#complex-use-cases">complex multi-expert
+              review pattern</a>.
             </p>
             <div class="workflow-diagram linear" role="img" aria-label="Plan mode request flows to the prompt coach, interactive questions, launch prompt, and Beads scaffold.">
               <div class="flow-card"><strong>User</strong><span>/plan request</span></div>
@@ -292,7 +301,8 @@ python3 scripts/spawn_expert_reviews.py \
             <p>
               Meaningful closures also need a final closure-memory comment
               before <code>bd close</code>. Keep the close reason short and
-              place the reusable brief in the comment: disposition, why closed,
+              place the reusable brief in the comment: what changed, why it
+              closed, how it was validated, when it closed, where it ran,
               decisions, evidence, residual risk, and follow-up. That record is
               what a spawned agent or compacted session reads when the transcript
               is missing or fuzzy.
@@ -301,7 +311,13 @@ python3 scripts/spawn_expert_reviews.py \
   --bead "$BEAD_ID" \
   --disposition completed \
   --why "accepted change validated" \
+  --what "files, behavior, or workstream result" \
+  --how "validation commands, review evidence, CI, or install smoke" \
+  --when "branch, commit, run ID, or date" \
+  --where "repo path, branch, environment, and Beads local-only or Dolt-backed mode" \
+  --decision "key technical decision" \
   --evidence "python scripts/validate_repository.py" \
+  --residual-risk "none known" \
   --follow-up "none" \
   --close</code></pre>
             <pre><code>python3 scripts/normalize_contractor_return.py \
@@ -346,6 +362,7 @@ python3 scripts/evaluate_return.py \
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
         <a href="./contractor-demo.html">Demo</a>

@@ -41,6 +41,10 @@ def render_closure_summary(
     bead: str,
     disposition: str,
     why: str,
+    what_changed: list[str] | None = None,
+    how_validated: list[str] | None = None,
+    when_closed: list[str] | None = None,
+    where_executed: list[str] | None = None,
     decisions: list[str],
     evidence: list[str],
     residual_risk: list[str],
@@ -55,6 +59,14 @@ def render_closure_summary(
         f"- Bead: {bead}",
         f"- Disposition: {disposition}",
         f"- Why: {why}",
+        "",
+        *format_bullets("What changed", what_changed or []),
+        "",
+        *format_bullets("How validated", how_validated or []),
+        "",
+        *format_bullets("When closed", when_closed or []),
+        "",
+        *format_bullets("Where executed", where_executed or []),
         "",
         *format_bullets("Key decisions", decisions),
         "",
@@ -76,6 +88,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         bead=args.bead,
         disposition=args.disposition,
         why=args.why,
+        what_changed=getattr(args, "what_changed", []) or [],
+        how_validated=getattr(args, "how_validated", []) or [],
+        when_closed=getattr(args, "when_closed", []) or [],
+        where_executed=getattr(args, "where_executed", []) or [],
         decisions=args.decision or [],
         evidence=args.evidence or [],
         residual_risk=args.residual_risk or [],
@@ -112,6 +128,10 @@ def parser() -> argparse.ArgumentParser:
     cli.add_argument("--bead", required=True, help="Bead ID to comment on.")
     cli.add_argument("--disposition", required=True, help="completed, rejected, superseded, abandoned, split, or similar.")
     cli.add_argument("--why", required=True, help="Short reason the Bead is being closed.")
+    cli.add_argument("--what", dest="what_changed", action="append", default=[], help="What changed: file, behavior, result, or scope. Repeatable.")
+    cli.add_argument("--how", dest="how_validated", action="append", default=[], help="How it was validated: command, review, CI, install smoke, or manual check. Repeatable.")
+    cli.add_argument("--when", dest="when_closed", action="append", default=[], help="When it closed: date, branch, commit, run ID, or timeline marker. Repeatable.")
+    cli.add_argument("--where", dest="where_executed", action="append", default=[], help="Where it ran: repo path, branch, environment, Beads local-only/Dolt-backed mode. Repeatable.")
     cli.add_argument("--decision", action="append", default=[], help="Key decision to preserve. Repeatable.")
     cli.add_argument("--evidence", action="append", default=[], help="Evidence, command, commit, file, or artifact. Repeatable.")
     cli.add_argument("--residual-risk", action="append", default=[], help="Residual risk future agents should know. Repeatable.")

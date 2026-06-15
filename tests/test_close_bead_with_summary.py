@@ -17,6 +17,10 @@ def args(**overrides: object) -> argparse.Namespace:
         "bead": "complex-work-orchestration-abc",
         "disposition": "completed",
         "why": "policy helper added",
+        "what_changed": ["closure helper documents richer durable memory"],
+        "how_validated": ["python -m unittest tests/test_close_bead_with_summary.py"],
+        "when_closed": ["main at HEAD"],
+        "where_executed": ["repo-root; Beads local-only"],
         "decision": ["close reason stays terse"],
         "evidence": ["python -m unittest tests/test_close_bead_with_summary.py"],
         "residual_risk": ["none known"],
@@ -36,6 +40,10 @@ class CloseBeadWithSummaryTests(unittest.TestCase):
             bead="bd-1",
             disposition="completed",
             why="done",
+            what_changed=[],
+            how_validated=[],
+            when_closed=[],
+            where_executed=[],
             decisions=["first line\\nsecond line"],
             evidence=[],
             residual_risk=[],
@@ -43,7 +51,28 @@ class CloseBeadWithSummaryTests(unittest.TestCase):
         )
         self.assertIn("first line\n  second line", summary)
         self.assertNotIn("\\n", summary)
+        self.assertIn("What changed:\n- None recorded.", summary)
         self.assertIn("Residual risk:\n- None recorded.", summary)
+
+    def test_render_summary_preserves_five_w_recovery_fields(self) -> None:
+        summary = render_closure_summary(
+            bead="bd-2",
+            disposition="completed",
+            why="published",
+            what_changed=["docs/use-cases.html added"],
+            how_validated=["python3 scripts/validate_site.py"],
+            when_closed=["commit abc123 on main"],
+            where_executed=["repo-root; Beads local-only"],
+            decisions=["documented external review as a pattern only"],
+            evidence=["CI run 123 passed"],
+            residual_risk=["none known"],
+            follow_up=["none"],
+        )
+
+        self.assertIn("What changed:\n- docs/use-cases.html added", summary)
+        self.assertIn("How validated:\n- python3 scripts/validate_site.py", summary)
+        self.assertIn("When closed:\n- commit abc123 on main", summary)
+        self.assertIn("Where executed:\n- repo-root; Beads local-only", summary)
 
     def test_dry_run_does_not_call_bd(self) -> None:
         with patch("close_bead_with_summary.run_bd") as run_bd:

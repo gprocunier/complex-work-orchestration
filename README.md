@@ -85,6 +85,17 @@ python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."
 ```
 
+Simple use case:
+
+1. Start with `/plan Use $complex-work-orchestration prompt coach:`.
+2. Let Codex ask the few choices that change execution, such as harness size,
+   review parallelism, sharing boundary, and validation bar.
+3. Keep narrow work in the main thread when that is enough, but create or update
+   one Beads task before execution.
+4. Record validation evidence in the Bead before accepting the change.
+5. Close meaningful work with a closure-memory comment that lets the next agent
+   recover the outcome without the full transcript.
+
 All work governed by this skill should leave a durable Beads story. A narrow
 task can still execute in the current thread, but the minimum tracking shape is
 one Beads task with evidence, validation, and handoff notes.
@@ -94,10 +105,20 @@ assignment body.
 
 Non-trivial closed Beads should also receive a final closure-memory comment
 before `bd close`. Keep `close_reason` short; put reusable context in the
-comment: disposition, why it closed, key decisions, evidence, residual risk,
-and follow-up. This lets a spawned agent with no transcript, or a compacted
-session with fuzzy memory, rehydrate what happened without guessing from git
-history alone.
+comment. The comment should answer:
+
+- What changed: files, behavior, or workstream result.
+- Why closed: disposition and rationale.
+- How validated: commands, review evidence, CI, install smoke, or manual checks.
+- When closed: branch, commit, run ID, date, or other timeline marker.
+- Where executed: repo path, branch, environment, and Beads mode such as
+  local-only or Dolt-backed.
+- Residual risk and follow-up: anything the next agent should not rediscover.
+
+This lets a spawned agent with no transcript, or a compacted session with fuzzy
+memory, rehydrate what happened without guessing from git history alone. The
+helper supports repeatable `--decision`, `--evidence`, `--residual-risk`, and
+`--follow-up` flags; use those fields to encode the facts above.
 
 When creating Beads manually, do not type literal `\n` sequences into text
 fields. Use real newlines through a heredoc, `--body-file`, `--design-file`, or
@@ -111,6 +132,38 @@ The skill should also be used for requests that mention:
 - Beads task graphs
 - durable handoff or multi-session coordination
 - broad review, release, lab, production, or publication risk
+
+## Complex Multi-Expert Review Pattern
+
+Use the complex pattern when a Codex architect plan needs independent critique
+before implementation or publication. The public narrative name is a
+multi-expert review pattern; the operator surface may still use Mixture of
+Experts, contractor labels, executor IDs, and packet hashes.
+
+Default sequence:
+
+1. Codex drafts the architect plan and records the Beads graph.
+2. The user explicitly approves third-party sharing and chooses a boundary,
+   usually `redacted-packet` for plan critique.
+3. PM creates separate contractor-only Beads for Gemini and Claude Opus
+   architecture critique, one review focus per Bead.
+4. The packet builder emits one attested packet per reviewer; dispatch IDs and
+   packet SHA values are recorded before any return is accepted.
+5. Gemini and Claude Opus return evidence only. Codex normalizes, evaluates,
+   and the architect adjudicates each finding before it can become follow-up
+   work.
+6. ChatGPT Pro 5.5 Extended Reasoning can then review the final plan bundle as
+   a master-review lane. That return is valid only with confirmed model
+   attestation, matching dispatch ID, matching packet SHA, and a valid share
+   link.
+7. Accepted findings update the plan; rejected, unsupported, boundary-breaking,
+   or wrong-model returns are recorded and ignored or quarantined.
+8. Implementation, validation, publish sanitization, push, CI, Pages, and final
+   closure-memory comments remain Codex-owned.
+
+The detailed operator commands live in the external-contracting and reference
+docs. Do not treat a contractor return as implementation authority, even when
+the model is stronger or slower than the main thread.
 
 ## Hello-World Contractor Demo
 
@@ -588,8 +641,9 @@ flowchart LR
    follow-up work or before release decisions are made.
 18. PM keeps dependencies, status, blockers, and resume instructions current.
 19. Before closing meaningful Beads, PM or the responsible agent posts a final
-   closure-memory comment with disposition, rationale, decisions, evidence,
-   residual risk, and follow-up, then records a terse close reason.
+   closure-memory comment with what changed, why it closed, how it was
+   validated, when it closed, where it ran, decisions, evidence, residual risk,
+   and follow-up, then records a terse close reason.
 
 ## Beads Requirement
 
@@ -635,6 +689,10 @@ python3 scripts/close_bead_with_summary.py \
   --bead <id> \
   --disposition completed \
   --why "accepted change validated" \
+  --what "files, behavior, or workstream result" \
+  --how "validation commands, review evidence, CI, or install smoke" \
+  --when "branch, commit, run ID, or date" \
+  --where "repo path, branch, environment, and Beads local-only or Dolt-backed mode" \
   --decision "close_reason stays terse; durable context lives in the final comment" \
   --evidence "python scripts/validate_repository.py" \
   --residual-risk "none known" \

@@ -174,9 +174,10 @@ residual risk is explicit, and the next coordination action is clear.
 
 For non-trivial closure, the coordinator must add a final closure-memory comment
 before closing the Bead. The comment should be terse and reusable by future
-agents: disposition, why closed, key decisions, evidence, residual risk, and
-follow-up. Keep the `bd close` reason short; do not put raw transcripts,
-secrets, local paths, or hidden reasoning into the closure summary.
+agents: what changed, why closed, how validated, when closed, where executed,
+key decisions, evidence, residual risk, and follow-up. Keep the `bd close`
+reason short; do not put raw transcripts, secrets, local paths, or hidden
+reasoning into the closure summary.
 
 The coordinator may run `scripts/evaluate_return.py` against your return. Missing
 required sections can send the assignment back for clarification before the

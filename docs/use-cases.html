@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Simple and complex Complex Work Orchestration use cases, from prompt-coach invocation to multi-expert review with Gemini, Claude Opus, and ChatGPT Pro."
+    >
+    <title>Use Cases | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./prompt-coach.html">Prompt Coach</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html" aria-current="page">Use Cases</a>
+          <a href="./external-contracting.html">Contractors</a>
+          <a href="./local-workers.html">Local Workers</a>
+          <a href="./contractor-demo.html">Demo</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Use cases</p>
+        <h1>Simple And Complex Paths</h1>
+        <p class="lede">
+          Start with a small prompt-coach invocation when you need durable
+          structure. Escalate to a multi-expert review pattern only when the
+          plan needs independent outside critique and explicit sharing approval.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#simple-use-cases">Simple Use Cases</a>
+          <a href="#durable-work-log">Durable Work Log</a>
+          <a href="#complex-use-cases">Complex Use Cases</a>
+          <a href="#acceptance">Acceptance Gates</a>
+          <a href="./workflows.html">Guided Workflow</a>
+        </nav>
+        <div class="doc-body">
+          <section id="simple-use-cases">
+            <h2>Simple Use Cases</h2>
+            <p>
+              Use the simple path for a focused change that still needs a work
+              record: a small bug fix, a docs cleanup, a validation pass, or a
+              short investigation that another agent may need to resume.
+            </p>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+Clean up installer docs, tests, and handoff notes.</code></pre>
+            <ol class="check-list">
+              <li>Codex runs the prompt coach and asks only execution-changing questions.</li>
+              <li>The work stays in the main thread unless the coach recommends review lanes.</li>
+              <li>One Beads task captures scope, evidence, validation, and handoff.</li>
+              <li>The close reason stays short; the final comment preserves the reusable context.</li>
+            </ol>
+            <p>
+              Continue with <a href="./get-started.html#coach">Get Started</a>
+              for the first run, then use
+              <a href="./workflows.html#invoke-codex">Workflows</a> when the
+              coach recommends a broader graph.
+            </p>
+          </section>
+
+          <section id="durable-work-log">
+            <h2>Durable Work Log</h2>
+            <p>
+              Beads is the durable work log. The final closure-memory comment
+              should answer the recovery questions a future agent would ask:
+              what changed, why it closed, how it was validated, when it was
+              closed, where it ran, what risk remains, and what follows.
+            </p>
+            <pre><code>python3 scripts/close_bead_with_summary.py \
+  --bead "$BEAD_ID" \
+  --disposition completed \
+  --why "accepted change validated" \
+  --what "docs/use-cases.html added" \
+  --how "python3 scripts/validate_site.py" \
+  --when "main at &lt;commit-sha&gt;" \
+  --where "repo path and Beads local-only or Dolt-backed mode" \
+  --decision "documented external review as evidence, not authority" \
+  --evidence "CI and Pages run IDs" \
+  --residual-risk "none known" \
+  --follow-up "none" \
+  --close</code></pre>
+            <p>
+              If no Dolt remote is configured, say that the Beads trail is
+              local-only. Do not imply remote sync, shared durability, or
+              completed publication until those checks have actually happened.
+            </p>
+          </section>
+
+          <section id="complex-use-cases">
+            <h2>Complex Use Cases</h2>
+            <p>
+              Use the complex pattern when a Codex architect plan is important
+              enough to benefit from independent model critique before
+              implementation. Codex still owns architecture, integration,
+              validation, and release judgment.
+            </p>
+            <div class="workflow-diagram contractor" role="img" aria-label="Complex use case flow from Codex plan to Gemini and Claude Opus critiques, ChatGPT Pro master review, architect adjudication, implementation, and validation.">
+              <div class="flow-card"><strong>Plan</strong><span>Codex architect</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Critique</strong><span>Gemini + Opus</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Master Review</strong><span>ChatGPT Pro 5.5</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Adjudicate</strong><span>Codex decides</span></div>
+            </div>
+            <ol class="check-list">
+              <li>Ask for the prompt coach and approve third-party sharing before any packet is built.</li>
+              <li>Use separate review lanes for Gemini and Claude Opus architecture critique.</li>
+              <li>Record dispatch IDs, packet SHA values, return files, and evaluation decisions.</li>
+              <li>Use ChatGPT Pro 5.5 Extended Reasoning only for the final plan bundle.</li>
+              <li>Accept only returns with the expected dispatch identity, packet hash, boundary fit, and model/share-link evidence.</li>
+            </ol>
+            <p>
+              The operator details are in
+              <a href="./external-contracting.html#multi-expert-review">External Contracting</a>.
+              The <a href="./contractor-demo.html">contractor demo</a> shows the
+              same evidence-first control model on a smaller public project.
+            </p>
+          </section>
+
+          <section id="acceptance">
+            <h2>Acceptance Gates</h2>
+            <p>
+              Complex review output is evidence, not a merge decision. Codex
+              evaluates returns, quarantines unsupported or boundary-breaking
+              claims, turns accepted findings into follow-up work, validates
+              the implementation, runs publish sanitization when public output
+              is involved, and records the final durable work log.
+            </p>
+            <p>
+              For exact executor IDs, job labels, browser confirmation
+              requirements, and helper commands, use the
+              <a href="./reference.html#experts">Reference</a> page.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

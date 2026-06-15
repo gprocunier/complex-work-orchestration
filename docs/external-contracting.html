@@ -24,6 +24,7 @@
           <a href="./get-started.html">Get Started</a>
           <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
           <a href="./external-contracting.html" aria-current="page">Contractors</a>
           <a href="./local-workers.html">Local Workers</a>
           <a href="./contractor-demo.html">Demo</a>
@@ -49,6 +50,7 @@
           <a href="#collaboration">Collaboration Question</a>
           <a href="#labels">Labels</a>
           <a href="#packet">Packet Validation</a>
+          <a href="#multi-expert-review">Multi-Expert Review</a>
           <a href="#master-review">Master Review</a>
           <a href="#return">Return Review</a>
           <a href="#demo-lessons">Demo Lessons</a>
@@ -215,6 +217,31 @@ claude --model claude-opus-4-6 --effort high \
             </details>
           </section>
 
+          <section id="multi-expert-review">
+            <h2>Multi-Expert Review</h2>
+            <p>
+              The complex use case is a staged review of a Codex architect
+              plan. Gemini and Claude Opus act as independent architecture
+              critics, while ChatGPT Pro 5.5 Extended Reasoning can review the
+              final plan bundle after those findings are adjudicated. This is
+              useful for high-risk design, publish, or release work where a
+              single long prompt is not enough.
+            </p>
+            <ol class="check-list">
+              <li>Create one Beads lane per outside reviewer.</li>
+              <li>Build one redacted packet per lane after explicit sharing approval.</li>
+              <li>Record the dispatch ID and packet hash before parsing any return.</li>
+              <li>Reject or quarantine returns that claim unapproved repo inspection or command execution.</li>
+              <li>Let the Codex architect accept, modify, defer, reject, or quarantine each finding.</li>
+            </ol>
+            <p>
+              The matching reader-facing summary is in
+              <a href="./use-cases.html#complex-use-cases">Use Cases</a>. The
+              exact executor IDs, review labels, and command examples remain in
+              the operator reference blocks below.
+            </p>
+          </section>
+
           <section id="master-review">
             <h2>Master Review</h2>
             <p>
@@ -375,7 +402,8 @@ python3 scripts/evaluate_return.py \
             </div>
             <p>
               Before closing a meaningful contractor, evaluation, or adjudication
-              Bead, add a closure-memory comment with disposition, why closed,
+              Bead, add a closure-memory comment with what changed, why it
+              closed, how it was validated, when it closed, where it ran,
               decisions, evidence, residual risk, and follow-up. Keep the close
               reason terse so future agents can recover the decision trail from
               Beads without rereading the whole transcript.
@@ -417,6 +445,7 @@ python3 scripts/evaluate_return.py \
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
         <a href="./contractor-demo.html">Demo</a>
