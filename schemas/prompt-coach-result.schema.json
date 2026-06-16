@@ -103,6 +103,10 @@
       "type": "object",
       "required": [
         "recommended_mode",
+        "activation_state",
+        "active",
+        "active_modes",
+        "requires_user_acceptance",
         "prompt_user_in_plan_mode",
         "synthesis_pattern",
         "synthesis_owner",
@@ -112,12 +116,22 @@
         "required_share_boundary",
         "external_reviewers_require_opt_in",
         "artifact_contract",
+        "input_disposition_policy",
+        "partial_synthesis_policy",
+        "provider_conflict_policy",
+        "provider_conflict_flags",
         "rationale"
       ],
       "properties": {
         "recommended_mode": {
-          "enum": ["none", "requested", "recommended"]
+          "enum": ["none", "recommended", "requested", "accepted", "disabled"]
         },
+        "activation_state": {
+          "enum": ["none", "recommended", "requested", "accepted", "disabled"]
+        },
+        "active": {"type": "boolean"},
+        "active_modes": {"type": "array", "items": {"type": "string"}},
+        "requires_user_acceptance": {"type": "boolean"},
         "prompt_user_in_plan_mode": {"type": "boolean"},
         "synthesis_pattern": {"type": "string"},
         "synthesis_owner": {"type": "string"},
@@ -145,6 +159,10 @@
         },
         "external_reviewers_require_opt_in": {"type": "boolean"},
         "artifact_contract": {"type": "array", "items": {"type": "string"}},
+        "input_disposition_policy": {"type": "object"},
+        "partial_synthesis_policy": {"type": "object"},
+        "provider_conflict_policy": {"type": "object"},
+        "provider_conflict_flags": {"type": "array", "items": {"type": "object"}},
         "rationale": {"type": "array", "items": {"type": "string"}}
       }
     },

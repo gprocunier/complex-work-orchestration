@@ -89,11 +89,15 @@ def route_notes(route: dict[str, Any]) -> str:
     ]
     synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
     if synthesis and synthesis.get("recommended_mode") != "none":
+        conflict_flags = synthesis.get("provider_conflict_flags") or []
+        partial_policy = synthesis.get("partial_synthesis_policy") or {}
         lines.extend(
             [
-                f"Model synthesis: {synthesis.get('recommended_mode')}",
+                f"Model synthesis: {synthesis.get('recommended_mode')} active={bool(synthesis.get('active'))}",
                 f"Synthesis pattern: {synthesis.get('synthesis_pattern')}",
                 f"Synthesis owner: {synthesis.get('synthesis_owner')}",
+                f"Synthesis provider conflict flags: {len(conflict_flags)}",
+                f"Synthesis partial policy: allow_partial={bool(partial_policy.get('allow_partial'))}",
             ]
         )
     return "\n".join(lines)
@@ -147,8 +151,8 @@ LANE_FIELDS: dict[str, dict[str, object]] = {
     },
     "model-synthesis": {
         "skills": ["synthesis", "adjudication", "contractor-control", "beads"],
-        "acceptance": "Consensus, material disagreements, unsupported claims, risk deltas, evidence provenance, and recommended plan revisions are recorded.",
-        "design": "Preserve independent model outputs as evidence, synthesize only after the required review/evaluation gates, and leave final authority with architect adjudication.",
+        "acceptance": "Consensus, material disagreements, unsupported claims, risk deltas, input evaluator dispositions, provider conflict flags, partial or missing lane summaries, evidence provenance, and recommended plan revisions are recorded.",
+        "design": "Preserve independent model outputs as evidence, synthesize only after the required review/evaluation gates, carry rejected/quarantined/missing inputs as dispositions, and leave final authority with architect adjudication.",
     },
     "architect-adjudication": {
         "skills": ["architecture", "adjudication", "acceptance"],
@@ -637,8 +641,8 @@ def main() -> None:
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
     )
-    model_synthesis = recommend_model_synthesis(context, route, force_requested=args.model_synthesis)
-    if model_synthesis.get("recommended_mode") == "requested":
+    model_synthesis = recommend_model_synthesis(context, route, force_accepted=args.model_synthesis)
+    if synthesis_lane_enabled(model_synthesis):
         route = {**route, "model_synthesis": model_synthesis}
     plan = planned_graph(args.title, route)
     if args.dry_run:

@@ -111,22 +111,27 @@ otherwise the main thread keeps file integration and acceptance.
 `workerbee_parallelism`. It answers whether independent model outputs should
 remain separate evidence only, or whether CWO should add a synthesis lane that
 summarizes consensus, material disagreements, unsupported claims, risk deltas,
-evidence provenance, and recommended plan revisions.
+input evaluator dispositions, provider conflict flags, partial or missing lane
+summaries, evidence provenance, and recommended plan revisions.
 
 Explicit synthesis language such as `synthesize`, `fusion`, `ensemble`,
 `combine answers`, `consensus`, `model camps`, `work together`, `more eyes`, or
-`avengers` sets `model_synthesis.recommended_mode=requested`. Conservative
-high-leverage signals such as high-risk architecture, provider conflict, or
-novel/creative design set `recommended_mode=recommended` and add a
-`model_synthesis_opt_in` interactive question. Low-risk work remains
-`recommended_mode=none`.
+`avengers` sets `model_synthesis.recommended_mode=requested` and
+`model_synthesis.active=true`. Conservative high-leverage signals such as
+high-risk architecture, provider conflict, or novel/creative design set
+`recommended_mode=recommended`, `active=false`, and add a
+`model_synthesis_opt_in` interactive question. If the user accepts that prompt
+or scaffold is launched with `--model-synthesis`, the active state is
+`recommended_mode=accepted`. Low-risk work remains `recommended_mode=none`.
 
 The v1 implementation is CWO-native. It does not call OpenRouter Fusion
 directly. External panel members such as Claude Opus, Gemini, or ChatGPT Pro
 still require explicit outside-sharing opt-in and a selected share boundary;
 the default boundary is `redacted-packet`. The synthesis artifact is evidence
 for architect adjudication, not authority to bypass evaluator, peer-review, or
-architect gates.
+architect gates. Rejected, quarantined, missing, empty, timed-out, or
+boundary-tainted inputs are carried forward as dispositions; they are not
+silently treated as consensus evidence.
 
 ## Missing Questions
 

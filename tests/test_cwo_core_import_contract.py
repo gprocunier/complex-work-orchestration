@@ -14,7 +14,7 @@ ALLOWED_IMPORTS = {
     "paths": set(),
     "util": set(),
     "policy": {"paths", "util"},
-    "routing": {"policy", "util"},
+    "routing": {"policy", "synthesis", "util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "util"},
     "packets": {"paths", "policy", "util"},

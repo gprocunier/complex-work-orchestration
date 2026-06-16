@@ -573,11 +573,14 @@ flowchart LR
    publish-sanitization review. In Default mode, ask only the required concise
    question or apply the coach's safe default.
    `model_synthesis` is separate from workerbee parallelism: explicit fusion,
-   synthesis, ensemble, model-camp, or "more eyes" language enables a
-   CWO-native synthesis lane; high-risk architecture, provider-conflict, or
-   creative design signals only recommend synthesis as an opt-in choice.
-   Synthesis preserves independent returns, records consensus and
-   disagreements, and still requires architect adjudication.
+   synthesis, ensemble, model-camp, or "more eyes" language sets
+   `recommended_mode=requested` and activates a CWO-native synthesis lane.
+   High-risk architecture, provider-conflict, or creative design signals set
+   `recommended_mode=recommended` and require user opt-in before the lane is
+   active. Accepted opt-in sets `recommended_mode=accepted`. Synthesis preserves
+   independent returns, records consensus and disagreements, carries evaluator
+   dispositions for partial/missing/rejected inputs, and still requires
+   architect adjudication.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -623,8 +626,8 @@ flowchart LR
    framing, PM coordination, review-only subagent sidecar workstreams,
    implementation subagents only when write ownership is disjoint,
    validation, docs/handoff, any outside contracts, and an optional
-   model-synthesis lane when synthesis was explicitly requested or accepted
-   from the prompt coach.
+   model-synthesis lane when synthesis was explicitly requested, accepted from
+   the prompt coach, or enabled with the scaffold `--model-synthesis` flag.
 10. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
    evaluation, and architect adjudication as real Beads dependencies.

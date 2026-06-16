@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Complex Work Orchestration Route Result",
   "type": "object",
-  "required": ["route", "task_class", "risk_level", "data_sensitivity", "dispatch_sensitivity", "share_boundary", "ranked_experts", "ranked_executors", "recommended_executor"],
+  "required": ["route", "task_class", "risk_level", "data_sensitivity", "dispatch_sensitivity", "share_boundary", "ranked_experts", "ranked_executors", "recommended_executor", "model_synthesis"],
   "properties": {
     "route": {"type": "string"},
     "task_class": {"type": "string"},
@@ -44,6 +44,60 @@
     "peer_review_labels": {"type": "array", "items": {"type": "string"}},
     "quarantine_on_fail": {"type": "boolean"},
     "local_secure_review_executor": {"type": ["string", "null"]},
+    "model_synthesis": {
+      "type": "object",
+      "required": [
+        "recommended_mode",
+        "activation_state",
+        "active",
+        "active_modes",
+        "requires_user_acceptance",
+        "prompt_user_in_plan_mode",
+        "synthesis_pattern",
+        "synthesis_owner",
+        "trigger_reasons",
+        "recommended_panel",
+        "mentioned_provider_camps",
+        "required_share_boundary",
+        "external_reviewers_require_opt_in",
+        "artifact_contract",
+        "input_disposition_policy",
+        "partial_synthesis_policy",
+        "provider_conflict_policy",
+        "provider_conflict_flags",
+        "rationale"
+      ],
+      "properties": {
+        "recommended_mode": {
+          "enum": ["none", "recommended", "requested", "accepted", "disabled"]
+        },
+        "activation_state": {
+          "enum": ["none", "recommended", "requested", "accepted", "disabled"]
+        },
+        "active": {"type": "boolean"},
+        "active_modes": {"type": "array", "items": {"type": "string"}},
+        "requires_user_acceptance": {"type": "boolean"},
+        "prompt_user_in_plan_mode": {"type": "boolean"},
+        "synthesis_pattern": {"type": "string"},
+        "synthesis_owner": {"type": "string"},
+        "trigger_reasons": {"type": "array", "items": {"type": "string"}},
+        "recommended_panel": {"type": "array", "items": {"type": "object"}},
+        "mentioned_provider_camps": {"type": "array", "items": {"type": "string"}},
+        "required_share_boundary": {
+          "anyOf": [
+            {"type": "string"},
+            {"type": "null"}
+          ]
+        },
+        "external_reviewers_require_opt_in": {"type": "boolean"},
+        "artifact_contract": {"type": "array", "items": {"type": "string"}},
+        "input_disposition_policy": {"type": "object"},
+        "partial_synthesis_policy": {"type": "object"},
+        "provider_conflict_policy": {"type": "object"},
+        "provider_conflict_flags": {"type": "array", "items": {"type": "object"}},
+        "rationale": {"type": "array", "items": {"type": "string"}}
+      }
+    },
     "guard_labels": {"type": "array", "items": {"type": "string"}},
     "hard_stops": {"type": "array", "items": {"type": "string"}}
   }

@@ -5,6 +5,42 @@
   "default_pattern": "independent-then-synthesize",
   "synthesis_owner": "frontier_architect",
   "default_share_boundary": "redacted-packet",
+  "active_modes": ["requested", "accepted"],
+  "activation_states": {
+    "none": "No synthesis trigger matched; keep independent evidence and normal adjudication.",
+    "recommended": "Conservative triggers matched; prompt the user before adding a synthesis lane.",
+    "requested": "The user explicitly asked for synthesis, fusion, consensus, or models working together.",
+    "accepted": "The user accepted a coach recommendation or enabled synthesis with the scaffold flag.",
+    "disabled": "Synthesis was explicitly declined; do not add a synthesis lane."
+  },
+  "input_disposition_policy": {
+    "use_as_synthesis_input": ["accepted", "accepted-with-modification"],
+    "summarize_as_open_risk": ["needs-investigation", "deferred"],
+    "exclude_as_rejected": ["rejected"],
+    "quarantine": ["quarantined", "boundary-tainted"],
+    "partial_only": ["missing", "empty", "timed-out"]
+  },
+  "partial_synthesis_policy": {
+    "allow_partial": true,
+    "minimum_usable_inputs": 2,
+    "partial_status": "partial",
+    "required_missing_input_fields": [
+      "lane",
+      "provider_camp",
+      "disposition",
+      "reason",
+      "boundary_status"
+    ],
+    "blocked_when": [
+      "fewer than minimum_usable_inputs accepted or accepted-with-modification inputs",
+      "all external inputs are quarantined or boundary-tainted"
+    ]
+  },
+  "provider_conflict_policy": {
+    "carry_forward_route_domains": true,
+    "require_provider_provenance": true,
+    "require_conflict_summary": true
+  },
   "explicit_terms": [
     "synthesize",
     "synthesis",
@@ -110,6 +146,9 @@
     "unsupported claims",
     "risk deltas",
     "evidence provenance",
+    "input evaluator dispositions",
+    "provider conflict flags",
+    "partial or missing lane summary",
     "recommended plan revisions"
   ]
 }

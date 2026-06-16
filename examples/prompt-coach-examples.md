@@ -164,9 +164,10 @@ python3 scripts/coach_prompt.py \
 ```
 
 Expected sizing includes `model_synthesis.recommended_mode=requested`,
-`model-synthesis=requested`, and a CWO-native synthesis lane when scaffolding.
-The lane preserves separate model evidence, captures consensus and
-disagreement, and remains input to architect adjudication.
+`model_synthesis.active=true`, `model-synthesis=requested`, and a CWO-native
+synthesis lane when scaffolding. The lane preserves separate model evidence,
+captures consensus and disagreement, carries evaluator dispositions for partial
+or rejected inputs, and remains input to architect adjudication.
 
 ## External Security Contractor
 

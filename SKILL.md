@@ -167,10 +167,14 @@ python3 scripts/coach_prompt.py "<task text>"
    Use implementation workerbees only when file ownership or workstream
    boundaries are disjoint.
    `model_synthesis` is separate from workerbee parallelism. Explicit fusion,
-   synthesis, ensemble, model-camp, or "more eyes" language enables synthesis.
-   High-risk architecture, provider-conflict, or creative design signals only
-   recommend synthesis as an opt-in prompt-coach choice. Outside synthesis
-   panel members still require explicit share-boundary opt-in.
+   synthesis, ensemble, model-camp, or "more eyes" language sets
+   `recommended_mode=requested` and `active=true`. High-risk architecture,
+   provider-conflict, or creative design signals set
+   `recommended_mode=recommended` and require opt-in before the lane is active.
+   Accepted opt-in uses `recommended_mode=accepted`. Outside synthesis panel
+   members still require explicit share-boundary opt-in, and the synthesis
+   artifact must carry evaluator dispositions for rejected, quarantined,
+   missing, timed-out, or boundary-tainted inputs.
    If the result includes `interactive_questions` and Codex is in Plan mode,
    present those as selectable prompts because the answer changes execution
    behavior. In Default mode, ask only the concise blocking question or apply the

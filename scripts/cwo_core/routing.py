@@ -24,6 +24,7 @@ from .policy import (
     route_requires_peer_review,
     validate_peer_review_controls,
 )
+from .synthesis import recommend_model_synthesis
 from .util import rank_allows, rank_max, term_hits
 
 
@@ -776,7 +777,7 @@ def classify_work(
     peer_policy = peer_review_policy()
     peer_review_count = int(peer_policy.get("defaults", {}).get("minimum_peer_reviews", 1)) if peer_required else 0
 
-    return {
+    result = {
         "route": route,
         "task_class": task_class,
         "risk_level": risk,
@@ -834,6 +835,8 @@ def classify_work(
             "ranked executors: " + ", ".join(f"{item['key']}={item['score']}" for item in ranked_executors[:5]),
         ],
     }
+    result["model_synthesis"] = recommend_model_synthesis(text, result)
+    return result
 
 
 def selected_executor_for_expert(expert: dict[str, Any], fallback_executor: str | None = None) -> dict[str, Any]:

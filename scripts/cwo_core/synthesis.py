@@ -30,11 +30,39 @@ def _route_has_architecture_signal(text: str, route: dict[str, Any], policy: dic
     return bool(term_hits(text, list(policy.get("architecture_terms", []))))
 
 
+def active_synthesis_modes(policy: dict[str, Any] | None = None) -> set[str]:
+    config = policy or synthesis_policy()
+    return {str(item) for item in config.get("active_modes", ["requested", "accepted"])}
+
+
+def provider_conflict_flags(route: dict[str, Any], camps: list[str]) -> list[dict[str, Any]]:
+    flags: list[dict[str, Any]] = []
+    if route.get("provider_conflict_detected"):
+        flags.append(
+            {
+                "kind": "route-provider-conflict",
+                "domains": [str(item) for item in route.get("provider_conflict_domains", [])],
+                "required_handling": "preserve provider provenance and summarize material provider-camp disagreements",
+            }
+        )
+    if len(camps) >= 2:
+        flags.append(
+            {
+                "kind": "multi-camp-request",
+                "provider_camps": camps,
+                "required_handling": "keep independent model-camp returns separate before synthesis",
+            }
+        )
+    return flags
+
+
 def recommend_model_synthesis(
     text: str,
     route: dict[str, Any],
     *,
     force_requested: bool = False,
+    force_accepted: bool = False,
+    disabled: bool = False,
 ) -> dict[str, Any]:
     policy = synthesis_policy()
     explicit_hits = term_hits(text, list(policy.get("explicit_terms", [])))
@@ -42,7 +70,9 @@ def recommend_model_synthesis(
     camps = mentioned_provider_camps(text, policy)
     trigger_reasons: list[str] = []
 
-    if force_requested:
+    if force_accepted:
+        trigger_reasons.append("operator accepted model synthesis")
+    elif force_requested:
         trigger_reasons.append("operator explicitly enabled model synthesis")
     if explicit_hits:
         trigger_reasons.append("explicit synthesis language: " + ", ".join(explicit_hits[:5]))
@@ -59,7 +89,11 @@ def recommend_model_synthesis(
     if len(camps) >= 2:
         trigger_reasons.append("multiple model camps mentioned: " + ", ".join(camps))
 
-    if force_requested or explicit_hits:
+    if disabled:
+        mode = "disabled"
+    elif force_accepted:
+        mode = "accepted"
+    elif force_requested or explicit_hits:
         mode = "requested"
     elif trigger_reasons and (
         route.get("provider_conflict_detected")
@@ -73,6 +107,8 @@ def recommend_model_synthesis(
 
     panel = [dict(item) for item in policy.get("default_panel", [])]
     external_panel = any(bool(item.get("external")) for item in panel)
+    active_modes = active_synthesis_modes(policy)
+    active = mode in active_modes
     share_boundary = str(route.get("share_boundary") or "no-outside-sharing")
     required_share_boundary = (
         share_boundary
@@ -80,27 +116,40 @@ def recommend_model_synthesis(
         else str(policy.get("default_share_boundary", "redacted-packet"))
     )
     rationale: list[str] = []
-    if mode == "requested":
+    if mode == "accepted":
+        rationale.append("The operator accepted the coach recommendation or enabled synthesis for this scaffold.")
+    elif mode == "requested":
         rationale.append("The request explicitly asks models to synthesize, fuse, or work together.")
     elif mode == "recommended":
         rationale.append("The coach should offer synthesis as an opt-in choice for this risk/creativity profile.")
+    elif mode == "disabled":
+        rationale.append("Synthesis was explicitly disabled; keep independent evidence lanes and normal adjudication.")
     else:
         rationale.append("No conservative synthesis trigger matched.")
     if external_panel:
         rationale.append("External panel members still require explicit opt-in and the selected share boundary.")
     rationale.append("Synthesis preserves independent evidence and does not replace architect adjudication.")
+    conflict_flags = provider_conflict_flags(route, camps)
 
     return {
         "recommended_mode": mode,
+        "activation_state": mode,
+        "active": active,
+        "active_modes": sorted(active_modes),
+        "requires_user_acceptance": mode == "recommended",
         "prompt_user_in_plan_mode": mode == "recommended",
         "synthesis_pattern": str(policy.get("default_pattern", "independent-then-synthesize")),
         "synthesis_owner": str(policy.get("synthesis_owner", "frontier_architect")),
-        "trigger_reasons": trigger_reasons if mode != "none" else [],
-        "recommended_panel": panel if mode != "none" else [],
-        "mentioned_provider_camps": camps if mode != "none" else [],
-        "required_share_boundary": required_share_boundary if mode != "none" else None,
-        "external_reviewers_require_opt_in": bool(external_panel and mode != "none"),
-        "artifact_contract": list(policy.get("artifact_contract", [])) if mode != "none" else [],
+        "trigger_reasons": trigger_reasons if mode not in {"none", "disabled"} else [],
+        "recommended_panel": panel if mode not in {"none", "disabled"} else [],
+        "mentioned_provider_camps": camps if mode not in {"none", "disabled"} else [],
+        "required_share_boundary": required_share_boundary if mode not in {"none", "disabled"} else None,
+        "external_reviewers_require_opt_in": bool(external_panel and mode not in {"none", "disabled"}),
+        "artifact_contract": list(policy.get("artifact_contract", [])) if mode not in {"none", "disabled"} else [],
+        "input_disposition_policy": dict(policy.get("input_disposition_policy", {})),
+        "partial_synthesis_policy": dict(policy.get("partial_synthesis_policy", {})),
+        "provider_conflict_policy": dict(policy.get("provider_conflict_policy", {})),
+        "provider_conflict_flags": conflict_flags if mode not in {"none", "disabled"} else [],
         "rationale": rationale,
     }
 
@@ -108,4 +157,8 @@ def recommend_model_synthesis(
 def synthesis_lane_enabled(model_synthesis: dict[str, Any] | None) -> bool:
     if not isinstance(model_synthesis, dict):
         return False
-    return model_synthesis.get("recommended_mode") == "requested"
+    if "active" in model_synthesis:
+        return bool(model_synthesis.get("active"))
+    mode = str(model_synthesis.get("recommended_mode") or "none")
+    active_modes = {str(item) for item in model_synthesis.get("active_modes", ["requested", "accepted"])}
+    return mode in active_modes

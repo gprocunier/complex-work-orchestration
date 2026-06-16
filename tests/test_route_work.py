@@ -54,6 +54,7 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIn("Has external expert contracts:", rendered)
         self.assertIn("External experts:", rendered)
         self.assertIn("Acceptance required experts:", rendered)
+        self.assertIn("Model synthesis:", rendered)
         self.assertIn("executor=", rendered)
         self.assertIn("violations=", rendered)
 

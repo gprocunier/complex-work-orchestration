@@ -348,7 +348,7 @@ def prompt_coach_missing_questions(
                 "default": default,
             }
         )
-    if model_synthesis and model_synthesis.get("recommended_mode") == "recommended":
+    if model_synthesis and model_synthesis.get("requires_user_acceptance"):
         questions.append(
             {
                 "id": "model_synthesis_opt_in",
@@ -774,9 +774,9 @@ def prompt_coach_rationale(
             f"{workerbee_parallelism.get('recommended_mode')} using {workerbee_model_phrase(workerbee_parallelism)} "
             "for bounded sidecar workstreams."
         )
-    if model_synthesis and model_synthesis.get("recommended_mode") == "requested":
+    if model_synthesis and model_synthesis.get("active"):
         rationale.append(
-            "CWO-native model synthesis is requested; independent evidence lanes should be synthesized before architect adjudication."
+            "CWO-native model synthesis is active; independent evidence lanes should be synthesized before architect adjudication."
         )
     elif model_synthesis and model_synthesis.get("recommended_mode") == "recommended":
         rationale.append(
@@ -835,7 +835,7 @@ def synthesis_prompt_line(model_synthesis: dict[str, Any] | None) -> str:
         "covering consensus, material disagreements, unsupported claims, risk deltas, and recommended plan revisions. "
         "Keep final decisions with the Codex architect."
     )
-    if model_synthesis.get("recommended_mode") == "requested":
+    if model_synthesis.get("active"):
         return (
             "Use CWO-native model synthesis after independent review returns. "
             f"Pattern: {model_synthesis.get('synthesis_pattern')}; panel: {panel_text}; "
@@ -986,7 +986,10 @@ def coach_orchestration_prompt(
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
-    model_synthesis = recommend_model_synthesis(text, route)
+    model_synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
+    if model_synthesis is None:
+        model_synthesis = recommend_model_synthesis(text, route)
+        route = {**route, "model_synthesis": model_synthesis}
     questions = prompt_coach_missing_questions(route, text, file_paths, workerbee_parallelism, model_synthesis)
     interactive_questions = prompt_coach_interactive_questions(
         level,

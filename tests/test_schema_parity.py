@@ -52,6 +52,21 @@ class SchemaParityTests(unittest.TestCase):
         self.assertIn("model_synthesis", schema["properties"])
         self.assertIn("recommended_mode", schema["properties"]["model_synthesis"]["properties"])
 
+    def test_route_schema_has_model_synthesis_contract(self) -> None:
+        schema = load_schema("route-result.schema.json")
+        model_synthesis = schema["properties"]["model_synthesis"]
+        self.assertIn("model_synthesis", schema["required"])
+        for field in [
+            "activation_state",
+            "active",
+            "requires_user_acceptance",
+            "input_disposition_policy",
+            "partial_synthesis_policy",
+            "provider_conflict_flags",
+        ]:
+            self.assertIn(field, model_synthesis["required"])
+            self.assertIn(field, model_synthesis["properties"])
+
     def test_opt_in_schema_supports_allowed_providers(self) -> None:
         properties = load_schema("opt-in-record.schema.json")["properties"]
         self.assertIn("allowed_providers", properties)

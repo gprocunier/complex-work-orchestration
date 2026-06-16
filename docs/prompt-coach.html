@@ -161,13 +161,18 @@ Publish-ready docs with validation and editorial review.</code></pre>
             <div class="callout">
               <strong>Model synthesis:</strong>
               Explicit fusion, ensemble, model-camp, "more eyes", or
-              synthesis language enables <code>model_synthesis</code>. High-risk
-              architecture, provider conflict, or novel design work only
-              recommends synthesis as an opt-in choice. The lane keeps
-              independent model evidence separate, then records consensus,
-              disagreements, unsupported claims, risk deltas, and recommended
-              plan revisions for architect adjudication. This is CWO-native
-              synthesis, not direct OpenRouter Fusion dispatch.
+              synthesis language sets
+              <code>model_synthesis.recommended_mode=requested</code> and
+              <code>active=true</code>. High-risk architecture, provider
+              conflict, or novel design work sets
+              <code>recommended_mode=recommended</code> until the user opts in;
+              accepted opt-in uses <code>recommended_mode=accepted</code>. The
+              lane keeps independent model evidence separate, then records
+              consensus, disagreements, unsupported claims, risk deltas,
+              evaluator dispositions, provider conflict flags, partial or
+              missing lane summaries, and recommended plan revisions for
+              architect adjudication. This is CWO-native synthesis, not direct
+              OpenRouter Fusion dispatch.
             </div>
             <div class="callout">
               <strong>Subagents:</strong>

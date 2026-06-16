@@ -22,6 +22,11 @@ def print_human(route: dict[str, object], top_n: int) -> None:
         print(f"Provider conflict domains: {', '.join(str(item) for item in conflicts)}")
     print(f"Peer review required: {route.get('peer_review_required')}")
     print(f"Peer review count: {route.get('peer_review_count')}")
+    synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else {}
+    if synthesis:
+        print(f"Model synthesis: {synthesis.get('recommended_mode')} active={synthesis.get('active')}")
+        if synthesis.get("provider_conflict_flags"):
+            print(f"Model synthesis provider flags: {len(synthesis.get('provider_conflict_flags', []))}")
     print(f"External contract allowed: {route['external_contract_allowed']}")
     print(f"Local worker allowed: {route['local_worker_allowed']}")
     print(f"Prefer local worker: {route['prefer_local_worker']}")

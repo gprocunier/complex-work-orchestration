@@ -67,6 +67,32 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
             graph["edges"],
         )
 
+    def test_cli_model_synthesis_flag_records_accepted_state(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "scaffold_workgraph.py"),
+                "--title",
+                "Accepted Synthesis Example",
+                "--description",
+                "Refactor architecture policy and routing tests.",
+                "--model-synthesis",
+                "--dry-run",
+            ],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        graph = json.loads(result.stdout)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertIn("model-synthesis", by_lane)
+        synthesis = by_lane["model-synthesis"]["metadata"]["model_synthesis"]
+        self.assertEqual(synthesis["recommended_mode"], "accepted")
+        self.assertTrue(synthesis["active"])
+        self.assertIn("input evaluator dispositions", synthesis["artifact_contract"])
+
     def test_cli_beads_graph_output_validates_with_bd_create_graph_dry_run(self) -> None:
         bd = shutil.which("bd")
         if not bd:
