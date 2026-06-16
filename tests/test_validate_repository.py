@@ -41,6 +41,9 @@ class ValidateRepositoryTests(unittest.TestCase):
             errors,
             content=(
                 "python3 scripts/evaluate_return.py --file local-return.md\n"
+                "--executor openshift_ai_vllm_worker\n"
+                "provider_trust_tier\n"
+                "provenance_class\n"
                 "Add `--peer-review-required` only when route_work.py or evaluator policy requires it.\n"
             ),
         )

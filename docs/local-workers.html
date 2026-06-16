@@ -215,10 +215,13 @@ python3 scripts/workspace_mutation_guard.py \
   --output mutation-report.json</code></pre>
             <p>
               Normalize the return using the target Bead ID and the workspace
-              mutation report:
+              mutation report. Preserve the executor identity so adjudication
+              can distinguish local-worker evidence from external frontier
+              contractor evidence:
             </p>
             <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead &lt;id&gt; \
+  --executor openshift_ai_vllm_worker \
   --file local-return.md \
   --workspace-mutation-report mutation-report.json \
   --output local-return-bundle.json</code></pre>
@@ -229,8 +232,16 @@ python3 scripts/workspace_mutation_guard.py \
             </p>
             <pre><code>python3 scripts/evaluate_return.py \
   --bead &lt;id&gt; \
+  --executor openshift_ai_vllm_worker \
   --file local-return.md \
   --workspace-mutation-report mutation-report.json</code></pre>
+            <p>
+              The normalized bundle and acceptance decision should show
+              <code>provider_key=openshift_ai_vllm</code>,
+              <code>provider_trust_tier=local-platform</code>,
+              <code>local_profile=openshift-ai-vllm</code>, and
+              <code>provenance_class=local-worker</code>.
+            </p>
             <ol class="check-list">
               <li>Use local workers only after explicit local opt-in.</li>
               <li>Treat output as evidence, not implementation authority.</li>

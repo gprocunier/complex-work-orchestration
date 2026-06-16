@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 import unittest
 from contextlib import redirect_stdout
@@ -57,6 +59,37 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIn("Model synthesis:", rendered)
         self.assertIn("executor=", rendered)
         self.assertIn("violations=", rendered)
+
+    def test_model_synthesis_flag_marks_route_opt_in_accepted(self) -> None:
+        result = classify_work(
+            "Refactor architecture policy and routing tests.",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "accepted")
+        self.assertEqual(result["model_synthesis"]["activation_state"], "accepted")
+        self.assertTrue(result["model_synthesis"]["active"])
+        self.assertFalse(result["model_synthesis"]["requires_user_acceptance"])
+
+    def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
+        output = subprocess.check_output(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "route_work.py"),
+                "--json",
+                "--model-synthesis",
+                "--requested-role",
+                "architecture",
+                "Refactor architecture policy and routing tests.",
+            ],
+            text=True,
+            cwd=ROOT,
+        )
+        result = json.loads(output)
+
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "accepted")
+        self.assertTrue(result["model_synthesis"]["active"])
 
     def test_public_docs_pages_require_editor_gate(self) -> None:
         result = classify_work(

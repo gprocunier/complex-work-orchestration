@@ -176,6 +176,11 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
   --title "Public workflow docs" \
   --description "Document the guided Codex workflow."
 
+python3 scripts/scaffold_workgraph.py \
+  --title "Focused review" \
+  --description "Tight-chain review of the selected scope." \
+  --scaffold-size tight
+
 python3 scripts/spawn_expert_reviews.py \
   --parent "$EPIC_ID" \
   --requested-role documentation \
@@ -301,9 +306,11 @@ python3 scripts/spawn_expert_reviews.py \
             <p>
               Meaningful closures also need a final closure-memory comment
               before <code>bd close</code>. Keep the close reason short and
-              place the reusable brief in the comment: what changed, why it
-              closed, how it was validated, when it closed, where it ran,
-              decisions, evidence, residual risk, and follow-up. That record is
+              place the reusable brief in the comment: who was involved, what
+              changed, why it closed, how it was validated, when it closed,
+              where it ran, decisions, evidence, residual risk, and follow-up.
+              Pass <code>--meaningful</code> to enforce those fields for
+              non-trivial Beads. That record is
               what a spawned agent or compacted session reads when the transcript
               is missing or fuzzy.
             </p>
@@ -311,6 +318,7 @@ python3 scripts/spawn_expert_reviews.py \
   --bead "$BEAD_ID" \
   --disposition completed \
   --why "accepted change validated" \
+  --who "Codex main thread; reviewer lane or operator if applicable" \
   --what "files, behavior, or workstream result" \
   --how "validation commands, review evidence, CI, or install smoke" \
   --when "branch, commit, run ID, or date" \
@@ -319,6 +327,7 @@ python3 scripts/spawn_expert_reviews.py \
   --evidence "python scripts/validate_repository.py" \
   --residual-risk "none known" \
   --follow-up "none" \
+  --meaningful \
   --close</code></pre>
             <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead "$BEAD_ID" \

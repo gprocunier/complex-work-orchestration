@@ -21,6 +21,8 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Human adjudication required: {result.get('human_adjudication_required', False)}")
     print(f"Recommended disposition: {result.get('recommended_disposition', 'unknown')}")
     print(f"Quarantine recommended: {result.get('quarantine_recommended', False)}")
+    print(f"Provider: {result.get('provider_key') or 'unknown'} ({result.get('provider_trust_tier') or 'unknown'})")
+    print(f"Provenance class: {result.get('provenance_class') or 'unknown'}")
     workspace_mutation = result.get("workspace_mutation") or {}
     if isinstance(workspace_mutation, dict) and workspace_mutation:
         print(f"Workspace mutation detected: {workspace_mutation.get('mutation_detected', False)}")
@@ -74,6 +76,11 @@ def main() -> None:
     parser.add_argument("--dispatch-id", help="Dispatch ID to link audit records.")
     parser.add_argument("--share-boundary", help="Share boundary used for the dispatch.")
     parser.add_argument("--job-description", help="Expected job-description label.")
+    parser.add_argument("--executor", help="Executor key that produced the return.")
+    parser.add_argument("--provider-key", help="Provider key from the dispatch envelope or packet.")
+    parser.add_argument("--provider-trust-tier", help="Provider trust tier from the dispatch envelope or packet.")
+    parser.add_argument("--dispatch-mode", help="Dispatch mode from the route, packet, or local envelope.")
+    parser.add_argument("--local-profile", help="Local executor profile, for example openshift-ai-vllm.")
     parser.add_argument(
         "--peer-review-required",
         action="store_true",
@@ -121,6 +128,11 @@ def main() -> None:
         dispatch_id=args.dispatch_id,
         share_boundary=args.share_boundary,
         job_description_label=args.job_description,
+        executor=args.executor,
+        provider_key=args.provider_key,
+        provider_trust_tier=args.provider_trust_tier,
+        dispatch_mode=args.dispatch_mode,
+        local_profile=args.local_profile,
         peer_review_required=args.peer_review_required,
         peer_review_status=args.peer_review_status,
         provider_conflict_domains=args.provider_conflict_domain,
@@ -139,6 +151,13 @@ def main() -> None:
                 "dispatch_id": args.dispatch_id,
                 "bead_id": args.bead,
                 "share_boundary": args.share_boundary,
+                "executor": result.get("executor"),
+                "provider_key": result.get("provider_key"),
+                "provider_trust_tier": result.get("provider_trust_tier"),
+                "provider_external": result.get("provider_external"),
+                "provenance_class": result.get("provenance_class"),
+                "dispatch_mode": result.get("dispatch_mode"),
+                "local_profile": result.get("local_profile"),
                 "verdict": result["verdict"],
                 "acceptance_score": result["score"],
                 "sabotage_score": result.get("sabotage_score"),

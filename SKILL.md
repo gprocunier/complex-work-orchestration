@@ -44,9 +44,15 @@ target:
 ```
 
 The installer does not build a tarball. It copies `README.md`, `LICENSE`,
-`SKILL.md`, `AGENTS.md`, `agents/`, `policy/`, `templates/`, `experts/`,
-`references/`, `schemas/`, `examples/`, `docs/`, and `scripts/` into the
-selected skills directory. It checks for the Beads CLI (`bd`) and never treats
+`SKILL.md`, `AGENTS.md`, `VERSION`, `CHANGELOG.md`, `agents/`, `policy`,
+`templates/`, `experts/`, `references/`, `schemas/`, `examples/`, `docs/`, and
+`scripts/` into the selected skills directory. After copying, it runs
+`scripts/check_installed_skill.py` to compare a source-vs-installed content
+manifest and writes `.cwo-install-manifest.json` into the installed skill. To
+check an existing install without modifying it, run
+`python3 scripts/check_installed_skill.py --check`; if it reports `missing` or
+`drift`, rerun `./scripts/install.sh --skills-dir <codex-skills-dir> --yes`.
+The installer checks for the Beads CLI (`bd`) and never treats
 a missing Beads install as fatal. On Fedora/RPM-style hosts it prints package-install guidance,
 including the public `greg-at-redhat/beads` COPR as a fallback when the user
 does not have their own Beads package source. Set `BEADS_COPR` to print a
@@ -171,10 +177,16 @@ python3 scripts/coach_prompt.py "<task text>"
    `recommended_mode=requested` and `active=true`. High-risk architecture,
    provider-conflict, or creative design signals set
    `recommended_mode=recommended` and require opt-in before the lane is active.
-   Accepted opt-in uses `recommended_mode=accepted`. Outside synthesis panel
-   members still require explicit share-boundary opt-in, and the synthesis
-   artifact must carry evaluator dispositions for rejected, quarantined,
-   missing, timed-out, or boundary-tainted inputs.
+   Accepted opt-in uses `recommended_mode=accepted`; in advanced helper usage,
+   pass `--model-synthesis` to `coach_prompt.py`, `route_work.py`, or
+   `scaffold_workgraph.py` to record that accepted state consistently. Outside
+   synthesis panel members still require explicit share-boundary opt-in, and the
+   synthesis artifact must carry evaluator dispositions for rejected,
+   quarantined, missing, timed-out, or boundary-tainted inputs.
+   The coach also emits `scaffold_sizing`. Full graph remains the default, but
+   tight-chain language should be surfaced as a graph-size choice and executed
+   with `scaffold_workgraph.py --scaffold-size tight` when selected. Tight-chain
+   scaffolds preserve required gates while limiting optional expert fan-out.
    If the result includes `interactive_questions` and Codex is in Plan mode,
    present those as selectable prompts because the answer changes execution
    behavior. In Default mode, ask only the concise blocking question or apply the
@@ -238,13 +250,17 @@ When helper scripts are available, prefer:
 
 ```bash
 python3 scripts/scaffold_workgraph.py --title "<project goal>" --description "<scope>"
+python3 scripts/scaffold_workgraph.py --title "<focused review>" --description "<scope>" --scaffold-size tight
 python3 scripts/spawn_expert_reviews.py --parent <epic-or-task-id> "<review scope>"
 ```
 
 For validation or advanced automation, `scaffold_workgraph.py --dry-run
 --format beads-graph` emits a JSON plan accepted by `bd create --graph`; normal
 execution still creates Beads directly so native `skills`, `acceptance`,
-`design`, and `notes` fields are populated.
+`design`, and `notes` fields are populated. `--scaffold-size tight` keeps a
+focused chain by retaining required gates, the primary expert lane, and explicit
+architecture-critic contracts while dropping optional secondary expert fan-out.
+If even that is too much, create one manual Bead instead of scaffolding.
 
 Recommended lanes:
 
@@ -278,10 +294,10 @@ Before closing a non-trivial Bead, add a final closure-memory comment. This is
 required for epics, contractor or local-worker lanes, evaluation and architect
 adjudication lanes, validation and publish-sanitization lanes, abandoned or
 superseded work, and any task with a non-obvious technical decision. The close
-reason should stay terse; the final comment should preserve what changed, why
-it closed, how it was validated, when it closed, where it ran, key decisions,
-evidence, residual risk, and follow-up. Tiny mechanical leaf tasks may rely on
-the close reason only when it fully explains the outcome.
+reason should stay terse; the final comment should preserve who was involved,
+what changed, why it closed, how it was validated, when it closed, where it
+ran, key decisions, evidence, residual risk, and follow-up. Tiny mechanical leaf
+tasks may rely on the close reason only when it fully explains the outcome.
 
 Preferred helper:
 
@@ -290,6 +306,7 @@ python3 scripts/close_bead_with_summary.py \
   --bead <id> \
   --disposition completed \
   --why "accepted change validated" \
+  --who "Codex main thread; reviewer lane or operator if applicable" \
   --what "files, behavior, or workstream result" \
   --how "validation commands, review evidence, CI, or install smoke" \
   --when "branch, commit, run ID, or date" \
@@ -298,6 +315,7 @@ python3 scripts/close_bead_with_summary.py \
   --evidence "python scripts/validate_repository.py" \
   --residual-risk "none known" \
   --follow-up "none" \
+  --meaningful \
   --close
 ```
 
@@ -610,7 +628,12 @@ python3 scripts/evaluate_return.py \
 
 Evaluation emits `sabotage_score`, `malpractice_score`,
 `peer_review_required`, `peer_review_status`,
-`human_adjudication_required`, and `recommended_disposition`. If evaluation
+`human_adjudication_required`, `provider_key`, `provider_trust_tier`,
+`provenance_class`, and `recommended_disposition`. For local-worker returns,
+pass `--executor openshift_ai_vllm_worker` or the equivalent provider and local
+profile fields from the dispatch envelope so architect adjudication can
+distinguish local OpenShift AI vLLM evidence from external frontier contractor
+evidence. If evaluation
 returns `quarantine`, a high sabotage score, or a high malpractice score,
 isolate the return, run peer review or local secure review as appropriate, and
 require architect adjudication before any implementation dependency is created.

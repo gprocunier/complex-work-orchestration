@@ -13,6 +13,7 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "version",
     "beads_tracking_required",
     "recommended_orchestration_level",
+    "scaffold_sizing",
     "rationale",
     "missing_questions",
     "interactive_questions",
@@ -56,6 +57,24 @@ def prompt_coach_has_full_harness_signal(text: str) -> bool:
     ):
         return True
     return prompt_coach_has_explicit_workerbee_request(text)
+
+
+def prompt_coach_has_tight_chain_signal(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "tight-chain",
+            "tight chain",
+            "tight review chain",
+            "focused review chain",
+            "narrow review chain",
+            "compact scaffold",
+            "minimal scaffold",
+            "small scaffold",
+            "bounded scaffold",
+            "single chain",
+        ],
+    )
 
 
 def prompt_coach_has_workerbee_availability_constraint(text: str) -> bool:
@@ -292,12 +311,44 @@ def prompt_coach_level(route: dict[str, Any], text: str) -> str:
     return "in-thread"
 
 
+def prompt_coach_scaffold_sizing_signal(
+    text: str,
+    level: str,
+    route: dict[str, Any],
+    force_size: str | None = None,
+) -> dict[str, Any]:
+    lower = text.lower()
+    tight_requested = prompt_coach_has_tight_chain_signal(lower)
+    full_requested = text_has_any(lower, ["full scaffold", "full harness", "broad panel", "broad review"])
+    if force_size in {"full", "tight"}:
+        recommended_size = force_size
+    else:
+        recommended_size = "tight" if tight_requested and not full_requested else "full"
+    graph_signals = text_has_any(lower, ["scaffold", "work graph", "workgraph", "epic", "review chain", "lane"])
+    prompt_user = bool(graph_signals or level in {"full-harness", "external-contract", "local-worker", "publish-release"})
+    rationale: list[str] = []
+    if force_size in {"full", "tight"}:
+        rationale.append(f"The helper was launched with scaffold-size={force_size}.")
+    elif recommended_size == "tight":
+        rationale.append("The request asks for a tight or focused review chain; limit optional expert fan-out.")
+    else:
+        rationale.append("Use the full scaffold by default when explicit tight-chain sizing is not requested.")
+    if route.get("peer_review_required") or route.get("editor_gate_required"):
+        rationale.append("Policy-required peer review and editor gates remain in the graph regardless of size.")
+    return {
+        "recommended_size": recommended_size,
+        "prompt_user_in_plan_mode": prompt_user,
+        "rationale": rationale,
+    }
+
+
 def prompt_coach_missing_questions(
     route: dict[str, Any],
     text: str,
     file_paths: list[str] | None,
     workerbee_parallelism: dict[str, Any] | None = None,
     model_synthesis: dict[str, Any] | None = None,
+    scaffold_sizing: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     lower = text.lower()
     words = re.findall(r"[A-Za-z0-9_/-]+", text)
@@ -328,6 +379,19 @@ def prompt_coach_missing_questions(
                 "question": "Should this stay as a single Beads task or expand into an epic/work graph?",
                 "why": "Beads tracking is mandatory; this only decides the amount of graph structure.",
                 "default": "Start with one Beads task and escalate to an epic if independent work streams appear.",
+            }
+        )
+    if scaffold_sizing and scaffold_sizing.get("prompt_user_in_plan_mode"):
+        if scaffold_sizing.get("recommended_size") == "tight":
+            default = "Use a tight-chain scaffold with --scaffold-size tight; keep required gates and limit optional expert fan-out."
+        else:
+            default = "Use the full scaffold unless the user chooses a tight-chain review graph or a single manual Bead."
+        questions.append(
+            {
+                "id": "scaffold_size",
+                "question": "Should the scaffold use the full graph or a tight review chain?",
+                "why": "The answer controls optional expert fan-out while preserving required gates.",
+                "default": default,
             }
         )
     if workerbee_parallelism:
@@ -402,6 +466,7 @@ def prompt_coach_interactive_questions(
     missing_questions: list[dict[str, str]],
     workerbee_parallelism: dict[str, Any] | None = None,
     model_synthesis: dict[str, Any] | None = None,
+    scaffold_sizing: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     missing_ids = {question["id"] for question in missing_questions}
     questions: list[dict[str, Any]] = []
@@ -441,6 +506,39 @@ def prompt_coach_interactive_questions(
                 "header": "Harness",
                 "question": "How much orchestration should Codex use?",
                 "why": "The answer changes graph size and review workstreams; Beads tracking remains mandatory.",
+                "options": dedupe_interactive_options(options),
+            }
+        )
+
+    if "scaffold_size" in missing_ids:
+        recommended_size = str((scaffold_sizing or {}).get("recommended_size") or "full")
+        full = {
+            "label": "Full graph",
+            "value": "full-graph",
+            "description": "Create the full policy-shaped epic with all selected expert and validation lanes.",
+        }
+        tight = {
+            "label": "Tight chain",
+            "value": "tight-chain",
+            "description": "Use --scaffold-size tight to keep required gates while limiting optional expert fan-out.",
+        }
+        manual = {
+            "label": "Manual Bead",
+            "value": "manual-bead",
+            "description": "Create one focused Bead when there are no independent lanes to coordinate.",
+        }
+        if recommended_size == "tight":
+            tight = {**tight, "label": "Tight chain (Recommended)"}
+            options = [tight, full, manual]
+        else:
+            full = {**full, "label": "Full graph (Recommended)"}
+            options = [full, tight, manual]
+        questions.append(
+            {
+                "id": "scaffold_size",
+                "header": "Graph",
+                "question": "How large should the scaffold be?",
+                "why": "The answer changes graph size and optional expert fan-out, not required policy gates.",
                 "options": dedupe_interactive_options(options),
             }
         )
@@ -656,6 +754,7 @@ def prompt_coach_enabled_levers(
     route: dict[str, Any],
     workerbee_parallelism: dict[str, Any] | None = None,
     model_synthesis: dict[str, Any] | None = None,
+    scaffold_sizing: dict[str, Any] | None = None,
 ) -> list[str]:
     levers = [
         f"route={route.get('route')}",
@@ -666,6 +765,8 @@ def prompt_coach_enabled_levers(
         "beads-minimum-tracking",
         "subagent-parallelism-question-required",
     ]
+    if scaffold_sizing:
+        levers.append(f"scaffold-size={scaffold_sizing.get('recommended_size', 'full')}")
     if level in {"full-harness", "external-contract", "local-worker", "publish-release"}:
         levers.extend(["architect-review", "validation-lane"])
     if level == "external-contract":
@@ -712,6 +813,7 @@ def prompt_coach_disabled_levers(
     route: dict[str, Any],
     workerbee_parallelism: dict[str, Any] | None = None,
     model_synthesis: dict[str, Any] | None = None,
+    scaffold_sizing: dict[str, Any] | None = None,
 ) -> list[str]:
     levers: list[str] = []
     if level == "in-thread":
@@ -726,6 +828,8 @@ def prompt_coach_disabled_levers(
         levers.append("external-contracting-until-explicit-opt-in")
     if not route.get("has_local_worker_contracts"):
         levers.append("local-worker-dispatch-unless-explicitly-requested")
+    if scaffold_sizing and scaffold_sizing.get("recommended_size") == "tight":
+        levers.append("optional-expert-fanout")
     synthesis_mode = str((model_synthesis or {}).get("recommended_mode") or "none")
     if synthesis_mode == "none":
         levers.append("model-synthesis-unselected")
@@ -746,6 +850,7 @@ def prompt_coach_rationale(
     missing_questions: list[dict[str, str]],
     workerbee_parallelism: dict[str, Any] | None = None,
     model_synthesis: dict[str, Any] | None = None,
+    scaffold_sizing: dict[str, Any] | None = None,
 ) -> list[str]:
     rationale = [
         f"Policy route is {route.get('route')} with {route.get('risk_level')} risk.",
@@ -782,6 +887,8 @@ def prompt_coach_rationale(
         rationale.append(
             "CWO-native model synthesis is recommended as an opt-in choice because risk, creativity, provider conflict, or multi-camp signals warrant more eyes."
         )
+    if scaffold_sizing and scaffold_sizing.get("recommended_size") == "tight":
+        rationale.append("Tight-chain scaffold sizing is requested; optional expert fan-out should be limited.")
     if missing_questions:
         rationale.append("The generated prompt includes missing-question guardrails before execution.")
     return rationale
@@ -855,6 +962,7 @@ def render_coached_prompt(
     missing_questions: list[dict[str, str]],
     workerbee_parallelism: dict[str, Any] | None = None,
     model_synthesis: dict[str, Any] | None = None,
+    scaffold_sizing: dict[str, Any] | None = None,
 ) -> str:
     question_block = ""
     if missing_questions:
@@ -864,12 +972,19 @@ def render_coached_prompt(
     validation = "Validation: report commands, evidence, and residual risk."
     workerbees = workerbee_prompt_line(workerbee_parallelism)
     synthesis = synthesis_prompt_line(model_synthesis)
+    scaffold_line = ""
+    if scaffold_sizing and scaffold_sizing.get("recommended_size") == "tight":
+        scaffold_line = (
+            "Use a tight-chain scaffold when creating a work graph: pass --scaffold-size tight, "
+            "keep required gates, and limit optional expert fan-out. Prefer one manual Bead if there are no independent lanes.\n"
+        )
     if level == "in-thread":
         return (
             "Handle this in the current thread with mandatory Beads tracking, without the full $complex-work-orchestration harness.\n"
             f"Goal: {text}\n"
             f"{workerbees}"
             f"{synthesis}"
+            f"{scaffold_line}"
             "Create or update one Beads task for the work story, evidence, validation, and handoff. "
             "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
             "or multiple independent work streams appear.\n"
@@ -881,6 +996,7 @@ def render_coached_prompt(
             f"Goal: {text}\n"
             f"{workerbees}"
             f"{synthesis}"
+            f"{scaffold_line}"
             "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
             "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
             f"{validation}{question_block}"
@@ -891,6 +1007,7 @@ def render_coached_prompt(
             f"Goal: {text}\n"
             f"{workerbees}"
             f"{synthesis}"
+            f"{scaffold_line}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
             "and any policy-required peer-review workstreams. Keep final decisions with the architect.\n"
             f"{validation}{question_block}"
@@ -916,6 +1033,7 @@ def render_coached_prompt(
                 f"Goal: {text}\n"
                 f"{workerbees}"
                 f"{synthesis}"
+                f"{scaffold_line}"
                 f"Share boundary: {route.get('share_boundary')}.\n"
                 "Create one contractor-only/no-codex-exec Bead per selected architecture critic, all using "
                 "contract-jd-architecture-reasoning. Dispatch them independently from the same Codex architect proposal:\n"
@@ -929,6 +1047,7 @@ def render_coached_prompt(
             f"Goal: {text}\n"
             f"{workerbees}"
             f"{synthesis}"
+            f"{scaffold_line}"
             f"Share boundary: {route.get('share_boundary')}.\n"
             f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
             "Build a boundary-gated contractor packet, evaluate the return, run peer review if required, "
@@ -941,6 +1060,7 @@ def render_coached_prompt(
             f"Goal: {text}\n"
             f"{workerbees}"
             f"{synthesis}"
+            f"{scaffold_line}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
             "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
             "and require architect adjudication before follow-up implementation.\n"
@@ -951,6 +1071,7 @@ def render_coached_prompt(
         f"Goal: {text}\n"
         f"{workerbees}"
         f"{synthesis}"
+        f"{scaffold_line}"
         "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization workstreams. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
         f"{validation}{question_block}"
@@ -970,6 +1091,8 @@ def coach_orchestration_prompt(
     file_paths: list[str] | None = None,
     stage: str | None = None,
     unattended: bool = False,
+    model_synthesis: bool = False,
+    scaffold_size: str | None = None,
 ) -> dict[str, Any]:
     route = classify_work(
         text,
@@ -983,31 +1106,61 @@ def coach_orchestration_prompt(
         file_paths=file_paths,
         stage=stage,
         unattended=unattended,
+        model_synthesis=model_synthesis,
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
+    scaffold_sizing = prompt_coach_scaffold_sizing_signal(text, level, route, force_size=scaffold_size)
     model_synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
     if model_synthesis is None:
         model_synthesis = recommend_model_synthesis(text, route)
         route = {**route, "model_synthesis": model_synthesis}
-    questions = prompt_coach_missing_questions(route, text, file_paths, workerbee_parallelism, model_synthesis)
+    questions = prompt_coach_missing_questions(
+        route,
+        text,
+        file_paths,
+        workerbee_parallelism,
+        model_synthesis,
+        scaffold_sizing,
+    )
     interactive_questions = prompt_coach_interactive_questions(
         level,
         route,
         questions,
         workerbee_parallelism,
         model_synthesis,
+        scaffold_sizing,
     )
     return {
         "coach_result_type": "complex-work-orchestration-prompt-coach",
-        "version": 4,
+        "version": 5,
         "beads_tracking_required": True,
         "recommended_orchestration_level": level,
-        "rationale": prompt_coach_rationale(level, route, questions, workerbee_parallelism, model_synthesis),
+        "scaffold_sizing": scaffold_sizing,
+        "rationale": prompt_coach_rationale(
+            level,
+            route,
+            questions,
+            workerbee_parallelism,
+            model_synthesis,
+            scaffold_sizing,
+        ),
         "missing_questions": questions,
         "interactive_questions": interactive_questions,
-        "enabled_levers": prompt_coach_enabled_levers(level, route, workerbee_parallelism, model_synthesis),
-        "disabled_levers": prompt_coach_disabled_levers(level, route, workerbee_parallelism, model_synthesis),
+        "enabled_levers": prompt_coach_enabled_levers(
+            level,
+            route,
+            workerbee_parallelism,
+            model_synthesis,
+            scaffold_sizing,
+        ),
+        "disabled_levers": prompt_coach_disabled_levers(
+            level,
+            route,
+            workerbee_parallelism,
+            model_synthesis,
+            scaffold_sizing,
+        ),
         "workerbee_parallelism": workerbee_parallelism,
         "model_synthesis": model_synthesis,
         "route": route,
@@ -1018,6 +1171,7 @@ def coach_orchestration_prompt(
             questions,
             workerbee_parallelism,
             model_synthesis,
+            scaffold_sizing,
         ),
         "warnings": prompt_coach_warnings(route, questions, model_synthesis),
     }

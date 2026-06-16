@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import stat
 import sys
 import tempfile
@@ -21,6 +22,7 @@ from chatgpt_browser_review import (  # noqa: E402
     PlaywrightChatGPTRunner,
     build_result,
     config_summary,
+    extract_chatgpt_share_url,
     load_browser_config,
     load_prompt_from_args,
     read_local_clipboard_share_url,
@@ -139,6 +141,14 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertTrue(valid_chatgpt_share_url("https://chatgpt.com/s/t_abc"))
         self.assertTrue(valid_chatgpt_share_url("https://chatgpt.com/share/abc"))
         self.assertFalse(valid_chatgpt_share_url("https://example.com/s/t_abc"))
+
+    def test_extract_chatgpt_share_url_accepts_embedded_and_encoded_urls(self) -> None:
+        self.assertEqual(
+            extract_chatgpt_share_url("Copied: https://chatgpt.com/s/t_abc."),
+            "https://chatgpt.com/s/t_abc",
+        )
+        social = "https://x.com/intent/tweet?url=https%3A%2F%2Fchatgpt.com%2Fs%2Ft_abc&text=Review"
+        self.assertEqual(extract_chatgpt_share_url(social), "https://chatgpt.com/s/t_abc")
 
     def test_social_intent_parser_extracts_chatgpt_share_url(self) -> None:
         runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
@@ -412,6 +422,35 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         with patch("shutil.which", return_value="/usr/bin/wl-paste"):
             with patch("subprocess.run", return_value=completed):
                 self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/share/abc")
+
+    def test_read_local_clipboard_accepts_qdbus_klipper_urls(self) -> None:
+        completed = type("Completed", (), {"stdout": "https://chatgpt.com/s/t_abc\n"})()
+        seen: list[list[str]] = []
+
+        def fake_run(command: list[str], **_: object) -> object:
+            seen.append(command)
+            return completed
+
+        with patch("shutil.which", return_value="/usr/bin/qdbus"):
+            with patch("subprocess.run", side_effect=fake_run):
+                self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/s/t_abc")
+        self.assertEqual(seen[0][0], "qdbus")
+
+    def test_read_local_clipboard_falls_back_after_timeout(self) -> None:
+        completed = type("Completed", (), {"stdout": "share https://chatgpt.com/s/t_fallback"})()
+        calls = 0
+
+        def fake_run(command: list[str], **_: object) -> object:
+            nonlocal calls
+            calls += 1
+            if command[0] == "qdbus":
+                raise subprocess.TimeoutExpired(command, timeout=2)
+            return completed
+
+        with patch("shutil.which", return_value="/usr/bin/tool"):
+            with patch("subprocess.run", side_effect=fake_run):
+                self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/s/t_fallback")
+        self.assertEqual(calls, 2)
 
     def test_read_local_clipboard_ignores_non_share_clipboard(self) -> None:
         completed = type("Completed", (), {"stdout": "plain private clipboard text"})()

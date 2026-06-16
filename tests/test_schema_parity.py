@@ -32,6 +32,12 @@ class SchemaParityTests(unittest.TestCase):
             "signal_categories",
             "peer_review_required",
             "peer_review_status",
+            "boundary_taint_status",
+            "boundary_taint_findings",
+            "provider_key",
+            "provider_trust_tier",
+            "provider_external",
+            "provenance_class",
             "human_adjudication_required",
             "recommended_disposition",
             "workspace_mutation",
@@ -41,6 +47,14 @@ class SchemaParityTests(unittest.TestCase):
     def test_contractor_return_bundle_schema_supports_workspace_mutation(self) -> None:
         properties = load_schema("contractor-return-bundle.schema.json")["properties"]
         self.assertIn("workspace_mutation", properties)
+        self.assertIn("boundary_taint_status", properties)
+        self.assertIn("boundary_taint_findings", properties)
+        self.assertIn("provider_key", properties)
+        self.assertIn("provider_trust_tier", properties)
+        self.assertIn("provider_external", properties)
+        self.assertIn("dispatch_mode", properties)
+        self.assertIn("local_profile", properties)
+        self.assertIn("provenance_class", properties)
 
     def test_local_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("local-dispatch-envelope.schema.json")
@@ -50,6 +64,7 @@ class SchemaParityTests(unittest.TestCase):
         schema = load_schema("prompt-coach-result.schema.json")
         self.assertTrue(set(PROMPT_COACH_RESULT_REQUIRED_FIELDS).issubset(set(schema["required"])))
         self.assertIn("model_synthesis", schema["properties"])
+        self.assertIn("scaffold_sizing", schema["properties"])
         self.assertIn("recommended_mode", schema["properties"]["model_synthesis"]["properties"])
 
     def test_route_schema_has_model_synthesis_contract(self) -> None:

@@ -7,6 +7,7 @@
     "version",
     "beads_tracking_required",
     "recommended_orchestration_level",
+    "scaffold_sizing",
     "rationale",
     "missing_questions",
     "interactive_questions",
@@ -31,6 +32,15 @@
         "local-worker",
         "publish-release"
       ]
+    },
+    "scaffold_sizing": {
+      "type": "object",
+      "required": ["recommended_size", "prompt_user_in_plan_mode", "rationale"],
+      "properties": {
+        "recommended_size": {"enum": ["full", "tight"]},
+        "prompt_user_in_plan_mode": {"type": "boolean"},
+        "rationale": {"type": "array", "items": {"type": "string"}}
+      }
     },
     "rationale": {"type": "array", "items": {"type": "string"}},
     "missing_questions": {

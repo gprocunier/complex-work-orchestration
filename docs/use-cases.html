@@ -49,6 +49,7 @@
         <nav class="page-nav" aria-label="Page sections">
           <a href="#simple-use-cases">Simple Use Cases</a>
           <a href="#durable-work-log">Durable Work Log</a>
+          <a href="#where-it-fits">Where CWO Fits</a>
           <a href="#complex-use-cases">Complex Use Cases</a>
           <a href="#acceptance">Acceptance Gates</a>
           <a href="./workflows.html">Guided Workflow</a>
@@ -82,13 +83,15 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
             <p>
               Beads is the durable work log. The final closure-memory comment
               should answer the recovery questions a future agent would ask:
-              what changed, why it closed, how it was validated, when it was
-              closed, where it ran, what risk remains, and what follows.
+              who was involved, what changed, why it closed, how it was
+              validated, when it was closed, where it ran, what risk remains,
+              and what follows.
             </p>
             <pre><code>python3 scripts/close_bead_with_summary.py \
   --bead "$BEAD_ID" \
   --disposition completed \
   --why "accepted change validated" \
+  --who "Codex main thread; reviewer lane or operator if applicable" \
   --what "docs/use-cases.html added" \
   --how "python3 scripts/validate_site.py" \
   --when "main at &lt;commit-sha&gt;" \
@@ -97,11 +100,39 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
   --evidence "CI and Pages run IDs" \
   --residual-risk "none known" \
   --follow-up "none" \
+  --meaningful \
   --close</code></pre>
             <p>
               If no Dolt remote is configured, say that the Beads trail is
               local-only. Do not imply remote sync, shared durability, or
               completed publication until those checks have actually happened.
+            </p>
+          </section>
+
+          <section id="where-it-fits">
+            <h2>Where CWO Fits</h2>
+            <p>
+              CWO is a governance, evidence, and handoff layer for Codex-led
+              work. It does not replace OpenRouter Fusion, LangGraph, AutoGen,
+              CrewAI, Claude Code, Gemini CLI, or Codex CLI. Use those tools
+              for the model call, agent runtime, coding session, or workflow
+              they are built to provide; use CWO to decide when they are
+              appropriate, what boundary they get, how their output is
+              evaluated, and what durable Beads record a future agent can trust.
+            </p>
+            <ul class="check-list">
+              <li>OpenRouter Fusion is treated as a multi-model deliberation source, not as the durable project ledger.</li>
+              <li>LangGraph, AutoGen, and CrewAI are agent or workflow frameworks; CWO can govern work around them without claiming to be their runtime.</li>
+              <li>Claude Code, Gemini CLI, and Codex CLI remain coding-agent surfaces; CWO records which surface did what and whether the evidence was accepted.</li>
+              <li>Bring-your-own-subscription (BYOS) or bring-your-own-key (BYOK) access stays with the operator, provider account, local endpoint, or OpenRouter setup. CWO records approval and provenance; it does not broker credentials.</li>
+              <li>OpenShift AI vLLM is a local-worker option through an OpenAI-compatible profile, with evaluator and architect adjudication before findings become implementation work.</li>
+              <li>Beads provides the durable task graph, dependency state, closure rationale, evidence, residual risk, and follow-up brief for later agents.</li>
+            </ul>
+            <p>
+              Keep exact product claims in review packets and release notes
+              tied to current vendor documentation. Public CWO copy should stay
+              at the durable boundary: governance, provenance, Beads-backed
+              memory, evaluation, and handoff.
             </p>
           </section>
 

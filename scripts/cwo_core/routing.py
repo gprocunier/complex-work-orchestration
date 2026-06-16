@@ -594,6 +594,7 @@ def classify_work(
     file_paths: list[str] | None = None,
     stage: str | None = None,
     unattended: bool = False,
+    model_synthesis: bool = False,
 ) -> dict[str, Any]:
     routing = load_policy("routing-policy")
     expert_registry = load_policy("expert-registry")
@@ -835,7 +836,7 @@ def classify_work(
             "ranked executors: " + ", ".join(f"{item['key']}={item['score']}" for item in ranked_executors[:5]),
         ],
     }
-    result["model_synthesis"] = recommend_model_synthesis(text, result)
+    result["model_synthesis"] = recommend_model_synthesis(text, result, force_accepted=model_synthesis)
     return result
 
 

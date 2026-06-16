@@ -56,6 +56,26 @@ this project`, `full scaffold`, `PM coordination`, `workerbee`, `epic`, or
 review language also asks for the outside-sharing boundary before any external
 dispatch is allowed.
 
+## Scaffold Size
+
+`scaffold_sizing` controls graph size without changing policy gates. Full graph
+is the default for broad orchestration. Tight-chain language such as
+`tight-chain review`, `focused review chain`, `compact scaffold`, or `minimal
+scaffold` recommends `recommended_size=tight` and adds a Plan-mode graph-size
+choice.
+
+When the user chooses tight-chain, run:
+
+```bash
+python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --scaffold-size tight
+```
+
+The tight chain keeps architect, PM, implementation, validation, docs/handoff,
+required evaluation, peer review, editor gates, the primary expert lane, and
+explicit architecture-critic contracts. It drops optional secondary expert
+fan-out. If there are no independent lanes to coordinate, prefer one manual
+Bead instead of a scaffold.
+
 ChatGPT Pro 5.5 Extended Reasoning language paired with "master plan",
 "final execution plan", or "total work packet" asks for the outside-sharing
 boundary and routes to the browser-mediated master-plan review lane after
@@ -121,8 +141,10 @@ Explicit synthesis language such as `synthesize`, `fusion`, `ensemble`,
 high-risk architecture, provider conflict, or novel/creative design set
 `recommended_mode=recommended`, `active=false`, and add a
 `model_synthesis_opt_in` interactive question. If the user accepts that prompt
-or scaffold is launched with `--model-synthesis`, the active state is
-`recommended_mode=accepted`. Low-risk work remains `recommended_mode=none`.
+or an advanced helper is launched with `--model-synthesis`, the active state is
+`recommended_mode=accepted`. `coach_prompt.py`, `route_work.py`, and
+`scaffold_workgraph.py` all accept that flag so opt-in can be represented
+before or during graph creation. Low-risk work remains `recommended_mode=none`.
 
 The v1 implementation is CWO-native. It does not call OpenRouter Fusion
 directly. External panel members such as Claude Opus, Gemini, or ChatGPT Pro

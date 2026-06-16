@@ -5,13 +5,14 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt
 from cwo_core.paths import REPO_ROOT
@@ -37,6 +38,9 @@ DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
 )
 CHATGPT_HOSTS = {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}
 LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
+CHATGPT_SHARE_URL_RE = re.compile(
+    r"https://(?:www\.)?(?:chatgpt\.com|chat\.openai\.com)/(?:s|share)/[^\s\"'<>),\]&]+"
+)
 FORBIDDEN_CONFIG_KEYS = {
     "google_email",
     "google_password",
@@ -186,8 +190,33 @@ def valid_chatgpt_share_url(value: str) -> bool:
     )
 
 
+def extract_chatgpt_share_url(value: str) -> str:
+    pending = [value.strip()]
+    seen: set[str] = set()
+    while pending:
+        candidate = pending.pop(0).strip().strip(".,;()[]<>")
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if valid_chatgpt_share_url(candidate):
+            return candidate
+
+        decoded = unquote(candidate)
+        if decoded != candidate:
+            pending.append(decoded)
+
+        parsed = urlparse(candidate)
+        for values in parse_qs(parsed.query).values():
+            pending.extend(values)
+
+        for match in CHATGPT_SHARE_URL_RE.findall(candidate):
+            pending.append(match)
+    return ""
+
+
 def read_local_clipboard_share_url() -> str:
     commands = [
+        ["qdbus", "org.kde.klipper", "/klipper", "org.kde.klipper.klipper.getClipboardContents"],
         ["wl-paste", "--no-newline"],
         ["xclip", "-selection", "clipboard", "-o"],
         ["xsel", "--clipboard", "--output"],
@@ -196,11 +225,11 @@ def read_local_clipboard_share_url() -> str:
         if not shutil.which(command[0]):
             continue
         try:
-            result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=3)
+            result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=2)
         except Exception:
             continue
-        value = result.stdout.strip()
-        if valid_chatgpt_share_url(value):
+        value = extract_chatgpt_share_url(result.stdout)
+        if value:
             return value
     return ""
 
@@ -635,42 +664,40 @@ class PlaywrightChatGPTRunner:
         context = getattr(page, "context", None)
         if context is None or not hasattr(context, "expect_page"):
             return ""
+        locator = page.locator(selector)
+        candidates: list[Any] = []
         try:
-            with context.expect_page(timeout=min(timeout_ms, 5000)) as popup_info:
-                page.locator(selector).first.click(timeout=min(timeout_ms, 5000))
-            popup = popup_info.value
-            share_url = self._share_url_from_social_intent(str(getattr(popup, "url", "") or ""))
-            try:
-                popup.close()
-            except Exception:
-                pass
-            if share_url:
-                self.last_share_link_method = "social-intent"
-                return share_url
-        except timeout_type:
-            return ""
+            count = int(locator.count())
+            if count > 1:
+                candidates.append(locator.nth(count - 1))
         except Exception:
-            return ""
+            pass
+        try:
+            candidates.append(locator.first)
+        except Exception:
+            pass
+        candidates.append(locator)
+        for candidate in candidates:
+            try:
+                with context.expect_page(timeout=min(timeout_ms, 5000)) as popup_info:
+                    candidate.click(timeout=min(timeout_ms, 5000))
+                popup = popup_info.value
+                share_url = self._share_url_from_social_intent(str(getattr(popup, "url", "") or ""))
+                try:
+                    popup.close()
+                except Exception:
+                    pass
+                if share_url:
+                    self.last_share_link_method = "social-intent"
+                    return share_url
+            except timeout_type:
+                continue
+            except Exception:
+                continue
         return ""
 
     def _share_url_from_social_intent(self, value: str) -> str:
-        parsed = urlparse(value)
-        query = parse_qs(parsed.query)
-        for key in ["url", "u", "text"]:
-            for candidate in query.get(key, []):
-                if valid_chatgpt_share_url(candidate):
-                    return candidate
-                match = next(
-                    (
-                        part
-                        for part in candidate.replace("\n", " ").split()
-                        if valid_chatgpt_share_url(part.strip(".,;()[]<>"))
-                    ),
-                    "",
-                )
-                if match:
-                    return match.strip(".,;()[]<>")
-        return ""
+        return extract_chatgpt_share_url(value)
 
 
 def build_result(

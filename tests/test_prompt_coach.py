@@ -56,15 +56,42 @@ class PromptCoachTests(unittest.TestCase):
     def test_explicit_scaffold_recommends_full_harness(self) -> None:
         result = coach_orchestration_prompt("Use $complex-work-orchestration to scaffold this project.")
         self.assertEqual(result["recommended_orchestration_level"], "full-harness")
+        self.assertEqual(result["scaffold_sizing"]["recommended_size"], "full")
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("architect-review", result["enabled_levers"])
         self.assertIn("validation-lane", result["enabled_levers"])
+        self.assertIn("scaffold-size=full", result["enabled_levers"])
         self.assertIn("full architect/PM/subagent/validation harness", result["paste_ready_prompt"])
         harness_questions = [
             item for item in result["interactive_questions"] if item["id"] == "orchestration_level"
         ]
         self.assertEqual(len(harness_questions), 1)
         self.assertEqual(harness_questions[0]["options"][0]["value"], "full-harness")
+
+    def test_tight_chain_scaffold_is_a_prompt_coach_graph_size_choice(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use $complex-work-orchestration to scaffold a tight-chain review of CWO docs, routing, validation, and public pages."
+        )
+
+        self.assertEqual(result["scaffold_sizing"]["recommended_size"], "tight")
+        self.assertIn("scaffold-size=tight", result["enabled_levers"])
+        self.assertIn("optional-expert-fanout", result["disabled_levers"])
+        self.assertIn("--scaffold-size tight", result["paste_ready_prompt"])
+        graph_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "scaffold_size"
+        ]
+        self.assertEqual(len(graph_questions), 1)
+        self.assertEqual(graph_questions[0]["options"][0]["value"], "tight-chain")
+
+    def test_scaffold_size_flag_marks_coach_choice_accepted(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use $complex-work-orchestration to scaffold this project.",
+            scaffold_size="tight",
+        )
+
+        self.assertEqual(result["scaffold_sizing"]["recommended_size"], "tight")
+        self.assertIn("scaffold-size=tight", result["enabled_levers"])
+        self.assertIn("helper was launched with scaffold-size=tight", " ".join(result["scaffold_sizing"]["rationale"]))
 
     def test_contractor_lane_terms_ask_for_sharing_boundary(self) -> None:
         result = coach_orchestration_prompt(
@@ -202,6 +229,21 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("gemini_3_1_pro_preview_agy", executors)
         self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", executors)
         self.assertFalse(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
+
+    def test_model_synthesis_flag_marks_coach_opt_in_accepted(self) -> None:
+        result = coach_orchestration_prompt(
+            "Refactor architecture policy and routing tests.",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "accepted")
+        self.assertEqual(result["model_synthesis"]["activation_state"], "accepted")
+        self.assertTrue(result["model_synthesis"]["active"])
+        self.assertFalse(result["model_synthesis"]["requires_user_acceptance"])
+        self.assertFalse(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
+        self.assertIn("model-synthesis=accepted", result["enabled_levers"])
+        self.assertIn("model-synthesis-lane", result["enabled_levers"])
 
     def test_generic_weigh_in_does_not_coach_chatgpt_master_review(self) -> None:
         result = coach_orchestration_prompt(
@@ -362,13 +404,32 @@ class PromptCoachTests(unittest.TestCase):
         )
         result = json.loads(output)
         self.assertEqual(result["coach_result_type"], "complex-work-orchestration-prompt-coach")
-        self.assertEqual(result["version"], 4)
+        self.assertEqual(result["version"], 5)
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("paste_ready_prompt", result)
         self.assertIn("interactive_questions", result)
         self.assertIn("workerbee_parallelism", result)
         self.assertIn("model_synthesis", result)
         self.assertIn("route", result)
+
+    def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
+        output = subprocess.check_output(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "coach_prompt.py"),
+                "--json",
+                "--model-synthesis",
+                "--requested-role",
+                "architecture",
+                "Refactor architecture policy and routing tests.",
+            ],
+            text=True,
+            cwd=ROOT,
+        )
+        result = json.loads(output)
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "accepted")
+        self.assertTrue(result["model_synthesis"]["active"])
+        self.assertIn("model-synthesis=accepted", result["enabled_levers"])
 
     def test_in_thread_interactive_option_keeps_beads(self) -> None:
         result = coach_orchestration_prompt("Fix")

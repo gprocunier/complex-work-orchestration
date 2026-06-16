@@ -87,6 +87,12 @@ Publish-ready docs with validation and editorial review.</code></pre>
               or local-worker gate.
             </p>
             <p>
+              Graph size is separate from output level. A full graph remains
+              the default for broad orchestration, while tight-chain review
+              requests should use <code>--scaffold-size tight</code> to keep
+              required gates and limit optional expert fan-out.
+            </p>
+            <p>
               Default to the smallest level that captures the work story,
               evidence, validation, and handoff. Escalate when risk,
               publication, parallel review, or external/local model evidence
@@ -166,13 +172,27 @@ Publish-ready docs with validation and editorial review.</code></pre>
               <code>active=true</code>. High-risk architecture, provider
               conflict, or novel design work sets
               <code>recommended_mode=recommended</code> until the user opts in;
-              accepted opt-in uses <code>recommended_mode=accepted</code>. The
+              accepted opt-in uses <code>recommended_mode=accepted</code>.
+              Advanced helper usage can pass <code>--model-synthesis</code> to
+              <code>coach_prompt.py</code>, <code>route_work.py</code>, or
+              <code>scaffold_workgraph.py</code> to record that accepted state
+              consistently. The
               lane keeps independent model evidence separate, then records
               consensus, disagreements, unsupported claims, risk deltas,
               evaluator dispositions, provider conflict flags, partial or
               missing lane summaries, and recommended plan revisions for
               architect adjudication. This is CWO-native synthesis, not direct
               OpenRouter Fusion dispatch.
+            </div>
+            <div class="callout">
+              <strong>Scaffold size:</strong>
+              <code>scaffold_sizing</code> records whether the graph should be
+              full or tight. Tight-chain is for focused review work where the
+              primary expert lane and required gates are enough.
+              <pre><code>python3 scripts/scaffold_workgraph.py \
+  --title "&lt;goal&gt;" \
+  --description "&lt;scope&gt;" \
+  --scaffold-size tight</code></pre>
             </div>
             <div class="callout">
               <strong>Subagents:</strong>

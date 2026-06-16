@@ -621,9 +621,9 @@ python3 scripts/build_contractor_packet.py \
 11. Architect reviews findings and decides what to accept, reject, or convert
     into Codex workerbee tasks.
 12. PM records the final closure-memory comment on meaningful Beads before
-    closing them. The comment records what changed, why closed, how validated,
-    when closed, where executed, residual risk, and follow-up, then PM updates
-    dependencies and ready-work state.
+    closing them. The comment records who was involved, what changed, why
+    closed, how validated, when closed, where executed, residual risk, and
+    follow-up, then PM updates dependencies and ready-work state.
 
 ## Hello-World Contractor Demo Lessons
 
@@ -688,7 +688,11 @@ The local secure reviewer (`local_secure_review_worker`) is for read-only
 security, peer-review, repo-review, and sabotage-review work. It may inspect
 approved local repo context but has no web, shell, or repo-write authority.
 For OpenShift AI vLLM, require `--local-profile openshift-ai-vllm`; endpoint
-settings are documented in `references/local-inference.md`.
+settings are documented in `references/local-inference.md`. When normalizing
+or evaluating a local-worker return, pass the executor key, for example
+`--executor openshift_ai_vllm_worker`, so adjudication records
+`provider_trust_tier=local-platform` and `provenance_class=local-worker`
+instead of unknown provenance.
 
 ## Handoff Format
 

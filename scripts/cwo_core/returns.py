@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from .policy import load_contracting_controls, load_policy, peer_review_policy
+from .policy import load_contracting_controls, load_policy, peer_review_policy, provider_profile
 from .util import artifact_hash
 
 
@@ -130,6 +130,141 @@ def add_signal(signals: list[dict[str, Any]], *, category: str, reason: str, wei
     signals.append({"category": category, "reason": reason, "weight": int(weight)})
 
 
+def strip_fenced_blocks(text: str) -> str:
+    return re.sub(r"(?ms)^\s*(```|~~~)[^\n]*\n.*?^\s*\1\s*$", "", text)
+
+
+def redacted_packet_command_allowed(value: str) -> bool:
+    if not nonempty_work_field(value):
+        return True
+    normalized = value.strip().lower()
+    safe_reader_markers = [
+        "chatgpt-share-local-reader",
+        "read_chatgpt_share.py",
+        "ingest_chatgpt_share_return.py",
+        "direct-to-chatgpt/local parser",
+    ]
+    prohibited_command_patterns = [
+        r"\bpython(?:3)?\s+scripts/",
+        r"\bpython(?:3)?\s+-m\s+(unittest|pytest|compileall|mypy|ruff)\b",
+        r"\b(pytest|tox|make|npm|pnpm|yarn|go test|cargo test)\b",
+        r"(^|\s)(git|bd)\s+",
+        r"(^|\s)\./scripts/",
+    ]
+    if any(marker in normalized for marker in safe_reader_markers) and not any(
+        re.search(pattern, normalized, re.I) for pattern in prohibited_command_patterns
+    ):
+        return True
+    return False
+
+
+def negates_direct_access_claim(line: str) -> bool:
+    normalized = line.strip().lower()
+    if not normalized:
+        return False
+    return bool(
+        re.search(
+            r"\b(no|not|never|without|cannot|can't|did not|does not|do not|has no|have no)\b.{0,80}"
+            r"\b(repo|repository|checkout|workspace|local file|file inspection|command execution|test execution|"
+            r"inspection|inspect|read|ran|run|executed|mutation)\b",
+            normalized,
+        )
+        or re.search(
+            r"\b(no|not|never|without|cannot|can't|did not|does not|do not|has no|have no)\b.{0,80}"
+            r"\b(access|execute|executed|inspect|inspected|inspection|read|run|ran|mutation)\b",
+            normalized,
+        )
+    )
+
+
+def redacted_packet_direct_access_findings(text: str) -> list[str]:
+    findings: list[str] = []
+    patterns = [
+        (
+            r"\b(i|we)\s+(?:am|are|was|were)?\s*(?:analyz(?:e|ing|ed)|analys(?:e|ing|ed)|inspect(?:ing|ed)?|"
+            r"read(?:ing)?|view(?:ing|ed)?|open(?:ing|ed)?|check(?:ing|ed)?)\s+"
+            r"(?:the\s+)?(?:repo|repository|directory structure|workspace|checkout)\b",
+            "redacted packet return claims direct repository or workspace inspection",
+        ),
+        (
+            r"\b(i|we)\s+(?:will|did|have)?\s*(?:view|inspect|read|open|analyz(?:e|ed)|analys(?:e|ed)|check(?:ed)?)\s+"
+            r"`?(?:scripts|docs|policy|tests|schemas|examples|/home/)[^`\n]*",
+            "redacted packet return claims direct local file inspection",
+        ),
+        (
+            r"\bfile:///",
+            "redacted packet return cites local file URL evidence",
+        ),
+        (
+            r"\b(all\s+)?(?:code paths|files|policy schemas|tests?)\b.{0,80}\b(analyzed|analysed|inspected|read|viewed)\b"
+            r".{0,80}\b(local workspace|active checkout|repository)\b",
+            "redacted packet return claims local workspace analysis",
+        ),
+    ]
+    for line in strip_fenced_blocks(text).splitlines():
+        if negates_direct_access_claim(line):
+            continue
+        for pattern, reason in patterns:
+            if re.search(pattern, line, re.I) and reason not in findings:
+                findings.append(reason)
+    return findings
+
+
+def redacted_packet_validation_claim_unsupported(value: str) -> bool:
+    if not nonempty_work_field(value):
+        return False
+    normalized = value.strip().lower()
+    packet_qualifiers = [
+        "based on packet",
+        "packet validation evidence",
+        "reported validation",
+        "reported in packet",
+        "packet's reported",
+        "provided evidence",
+        "supplied evidence",
+        "reviewed provided",
+        "reviewed supplied",
+        "cannot independently",
+        "not independently",
+        "share page parsed",
+        "local chatgpt share reader",
+        "local share reader",
+        "direct-to-chatgpt/local parser",
+    ]
+    if any(qualifier in normalized for qualifier in packet_qualifiers):
+        return False
+    return bool(
+        re.search(r"\b(passed|verified|validated|compiled|completed|ran|executed)\b", normalized)
+        and re.search(r"\b(unit tests?|tests?|repository validation|validate_repository|install(?:ation)? dry-run|compileall)\b", normalized)
+    )
+
+
+def redacted_boundary_taint_findings(text: str, sections: dict[str, str], *, share_boundary: str | None) -> list[str]:
+    if share_boundary != "redacted-packet":
+        return []
+    findings: list[str] = []
+    commands_run = section_value(sections, "Commands run")
+    validation = section_value(sections, "Validation result")
+    if not redacted_packet_command_allowed(commands_run):
+        findings.append("redacted packet return claims command or test execution")
+    if redacted_packet_validation_claim_unsupported(validation):
+        findings.append("redacted packet return claims unsupported validation")
+    findings.extend(redacted_packet_direct_access_findings(text))
+    deduped: list[str] = []
+    for finding in findings:
+        if finding not in deduped:
+            deduped.append(finding)
+    return deduped
+
+
+def boundary_taint_status(findings: list[str], *, share_boundary: str | None) -> str:
+    if findings:
+        return "boundary-tainted"
+    if share_boundary == "redacted-packet":
+        return "clear"
+    return "not-applicable"
+
+
 def score_sabotage_signals(
     text: str,
     sections: dict[str, str] | None = None,
@@ -140,7 +275,7 @@ def score_sabotage_signals(
 ) -> dict[str, Any]:
     sections = sections or parse_return_sections(text)
     signals: list[dict[str, Any]] = []
-    lower = text.lower()
+    lower = strip_fenced_blocks(text).lower()
     weights = sabotage_signal_weights()
 
     patterns: list[tuple[str, str, str]] = [
@@ -193,7 +328,9 @@ def score_sabotage_signals(
         ),
         (
             "prompt_injection",
-            r"\b(evaluator|architect|operator|future\s+agent|codex)\b.{0,80}\b(ignore|bypass|suppress|delete|leak|share|mutate|execute)\b",
+            r"\b(evaluator|architect|operator|future\s+agent|codex)\b\s*(?:,|:|-)?\s*"
+            r"(?:(?:must|should|shall|need(?:s)?\s+to|is\s+required\s+to|will|now)\s+)?"
+            r"\b(ignore|bypass|suppress|delete|leak|share|mutate|execute)\b",
             "attempts to instruct downstream reviewers or agents",
         ),
     ]
@@ -375,6 +512,60 @@ def evidence_items_from_sections(sections: dict[str, str]) -> list[dict[str, str
     return items
 
 
+def return_provenance(
+    *,
+    executor: str | None = None,
+    provider_key: str | None = None,
+    provider_trust_tier: str | None = None,
+    dispatch_mode: str | None = None,
+    local_profile: str | None = None,
+) -> dict[str, Any]:
+    executor_config = {}
+    if executor:
+        candidate = load_policy("executor-registry").get("executors", {}).get(executor, {})
+        if isinstance(candidate, dict):
+            executor_config = candidate
+
+    resolved_provider_key = provider_key or executor_config.get("provider_key")
+    provider = provider_profile(str(resolved_provider_key) if resolved_provider_key else None)
+    registry_trust_tier = provider.get("trust_tier")
+    resolved_trust_tier = provider_trust_tier or registry_trust_tier
+    resolved_dispatch_mode = dispatch_mode or executor_config.get("dispatch_mode")
+    resolved_local_profile = local_profile or executor_config.get("local_profile")
+    provider_external = provider.get("external")
+    warnings: list[str] = []
+    if provider_key and registry_trust_tier and provider_trust_tier and provider_trust_tier != registry_trust_tier:
+        warnings.append("provider_trust_tier does not match provider registry")
+    if executor and not executor_config:
+        warnings.append("executor not found in executor registry")
+    if resolved_provider_key and not provider:
+        warnings.append("provider_key not found in provider registry")
+
+    local_provider_keys = {"local_inference", "openshift_ai_vllm"}
+    local_dispatch_modes = {"local_openai_compatible", "local_secure_review"}
+    if resolved_dispatch_mode in local_dispatch_modes or resolved_provider_key in local_provider_keys:
+        provenance_class = "local-worker"
+    elif provider_external is True:
+        provenance_class = "external-contractor"
+    elif resolved_provider_key:
+        provenance_class = "internal"
+    else:
+        provenance_class = "unknown"
+
+    return {
+        "executor": executor,
+        "provider_key": resolved_provider_key,
+        "provider_trust_tier": resolved_trust_tier,
+        "provider_family": provider.get("family"),
+        "provider_retention_class": provider.get("retention_class"),
+        "provider_external": provider_external,
+        "dispatch_mode": resolved_dispatch_mode,
+        "local_profile": resolved_local_profile,
+        "provenance_class": provenance_class,
+        "provenance_warnings": warnings,
+    }
+
+
 def normalize_contractor_return(
     text: str,
     *,
@@ -384,6 +575,10 @@ def normalize_contractor_return(
     job_description_label: str | None = None,
     packet_sha256: str | None = None,
     executor: str | None = None,
+    provider_key: str | None = None,
+    provider_trust_tier: str | None = None,
+    dispatch_mode: str | None = None,
+    local_profile: str | None = None,
     workspace_mutation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sections = parse_return_sections(text)
@@ -391,16 +586,26 @@ def normalize_contractor_return(
     missing = [section for section in required if not sections.get(section)]
     sabotage = score_sabotage_signals(text, sections)
     malpractice = score_malpractice_signals(text, sections)
+    boundary_taint_findings = redacted_boundary_taint_findings(text, sections, share_boundary=share_boundary)
+    provenance = return_provenance(
+        executor=executor,
+        provider_key=provider_key,
+        provider_trust_tier=provider_trust_tier,
+        dispatch_mode=dispatch_mode,
+        local_profile=local_profile,
+    )
     bundle: dict[str, Any] = {
         "bundle_type": "contractor-return-bundle",
         "version": 1,
         "bead_id": bead_id,
         "dispatch_id": dispatch_id,
-        "executor": executor,
         "share_boundary": share_boundary,
         "job_description_label": job_description_label,
         "packet_sha256": packet_sha256,
+        **provenance,
         "sections": sections,
+        "boundary_taint_status": boundary_taint_status(boundary_taint_findings, share_boundary=share_boundary),
+        "boundary_taint_findings": boundary_taint_findings,
         "required_sections_missing": missing,
         "required_sections_present": [section for section in required if section in sections and section not in missing],
         "evidence_items": evidence_items_from_sections(sections),
@@ -612,6 +817,11 @@ def make_acceptance_decision(
     dispatch_id: str | None = None,
     share_boundary: str | None = None,
     job_description_label: str | None = None,
+    executor: str | None = None,
+    provider_key: str | None = None,
+    provider_trust_tier: str | None = None,
+    dispatch_mode: str | None = None,
+    local_profile: str | None = None,
     peer_review_required: bool = False,
     peer_review_status: str = "not-run",
     provider_conflict_domains: list[str] | None = None,
@@ -623,6 +833,13 @@ def make_acceptance_decision(
     mutation_strategy: str = "reject",
 ) -> dict[str, Any]:
     policy = load_policy("acceptance-policy")
+    provenance = return_provenance(
+        executor=executor,
+        provider_key=provider_key,
+        provider_trust_tier=provider_trust_tier,
+        dispatch_mode=dispatch_mode,
+        local_profile=local_profile,
+    )
     sections = parse_return_sections(text)
     required = policy.get("contractor_return_required_sections", [])
     missing = [section for section in required if not sections.get(section)]
@@ -670,6 +887,8 @@ def make_acceptance_decision(
         hard_disqualifiers.append("unapproved patch or repo access")
     if patch_authorization_state == "explicit-deny" and affirmative_field(patch_authorization):
         hard_disqualifiers.append("unapproved patch or repo access")
+    boundary_taint_findings = redacted_boundary_taint_findings(text, sections, share_boundary=share_boundary)
+    hard_disqualifiers.extend(boundary_taint_findings)
     unexpected_mutations = workspace_unexpected_mutations(workspace_mutation)
     workspace_quarantine = bool(unexpected_mutations and mutation_strategy == "reject")
     if unexpected_mutations:
@@ -794,6 +1013,7 @@ def make_acceptance_decision(
         "dispatch_id": dispatch_id,
         "bead_id": bead_id,
         "share_boundary": share_boundary,
+        **provenance,
         "verdict": verdict,
         "score": score,
         "missing_sections": missing,
@@ -814,6 +1034,8 @@ def make_acceptance_decision(
         "peer_review_status": peer_review_status,
         "patch_authorization_state": patch_authorization_state,
         "provider_conflict_domains": provider_conflict_domains or [],
+        "boundary_taint_status": boundary_taint_status(boundary_taint_findings, share_boundary=share_boundary),
+        "boundary_taint_findings": boundary_taint_findings,
         "workspace_mutation": workspace_mutation,
         "human_adjudication_required": human_adjudication_required,
         "recommended_disposition": recommended_disposition,

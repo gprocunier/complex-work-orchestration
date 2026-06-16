@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.returns import (  # noqa: E402
     classify_patch_authorization,
     make_acceptance_decision,
+    normalize_contractor_return,
     parse_return_sections,
 )
 
@@ -139,6 +140,54 @@ Escalation needed: no
         result = make_acceptance_decision(text, share_boundary="redacted-packet")
         self.assertIn("unapproved patch or repo access", result["hard_disqualifiers"])
 
+    def test_redacted_packet_command_execution_claim_rejects_even_with_boundary_compliance(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Commands run: none",
+            "Commands run:\n- python scripts/validate_repository.py\n- python -m unittest discover -s tests -v",
+        ).replace(
+            "Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.",
+            "Validation result: passed (repository validation verified and all unit tests passed)",
+        )
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertEqual(result["verdict"], "reject")
+        self.assertEqual(result["boundary_taint_status"], "boundary-tainted")
+        self.assertIn("redacted packet return claims command or test execution", result["hard_disqualifiers"])
+        self.assertIn("redacted packet return claims unsupported validation", result["hard_disqualifiers"])
+
+    def test_redacted_packet_repo_inspection_preamble_rejects(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = "I am analyzing the repository directory structure before returning.\n" + text
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertEqual(result["verdict"], "reject")
+        self.assertIn(
+            "redacted packet return claims direct repository or workspace inspection",
+            result["boundary_taint_findings"],
+        )
+
+    def test_redacted_packet_packet_reported_validation_is_allowed(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.",
+            "Validation result: passed based on packet validation evidence: repository validator, site validator, and 248 unit tests.",
+        )
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertNotIn("redacted packet return claims unsupported validation", result["hard_disqualifiers"])
+        self.assertEqual(result["boundary_taint_status"], "clear")
+
+    def test_chatgpt_share_ingest_wrapper_command_is_not_boundary_taint(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Commands run: none",
+            "Commands run: chatgpt-share-local-reader/scripts/read_chatgpt_share.py direct-to-ChatGPT/local parser.",
+        ).replace(
+            "Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.",
+            "Validation result: Share page parsed with the local ChatGPT share reader.",
+        )
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertEqual(result["boundary_taint_status"], "clear")
+        self.assertFalse(result["boundary_taint_findings"])
+
     def test_workspace_mutation_report_rejects_unexpected_changes(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
         mutation = {
@@ -172,6 +221,30 @@ Escalation needed: no
         self.assertEqual(result["verdict"], "reject")
         self.assertIn("peer review required before implementation use", result["hard_disqualifiers"])
         self.assertEqual(result["recommended_disposition"], "run-peer-review")
+
+    def test_local_worker_acceptance_decision_carries_provider_provenance(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(text, executor="openshift_ai_vllm_worker")
+
+        self.assertEqual(result["executor"], "openshift_ai_vllm_worker")
+        self.assertEqual(result["provider_key"], "openshift_ai_vllm")
+        self.assertEqual(result["provider_trust_tier"], "local-platform")
+        self.assertEqual(result["dispatch_mode"], "local_openai_compatible")
+        self.assertEqual(result["local_profile"], "openshift-ai-vllm")
+        self.assertEqual(result["provenance_class"], "local-worker")
+        self.assertFalse(result["provider_external"])
+
+    def test_normalized_local_worker_bundle_carries_provider_provenance(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        bundle = normalize_contractor_return(text, executor="openshift_ai_vllm_secure_reviewer")
+
+        self.assertEqual(bundle["executor"], "openshift_ai_vllm_secure_reviewer")
+        self.assertEqual(bundle["provider_key"], "openshift_ai_vllm")
+        self.assertEqual(bundle["provider_trust_tier"], "local-platform")
+        self.assertEqual(bundle["dispatch_mode"], "local_secure_review")
+        self.assertEqual(bundle["local_profile"], "openshift-ai-vllm")
+        self.assertEqual(bundle["provenance_class"], "local-worker")
+        self.assertFalse(bundle["provider_external"])
 
 
 if __name__ == "__main__":

@@ -29,5 +29,6 @@ Resume:
 - `bd ready --label contractor-only --json`
 
 Closure:
-Before closing the epic, add a final closure-memory comment with what changed, why closed, how validated,
-when closed, where executed, key decisions, evidence, residual risk, and follow-up.
+Before closing the epic, add a final closure-memory comment with who was
+involved, what changed, why closed, how validated, when closed, where executed,
+key decisions, evidence, residual risk, and follow-up.

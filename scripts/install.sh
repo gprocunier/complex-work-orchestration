@@ -236,6 +236,27 @@ validate_skill() {
   fi
 }
 
+check_installed_skill_drift() {
+  local skills_dir="$1"
+  local checker="$SOURCE_DIR/scripts/check_installed_skill.py"
+
+  if [ ! -r "$checker" ]; then
+    say "Installed-skill drift check skipped; checker was not found at: $checker"
+    return 0
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    say "Installed-skill drift check skipped; python3 is not available."
+    return 0
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    python3 "$checker" --skills-dir "$skills_dir"
+  else
+    python3 "$checker" --skills-dir "$skills_dir" --write-manifest --check
+  fi
+}
+
 check_beads() {
   if command -v bd >/dev/null 2>&1; then
     say "Beads CLI found: $(command -v bd)"
@@ -295,6 +316,7 @@ main() {
 
   install_skill "$skills_dir"
   validate_skill "$skills_dir"
+  check_installed_skill_drift "$skills_dir"
   check_beads
 
   if [ "$DRY_RUN" -eq 1 ]; then

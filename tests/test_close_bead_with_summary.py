@@ -9,7 +9,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from close_bead_with_summary import execute, render_closure_summary  # noqa: E402
+from close_bead_with_summary import closure_memory_missing_fields, execute, render_closure_summary  # noqa: E402
 
 
 def args(**overrides: object) -> argparse.Namespace:
@@ -17,6 +17,7 @@ def args(**overrides: object) -> argparse.Namespace:
         "bead": "complex-work-orchestration-abc",
         "disposition": "completed",
         "why": "policy helper added",
+        "who_involved": ["Codex main thread"],
         "what_changed": ["closure helper documents richer durable memory"],
         "how_validated": ["python -m unittest tests/test_close_bead_with_summary.py"],
         "when_closed": ["main at HEAD"],
@@ -29,6 +30,7 @@ def args(**overrides: object) -> argparse.Namespace:
         "close_reason": None,
         "dry_run": False,
         "json": False,
+        "meaningful": False,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -40,6 +42,7 @@ class CloseBeadWithSummaryTests(unittest.TestCase):
             bead="bd-1",
             disposition="completed",
             why="done",
+            who_involved=[],
             what_changed=[],
             how_validated=[],
             when_closed=[],
@@ -59,6 +62,7 @@ class CloseBeadWithSummaryTests(unittest.TestCase):
             bead="bd-2",
             disposition="completed",
             why="published",
+            who_involved=["Codex main thread"],
             what_changed=["docs/use-cases.html added"],
             how_validated=["python3 scripts/validate_site.py"],
             when_closed=["commit abc123 on main"],
@@ -69,10 +73,44 @@ class CloseBeadWithSummaryTests(unittest.TestCase):
             follow_up=["none"],
         )
 
+        self.assertIn("Who was involved:\n- Codex main thread", summary)
         self.assertIn("What changed:\n- docs/use-cases.html added", summary)
         self.assertIn("How validated:\n- python3 scripts/validate_site.py", summary)
         self.assertIn("When closed:\n- commit abc123 on main", summary)
         self.assertIn("Where executed:\n- repo-root; Beads local-only", summary)
+
+    def test_closure_memory_missing_fields_names_recovery_contract(self) -> None:
+        missing = closure_memory_missing_fields(
+            who_involved=[],
+            what_changed=["change"],
+            how_validated=[],
+            when_closed=["today"],
+            where_executed=[],
+            evidence=["test"],
+            residual_risk=[],
+            follow_up=["none"],
+        )
+
+        self.assertEqual(missing, ["who was involved", "how validated", "where executed", "residual risk"])
+
+    def test_incomplete_default_closure_warns_without_failing(self) -> None:
+        result = execute(args(dry_run=True, who_involved=[], evidence=[]))
+
+        self.assertEqual(result["closure_memory_quality"], "incomplete")
+        self.assertIn("who was involved", result["closure_memory_missing_fields"])
+        self.assertTrue(result["warnings"])
+
+    def test_meaningful_closure_requires_full_recovery_fields(self) -> None:
+        with self.assertRaisesRegex(ValueError, "meaningful closure missing required fields"):
+            execute(args(meaningful=True, who_involved=[], evidence=[]))
+
+    def test_meaningful_closure_accepts_full_recovery_fields(self) -> None:
+        with patch("close_bead_with_summary.run_bd") as run_bd:
+            result = execute(args(meaningful=True))
+
+        run_bd.assert_called_once()
+        self.assertEqual(result["closure_memory_quality"], "complete")
+        self.assertFalse(result["warnings"])
 
     def test_dry_run_does_not_call_bd(self) -> None:
         with patch("close_bead_with_summary.run_bd") as run_bd:

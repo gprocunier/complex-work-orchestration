@@ -56,6 +56,171 @@ def provider_conflict_flags(route: dict[str, Any], camps: list[str]) -> list[dic
     return flags
 
 
+def _normalize_disposition(value: Any) -> str:
+    disposition = str(value or "missing").strip().lower().replace("_", "-").replace(" ", "-")
+    aliases = {
+        "accept": "accepted",
+        "accepted-with-modifications": "accepted-with-modification",
+        "accept-with-modification": "accepted-with-modification",
+        "modified-accept": "accepted-with-modification",
+        "partial-accept": "accepted-with-modification",
+        "timeout": "timed-out",
+        "timedout": "timed-out",
+        "blank": "empty",
+        "quarantine": "quarantined",
+        "boundary-taint": "boundary-tainted",
+        "tainted": "boundary-tainted",
+        "reject": "rejected",
+        "failure": "failed-evaluation",
+        "failed": "failed-evaluation",
+    }
+    return aliases.get(disposition, disposition)
+
+
+def _normalize_boundary_status(value: Any) -> str:
+    status = str(value or "unknown").strip().lower().replace("_", "-").replace(" ", "-")
+    aliases = {
+        "clean": "clear",
+        "not-tainted": "clear",
+        "boundary-taint": "boundary-tainted",
+        "tainted": "boundary-tainted",
+    }
+    return aliases.get(status, status)
+
+
+def evaluate_synthesis_inputs(
+    inputs: list[dict[str, Any]],
+    policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Apply synthesis disposition policy to independently evaluated model returns."""
+
+    config = policy or synthesis_policy()
+    disposition_policy = dict(config.get("input_disposition_policy", {}))
+    partial_policy = dict(config.get("partial_synthesis_policy", {}))
+    use_as_input = {
+        _normalize_disposition(item)
+        for item in disposition_policy.get(
+            "use_as_synthesis_input",
+            disposition_policy.get("use_as_primary", ["accepted", "accepted-with-modification"]),
+        )
+    }
+    open_risk = {
+        _normalize_disposition(item) for item in disposition_policy.get("summarize_as_open_risk", [])
+    }
+    partial_only = {
+        _normalize_disposition(item) for item in disposition_policy.get("partial_only", [])
+    }
+    quarantine = {
+        _normalize_disposition(item)
+        for item in disposition_policy.get("quarantine", ["quarantined", "boundary-tainted"])
+    }
+    rejected = {
+        _normalize_disposition(item)
+        for item in disposition_policy.get("exclude_as_rejected", disposition_policy.get("reject", ["rejected"]))
+    }
+    rejected.update({"rejected", "failed-evaluation"})
+
+    input_summaries: list[dict[str, Any]] = []
+    primary_inputs: list[dict[str, Any]] = []
+    partial_inputs: list[dict[str, Any]] = []
+    open_risk_inputs: list[dict[str, Any]] = []
+    quarantined_inputs: list[dict[str, Any]] = []
+    rejected_inputs: list[dict[str, Any]] = []
+    unknown_inputs: list[dict[str, Any]] = []
+    external_inputs: list[dict[str, Any]] = []
+
+    for index, entry in enumerate(inputs, start=1):
+        disposition = _normalize_disposition(entry.get("disposition"))
+        boundary_status = _normalize_boundary_status(
+            entry.get("boundary_taint_status")
+            or entry.get("boundary_status")
+            or entry.get("share_boundary_status")
+        )
+        effective_disposition = "boundary-tainted" if boundary_status == "boundary-tainted" else disposition
+        lane = str(entry.get("lane") or entry.get("id") or entry.get("name") or f"input-{index}")
+        external = bool(entry.get("external", True))
+
+        if effective_disposition in use_as_input:
+            synthesis_use = "primary"
+        elif effective_disposition in partial_only:
+            synthesis_use = "partial-only"
+        elif effective_disposition in quarantine:
+            synthesis_use = "quarantine"
+        elif effective_disposition in rejected:
+            synthesis_use = "reject"
+        elif effective_disposition in open_risk:
+            synthesis_use = "open-risk"
+        else:
+            synthesis_use = "unknown"
+
+        summary = {
+            "lane": lane,
+            "provider_camp": entry.get("provider_camp"),
+            "disposition": disposition,
+            "effective_disposition": effective_disposition,
+            "boundary_status": boundary_status,
+            "synthesis_use": synthesis_use,
+            "external": external,
+            "reason": entry.get("reason"),
+        }
+        input_summaries.append(summary)
+        if external:
+            external_inputs.append(summary)
+        if synthesis_use == "primary":
+            primary_inputs.append(summary)
+        elif synthesis_use == "partial-only":
+            partial_inputs.append(summary)
+        elif synthesis_use == "quarantine":
+            quarantined_inputs.append(summary)
+        elif synthesis_use == "reject":
+            rejected_inputs.append(summary)
+        elif synthesis_use == "open-risk":
+            open_risk_inputs.append(summary)
+        else:
+            unknown_inputs.append(summary)
+
+    minimum_usable_inputs = int(partial_policy.get("minimum_usable_inputs", 2))
+    blocked_reasons: list[str] = []
+    if len(primary_inputs) < minimum_usable_inputs:
+        blocked_reasons.append("fewer than minimum_usable_inputs accepted or accepted-with-modification inputs")
+    if external_inputs and all(item["effective_disposition"] in quarantine for item in external_inputs):
+        blocked_reasons.append("all external inputs are quarantined or boundary-tainted")
+    if unknown_inputs:
+        blocked_reasons.append("one or more inputs have unknown evaluator dispositions")
+
+    allow_partial = bool(partial_policy.get("allow_partial", True))
+    status = "ready"
+    if blocked_reasons:
+        status = "blocked"
+    elif partial_inputs or open_risk_inputs or rejected_inputs or quarantined_inputs or unknown_inputs:
+        status = str(partial_policy.get("partial_status", "partial")) if allow_partial else "blocked"
+        if not allow_partial:
+            blocked_reasons.append("partial synthesis is disabled by policy")
+
+    return {
+        "status": status,
+        "blocked": bool(blocked_reasons),
+        "blocked_reasons": blocked_reasons,
+        "allow_partial": allow_partial,
+        "minimum_usable_inputs": minimum_usable_inputs,
+        "input_count": len(input_summaries),
+        "usable_input_count": len(primary_inputs),
+        "primary_input_count": len(primary_inputs),
+        "partial_input_count": len(partial_inputs),
+        "open_risk_input_count": len(open_risk_inputs),
+        "quarantined_input_count": len(quarantined_inputs),
+        "rejected_input_count": len(rejected_inputs),
+        "unknown_input_count": len(unknown_inputs),
+        "input_summaries": input_summaries,
+        "primary_inputs": primary_inputs,
+        "partial_inputs": partial_inputs,
+        "open_risk_inputs": open_risk_inputs,
+        "quarantined_inputs": quarantined_inputs,
+        "rejected_inputs": rejected_inputs,
+        "unknown_inputs": unknown_inputs,
+    }
+
+
 def recommend_model_synthesis(
     text: str,
     route: dict[str, Any],

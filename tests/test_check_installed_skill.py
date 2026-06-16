@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from check_installed_skill import (  # noqa: E402
+    INSTALL_MANIFEST_NAME,
+    build_manifest,
+    installed_status,
+    write_install_manifest,
+)
+
+
+class CheckInstalledSkillTests(unittest.TestCase):
+    def make_skill_tree(self, root: Path) -> None:
+        (root / "scripts").mkdir(parents=True)
+        (root / "docs").mkdir()
+        (root / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+        (root / "README.md").write_text("# Readme\n", encoding="utf-8")
+        (root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+        (root / "scripts" / "helper.py").write_text("print('ok')\n", encoding="utf-8")
+        (root / "docs" / "index.html").write_text("<!doctype html><title>Docs</title>\n", encoding="utf-8")
+
+    def test_status_is_current_for_matching_install_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source = Path(tmpdir) / "source"
+            installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
+            source.mkdir()
+            self.make_skill_tree(source)
+            shutil.copytree(source, installed)
+
+            status = installed_status(source, installed)
+
+        self.assertEqual(status["status"], "current")
+        self.assertEqual(status["source_version"], "1.2.3")
+        self.assertEqual(status["installed_version"], "1.2.3")
+        self.assertEqual(status["missing_files"], [])
+        self.assertEqual(status["changed_files"], [])
+        self.assertEqual(status["extra_files"], [])
+
+    def test_status_reports_changed_and_extra_installed_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source = Path(tmpdir) / "source"
+            installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
+            source.mkdir()
+            self.make_skill_tree(source)
+            shutil.copytree(source, installed)
+            (installed / "SKILL.md").write_text("# Drifted\n", encoding="utf-8")
+            (installed / "docs" / "extra.html").write_text("<p>extra</p>\n", encoding="utf-8")
+
+            status = installed_status(source, installed)
+
+        self.assertEqual(status["status"], "drift")
+        self.assertIn("SKILL.md", status["changed_files"])
+        self.assertIn("docs/extra.html", status["extra_files"])
+
+    def test_generated_manifest_and_python_caches_are_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "source"
+            root.mkdir()
+            self.make_skill_tree(root)
+            (root / INSTALL_MANIFEST_NAME).write_text("{}\n", encoding="utf-8")
+            (root / "scripts" / "__pycache__").mkdir()
+            (root / "scripts" / "__pycache__" / "helper.cpython-314.pyc").write_bytes(b"cache")
+
+            manifest = build_manifest(root)
+
+        paths = {item["path"] for item in manifest["files"]}
+        self.assertNotIn(INSTALL_MANIFEST_NAME, paths)
+        self.assertFalse(any("__pycache__" in path for path in paths))
+
+    def test_write_install_manifest_does_not_change_content_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source = Path(tmpdir) / "source"
+            installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
+            source.mkdir()
+            self.make_skill_tree(source)
+            shutil.copytree(source, installed)
+            before = installed_status(source, installed)
+
+            write_install_manifest(installed, before)
+            after = installed_status(source, installed)
+
+        self.assertEqual(before["status"], "current")
+        self.assertEqual(after["status"], "current")
+        self.assertEqual(before["installed_content_sha256"], after["installed_content_sha256"])
+
+
+if __name__ == "__main__":
+    unittest.main()

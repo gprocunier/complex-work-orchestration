@@ -117,9 +117,9 @@ bd dolt push</code></pre>
             </p>
             <p>
               When the work closes, the useful memory should be in the final
-              comment, not the terse close reason. Capture what changed, why it
-              closed, how it was validated, when it closed, where it ran, any
-              residual risk, and follow-up.
+              comment, not the terse close reason. Capture who was involved,
+              what changed, why it closed, how it was validated, when it closed,
+              where it ran, any residual risk, and follow-up.
             </p>
             <p>
               Generated Beads populate native fields for <code>skills</code>,
@@ -176,6 +176,18 @@ cd complex-work-orchestration
               For unattended installs, pass the destination explicitly:
             </p>
             <pre><code>./scripts/install.sh --skills-dir /path/to/codex/skills --yes</code></pre>
+            <p>
+              The installer verifies the copied skill with a source-vs-installed
+              content manifest and writes
+              <code>.cwo-install-manifest.json</code> inside the installed
+              skill. Check an existing install without modifying it:
+            </p>
+            <pre><code>python3 scripts/check_installed_skill.py --check</code></pre>
+            <p>
+              If the checker reports <code>missing</code> or
+              <code>drift</code>, rerun the installer against the same Codex
+              skills directory to reload the skill.
+            </p>
             <p>
               Beads is required for the durable workflow. The skill installer
               only warns when <code>bd</code> is missing so the documentation can

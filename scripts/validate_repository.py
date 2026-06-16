@@ -202,8 +202,28 @@ def validate_repository() -> list[str]:
             "signal_categories",
             "peer_review_required",
             "peer_review_status",
+            "boundary_taint_status",
+            "boundary_taint_findings",
+            "provider_key",
+            "provider_trust_tier",
+            "provider_external",
+            "provenance_class",
             "human_adjudication_required",
             "recommended_disposition",
+        ],
+    )
+    contractor_return_bundle_schema = load_json(REPO_ROOT / "schemas" / "contractor-return-bundle.schema.json")
+    require_schema_properties(
+        errors,
+        schema_name="contractor-return-bundle.schema.json",
+        schema=contractor_return_bundle_schema,
+        properties=[
+            "provider_key",
+            "provider_trust_tier",
+            "provider_external",
+            "dispatch_mode",
+            "local_profile",
+            "provenance_class",
         ],
     )
     local_envelope_schema = load_json(REPO_ROOT / "schemas" / "local-dispatch-envelope.schema.json")
@@ -221,6 +241,12 @@ def validate_repository() -> list[str]:
             "prompt coach result schema is missing runtime required fields: "
             + ", ".join(missing_prompt_coach_required)
         )
+    require_schema_properties(
+        errors,
+        schema_name="prompt-coach-result.schema.json",
+        schema=prompt_coach_schema,
+        properties=["scaffold_sizing"],
+    )
 
     require_doc_terms(
         errors,
@@ -276,6 +302,11 @@ def validate_repository() -> list[str]:
             "`notes`",
             "full-harness request",
             "workstream language asks",
+            "Where CWO Fits",
+            "does not replace OpenRouter Fusion",
+            "BYOS",
+            "BYOK",
+            "OpenRouter keys",
             "additional editorial review",
             "reader-facing acceptance check",
             "contract-jd-editorial-reasoning",
@@ -309,6 +340,16 @@ def validate_repository() -> list[str]:
             "/plan Use $complex-work-orchestration prompt coach",
             "Beads task graph",
             "Contractor handoff packet",
+            "does not replace",
+            "OpenRouter Fusion",
+            "LangGraph",
+            "AutoGen",
+            "CrewAI",
+            "Claude Code",
+            "Gemini CLI",
+            "Codex CLI",
+            "BYOS",
+            "BYOK",
             "./get-started.html",
             "./explanation.html",
             "./prompt-coach.html",
@@ -330,6 +371,13 @@ def validate_repository() -> list[str]:
             "Evidence Boundaries",
             "Publication Quality",
             "Failure Modes The Harness Avoids",
+            "OpenRouter Fusion",
+            "LangGraph",
+            "AutoGen",
+            "CrewAI",
+            "Claude Code",
+            "Gemini CLI",
+            "Codex CLI",
             "no transcript",
             "compacted",
             "evidence until it is evaluated and adjudicated",
@@ -371,6 +419,8 @@ def validate_repository() -> list[str]:
             "Codex may run this helper behind the scenes",
             "Use direct script execution only",
             "interactive_questions",
+            "scaffold_sizing",
+            "--scaffold-size tight",
             "workerbee_parallelism",
             "Subagents",
             "The coach always asks",
@@ -407,6 +457,7 @@ def validate_repository() -> list[str]:
             "repeated or draft-like wording",
             "/plan Use $complex-work-orchestration prompt coach",
             "scripts/coach_prompt.py",
+            "--scaffold-size tight",
             "scripts/cleanup_stale_agents.py",
             "scripts/close_bead_with_summary.py",
             "scripts/workspace_mutation_guard.py",
@@ -447,7 +498,19 @@ def validate_repository() -> list[str]:
             "Simple Use Cases",
             "Complex Use Cases",
             "Durable Work Log",
+            "Where CWO Fits",
             "Acceptance Gates",
+            "does not replace OpenRouter Fusion",
+            "LangGraph",
+            "AutoGen",
+            "CrewAI",
+            "Claude Code",
+            "Gemini CLI",
+            "Codex CLI",
+            "BYOS",
+            "BYOK",
+            "OpenShift AI vLLM",
+            "Beads provides the durable task graph",
             "/plan Use $complex-work-orchestration prompt coach",
             "closure-memory comment",
             "--what",
@@ -636,6 +699,8 @@ def validate_repository() -> list[str]:
             "interactive_questions",
             "Beads tracking is mandatory",
             "beads_tracking_required",
+            "scaffold_sizing",
+            "--scaffold-size tight",
             "workerbee_parallelism",
             "Codex 5.3 Spark when available",
             "smallest available capable review model",
@@ -695,6 +760,7 @@ def validate_repository() -> list[str]:
             "external-contract",
             "local-worker",
             "publish-release",
+            "Scaffold Size",
             "Exact contract labels belong",
         ],
     )
@@ -773,7 +839,17 @@ def validate_repository() -> list[str]:
         require_doc_terms(
             errors,
             template_path,
-            ["closure-memory", "what changed", "how validated", "when closed", "where executed"],
+            [
+                "closure-memory",
+                "who was involved",
+                "what changed",
+                "how validated",
+                "when closed",
+                "where executed",
+                "evidence",
+                "residual risk",
+                "follow-up",
+            ],
         )
     require_doc_terms(errors, "templates/followup-task.md", ["closure summary"])
     require_doc_terms(
@@ -895,7 +971,12 @@ def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -
         errors.append(f"required documentation file is missing: {relative_path}")
         return
     content = path.read_text(encoding="utf-8")
-    missing = [term for term in terms if term not in content]
+    normalized_content = " ".join(content.split())
+    missing = [
+        term
+        for term in terms
+        if term not in content and " ".join(term.split()) not in normalized_content
+    ]
     if missing:
         errors.append(f"{relative_path} is missing required terms: {', '.join(missing)}")
 
@@ -916,6 +997,9 @@ def validate_local_inference_peer_review_guidance(
         )
     required_terms = [
         "python3 scripts/evaluate_return.py --file local-return.md",
+        "--executor openshift_ai_vllm_worker",
+        "provider_trust_tier",
+        "provenance_class",
         "Add `--peer-review-required` only when",
         "route_work.py",
         "evaluator policy",

@@ -195,12 +195,17 @@
               graph is queryable instead of relying only on description text.
             </p>
             <pre><code>python3 scripts/coach_prompt.py "&lt;task text&gt;"
+python3 scripts/coach_prompt.py --scaffold-size tight "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
+python3 scripts/coach_prompt.py --model-synthesis "&lt;task text&gt;"
+python3 scripts/route_work.py --model-synthesis "&lt;task text&gt;"
+python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --scaffold-size tight --dry-run
 python3 scripts/cleanup_stale_agents.py --json
-python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --follow-up none --dry-run --json
+python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --confirm-only --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
+python3 scripts/check_installed_skill.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py
 python3 scripts/validate_site.py</code></pre>
@@ -230,7 +235,12 @@ python3 scripts/validate_site.py</code></pre>
             </p>
             <p>
               Local-worker evaluation starts with the base
-              <code>evaluate_return.py --file local-return.md</code> command.
+              <code>evaluate_return.py --file local-return.md</code> command,
+              but production handoff should pass the executor or equivalent
+              provider fields so the result records
+              <code>provenance_class=local-worker</code> instead of unknown
+              provenance. For OpenShift AI vLLM, use
+              <code>evaluate_return.py --file local-return.md --executor openshift_ai_vllm_worker</code>.
               Add <code>--peer-review-required</code> only when route policy,
               provider-conflict handling, or evaluator context requires peer
               review for that return.
@@ -249,13 +259,16 @@ python3 scripts/validate_site.py</code></pre>
               Closure-memory comments are the compact recovery record for
               future agents. Use <code>scripts/close_bead_with_summary.py</code>
               before closing meaningful Beads and fill the recovery fields:
-              what changed, why closed, how validated, when closed, where
-              executed, decisions, evidence, residual risk, and follow-up.
+              who was involved, what changed, why closed, how validated, when
+              closed, where executed, decisions, evidence, residual risk, and
+              follow-up. Pass <code>--meaningful</code> to fail fast when a
+              non-trivial closure is missing required recovery fields.
             </p>
             <pre><code>python3 scripts/close_bead_with_summary.py \
   --bead "&lt;id&gt;" \
   --disposition completed \
   --why "accepted change validated" \
+  --who "Codex main thread; reviewer lane or operator if applicable" \
   --what "docs/use-cases.html added" \
   --how "python3 scripts/validate_repository.py and python3 scripts/validate_site.py" \
   --when "main at &lt;commit-sha&gt;; CI run &lt;id&gt;" \
@@ -264,6 +277,7 @@ python3 scripts/validate_site.py</code></pre>
   --evidence "Pages deploy run &lt;id&gt;" \
   --residual-risk "none known" \
   --follow-up "none" \
+  --meaningful \
   --close</code></pre>
             <p>
               If <code>bd dolt remote list</code> reports no remotes, record
@@ -280,9 +294,9 @@ python3 scripts/validate_site.py</code></pre>
               validation, unit tests, install smoke checks, browser checks, and
               publish sanitization before pushing upstream. For meaningful
               Beads, add a final closure-memory comment before closing so future
-              agents can recover what changed, why it closed, how it was
-              validated, when it closed, where executed, residual risk, and
-              follow-up from the work graph.
+              agents can recover who was involved, what changed, why it closed,
+              how it was validated, when it closed, where executed, residual
+              risk, and follow-up from the work graph.
             </p>
             <ol class="check-list">
               <li>Run validators locally.</li>

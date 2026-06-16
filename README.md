@@ -52,7 +52,23 @@ The installer copies the skill files directly into the selected skills
 directory: `README.md`, `LICENSE`, `SKILL.md`, `AGENTS.md`, `VERSION`,
 `CHANGELOG.md`, `agents/`, `policy/`, `templates/`, `experts/`,
 `references/`, `schemas/`, `examples/`, `docs/`, and `scripts/`. It does not
-build or require a tarball.
+build or require a tarball. After copying, it compares a content manifest for
+the source checkout and installed skill, writes `.cwo-install-manifest.json`
+inside the installed skill, and fails the install if the copied content is
+already drifted.
+
+Check an existing install without modifying it:
+
+```bash
+python3 scripts/check_installed_skill.py --check
+```
+
+If the checker reports `missing` or `drift`, reload the skill by rerunning the
+installer against the same skills directory:
+
+```bash
+./scripts/install.sh --skills-dir /path/to/codex/skills --yes
+```
 
 ## Invocation
 
@@ -72,10 +88,12 @@ Use $complex-work-orchestration to scaffold this project.
 ```
 
 The prompt coach treats explicit scaffold language as a full-harness request.
-Public docs call bounded helpers review workers or subagents; internal routing
-terms still work when you are using the operator reference. Contractor
-workstream language asks for the outside-sharing boundary before any external
-dispatch.
+If the work needs a focused review chain instead of broad expert fan-out, say
+`tight-chain review` in the prompt coach or use `--scaffold-size tight` when
+running the scaffold helper. Public docs call bounded helpers review workers or
+subagents; internal routing terms still work when you are using the operator
+reference. Contractor workstream language asks for the outside-sharing boundary
+before any external dispatch.
 
 Codex may run the helper behind the scenes. Use direct script execution only
 for automation, CI, troubleshooting, or an operator shell outside Codex:
@@ -83,6 +101,22 @@ for automation, CI, troubleshooting, or an operator shell outside Codex:
 ```bash
 python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."
+```
+
+When the user has accepted a recommended synthesis lane, advanced helpers use
+the same activation flag at each stage:
+
+```bash
+python3 scripts/coach_prompt.py --model-synthesis "<task text>"
+python3 scripts/route_work.py --model-synthesis "<task text>"
+python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --model-synthesis
+```
+
+For focused review work, keep the graph compact while preserving required gates:
+
+```bash
+python3 scripts/coach_prompt.py --scaffold-size tight "<task text>"
+python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --scaffold-size tight
 ```
 
 Simple use case:
@@ -103,10 +137,29 @@ Generated Beads should populate the native Beads fields for `skills`,
 `acceptance`, `design`, and `notes`; descriptions remain the human-readable
 assignment body.
 
+## Where CWO Fits
+
+CWO is a governance, evidence, and handoff layer for Codex-led work. It does
+not replace OpenRouter Fusion, LangGraph, AutoGen, CrewAI, Claude Code, Gemini
+CLI, or Codex CLI. Those tools remain the model, runtime, coding-agent, or
+workflow surfaces. CWO decides when a surface is appropriate, records the
+approved share or local-execution boundary, evaluates the return, and preserves
+the result in Beads.
+
+The operating model is bring-your-own-subscription (BYOS) or bring-your-own-key
+(BYOK):
+provider accounts, OpenRouter keys, ChatGPT Pro browser sessions, Claude or
+Gemini CLI credentials, Codex access, and OpenShift AI vLLM endpoints stay with
+the operator. CWO records opt-in, provenance, dispatch IDs, packet hashes,
+return evaluation, closure rationale, residual risk, and follow-up. OpenShift
+AI vLLM is treated as a local-worker profile through an OpenAI-compatible
+endpoint, and local output still needs evaluator plus architect adjudication.
+
 Non-trivial closed Beads should also receive a final closure-memory comment
 before `bd close`. Keep `close_reason` short; put reusable context in the
 comment. The comment should answer:
 
+- Who was involved: agent, reviewer, operator, model lane, or team.
 - What changed: files, behavior, or workstream result.
 - Why closed: disposition and rationale.
 - How validated: commands, review evidence, CI, install smoke, or manual checks.
@@ -117,8 +170,9 @@ comment. The comment should answer:
 
 This lets a spawned agent with no transcript, or a compacted session with fuzzy
 memory, rehydrate what happened without guessing from git history alone. The
-helper supports repeatable `--decision`, `--evidence`, `--residual-risk`, and
-`--follow-up` flags; use those fields to encode the facts above.
+helper supports repeatable `--who`, `--decision`, `--evidence`,
+`--residual-risk`, and `--follow-up` flags; use `--meaningful` when those
+recovery fields should be enforced instead of linted.
 
 When creating Beads manually, do not type literal `\n` sequences into text
 fields. Use real newlines through a heredoc, `--body-file`, `--design-file`, or
@@ -296,6 +350,9 @@ binding, and expert profile for outside or local review.
 - `scripts/ingest_chatgpt_share_return.py`: read the resulting ChatGPT share
   link through the local `chatgpt-share-local-reader` skill and render a
   contractor-return template for evaluation.
+- `scripts/check_installed_skill.py`: compare this checkout with the installed
+  Codex skill using a content manifest; use `--check` to fail on missing or
+  drifted installs and rerun `scripts/install.sh` to reload.
 - `scripts/workspace_mutation_guard.py`: snapshot and compare tracked git state
   around tool-running external CLIs so unexpected checkout mutation becomes
   evaluation evidence instead of an unnoticed side effect. Pass
@@ -561,9 +618,10 @@ flowchart LR
    `python3 scripts/coach_prompt.py "<task text>"`.
 
    The coach returns a recommended orchestration level,
-   `beads_tracking_required=true`, `workerbee_parallelism`, `model_synthesis`,
-   missing questions, bounded `interactive_questions`, enabled/disabled
-   levers, warnings, and a paste-ready launch prompt. In Plan mode, use
+   `beads_tracking_required=true`, `scaffold_sizing`,
+   `workerbee_parallelism`, `model_synthesis`, missing questions, bounded
+   `interactive_questions`, enabled/disabled levers, warnings, and a
+   paste-ready launch prompt. In Plan mode, use
    `interactive_questions` for selectable user input when the answer changes
    execution behavior. The coach always asks whether to parallelize with
    subagents. If the coach recommends
@@ -581,6 +639,11 @@ flowchart LR
    independent returns, records consensus and disagreements, carries evaluator
    dispositions for partial/missing/rejected inputs, and still requires
    architect adjudication.
+   `scaffold_sizing` is the graph-size lever. Full graph remains the default
+   for broad orchestration. Tight-chain sizing keeps the architect, PM,
+   implementation, validation, docs/handoff, required peer/editor/evaluation
+   gates, the primary review expert, and explicit architecture-critic
+   contracts, while limiting optional secondary expert lanes.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -627,7 +690,10 @@ flowchart LR
    implementation subagents only when write ownership is disjoint,
    validation, docs/handoff, any outside contracts, and an optional
    model-synthesis lane when synthesis was explicitly requested, accepted from
-   the prompt coach, or enabled with the scaffold `--model-synthesis` flag.
+   the prompt coach, or enabled with the shared `--model-synthesis` flag on
+   coach, route, or scaffold helpers. Use `--scaffold-size tight` for a focused
+   review chain; use a single manual Bead instead when there are no independent
+   lanes to coordinate.
 10. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
    evaluation, and architect adjudication as real Beads dependencies.
@@ -653,9 +719,9 @@ flowchart LR
    follow-up work or before release decisions are made.
 18. PM keeps dependencies, status, blockers, and resume instructions current.
 19. Before closing meaningful Beads, PM or the responsible agent posts a final
-   closure-memory comment with what changed, why it closed, how it was
-   validated, when it closed, where it ran, decisions, evidence, residual risk,
-   and follow-up, then records a terse close reason.
+   closure-memory comment with who was involved, what changed, why it closed,
+   how it was validated, when it closed, where it ran, decisions, evidence,
+   residual risk, and follow-up, then records a terse close reason.
 
 ## Beads Requirement
 
@@ -701,6 +767,7 @@ python3 scripts/close_bead_with_summary.py \
   --bead <id> \
   --disposition completed \
   --why "accepted change validated" \
+  --who "Codex main thread; reviewer lane or operator if applicable" \
   --what "files, behavior, or workstream result" \
   --how "validation commands, review evidence, CI, or install smoke" \
   --when "branch, commit, run ID, or date" \
@@ -709,6 +776,7 @@ python3 scripts/close_bead_with_summary.py \
   --evidence "python scripts/validate_repository.py" \
   --residual-risk "none known" \
   --follow-up "none" \
+  --meaningful \
   --close
 ```
 

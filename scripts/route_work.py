@@ -115,6 +115,11 @@ def main() -> None:
     parser.add_argument("--file-path", action="append", default=[], help="Relevant repository path for path-pattern scoring.")
     parser.add_argument("--stage", help="Review stage such as pre-implementation, implementation-review, or pre-release.")
     parser.add_argument("--unattended", action="store_true", help="Penalize manual dispatch executors.")
+    parser.add_argument(
+        "--model-synthesis",
+        action="store_true",
+        help="Treat model synthesis as accepted opt-in and activate the CWO-native synthesis lane.",
+    )
     parser.add_argument("--top-n", type=int, default=5)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args()
@@ -132,6 +137,7 @@ def main() -> None:
         file_paths=args.file_path,
         stage=args.stage,
         unattended=args.unattended,
+        model_synthesis=args.model_synthesis,
     )
     if args.json:
         print(json.dumps(route, indent=2, sort_keys=True))

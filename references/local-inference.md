@@ -92,22 +92,36 @@ Local worker and secure-review executors must set `codex_pickup=forbidden`.
 They must not support web access, shell execution, or repo write. Secure
 reviewers may read approved local repo context; normal local workers may not.
 
-Local outputs must go through:
+Local outputs must go through normalization and evaluation with the executor
+identity preserved. For OpenShift AI vLLM, pass the executor key so the return
+bundle and acceptance decision record `provider_key=openshift_ai_vllm`,
+`provider_trust_tier=local-platform`, `local_profile=openshift-ai-vllm`, and
+`provenance_class=local-worker` instead of treating the return as unknown
+evidence:
 
 ```bash
-python3 scripts/normalize_contractor_return.py --file local-return.md --output local-return-bundle.json
-python3 scripts/evaluate_return.py --file local-return.md
+python3 scripts/normalize_contractor_return.py --file local-return.md --executor openshift_ai_vllm_worker --output local-return-bundle.json
+python3 scripts/evaluate_return.py --file local-return.md --executor openshift_ai_vllm_worker
 ```
+
+The minimal fallback is `python3 scripts/evaluate_return.py --file local-return.md`,
+but operator flows should prefer `--executor` or the equivalent
+`--provider-key`, `--provider-trust-tier`, `--dispatch-mode`, and
+`--local-profile` fields from the dispatch envelope.
 
 Add `--peer-review-required` only when `route_work.py`, the Beads lane, or
 the evaluator policy says that peer review is required for that return:
 
 ```bash
-python3 scripts/evaluate_return.py --file local-return.md --peer-review-required
+python3 scripts/evaluate_return.py --file local-return.md --executor openshift_ai_vllm_worker --peer-review-required
 ```
 
 Review the evaluator fields before using any finding:
 
+- `provider_key`
+- `provider_trust_tier`
+- `local_profile`
+- `provenance_class`
 - `sabotage_score`
 - `malpractice_score`
 - `peer_review_required`

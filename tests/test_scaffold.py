@@ -103,6 +103,48 @@ class ScaffoldTests(unittest.TestCase):
             "claude --model claude-opus-4-6 --effort xhigh -p",
         )
 
+    def test_tight_scaffold_limits_optional_expert_fanout(self) -> None:
+        route = classify_work(
+            "Security and web design review for contractor packet behavior.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["security", "web-design"],
+        )
+        full_graph = planned_graph("Full Review", route)
+        tight_graph = planned_graph("Tight Review", route, scaffold_size="tight")
+        full_expert_lanes = [item["lane"] for item in full_graph if item.get("metadata", {}).get("expert")]
+        tight_expert_lanes = [item["lane"] for item in tight_graph if item.get("metadata", {}).get("expert")]
+        tight_by_lane = {item.get("lane"): item for item in tight_graph}
+
+        self.assertLess(len(tight_graph), len(full_graph))
+        self.assertLess(len(tight_expert_lanes), len(full_expert_lanes))
+        self.assertIn("expert-review-security", tight_expert_lanes)
+        self.assertNotIn("expert-review-architecture", tight_expert_lanes)
+        self.assertIn("evaluation", tight_by_lane)
+        self.assertIn("architect-adjudication", tight_by_lane)
+        self.assertIn("expert-review-security", tight_by_lane["evaluation"]["depends_on_lanes"])
+        self.assertIn("architect-adjudication", tight_by_lane["implementation"]["depends_on_lanes"])
+
+    def test_tight_scaffold_preserves_explicit_architecture_critic_contracts(self) -> None:
+        route = classify_work(
+            "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
+            "of the Codex architect design for a cross-cutting public contract architecture migration.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        graph = planned_graph("Tight Critic Review", route, scaffold_size="tight")
+        by_lane = {item.get("lane"): item for item in graph}
+        claude_lane = "expert-review-architecture-critic-claude-opus-4-6-architecture-critic"
+        gemini_lane = "expert-review-architecture-critic-gemini-3-1-pro-preview-agy"
+
+        self.assertIn(claude_lane, by_lane)
+        self.assertIn(gemini_lane, by_lane)
+        self.assertIn(claude_lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertIn(gemini_lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertEqual(by_lane[claude_lane]["metadata"]["codex_pickup"], "forbidden")
+        self.assertEqual(by_lane[gemini_lane]["metadata"]["codex_pickup"], "forbidden")
+
     def test_model_synthesis_sits_between_evaluation_and_adjudication(self) -> None:
         text = (
             "Use model synthesis with Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent "

@@ -18,7 +18,7 @@ from cwo_core.routing import (
     expert_review_metadata,
     expert_uses_external_contract,
 )
-from cwo_core.synthesis import recommend_model_synthesis, synthesis_lane_enabled
+from cwo_core.synthesis import synthesis_lane_enabled
 from cwo_core.util import read_text_arg
 
 
@@ -52,7 +52,8 @@ Architecture change, scope change, security risk, missing context, destructive a
 Handoff format:
 Beads comment with findings, validation, and next action.
 Before meaningful closure, add a final closure-memory comment with disposition,
-why, key decisions, evidence, residual risk, and follow-up."""
+who was involved, what changed, why closed, how validated, when closed, where
+executed, key decisions, evidence, residual risk, and follow-up."""
 
 
 def unique_strings(items: list[object]) -> list[str]:
@@ -82,6 +83,7 @@ def route_notes(route: dict[str, Any]) -> str:
         f"Task class: {route.get('task_class')}",
         f"Risk: {route.get('risk_level')}",
         f"Share boundary: {route.get('share_boundary')}",
+        f"Scaffold size: {route.get('scaffold_size', 'full')}",
         f"Recommended executor: {route.get('recommended_executor')}",
         f"Peer review required: {bool(route.get('peer_review_required'))}",
         f"Provider conflict detected: {bool(route.get('provider_conflict_detected'))}",
@@ -271,13 +273,7 @@ def architecture_critic_experts(route: dict[str, Any]) -> list[dict[str, Any]]:
     return experts
 
 
-def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
-    expert_items: list[dict[str, Any]] = []
-    acceptance_review_lanes: list[str] = []
-    implementation_blocker_lanes: list[str] = []
-    validation_blocker_lanes: list[str] = []
-    editor_gate_lanes: list[str] = []
-
+def selected_source_experts(route: dict[str, Any], scaffold_size: str) -> list[dict[str, Any]]:
     critic_contracts = route.get("architecture_critic_contracts", [])
     source_experts = [
         expert
@@ -285,8 +281,39 @@ def planned_graph(title: str, route: dict[str, Any]) -> list[dict[str, Any]]:
         if not (critic_contracts and expert.get("name") == "architecture" and expert_uses_external_contract(expert))
     ]
     source_experts.extend(architecture_critic_experts(route))
+    if scaffold_size != "tight":
+        return source_experts
 
+    primary_name = source_experts[0].get("name") if source_experts else None
+    selected: list[dict[str, Any]] = []
+    seen_lanes: set[str] = set()
     for expert in source_experts:
+        lane = expert_review_lane(expert)
+        if lane in seen_lanes:
+            continue
+        metadata = expert_review_metadata(expert, route)
+        is_primary = bool(primary_name and expert.get("name") == primary_name)
+        is_required_gate = bool(metadata.get("validation_gate_required"))
+        is_named_critic = bool(expert.get("contractor_contract"))
+        if is_primary or is_required_gate or is_named_critic:
+            selected.append(expert)
+            seen_lanes.add(lane)
+    if not selected and source_experts:
+        selected.append(source_experts[0])
+    return selected
+
+
+def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full") -> list[dict[str, Any]]:
+    if scaffold_size not in {"full", "tight"}:
+        raise ValueError("scaffold_size must be 'full' or 'tight'")
+    route = {**route, "scaffold_size": scaffold_size}
+    expert_items: list[dict[str, Any]] = []
+    acceptance_review_lanes: list[str] = []
+    implementation_blocker_lanes: list[str] = []
+    validation_blocker_lanes: list[str] = []
+    editor_gate_lanes: list[str] = []
+
+    for expert in selected_source_experts(route, scaffold_size):
         lane = expert_review_lane(expert)
         metadata = expert_review_metadata(expert, route)
         depends_on = ["architect"]
@@ -525,6 +552,7 @@ def string_metadata(item: dict[str, Any]) -> dict[str, str]:
                     "recommended_executor": value.get("recommended_executor"),
                     "peer_review_required": bool(value.get("peer_review_required")),
                     "provider_conflict_detected": bool(value.get("provider_conflict_detected")),
+                    "scaffold_size": value.get("scaffold_size", "full"),
                     "model_synthesis": (
                         value.get("model_synthesis", {}).get("recommended_mode")
                         if isinstance(value.get("model_synthesis"), dict)
@@ -619,7 +647,20 @@ def main() -> None:
     parser.add_argument(
         "--model-synthesis",
         action="store_true",
-        help="Add a CWO-native synthesis lane after independent review/evaluation returns.",
+        help="Treat model synthesis as accepted opt-in and activate the CWO-native synthesis lane.",
+    )
+    parser.add_argument(
+        "--scaffold-size",
+        choices=["full", "tight"],
+        default="full",
+        help="Select full graph expansion or a tight chain that limits optional expert fan-out.",
+    )
+    parser.add_argument(
+        "--tight-chain",
+        action="store_const",
+        const="tight",
+        dest="scaffold_size",
+        help="Shortcut for --scaffold-size tight.",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -640,11 +681,9 @@ def main() -> None:
         local_profile=args.local_profile,
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
+        model_synthesis=args.model_synthesis,
     )
-    model_synthesis = recommend_model_synthesis(context, route, force_accepted=args.model_synthesis)
-    if synthesis_lane_enabled(model_synthesis):
-        route = {**route, "model_synthesis": model_synthesis}
-    plan = planned_graph(args.title, route)
+    plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
     if args.dry_run:
         output: Any = beads_graph_plan(plan) if args.format == "beads-graph" else plan
         print(json.dumps(output, indent=2, sort_keys=True))
