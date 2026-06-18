@@ -205,6 +205,23 @@ with the browser executor. This lane is not OpenAI Deep Research; use Deep
 Research only when the user explicitly asks for research rather than plan
 review:
 
+```mermaid
+sequenceDiagram
+    participant C as Codex PM
+    participant B as Beads
+    participant P as Packet
+    participant G as ChatGPT Pro
+    participant R as Local reader
+    C->>B: Record final plan bundle and approval boundary
+    C->>P: Build redacted master-review packet
+    P-->>C: dispatch_id and packet_sha256
+    C->>G: Dry run, confirm model and effort, submit once
+    G-->>C: Share URL
+    C->>R: Ingest with dispatch_id and packet_sha256
+    R-->>B: Return evidence for evaluation
+    C->>B: Evaluate, peer review if required, adjudicate
+```
+
 ```bash
 python3 scripts/route_work.py \
   --external-ok \
@@ -235,6 +252,14 @@ directories, secret-looking names, binary files, and private-key suffixes are
 rejected. Fill the file with the actual final plan, Beads graph summary, route
 and coach outputs, validation plan, repository evidence, risks, and open
 questions; a metadata-only Bead summary is not sufficient for master review.
+
+Browser helper prerequisites:
+
+- Playwright must be installed for browser automation.
+- Chrome or Google Chrome must be available for the operator-managed profile.
+- `jq` is used below to carry the exact dispatch identity into ingest.
+- Optional local clipboard tools such as `qdbus`, `wl-paste`, `xclip`, or
+  `xsel` may help capture the share URL after ChatGPT's Share action.
 
 Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
 `$HOME/.config/cwo/chatgpt-browser.json`. The config must live outside the
@@ -268,6 +293,21 @@ contents.
 If a Pro response leaves the page above the final answer, the helper attempts
 to click ChatGPT's scroll-to-bottom control before opening Share. Override the
 default selector with `selectors.scroll_to_bottom_button` when the UI changes.
+Last verified: June 18, 2026. ChatGPT UI labels, selectors, CDP behavior, and
+share-link behavior can drift; run `--dry-run` and `--confirm-only` before each
+expensive master-review query and update only the local config when labels
+change.
+If share-link creation fails, do not infer master-review evidence from the
+browser response. Rerun after fixing sharing, or create a degraded manual return
+that includes the dispatch ID, packet SHA, model attestation, source note,
+required return sections, and residual risk, then evaluate and adjudicate it.
+Markdown Mermaid diagrams are the authoritative flow source; the GitHub Pages
+diagrams are simplified static views unless a generator is added later.
+
+This lane does not authorize a release, tag, production mutation, wider share
+boundary, credential or session sharing, Deep Research, or implementation based
+only on contractor advice. The Codex architect still adjudicates the return and
+turns accepted findings into normal Beads work before execution.
 
 Use these adjudication dispositions for contractor critique findings:
 
@@ -583,11 +623,15 @@ python3 scripts/build_contractor_packet.py \
      --json \
      > master-plan-review-dispatch.json
 
+   SHARE_URL="$(jq -r '.share_url' master-plan-review-dispatch.json)"
+   DISPATCH_ID="$(jq -r '.dispatch_id' master-plan-review-dispatch.json)"
+   PACKET_SHA256="$(jq -r '.packet_sha256' master-plan-review-dispatch.json)"
+
    python3 scripts/ingest_chatgpt_share_return.py \
-     "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+     "$SHARE_URL" \
      --bead <id> \
-     --dispatch-id <dispatch-id> \
-     --packet-sha256 <packet-sha256> \
+     --dispatch-id "$DISPATCH_ID" \
+     --packet-sha256 "$PACKET_SHA256" \
      --output master-plan-review-return.md
    ```
 

@@ -87,6 +87,12 @@ architect/PM/worker harness:
 Use $complex-work-orchestration to scaffold this project.
 ```
 
+For a full external review chain, keep the prompt short and outcome-focused:
+
+```text
+/plan Use $complex-work-orchestration prompt coach: have Claude Opus and Gemini critique the architect plan, then use ChatGPT Pro 5.5 Extended Reasoning for master review before implementation.
+```
+
 The prompt coach treats explicit scaffold language as a full-harness request.
 If the work needs a focused review chain instead of broad expert fan-out, say
 `tight-chain review` in the prompt coach or use `--scaffold-size tight` when
@@ -1103,6 +1109,23 @@ packet with an explicit plan bundle and require a share-link return. Start from
 execution sequence, evidence, validation plan, risks, and open questions before
 building the packet:
 
+```mermaid
+sequenceDiagram
+    participant C as Codex architect
+    participant B as Beads
+    participant P as Packet helper
+    participant G as ChatGPT Pro
+    participant R as Local share reader
+    C->>B: Record final plan, evidence, and gates
+    C->>P: Build redacted master-review packet
+    P-->>C: dispatch_id and packet_sha256
+    C->>G: Confirm model and effort, then submit
+    G-->>C: Share URL
+    C->>R: Ingest share URL with dispatch_id and packet_sha256
+    R-->>B: Contractor return evidence
+    C->>B: Evaluate, peer review if required, and adjudicate
+```
+
 ```bash
 mkdir -p work-packets
 cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
@@ -1130,15 +1153,23 @@ python3 scripts/chatgpt_browser_review.py \
   --json \
   > master-plan-review-dispatch.json
 
+SHARE_URL="$(jq -r '.share_url' master-plan-review-dispatch.json)"
+DISPATCH_ID="$(jq -r '.dispatch_id' master-plan-review-dispatch.json)"
+PACKET_SHA256="$(jq -r '.packet_sha256' master-plan-review-dispatch.json)"
+
 python3 scripts/ingest_chatgpt_share_return.py \
-  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+  "$SHARE_URL" \
   --bead <id> \
-  --dispatch-id <dispatch-id> \
-  --packet-sha256 <packet-sha256> \
+  --dispatch-id "$DISPATCH_ID" \
+  --packet-sha256 "$PACKET_SHA256" \
   --output master-plan-review-return.md
 
 python3 scripts/evaluate_return.py \
   --bead <id> \
+  --dispatch-id "$DISPATCH_ID" \
+  --share-boundary redacted-packet \
+  --job-description contract-jd-master-plan-review \
+  --executor chatgpt_pro_5_5_extended_reasoning_browser \
   --file master-plan-review-return.md
 ```
 
@@ -1147,6 +1178,14 @@ allowed only when they resolve inside this repository; outside-repository paths,
 secret-looking names, blocked control directories, binary files, and private-key
 suffixes are rejected. `work-packets/` is ignored so operators can stage
 review snippets locally without publishing them accidentally.
+
+Browser helper prerequisites:
+
+- Playwright must be installed for browser automation.
+- Chrome or Google Chrome must be available for the operator-managed profile.
+- `jq` is used by the examples to extract dispatch identity from JSON.
+- Optional local clipboard tools such as `qdbus`, `wl-paste`, `xclip`, or
+  `xsel` may help the helper capture a share URL after ChatGPT's Share action.
 
 Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
 `$HOME/.config/cwo/chatgpt-browser.json`. The file must live outside the repo,
@@ -1208,6 +1247,19 @@ If ChatGPT leaves the conversation above the final answer after a Pro response,
 the helper tries to click a scroll-to-bottom control before opening Share. You
 can override the default bottom-jump selector with
 `selectors.scroll_to_bottom_button` in the local browser config.
+
+Last verified: June 18, 2026. ChatGPT UI labels, selectors, CDP behavior, and
+share-link behavior can drift. Re-run `--dry-run` and `--confirm-only` before
+each expensive review and update only the local config when labels change.
+If share-link creation fails, do not treat the browser text as accepted master
+review evidence. Either rerun after fixing sharing, or create a degraded manual
+return tied to the same `dispatch_id`, `packet_sha256`, and model attestation,
+then evaluate and adjudicate it as external evidence.
+
+This lane does not authorize a release, tag, production mutation, wider share
+boundary, credential or session sharing, Deep Research, or implementation based
+only on contractor advice. The Codex architect still adjudicates the return and
+turns accepted findings into normal Beads work before execution.
 
 In patch-branch mode, the expected artifact is still a reviewed proposal unless
 direct workspace mutation is separately authorized. For tool-running CLIs such
@@ -1353,7 +1405,8 @@ recommended next actions.
 
 Contractor results must come back as a Beads comment or a patch proposal with a
 Beads comment pointing to it. The labels below are the contract: output only
-this return, with no preamble or internal action narration.
+this return, with no preamble, internal action narration, hidden
+chain-of-thought, or step-by-step planning.
 
 ```text
 Status:

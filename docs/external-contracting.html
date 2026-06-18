@@ -251,6 +251,46 @@ claude --model claude-opus-4-6 --effort high \
               packet, use a redacted packet and require a share-link return.
               Keep Deep Research as a separate later opt-in for research tasks.
             </p>
+            <div class="workflow-diagram contractor" role="img" aria-label="Master review flow from final plan packet to model confirmation, ChatGPT Pro review, share-link ingest, return evaluation, and architect adjudication.">
+              <div class="flow-card"><strong>Packet</strong><span>final plan bundle</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Confirm</strong><span>model and effort</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Review</strong><span>ChatGPT Pro</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Ingest</strong><span>share link</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Adjudicate</strong><span>Codex decides</span></div>
+            </div>
+            <p>
+              ChatGPT does not operate Beads directly. Codex builds the packet,
+              records dispatch identity in Beads, submits the approved packet
+              after model confirmation, ingests the returned share link with the
+              local reader, evaluates the return, and records the architect's
+              decision back in Beads.
+            </p>
+            <h3>Setup Checklist</h3>
+            <ol class="check-list">
+              <li>Use the prompt coach from Codex and approve the redacted-packet boundary.</li>
+              <li>Fill the plan packet with objective, Beads graph, sequence, evidence, validation, risks, and open questions.</li>
+              <li>Install Playwright, keep Chrome available, and use <code>jq</code> for dispatch metadata extraction.</li>
+              <li>Keep the browser config outside the repo, not group/world accessible, and free of credentials or session material.</li>
+              <li>Run dry-run and confirm-only before submitting any slow or expensive Pro review.</li>
+              <li>Accept the return only when the share URL, dispatch ID, packet hash, and model attestation all match.</li>
+            </ol>
+            <div class="callout">
+              <strong>Last verified:</strong>
+              June 18, 2026. ChatGPT UI labels, selectors, CDP behavior, and
+              share-link behavior can drift. Recheck the live browser with
+              <code>--dry-run</code> and <code>--confirm-only</code> before each
+              expensive review.
+            </div>
+            <div class="callout">
+              <strong>Not doing:</strong>
+              This workflow does not authorize a release, tag, production
+              mutation, credential or session sharing, a wider share boundary,
+              Deep Research, or implementation based only on contractor advice.
+            </div>
 
             <details>
               <summary><strong>Operator Reference: Master Review Commands</strong></summary>
@@ -283,11 +323,15 @@ python3 scripts/chatgpt_browser_review.py \
   --json \
   &gt; master-plan-review-dispatch.json
 
+SHARE_URL="$(jq -r '.share_url' master-plan-review-dispatch.json)"
+DISPATCH_ID="$(jq -r '.dispatch_id' master-plan-review-dispatch.json)"
+PACKET_SHA256="$(jq -r '.packet_sha256' master-plan-review-dispatch.json)"
+
 python3 scripts/ingest_chatgpt_share_return.py \
-  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
+  "$SHARE_URL" \
   --bead &lt;id&gt; \
-  --dispatch-id &lt;dispatch-id&gt; \
-  --packet-sha256 &lt;packet-sha256&gt; \
+  --dispatch-id "$DISPATCH_ID" \
+  --packet-sha256 "$PACKET_SHA256" \
   --output master-plan-review-return.md</code></pre>
             </details>
             <div class="callout">
@@ -296,7 +340,8 @@ python3 scripts/ingest_chatgpt_share_return.py \
               files. Use an ignored repo-local path such as
               <code>work-packets/</code>; outside paths, secret-looking names,
               control directories, binary files, and private-key suffixes are
-              rejected.
+              rejected. A metadata-only Bead summary is not enough for a master
+              review packet.
             </div>
             <div class="callout">
               <strong>Browser rule:</strong>
@@ -339,6 +384,14 @@ python3 scripts/ingest_chatgpt_share_return.py \
               opening Share. Override the selector with
               <code>selectors.scroll_to_bottom_button</code> when the UI
               changes.
+            </div>
+            <div class="callout">
+              <strong>Degraded return:</strong>
+              If share-link creation fails, do not treat visible browser text as
+              accepted evidence. Rerun after fixing sharing, or create a manual
+              return that includes the same dispatch ID, packet hash, model
+              attestation, required return sections, source note, and residual
+              risk, then evaluate and adjudicate it.
             </div>
           </section>
 
