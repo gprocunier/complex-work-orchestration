@@ -112,6 +112,17 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("do not export raw Beads comments", result["paste_ready_prompt"])
         self.assertTrue(any(item["id"] == "beads_context_depth" for item in result["interactive_questions"]))
 
+    def test_context_depth_question_is_always_present_with_autosized_default(self) -> None:
+        result = coach_orchestration_prompt("Fix typo in README.md")
+
+        missing = [item for item in result["missing_questions"] if item["id"] == "beads_context_depth"]
+        questions = [item for item in result["interactive_questions"] if item["id"] == "beads_context_depth"]
+        self.assertEqual(len(missing), 1)
+        self.assertEqual(len(questions), 1)
+        self.assertEqual(questions[0]["options"][0]["value"], result["beads_context_depth"])
+        self.assertIn("(Recommended)", questions[0]["options"][0]["label"])
+        self.assertIn(f"Use {result['beads_context_depth']} context", missing[0]["default"])
+
     def test_context_depth_alias_must_match_primary_override(self) -> None:
         with self.assertRaises(SystemExit):
             coach_orchestration_prompt(

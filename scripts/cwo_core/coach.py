@@ -372,30 +372,7 @@ def prompt_coach_beads_context_depth_signal(
         beads_briefing_depth=beads_briefing_depth,
         actor_context="prompt-coach",
     )
-    lower = text.lower()
-    prompt_terms = [
-        "beads context",
-        "beads comments",
-        "briefing depth",
-        "context depth",
-        "comments",
-        "context compaction",
-        "agent spawn",
-        "subagent",
-        "subagents",
-        "workerbee",
-        "workerbees",
-        "deep pass",
-        "second pass",
-        "2nd pass",
-        "previous work",
-        "history",
-    ]
-    signal["prompt_user_in_plan_mode"] = bool(
-        level in {"full-harness", "external-contract", "local-worker", "publish-release"}
-        or workerbee_mode != "none"
-        or text_has_any(lower, prompt_terms)
-    )
+    signal["prompt_user_in_plan_mode"] = True
     signal["contractor_redaction_gate"] = (
         "External contractors must use build_contractor_packet.py; raw Beads comments stay internal."
     )

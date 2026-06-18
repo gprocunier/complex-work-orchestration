@@ -202,7 +202,9 @@ python3 scripts/coach_prompt.py "<task text>"
    `none`, `summary`, `focused`, `heavy`, and `audit`. `none` performs no
    `bd` lookup; `summary` reads assigned-Bead JSON without comments;
    `focused`, `heavy`, and `audit` may include comments for internal agents
-   only. Outside contractors must still use `build_contractor_packet.py`.
+   only. The coach always includes a Beads context-depth choice in
+   `interactive_questions`, defaulting to the autosized recommended value.
+   Outside contractors must still use `build_contractor_packet.py`.
    If the result includes `interactive_questions` and Codex is in Plan mode,
    present those as selectable prompts because the answer changes execution
    behavior. In Default mode, ask only the concise blocking question or apply the

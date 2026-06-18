@@ -676,7 +676,9 @@ flowchart LR
    control how much durable Beads history internal Codex agents read. Values
    are `none`, `summary`, `focused`, `heavy`, and `audit`. Each result carries
    `beads_context_depth_provenance` with computed depth, effective depth,
-   source, override field, and reason.
+   source, override field, and reason. The coach always includes the
+   Beads context-depth choice in `interactive_questions`, with the autosized
+   depth as the recommended default.
 2. Classify non-trivial work against the policy:
 
    ```bash

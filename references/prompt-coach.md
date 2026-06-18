@@ -95,6 +95,8 @@ The coach autosizes this field with a highest-matching-depth-wins rule. Explicit
 CLI or coach overrides are allowed for advanced use, but the result records
 `beads_context_depth_provenance`: computed depth, requested depth, effective
 depth, source, override field, actor context, and reason.
+The Beads context-depth choice is always present in `interactive_questions`,
+with the autosized or explicit effective depth as the recommended first option.
 
 In-Codex usage should normally let the coach surface the Plan-mode choice.
 Direct helper usage is the advanced equivalent:
@@ -234,6 +236,8 @@ Use these questions for decisions such as:
   repo-readonly
 - whether to use no subagents, review-only subagents, heavy review subagents,
   or implementation subagents for disjoint scopes
+- how much Beads history internal Codex agents should read, defaulting to the
+  autosized `beads_context_depth`
 - whether to add CWO-native model synthesis for independent model outputs
 - whether a local inference worker is allowed
 - what validation bar to apply

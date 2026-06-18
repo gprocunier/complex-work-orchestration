@@ -163,9 +163,9 @@ python3 scripts/coach_prompt.py \
 Expected output includes `beads_context_depth=heavy`,
 `beads_briefing_depth=heavy`, auditable
 `beads_context_depth_provenance`, and a Plan-mode
-`beads_context_depth` choice when the context size materially changes agent
-briefing. Internal agents may use `build_beads_brief.py`; outside contractors
-still use redacted packets.
+`beads_context_depth` choice. That choice is always present and defaults to the
+autosized or explicitly selected depth. Internal agents may use
+`build_beads_brief.py`; outside contractors still use redacted packets.
 
 ## Model Synthesis
 
