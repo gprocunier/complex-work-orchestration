@@ -33,6 +33,9 @@
     "sabotage_signal_categories": {"type": "array", "items": {"type": "string"}},
     "sabotage_review_recommended": {"type": "boolean"},
     "sabotage_architect_escalation_recommended": {"type": "boolean"},
+    "evidence_quality_score": {"type": "integer"},
+    "evidence_quality_signals": {"type": "array", "items": {"type": "object"}},
+    "evidence_quality_signal_categories": {"type": "array", "items": {"type": "string"}},
     "malpractice_score": {"type": "integer"},
     "malpractice_signals": {"type": "array", "items": {"type": "object"}},
     "malpractice_signal_categories": {"type": "array", "items": {"type": "string"}},
@@ -48,6 +51,9 @@
     "workspace_mutation": {"type": ["object", "null"]},
     "human_adjudication_required": {"type": "boolean"},
     "recommended_disposition": {"type": "string"},
+    "recommended_synthesis_use": {
+      "enum": ["primary", "salvage-only", "open-risk", "partial-only", "reject", "quarantine", "unknown"]
+    },
     "quarantine_recommended": {"type": "boolean"},
     "escalation_flagged": {"type": "boolean"},
     "sections": {"type": "object"},

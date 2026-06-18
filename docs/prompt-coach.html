@@ -183,6 +183,15 @@ Publish-ready docs with validation and editorial review.</code></pre>
               missing lane summaries, and recommended plan revisions for
               architect adjudication. This is CWO-native synthesis, not direct
               OpenRouter Fusion dispatch.
+              Gemini/Agy critique is salvage-only by default: it may inform
+              risk notes and follow-up questions, but it does not count toward
+              <code>minimum_usable_inputs</code> unless the architect explicitly
+              upgrades a specific evaluated finding. Evaluated returns expose
+              <code>evidence_quality_score</code> and
+              advisory <code>recommended_synthesis_use</code> so generic
+              advice is visible; synthesis remains authoritative for primary,
+              salvage-only, open-risk, rejected, quarantined, and readiness
+              classification.
             </div>
             <div class="callout">
               <strong>Scaffold size:</strong>

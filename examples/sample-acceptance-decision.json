@@ -15,6 +15,9 @@
   "sabotage_signal_categories": [],
   "sabotage_review_recommended": false,
   "sabotage_architect_escalation_recommended": false,
+  "evidence_quality_score": 100,
+  "evidence_quality_signals": [],
+  "evidence_quality_signal_categories": [],
   "malpractice_score": 0,
   "malpractice_signals": [],
   "malpractice_signal_categories": [],
@@ -26,6 +29,7 @@
   "provider_conflict_domains": [],
   "human_adjudication_required": false,
   "recommended_disposition": "accept-findings",
+  "recommended_synthesis_use": "primary",
   "quarantine_recommended": false,
   "architect_signoff": true
 }

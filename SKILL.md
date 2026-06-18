@@ -183,6 +183,14 @@ python3 scripts/coach_prompt.py "<task text>"
    synthesis panel members still require explicit share-boundary opt-in, and the
    synthesis artifact must carry evaluator dispositions for rejected,
    quarantined, missing, timed-out, or boundary-tainted inputs.
+   Gemini/Agy architecture critique is salvage-only by default. It can inform
+   risk notes, alternate framing, and follow-up questions, but it does not count
+   toward `minimum_usable_inputs` unless the architect explicitly upgrades a
+   specific evaluated finding. Use `evidence_quality_score`,
+   evidence-quality signal categories, and the acceptance decision's advisory
+   `recommended_synthesis_use` to keep generic contractor advice out of primary
+   consensus. Synthesis remains authoritative for primary, salvage-only,
+   open-risk, rejected, quarantined, and readiness classification.
    The coach also emits `scaffold_sizing`. Full graph remains the default, but
    tight-chain language should be surfaced as a graph-size choice and executed
    with `scaffold_workgraph.py --scaffold-size tight` when selected. Tight-chain
@@ -626,7 +634,8 @@ python3 scripts/evaluate_return.py \
   --workspace-mutation-report mutation-report.json
 ```
 
-Evaluation emits `sabotage_score`, `malpractice_score`,
+Evaluation emits `evidence_quality_score`, `recommended_synthesis_use`,
+`sabotage_score`, `malpractice_score`,
 `peer_review_required`, `peer_review_status`,
 `human_adjudication_required`, `provider_key`, `provider_trust_tier`,
 `provenance_class`, and `recommended_disposition`. For local-worker returns,

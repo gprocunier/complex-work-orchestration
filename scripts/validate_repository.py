@@ -199,6 +199,9 @@ def validate_repository() -> list[str]:
         properties=[
             "malpractice_score",
             "malpractice_signals",
+            "evidence_quality_score",
+            "evidence_quality_signals",
+            "evidence_quality_signal_categories",
             "signal_categories",
             "peer_review_required",
             "peer_review_status",
@@ -210,6 +213,7 @@ def validate_repository() -> list[str]:
             "provenance_class",
             "human_adjudication_required",
             "recommended_disposition",
+            "recommended_synthesis_use",
         ],
     )
     contractor_return_bundle_schema = load_json(REPO_ROOT / "schemas" / "contractor-return-bundle.schema.json")
@@ -224,6 +228,9 @@ def validate_repository() -> list[str]:
             "dispatch_mode",
             "local_profile",
             "provenance_class",
+            "evidence_quality_score",
+            "evidence_quality_signals",
+            "evidence_quality_signal_categories",
         ],
     )
     local_envelope_schema = load_json(REPO_ROOT / "schemas" / "local-dispatch-envelope.schema.json")

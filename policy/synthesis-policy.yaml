@@ -15,11 +15,13 @@
   },
   "input_disposition_policy": {
     "use_as_synthesis_input": ["accepted", "accepted-with-modification"],
+    "salvage_only": ["salvage-only"],
     "summarize_as_open_risk": ["needs-investigation", "deferred"],
     "exclude_as_rejected": ["rejected"],
     "quarantine": ["quarantined", "boundary-tainted"],
     "partial_only": ["missing", "empty", "timed-out"]
   },
+  "salvage_only_provider_camps": ["google"],
   "partial_synthesis_policy": {
     "allow_partial": true,
     "minimum_usable_inputs": 2,
@@ -130,7 +132,8 @@
       "role": "architecture-critic",
       "provider_camp": "google",
       "effort": "pro-preview",
-      "external": true
+      "external": true,
+      "synthesis_use": "salvage-only"
     },
     {
       "executor": "chatgpt_pro_5_5_extended_reasoning_browser",
@@ -147,6 +150,7 @@
     "risk deltas",
     "evidence provenance",
     "input evaluator dispositions",
+    "salvage-only input summary",
     "provider conflict flags",
     "partial or missing lane summary",
     "recommended plan revisions"

@@ -15,11 +15,13 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Architect review required: {result['architect_review_required']}")
     print(f"Escalation flagged: {result['escalation_flagged']}")
     print(f"Sabotage score: {result.get('sabotage_score', 0)}")
+    print(f"Evidence quality score: {result.get('evidence_quality_score', 0)}")
     print(f"Malpractice score: {result.get('malpractice_score', 0)}")
     print(f"Peer review required: {result.get('peer_review_required', False)}")
     print(f"Peer review status: {result.get('peer_review_status', 'not-run')}")
     print(f"Human adjudication required: {result.get('human_adjudication_required', False)}")
     print(f"Recommended disposition: {result.get('recommended_disposition', 'unknown')}")
+    print(f"Recommended synthesis use: {result.get('recommended_synthesis_use', 'unknown')}")
     print(f"Quarantine recommended: {result.get('quarantine_recommended', False)}")
     print(f"Provider: {result.get('provider_key') or 'unknown'} ({result.get('provider_trust_tier') or 'unknown'})")
     print(f"Provenance class: {result.get('provenance_class') or 'unknown'}")
@@ -56,6 +58,14 @@ def print_human(result: dict[str, object]) -> None:
     print("\nSabotage signals:")
     if sabotage:
         for signal in sabotage:  # type: ignore[assignment]
+            print(f"- {signal.get('category')}: {signal.get('reason')} ({signal.get('weight')})")
+    else:
+        print("- none")
+
+    evidence_quality = result.get("evidence_quality_signals") or []
+    print("\nEvidence quality signals:")
+    if evidence_quality:
+        for signal in evidence_quality:  # type: ignore[assignment]
             print(f"- {signal.get('category')}: {signal.get('reason')} ({signal.get('weight')})")
     else:
         print("- none")
@@ -161,11 +171,13 @@ def main() -> None:
                 "verdict": result["verdict"],
                 "acceptance_score": result["score"],
                 "sabotage_score": result.get("sabotage_score"),
+                "evidence_quality_score": result.get("evidence_quality_score"),
                 "malpractice_score": result.get("malpractice_score"),
                 "peer_review_required": result.get("peer_review_required"),
                 "peer_review_status": result.get("peer_review_status"),
                 "human_adjudication_required": result.get("human_adjudication_required"),
                 "recommended_disposition": result.get("recommended_disposition"),
+                "recommended_synthesis_use": result.get("recommended_synthesis_use"),
                 "provider_conflict_domains": result.get("provider_conflict_domains"),
                 "quarantine_recommended": result.get("quarantine_recommended"),
                 "workspace_mutation": result.get("workspace_mutation"),

@@ -329,6 +329,8 @@
       "acceptance_required": true,
       "architect_review_required": true,
       "codex_pickup": "forbidden",
+      "default_synthesis_use": "salvage-only",
+      "synthesis_use_rationale": "Gemini/Agy reviews are useful as a second-opinion idea source, but are treated as salvage-only unless the architect explicitly upgrades a specific evaluated finding.",
       "transport": {
         "kind": "manual-cli",
         "default_command": "gemini -p",
@@ -359,6 +361,8 @@
       "architect_review_required": true,
       "codex_pickup": "forbidden",
       "critique_mode": "architect-design-second-opinion",
+      "default_synthesis_use": "salvage-only",
+      "synthesis_use_rationale": "Gemini/Agy reviews are useful as a second-opinion idea source, but are treated as salvage-only unless the architect explicitly upgrades a specific evaluated finding.",
       "transport": {
         "kind": "manual-cli",
         "default_command": "agy --model gemini-3.1-pro-preview -p"

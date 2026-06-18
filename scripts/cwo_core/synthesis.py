@@ -88,6 +88,29 @@ def _normalize_boundary_status(value: Any) -> str:
     return aliases.get(status, status)
 
 
+def _normalize_synthesis_use(value: Any) -> str | None:
+    if value is None:
+        return None
+    use = str(value).strip().lower().replace("_", "-").replace(" ", "-")
+    aliases = {
+        "use": "primary",
+        "usable": "primary",
+        "use-as-input": "primary",
+        "use-as-primary": "primary",
+        "salvage": "salvage-only",
+        "salvageonly": "salvage-only",
+        "partial": "partial-only",
+        "partialonly": "partial-only",
+        "openrisk": "open-risk",
+        "quarantined": "quarantine",
+        "rejected": "reject",
+    }
+    normalized = aliases.get(use, use)
+    if normalized in {"primary", "salvage-only", "partial-only", "open-risk", "quarantine", "reject"}:
+        return normalized
+    return None
+
+
 def evaluate_synthesis_inputs(
     inputs: list[dict[str, Any]],
     policy: dict[str, Any] | None = None,
@@ -107,6 +130,10 @@ def evaluate_synthesis_inputs(
     open_risk = {
         _normalize_disposition(item) for item in disposition_policy.get("summarize_as_open_risk", [])
     }
+    salvage_only = {
+        _normalize_disposition(item) for item in disposition_policy.get("salvage_only", ["salvage-only"])
+    }
+    salvage_only_camps = {str(item) for item in config.get("salvage_only_provider_camps", [])}
     partial_only = {
         _normalize_disposition(item) for item in disposition_policy.get("partial_only", [])
     }
@@ -122,6 +149,7 @@ def evaluate_synthesis_inputs(
 
     input_summaries: list[dict[str, Any]] = []
     primary_inputs: list[dict[str, Any]] = []
+    salvage_inputs: list[dict[str, Any]] = []
     partial_inputs: list[dict[str, Any]] = []
     open_risk_inputs: list[dict[str, Any]] = []
     quarantined_inputs: list[dict[str, Any]] = []
@@ -139,15 +167,25 @@ def evaluate_synthesis_inputs(
         effective_disposition = "boundary-tainted" if boundary_status == "boundary-tainted" else disposition
         lane = str(entry.get("lane") or entry.get("id") or entry.get("name") or f"input-{index}")
         external = bool(entry.get("external", True))
+        provider_camp = str(entry.get("provider_camp") or "")
+        requested_synthesis_use = _normalize_synthesis_use(
+            entry.get("synthesis_use") or entry.get("recommended_synthesis_use")
+        )
 
-        if effective_disposition in use_as_input:
-            synthesis_use = "primary"
-        elif effective_disposition in partial_only:
-            synthesis_use = "partial-only"
-        elif effective_disposition in quarantine:
+        if effective_disposition in quarantine:
             synthesis_use = "quarantine"
         elif effective_disposition in rejected:
             synthesis_use = "reject"
+        elif requested_synthesis_use:
+            synthesis_use = requested_synthesis_use
+        elif effective_disposition in salvage_only:
+            synthesis_use = "salvage-only"
+        elif provider_camp in salvage_only_camps and effective_disposition in use_as_input:
+            synthesis_use = "salvage-only"
+        elif effective_disposition in use_as_input:
+            synthesis_use = "primary"
+        elif effective_disposition in partial_only:
+            synthesis_use = "partial-only"
         elif effective_disposition in open_risk:
             synthesis_use = "open-risk"
         else:
@@ -160,6 +198,8 @@ def evaluate_synthesis_inputs(
             "effective_disposition": effective_disposition,
             "boundary_status": boundary_status,
             "synthesis_use": synthesis_use,
+            "requested_synthesis_use": requested_synthesis_use,
+            "evidence_quality_score": entry.get("evidence_quality_score"),
             "external": external,
             "reason": entry.get("reason"),
         }
@@ -168,6 +208,8 @@ def evaluate_synthesis_inputs(
             external_inputs.append(summary)
         if synthesis_use == "primary":
             primary_inputs.append(summary)
+        elif synthesis_use == "salvage-only":
+            salvage_inputs.append(summary)
         elif synthesis_use == "partial-only":
             partial_inputs.append(summary)
         elif synthesis_use == "quarantine":
@@ -183,6 +225,8 @@ def evaluate_synthesis_inputs(
     blocked_reasons: list[str] = []
     if len(primary_inputs) < minimum_usable_inputs:
         blocked_reasons.append("fewer than minimum_usable_inputs accepted or accepted-with-modification inputs")
+        if salvage_inputs:
+            blocked_reasons.append("salvage-only inputs do not satisfy minimum_usable_inputs")
     if external_inputs and all(item["effective_disposition"] in quarantine for item in external_inputs):
         blocked_reasons.append("all external inputs are quarantined or boundary-tainted")
     if unknown_inputs:
@@ -206,6 +250,7 @@ def evaluate_synthesis_inputs(
         "input_count": len(input_summaries),
         "usable_input_count": len(primary_inputs),
         "primary_input_count": len(primary_inputs),
+        "salvage_input_count": len(salvage_inputs),
         "partial_input_count": len(partial_inputs),
         "open_risk_input_count": len(open_risk_inputs),
         "quarantined_input_count": len(quarantined_inputs),
@@ -213,6 +258,7 @@ def evaluate_synthesis_inputs(
         "unknown_input_count": len(unknown_inputs),
         "input_summaries": input_summaries,
         "primary_inputs": primary_inputs,
+        "salvage_inputs": salvage_inputs,
         "partial_inputs": partial_inputs,
         "open_risk_inputs": open_risk_inputs,
         "quarantined_inputs": quarantined_inputs,

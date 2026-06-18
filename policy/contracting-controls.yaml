@@ -53,6 +53,10 @@
   "malpractice_policy": {
     "signal_weights": {
       "missing_evidence": 20,
+      "thin_evidence": 20,
+      "claim_only_evidence": 25,
+      "vague_evidence": 15,
+      "weak_evidence_provenance": 10,
       "non_reproducible_validation": 15,
       "vague_recommendation": 15,
       "missing_confidence": 10,

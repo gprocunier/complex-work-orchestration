@@ -155,6 +155,16 @@ architect gates. Rejected, quarantined, missing, empty, timed-out, or
 boundary-tainted inputs are carried forward as dispositions; they are not
 silently treated as consensus evidence.
 
+Gemini/Agy architecture critique is salvage-only by default. It can contribute
+ideas, missing-case prompts, and risk notes, but it does not count toward
+`minimum_usable_inputs` for synthesis readiness. A Gemini/Agy return needs
+concrete evidence, evaluator acceptance, and an explicit architect upgrade
+before a specific finding is treated as primary synthesis evidence. The return
+evaluator exposes `evidence_quality_score`, evidence-quality signal categories,
+and the acceptance decision's advisory `recommended_synthesis_use` so noisy or
+generic returns are visible. Synthesis remains authoritative for primary,
+salvage-only, open-risk, rejected, quarantined, and readiness classification.
+
 ## Missing Questions
 
 The coach asks only for information that materially changes sizing:

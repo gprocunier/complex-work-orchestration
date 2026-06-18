@@ -51,6 +51,7 @@
       "no_concrete_evidence": 20,
       "non_reproducible_validation": 15,
       "vague_recommendation": 15,
+      "weak_evidence_quality": 20,
       "missing_confidence": 10,
       "missing_residual_risk": 10,
       "scope_creep": 10,
@@ -63,6 +64,19 @@
       "partial_accept": 50,
       "reject_below": 50
     }
+  },
+  "evidence_quality": {
+    "thresholds": {
+      "primary": 85,
+      "salvage": 60,
+      "reject_below": 40
+    },
+    "signals": [
+      "missing or thin evidence",
+      "claim-only evidence",
+      "generic or non-actionable evidence wording",
+      "weak evidence provenance"
+    ]
   },
   "verdicts": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"],
   "sabotage": {

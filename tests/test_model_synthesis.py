@@ -77,7 +77,7 @@ class ModelSynthesisTests(unittest.TestCase):
     def test_two_accepted_synthesis_inputs_are_ready(self) -> None:
         result = evaluate_synthesis_inputs(
             [
-                {"lane": "gemini", "provider_camp": "google", "disposition": "accepted"},
+                {"lane": "chatgpt", "provider_camp": "openai", "disposition": "accepted"},
                 {
                     "lane": "opus",
                     "provider_camp": "anthropic",
@@ -90,6 +90,115 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertFalse(result["blocked"])
         self.assertEqual(result["usable_input_count"], 2)
         self.assertEqual([item["synthesis_use"] for item in result["input_summaries"]], ["primary", "primary"])
+
+    def test_gemini_accepted_input_defaults_to_salvage_only(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {"lane": "gemini", "provider_camp": "google", "disposition": "accepted"},
+                {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["usable_input_count"], 1)
+        self.assertEqual(result["salvage_input_count"], 1)
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "salvage-only")
+        self.assertIn("salvage-only inputs do not satisfy minimum_usable_inputs", result["blocked_reasons"])
+
+    def test_gemini_salvage_does_not_block_when_two_primary_inputs_remain(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {"lane": "gemini", "provider_camp": "google", "disposition": "accepted"},
+                {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
+                {"lane": "chatgpt", "provider_camp": "openai", "disposition": "accepted-with-modification"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "ready")
+        self.assertFalse(result["blocked"])
+        self.assertEqual(result["usable_input_count"], 2)
+        self.assertEqual(result["salvage_input_count"], 1)
+
+    def test_explicit_primary_override_can_upgrade_gemini_after_adjudication(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "gemini",
+                    "provider_camp": "google",
+                    "disposition": "accepted",
+                    "synthesis_use": "primary",
+                    "reason": "architect upgraded one evaluated finding",
+                },
+                {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["usable_input_count"], 2)
+        self.assertEqual(result["salvage_input_count"], 0)
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "primary")
+
+    def test_invalid_synthesis_use_cannot_upgrade_gemini(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "gemini",
+                    "provider_camp": "google",
+                    "disposition": "accepted",
+                    "synthesis_use": "definitely-primary",
+                },
+                {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["usable_input_count"], 1)
+        self.assertEqual(result["salvage_input_count"], 1)
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "salvage-only")
+
+    def test_all_salvage_only_inputs_do_not_make_synthesis_ready(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {"lane": "gemini", "provider_camp": "google", "disposition": "accepted"},
+                {"lane": "manual", "provider_camp": "openai", "disposition": "accepted", "synthesis_use": "salvage-only"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["usable_input_count"], 0)
+        self.assertEqual(result["salvage_input_count"], 2)
+        self.assertIn("salvage-only inputs do not satisfy minimum_usable_inputs", result["blocked_reasons"])
+
+    def test_open_risk_differs_from_salvage_only(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {"lane": "chatgpt", "provider_camp": "openai", "disposition": "accepted"},
+                {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
+                {"lane": "risk", "provider_camp": "local", "disposition": "needs-investigation"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["usable_input_count"], 2)
+        self.assertEqual(result["open_risk_input_count"], 1)
+        self.assertEqual(result["salvage_input_count"], 0)
+
+    def test_recommended_synthesis_use_salvage_only_is_honored(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "outside-critic",
+                    "provider_camp": "anthropic",
+                    "disposition": "accepted",
+                    "recommended_synthesis_use": "salvage-only",
+                },
+                {"lane": "chatgpt", "provider_camp": "openai", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["usable_input_count"], 1)
+        self.assertEqual(result["salvage_input_count"], 1)
 
     def test_missing_empty_and_timeout_inputs_do_not_satisfy_minimum(self) -> None:
         result = evaluate_synthesis_inputs(

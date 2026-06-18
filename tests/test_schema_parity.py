@@ -29,6 +29,9 @@ class SchemaParityTests(unittest.TestCase):
         for field in [
             "malpractice_score",
             "malpractice_signals",
+            "evidence_quality_score",
+            "evidence_quality_signals",
+            "evidence_quality_signal_categories",
             "signal_categories",
             "peer_review_required",
             "peer_review_status",
@@ -40,6 +43,7 @@ class SchemaParityTests(unittest.TestCase):
             "provenance_class",
             "human_adjudication_required",
             "recommended_disposition",
+            "recommended_synthesis_use",
             "workspace_mutation",
         ]:
             self.assertIn(field, properties)
@@ -55,6 +59,9 @@ class SchemaParityTests(unittest.TestCase):
         self.assertIn("dispatch_mode", properties)
         self.assertIn("local_profile", properties)
         self.assertIn("provenance_class", properties)
+        self.assertIn("evidence_quality_score", properties)
+        self.assertIn("evidence_quality_signals", properties)
+        self.assertIn("evidence_quality_signal_categories", properties)
 
     def test_local_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("local-dispatch-envelope.schema.json")

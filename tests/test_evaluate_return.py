@@ -246,6 +246,49 @@ Escalation needed: no
         self.assertEqual(bundle["provenance_class"], "local-worker")
         self.assertFalse(bundle["provider_external"])
 
+    def test_structurally_complete_generic_return_is_not_accepted(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "- Included artifacts list contains assignment summary and selected snippets only.\n"
+            "- Excluded artifacts list explicitly names full Bead JSON and secrets.",
+            "- Looks good and appears reasonable.\n- No issues found.",
+        ).replace(
+            "Evidence provenance: packet manifest and selected snippets supplied in the contractor packet.",
+            "Evidence provenance: reviewer judgment.",
+        )
+
+        result = make_acceptance_decision(text, executor="gemini_3_1_pro_preview_agy")
+
+        self.assertNotEqual(result["verdict"], "accept")
+        self.assertLess(result["evidence_quality_score"], 85)
+        self.assertIn("claim_only_evidence", result["evidence_quality_signal_categories"])
+        self.assertIn("vague_evidence", result["evidence_quality_signal_categories"])
+        self.assertNotEqual(result["recommended_synthesis_use"], "primary")
+
+    def test_gemini_high_quality_return_defaults_to_salvage_only(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(text, executor="gemini_3_1_pro_preview_agy")
+
+        self.assertEqual(result["verdict"], "accept")
+        self.assertEqual(result["evidence_quality_score"], 100)
+        self.assertEqual(result["recommended_synthesis_use"], "salvage-only")
+
+    def test_file_and_packet_evidence_remains_primary_quality(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(text, executor="claude_opus_4_6_architecture_critic")
+
+        self.assertEqual(result["evidence_quality_score"], 100)
+        self.assertEqual(result["evidence_quality_signal_categories"], [])
+        self.assertEqual(result["recommended_synthesis_use"], "primary")
+
+    def test_normalized_bundle_carries_evidence_quality(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        bundle = normalize_contractor_return(text)
+
+        self.assertIn("evidence_quality_score", bundle)
+        self.assertIn("evidence_quality_signals", bundle)
+        self.assertIn("evidence_quality_signal_categories", bundle)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -92,6 +92,12 @@ return channel. Do not ask for raw hidden reasoning. Return conclusions,
 evidence, plan risks, rejected alternatives, recommended revisions, confidence,
 and escalation triggers in the required contractor return template.
 
+For Gemini or Agy second-opinion work, treat the return as a salvage-only input
+by default. The model can still be useful for spotting missing cases or
+alternative framing, but broad or generic advice must not be promoted to
+consensus evidence. A Gemini/Agy finding becomes primary only when the architect
+explicitly upgrades that specific finding after evaluator and evidence review.
+
 ## Required Startup
 
 1. Read the assignment packet.
@@ -135,6 +141,10 @@ Do not:
 
 Provide conclusions, assumptions, evidence, alternatives considered, risks,
 confidence, and next actions.
+
+Avoid generic evidence. Phrases like "looks good", "best practice", "robust",
+or "no issues found" are not reusable evidence unless tied to a concrete packet
+artifact, file/path, policy clause, command output, or explicit inference.
 
 ## Beads Interaction
 
@@ -184,7 +194,11 @@ required sections can send the assignment back for clarification before the
 architect reviews it. The evaluator checks structure, concrete evidence,
 validation, confidence, residual risk, recommended next Bead, boundary
 violations, peer-review disposition, and unexpected workspace mutation evidence.
-It also scores sabotage or malpractice signals and may quarantine a return for
-peer review or architect adjudication. Passing evaluation does not mean the
-finding is accepted; architect adjudication is still required before Codex
-workers implement follow-up work.
+It also scores evidence_quality_score, evidence-quality signals, sabotage or
+malpractice signals, and may quarantine a return for peer review or architect
+adjudication. Passing evaluation does not mean the finding is accepted;
+architect adjudication is still required before Codex workers implement
+follow-up work. The acceptance decision may report advisory
+`recommended_synthesis_use`, but model-synthesis remains the authority that
+applies salvage-only policy and keeps weak or provider-conflicted returns out
+of primary consensus.

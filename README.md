@@ -645,6 +645,14 @@ flowchart LR
    independent returns, records consensus and disagreements, carries evaluator
    dispositions for partial/missing/rejected inputs, and still requires
    architect adjudication.
+   Gemini/Agy architecture critique is salvage-only by default: it can supply
+   useful risk notes and alternate framing, but it does not count toward
+   `minimum_usable_inputs` for synthesis readiness unless the architect
+   explicitly upgrades a specific evaluated finding. Evaluated returns expose
+   `evidence_quality_score`, evidence-quality signal categories, and the
+   acceptance decision's advisory `recommended_synthesis_use` so generic or
+   low-signal advice is visible. Synthesis remains the authority for primary,
+   salvage-only, open-risk, rejected, quarantined, and readiness classification.
    `scaffold_sizing` is the graph-size lever. Full graph remains the default
    for broad orchestration. Tight-chain sizing keeps the architect, PM,
    implementation, validation, docs/handoff, required peer/editor/evaluation
@@ -862,7 +870,12 @@ For architect-design critique, use the dedicated
 `agy --model gemini-3.1-pro-preview -p`. Either or both lanes are
 second-opinion evidence sources for an existing Codex architect design; they do
 not transfer design authority and still require return evaluation, any required
-peer review, and architect adjudication.
+peer review, and architect adjudication. Gemini/Agy returns are salvage-only by
+default: they may inform risk notes or follow-up questions, but they do not
+count as primary synthesis inputs unless the architect explicitly upgrades a
+specific evaluated finding. The acceptance decision may report advisory
+`recommended_synthesis_use`, but the synthesis layer still enforces provider
+camp policy, boundary-taint handling, and readiness.
 The ChatGPT Pro 5.5 Extended Reasoning browser lane is different from OpenAI
 Deep Research. Use `chatgpt_pro_5_5_extended_reasoning_browser` only when the
 user explicitly wants ChatGPT Pro to review the final architect plan or total

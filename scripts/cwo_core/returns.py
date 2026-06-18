@@ -110,6 +110,10 @@ def malpractice_signal_weights() -> dict[str, int]:
     configured = load_contracting_controls().get("malpractice_policy", {}).get("signal_weights", {})
     defaults = {
         "missing_evidence": 20,
+        "thin_evidence": 20,
+        "claim_only_evidence": 25,
+        "vague_evidence": 15,
+        "weak_evidence_provenance": 10,
         "non_reproducible_validation": 15,
         "vague_recommendation": 15,
         "missing_confidence": 10,
@@ -122,6 +126,15 @@ def malpractice_signal_weights() -> dict[str, int]:
     }
     defaults.update({key: int(value) for key, value in configured.items()})
     return defaults
+
+
+def evidence_quality_thresholds() -> dict[str, int]:
+    configured = load_policy("acceptance-policy").get("evidence_quality", {}).get("thresholds", {})
+    return {
+        "primary": int(configured.get("primary", 85)),
+        "salvage": int(configured.get("salvage", 60)),
+        "reject_below": int(configured.get("reject_below", 40)),
+    }
 
 
 def add_signal(signals: list[dict[str, Any]], *, category: str, reason: str, weight: int) -> None:
@@ -484,6 +497,14 @@ def score_malpractice_signals(
             reason="return includes preamble or internal action narration",
             weight=weights["internal_narration_or_preamble"],
         )
+    evidence_quality = score_evidence_quality(sections)
+    for signal in evidence_quality["evidence_quality_signals"]:
+        add_signal(
+            signals,
+            category=str(signal["category"]),
+            reason=str(signal["reason"]),
+            weight=int(signal["weight"]),
+        )
 
     score = min(100, sum(int(signal["weight"]) for signal in signals))
     thresholds = malpractice_thresholds(review_threshold=review_threshold, reject_threshold=reject_threshold)
@@ -506,10 +527,94 @@ def evidence_items_from_sections(sections: dict[str, str]) -> list[dict[str, str
         kind = "claim"
         if re.search(r"\b(test|pytest|compile|validate|command|bd |git )\b", normalized, re.I):
             kind = "command-or-test"
-        elif re.search(r"\b(file|path|line|schema|policy)\b", normalized, re.I):
+        elif re.search(
+            r"\b(files?|paths?|lines?|schemas?|polic(?:y|ies)|packets?|manifests?|snippets?|artifacts?|"
+            r"sha-?256|hash(?:es)?|sections?|docs?|readmes?|scripts?)\b",
+            normalized,
+            re.I,
+        ):
             kind = "file-or-policy"
         items.append({"kind": kind, "text": normalized})
     return items
+
+
+def score_evidence_quality(sections: dict[str, str]) -> dict[str, Any]:
+    weights = malpractice_signal_weights()
+    signals: list[dict[str, Any]] = []
+    evidence = section_value(sections, "Evidence")
+    provenance = section_value(sections, "Evidence provenance")
+    items = evidence_items_from_sections(sections)
+    supported_items = [item for item in items if item.get("kind") in {"command-or-test", "file-or-policy"}]
+    claim_items = [item for item in items if item.get("kind") == "claim"]
+    evidence_words = evidence.split()
+
+    if not evidence:
+        add_signal(
+            signals,
+            category="missing_evidence",
+            reason="evidence is missing or too thin",
+            weight=weights["missing_evidence"],
+        )
+    elif len(evidence_words) < 8 or not items:
+        add_signal(
+            signals,
+            category="thin_evidence",
+            reason="evidence has too little detail for independent reuse",
+            weight=weights["thin_evidence"],
+        )
+
+    if items and claim_items and not supported_items:
+        add_signal(
+            signals,
+            category="claim_only_evidence",
+            reason="evidence contains only unsupported claim-style items",
+            weight=weights["claim_only_evidence"],
+        )
+
+    generic_patterns = [
+        r"\bappears?\s+(?:fine|good|reasonable|solid)\b",
+        r"\blooks?\s+(?:fine|good|reasonable|solid)\b",
+        r"\b(no\s+issues?|nothing\s+concerning)\b",
+        r"\b(best\s+practice|robust|comprehensive|well[- ]structured)\b",
+        r"\b(consider|ensure|should|could|might)\b.{0,80}\b(best|robust|clear|proper|appropriate)\b",
+        r"\b(no\s+actionable\s+findings?)\b",
+    ]
+    generic_hits = [
+        item
+        for item in items
+        if item.get("kind") == "claim"
+        and any(re.search(pattern, str(item.get("text", "")), re.I) for pattern in generic_patterns)
+    ]
+    if generic_hits:
+        add_signal(
+            signals,
+            category="vague_evidence",
+            reason="evidence relies on generic or non-actionable wording",
+            weight=weights["vague_evidence"],
+        )
+
+    if provenance:
+        provenance_supported = bool(
+            re.search(
+                r"\b(packet|manifest|snippet|artifact|file|path|line|schema|policy|command|test|log|diff|patch|section)\b",
+                provenance,
+                re.I,
+            )
+        )
+        if not provenance_supported:
+            add_signal(
+                signals,
+                category="weak_evidence_provenance",
+                reason="evidence provenance does not identify a reusable source",
+                weight=weights["weak_evidence_provenance"],
+            )
+
+    score = max(0, 100 - min(100, sum(int(signal["weight"]) for signal in signals)))
+    return {
+        "evidence_quality_score": score,
+        "evidence_quality_signals": signals,
+        "evidence_quality_signal_categories": sorted({str(signal["category"]) for signal in signals}),
+    }
 
 
 def return_provenance(
@@ -566,6 +671,51 @@ def return_provenance(
     }
 
 
+def executor_default_synthesis_use(executor: str | None) -> str | None:
+    if not executor:
+        return None
+    executor_config = load_policy("executor-registry").get("executors", {}).get(executor, {})
+    if not isinstance(executor_config, dict):
+        return None
+    value = str(executor_config.get("default_synthesis_use") or "").strip().lower().replace("_", "-")
+    return value or None
+
+
+def recommend_synthesis_use(
+    *,
+    verdict: str,
+    recommended_disposition: str,
+    evidence_quality_score: int,
+    boundary_status: str,
+    executor: str | None,
+    provider_family: str | None,
+    hard_disqualifiers: list[str],
+) -> str:
+    thresholds = evidence_quality_thresholds()
+    default_use = executor_default_synthesis_use(executor)
+    if boundary_status == "boundary-tainted" or verdict == "quarantine":
+        return "quarantine"
+    if hard_disqualifiers or verdict == "reject" or recommended_disposition == "reject":
+        return "reject"
+    if default_use in {"salvage-only", "open-risk", "partial-only"}:
+        return default_use
+    if provider_family == "google" and verdict in {"accept", "partial-accept"}:
+        return "salvage-only"
+    if evidence_quality_score < thresholds["reject_below"]:
+        return "reject"
+    if evidence_quality_score < thresholds["salvage"]:
+        return "salvage-only"
+    if evidence_quality_score < thresholds["primary"]:
+        return "salvage-only"
+    if verdict == "accept":
+        return "primary"
+    if verdict == "partial-accept":
+        return "salvage-only"
+    if verdict == "clarify":
+        return "open-risk"
+    return "reject"
+
+
 def normalize_contractor_return(
     text: str,
     *,
@@ -586,6 +736,7 @@ def normalize_contractor_return(
     missing = [section for section in required if not sections.get(section)]
     sabotage = score_sabotage_signals(text, sections)
     malpractice = score_malpractice_signals(text, sections)
+    evidence_quality = score_evidence_quality(sections)
     boundary_taint_findings = redacted_boundary_taint_findings(text, sections, share_boundary=share_boundary)
     provenance = return_provenance(
         executor=executor,
@@ -609,6 +760,7 @@ def normalize_contractor_return(
         "required_sections_missing": missing,
         "required_sections_present": [section for section in required if section in sections and section not in missing],
         "evidence_items": evidence_items_from_sections(sections),
+        **evidence_quality,
         "workspace_mutation": workspace_mutation,
         **sabotage,
         **malpractice,
@@ -847,6 +999,8 @@ def make_acceptance_decision(
     score = int(policy.get("score", {}).get("start", 100))
     penalty_reasons: list[str] = []
     hard_disqualifiers: list[str] = []
+    evidence_quality = score_evidence_quality(sections)
+    evidence_thresholds = evidence_quality_thresholds()
 
     if missing:
         score -= penalties.get("missing_required_section", 20) * len(missing)
@@ -869,6 +1023,11 @@ def make_acceptance_decision(
     if not sections.get("Risks or gaps"):
         score -= penalties.get("missing_residual_risk", 10)
         penalty_reasons.append("risks or gaps missing")
+    if evidence_quality["evidence_quality_score"] < evidence_thresholds["primary"]:
+        score -= penalties.get("weak_evidence_quality", 20)
+        penalty_reasons.append(
+            f"evidence quality below primary threshold: {evidence_quality['evidence_quality_score']}"
+        )
 
     boundary_violation = section_value(sections, "Boundary violation")
     if affirmative_field(boundary_violation):
@@ -1008,6 +1167,16 @@ def make_acceptance_decision(
         set(sabotage.get("sabotage_signal_categories", []))
         | set(malpractice.get("malpractice_signal_categories", []))
     )
+    resolved_boundary_status = boundary_taint_status(boundary_taint_findings, share_boundary=share_boundary)
+    recommended_synthesis_use = recommend_synthesis_use(
+        verdict=verdict,
+        recommended_disposition=recommended_disposition,
+        evidence_quality_score=int(evidence_quality["evidence_quality_score"]),
+        boundary_status=resolved_boundary_status,
+        executor=executor,
+        provider_family=provenance.get("provider_family"),
+        hard_disqualifiers=hard_disqualifiers,
+    )
 
     return {
         "dispatch_id": dispatch_id,
@@ -1024,6 +1193,9 @@ def make_acceptance_decision(
         "sabotage_signal_categories": sabotage["sabotage_signal_categories"],
         "sabotage_review_recommended": sabotage["sabotage_review_recommended"],
         "sabotage_architect_escalation_recommended": sabotage["sabotage_architect_escalation_recommended"],
+        "evidence_quality_score": evidence_quality["evidence_quality_score"],
+        "evidence_quality_signals": evidence_quality["evidence_quality_signals"],
+        "evidence_quality_signal_categories": evidence_quality["evidence_quality_signal_categories"],
         "malpractice_score": malpractice["malpractice_score"],
         "malpractice_signals": malpractice["malpractice_signals"],
         "malpractice_signal_categories": malpractice["malpractice_signal_categories"],
@@ -1034,11 +1206,12 @@ def make_acceptance_decision(
         "peer_review_status": peer_review_status,
         "patch_authorization_state": patch_authorization_state,
         "provider_conflict_domains": provider_conflict_domains or [],
-        "boundary_taint_status": boundary_taint_status(boundary_taint_findings, share_boundary=share_boundary),
+        "boundary_taint_status": resolved_boundary_status,
         "boundary_taint_findings": boundary_taint_findings,
         "workspace_mutation": workspace_mutation,
         "human_adjudication_required": human_adjudication_required,
         "recommended_disposition": recommended_disposition,
+        "recommended_synthesis_use": recommended_synthesis_use,
         "quarantine_recommended": bool(sabotage["quarantine_recommended"] or workspace_quarantine),
         "escalation_flagged": bool(escalation),
         "architect_review_required": True,
