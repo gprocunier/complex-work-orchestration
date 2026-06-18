@@ -204,6 +204,25 @@ Publish-ready docs with validation and editorial review.</code></pre>
   --scaffold-size tight</code></pre>
             </div>
             <div class="callout">
+              <strong>Beads context depth:</strong>
+              <code>beads_context_depth</code> sizes how much durable Beads
+              history internal Codex agents read. <code>none</code> performs no
+              Beads lookup, <code>summary</code> reads the assigned Bead without
+              comments, <code>focused</code> includes assigned-Bead comments,
+              <code>heavy</code> adds broader related history, and
+              <code>audit</code> is for incidents, sabotage, forensics, or
+              quarantine review. The compatibility alias
+              <code>beads_briefing_depth</code> matches the same value. The
+              coach records provenance for computed, requested, and effective
+              depth.
+              <pre><code>python3 scripts/build_beads_brief.py \
+  --bead "$BEAD_ID" \
+  --depth focused \
+  --for subagent</code></pre>
+              Comment-bearing briefs are internal only. Outside contractors use
+              <code>build_contractor_packet.py</code>.
+            </div>
+            <div class="callout">
               <strong>Subagents:</strong>
               broad docs, Pages, policy, routing, test, validation, and
               publish-sanitization work should surface a

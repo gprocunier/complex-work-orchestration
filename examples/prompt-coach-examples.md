@@ -144,6 +144,29 @@ Expected sizing includes
 `workerbee_parallelism` question whose recommended option is
 `heavy-review-subagents`.
 
+## Beads Context Depth
+
+```text
+/plan Use $complex-work-orchestration prompt coach:
+Deep second pass on docs, prior Beads comments, and handoff decisions.
+```
+
+Advanced helper equivalent when the operator explicitly wants heavier internal
+memory:
+
+```bash
+python3 scripts/coach_prompt.py \
+  --beads-context-depth heavy \
+  "Deep second pass on docs, prior Beads comments, and handoff decisions."
+```
+
+Expected output includes `beads_context_depth=heavy`,
+`beads_briefing_depth=heavy`, auditable
+`beads_context_depth_provenance`, and a Plan-mode
+`beads_context_depth` choice when the context size materially changes agent
+briefing. Internal agents may use `build_beads_brief.py`; outside contractors
+still use redacted packets.
+
 ## Model Synthesis
 
 ```text

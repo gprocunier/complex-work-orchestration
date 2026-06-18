@@ -72,7 +72,9 @@ sabotage, `references/prompt-coach.md` when sizing the invocation,
 `references/redhat-expert-catalog.md` when selecting Red Hat product-focused
 Distinguished Engineer lenses, and `references/contractor-brief.md` as the
 briefing artifact given to an outside contractor with a specific Beads
-assignment. Use `scripts/close_bead_with_summary.py` when closing meaningful
+assignment. Use `scripts/build_beads_brief.py` for internal main-thread or
+subagent Beads context briefs; it must not be used to send raw Beads comments
+to outside contractors. Use `scripts/close_bead_with_summary.py` when closing meaningful
 Beads so the final comment preserves compact agent-memory context before the
 short close reason is recorded. Use `docs/workflows.html` for the publishable walkthrough of
 Codex-native `/plan` invocation, prompt-coach sizing, Beads work-graph
@@ -195,6 +197,12 @@ python3 scripts/coach_prompt.py "<task text>"
    tight-chain language should be surfaced as a graph-size choice and executed
    with `scaffold_workgraph.py --scaffold-size tight` when selected. Tight-chain
    scaffolds preserve required gates while limiting optional expert fan-out.
+   The coach emits `beads_context_depth` and compatibility alias
+   `beads_briefing_depth` for internal Codex/subagent briefing. Values are
+   `none`, `summary`, `focused`, `heavy`, and `audit`. `none` performs no
+   `bd` lookup; `summary` reads assigned-Bead JSON without comments;
+   `focused`, `heavy`, and `audit` may include comments for internal agents
+   only. Outside contractors must still use `build_contractor_packet.py`.
    If the result includes `interactive_questions` and Codex is in Plan mode,
    present those as selectable prompts because the answer changes execution
    behavior. In Default mode, ask only the concise blocking question or apply the

@@ -18,6 +18,9 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["recommended_orchestration_level"], "in-thread")
         self.assertEqual(result["model_synthesis"]["recommended_mode"], "none")
         self.assertTrue(result["beads_tracking_required"])
+        self.assertIn(result["beads_context_depth"], {"summary", "focused"})
+        self.assertEqual(result["beads_briefing_depth"], result["beads_context_depth"])
+        self.assertEqual(result["beads_context_depth_provenance"]["source"], "autosized")
         self.assertIn("mandatory Beads tracking", result["paste_ready_prompt"])
         self.assertIn("beads-durable-state", result["enabled_levers"])
         self.assertIn("beads-minimum-tracking", result["enabled_levers"])
@@ -92,6 +95,30 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["scaffold_sizing"]["recommended_size"], "tight")
         self.assertIn("scaffold-size=tight", result["enabled_levers"])
         self.assertIn("helper was launched with scaffold-size=tight", " ".join(result["scaffold_sizing"]["rationale"]))
+
+    def test_context_depth_override_is_auditable_and_prompted(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use $complex-work-orchestration coach for a deep second pass on docs and prior Beads comments.",
+            beads_context_depth="heavy",
+        )
+
+        self.assertEqual(result["beads_context_depth"], "heavy")
+        self.assertEqual(result["beads_briefing_depth"], "heavy")
+        self.assertEqual(result["beads_context_depth_provenance"]["source"], "explicit")
+        self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
+        self.assertEqual(result["beads_context_depth_provenance"]["effective_depth"], "heavy")
+        self.assertIn("beads-context-depth=heavy", result["enabled_levers"])
+        self.assertIn("build_beads_brief.py --depth heavy --for subagent", result["paste_ready_prompt"])
+        self.assertIn("do not export raw Beads comments", result["paste_ready_prompt"])
+        self.assertTrue(any(item["id"] == "beads_context_depth" for item in result["interactive_questions"]))
+
+    def test_context_depth_alias_must_match_primary_override(self) -> None:
+        with self.assertRaises(SystemExit):
+            coach_orchestration_prompt(
+                "Use $complex-work-orchestration coach for docs.",
+                beads_context_depth="summary",
+                beads_briefing_depth="heavy",
+            )
 
     def test_contractor_lane_terms_ask_for_sharing_boundary(self) -> None:
         result = coach_orchestration_prompt(
@@ -404,13 +431,15 @@ class PromptCoachTests(unittest.TestCase):
         )
         result = json.loads(output)
         self.assertEqual(result["coach_result_type"], "complex-work-orchestration-prompt-coach")
-        self.assertEqual(result["version"], 5)
+        self.assertEqual(result["version"], 6)
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("paste_ready_prompt", result)
         self.assertIn("interactive_questions", result)
         self.assertIn("workerbee_parallelism", result)
         self.assertIn("model_synthesis", result)
         self.assertIn("route", result)
+        self.assertIn("beads_context_depth", result)
+        self.assertIn("beads_context_depth_provenance", result)
 
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
         output = subprocess.check_output(

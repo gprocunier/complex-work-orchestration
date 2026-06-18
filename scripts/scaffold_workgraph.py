@@ -84,6 +84,9 @@ def route_notes(route: dict[str, Any]) -> str:
         f"Risk: {route.get('risk_level')}",
         f"Share boundary: {route.get('share_boundary')}",
         f"Scaffold size: {route.get('scaffold_size', 'full')}",
+        f"Beads context depth: {route.get('beads_context_depth', 'focused')}",
+        f"Beads briefing depth: {route.get('beads_briefing_depth', route.get('beads_context_depth', 'focused'))}",
+        f"Beads context source: {route.get('beads_context_depth_source', 'autosized')}",
         f"Recommended executor: {route.get('recommended_executor')}",
         f"Peer review required: {bool(route.get('peer_review_required'))}",
         f"Provider conflict detected: {bool(route.get('provider_conflict_detected'))}",
@@ -662,6 +665,16 @@ def main() -> None:
         dest="scaffold_size",
         help="Shortcut for --scaffold-size tight.",
     )
+    parser.add_argument(
+        "--beads-context-depth",
+        choices=["none", "summary", "focused", "heavy", "audit"],
+        help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
+    )
+    parser.add_argument(
+        "--beads-briefing-depth",
+        choices=["none", "summary", "focused", "heavy", "audit"],
+        help="Compatibility alias for --beads-context-depth; must match if both are provided.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--format",
@@ -682,6 +695,8 @@ def main() -> None:
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
         model_synthesis=args.model_synthesis,
+        beads_context_depth=args.beads_context_depth,
+        beads_briefing_depth=args.beads_briefing_depth,
     )
     plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
     if args.dry_run:

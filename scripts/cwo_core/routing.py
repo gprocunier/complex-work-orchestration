@@ -174,6 +174,187 @@ def explicit_openai_deep_research_requested(text: str) -> bool:
     return bool(term_hits(text, ["deep research"]))
 
 
+BEADS_CONTEXT_DEPTHS = ["none", "summary", "focused", "heavy", "audit"]
+COMMENT_BEARING_BEADS_CONTEXT_DEPTHS = {"focused", "heavy", "audit"}
+BEADS_CONTEXT_DEPTH_ALIASES = {
+    "off": "none",
+    "disabled": "none",
+    "minimal": "summary",
+    "brief": "summary",
+    "default": "focused",
+    "deep": "heavy",
+    "full": "heavy",
+    "forensic": "audit",
+}
+
+
+def normalize_beads_context_depth(value: str | None, *, field_name: str = "beads_context_depth") -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower().replace("_", "-")
+    normalized = BEADS_CONTEXT_DEPTH_ALIASES.get(normalized, normalized)
+    if normalized not in BEADS_CONTEXT_DEPTHS:
+        raise SystemExit(
+            f"{field_name} must be one of {', '.join(BEADS_CONTEXT_DEPTHS)}"
+        )
+    return normalized
+
+
+def higher_beads_context_depth(current: str, candidate: str) -> str:
+    if BEADS_CONTEXT_DEPTHS.index(candidate) > BEADS_CONTEXT_DEPTHS.index(current):
+        return candidate
+    return current
+
+
+def autosize_beads_context_depth(
+    text: str,
+    *,
+    route: str,
+    risk: str,
+    task_class: str,
+    workerbee_mode: str | None = None,
+    model_synthesis_active: bool = False,
+    editor_gate_required: bool = False,
+) -> tuple[str, list[str]]:
+    lower = text.lower()
+    depth = "summary"
+    rationale = ["Start with summary Beads context: assigned-bead JSON without comments."]
+
+    focused_terms = [
+        "architecture",
+        "architect",
+        "coach",
+        "orchestration",
+        "scaffold",
+        "work graph",
+        "workgraph",
+        "subagent",
+        "subagents",
+        "workerbee",
+        "workerbees",
+        "contractor",
+        "contractors",
+        "local worker",
+        "validation",
+        "docs",
+        "documentation",
+        "github pages",
+        "handoff",
+        "release",
+        "publish",
+    ]
+    heavy_terms = [
+        "deep analysis",
+        "deep pass",
+        "deep 2nd pass",
+        "second pass",
+        "2nd pass",
+        "refactor",
+        "previous plan",
+        "previous plans",
+        "previous work",
+        "prior work",
+        "history",
+        "comments",
+        "context compaction",
+        "memory",
+        "synthesis",
+        "multiple model",
+        "model synthesis",
+    ]
+    audit_terms = [
+        "audit",
+        "forensic",
+        "incident",
+        "sabotage",
+        "malpractice",
+        "credential",
+        "secret",
+        "security incident",
+        "boundary-tainted",
+        "quarantine",
+        "quarantined",
+    ]
+
+    if route in {"architect-review", "external-contract", "local-worker"} or risk in {"high", "critical"}:
+        depth = higher_beads_context_depth(depth, "focused")
+        rationale.append("Use focused context for high-risk, architect, contractor, or local-worker routes.")
+    if task_class in {"architecture-review", "domain-review"} or term_hits(lower, focused_terms):
+        depth = higher_beads_context_depth(depth, "focused")
+        rationale.append("The task has architecture, review, docs, validation, or orchestration signals.")
+    if workerbee_mode in {"review-only", "heavy-review", "implementation-capable"}:
+        depth = higher_beads_context_depth(depth, "focused")
+        rationale.append("Subagent work benefits from assigned-bead comments as evidence.")
+    if model_synthesis_active:
+        depth = higher_beads_context_depth(depth, "heavy")
+        rationale.append("Model synthesis needs broader provenance across reviewed returns.")
+    if editor_gate_required:
+        depth = higher_beads_context_depth(depth, "focused")
+        rationale.append("Public documentation/editor gates need focused Beads evidence.")
+    if term_hits(lower, heavy_terms):
+        depth = higher_beads_context_depth(depth, "heavy")
+        rationale.append("Deep-pass, history, synthesis, or prior-work language warrants heavy Beads context.")
+    if risk == "critical" or term_hits(lower, audit_terms):
+        depth = higher_beads_context_depth(depth, "audit")
+        rationale.append("Audit, incident, sabotage, credential, or quarantine language warrants audit context.")
+    return depth, list(dict.fromkeys(rationale))
+
+
+def resolve_beads_context_depth(
+    text: str,
+    *,
+    route: str,
+    risk: str,
+    task_class: str,
+    workerbee_mode: str | None = None,
+    model_synthesis_active: bool = False,
+    editor_gate_required: bool = False,
+    beads_context_depth: str | None = None,
+    beads_briefing_depth: str | None = None,
+    actor_context: str = "routing",
+) -> dict[str, Any]:
+    explicit_context = normalize_beads_context_depth(beads_context_depth, field_name="beads_context_depth")
+    explicit_briefing = normalize_beads_context_depth(beads_briefing_depth, field_name="beads_briefing_depth")
+    if explicit_context and explicit_briefing and explicit_context != explicit_briefing:
+        raise SystemExit("beads_context_depth and beads_briefing_depth must match when both are provided")
+
+    computed, rationale = autosize_beads_context_depth(
+        text,
+        route=route,
+        risk=risk,
+        task_class=task_class,
+        workerbee_mode=workerbee_mode,
+        model_synthesis_active=model_synthesis_active,
+        editor_gate_required=editor_gate_required,
+    )
+    requested = explicit_context or explicit_briefing
+    if requested:
+        effective = requested
+        source = "explicit"
+        override_field = "beads_context_depth" if explicit_context else "beads_briefing_depth"
+        rationale.append(f"Explicit {override_field} override selected {effective}.")
+    else:
+        effective = computed
+        source = "autosized"
+        override_field = None
+
+    return {
+        "beads_context_depth": effective,
+        "beads_briefing_depth": effective,
+        "beads_context_depth_source": source,
+        "beads_context_depth_rationale": rationale,
+        "beads_context_depth_provenance": {
+            "source": source,
+            "requested_depth": requested,
+            "computed_depth": computed,
+            "effective_depth": effective,
+            "override_field": override_field,
+            "reason": rationale[-1] if rationale else "",
+            "actor_context": actor_context,
+        },
+    }
+
+
 def path_hits(paths: list[str], patterns: list[str]) -> list[str]:
     hits: list[str] = []
     for path in paths:
@@ -595,6 +776,8 @@ def classify_work(
     stage: str | None = None,
     unattended: bool = False,
     model_synthesis: bool = False,
+    beads_context_depth: str | None = None,
+    beads_briefing_depth: str | None = None,
 ) -> dict[str, Any]:
     routing = load_policy("routing-policy")
     expert_registry = load_policy("expert-registry")
@@ -778,6 +961,19 @@ def classify_work(
     peer_policy = peer_review_policy()
     peer_review_count = int(peer_policy.get("defaults", {}).get("minimum_peer_reviews", 1)) if peer_required else 0
 
+    synthesis_result = recommend_model_synthesis(text, {}, force_accepted=model_synthesis)
+    beads_depth = resolve_beads_context_depth(
+        text,
+        route=route,
+        risk=risk,
+        task_class=task_class,
+        model_synthesis_active=bool(synthesis_result.get("active")),
+        editor_gate_required=editor_gate_required,
+        beads_context_depth=beads_context_depth,
+        beads_briefing_depth=beads_briefing_depth,
+        actor_context=stage or "routing",
+    )
+
     result = {
         "route": route,
         "task_class": task_class,
@@ -830,6 +1026,7 @@ def classify_work(
         "architect_adjudication_required": architect_adjudication_required,
         "architect_review_required": architect_adjudication_required,
         "beads_required_for_full_handoff": True,
+        **beads_depth,
         "hard_stops": hard_stops,
         "reasons": [
             "ranked experts: " + ", ".join(f"{item['name']}={item['score']}" for item in experts[:5]),
@@ -837,6 +1034,19 @@ def classify_work(
         ],
     }
     result["model_synthesis"] = recommend_model_synthesis(text, result, force_accepted=model_synthesis)
+    if result["model_synthesis"].get("active") and beads_depth["beads_context_depth"] != "audit":
+        refreshed = resolve_beads_context_depth(
+            text,
+            route=route,
+            risk=risk,
+            task_class=task_class,
+            model_synthesis_active=True,
+            editor_gate_required=editor_gate_required,
+            beads_context_depth=beads_context_depth,
+            beads_briefing_depth=beads_briefing_depth,
+            actor_context=stage or "routing",
+        )
+        result.update(refreshed)
     return result
 
 

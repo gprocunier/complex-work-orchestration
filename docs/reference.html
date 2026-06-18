@@ -192,8 +192,8 @@
             </p>
             <p>
               Scripts perform sizing, routing, stale-agent cleanup, scaffolding,
-              closure-memory comments, packet building, dispatch prompt rendering,
-              return normalization, evaluation, audit verification, and
+              internal Beads briefing, closure-memory comments, packet building,
+              dispatch prompt rendering, return normalization, evaluation, audit verification, and
               repository validation.
               Scaffolded and expert-review Beads carry native
               <code>skills</code>, <code>acceptance</code>,
@@ -205,6 +205,8 @@ python3 scripts/coach_prompt.py --scaffold-size tight "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
 python3 scripts/coach_prompt.py --model-synthesis "&lt;task text&gt;"
 python3 scripts/route_work.py --model-synthesis "&lt;task text&gt;"
+python3 scripts/coach_prompt.py --beads-context-depth focused "&lt;task text&gt;"
+python3 scripts/build_beads_brief.py --bead "&lt;id&gt;" --depth focused --for subagent
 python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --scaffold-size tight --dry-run
 python3 scripts/cleanup_stale_agents.py --json
 python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
@@ -215,6 +217,12 @@ python3 scripts/check_installed_skill.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py
 python3 scripts/validate_site.py</code></pre>
+            <p>
+              <code>build_beads_brief.py</code> is for internal Codex and
+              subagent Beads context memory. Comment-bearing depths fail closed for
+              <code>--for contractor</code>; outside models use
+              <code>build_contractor_packet.py</code>.
+            </p>
             <p>
               The <a href="./workflows.html">Workflows guide</a> shows the
               in-Codex helper sequence, project-manager flow, and manual

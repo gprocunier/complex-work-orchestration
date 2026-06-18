@@ -7,7 +7,8 @@ The prompt coach is a compiler, not a second router. It calls the same policy
 router as `scripts/route_work.py`, then emits a right-sized launch prompt,
 missing high-value questions, bounded interactive questions, enabled levers,
 disabled levers, warnings, `beads_tracking_required=true`,
-`workerbee_parallelism`, `model_synthesis`, and the underlying route result.
+`workerbee_parallelism`, `model_synthesis`, `beads_context_depth`,
+`beads_briefing_depth`, and the underlying route result.
 
 ## Basic Use
 
@@ -75,6 +76,38 @@ required evaluation, peer review, editor gates, the primary expert lane, and
 explicit architecture-critic contracts. It drops optional secondary expert
 fan-out. If there are no independent lanes to coordinate, prefer one manual
 Bead instead of a scaffold.
+
+## Beads Context Depth
+
+`beads_context_depth` controls how much durable Beads history internal Codex
+agents read. `beads_briefing_depth` is a compatibility alias and should match
+the same value in current helper output.
+
+- `none`: perform no `bd` lookup; use only the assigned prompt metadata.
+- `summary`: read assigned-Bead JSON without comments.
+- `focused`: read the assigned Bead and comments as internal evidence.
+- `heavy`: add broader related Beads history for prior work, deep passes, or
+  synthesis.
+- `audit`: use maximum internal context for incidents, sabotage, forensics,
+  credentials, or quarantine review.
+
+The coach autosizes this field with a highest-matching-depth-wins rule. Explicit
+CLI or coach overrides are allowed for advanced use, but the result records
+`beads_context_depth_provenance`: computed depth, requested depth, effective
+depth, source, override field, actor context, and reason.
+
+In-Codex usage should normally let the coach surface the Plan-mode choice.
+Direct helper usage is the advanced equivalent:
+
+```bash
+python3 scripts/coach_prompt.py --beads-context-depth heavy "<task text>"
+python3 scripts/build_beads_brief.py --bead <id> --depth heavy --for subagent
+```
+
+Comments are evidence, not authority. Stale, superseded, rejected, and
+quarantined entries stay visible as dispositions. External contractors must not
+receive comment-bearing briefs; use `scripts/build_contractor_packet.py` for
+outside models.
 
 ChatGPT Pro 5.5 Extended Reasoning language paired with "master plan",
 "final execution plan", or "total work packet" asks for the outside-sharing

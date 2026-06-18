@@ -72,12 +72,19 @@ class SchemaParityTests(unittest.TestCase):
         self.assertTrue(set(PROMPT_COACH_RESULT_REQUIRED_FIELDS).issubset(set(schema["required"])))
         self.assertIn("model_synthesis", schema["properties"])
         self.assertIn("scaffold_sizing", schema["properties"])
+        self.assertIn("beads_context_depth", schema["properties"])
+        self.assertIn("beads_briefing_depth", schema["properties"])
+        self.assertIn("beads_context_depth_provenance", schema["properties"])
         self.assertIn("recommended_mode", schema["properties"]["model_synthesis"]["properties"])
 
     def test_route_schema_has_model_synthesis_contract(self) -> None:
         schema = load_schema("route-result.schema.json")
         model_synthesis = schema["properties"]["model_synthesis"]
         self.assertIn("model_synthesis", schema["required"])
+        self.assertIn("beads_context_depth", schema["required"])
+        self.assertIn("beads_briefing_depth", schema["required"])
+        self.assertIn("beads_context_depth_provenance", schema["required"])
+        self.assertIn("beads_context_depth", schema["properties"])
         for field in [
             "activation_state",
             "active",

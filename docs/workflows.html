@@ -153,6 +153,18 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               semantics, or durable external handoff unless Beads or an
               equivalent tracker is actually in use.
             </div>
+            <div class="callout">
+              <strong>Agent memory:</strong>
+              Spawned agents and compacted sessions should use the coach's
+              <code>beads_context_depth</code> value to decide how much Beads
+              history to read. <code>focused</code> gives assigned-Bead comments
+              as evidence, <code>heavy</code> adds broader related history, and
+              <code>audit</code> is reserved for incident or quarantine review.
+              Outside contractors do not receive raw comments; they get
+              redacted packets. Internal agents can use
+              <code>scripts/build_beads_brief.py</code> when they need the
+              generated brief.
+            </div>
             <p>
               The diagram below is the implementation view of that reader path:
               coach result, task graph, bounded workstreams, and evidence.

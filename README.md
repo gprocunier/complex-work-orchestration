@@ -125,6 +125,15 @@ python3 scripts/coach_prompt.py --scaffold-size tight "<task text>"
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --scaffold-size tight
 ```
 
+For advanced automation, the coach and route helpers also expose Beads
+context-depth overrides. Normal in-Codex use should let the coach size this and
+surface the Plan-mode choice only when it matters:
+
+```bash
+python3 scripts/coach_prompt.py --beads-context-depth focused "<task text>"
+python3 scripts/build_beads_brief.py --bead <id> --depth focused --for subagent
+```
+
 Simple use case:
 
 1. Start with `/plan Use $complex-work-orchestration prompt coach:`.
@@ -325,6 +334,11 @@ binding, and expert profile for outside or local review.
   Codex can map to selectable Plan-mode prompts and a
   `beads_tracking_required` flag that is always true for skill-governed work.
 - `scripts/route_work.py`: classify a request against the policy.
+- `scripts/build_beads_brief.py`: build an internal Beads context brief for the
+  main thread or subagents. `none` performs no `bd` lookup, `summary` reads the
+  assigned Bead without comments, and `focused`, `heavy`, or `audit` may include
+  Beads comments as internal evidence. `--for contractor` fails closed for
+  comment-bearing depths; use `build_contractor_packet.py` for outside models.
 - `scripts/cleanup_stale_agents.py`: automatically clean stale harness-owned
   agent sessions before launch while protecting the current Codex process tree;
   run it from the target workspace or pass `--workspace-root <path>`, and use
@@ -658,6 +672,11 @@ flowchart LR
    implementation, validation, docs/handoff, required peer/editor/evaluation
    gates, the primary review expert, and explicit architecture-critic
    contracts, while limiting optional secondary expert lanes.
+   `beads_context_depth` and the compatibility alias `beads_briefing_depth`
+   control how much durable Beads history internal Codex agents read. Values
+   are `none`, `summary`, `focused`, `heavy`, and `audit`. Each result carries
+   `beads_context_depth_provenance` with computed depth, effective depth,
+   source, override field, and reason.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -769,6 +788,40 @@ bd dolt push
 
 If no Dolt remote is configured, the Beads task graph is still durable local state,
 but it is not shared across machines until you add a remote.
+
+### Beads Context Depth
+
+Beads comments are one of the best memory sources for spawned agents and for
+sessions after context compaction, but they must be deliberately sized. The
+prompt coach autosizes `beads_context_depth` and mirrors it to
+`beads_briefing_depth` for compatibility:
+
+- `none`: no `bd` lookup; use only the assigned prompt metadata.
+- `summary`: read assigned-Bead JSON without comments.
+- `focused`: read the assigned Bead and comments as internal evidence.
+- `heavy`: add broader related Beads history for deep passes, prior work, or
+  model synthesis.
+- `audit`: use maximum internal context for incidents, sabotage, forensics,
+  credential concerns, or quarantine review.
+
+Explicit overrides are allowed for advanced use, but the output records
+computed depth, requested depth, effective depth, source, override field, and
+reason. Comments are evidence, not authority; stale, superseded, rejected, and
+quarantined entries must be carried as dispositions rather than silently used
+as current direction.
+
+For internal agents:
+
+```bash
+python3 scripts/build_beads_brief.py --bead <id> --depth focused --for subagent
+```
+
+For outside contractors, do not use comment-bearing briefs. Build a redacted
+packet instead:
+
+```bash
+python3 scripts/build_contractor_packet.py --bead <id> --external-ok --share-boundary redacted-packet
+```
 
 Closure comments are part of the Beads requirement. They are required for
 epics, contractor or local-worker lanes, evaluation and architect adjudication

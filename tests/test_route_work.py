@@ -16,6 +16,35 @@ from route_work import print_human  # noqa: E402
 
 
 class RouteWorkTests(unittest.TestCase):
+    def test_route_outputs_beads_context_depth_alias_and_provenance(self) -> None:
+        result = classify_work("Use subagents for a deep docs second pass with prior Beads comments.")
+
+        self.assertEqual(result["beads_context_depth"], "heavy")
+        self.assertEqual(result["beads_briefing_depth"], "heavy")
+        self.assertEqual(result["beads_context_depth_source"], "autosized")
+        self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
+        self.assertEqual(result["beads_context_depth_provenance"]["effective_depth"], "heavy")
+
+    def test_route_context_depth_override_records_requested_and_computed_depth(self) -> None:
+        result = classify_work(
+            "Use subagents for a deep docs second pass with prior Beads comments.",
+            beads_context_depth="summary",
+        )
+
+        self.assertEqual(result["beads_context_depth"], "summary")
+        self.assertEqual(result["beads_briefing_depth"], "summary")
+        self.assertEqual(result["beads_context_depth_source"], "explicit")
+        self.assertEqual(result["beads_context_depth_provenance"]["requested_depth"], "summary")
+        self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
+
+    def test_route_context_depth_alias_conflict_fails_closed(self) -> None:
+        with self.assertRaises(SystemExit):
+            classify_work(
+                "Review Beads comments for docs.",
+                beads_context_depth="summary",
+                beads_briefing_depth="heavy",
+            )
+
     def test_security_and_web_design_triggers(self) -> None:
         result = classify_work(
             "Security and web design review for contractor packet behavior.",

@@ -27,6 +27,9 @@ def print_human(route: dict[str, object], top_n: int) -> None:
         print(f"Model synthesis: {synthesis.get('recommended_mode')} active={synthesis.get('active')}")
         if synthesis.get("provider_conflict_flags"):
             print(f"Model synthesis provider flags: {len(synthesis.get('provider_conflict_flags', []))}")
+    print(f"Beads context depth: {route.get('beads_context_depth')}")
+    print(f"Beads briefing depth: {route.get('beads_briefing_depth')}")
+    print(f"Beads context source: {route.get('beads_context_depth_source')}")
     print(f"External contract allowed: {route['external_contract_allowed']}")
     print(f"Local worker allowed: {route['local_worker_allowed']}")
     print(f"Prefer local worker: {route['prefer_local_worker']}")
@@ -120,6 +123,16 @@ def main() -> None:
         action="store_true",
         help="Treat model synthesis as accepted opt-in and activate the CWO-native synthesis lane.",
     )
+    parser.add_argument(
+        "--beads-context-depth",
+        choices=["none", "summary", "focused", "heavy", "audit"],
+        help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
+    )
+    parser.add_argument(
+        "--beads-briefing-depth",
+        choices=["none", "summary", "focused", "heavy", "audit"],
+        help="Compatibility alias for --beads-context-depth; must match if both are provided.",
+    )
     parser.add_argument("--top-n", type=int, default=5)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args()
@@ -138,6 +151,8 @@ def main() -> None:
         stage=args.stage,
         unattended=args.unattended,
         model_synthesis=args.model_synthesis,
+        beads_context_depth=args.beads_context_depth,
+        beads_briefing_depth=args.beads_briefing_depth,
     )
     if args.json:
         print(json.dumps(route, indent=2, sort_keys=True))

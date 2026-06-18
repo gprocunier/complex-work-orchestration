@@ -80,6 +80,16 @@ def main() -> None:
         choices=["full", "tight"],
         help="Record an accepted graph-size choice for the coached launch prompt.",
     )
+    parser.add_argument(
+        "--beads-context-depth",
+        choices=["none", "summary", "focused", "heavy", "audit"],
+        help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
+    )
+    parser.add_argument(
+        "--beads-briefing-depth",
+        choices=["none", "summary", "focused", "heavy", "audit"],
+        help="Compatibility alias for --beads-context-depth; must match if both are provided.",
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args()
 
@@ -98,6 +108,8 @@ def main() -> None:
         unattended=args.unattended,
         model_synthesis=args.model_synthesis,
         scaffold_size=args.scaffold_size,
+        beads_context_depth=args.beads_context_depth,
+        beads_briefing_depth=args.beads_briefing_depth,
     )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))

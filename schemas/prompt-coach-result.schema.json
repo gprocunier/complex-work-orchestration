@@ -8,6 +8,9 @@
     "beads_tracking_required",
     "recommended_orchestration_level",
     "scaffold_sizing",
+    "beads_context_depth",
+    "beads_briefing_depth",
+    "beads_context_depth_provenance",
     "rationale",
     "missing_questions",
     "interactive_questions",
@@ -40,6 +43,31 @@
         "recommended_size": {"enum": ["full", "tight"]},
         "prompt_user_in_plan_mode": {"type": "boolean"},
         "rationale": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "beads_context_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
+    "beads_briefing_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
+    "beads_context_depth_provenance": {
+      "type": "object",
+      "required": ["source", "requested_depth", "computed_depth", "effective_depth", "override_field", "reason", "actor_context"],
+      "properties": {
+        "source": {"enum": ["autosized", "explicit"]},
+        "requested_depth": {
+          "anyOf": [
+            {"enum": ["none", "summary", "focused", "heavy", "audit"]},
+            {"type": "null"}
+          ]
+        },
+        "computed_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
+        "effective_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
+        "override_field": {
+          "anyOf": [
+            {"enum": ["beads_context_depth", "beads_briefing_depth"]},
+            {"type": "null"}
+          ]
+        },
+        "reason": {"type": "string"},
+        "actor_context": {"type": "string"}
       }
     },
     "rationale": {"type": "array", "items": {"type": "string"}},

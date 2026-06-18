@@ -152,8 +152,13 @@ def create_bead(
     return {"id": parse_created_issue_id(output), "title": title, "raw_output": output.strip()}
 
 
-def show_bead_json(bead_id: str) -> Any:
-    output = run_bd(["show", bead_id, "--json"])
+def show_bead_json(bead_id: str, *, include_comments: bool = False, include_dependents: bool = False) -> Any:
+    args = ["show", bead_id, "--json"]
+    if include_comments:
+        args.append("--include-comments")
+    if include_dependents:
+        args.append("--include-dependents")
+    output = run_bd(args)
     return json.loads(output)
 
 
