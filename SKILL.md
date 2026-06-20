@@ -69,6 +69,8 @@ contracts, `examples/` for smoke-test artifacts, `references/external-contractin
 when posting or reviewing outside model contracts,
 `references/incident-response-playbook.md` for quarantine or suspected
 sabotage, `references/prompt-coach.md` when sizing the invocation,
+`references/execution-environments.md` when selecting Codex, OpenCode,
+OpenShift AI vLLM, or manual execution environments,
 `references/redhat-expert-catalog.md` when selecting Red Hat product-focused
 Distinguished Engineer lenses, and `references/contractor-brief.md` as the
 briefing artifact given to an outside contractor with a specific Beads
@@ -134,6 +136,11 @@ Default roles:
   `--local-profile openshift-ai-vllm`. It uses an OpenAI-compatible endpoint
   configured by environment variables and is still treated as bounded
   local-worker evidence, not implementation authority.
+- **Execution Environment**: v2 policy profile that names the harness,
+  provider boundary, role bindings, and constraints for a deployment zone.
+  Codex CLI is the connected default. OpenCode is the first open-source
+  exemplar. Airgapped profiles use local Beads plus OpenCode or manual operator
+  execution with OpenShift AI vLLM or another local OpenAI-compatible endpoint.
 - **Local Secure Reviewer**: local read-only reviewer for security, peer-review,
   sabotage-review, or repo-review contracts. It can inspect approved repo
   context locally, but has no web, shell, or repo-write authority and is still

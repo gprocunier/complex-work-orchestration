@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Execution Environment Registry",
+  "type": "object",
+  "required": ["version", "schema", "profiles"],
+  "properties": {
+    "version": {"type": "integer"},
+    "schema": {"const": "json-compatible-yaml"},
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "display_name",
+          "mode",
+          "default_harness",
+          "allowed_harnesses",
+          "allowed_providers",
+          "role_bindings",
+          "constraints"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "mode": {"enum": ["connected", "restricted", "airgapped", "manual"]},
+          "default_harness": {"type": "string"},
+          "allowed_harnesses": {"type": "array", "items": {"type": "string"}},
+          "allowed_providers": {"type": "array", "items": {"type": "string"}},
+          "role_bindings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["harness"],
+              "properties": {
+                "harness": {"type": "string"},
+                "executor": {"type": "string"},
+                "agent": {"type": "string"},
+                "model_profile": {"type": "string"}
+              }
+            }
+          },
+          "constraints": {
+            "type": "object",
+            "required": ["network", "external_contracting", "beads_required", "repo_write_requires", "secret_handling"],
+            "properties": {
+              "network": {"type": "string"},
+              "external_contracting": {"type": "string"},
+              "beads_required": {"type": "boolean"},
+              "repo_write_requires": {"type": "string"},
+              "secret_handling": {"type": "string"},
+              "execution_lifecycle_owner": {"type": "string"},
+              "concurrent_bead_execution": {"type": "string"}
+            }
+          },
+          "notes": {"type": "string"}
+        }
+      }
+    }
+  }
+}

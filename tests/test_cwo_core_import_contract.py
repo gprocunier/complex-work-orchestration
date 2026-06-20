@@ -22,6 +22,7 @@ ALLOWED_IMPORTS = {
     "workspace": {"paths", "util"},
     "audit": {"paths", "policy", "util"},
     "beads": {"paths", "util"},
+    "harness": {"policy", "util"},
 }
 
 

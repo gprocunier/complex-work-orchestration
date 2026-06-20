@@ -16,6 +16,10 @@ from cwo_core.paths import (
     REPO_ROOT,
 )
 from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS
+from cwo_core.harness import (
+    HARNESS_DISPATCH_REQUIRED_FIELDS,
+    validate_execution_environment_registry,
+)
 from cwo_core.policy import load_policy
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
@@ -44,6 +48,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "workspace": {"paths", "util"},
     "audit": {"paths", "policy", "util"},
     "beads": {"paths", "util"},
+    "harness": {"policy", "util"},
 }
 
 
@@ -79,6 +84,8 @@ def validate_repository() -> list[str]:
         peer_review = load_policy("peer-review-policy")
     except SystemExit as exc:
         return [str(exc)]
+
+    errors.extend(validate_execution_environment_registry())
 
     for key, executor in executors.items():
         alias_for = executor.get("alias_for")
@@ -254,6 +261,20 @@ def validate_repository() -> list[str]:
         schema=prompt_coach_schema,
         properties=["scaffold_sizing"],
     )
+    harness_dispatch_schema = load_json(REPO_ROOT / "schemas" / "harness-dispatch-envelope.schema.json")
+    harness_dispatch_required = set(harness_dispatch_schema.get("required", []))
+    missing_harness_dispatch_required = sorted(set(HARNESS_DISPATCH_REQUIRED_FIELDS) - harness_dispatch_required)
+    if missing_harness_dispatch_required:
+        errors.append(
+            "harness dispatch envelope schema is missing runtime required fields: "
+            + ", ".join(missing_harness_dispatch_required)
+        )
+    require_schema_properties(
+        errors,
+        schema_name="execution-environment.schema.json",
+        schema=load_json(REPO_ROOT / "schemas" / "execution-environment.schema.json"),
+        properties=["profiles"],
+    )
 
     require_doc_terms(
         errors,
@@ -338,6 +359,9 @@ def validate_repository() -> list[str]:
             "hidden",
             "step-by-step planning",
             "OpenShift AI vLLM",
+            "execution environment",
+            "OpenCode",
+            "airgapped",
             "--local-ok",
             "--prefer-local",
             "--local-profile openshift-ai-vllm",
@@ -345,6 +369,9 @@ def validate_repository() -> list[str]:
             "malpractice_score",
             "peer_review_required",
             "schemas/local-dispatch-envelope.schema.json",
+            "schemas/harness-dispatch-envelope.schema.json",
+            "policy/harness-registry.yaml",
+            "policy/execution-environments.yaml",
             "references/redhat-expert-catalog.md",
             "contract-jd-redhat-<name>",
         ],
@@ -647,6 +674,8 @@ def validate_repository() -> list[str]:
             "policy/routing-policy.yaml",
             "schemas",
             "OpenShift AI",
+            "OpenCode",
+            "execution environment",
             "./workflows.html",
             "./explanation.html",
             "./external-contracting.html",
@@ -668,6 +697,7 @@ def validate_repository() -> list[str]:
             "design",
             "notes",
             "scripts/validate_site.py",
+            "scripts/render_harness_dispatch.py",
             "workspace_mutation_guard.py",
             "closure-memory comments",
             "Durable Memory",

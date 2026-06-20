@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "profiles": {
+    "connected-codex": {
+      "display_name": "Connected Codex Default",
+      "mode": "connected",
+      "default_harness": "codex_cli",
+      "allowed_harnesses": ["codex_cli", "opencode", "manual_operator"],
+      "allowed_providers": ["internal_codex", "openshift_ai_vllm", "local_inference", "anthropic_manual", "google_gemini_manual", "openai_manual"],
+      "role_bindings": {
+        "architect": {"harness": "codex_cli", "executor": "frontier_architect"},
+        "project_manager": {"harness": "codex_cli", "executor": "frontier_architect"},
+        "worker": {"harness": "codex_cli", "executor": "internal_worker"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"},
+        "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_5_5_extended_reasoning_browser"}
+      },
+      "constraints": {
+        "network": "available",
+        "external_contracting": "opt-in-redacted-by-default",
+        "beads_required": true,
+        "repo_write_requires": "CWO architect adjudication and validation evidence",
+        "secret_handling": "no secrets in dispatch artifacts",
+        "execution_lifecycle_owner": "CWO",
+        "concurrent_bead_execution": "disabled-by-default"
+      },
+      "notes": "Current production-quality path. Codex owns architecture and integration while optional local or external lanes return evaluated evidence."
+    },
+    "connected-opencode-exemplar": {
+      "display_name": "Connected OpenCode Exemplar",
+      "mode": "connected",
+      "default_harness": "opencode",
+      "allowed_harnesses": ["opencode", "codex_cli", "manual_operator"],
+      "allowed_providers": ["openshift_ai_vllm", "local_inference", "anthropic_manual", "google_gemini_manual", "openai_manual"],
+      "role_bindings": {
+        "architect": {"harness": "opencode", "model_profile": "strongest-approved-connected-model"},
+        "project_manager": {"harness": "manual_operator", "executor": "frontier_architect"},
+        "worker": {"harness": "opencode", "agent": "cwo-review"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"}
+      },
+      "constraints": {
+        "network": "available",
+        "external_contracting": "opt-in-redacted-by-default",
+        "beads_required": true,
+        "repo_write_requires": "explicit mutable-agent permissions plus CWO validation",
+        "secret_handling": "provider credentials stay in harness config or environment, not CWO packets",
+        "execution_lifecycle_owner": "CWO",
+        "concurrent_bead_execution": "disabled-by-default"
+      },
+      "notes": "v2 exemplar for proving CWO can render work to an open harness while keeping Beads, route, evaluation, and acceptance in CWO."
+    },
+    "restricted-opencode-rhoai": {
+      "display_name": "Restricted OpenCode plus OpenShift AI",
+      "mode": "restricted",
+      "default_harness": "opencode",
+      "allowed_harnesses": ["opencode", "manual_operator"],
+      "allowed_providers": ["openshift_ai_vllm", "local_inference", "google_gemini_manual"],
+      "role_bindings": {
+        "architect": {"harness": "opencode", "model_profile": "approved-restricted-model"},
+        "project_manager": {"harness": "manual_operator"},
+        "worker": {"harness": "opencode", "agent": "cwo-review"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"}
+      },
+      "constraints": {
+        "network": "limited",
+        "external_contracting": "only if connected-zone policy approves it",
+        "beads_required": true,
+        "repo_write_requires": "operator-controlled writable workspace plus CWO validation",
+        "secret_handling": "local endpoint credentials remain in environment or cluster auth",
+        "execution_lifecycle_owner": "CWO",
+        "concurrent_bead_execution": "disabled-by-default"
+      },
+      "notes": "Use when Codex is unavailable but approved connected providers or local RHOAI endpoints exist."
+    },
+    "airgapped-rhoai": {
+      "display_name": "Airgapped Open Harness plus RHOAI",
+      "mode": "airgapped",
+      "default_harness": "opencode",
+      "allowed_harnesses": ["opencode", "manual_operator"],
+      "allowed_providers": ["openshift_ai_vllm", "local_inference"],
+      "role_bindings": {
+        "architect": {"harness": "opencode", "model_profile": "local-rhoai-architect"},
+        "project_manager": {"harness": "manual_operator"},
+        "worker": {"harness": "opencode", "agent": "cwo-review"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"}
+      },
+      "constraints": {
+        "network": "airgapped",
+        "external_contracting": "disabled",
+        "beads_required": true,
+        "repo_write_requires": "local validation and local publish gate",
+        "secret_handling": "no external dispatch; local endpoint configuration only",
+        "execution_lifecycle_owner": "CWO",
+        "concurrent_bead_execution": "disabled-by-default"
+      },
+      "notes": "Codex CLI is not assumed available. CWO concepts continue through local scripts, Beads, OpenCode/manual dispatch, and RHOAI/vLLM."
+    }
+  }
+}

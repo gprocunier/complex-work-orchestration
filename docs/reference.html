@@ -78,6 +78,8 @@
               schemas, expert labels, scripts, and validation gates. Use them
               after the guided workflow has selected a route or when automation
               needs the same controls Codex runs behind the scenes.
+              OpenCode appears here as the first v2 open-source harness
+              exemplar, not as a replacement for CWO governance.
             </p>
           </section>
 
@@ -92,13 +94,16 @@
               Policies are JSON-compatible YAML files used by helper scripts.
               They describe route classes, executors, providers, experts,
               sharing boundaries, peer-review requirements, acceptance rules,
-              and contracting controls.
+              execution environment profiles, harness capabilities, and
+              contracting controls.
             </p>
             <div class="reference-table compact" role="table" aria-label="Policy files">
               <div role="row"><span role="cell">Routing</span><code role="cell">policy/routing-policy.yaml</code></div>
               <div role="row"><span role="cell">Executors</span><code role="cell">policy/executor-registry.yaml</code></div>
               <div role="row"><span role="cell">Providers</span><code role="cell">policy/provider-registry.yaml</code></div>
               <div role="row"><span role="cell">Experts</span><code role="cell">policy/expert-registry.yaml</code></div>
+              <div role="row"><span role="cell">Harnesses</span><code role="cell">policy/harness-registry.yaml</code></div>
+              <div role="row"><span role="cell">Execution environments</span><code role="cell">policy/execution-environments.yaml</code></div>
             </div>
           </section>
 
@@ -107,8 +112,9 @@
             <p>
               Schemas make helper outputs reviewable: prompt coach results,
               route results, contractor handoff packets, contractor returns,
-              local dispatch envelopes, acceptance decisions, audit events, and
-              attestations.
+              local dispatch envelopes, versioned harness dispatch envelopes,
+              execution environment profiles, acceptance decisions, audit
+              events, and attestations.
             </p>
           </section>
 
@@ -213,6 +219,7 @@ python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition com
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --confirm-only --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
+python3 scripts/render_harness_dispatch.py --environment connected-opencode-exemplar --harness opencode --role worker --json "&lt;task text&gt;"
 python3 scripts/check_installed_skill.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py

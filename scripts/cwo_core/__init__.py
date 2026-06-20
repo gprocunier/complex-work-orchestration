@@ -8,6 +8,7 @@ __all__ = [
     "audit",
     "beads",
     "coach",
+    "harness",
     "packets",
     "paths",
     "policy",

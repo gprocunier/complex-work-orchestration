@@ -52,6 +52,7 @@
           <a href="#coach-decide">Coach And Decide</a>
           <a href="#beads-graph">Beads Task Graph</a>
           <a href="#optional-lanes">Optional Workstreams</a>
+          <a href="#execution-environments">Execution Environments</a>
           <a href="./use-cases.html">Use Cases</a>
           <a href="#contractor-demo">Contractor Demo</a>
           <a href="#validate-handoff">Validate And Handoff</a>
@@ -290,6 +291,54 @@ python3 scripts/spawn_expert_reviews.py \
               redacted-packet prompt from a neutral directory or treat any
               unapproved repository inspection as invalid contractor evidence.
             </div>
+          </section>
+
+          <section id="execution-environments">
+            <h2>Execution Environments</h2>
+            <p>
+              Codex is the default connected execution environment, but CWO
+              should not depend on one shell forever. The v2 model keeps CWO as
+              the governance layer and lets an approved harness perform bounded
+              work after CWO renders the assignment.
+            </p>
+            <p>
+              OpenCode is the first open-source exemplar because it is
+              terminal-first, scriptable, supports non-interactive runs, and can
+              work with local OpenAI-compatible providers. OpenShift AI vLLM is
+              the preferred local serving exemplar for restricted and airgapped
+              environments; other compatible local endpoints can use the same
+              pattern.
+            </p>
+            <div class="workflow-diagram linear" role="img" aria-label="CWO governs the work graph, renders a harness dispatch, OpenCode or local worker executes, and CWO evaluates the return.">
+              <div class="flow-card"><strong>CWO</strong><span>governance</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Dispatch</strong><span>prompt envelope</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Harness</strong><span>OpenCode or local</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Evaluate</strong><span>architect decides</span></div>
+            </div>
+            <details>
+              <summary><strong>Operator Reference: Render A Harness Dispatch</strong></summary>
+              <pre><code>python3 scripts/render_harness_dispatch.py \
+  --environment connected-opencode-exemplar \
+  --harness opencode \
+  --role worker \
+  --agent cwo-review \
+  --json \
+  "Review command examples for execution environment wording."</code></pre>
+            </details>
+            <p>
+              The renderer does not execute OpenCode. It emits
+              <code>schemas/harness-dispatch-envelope.schema.json</code>
+              compatible JSON with <code>envelope_version=1.0</code>,
+              lifecycle state <code>rendered</code>, a prompt hash, capability
+              requirements, selected environment, selected harness,
+              constraints, timeout, and a suggested command. The
+              control-plane files are
+              <code>policy/harness-registry.yaml</code> and
+              <code>policy/execution-environments.yaml</code>.
+            </p>
           </section>
 
           <section id="contractor-demo">

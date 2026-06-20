@@ -170,6 +170,47 @@ return evaluation, closure rationale, residual risk, and follow-up. OpenShift
 AI vLLM is treated as a local-worker profile through an OpenAI-compatible
 endpoint, and local output still needs evaluator plus architect adjudication.
 
+## Execution Environments
+
+Codex CLI is the current default execution environment, but CWO is not meant to
+be permanently hard-coupled to one shell. The v2 execution-environment model
+separates CWO governance from the harness that performs bounded work. CWO keeps
+Beads, routing, packet validation, return evaluation, architect adjudication,
+validation, and handoff. A harness such as Codex CLI, OpenCode, or a manual
+operator shell runs only the assignment CWO renders for it.
+
+The control-plane files are:
+
+- `policy/harness-registry.yaml`
+- `policy/execution-environments.yaml`
+- `schemas/execution-environment.schema.json`
+- `schemas/harness-dispatch-envelope.schema.json`
+- `references/execution-environments.md`
+
+OpenCode is the first v2 open-source exemplar because it is terminal-first,
+scriptable, provider-flexible, and can target local OpenAI-compatible model
+serving. In restricted or airgapped environments, the profile can bind work to
+OpenCode plus OpenShift AI vLLM or another approved local endpoint while
+external contracting stays disabled unless the environment policy explicitly
+allows it.
+
+Render a non-executing dispatch envelope for an OpenCode lane:
+
+```bash
+python3 scripts/render_harness_dispatch.py \
+  --environment connected-opencode-exemplar \
+  --harness opencode \
+  --role worker \
+  --agent cwo-review \
+  --json \
+  "Review command examples for execution environment wording."
+```
+
+The renderer does not run OpenCode. It produces a versioned prompt envelope
+with lifecycle state `rendered`, prompt hash, capability requirements,
+constraints, suggested command, timeout, and harness metadata so an operator or
+future adapter can execute under the selected environment boundary.
+
 Non-trivial closed Beads should also receive a final closure-memory comment
 before `bd close`. Keep `close_reason` short; put reusable context in the
 comment. The comment should answer:

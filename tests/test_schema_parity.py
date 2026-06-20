@@ -13,6 +13,7 @@ from cwo_core.packets import (  # noqa: E402
     LOCAL_DISPATCH_REQUIRED_FIELDS,
 )
 from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS  # noqa: E402
+from cwo_core.harness import HARNESS_DISPATCH_REQUIRED_FIELDS  # noqa: E402
 
 
 def load_schema(name: str) -> dict[str, object]:
@@ -99,6 +100,14 @@ class SchemaParityTests(unittest.TestCase):
     def test_opt_in_schema_supports_allowed_providers(self) -> None:
         properties = load_schema("opt-in-record.schema.json")["properties"]
         self.assertIn("allowed_providers", properties)
+
+    def test_harness_dispatch_schema_matches_runtime_required_fields(self) -> None:
+        schema = load_schema("harness-dispatch-envelope.schema.json")
+        self.assertTrue(set(HARNESS_DISPATCH_REQUIRED_FIELDS).issubset(set(schema["required"])))
+
+    def test_execution_environment_schema_has_profiles(self) -> None:
+        schema = load_schema("execution-environment.schema.json")
+        self.assertIn("profiles", schema["properties"])
 
 
 if __name__ == "__main__":

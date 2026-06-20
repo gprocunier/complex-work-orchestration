@@ -1,0 +1,16 @@
+{
+  "environment": "airgapped-rhoai",
+  "mode": "airgapped",
+  "default_harness": "opencode",
+  "role_bindings": {
+    "architect": {
+      "harness": "opencode",
+      "model_profile": "local-rhoai-architect"
+    },
+    "local_worker": {
+      "harness": "manual_operator",
+      "executor": "openshift_ai_vllm_worker"
+    }
+  },
+  "operator_note": "Codex CLI is not assumed available. CWO uses local Beads, rendered harness prompts, OpenCode/manual execution, and OpenShift AI vLLM."
+}
