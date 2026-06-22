@@ -145,6 +145,64 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               serving stacks.
             </p>
             <p>
+              v2 execution profiles add role-specific model profiles on top of
+              endpoint profiles. The executor profile says where the local API
+              lives; the model profile says which approved RHOAI/vLLM model
+              alias should handle a CWO role. In airgapped OpenCode flows, CWO
+              can bind architect, PM, workerbee, review, secure-review, and
+              synthesis lanes to local model profiles from
+              <code>policy/model-profiles.yaml</code>.
+            </p>
+            <table class="data-table">
+              <caption>RHOAI Model Profile Examples</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Role</th>
+                  <th scope="col">Model profile</th>
+                  <th scope="col">Use</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Workerbee</th>
+                  <td><code>rhoai-worker-qwen2-5-coder-32b-fp8</code></td>
+                  <td>Code-oriented review, test triage, and bounded patch planning.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Secure review</th>
+                  <td><code>rhoai-secure-review-qwen3-6-35b-a3b-nvfp4</code></td>
+                  <td>Local read-only security, peer-review, and malpractice screening evidence.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Synthesis input</th>
+                  <td><code>rhoai-synthesis-qwen3-5-122b-a10b-nvfp4</code></td>
+                  <td>Independent local counter-review for synthesis, with CWO retaining adjudication.</td>
+                </tr>
+                <tr>
+                  <th scope="row">H200/CerIO architecture</th>
+                  <td><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code><br><code>rhoai-architect-glm-5-2-fp8</code></td>
+                  <td>Use for medium enterprise and larger disconnected planning candidates after a benchmark gate.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Multimodal review</th>
+                  <td><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code></td>
+                  <td>Visual or mixed-modal review evidence when the harness and endpoint safely support it.</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="callout">
+              <p>
+                Keep <code>airgapped-rhoai</code> as the reasonable practical
+                default until the larger endpoint proves itself. Use
+                <code>airgapped-rhoai-h200-nemotron</code> or
+                <code>airgapped-rhoai-h200-glm</code> for benchmark runs on
+                H200/CerIO-style OpenShift AI clusters. The benchmark gate
+                should cover GPU topology, P2P/NCCL behavior, exact vLLM flags,
+                endpoint smoke tests, CWO architect and synthesis packets,
+                evaluator scoring, and architect adjudication.
+              </p>
+            </div>
+            <p>
               Codex may run the route helper behind the scenes. Use it directly
               only for advanced automation or troubleshooting:
             </p>

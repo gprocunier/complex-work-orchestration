@@ -13,7 +13,7 @@ from cwo_core.packets import (  # noqa: E402
     LOCAL_DISPATCH_REQUIRED_FIELDS,
 )
 from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS  # noqa: E402
-from cwo_core.harness import HARNESS_DISPATCH_REQUIRED_FIELDS  # noqa: E402
+from cwo_core.harness import HARNESS_DISPATCH_REQUIRED_FIELDS, MODEL_PROFILE_REQUIRED_FIELDS  # noqa: E402
 
 
 def load_schema(name: str) -> dict[str, object]:
@@ -104,6 +104,21 @@ class SchemaParityTests(unittest.TestCase):
     def test_harness_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("harness-dispatch-envelope.schema.json")
         self.assertTrue(set(HARNESS_DISPATCH_REQUIRED_FIELDS).issubset(set(schema["required"])))
+        self.assertIn("model_profile", schema["properties"])
+        self.assertIn("model_profile_details", schema["properties"])
+
+    def test_model_profile_schema_matches_runtime_required_fields(self) -> None:
+        schema = load_schema("model-profile.schema.json")
+        profile_schema = schema["properties"]["profiles"]["additionalProperties"]
+        self.assertTrue(set(MODEL_PROFILE_REQUIRED_FIELDS).issubset(set(profile_schema["required"])))
+        properties = profile_schema["properties"]
+        self.assertIn("deployment_tier", properties)
+        self.assertIn("hardware_profile", properties)
+        self.assertIn("recommended_enterprise_scale", properties)
+        self.assertIn("benchmark_gate", properties)
+        self.assertIn("promotion_status", properties)
+        row_properties = schema["properties"]["role_substitution_matrix"]["items"]["properties"]
+        self.assertIn("enterprise_profiles", row_properties)
 
     def test_execution_environment_schema_has_profiles(self) -> None:
         schema = load_schema("execution-environment.schema.json")

@@ -18,6 +18,7 @@ from cwo_core.paths import (
 from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS
 from cwo_core.harness import (
     HARNESS_DISPATCH_REQUIRED_FIELDS,
+    MODEL_PROFILE_REQUIRED_FIELDS,
     validate_execution_environment_registry,
 )
 from cwo_core.policy import load_policy
@@ -276,6 +277,22 @@ def validate_repository() -> list[str]:
         )
     require_schema_properties(
         errors,
+        schema_name="harness-dispatch-envelope.schema.json",
+        schema=harness_dispatch_schema,
+        properties=["model_profile", "model_profile_details"],
+    )
+    model_profile_schema = load_json(REPO_ROOT / "schemas" / "model-profile.schema.json")
+    profile_properties = (
+        model_profile_schema.get("properties", {})
+        .get("profiles", {})
+        .get("additionalProperties", {})
+        .get("properties", {})
+    )
+    for field in MODEL_PROFILE_REQUIRED_FIELDS:
+        if field not in profile_properties:
+            errors.append(f"model-profile.schema.json profile is missing property {field!r}")
+    require_schema_properties(
+        errors,
         schema_name="execution-environment.schema.json",
         schema=load_json(REPO_ROOT / "schemas" / "execution-environment.schema.json"),
         properties=["profiles"],
@@ -403,6 +420,17 @@ def validate_repository() -> list[str]:
             "run readiness plan",
             "policy/harness-registry.yaml",
             "policy/execution-environments.yaml",
+            "policy/model-profiles.yaml",
+            "schemas/model-profile.schema.json",
+            "Airgapped Model Matrix",
+            "H200/CerIO Enterprise Candidates",
+            "benchmark gate",
+            "medium enterprise",
+            "Nemotron 3 Ultra",
+            "GLM-5.2",
+            "Llama 4 Maverick",
+            "role substitution matrix",
+            "--model-profile",
             "references/redhat-expert-catalog.md",
             "contract-jd-redhat-<name>",
         ],
@@ -581,6 +609,15 @@ def validate_repository() -> list[str]:
             "./explanation.html",
             "incident-response playbook",
             "inventory the existing page URLs",
+            "Model Profile Substitution",
+            "Airgapped Model Matrix",
+            "H200/CerIO Enterprise Candidates",
+            "benchmark gate",
+            "medium enterprise",
+            "Nemotron 3 Ultra",
+            "GLM-5.2",
+            "policy/model-profiles.yaml",
+            "--model-profile",
         ],
     )
     require_doc_terms(
@@ -676,6 +713,9 @@ def validate_repository() -> list[str]:
             "Invoke From Codex",
             "Coach Local Opt-In",
             "OpenShift AI vLLM Profile",
+            "H200/CerIO",
+            "medium enterprise",
+            "benchmark gate",
             "Dispatch Envelope",
             "Execute Explicitly",
             "Evaluate Returns",
@@ -730,6 +770,12 @@ def validate_repository() -> list[str]:
             "notes",
             "scripts/validate_site.py",
             "scripts/render_harness_dispatch.py",
+            "policy/model-profiles.yaml",
+            "schemas/model-profile.schema.json",
+            "model-profile registries",
+            "deployment_tier",
+            "benchmark_gate",
+            "promotion_status",
             "scripts/validate_run_readiness_plan.py",
             "scripts/render_run_projection.py",
             "wrap-up-status",

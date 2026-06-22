@@ -80,7 +80,12 @@
               The v2 execution-environment model keeps Codex as the default
               connected shell while adding OpenCode as the first open-source
               harness exemplar for restricted zones and RHOAI/vLLM-style local
-              model serving.
+              model serving. For airgapped OpenCode paths, model profiles map
+              architect, PM, workerbee, review, and synthesis roles to approved
+              local RHOAI endpoints instead of public frontier calls. Medium
+              enterprise disconnected deployments can start with practical
+              RHOAI defaults, then benchmark H200/CerIO candidates for deeper
+              architecture and synthesis lanes.
             </p>
           </div>
           <div class="command-panel" aria-label="Prompt coach example">
@@ -228,7 +233,7 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
           <li><a href="./use-cases.html#simple-use-cases">Use the simple prompt-coach path</a></li>
           <li><a href="./use-cases.html#complex-use-cases">Use the complex multi-expert review pattern</a></li>
           <li><a href="./workflows.html#optional-lanes">Decide whether contractor or local-worker workstreams are needed</a></li>
-          <li><a href="./workflows.html#execution-environments">Review execution environment choices for Codex, OpenCode, restricted, or airgapped work</a></li>
+          <li><a href="./workflows.html#execution-environments">Review execution environment choices and the airgapped model matrix</a></li>
           <li><a href="./explanation.html">Understand why the workflow separates roles and evidence</a></li>
           <li><a href="./reference.html">Look up exact helper scripts and control-plane files</a></li>
         </ul>

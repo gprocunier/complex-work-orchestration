@@ -42,6 +42,52 @@ Registered local profiles live in `policy/executor-registry.yaml`.
   `CWO_OPENSHIFT_AI_VLLM_BASE_URL`, `CWO_OPENSHIFT_AI_VLLM_MODEL`, and optional
   `CWO_OPENSHIFT_AI_VLLM_API_KEY`.
 
+Execution environments can also bind role-specific model profiles from
+`policy/model-profiles.yaml`. That registry is the model matrix for replacing
+connected CWO roles with public Hugging Face models served through OpenShift AI
+vLLM. The important distinction is:
+
+- Executor profile: where the endpoint lives and which environment variables
+  configure the call.
+- Model profile: which approved model alias or Hugging Face model ID should be
+  used for a CWO role.
+
+For example, `airgapped-rhoai` binds its worker role to
+`rhoai-worker-qwen2-5-coder-32b-fp8`. Rendering a harness envelope resolves that
+profile to the operator-owned model alias `rhoai/workerbee` and includes the
+sanitized backing model metadata:
+
+```bash
+python3 scripts/render_harness_dispatch.py \
+  --environment airgapped-rhoai \
+  --role worker \
+  --json \
+  "Review command examples."
+```
+
+Use `--model-profile` only when the operator wants to pick a different approved
+profile explicitly. Use `--model` only for an override that should disable
+profile resolution for that dispatch.
+
+### H200/CerIO Enterprise Profiles
+
+For disconnected medium enterprise work, keep `airgapped-rhoai` as the
+reasonable practical default until the local serving stack proves a larger lane.
+H200/CerIO-sized OpenShift AI clusters can benchmark two explicit candidates:
+
+- `airgapped-rhoai-h200-nemotron` binds deep architecture, secure review, and
+  synthesis lanes to `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`.
+- `airgapped-rhoai-h200-glm` binds long-context architecture, PM
+  summarization, and synthesis lanes to `rhoai-architect-glm-5-2-fp8`.
+
+Both candidates require a benchmark gate before promotion: GPU topology, P2P,
+NCCL collectives, exact vLLM startup flags, `/v1/models`,
+`/v1/chat/completions`, representative CWO packets, evaluator scoring, and
+architect adjudication. `rhoai-reviewer-llama-4-maverick-17b-128e-fp8` is a
+multimodal/general review candidate when the harness and endpoint can safely
+carry images or mixed-modal evidence; it is not the primary x-high architect
+substitute.
+
 Use the profile on route and dispatch commands:
 
 ```bash

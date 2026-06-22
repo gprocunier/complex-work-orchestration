@@ -16,6 +16,11 @@ HARNESS_DISPATCH_REQUIRED_FIELDS = [
     "harness",
     "role",
     "lifecycle_state",
+    "agent",
+    "model",
+    "variant",
+    "model_profile",
+    "model_profile_details",
     "prompt",
     "prompt_sha256",
     "suggested_command",
@@ -23,6 +28,31 @@ HARNESS_DISPATCH_REQUIRED_FIELDS = [
     "execution_enabled",
     "timeout_seconds",
     "constraints",
+]
+MODEL_PROFILE_REQUIRED_FIELDS = [
+    "display_name",
+    "provider_key",
+    "local_profile",
+    "huggingface_model_id",
+    "model_alias",
+    "publisher",
+    "source_url",
+    "license",
+    "artifact",
+    "quantization",
+    "vllm_compatible",
+    "endpoint_path",
+    "recommended_roles",
+    "substitute_confidence",
+    "deployment_class",
+    "deployment_tier",
+    "hardware_profile",
+    "recommended_enterprise_scale",
+    "benchmark_gate",
+    "promotion_status",
+    "context_window",
+    "strengths",
+    "limits",
 ]
 
 SUPPORTED_HARNESS_ENVELOPE_VERSIONS = {"1.0"}
@@ -37,12 +67,139 @@ def execution_environment_registry() -> dict[str, Any]:
     return load_policy("execution-environments")
 
 
+def model_profile_registry() -> dict[str, Any]:
+    return load_policy("model-profiles")
+
+
+def model_profiles() -> dict[str, Any]:
+    profiles = model_profile_registry().get("profiles", {})
+    return profiles if isinstance(profiles, dict) else {}
+
+
+def model_profile(profile_key: str | None) -> dict[str, Any]:
+    if not profile_key:
+        return {}
+    profile = model_profiles().get(profile_key)
+    if not isinstance(profile, dict):
+        return {}
+    value = dict(profile)
+    value.setdefault("key", profile_key)
+    return value
+
+
+def validate_model_profile_registry() -> list[str]:
+    errors: list[str] = []
+    registry = model_profile_registry()
+    profiles = registry.get("profiles", {})
+    providers = load_policy("provider-registry").get("providers", {})
+
+    if registry.get("schema") != "json-compatible-yaml":
+        errors.append("model profile registry must use schema=json-compatible-yaml")
+    if not isinstance(profiles, dict) or not profiles:
+        errors.append("model profile registry must define profiles")
+        return errors
+
+    for key, profile in profiles.items():
+        if not isinstance(profile, dict):
+            errors.append(f"model profile {key!r} must be an object")
+            continue
+        for field in MODEL_PROFILE_REQUIRED_FIELDS:
+            if field not in profile:
+                errors.append(f"model profile {key!r} is missing {field!r}")
+        provider_key = profile.get("provider_key")
+        if provider_key not in providers:
+            errors.append(f"model profile {key!r} references unknown provider_key {provider_key!r}")
+        if profile.get("endpoint_path") != "/v1/chat/completions":
+            errors.append(f"model profile {key!r} must use /v1/chat/completions")
+        if profile.get("substitute_confidence") not in {"high", "medium", "low"}:
+            errors.append(f"model profile {key!r} has invalid substitute_confidence")
+        if not isinstance(profile.get("recommended_roles"), list) or not profile.get("recommended_roles"):
+            errors.append(f"model profile {key!r} must list recommended_roles")
+        if profile.get("vllm_compatible") is not True:
+            errors.append(f"model profile {key!r} must be vLLM compatible")
+        source_url = str(profile.get("source_url", ""))
+        if not source_url.startswith("https://huggingface.co/"):
+            errors.append(f"model profile {key!r} source_url must be a Hugging Face URL")
+        if not isinstance(profile.get("benchmark_gate"), list) or not profile.get("benchmark_gate"):
+            errors.append(f"model profile {key!r} must define benchmark_gate")
+        if not profile.get("deployment_tier"):
+            errors.append(f"model profile {key!r} must define deployment_tier")
+        if not profile.get("hardware_profile"):
+            errors.append(f"model profile {key!r} must define hardware_profile")
+        if not profile.get("recommended_enterprise_scale"):
+            errors.append(f"model profile {key!r} must define recommended_enterprise_scale")
+        if profile.get("promotion_status") not in {"practical-default", "candidate", "validated", "fallback"}:
+            errors.append(f"model profile {key!r} has invalid promotion_status")
+
+    matrix = registry.get("role_substitution_matrix", [])
+    if not isinstance(matrix, list) or not matrix:
+        errors.append("model profile registry must define role_substitution_matrix")
+    else:
+        seen_roles: set[str] = set()
+        for index, row in enumerate(matrix):
+            if not isinstance(row, dict):
+                errors.append(f"role_substitution_matrix[{index}] must be an object")
+                continue
+            role = str(row.get("cwo_role") or "")
+            if role:
+                seen_roles.add(role)
+            for field in ["cwo_role", "connected_default", "airgapped_profile", "substitute_confidence", "boundary"]:
+                if not row.get(field):
+                    errors.append(f"role_substitution_matrix[{index}] is missing {field!r}")
+            profile_key = row.get("airgapped_profile")
+            if profile_key not in profiles:
+                errors.append(f"role_substitution_matrix[{index}] references unknown profile {profile_key!r}")
+            enterprise_profiles = row.get("enterprise_profiles", [])
+            if enterprise_profiles and not isinstance(enterprise_profiles, list):
+                errors.append(f"role_substitution_matrix[{index}] enterprise_profiles must be a list")
+            for enterprise_profile in enterprise_profiles if isinstance(enterprise_profiles, list) else []:
+                if enterprise_profile not in profiles:
+                    errors.append(
+                        f"role_substitution_matrix[{index}] references unknown enterprise profile {enterprise_profile!r}"
+                    )
+        for required_role in ["architect", "project_manager", "workerbee", "review_worker", "local_secure_reviewer", "synthesis_input"]:
+            if required_role not in seen_roles:
+                errors.append(f"role_substitution_matrix missing role {required_role!r}")
+    return errors
+
+
+def sanitized_model_profile(profile_key: str | None) -> dict[str, Any] | None:
+    profile = model_profile(profile_key)
+    if not profile:
+        return None
+    return {
+        "key": profile.get("key"),
+        "display_name": profile.get("display_name"),
+        "provider_key": profile.get("provider_key"),
+        "local_profile": profile.get("local_profile"),
+        "huggingface_model_id": profile.get("huggingface_model_id"),
+        "model_alias": profile.get("model_alias"),
+        "source_url": profile.get("source_url"),
+        "license": profile.get("license"),
+        "vllm_compatible": profile.get("vllm_compatible"),
+        "endpoint_path": profile.get("endpoint_path"),
+        "recommended_roles": profile.get("recommended_roles", []),
+        "substitute_confidence": profile.get("substitute_confidence"),
+        "deployment_class": profile.get("deployment_class"),
+        "deployment_tier": profile.get("deployment_tier"),
+        "hardware_profile": profile.get("hardware_profile"),
+        "recommended_enterprise_scale": profile.get("recommended_enterprise_scale"),
+        "benchmark_gate": profile.get("benchmark_gate", []),
+        "promotion_status": profile.get("promotion_status"),
+        "context_window": profile.get("context_window"),
+        "strengths": profile.get("strengths", []),
+        "limits": profile.get("limits", []),
+    }
+
+
 def validate_execution_environment_registry() -> list[str]:
     errors: list[str] = []
+    errors.extend(validate_model_profile_registry())
     harnesses = harness_registry().get("harnesses", {})
     environments = execution_environment_registry().get("profiles", {})
     providers = load_policy("provider-registry").get("providers", {})
     executors = load_policy("executor-registry").get("executors", {})
+    profiles = model_profiles()
 
     if not isinstance(harnesses, dict) or not harnesses:
         return ["harness registry must define at least one harness"]
@@ -108,6 +265,24 @@ def validate_execution_environment_registry() -> list[str]:
             executor_key = binding.get("executor")
             if executor_key and executor_key not in executors:
                 errors.append(f"execution environment {env_key!r} role {role!r} references unknown executor {executor_key!r}")
+            profile_key = binding.get("model_profile")
+            if profile_key:
+                profile_config = profiles.get(profile_key)
+                if not isinstance(profile_config, dict):
+                    errors.append(f"execution environment {env_key!r} role {role!r} references unknown model_profile {profile_key!r}")
+                else:
+                    provider_key = profile_config.get("provider_key")
+                    if provider_key not in allowed_providers:
+                        errors.append(
+                            f"execution environment {env_key!r} role {role!r} model_profile {profile_key!r} "
+                            f"uses provider {provider_key!r} not allowed by environment"
+                        )
+                    if profile_config.get("provider_key") in {"openshift_ai_vllm", "local_inference"}:
+                        if harnesses.get(harness_key, {}).get("supports_local_openai_compatible") is not True:
+                            errors.append(
+                                f"execution environment {env_key!r} role {role!r} model_profile {profile_key!r} "
+                                f"requires a local OpenAI-compatible harness"
+                            )
     return errors
 
 
@@ -141,13 +316,16 @@ def build_harness_prompt(
     environment_key: str,
     bead_id: str | None,
     epic_id: str | None,
+    model_profile_key: str | None = None,
 ) -> str:
+    profile_line = f"Model profile: {model_profile_key}\n" if model_profile_key else ""
     return (
         "You are executing a bounded Complex Work Orchestration assignment.\n"
         "Return evidence only. Do not claim authority to accept, merge, publish, "
         "close Beads, or expand scope.\n\n"
         f"Execution environment: {environment_key}\n"
         f"Role: {role}\n"
+        f"{profile_line}"
         f"Bead: {bead_id or 'unassigned'}\n"
         f"Epic: {epic_id or 'none'}\n\n"
         "CWO rules:\n"
@@ -171,30 +349,56 @@ def build_harness_dispatch(
     agent: str | None = None,
     model: str | None = None,
     variant: str | None = None,
+    model_profile_key: str | None = None,
     capability_requirements: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     environments = execution_environment_registry().get("profiles", {})
     if environment_key not in environments:
         raise SystemExit(f"unknown execution environment: {environment_key}")
     environment = environments[environment_key]
-    selected_harness = harness_key or str(environment.get("default_harness"))
+    binding = (environment.get("role_bindings") or {}).get(role)
+    if not isinstance(binding, dict):
+        raise SystemExit(f"role {role!r} is not bound in execution environment {environment_key!r}")
+    selected_harness = harness_key or str(binding.get("harness") or environment.get("default_harness"))
     harnesses = harness_registry().get("harnesses", {})
     if selected_harness not in harnesses:
         raise SystemExit(f"unknown harness: {selected_harness}")
     if selected_harness not in set(environment.get("allowed_harnesses", [])):
         raise SystemExit(f"harness {selected_harness!r} is not allowed in environment {environment_key!r}")
+    bound_harness = binding.get("harness")
+    if bound_harness and selected_harness != bound_harness:
+        raise SystemExit(
+            f"role {role!r} in environment {environment_key!r} is bound to harness {bound_harness!r}, "
+            f"not {selected_harness!r}"
+        )
+    resolved_agent = agent or binding.get("agent")
+    if model and model_profile_key:
+        raise SystemExit("--model and --model-profile are mutually exclusive")
+    resolved_profile_key = model_profile_key or (None if model else binding.get("model_profile"))
+    resolved_profile = model_profile(str(resolved_profile_key) if resolved_profile_key else None)
+    if resolved_profile_key and not resolved_profile:
+        raise SystemExit(f"unknown model profile: {resolved_profile_key}")
     requirements = {
         "supports_repo_read": True,
         "supports_repo_write": False,
         "supports_shell": False,
         "supports_web": False,
-        "supports_local_openai_compatible": False,
+        "supports_local_openai_compatible": bool(resolved_profile),
         **(capability_requirements or {}),
     }
     harness = harnesses[selected_harness]
     for capability, required in requirements.items():
         if required and harness.get(capability) is not True:
             raise SystemExit(f"harness {selected_harness!r} does not satisfy required capability {capability!r}")
+    if resolved_profile:
+        provider_key = resolved_profile.get("provider_key")
+        if provider_key not in set(environment.get("allowed_providers", [])):
+            raise SystemExit(
+                f"model profile {resolved_profile_key!r} uses provider {provider_key!r}, "
+                f"which is not allowed in environment {environment_key!r}"
+            )
+    resolved_model = model or resolved_profile.get("model_alias") or resolved_profile.get("huggingface_model_id")
+    resolved_variant = variant or resolved_profile.get("default_variant")
 
     prompt = build_harness_prompt(
         task=task,
@@ -202,12 +406,13 @@ def build_harness_dispatch(
         environment_key=environment_key,
         bead_id=bead_id,
         epic_id=epic_id,
+        model_profile_key=str(resolved_profile_key) if resolved_profile_key else None,
     )
     command = _suggested_command(
         harness_key=selected_harness,
-        agent=agent,
-        model=model,
-        variant=variant,
+        agent=resolved_agent,
+        model=resolved_model,
+        variant=resolved_variant,
     )
     return {
         "envelope_type": "harness-dispatch",
@@ -221,9 +426,11 @@ def build_harness_dispatch(
         "harness": selected_harness,
         "role": role,
         "lifecycle_state": "rendered",
-        "agent": agent,
-        "model": model,
-        "variant": variant,
+        "agent": resolved_agent,
+        "model": resolved_model,
+        "variant": resolved_variant,
+        "model_profile": str(resolved_profile_key) if resolved_profile_key else None,
+        "model_profile_details": sanitized_model_profile(str(resolved_profile_key) if resolved_profile_key else None),
         "prompt": prompt,
         "prompt_sha256": artifact_hash(prompt),
         "suggested_command": command,

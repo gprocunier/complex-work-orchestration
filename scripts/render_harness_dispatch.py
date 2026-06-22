@@ -20,6 +20,7 @@ def main() -> None:
     parser.add_argument("--dispatch-id")
     parser.add_argument("--agent")
     parser.add_argument("--model")
+    parser.add_argument("--model-profile")
     parser.add_argument("--variant")
     parser.add_argument("--requires-repo-write", action="store_true")
     parser.add_argument("--requires-shell", action="store_true")
@@ -30,6 +31,16 @@ def main() -> None:
 
     task = read_text_arg(" ".join(args.text).strip() or None, args.file)
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "harness")
+    capability_requirements = {
+        key: True
+        for key, enabled in {
+            "supports_repo_write": args.requires_repo_write,
+            "supports_shell": args.requires_shell,
+            "supports_web": args.requires_web,
+            "supports_local_openai_compatible": args.requires_local_openai_compatible,
+        }.items()
+        if enabled
+    }
     envelope = build_harness_dispatch(
         task=task,
         dispatch_id=dispatch_id,
@@ -40,13 +51,9 @@ def main() -> None:
         epic_id=args.epic,
         agent=args.agent,
         model=args.model,
+        model_profile_key=args.model_profile,
         variant=args.variant,
-        capability_requirements={
-            "supports_repo_write": args.requires_repo_write,
-            "supports_shell": args.requires_shell,
-            "supports_web": args.requires_web,
-            "supports_local_openai_compatible": args.requires_local_openai_compatible,
-        },
+        capability_requirements=capability_requirements,
     )
     if args.json:
         print(json.dumps(envelope, indent=2, sort_keys=True))

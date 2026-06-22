@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Model Profile Registry",
+  "type": "object",
+  "required": ["version", "schema", "scope", "source_policy", "role_substitution_matrix", "profiles"],
+  "properties": {
+    "version": {"type": "integer"},
+    "schema": {"const": "json-compatible-yaml"},
+    "scope": {"type": "string"},
+    "last_reviewed": {"type": "string"},
+    "source_policy": {
+      "type": "object",
+      "required": ["primary_catalog", "fallback_policy", "confidence_policy", "deployment_policy"],
+      "properties": {
+        "primary_catalog": {"type": "string"},
+        "fallback_policy": {"type": "string"},
+        "confidence_policy": {"type": "string"},
+        "deployment_policy": {"type": "string"}
+      }
+    },
+    "role_substitution_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cwo_role", "connected_default", "airgapped_profile", "substitute_confidence", "boundary"],
+        "properties": {
+          "cwo_role": {"type": "string"},
+          "connected_default": {"type": "string"},
+          "airgapped_profile": {"type": "string"},
+          "enterprise_profiles": {"type": "array", "items": {"type": "string"}},
+          "substitute_confidence": {"enum": ["high", "medium", "low"]},
+          "boundary": {"type": "string"}
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "display_name",
+          "provider_key",
+          "local_profile",
+          "huggingface_model_id",
+          "model_alias",
+          "publisher",
+          "source_url",
+          "license",
+          "artifact",
+          "quantization",
+          "vllm_compatible",
+          "endpoint_path",
+          "recommended_roles",
+          "substitute_confidence",
+          "deployment_class",
+          "deployment_tier",
+          "hardware_profile",
+          "recommended_enterprise_scale",
+          "benchmark_gate",
+          "promotion_status",
+          "context_window",
+          "strengths",
+          "limits"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "provider_key": {"type": "string"},
+          "local_profile": {"type": "string"},
+          "huggingface_model_id": {"type": "string"},
+          "model_alias": {"type": "string"},
+          "publisher": {"type": "string"},
+          "source_url": {"type": "string"},
+          "license": {"type": "string"},
+          "artifact": {"type": "string"},
+          "quantization": {"type": "string"},
+          "vllm_compatible": {"type": "boolean"},
+          "endpoint_path": {"const": "/v1/chat/completions"},
+          "recommended_roles": {"type": "array", "items": {"type": "string"}},
+          "substitute_confidence": {"enum": ["high", "medium", "low"]},
+          "deployment_class": {"type": "string"},
+          "deployment_tier": {"type": "string"},
+          "hardware_profile": {"type": "string"},
+          "recommended_enterprise_scale": {"type": "string"},
+          "benchmark_gate": {"type": "array", "items": {"type": "string"}},
+          "promotion_status": {"enum": ["practical-default", "candidate", "validated", "fallback"]},
+          "context_window": {"type": "string"},
+          "default_variant": {"type": "string"},
+          "serving_notes": {"type": "array", "items": {"type": "string"}},
+          "strengths": {"type": "array", "items": {"type": "string"}},
+          "limits": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

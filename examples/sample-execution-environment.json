@@ -5,11 +5,17 @@
   "role_bindings": {
     "architect": {
       "harness": "opencode",
-      "model_profile": "local-rhoai-architect"
+      "model_profile": "rhoai-architect-mistral-small-4-119b-nvfp4"
+    },
+    "worker": {
+      "harness": "opencode",
+      "agent": "cwo-review",
+      "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"
     },
     "local_worker": {
       "harness": "manual_operator",
-      "executor": "openshift_ai_vllm_worker"
+      "executor": "openshift_ai_vllm_worker",
+      "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"
     }
   },
   "operator_note": "Codex CLI is not assumed available. CWO uses local Beads, rendered harness prompts, OpenCode/manual execution, and OpenShift AI vLLM."

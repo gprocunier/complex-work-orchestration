@@ -12,7 +12,7 @@
         "architect": {"harness": "codex_cli", "executor": "frontier_architect"},
         "project_manager": {"harness": "codex_cli", "executor": "frontier_architect"},
         "worker": {"harness": "codex_cli", "executor": "internal_worker"},
-        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
         "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_5_5_extended_reasoning_browser"}
       },
       "constraints": {
@@ -33,10 +33,12 @@
       "allowed_harnesses": ["opencode", "codex_cli", "manual_operator"],
       "allowed_providers": ["openshift_ai_vllm", "local_inference", "anthropic_manual", "google_gemini_manual", "openai_manual"],
       "role_bindings": {
-        "architect": {"harness": "opencode", "model_profile": "strongest-approved-connected-model"},
-        "project_manager": {"harness": "manual_operator", "executor": "frontier_architect"},
-        "worker": {"harness": "opencode", "agent": "cwo-review"},
-        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"}
+        "architect": {"harness": "opencode", "model_profile": "rhoai-architect-mistral-small-4-119b-nvfp4"},
+        "project_manager": {"harness": "opencode", "model_profile": "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4"},
+        "worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"},
+        "review_worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "synthesis_input": {"harness": "opencode", "model_profile": "rhoai-synthesis-qwen3-5-122b-a10b-nvfp4"}
       },
       "constraints": {
         "network": "available",
@@ -56,10 +58,12 @@
       "allowed_harnesses": ["opencode", "manual_operator"],
       "allowed_providers": ["openshift_ai_vllm", "local_inference", "google_gemini_manual"],
       "role_bindings": {
-        "architect": {"harness": "opencode", "model_profile": "approved-restricted-model"},
-        "project_manager": {"harness": "manual_operator"},
-        "worker": {"harness": "opencode", "agent": "cwo-review"},
-        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"}
+        "architect": {"harness": "opencode", "model_profile": "rhoai-architect-mistral-small-4-119b-nvfp4"},
+        "project_manager": {"harness": "opencode", "model_profile": "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4"},
+        "worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"},
+        "review_worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "synthesis_input": {"harness": "opencode", "model_profile": "rhoai-synthesis-qwen3-5-122b-a10b-nvfp4"}
       },
       "constraints": {
         "network": "limited",
@@ -79,10 +83,12 @@
       "allowed_harnesses": ["opencode", "manual_operator"],
       "allowed_providers": ["openshift_ai_vllm", "local_inference"],
       "role_bindings": {
-        "architect": {"harness": "opencode", "model_profile": "local-rhoai-architect"},
-        "project_manager": {"harness": "manual_operator"},
-        "worker": {"harness": "opencode", "agent": "cwo-review"},
-        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker"}
+        "architect": {"harness": "opencode", "model_profile": "rhoai-architect-mistral-small-4-119b-nvfp4"},
+        "project_manager": {"harness": "opencode", "model_profile": "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4"},
+        "worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"},
+        "review_worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "synthesis_input": {"harness": "opencode", "model_profile": "rhoai-synthesis-qwen3-5-122b-a10b-nvfp4"}
       },
       "constraints": {
         "network": "airgapped",
@@ -94,6 +100,58 @@
         "concurrent_bead_execution": "disabled-by-default"
       },
       "notes": "Codex CLI is not assumed available. CWO concepts continue through local scripts, Beads, OpenCode/manual dispatch, and RHOAI/vLLM."
+    },
+    "airgapped-rhoai-h200-nemotron": {
+      "display_name": "Airgapped RHOAI H200 Benchmark - Nemotron 3 Ultra",
+      "mode": "airgapped",
+      "default_harness": "opencode",
+      "allowed_harnesses": ["opencode", "manual_operator"],
+      "allowed_providers": ["openshift_ai_vllm", "local_inference"],
+      "role_bindings": {
+        "architect": {"harness": "opencode", "model_profile": "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"},
+        "project_manager": {"harness": "opencode", "model_profile": "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4"},
+        "worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"},
+        "review_worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "local_secure_reviewer": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"},
+        "synthesis_input": {"harness": "opencode", "model_profile": "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"}
+      },
+      "constraints": {
+        "network": "airgapped",
+        "external_contracting": "disabled",
+        "beads_required": true,
+        "repo_write_requires": "local validation and local publish gate",
+        "secret_handling": "no external dispatch; local endpoint configuration only",
+        "execution_lifecycle_owner": "CWO",
+        "concurrent_bead_execution": "disabled-by-default"
+      },
+      "notes": "Candidate profile for H200/CerIO-class clusters. Use only after GPU topology, NCCL/P2P, vLLM parser flags, smoke tests, and representative CWO architect/synthesis packets pass."
+    },
+    "airgapped-rhoai-h200-glm": {
+      "display_name": "Airgapped RHOAI H200 Benchmark - GLM-5.2",
+      "mode": "airgapped",
+      "default_harness": "opencode",
+      "allowed_harnesses": ["opencode", "manual_operator"],
+      "allowed_providers": ["openshift_ai_vllm", "local_inference"],
+      "role_bindings": {
+        "architect": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-fp8"},
+        "project_manager": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-fp8"},
+        "worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"},
+        "review_worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "local_secure_reviewer": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "synthesis_input": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-fp8"}
+      },
+      "constraints": {
+        "network": "airgapped",
+        "external_contracting": "disabled",
+        "beads_required": true,
+        "repo_write_requires": "local validation and local publish gate",
+        "secret_handling": "no external dispatch; local endpoint configuration only",
+        "execution_lifecycle_owner": "CWO",
+        "concurrent_bead_execution": "disabled-by-default"
+      },
+      "notes": "Candidate profile for H200/CerIO-class long-context work. Use only after topology, NCCL/P2P, vLLM long-context, smoke tests, and representative Beads-heavy CWO packets pass."
     }
   }
 }

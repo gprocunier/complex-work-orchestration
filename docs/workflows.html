@@ -412,6 +412,14 @@ python3 scripts/render_run_projection.py \
               rendered dispatch envelopes, validation, and architect
               adjudication.
             </p>
+            <h3>Model Profile Substitution</h3>
+            <p>
+              In OpenCode-based restricted or airgapped profiles, CWO can bind
+              each role to an approved OpenShift AI vLLM model profile. That is
+              how the open-harness path replaces public frontier calls with
+              local RHOAI endpoints while keeping the same Beads, review, and
+              acceptance discipline.
+            </p>
             <table class="data-table">
               <caption>Execution Profile Comparison</caption>
               <thead>
@@ -443,6 +451,66 @@ python3 scripts/render_run_projection.py \
                 </tr>
               </tbody>
             </table>
+            <table class="data-table">
+              <caption>Airgapped Model Matrix</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Role</th>
+                  <th scope="col">Connected default</th>
+                  <th scope="col">Practical RHOAI profile</th>
+                  <th scope="col">H200/CerIO Enterprise Candidates</th>
+                  <th scope="col">Fit</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Architect</th>
+                  <td>Codex 5.5 x-high</td>
+                  <td><code>rhoai-architect-mistral-small-4-119b-nvfp4</code></td>
+                  <td><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code><br><code>rhoai-architect-glm-5-2-fp8</code></td>
+                  <td>Medium enterprise planning; promote Nemotron 3 Ultra or GLM-5.2 only after a benchmark gate.</td>
+                </tr>
+                <tr>
+                  <th scope="row">PM</th>
+                  <td>Codex PM or smaller coordination model</td>
+                  <td><code>rhoai-project-manager-qwen3-6-35b-a3b-nvfp4</code></td>
+                  <td><code>rhoai-architect-glm-5-2-fp8</code> for Beads-heavy summaries</td>
+                  <td>Beads summaries, dependencies, status, and handoff.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Workerbee</th>
+                  <td>Codex 5.3 Spark</td>
+                  <td><code>rhoai-worker-qwen2-5-coder-32b-fp8</code></td>
+                  <td><code>rhoai-architect-glm-5-2-fp8</code> for unusually large reasoning packets</td>
+                  <td>Bounded code review, test triage, and patch proposals.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Review</th>
+                  <td>Codex 5.3 Spark review-only subagent</td>
+                  <td><code>rhoai-reviewer-nemotron-3-nano-30b-fp8</code></td>
+                  <td><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code><br><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></td>
+                  <td>Llama 4 Maverick is useful for multimodal/general review; use larger lanes for high-stakes checks.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Synthesis input</th>
+                  <td>CWO synthesis plus architect adjudication</td>
+                  <td><code>rhoai-synthesis-qwen3-5-122b-a10b-nvfp4</code></td>
+                  <td><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code><br><code>rhoai-architect-glm-5-2-fp8</code></td>
+                  <td>Independent local counter-review; not final authority.</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="callout">
+              <p>
+                The practical profiles are the default recommendation for
+                disconnected medium enterprise work. H200/CerIO candidate
+                profiles are benchmark targets: record GPU topology, P2P/NCCL
+                behavior, vLLM startup flags, <code>/v1/models</code> and
+                <code>/v1/chat/completions</code> smoke tests, representative
+                CWO packets, evaluator scoring, and architect adjudication
+                before promotion.
+              </p>
+            </div>
             <div class="workflow-diagram linear" role="img" aria-label="CWO governs the work graph, renders a harness dispatch, OpenCode or local worker executes, and CWO evaluates the return.">
               <div class="flow-card"><strong>CWO</strong><span>governance</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
@@ -461,10 +529,9 @@ python3 scripts/render_run_projection.py \
             <details>
               <summary><strong>Operator Reference: Render A Harness Dispatch</strong></summary>
               <pre><code>python3 scripts/render_harness_dispatch.py \
-  --environment connected-opencode-exemplar \
-  --harness opencode \
+  --environment airgapped-rhoai \
   --role worker \
-  --agent cwo-review \
+  --model-profile rhoai-worker-qwen2-5-coder-32b-fp8 \
   --json \
   "Review command examples for execution environment wording."</code></pre>
             </details>
@@ -474,10 +541,12 @@ python3 scripts/render_run_projection.py \
               compatible JSON with <code>envelope_version=1.0</code>,
               lifecycle state <code>rendered</code>, a prompt hash, capability
               requirements, selected environment, selected harness,
-              constraints, timeout, and a suggested command. The
+              constraints, timeout, selected <code>model_profile</code>,
+              sanitized model-profile details, and a suggested command. The
               control-plane files are
               <code>policy/harness-registry.yaml</code> and
-              <code>policy/execution-environments.yaml</code>.
+              <code>policy/execution-environments.yaml</code>, with role/model
+              substitutions in <code>policy/model-profiles.yaml</code>.
             </p>
           </section>
 

@@ -265,11 +265,41 @@ The control-plane files are:
 
 - `policy/harness-registry.yaml`
 - `policy/execution-environments.yaml`
+- `policy/model-profiles.yaml`
 - `schemas/execution-environment.schema.json`
 - `schemas/harness-dispatch-envelope.schema.json`
+- `schemas/model-profile.schema.json`
 - `schemas/run-readiness-plan.schema.json`
 - `references/execution-environments.md`
 - `references/run-readiness.md`
+
+`policy/model-profiles.yaml` is the RedHatAI-first role substitution matrix for
+local RHOAI/vLLM execution. It compares the connected defaults CWO currently
+expects, such as the Codex 5.5 x-high architect, a simpler PM/coordination
+model, and Codex 5.3 Spark workerbees, with public Hugging Face models that can
+be served behind OpenShift AI vLLM. The comparison is a deployment starting
+point, not a claim that an open model has proprietary frontier parity.
+
+### Airgapped Model Matrix
+
+| CWO role | Connected default | Practical airgapped profile | H200/CerIO Enterprise Candidates | Boundary |
+| --- | --- | --- | --- | --- |
+| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`, `rhoai-architect-glm-5-2-fp8` | Strong local planning candidates; benchmark before promotion. |
+| Project manager | Codex main-thread PM or smaller coordination model | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4` | `rhoai-architect-glm-5-2-fp8` for Beads-heavy summaries | Use for dependencies, status, and handoff drafting. |
+| Workerbee | Codex 5.3 Spark | `rhoai-worker-qwen2-5-coder-32b-fp8` | `rhoai-architect-glm-5-2-fp8` for unusually large reasoning packets | Use for bounded code review, test triage, and patch proposal drafting. |
+| Review worker | Codex 5.3 Spark review-only subagent | `rhoai-reviewer-nemotron-3-nano-30b-fp8` | `rhoai-reviewer-llama-4-maverick-17b-128e-fp8`, `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8` | Use the larger lanes only for multimodal or high-stakes review. |
+| Local secure reviewer | Local secure reviewer or Codex evaluator | `rhoai-secure-review-qwen3-6-35b-a3b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8` | Read-only review evidence; no shell, web, or repo write. |
+| Synthesis input | CWO-native synthesis with architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`, `rhoai-architect-glm-5-2-fp8` | Local synthesis input only; CWO still owns provenance and final synthesis. |
+
+The practical defaults are the reasonable starting point for disconnected
+medium enterprise deployments. H200/CerIO Enterprise Candidates are opt-in
+benchmark targets for larger RHOAI clusters, not silent defaults. The benchmark
+gate is the promotion line: promote Nemotron 3 Ultra or GLM-5.2 only after
+recording GPU topology, P2P/NCCL behavior, vLLM startup flags, `/v1/models` and
+`/v1/chat/completions` smoke tests, representative CWO architect/synthesis
+packets, evaluator scoring, and architect adjudication. Llama 4 Maverick is
+documented as a multimodal or general-review lane, not as the primary x-high
+architect replacement.
 
 OpenCode is the first v2 open-source exemplar because it is terminal-first,
 scriptable, provider-flexible, and can target local OpenAI-compatible model
@@ -283,18 +313,21 @@ Render a non-executing dispatch envelope for an OpenCode lane:
 
 ```bash
 python3 scripts/render_harness_dispatch.py \
-  --environment connected-opencode-exemplar \
-  --harness opencode \
+  --environment airgapped-rhoai \
   --role worker \
-  --agent cwo-review \
+  --model-profile rhoai-worker-qwen2-5-coder-32b-fp8 \
   --json \
   "Review command examples for execution environment wording."
 ```
 
 The renderer does not run OpenCode. It produces a versioned prompt envelope
 with lifecycle state `rendered`, prompt hash, capability requirements,
-constraints, suggested command, timeout, and harness metadata so an operator or
-future adapter can execute under the selected environment boundary.
+constraints, selected `model_profile`, sanitized model profile details,
+suggested command, timeout, and harness metadata so an operator or future
+adapter can execute under the selected environment boundary. If the role has a
+model profile in `policy/execution-environments.yaml`, the renderer resolves it
+automatically. Use `--model-profile` for an explicit approved profile or
+`--model` for an operator override; the two flags are mutually exclusive.
 
 Non-trivial closed Beads should also receive a final closure-memory comment
 before `bd close`. Keep `close_reason` short; put reusable context in the

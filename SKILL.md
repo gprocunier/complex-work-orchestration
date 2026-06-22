@@ -71,6 +71,9 @@ when posting or reviewing outside model contracts,
 sabotage, `references/prompt-coach.md` when sizing the invocation,
 `references/execution-environments.md` when selecting Codex, OpenCode,
 OpenShift AI vLLM, or manual execution environments,
+`policy/model-profiles.yaml` and `schemas/model-profile.schema.json` when
+binding CWO roles to RedHatAI-first Hugging Face models served through RHOAI
+vLLM in restricted or airgapped OpenCode paths,
 `references/run-readiness.md` before worker handoff when broad implementation,
 contractor evidence, synthesis, or publish/release risk requires owners, exit
 criteria, validation evidence, projection rules, quarantine semantics, and
@@ -145,6 +148,12 @@ Default roles:
   Codex CLI is the connected default. OpenCode is the first open-source
   exemplar. Airgapped profiles use local Beads plus OpenCode or manual operator
   execution with OpenShift AI vLLM or another local OpenAI-compatible endpoint.
+- **Model Profile**: role-specific RHOAI/vLLM model binding for open-harness or
+  airgapped execution. The model-profile registry compares connected CWO
+  defaults, such as Codex 5.5 x-high architect, Codex PM coordination, and
+  Codex 5.3 Spark workerbees, with public Hugging Face models that can be
+  served locally. Profile output is still evidence and remains subject to
+  evaluator plus architect adjudication.
 - **Local Secure Reviewer**: local read-only reviewer for security, peer-review,
   sabotage-review, or repo-review contracts. It can inspect approved repo
   context locally, but has no web, shell, or repo-write authority and is still
