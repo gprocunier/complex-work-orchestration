@@ -22,12 +22,8 @@
         <div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html" aria-current="page">Get Started</a>
-          <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
           <a href="./use-cases.html">Use Cases</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
-          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -46,121 +42,15 @@
 
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
+          <a href="#install">Install the Skill</a>
           <a href="#coach">Run the Coach</a>
+          <a href="#core-terms">Core Terms</a>
           <a href="#beads">Record Beads</a>
           <a href="#execute">Execute Safely</a>
-          <a href="#install">Install the Skill</a>
           <a href="./use-cases.html#simple-use-cases">Simple Use Case</a>
           <a href="./workflows.html">Workflows</a>
         </nav>
         <div class="doc-body">
-          <section id="coach">
-            <h2>Run the Coach</h2>
-            <p>
-              In Codex, start with the prompt coach when the right amount of
-              orchestration is unclear. Codex can run the local helper, show
-              the recommended level, and ask any interactive questions before
-              execution starts.
-            </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Clean up installer docs, tests, and handoff notes.</code></pre>
-            <p>
-              The simple path is five steps: ask for the coach, answer any
-              execution-changing choices, create or update one Beads task,
-              validate the work, and close the task with a recovery-quality
-              closure-memory comment. The
-              <a href="./use-cases.html#simple-use-cases">simple use case</a>
-              shows that sequence without the full contractor workflow.
-            </p>
-            <p>
-              Codex may run this helper behind the scenes. Use direct script execution only
-              for automation, CI, troubleshooting, or an operator shell
-              outside Codex.
-            </p>
-            <details>
-              <summary><strong>Operator Reference: Coach Helper</strong></summary>
-              <pre><code>python3 scripts/coach_prompt.py \
-  "Clean up installer docs, tests, and handoff notes."</code></pre>
-            </details>
-            <div class="callout">
-              <strong>Default posture:</strong>
-              The skill always expects durable Beads tracking. Narrow work can
-              stay in the current thread, but it should still leave one Beads
-              task with evidence and validation notes.
-            </div>
-          </section>
-
-          <section id="beads">
-            <h2>Record Beads</h2>
-            <p>
-              Use Beads as the shared work story. If the repository should own
-              the durable state, initialize it once. If a Dolt remote is
-              configured, pull before handoff work and commit or push after
-              recording evidence. Without a remote, the graph is durable local
-              state but not shared across machines.
-            </p>
-            <details>
-              <summary><strong>Operator Reference: Beads Checks</strong></summary>
-              <pre><code>command -v bd
-test -d .beads && bd ready --json || true
-bd init
-bd dolt remote list
-bd dolt pull
-bd dolt commit
-bd dolt push</code></pre>
-            </details>
-            <p>
-              If Beads is unavailable or cannot be installed, record the same
-              task or graph structure in a temporary Markdown plan file and
-              note that durability is reduced. The full workflow and fallback
-              limits are covered in <a href="./workflows.html#beads-graph">Workflows</a>.
-            </p>
-            <p>
-              When the work closes, the useful memory should be in the final
-              comment, not the terse close reason. Capture who was involved,
-              what changed, why it closed, how it was validated, when it closed,
-              where it ran, any residual risk, and follow-up.
-            </p>
-            <p>
-              Generated Beads populate native fields for <code>skills</code>,
-              <code>acceptance</code>, <code>design</code>, and
-              <code>notes</code>. The description remains the readable
-              assignment body. When creating Beads manually, use real newlines
-              through a heredoc, <code>--body-file</code>,
-              <code>--design-file</code>, or command substitution instead of
-              typing literal <code>\n</code> sequences.
-            </p>
-            <p>
-              Worker-facing ready work should exclude contractor and local
-              worker guard labels:
-            </p>
-            <details>
-              <summary><strong>Operator Reference: Ready Work Filter</strong></summary>
-              <pre><code>bd ready \
-  --exclude-label contractor-only \
-  --exclude-label local-worker-only \
-  --exclude-label no-codex-exec \
-  --json</code></pre>
-            </details>
-          </section>
-
-          <section id="execute">
-            <h2>Execute Safely</h2>
-            <p>
-              Let the coach decide whether the work stays in-thread, becomes a
-              lightweight Beads task, or needs full architect/PM/internal
-              worker workstreams. Outside contractors and local workers are
-              optional workstreams selected later; they are not the starting
-              point.
-            </p>
-            <ol class="check-list">
-              <li>Invoke the skill from Codex when sizing is unclear.</li>
-              <li>Let Codex route non-trivial work against the policy.</li>
-              <li>Create a Beads task or epic with dependencies.</li>
-              <li>Run validation before accepting findings or publishing.</li>
-            </ol>
-          </section>
-
           <section id="install">
             <h2>Install the Skill</h2>
             <p>
@@ -209,6 +99,161 @@ sudo dnf install beads</code></pre>
               <a href="https://github.com/steveyegge/beads">github.com/steveyegge/beads</a>.
             </p>
           </section>
+
+          <section id="coach">
+            <h2>Run the Coach</h2>
+            <p>
+              In Codex, start with the prompt coach when the right amount of
+              orchestration is unclear. Codex can run the local helper, show
+              the recommended level, and ask any interactive questions before
+              execution starts.
+            </p>
+            <pre><code>/plan Use $complex-work-orchestration prompt coach:
+Clean up installer docs, tests, and handoff notes.</code></pre>
+            <p>
+              The simple path is five steps: ask for the coach, answer any
+              execution-changing choices, create or update one Beads task,
+              validate the work, and close the task with a recovery-quality
+              closure-memory comment. The
+              <a href="./use-cases.html#simple-use-cases">simple use case</a>
+              shows that sequence without the full contractor workflow.
+            </p>
+            <p>
+              Codex may run this helper behind the scenes. Use direct script execution only
+              for automation, CI, troubleshooting, or an operator shell
+              outside Codex.
+            </p>
+            <details>
+              <summary><strong>Operator Reference: Coach Helper</strong></summary>
+              <pre><code>python3 scripts/coach_prompt.py \
+  "Clean up installer docs, tests, and handoff notes."</code></pre>
+            </details>
+            <div class="callout">
+              <strong>Default posture:</strong>
+              The skill always expects durable Beads tracking. Narrow work can
+              stay in the current thread, but it should still leave one Beads
+              task with evidence and validation notes.
+            </div>
+          </section>
+
+          <section id="core-terms">
+            <h2>Core Terms</h2>
+            <p>
+              These terms appear throughout the docs. Learn them once, then use
+              the workflow and reference pages when you need exact controls.
+            </p>
+            <div class="tile-grid">
+              <article>
+                <h3>Prompt Coach</h3>
+                <p>Sizes a request before execution so Codex uses the right amount of tracking, review, and validation.</p>
+              </article>
+              <article>
+                <h3>Beads</h3>
+                <p>The durable task graph for scope, dependencies, evidence, validation, closure memory, and handoff.</p>
+              </article>
+              <article>
+                <h3>Review Worker</h3>
+                <p>A bounded helper that gathers evidence while the main Codex thread keeps final judgment.</p>
+              </article>
+              <article>
+                <h3>Contractor Packet</h3>
+                <p>A policy-checked brief for an outside or local model reviewer, built only after the sharing boundary is approved.</p>
+              </article>
+              <article>
+                <h3>Evidence Lane</h3>
+                <p>A contractor, local worker, or peer review return that must be evaluated before it can affect implementation.</p>
+              </article>
+              <article>
+                <h3>Run Readiness</h3>
+                <p>A pre-handoff gate for broad runs that proves owners, exit conditions, evidence, and validation are in place.</p>
+              </article>
+            </div>
+          </section>
+
+          <section id="beads">
+            <h2>Record Beads</h2>
+            <p>
+              Use Beads as the shared work story. If the repository should own
+              the durable state, initialize it once. If a Dolt remote is
+              configured, pull before handoff work and commit or push after
+              recording evidence. Without a remote, the graph is durable local
+              state but not shared across machines.
+            </p>
+            <details>
+              <summary><strong>Operator Reference: Beads Checks</strong></summary>
+              <pre><code>command -v bd
+test -d .beads && bd ready --json || true
+bd init
+bd dolt remote list
+bd dolt pull
+bd dolt commit
+bd dolt push</code></pre>
+            </details>
+            <p>
+              If Beads is unavailable or cannot be installed, record the same
+              task or graph structure in a temporary Markdown plan file and
+              note that durability is reduced. The full workflow and fallback
+              limits are covered in <a href="./workflows.html#beads-graph">Workflows</a>.
+            </p>
+            <p>
+              When the work closes, the useful memory should be in the final
+              comment, not the terse close reason. Capture who was involved,
+              what changed, why it closed, how it was validated, when it closed,
+              where it ran, any residual risk, and follow-up.
+            </p>
+            <details>
+              <summary><strong>Operator Reference: Closure Comment</strong></summary>
+              <pre><code>bd comment "$BEAD_ID" --body "$(cat &lt;&lt;'EOF'
+Closure memory:
+- Who: Codex main thread; reviewer lane if applicable.
+- What: Changed docs, validation, or handoff artifact.
+- Why: Accepted and ready to close.
+- How: Validation command, CI run, install smoke, or review evidence.
+- Where: Repository, branch, and Beads local-only or Dolt-backed mode.
+- Residual risk: None known, or the exact remaining risk.
+EOF
+)"</code></pre>
+            </details>
+            <p>
+              Generated Beads populate native fields for <code>skills</code>,
+              <code>acceptance</code>, <code>design</code>, and
+              <code>notes</code>. The description remains the readable
+              assignment body. When creating Beads manually, use real newlines
+              through a heredoc, <code>--body-file</code>,
+              <code>--design-file</code>, or command substitution instead of
+              typing literal <code>\n</code> sequences.
+            </p>
+            <p>
+              Worker-facing ready work should exclude contractor and local
+              worker guard labels:
+            </p>
+            <details>
+              <summary><strong>Operator Reference: Ready Work Filter</strong></summary>
+              <pre><code>bd ready \
+  --exclude-label contractor-only \
+  --exclude-label local-worker-only \
+  --exclude-label no-codex-exec \
+  --json</code></pre>
+            </details>
+          </section>
+
+          <section id="execute">
+            <h2>Execute Safely</h2>
+            <p>
+              Let the coach decide whether the work stays in-thread, becomes a
+              lightweight Beads task, or needs full architect/PM/internal
+              worker workstreams. Outside contractors and local workers are
+              optional workstreams selected later; they are not the starting
+              point.
+            </p>
+            <ol class="check-list">
+              <li>Invoke the skill from Codex when sizing is unclear.</li>
+              <li>Let Codex route non-trivial work against the policy.</li>
+              <li>Create a Beads task or epic with dependencies.</li>
+              <li>Run validation before accepting findings or publishing.</li>
+            </ol>
+          </section>
+
         </div>
       </section>
     </main>

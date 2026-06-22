@@ -22,12 +22,8 @@
         <div class="nav-links">
           <a href="./index.html" aria-current="page">Home</a>
           <a href="./get-started.html">Get Started</a>
-          <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
           <a href="./use-cases.html">Use Cases</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
-          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -40,14 +36,14 @@
           <p class="eyebrow">Codex skill · Beads-backed coordination</p>
           <h1>Complex Work Orchestration</h1>
           <p class="lede">
-            Start inside Codex with <code>/plan</code>, ask for the
-            <code>$complex-work-orchestration</code> prompt coach, and choose
-            how much task tracking, review, validation, and handoff structure
-            the work needs before execution starts.
+            Keep complex AI-assisted work from disappearing into one long
+            transcript. Your agents remember what happened, outside models
+            review without owning the project, and validation evidence is
+            recorded before the work is accepted.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="./workflows.html">Use the guided workflow</a>
-            <a class="button secondary" href="https://github.com/gprocunier/complex-work-orchestration">View source</a>
+            <a class="button primary" href="./get-started.html">Start the guided setup</a>
+            <a class="button secondary" href="./workflows.html">See the workflow</a>
           </div>
         </div>
       </section>
@@ -61,16 +57,19 @@
           <div>
             <p>
               Ask Codex to use the skill and coach the prompt. Codex runs the
-              local helper, asks the decisions that change execution, creates a
-              durable Beads task graph when needed, and records validation
-              evidence before the work is accepted or published.
+              local helper, asks only the decisions that change execution,
+              creates a durable Beads task graph when needed, and records
+              validation evidence before the work is accepted or published.
             </p>
             <p>
-              A Beads task graph is the durable ledger of tasks, dependencies,
-              evidence, and handoff state. A review worker is a bounded
-              subagent that gathers evidence; the main Codex thread still owns
-              integration and final judgment. A contractor handoff packet is a
-              policy-checked brief for outside or local model review.
+              That gives spawned agents and compacted sessions a reliable
+              memory source, keeps outside or local model output in evidence
+              lanes, and leaves final architecture and release judgment with
+              the main Codex thread.
+            </p>
+            <p>
+              Beads is the durable work graph. An evidence lane is a review
+              return that must be evaluated before it can influence the project.
             </p>
             <p>
               CWO complements model and agent tools; it does not replace
@@ -78,9 +77,10 @@
               Gemini CLI, or Codex CLI. It records which tool or model was used,
               which BYOS, BYOK, or local endpoint boundary applied, and
               which evidence was accepted into the Beads work graph.
-              The v2 execution environment work keeps Codex as the default
+              The v2 execution-environment model keeps Codex as the default
               connected shell while adding OpenCode as the first open-source
-              harness exemplar for restricted or airgapped zones.
+              harness exemplar for restricted zones and RHOAI/vLLM-style local
+              model serving.
             </p>
           </div>
           <div class="command-panel" aria-label="Prompt coach example">
@@ -127,16 +127,27 @@ Publish-ready documentation pass.</code></pre>
         </ol>
         <figure class="system-map" aria-labelledby="system-map-title">
           <figcaption id="system-map-title">How the workflow maps to internal roles</figcaption>
-          <div class="map-grid" role="img" aria-label="User request flows through architect, project manager, Beads task graph, review workers, contractor handoff packets, validation, and handoff.">
-            <div class="map-node user">User request</div>
-            <div class="map-node architect">Architect</div>
-            <div class="map-node pm">Project manager</div>
-            <div class="map-node beads">Beads task graph</div>
-            <div class="map-node worker">Review worker</div>
-            <div class="map-node contractor">Contractor handoff packet</div>
-            <div class="map-node validate">Validation</div>
-            <div class="map-node handoff">Handoff</div>
+          <div class="workflow-diagram contractor" role="img" aria-label="User request flows to coach, Beads, evidence lanes, validation, and handoff.">
+            <div class="flow-card"><strong>User</strong><span>asks Codex</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-card"><strong>Coach</strong><span>sizes work</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-card"><strong>Beads</strong><span>durable graph</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-card"><strong>Evidence</strong><span>workers or reviewers</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-card"><strong>Validate</strong><span>accept or reject</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-card"><strong>Handoff</strong><span>recovery notes</span></div>
           </div>
+          <ol class="sr-only">
+            <li>The user asks Codex to use CWO.</li>
+            <li>The prompt coach sizes the work before execution.</li>
+            <li>Beads records the durable task graph.</li>
+            <li>Optional workers or reviewers produce evidence.</li>
+            <li>The architect validates and accepts or rejects findings.</li>
+            <li>Closure notes preserve handoff context.</li>
+          </ol>
         </figure>
       </section>
 
@@ -173,9 +184,9 @@ Publish-ready documentation pass.</code></pre>
             <a href="./reference.html">Look up exact controls</a>
           </article>
           <article class="doc-card">
-            <h3>Deep Dives</h3>
-            <p>Use contractor, local-worker, or execution environment references only after the guided flow selects those workstreams.</p>
-            <a href="./workflows.html#execution-environments">Review optional workstreams</a>
+            <h3>Evidence Lanes</h3>
+            <p>Use the Contractor handoff packet details, local-worker references, or execution-environment references after the guided flow selects those workstreams.</p>
+            <a href="./workflows.html#optional-lanes">Review optional workstreams</a>
           </article>
           <article class="doc-card">
             <h3>Case Study</h3>

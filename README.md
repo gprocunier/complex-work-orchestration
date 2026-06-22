@@ -1,18 +1,19 @@
 # Complex Work Orchestration
 
-This skill turns complex work into a controlled operating model with a senior
-architect, project-manager coordination, bounded Codex review workers,
-optional outside model contractors, and a Beads-backed task graph.
+This skill keeps complex AI-assisted work from disappearing into one long
+transcript. It gives Codex a controlled operating model with a senior
+architect, project-manager coordination, bounded review workers, optional
+outside model contractors, and a Beads-backed task graph.
 
-Use it when a project needs durable state, multiple agents, independent review,
-external reasoning, or careful release judgment.
+Use it when a project needs durable memory, multiple agents, independent
+review, external or local model evidence, or careful release judgment.
 
 Project site: https://gprocunier.github.io/complex-work-orchestration/
 
 Version: see `VERSION`. Release notes and breaking-change notes live in
 `CHANGELOG.md`; no Git tag is implied by the working-tree version file.
 
-Start with the published guide when you are using the skill interactively:
+Start with Get Started when you are using the skill interactively:
 
 - Get Started: https://gprocunier.github.io/complex-work-orchestration/get-started.html
 - Workflows: https://gprocunier.github.io/complex-work-orchestration/workflows.html
@@ -69,6 +70,35 @@ installer against the same skills directory:
 ```bash
 ./scripts/install.sh --skills-dir /path/to/codex/skills --yes
 ```
+
+## First Run
+
+The fastest useful path is an in-Codex prompt, one Beads record, and a
+validation note:
+
+```text
+/plan Use $complex-work-orchestration prompt coach:
+Clean up installer docs, tests, and handoff notes.
+```
+
+Codex uses the coach to size the work before execution. For a narrow task it
+can stay in the current thread and create one Beads task. For broader work it
+can scaffold an epic, ask about subagent parallelism, select the Beads context
+depth, and add validation or publish gates. Outside contractors and local
+workers are opt-in evidence lanes; their returns are evaluated before the
+architect accepts any finding.
+
+For a first pass, verify:
+
+```bash
+command -v bd
+bd ready --json || true
+python3 scripts/check_installed_skill.py --check
+```
+
+Then let Codex record validation evidence and close the Bead with a short
+reason plus a final closure-memory comment. The detailed command reference
+lives later in this README and on the project site.
 
 ## Invocation
 
@@ -246,7 +276,8 @@ scriptable, provider-flexible, and can target local OpenAI-compatible model
 serving. In restricted or airgapped environments, the profile can bind work to
 OpenCode plus OpenShift AI vLLM or another approved local endpoint while
 external contracting stays disabled unless the environment policy explicitly
-allows it.
+allows it. Airgapped profiles should also say plainly when Beads are local-only
+and no Dolt remote sync is available.
 
 Render a non-executing dispatch envelope for an OpenCode lane:
 

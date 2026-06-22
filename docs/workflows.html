@@ -22,12 +22,8 @@
         <div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Get Started</a>
-          <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html" aria-current="page">Workflows</a>
           <a href="./use-cases.html">Use Cases</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
-          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -84,6 +80,12 @@
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Plan</strong><span>Beads-backed</span></div>
             </div>
+            <ol class="sr-only">
+              <li>User asks Codex for a plan with the CWO prompt coach.</li>
+              <li>Codex loads the skill and runs the local coach helper.</li>
+              <li>The coach sizes orchestration levers and questions.</li>
+              <li>Codex turns the result into a Beads-backed plan.</li>
+            </ol>
             <pre><code>/plan Use $complex-work-orchestration prompt coach:
 Publish-ready documentation pass.</code></pre>
             <div class="callout">
@@ -167,6 +169,16 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               <code>scripts/build_beads_brief.py</code> when they need the
               generated brief.
             </div>
+            <div class="callout">
+              <strong>Depth choices:</strong>
+              The coach may choose <code>none</code>, <code>summary</code>,
+              <code>focused</code>, <code>heavy</code>, or
+              <code>audit</code>. The compatibility alias is
+              <code>beads_briefing_depth</code>. Use <code>none</code> for no
+              Beads lookup, <code>summary</code> for assigned-Bead JSON without
+              comments, and comment-bearing depths only for internal agents.
+              The exact lookup rules live in <a href="./reference.html#durable-memory">Reference</a>.
+            </div>
             <p>
               The diagram below is the implementation view of that reader path:
               coach result, task graph, bounded workstreams, and evidence.
@@ -180,6 +192,12 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Evidence</strong><span>notes in Beads</span></div>
             </div>
+            <ol class="sr-only">
+              <li>The coach records level, risk, and selected levers.</li>
+              <li>Codex creates an epic or task graph in Beads.</li>
+              <li>Bounded workstreams gather implementation or review evidence.</li>
+              <li>Evidence and handoff notes are recorded back in Beads.</li>
+            </ol>
             <p>
               Codex normally creates the graph from the guided plan. Use direct
               helper execution only for advanced automation or troubleshooting.
@@ -249,6 +267,12 @@ python3 scripts/spawn_expert_reviews.py \
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Handoff</strong><span>worker evidence</span></div>
             </div>
+            <ol class="sr-only">
+              <li>Beads remains the canonical work state.</li>
+              <li>The readiness plan names owners, exits, and evidence.</li>
+              <li>The architect adjudicates accepted and rejected findings.</li>
+              <li>Workers receive handoff evidence instead of transcript guesses.</li>
+            </ol>
             <details>
               <summary><strong>Operator Reference: Run Readiness Helpers</strong></summary>
               <pre><code>python3 scripts/validate_run_readiness_plan.py \
@@ -278,6 +302,15 @@ python3 scripts/render_run_projection.py \
               local-inference boundary.
             </p>
             <p>
+              Execution profile matters. Connected Codex runs may opt in to
+              outside contractors after the share boundary is approved.
+              Restricted profiles must follow their policy gates before any
+              outside sharing. Airgapped profiles assume no Codex CLI
+              dependency and disable outside contracting; they rely on local
+              Beads plus OpenCode or a manual operator shell with approved local
+              model serving.
+            </p>
+            <p>
               A packet validation checkpoint verifies the share boundary,
               opt-in basis, disclosure level, artifact whitelist, expert
               profile, and packet integrity before a manual dispatch prompt is
@@ -294,6 +327,13 @@ python3 scripts/render_run_projection.py \
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Adjudicate</strong><span>architect decides</span></div>
             </div>
+            <ol class="sr-only">
+              <li>The route selects an optional evidence workstream.</li>
+              <li>The user approves the local or external boundary.</li>
+              <li>CWO builds and validates the packet or envelope.</li>
+              <li>The outside or local return is evidence only.</li>
+              <li>The architect decides what can affect implementation.</li>
+            </ol>
             <p>
               Local worker deep dive: <a href="./local-workers.html">OpenShift AI
               profiles, OpenAI-compatible endpoints, and guardrails</a>.
@@ -335,7 +375,9 @@ python3 scripts/render_run_projection.py \
               Use <code>--external-ok</code> only after the user approves
               third-party sharing. Use
               <code>--allow-disclosure-escalation</code> for repo-readonly or
-              patch-branch handoff packets.
+              patch-branch handoff packets. Do not use external-contractor
+              wording for airgapped profiles unless the environment policy has
+              explicitly changed.
             </div>
             <div class="callout">
               <strong>Redacted CLI dispatch:</strong>
@@ -361,6 +403,46 @@ python3 scripts/render_run_projection.py \
               environments; other compatible local endpoints can use the same
               pattern.
             </p>
+            <p>
+              The connected profile keeps Codex as the best-tested architect
+              and integration shell. Restricted profiles can bind work to
+              OpenCode plus approved local or provider-backed endpoints.
+              Airgapped profiles do not assume Codex is available and do not
+              use external contractors; CWO still contributes Beads memory,
+              rendered dispatch envelopes, validation, and architect
+              adjudication.
+            </p>
+            <table class="data-table">
+              <caption>Execution Profile Comparison</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Profile</th>
+                  <th scope="col">Execution Shell</th>
+                  <th scope="col">Model Boundary</th>
+                  <th scope="col">Beads Mode</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Connected Codex</th>
+                  <td>Codex CLI is the primary architect and integration shell.</td>
+                  <td>Outside contractors are opt-in evidence lanes.</td>
+                  <td>Local or Dolt-backed, depending on the repo.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Restricted OpenCode</th>
+                  <td>OpenCode or manual shell executes bounded envelopes.</td>
+                  <td>Only approved providers or local endpoints are used.</td>
+                  <td>Use the configured repo graph and record policy limits.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Airgapped RHOAI</th>
+                  <td>Codex CLI is not assumed; OpenCode or manual operators run locally.</td>
+                  <td>External contractors are disabled; local serving is the evidence lane.</td>
+                  <td>Durable local state unless an approved internal sync exists.</td>
+                </tr>
+              </tbody>
+            </table>
             <div class="workflow-diagram linear" role="img" aria-label="CWO governs the work graph, renders a harness dispatch, OpenCode or local worker executes, and CWO evaluates the return.">
               <div class="flow-card"><strong>CWO</strong><span>governance</span></div>
               <div class="flow-arrow" aria-hidden="true">→</div>
@@ -370,6 +452,12 @@ python3 scripts/render_run_projection.py \
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Evaluate</strong><span>architect decides</span></div>
             </div>
+            <ol class="sr-only">
+              <li>CWO owns governance and durable state.</li>
+              <li>CWO renders a bounded dispatch envelope.</li>
+              <li>OpenCode, a local worker, or a manual operator shell executes under the selected profile.</li>
+              <li>CWO evaluates the return and the architect adjudicates it.</li>
+            </ol>
             <details>
               <summary><strong>Operator Reference: Render A Harness Dispatch</strong></summary>
               <pre><code>python3 scripts/render_harness_dispatch.py \
@@ -428,22 +516,17 @@ python3 scripts/render_run_projection.py \
               what a spawned agent or compacted session reads when the transcript
               is missing or fuzzy.
             </p>
-            <pre><code>python3 scripts/close_bead_with_summary.py \
-  --bead "$BEAD_ID" \
-  --disposition completed \
-  --why "accepted change validated" \
-  --who "Codex main thread; reviewer lane or operator if applicable" \
-  --what "files, behavior, or workstream result" \
-  --how "validation commands, review evidence, CI, or install smoke" \
-  --when "branch, commit, run ID, or date" \
-  --where "repo path, branch, environment, and Beads local-only or Dolt-backed mode" \
-  --decision "key technical decision" \
-  --evidence "python scripts/validate_repository.py" \
-  --residual-risk "none known" \
-  --follow-up "none" \
-  --meaningful \
-  --close</code></pre>
-            <pre><code>python3 scripts/normalize_contractor_return.py \
+            <p>
+              The exact closure helper syntax lives in
+              <a href="./reference.html#durable-memory">Reference</a>. Keep this
+              page focused on the lifecycle: validate, record evidence, close
+              with recovery context, then verify the published result.
+              Codex may use <code>scripts/close_bead_with_summary.py</code>
+              behind the scenes when it closes meaningful work.
+            </p>
+            <details>
+              <summary><strong>Operator Reference: Return Evaluation</strong></summary>
+              <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead "$BEAD_ID" \
   --dispatch-id "$DISPATCH_ID" \
   --packet-sha256 "$PACKET_SHA256" \
@@ -455,6 +538,7 @@ python3 scripts/evaluate_return.py \
   --bead "$BEAD_ID" \
   --file contractor-return.md \
   --workspace-mutation-report mutation-report.json</code></pre>
+            </details>
             <p>
               For ordinary docs or release work, validation also includes
               repository checks, site checks, tests, install smoke, visual
@@ -464,6 +548,16 @@ python3 scripts/evaluate_return.py \
               the canonical
               <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">incident-response playbook</a>.
             </p>
+            <div class="callout">
+              <strong>Publication gate:</strong>
+              Before publishing public docs or GitHub Pages, run a rendered
+              first-reader walkthrough. A new reader should be able to answer
+              what CWO is, why it matters, how to start, when Beads matter, and
+              which execution profile applies by moving through Home, Get
+              Started, and Workflows without opening Reference. Also check
+              README alignment, authority-boundary wording, execution-profile
+              limits, and the canonical Reference home for exact closure syntax.
+            </div>
             <p>
               Before editing public pages, inventory the existing page URLs and
               section anchors that callers may link to. After editing, verify

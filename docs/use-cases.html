@@ -22,12 +22,8 @@
         <div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Get Started</a>
-          <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
           <a href="./use-cases.html" aria-current="page">Use Cases</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
-          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -53,7 +49,7 @@
           <a href="#complex-use-cases">Complex Use Cases</a>
           <a href="#acceptance">Acceptance Gates</a>
           <a href="./workflows.html">Guided Workflow</a>
-        </nav>
+      </nav>
         <div class="doc-body">
           <section id="simple-use-cases">
             <h2>Simple Use Cases</h2>
@@ -87,21 +83,12 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               validated, when it was closed, where it ran, what risk remains,
               and what follows.
             </p>
-            <pre><code>python3 scripts/close_bead_with_summary.py \
-  --bead "$BEAD_ID" \
-  --disposition completed \
-  --why "accepted change validated" \
-  --who "Codex main thread; reviewer lane or operator if applicable" \
-  --what "docs/use-cases.html added" \
-  --how "python3 scripts/validate_site.py" \
-  --when "main at &lt;commit-sha&gt;" \
-  --where "repo path and Beads local-only or Dolt-backed mode" \
-  --decision "documented external review as evidence, not authority" \
-  --evidence "CI and Pages run IDs" \
-  --residual-risk "none known" \
-  --follow-up "none" \
-  --meaningful \
-  --close</code></pre>
+            <p>
+              For exact closure helper syntax, use
+              <a href="./reference.html#durable-memory">Reference</a>. This
+              page keeps the use-case view focused on why the durable record
+              matters.
+            </p>
             <p>
               If no Dolt remote is configured, say that the Beads trail is
               local-only. Do not imply remote sync, shared durability, or

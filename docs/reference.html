@@ -22,12 +22,8 @@
         <div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Get Started</a>
-          <a href="./prompt-coach.html">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
           <a href="./use-cases.html">Use Cases</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
-          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html" aria-current="page">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -58,7 +54,7 @@
           <a href="#validation">Validation</a>
           <a href="./explanation.html">Explanation</a>
           <a href="./workflows.html">Workflows</a>
-        </nav>
+      </nav>
         <div class="doc-body">
           <section id="flow-references">
             <h2>Flow References</h2>
@@ -331,6 +327,18 @@ python3 scripts/validate_site.py</code></pre>
               closed, where executed, decisions, evidence, residual risk, and
               follow-up. Pass <code>--meaningful</code> to fail fast when a
               non-trivial closure is missing required recovery fields.
+            </p>
+            <p>
+              Beads context depth controls how much of that durable record an
+              internal agent should read. <code>none</code> performs no Beads
+              lookup. <code>summary</code> reads assigned-Bead JSON without
+              comments. <code>focused</code> reads assigned-Bead comments as
+              internal evidence. <code>heavy</code> adds broader related
+              history when prior work or synthesis matters. <code>audit</code>
+              is reserved for incident, quarantine, or forensics work. The
+              compatibility alias is <code>beads_briefing_depth</code>.
+              Outside contractors do not receive raw Beads comments; they get
+              boundary-checked packets.
             </p>
             <pre><code>python3 scripts/close_bead_with_summary.py \
   --bead "&lt;id&gt;" \

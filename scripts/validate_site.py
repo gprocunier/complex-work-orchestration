@@ -35,12 +35,8 @@ SOURCE_LINK_PATTERNS = [
 PRIMARY_NAV_HREFS = [
     "./index.html",
     "./get-started.html",
-    "./prompt-coach.html",
     "./workflows.html",
     "./use-cases.html",
-    "./external-contracting.html",
-    "./local-workers.html",
-    "./contractor-demo.html",
     "./reference.html",
     REPO_URL,
 ]

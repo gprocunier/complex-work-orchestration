@@ -22,12 +22,8 @@
         <div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Get Started</a>
-          <a href="./prompt-coach.html" aria-current="page">Prompt Coach</a>
           <a href="./workflows.html">Workflows</a>
           <a href="./use-cases.html">Use Cases</a>
-          <a href="./external-contracting.html">Contractors</a>
-          <a href="./local-workers.html">Local Workers</a>
-          <a href="./contractor-demo.html">Demo</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
@@ -52,7 +48,7 @@
           <a href="#questions">Interactive Questions</a>
           <a href="#local">Local Workers</a>
           <a href="#defaults">Defaults</a>
-        </nav>
+      </nav>
         <div class="doc-body">
           <section id="run">
             <h2>Run It</h2>
@@ -166,45 +162,67 @@ Publish-ready docs with validation and editorial review.</code></pre>
             </div>
             <div class="callout">
               <strong>Model synthesis:</strong>
-              Explicit fusion, ensemble, model-camp, "more eyes", or
-              synthesis language sets
-              <code>model_synthesis.recommended_mode=requested</code> and
-              <code>active=true</code>. High-risk architecture, provider
-              conflict, or novel design work sets
-              <code>recommended_mode=recommended</code> until the user opts in;
-              accepted opt-in uses <code>recommended_mode=accepted</code>.
-              Advanced helper usage can pass <code>--model-synthesis</code> to
-              <code>coach_prompt.py</code>, <code>route_work.py</code>, or
-              <code>scaffold_workgraph.py</code> to record that accepted state
-              consistently. The
-              lane keeps independent model evidence separate, then records
-              consensus, disagreements, unsupported claims, risk deltas,
-              evaluator dispositions, provider conflict flags, partial or
-              missing lane summaries, and recommended plan revisions for
-              architect adjudication. This is CWO-native synthesis, not direct
-              OpenRouter Fusion dispatch.
-              Gemini/Agy critique is salvage-only by default: it may inform
-              risk notes and follow-up questions, but it does not count toward
-              <code>minimum_usable_inputs</code> unless the architect explicitly
-              upgrades a specific evaluated finding. Evaluated returns expose
-              <code>evidence_quality_score</code> and
-              advisory <code>recommended_synthesis_use</code> so generic
-              advice is visible; synthesis remains authoritative for primary,
-              salvage-only, open-risk, rejected, quarantined, and readiness
-              classification.
+              Synthesis keeps independent model opinions separate, evaluates
+              them, and gives the architect a record of consensus, disagreement,
+              unsupported claims, and risk changes. It is a review gate, not a
+              way to let outside models own the plan.
             </div>
+            <details>
+              <summary><strong>Operator Reference: Model Synthesis Fields</strong></summary>
+              <p>
+                Explicit fusion, ensemble, model-camp, "more eyes", or
+                synthesis language sets
+                <code>model_synthesis.recommended_mode=requested</code> and
+                <code>active=true</code>. High-risk architecture, provider
+                conflict, or novel design work sets
+                <code>recommended_mode=recommended</code> until the user opts in;
+                accepted opt-in uses <code>recommended_mode=accepted</code>.
+                Advanced helper usage can pass <code>--model-synthesis</code> to
+                <code>coach_prompt.py</code>, <code>route_work.py</code>, or
+                <code>scaffold_workgraph.py</code> to record that accepted state
+                consistently. The lane records evaluator dispositions, provider
+                conflict flags, partial or missing lane summaries, and
+                recommended plan revisions for architect adjudication. This is
+                CWO-native synthesis, not direct OpenRouter Fusion dispatch.
+              </p>
+              <p>
+                Gemini/Agy critique is salvage-only by default: it may inform
+                risk notes and follow-up questions, but it does not count toward
+                <code>minimum_usable_inputs</code> unless the architect
+                explicitly upgrades a specific evaluated finding. Evaluated
+                returns expose <code>evidence_quality_score</code> and advisory
+                <code>recommended_synthesis_use</code> so generic advice is
+                visible; synthesis remains authoritative for primary,
+                salvage-only, open-risk, rejected, quarantined, and readiness
+                classification.
+              </p>
+            </details>
             <div class="callout">
               <strong>Scaffold size:</strong>
-              <code>scaffold_sizing</code> records whether the graph should be
-              full or tight. Tight-chain is for focused review work where the
-              primary expert lane and required gates are enough.
+              The coach can keep focused review work compact while preserving
+              required gates. Use a tight chain when the primary expert lane is
+              enough and broad fan-out would add noise.
+            </div>
+            <details>
+              <summary><strong>Operator Reference: Scaffold Size</strong></summary>
+              <p>
+                <code>scaffold_sizing</code> records whether the graph should be
+                full or tight. Tight-chain is for focused review work where the
+                primary expert lane and required gates are enough.
+              </p>
               <pre><code>python3 scripts/scaffold_workgraph.py \
   --title "&lt;goal&gt;" \
   --description "&lt;scope&gt;" \
   --scaffold-size tight</code></pre>
-            </div>
+            </details>
             <div class="callout">
               <strong>Beads context depth:</strong>
+              Context depth controls how much durable Beads history internal
+              agents read before they work. Use the autosized default unless the
+              task clearly needs less history or a heavier audit pass.
+            </div>
+            <details>
+              <summary><strong>Operator Reference: Beads Context Depth</strong></summary>
               <code>beads_context_depth</code> sizes how much durable Beads
               history internal Codex agents read. <code>none</code> performs no
               Beads lookup, <code>summary</code> reads the assigned Bead without
@@ -223,18 +241,25 @@ Publish-ready docs with validation and editorial review.</code></pre>
   --for subagent</code></pre>
               Comment-bearing briefs are internal only. Outside contractors use
               <code>build_contractor_packet.py</code>.
-            </div>
+            </details>
             <div class="callout">
               <strong>Subagents:</strong>
-              broad docs, Pages, policy, routing, test, validation, and
+              Broad docs, Pages, policy, routing, test, validation, and
               publish-sanitization work should surface a
-              <code>workerbee_parallelism</code> choice. The coach always asks
-              whether to parallelize with subagents. Narrow work can default to
-              no subagents; broad review work can use review-only or heavy
-              review subagents with Codex 5.3 Spark when available, or the
-              smallest available capable review model. Implementation
-              subagents still require explicitly disjoint scopes.
+              subagent-parallelism choice. Narrow work can stay in the main
+              thread; broad review can use bounded review-only workers.
             </div>
+            <details>
+              <summary><strong>Operator Reference: Subagent Parallelism</strong></summary>
+              <p>
+                The coach always asks whether to parallelize with subagents and
+                records the answer in <code>workerbee_parallelism</code>.
+                Broad review work can use review-only or heavy review subagents
+                with Codex 5.3 Spark when available, or the smallest available
+                capable review model. Implementation subagents still require
+                explicitly disjoint scopes.
+              </p>
+            </details>
             <div class="callout">
               <strong>Publication work:</strong>
               README, install docs, and GitHub Pages changes need a final
