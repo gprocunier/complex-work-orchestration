@@ -69,11 +69,11 @@ Use `--model-profile` only when the operator wants to pick a different approved
 profile explicitly. Use `--model` only for an override that should disable
 profile resolution for that dispatch.
 
-### H200/CerIO Enterprise Profiles
+### Enterprise Evaluation Targets
 
 For disconnected medium enterprise work, keep `airgapped-rhoai` as the
 reasonable practical default until the local serving stack proves a larger lane.
-H200/CerIO-sized OpenShift AI clusters can benchmark two explicit candidates:
+Enterprise-scale OpenShift AI clusters can benchmark two explicit candidates:
 
 - `airgapped-rhoai-h200-nemotron` binds deep architecture, secure review, and
   synthesis lanes to `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`.
@@ -83,10 +83,12 @@ H200/CerIO-sized OpenShift AI clusters can benchmark two explicit candidates:
 Both candidates require a benchmark gate before promotion: GPU topology, P2P,
 NCCL collectives, exact vLLM startup flags, `/v1/models`,
 `/v1/chat/completions`, representative CWO packets, evaluator scoring, and
-architect adjudication. `rhoai-reviewer-llama-4-maverick-17b-128e-fp8` is a
-multimodal/general review candidate when the harness and endpoint can safely
-carry images or mixed-modal evidence; it is not the primary x-high architect
-substitute.
+architect adjudication. The current hardware exemplar for this tier is H200
+with CerIO PCIe 5.0 fabric; that example informs the benchmark gate but should
+not become the public category name. `rhoai-reviewer-llama-4-maverick-17b-128e-fp8`
+is a multimodal/general review candidate when the harness and endpoint can
+safely carry images or mixed-modal evidence; it is not the primary x-high
+architect substitute.
 
 Use the profile on route and dispatch commands:
 

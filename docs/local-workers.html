@@ -179,9 +179,14 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
                   <td>Independent local counter-review for synthesis, with CWO retaining adjudication.</td>
                 </tr>
                 <tr>
-                  <th scope="row">H200/CerIO architecture</th>
-                  <td><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code><br><code>rhoai-architect-glm-5-2-fp8</code></td>
-                  <td>Use for medium enterprise and larger disconnected planning candidates after a benchmark gate.</td>
+                  <th scope="row">Large-cluster enterprise architecture</th>
+                  <td>
+                    <ul class="matrix-list">
+                      <li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li>
+                      <li><code>rhoai-architect-glm-5-2-fp8</code></li>
+                    </ul>
+                  </td>
+                  <td>Use for larger disconnected planning candidates after a benchmark gate.</td>
                 </tr>
                 <tr>
                   <th scope="row">Multimodal review</th>
@@ -193,13 +198,12 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
             <div class="callout">
               <p>
                 Keep <code>airgapped-rhoai</code> as the reasonable practical
-                default until the larger endpoint proves itself. Use
-                <code>airgapped-rhoai-h200-nemotron</code> or
-                <code>airgapped-rhoai-h200-glm</code> for benchmark runs on
-                H200/CerIO-style OpenShift AI clusters. The benchmark gate
-                should cover GPU topology, P2P/NCCL behavior, exact vLLM flags,
-                endpoint smoke tests, CWO architect and synthesis packets,
-                evaluator scoring, and architect adjudication.
+                default until the larger endpoint proves itself. Use the
+                enterprise Nemotron or GLM architecture profiles for benchmark
+                runs on enterprise-scale OpenShift AI clusters. The benchmark
+                gate should cover GPU topology, P2P/NCCL behavior, exact vLLM
+                flags, endpoint smoke tests, CWO architect and synthesis
+                packets, evaluator scoring, and architect adjudication.
               </p>
             </div>
             <p>

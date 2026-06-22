@@ -56,6 +56,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "beads": {"paths", "util"},
     "harness": {"policy", "util"},
 }
+PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS = ["H200", "CerIO", "airgapped-rhoai-h200"]
 
 
 def load_json(path: Path) -> Any:
@@ -423,9 +424,9 @@ def validate_repository() -> list[str]:
             "policy/model-profiles.yaml",
             "schemas/model-profile.schema.json",
             "Airgapped Model Matrix",
-            "H200/CerIO Enterprise Candidates",
+            "Enterprise evaluation targets",
             "benchmark gate",
-            "medium enterprise",
+            "larger disconnected clusters",
             "Nemotron 3 Ultra",
             "GLM-5.2",
             "Llama 4 Maverick",
@@ -611,9 +612,10 @@ def validate_repository() -> list[str]:
             "inventory the existing page URLs",
             "Model Profile Substitution",
             "Airgapped Model Matrix",
-            "H200/CerIO Enterprise Candidates",
+            "Enterprise evaluation targets",
+            "matrix-list",
             "benchmark gate",
-            "medium enterprise",
+            "disconnected deployments",
             "Nemotron 3 Ultra",
             "GLM-5.2",
             "policy/model-profiles.yaml",
@@ -713,8 +715,8 @@ def validate_repository() -> list[str]:
             "Invoke From Codex",
             "Coach Local Opt-In",
             "OpenShift AI vLLM Profile",
-            "H200/CerIO",
-            "medium enterprise",
+            "Large-cluster enterprise architecture",
+            "enterprise-scale OpenShift AI clusters",
             "benchmark gate",
             "Dispatch Envelope",
             "Execute Explicitly",
@@ -841,6 +843,7 @@ def validate_repository() -> list[str]:
             "@media",
             "--red",
             "system-map",
+            "matrix-list",
             "doc-layout",
             "page-nav",
             "callout",
@@ -1081,6 +1084,7 @@ def validate_repository() -> list[str]:
         ],
     )
     validate_local_inference_peer_review_guidance(errors)
+    validate_public_docs_do_not_expose_hardware_categories(errors)
 
     validate_ci_workflow(errors)
 
@@ -1170,6 +1174,31 @@ def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -
     ]
     if missing:
         errors.append(f"{relative_path} is missing required terms: {', '.join(missing)}")
+
+
+def validate_public_docs_do_not_expose_hardware_categories(
+    errors: list[str], public_docs: list[Path] | None = None
+) -> None:
+    if public_docs is None:
+        public_docs = [REPO_ROOT / "README.md", *sorted((REPO_ROOT / "docs").glob("*.html"))]
+    for path in public_docs:
+        if not path.is_file():
+            continue
+        content = path.read_text(encoding="utf-8")
+        lowered = content.lower()
+        forbidden = [
+            term
+            for term in PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS
+            if term.lower() in lowered
+        ]
+        if forbidden:
+            try:
+                relative = path.relative_to(REPO_ROOT)
+            except ValueError:
+                relative = path
+            errors.append(
+                f"{relative} exposes hardware-specific public category terms: {', '.join(forbidden)}"
+            )
 
 
 def validate_local_inference_peer_review_guidance(

@@ -12,6 +12,7 @@ from validate_repository import (  # noqa: E402
     CI_REQUIRED_COMMANDS,
     validate_ci_workflow,
     validate_local_inference_peer_review_guidance,
+    validate_public_docs_do_not_expose_hardware_categories,
     validate_repository,
 )
 
@@ -56,6 +57,22 @@ class ValidateRepositoryTests(unittest.TestCase):
             content="python3 scripts/evaluate_return.py --file local-return.md --peer-review-required\n",
         )
         self.assertTrue(any("unconditional --peer-review-required" in error for error in errors))
+
+    def test_public_docs_reject_hardware_specific_category_terms(self) -> None:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            public_doc = Path(tmpdir) / "page.html"
+            public_doc.write_text("Use H200/CerIO Enterprise Candidates.", encoding="utf-8")
+            validate_public_docs_do_not_expose_hardware_categories(errors, [public_doc])
+        self.assertTrue(any("hardware-specific public category terms" in error for error in errors))
+
+    def test_public_docs_allow_generic_enterprise_targets(self) -> None:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            public_doc = Path(tmpdir) / "page.html"
+            public_doc.write_text("Use Enterprise evaluation targets after a benchmark gate.", encoding="utf-8")
+            validate_public_docs_do_not_expose_hardware_categories(errors, [public_doc])
+        self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

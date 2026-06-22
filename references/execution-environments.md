@@ -73,14 +73,14 @@ model parity. Endpoint model aliases such as `rhoai/architect` are operator
 conventions; the backing Hugging Face model IDs remain recorded in
 `policy/model-profiles.yaml`.
 
-| CWO role | Connected default | Practical airgapped profile | Enterprise candidates | Confidence |
+| CWO role | Connected default | Practical airgapped profile | Enterprise evaluation targets | Confidence |
 | --- | --- | --- | --- | --- |
-| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`, `rhoai-architect-glm-5-2-fp8` | High after benchmark |
-| Project manager | Codex PM or smaller coordination model | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4` | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4`, `rhoai-architect-glm-5-2-fp8` | High |
-| Workerbee | Codex 5.3 Spark | `rhoai-worker-qwen2-5-coder-32b-fp8` | `rhoai-worker-qwen2-5-coder-32b-fp8`, `rhoai-architect-glm-5-2-fp8` for Beads-heavy reasoning packets | High |
-| Review worker | Codex 5.3 Spark review-only subagent | `rhoai-reviewer-nemotron-3-nano-30b-fp8` | `rhoai-reviewer-llama-4-maverick-17b-128e-fp8`, `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8` | Medium to high |
-| Local secure reviewer | Local secure reviewer or Codex evaluator | `rhoai-secure-review-qwen3-6-35b-a3b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8` for high-stakes review | High after benchmark |
-| Synthesis input | CWO-native synthesis plus architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`, `rhoai-architect-glm-5-2-fp8` | High after benchmark |
+| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | High after benchmark |
+| Project manager | Codex PM or smaller coordination model | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-project-manager-qwen3-6-35b-a3b-nvfp4</code></li><li><code>rhoai-architect-glm-5-2-fp8</code> for summarization-heavy workloads</li></ul> | High |
+| Workerbee | Codex 5.3 Spark | `rhoai-worker-qwen2-5-coder-32b-fp8` | <ul><li><code>rhoai-worker-qwen2-5-coder-32b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code> for large reasoning packets</li></ul> | High |
+| Review worker | Codex 5.3 Spark review-only subagent | `rhoai-reviewer-nemotron-3-nano-30b-fp8` | <ul><li><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code></li><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li></ul> | Medium to high |
+| Local secure reviewer | Local secure reviewer or Codex evaluator | `rhoai-secure-review-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code> for high-stakes local review</li></ul> | High after benchmark |
+| Synthesis input | CWO-native synthesis plus architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | High after benchmark |
 
 The OpenCode path can therefore run without public frontier providers when the
 selected execution environment binds architect, PM, worker, review,
@@ -88,26 +88,26 @@ local-secure-review, and synthesis roles to RHOAI vLLM profiles. CWO still owns
 Beads memory, dispatch rendering, validation, return evaluation, synthesis
 provenance, and architect adjudication.
 
-### H200/CerIO Enterprise Candidates
+### Enterprise Evaluation Targets
 
 For medium enterprise and larger disconnected work, the registry includes two
-H200-class profiles that are deliberately marked as candidates:
+large-cluster profiles that are deliberately marked as candidates:
 
 - `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8` uses
   `RedHatAI/NVIDIA-Nemotron-3-Ultra-550B-A55B-FP8-dynamic` for deep
   architecture, security/malpractice review, and synthesis.
 - `rhoai-architect-glm-5-2-fp8` uses `zai-org/GLM-5.2-FP8` for long-context
-  architecture, Beads-heavy briefing, PM summarization, and synthesis.
+  architecture, large work-graph briefings, PM summarization, and synthesis.
 - `rhoai-reviewer-llama-4-maverick-17b-128e-fp8` uses
   `meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8` for multimodal or
   general review work. It is not the primary x-high architecture substitute.
 
-The H200/CerIO test environment is an exemplar: a compact OpenShift cluster with
-H200 GPUs, CerIO PCIe 5.0 fabric, same-root-complex GPU enumeration, adjacent
-GPU-to-GPU paths, and an extra CPU hop. Other deployments can use the same
-profiles, but they should not skip the benchmark gate.
+The current tested hardware exemplar is a compact OpenShift cluster with H200
+GPUs, CerIO PCIe 5.0 fabric, same-root-complex GPU enumeration, adjacent
+GPU-to-GPU paths, and an extra CPU hop. Other enterprise-scale deployments can
+use the same profile tier, but they should not skip the benchmark gate.
 
-Before promoting either H200 candidate, record evidence for:
+Before promoting either enterprise evaluation target, record evidence for:
 
 - `nvidia-smi topo -m`
 - `nvidia-smi topo -p2p w`

@@ -282,20 +282,20 @@ point, not a claim that an open model has proprietary frontier parity.
 
 ### Airgapped Model Matrix
 
-| CWO role | Connected default | Practical airgapped profile | H200/CerIO Enterprise Candidates | Boundary |
+| CWO role | Connected default | Practical airgapped profile | Enterprise evaluation targets | Boundary |
 | --- | --- | --- | --- | --- |
-| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`, `rhoai-architect-glm-5-2-fp8` | Strong local planning candidates; benchmark before promotion. |
-| Project manager | Codex main-thread PM or smaller coordination model | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4` | `rhoai-architect-glm-5-2-fp8` for Beads-heavy summaries | Use for dependencies, status, and handoff drafting. |
-| Workerbee | Codex 5.3 Spark | `rhoai-worker-qwen2-5-coder-32b-fp8` | `rhoai-architect-glm-5-2-fp8` for unusually large reasoning packets | Use for bounded code review, test triage, and patch proposal drafting. |
-| Review worker | Codex 5.3 Spark review-only subagent | `rhoai-reviewer-nemotron-3-nano-30b-fp8` | `rhoai-reviewer-llama-4-maverick-17b-128e-fp8`, `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8` | Use the larger lanes only for multimodal or high-stakes review. |
-| Local secure reviewer | Local secure reviewer or Codex evaluator | `rhoai-secure-review-qwen3-6-35b-a3b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8` | Read-only review evidence; no shell, web, or repo write. |
-| Synthesis input | CWO-native synthesis with architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`, `rhoai-architect-glm-5-2-fp8` | Local synthesis input only; CWO still owns provenance and final synthesis. |
+| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | Strong local planning candidates; benchmark before promotion. |
+| Project manager | Codex main-thread PM or smaller coordination model | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-architect-glm-5-2-fp8</code> for summarization-heavy workloads</li></ul> | Use for dependencies, status, and handoff drafting. |
+| Workerbee | Codex 5.3 Spark | `rhoai-worker-qwen2-5-coder-32b-fp8` | <ul><li><code>rhoai-architect-glm-5-2-fp8</code> for large reasoning packets</li></ul> | Use for bounded code review, test triage, and patch proposal drafting. |
+| Review worker | Codex 5.3 Spark review-only subagent | `rhoai-reviewer-nemotron-3-nano-30b-fp8` | <ul><li><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code></li><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li></ul> | Use the larger lanes only for multimodal or high-stakes review. |
+| Local secure reviewer | Local secure reviewer or Codex evaluator | `rhoai-secure-review-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code> for high-stakes local review</li></ul> | Read-only review evidence; no shell, web, or repo write. |
+| Synthesis input | CWO-native synthesis with architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | Local synthesis input only; CWO still owns provenance and final synthesis. |
 
 The practical defaults are the reasonable starting point for disconnected
-medium enterprise deployments. H200/CerIO Enterprise Candidates are opt-in
-benchmark targets for larger RHOAI clusters, not silent defaults. The benchmark
-gate is the promotion line: promote Nemotron 3 Ultra or GLM-5.2 only after
-recording GPU topology, P2P/NCCL behavior, vLLM startup flags, `/v1/models` and
+deployments. Enterprise evaluation targets are opt-in benchmark targets for
+larger disconnected clusters, not silent defaults. The benchmark gate is the
+promotion line: promote Nemotron 3 Ultra or GLM-5.2 only after recording GPU
+topology, P2P/NCCL behavior, vLLM startup flags, `/v1/models` and
 `/v1/chat/completions` smoke tests, representative CWO architect/synthesis
 packets, evaluator scoring, and architect adjudication. Llama 4 Maverick is
 documented as a multimodal or general-review lane, not as the primary x-high

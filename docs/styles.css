@@ -509,6 +509,10 @@ h3 {
   box-shadow: var(--shadow-sm);
 }
 
+.data-table code {
+  overflow-wrap: anywhere;
+}
+
 .data-table caption {
   margin-bottom: 0.55rem;
   color: var(--ink);
@@ -532,6 +536,19 @@ h3 {
 .data-table tbody th {
   color: var(--ink);
   background: var(--gray-10);
+}
+
+.matrix-list {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.matrix-list li {
+  margin-bottom: 0.25rem;
+}
+
+.matrix-list li:last-child {
+  margin-bottom: 0;
 }
 
 .doc-layout {
@@ -849,6 +866,11 @@ blockquote {
 }
 
 @media (max-width: 760px) {
+  .data-table {
+    display: block;
+    overflow-x: auto;
+  }
+
   .doc-grid {
     grid-template-columns: 1fr;
   }

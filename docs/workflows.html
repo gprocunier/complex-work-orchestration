@@ -458,7 +458,7 @@ python3 scripts/render_run_projection.py \
                   <th scope="col">Role</th>
                   <th scope="col">Connected default</th>
                   <th scope="col">Practical RHOAI profile</th>
-                  <th scope="col">H200/CerIO Enterprise Candidates</th>
+                  <th scope="col">Enterprise evaluation targets</th>
                   <th scope="col">Fit</th>
                 </tr>
               </thead>
@@ -467,35 +467,58 @@ python3 scripts/render_run_projection.py \
                   <th scope="row">Architect</th>
                   <td>Codex 5.5 x-high</td>
                   <td><code>rhoai-architect-mistral-small-4-119b-nvfp4</code></td>
-                  <td><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code><br><code>rhoai-architect-glm-5-2-fp8</code></td>
-                  <td>Medium enterprise planning; promote Nemotron 3 Ultra or GLM-5.2 only after a benchmark gate.</td>
+                  <td>
+                    <ul class="matrix-list">
+                      <li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li>
+                      <li><code>rhoai-architect-glm-5-2-fp8</code></li>
+                    </ul>
+                  </td>
+                  <td>Enterprise planning; promote Nemotron 3 Ultra or GLM-5.2 only after a benchmark gate.</td>
                 </tr>
                 <tr>
                   <th scope="row">PM</th>
                   <td>Codex PM or smaller coordination model</td>
                   <td><code>rhoai-project-manager-qwen3-6-35b-a3b-nvfp4</code></td>
-                  <td><code>rhoai-architect-glm-5-2-fp8</code> for Beads-heavy summaries</td>
+                  <td>
+                    <ul class="matrix-list">
+                      <li><code>rhoai-architect-glm-5-2-fp8</code> for summarization-heavy workloads</li>
+                    </ul>
+                  </td>
                   <td>Beads summaries, dependencies, status, and handoff.</td>
                 </tr>
                 <tr>
                   <th scope="row">Workerbee</th>
                   <td>Codex 5.3 Spark</td>
                   <td><code>rhoai-worker-qwen2-5-coder-32b-fp8</code></td>
-                  <td><code>rhoai-architect-glm-5-2-fp8</code> for unusually large reasoning packets</td>
+                  <td>
+                    <ul class="matrix-list">
+                      <li><code>rhoai-architect-glm-5-2-fp8</code> for large reasoning packets</li>
+                    </ul>
+                  </td>
                   <td>Bounded code review, test triage, and patch proposals.</td>
                 </tr>
                 <tr>
                   <th scope="row">Review</th>
                   <td>Codex 5.3 Spark review-only subagent</td>
                   <td><code>rhoai-reviewer-nemotron-3-nano-30b-fp8</code></td>
-                  <td><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code><br><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></td>
+                  <td>
+                    <ul class="matrix-list">
+                      <li><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code></li>
+                      <li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li>
+                    </ul>
+                  </td>
                   <td>Llama 4 Maverick is useful for multimodal/general review; use larger lanes for high-stakes checks.</td>
                 </tr>
                 <tr>
                   <th scope="row">Synthesis input</th>
                   <td>CWO synthesis plus architect adjudication</td>
                   <td><code>rhoai-synthesis-qwen3-5-122b-a10b-nvfp4</code></td>
-                  <td><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code><br><code>rhoai-architect-glm-5-2-fp8</code></td>
+                  <td>
+                    <ul class="matrix-list">
+                      <li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li>
+                      <li><code>rhoai-architect-glm-5-2-fp8</code></li>
+                    </ul>
+                  </td>
                   <td>Independent local counter-review; not final authority.</td>
                 </tr>
               </tbody>
@@ -503,9 +526,9 @@ python3 scripts/render_run_projection.py \
             <div class="callout">
               <p>
                 The practical profiles are the default recommendation for
-                disconnected medium enterprise work. H200/CerIO candidate
-                profiles are benchmark targets: record GPU topology, P2P/NCCL
-                behavior, vLLM startup flags, <code>/v1/models</code> and
+                disconnected deployments. Enterprise evaluation targets are
+                benchmark targets: record GPU topology, P2P/NCCL behavior,
+                vLLM startup flags, <code>/v1/models</code> and
                 <code>/v1/chat/completions</code> smoke tests, representative
                 CWO packets, evaluator scoring, and architect adjudication
                 before promotion.
