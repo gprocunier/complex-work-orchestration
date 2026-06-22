@@ -56,6 +56,31 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertFalse(synthesis["prompt_user_in_plan_mode"])
         self.assertTrue(synthesis_lane_enabled(synthesis))
 
+    def test_disabled_synthesis_takes_precedence_over_accepted_opt_in(self) -> None:
+        text = "Use model synthesis for a high-risk architecture policy route."
+        route = classify_work(text, requested_roles=["architecture"])
+        synthesis = recommend_model_synthesis(text, route, force_accepted=True, disabled=True)
+
+        self.assertEqual(synthesis["recommended_mode"], "disabled")
+        self.assertFalse(synthesis["active"])
+        self.assertFalse(synthesis_lane_enabled(synthesis))
+        self.assertEqual(synthesis["trigger_reasons"], [])
+
+    def test_high_risk_architecture_work_recommends_synthesis_without_explicit_request(self) -> None:
+        synthesis = recommend_model_synthesis(
+            "Redesign the architecture boundary for a high-risk release workflow.",
+            {
+                "risk_level": "high",
+                "task_class": "architecture-review",
+                "share_boundary": "redacted-packet",
+            },
+        )
+
+        self.assertEqual(synthesis["recommended_mode"], "recommended")
+        self.assertTrue(synthesis["requires_user_acceptance"])
+        self.assertFalse(synthesis["active"])
+        self.assertIn("high-risk architecture work", synthesis["trigger_reasons"])
+
     def test_provider_conflict_and_partial_disposition_contracts_are_carried(self) -> None:
         route = classify_work(
             "Review a Claude Mythos eval harness for a frontier model provider competitor.",
@@ -155,6 +180,7 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertEqual(result["usable_input_count"], 1)
         self.assertEqual(result["salvage_input_count"], 1)
         self.assertEqual(result["input_summaries"][0]["synthesis_use"], "salvage-only")
+        self.assertIsNone(result["input_summaries"][0]["requested_synthesis_use"])
 
     def test_all_salvage_only_inputs_do_not_make_synthesis_ready(self) -> None:
         result = evaluate_synthesis_inputs(
@@ -235,6 +261,37 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertEqual(result["partial_input_count"], 1)
         self.assertEqual(result["open_risk_input_count"], 1)
 
+    def test_partial_synthesis_disabled_blocks_otherwise_ready_partial_result(self) -> None:
+        policy = {
+            "input_disposition_policy": {
+                "use_as_synthesis_input": ["accepted", "accepted-with-modification"],
+                "partial_only": ["timed-out"],
+                "summarize_as_open_risk": ["needs-investigation"],
+                "quarantine": ["quarantined", "boundary-tainted"],
+                "exclude_as_rejected": ["rejected", "failed-evaluation"],
+            },
+            "partial_synthesis_policy": {
+                "allow_partial": False,
+                "minimum_usable_inputs": 2,
+                "partial_status": "partial",
+            },
+            "salvage_only_provider_camps": [],
+        }
+
+        result = evaluate_synthesis_inputs(
+            [
+                {"lane": "opus", "disposition": "accepted"},
+                {"lane": "chatgpt", "disposition": "accepted-with-modification"},
+                {"lane": "risk", "disposition": "needs-investigation"},
+            ],
+            policy=policy,
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertTrue(result["blocked"])
+        self.assertFalse(result["allow_partial"])
+        self.assertIn("partial synthesis is disabled by policy", result["blocked_reasons"])
+
     def test_quarantined_and_boundary_tainted_external_inputs_block_synthesis(self) -> None:
         result = evaluate_synthesis_inputs(
             [
@@ -248,6 +305,26 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertEqual(result["quarantined_input_count"], 2)
         self.assertEqual(result["input_summaries"][1]["effective_disposition"], "boundary-tainted")
         self.assertIn("all external inputs are quarantined or boundary-tainted", result["blocked_reasons"])
+
+    def test_boundary_taint_overrides_requested_primary_synthesis_use(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_camp": "anthropic",
+                    "disposition": "accepted",
+                    "boundary_taint_status": "boundary-tainted",
+                    "synthesis_use": "primary",
+                },
+                {"lane": "chatgpt", "provider_camp": "openai", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["usable_input_count"], 1)
+        self.assertEqual(result["quarantined_input_count"], 1)
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "quarantine")
+        self.assertEqual(result["input_summaries"][0]["requested_synthesis_use"], "primary")
 
     def test_rejected_and_failed_inputs_are_excluded_from_minimum(self) -> None:
         result = evaluate_synthesis_inputs(

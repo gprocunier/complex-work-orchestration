@@ -70,6 +70,10 @@ PUBLIC_COPY_FORBIDDEN_PATTERNS = [
     re.compile(r"\bRed Hat UX reference\b", re.IGNORECASE),
     re.compile(r"\bRed Hat UX design corpus\b", re.IGNORECASE),
     re.compile(r"\bdesign corpus\b", re.IGNORECASE),
+    re.compile(r"\b(?:contractors?|outside models?)\s+(?:can|may|will|should)\s+(?:approve|merge|publish|implement)\b", re.IGNORECASE),
+    re.compile(r"\bCWO\s+requires\s+Codex(?:\s+CLI)?\b", re.IGNORECASE),
+    re.compile(r"\bsend\s+raw\s+Beads\s+comments\b", re.IGNORECASE),
+    re.compile(r"\bGemini\b.{0,80}\baccepted\s+authority\b", re.IGNORECASE),
 ]
 INTERNAL_LABEL_REFERENCE_PAGES = {"reference.html"}
 

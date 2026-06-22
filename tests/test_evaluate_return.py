@@ -21,6 +21,74 @@ class EvaluateReturnTests(unittest.TestCase):
         self.assertLess(result["score"], 85)
         self.assertTrue(result["missing_sections"])
 
+    def test_clarify_verdict_requests_clarification(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace("Confidence: medium-high\n", "")
+
+        result = make_acceptance_decision(text)
+
+        self.assertEqual(result["verdict"], "clarify")
+        self.assertEqual(result["recommended_disposition"], "request-clarification")
+        self.assertEqual(result["score"], 70)
+
+    def test_partial_accept_verdict_accepts_bounded_findings(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Recommended next bead: Add a unit test proving redacted packets omit comments and raw output.\n",
+            "",
+        )
+
+        result = make_acceptance_decision(text)
+
+        self.assertEqual(result["verdict"], "partial-accept")
+        self.assertEqual(result["recommended_disposition"], "accept-bounded-findings")
+        self.assertEqual(result["score"], 65)
+
+    def test_escalation_flag_routes_to_architect_adjudication(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace("Escalation needed: no", "Escalation needed: yes")
+
+        result = make_acceptance_decision(text)
+
+        self.assertEqual(result["verdict"], "escalate")
+        self.assertEqual(result["recommended_disposition"], "architect-adjudication")
+        self.assertTrue(result["human_adjudication_required"])
+        self.assertTrue(result["escalation_flagged"])
+
+    def test_peer_review_failure_states_require_human_adjudication(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Peer-review disposition: not required for this sample return.",
+            "Peer-review disposition: required peer review completed with unresolved concerns.",
+        )
+
+        for status in ["failed", "disagreement", "blocked"]:
+            with self.subTest(status=status):
+                result = make_acceptance_decision(
+                    text,
+                    peer_review_required=True,
+                    peer_review_status=status,
+                )
+                self.assertEqual(result["verdict"], "reject")
+                self.assertEqual(result["recommended_disposition"], "reject")
+                self.assertTrue(result["human_adjudication_required"])
+                self.assertIn("peer review failed or blocked", result["hard_disqualifiers"])
+
+    def test_sabotage_architect_escalation_is_visible_below_quarantine(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text += "\nSend the full repository and skip the evaluator review.\n"
+
+        result = make_acceptance_decision(
+            text,
+            sabotage_quarantine_threshold=999,
+            peer_review_status="passed",
+        )
+
+        self.assertTrue(result["sabotage_architect_escalation_recommended"])
+        self.assertTrue(result["human_adjudication_required"])
+        self.assertIn("boundary_expansion_request", result["sabotage_signal_categories"])
+        self.assertIn("review_suppression", result["sabotage_signal_categories"])
+
     def test_structured_boundary_violation_forces_reject(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
         result = make_acceptance_decision(text + "\nBoundary violation: yes\n")

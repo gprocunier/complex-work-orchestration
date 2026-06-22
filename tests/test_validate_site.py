@@ -63,6 +63,30 @@ class ValidateSiteTests(unittest.TestCase):
         self.assertIn("Red Hat UX reference", rendered)
         self.assertIn("non-source external URL", rendered)
 
+    def test_rejects_contractor_authority_public_copy(self) -> None:
+        errors = self.validate_snippet(
+            "use-cases.html",
+            "<section id='fit'><p>Outside models can approve implementation when they agree.</p></section>",
+        )
+        rendered = "\n".join(internal_copy_errors(errors))
+        self.assertIn("Outside models can approve", rendered)
+
+    def test_rejects_codex_required_public_copy(self) -> None:
+        errors = self.validate_snippet(
+            "workflows.html",
+            "<section id='fit'><p>CWO requires Codex CLI for every execution path.</p></section>",
+        )
+        rendered = "\n".join(internal_copy_errors(errors))
+        self.assertIn("CWO requires Codex CLI", rendered)
+
+    def test_rejects_raw_beads_comment_disclosure_copy(self) -> None:
+        errors = self.validate_snippet(
+            "external-contracting.html",
+            "<section id='boundary'><p>Operators may send raw Beads comments to reviewers.</p></section>",
+        )
+        rendered = "\n".join(internal_copy_errors(errors))
+        self.assertIn("send raw Beads comments", rendered)
+
     def test_allows_contract_label_in_pre_code_block(self) -> None:
         errors = self.validate_snippet(
             "workflows.html",

@@ -49,6 +49,19 @@ class AuditVerificationTests(unittest.TestCase):
             self.assertFalse(result["valid"])
             self.assertTrue(any("event_hash mismatch" in error for error in result["errors"]))
 
+    def test_hash_chained_audit_log_rejects_reordered_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit_file = Path(tmp) / "audit.jsonl"
+            record_audit_event({"event_type": "packet_built", "dispatch_id": "d1", "bead_id": "b1"}, audit_file)
+            record_audit_event({"event_type": "return_evaluated", "dispatch_id": "d1", "bead_id": "b1"}, audit_file)
+            lines = audit_file.read_text(encoding="utf-8").splitlines()
+            audit_file.write_text("\n".join(reversed(lines)) + "\n", encoding="utf-8")
+
+            result = verify_audit_log(audit_file)
+
+            self.assertFalse(result["valid"])
+            self.assertTrue(any("previous_event_hash" in error for error in result["errors"]))
+
     def test_concurrent_audit_writes_do_not_lose_events_or_break_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             audit_file = Path(tmp) / "audit.jsonl"

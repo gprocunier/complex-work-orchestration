@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -135,6 +136,73 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         payload = json.loads(dry_run.stdout)
         self.assertEqual(payload["node_count"], len(graph["nodes"]))
         self.assertEqual(payload["edge_count"], len(graph["edges"]))
+
+    def test_cli_beads_graph_format_requires_dry_run(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "scaffold_workgraph.py"),
+                "--title",
+                "Invalid Graph Format Example",
+                "--description",
+                "Attempt real Beads creation with graph format.",
+                "--format",
+                "beads-graph",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--format beads-graph requires --dry-run", result.stderr)
+
+    def test_cli_dry_run_beads_graph_does_not_require_bd_on_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_path:
+            env = {**os.environ, "PATH": temp_path}
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "scaffold_workgraph.py"),
+                    "--title",
+                    "Dry Run Without Beads",
+                    "--description",
+                    "Render a Beads graph without calling the Beads CLI.",
+                    "--dry-run",
+                    "--format",
+                    "beads-graph",
+                ],
+                cwd=ROOT,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        graph = json.loads(result.stdout)
+        self.assertIn("nodes", graph)
+        self.assertIn("edges", graph)
+
+    def test_cli_real_scaffold_fails_clearly_when_bd_missing_from_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_path:
+            env = {**os.environ, "PATH": temp_path}
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "scaffold_workgraph.py"),
+                    "--title",
+                    "No Beads CLI Example",
+                    "--description",
+                    "Attempt real Beads creation without bd on PATH.",
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("bd was not found; install Beads or use --dry-run", result.stderr)
 
 
 if __name__ == "__main__":

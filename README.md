@@ -73,8 +73,11 @@ installer against the same skills directory:
 
 ## First Run
 
+### Connected single-operator quick path
+
 The fastest useful path is an in-Codex prompt, one Beads record, and a
-validation note:
+validation note. Use this when one operator has Codex, Beads, and repository
+access in the same connected shell:
 
 ```text
 /plan Use $complex-work-orchestration prompt coach:
@@ -87,6 +90,11 @@ can scaffold an epic, ask about subagent parallelism, select the Beads context
 depth, and add validation or publish gates. Outside contractors and local
 workers are opt-in evidence lanes; their returns are evaluated before the
 architect accepts any finding.
+
+For restricted or disconnected work, keep the same governance shape but change
+the execution environment. OpenCode or manual operator paths can run bounded
+envelopes, and RHOAI/vLLM model profiles can replace public frontier calls
+where local endpoints are approved.
 
 For a first pass, verify:
 

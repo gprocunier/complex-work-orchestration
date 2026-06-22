@@ -46,6 +46,7 @@
           <a href="#simple-use-cases">Simple Use Cases</a>
           <a href="#durable-work-log">Durable Work Log</a>
           <a href="#where-it-fits">Where CWO Fits</a>
+          <a href="#execution-profile-fit">Execution Profile Fit</a>
           <a href="#complex-use-cases">Complex Use Cases</a>
           <a href="#acceptance">Acceptance Gates</a>
           <a href="./workflows.html">Guided Workflow</a>
@@ -120,6 +121,38 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               tied to current vendor documentation. Public CWO copy should stay
               at the durable boundary: governance, provenance, Beads-backed
               memory, evaluation, and handoff.
+            </p>
+          </section>
+
+          <section id="execution-profile-fit">
+            <h2>Execution Profile Fit</h2>
+            <p>
+              Use cases become easier to size when the execution profile is
+              explicit. CWO keeps the same Beads, evaluation, and adjudication
+              controls while the shell and model endpoints change.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Use case to execution profile mapping">
+              <div role="row">
+                <span role="cell">Small connected fix</span>
+                <span role="cell">Connected single-operator Codex path; one Beads task is often enough.</span>
+              </div>
+              <div role="row">
+                <span role="cell">High-risk plan review</span>
+                <span role="cell">Connected Codex path with approved contractor packets, evaluator scoring, peer-review disposition, and architect adjudication.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Restricted shell</span>
+                <span role="cell">OpenCode or manual operator envelope; no contractor sharing unless the environment policy permits it.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Airgapped local models</span>
+                <span role="cell">Local Beads plus approved RHOAI/vLLM model profiles for review, worker, architecture, or synthesis candidates after benchmark gates.</span>
+              </div>
+            </div>
+            <p>
+              Contractors, local workers, and synthesis lanes do not approve or
+              merge work. They produce evidence that must pass the evaluator and
+              be accepted by the architect.
             </p>
           </section>
 
