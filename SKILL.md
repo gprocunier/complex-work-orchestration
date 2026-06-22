@@ -71,6 +71,10 @@ when posting or reviewing outside model contracts,
 sabotage, `references/prompt-coach.md` when sizing the invocation,
 `references/execution-environments.md` when selecting Codex, OpenCode,
 OpenShift AI vLLM, or manual execution environments,
+`references/run-readiness.md` before worker handoff when broad implementation,
+contractor evidence, synthesis, or publish/release risk requires owners, exit
+criteria, validation evidence, projection rules, quarantine semantics, and
+handoff evidence,
 `references/redhat-expert-catalog.md` when selecting Red Hat product-focused
 Distinguished Engineer lenses, and `references/contractor-brief.md` as the
 briefing artifact given to an outside contractor with a specific Beads
@@ -300,6 +304,22 @@ Recommended lanes:
 - Peer-review lane when route output sets `peer_review_required=true`
 - Release or publish sanitization lane, when relevant
 - Docs/handoff lane, when relevant
+
+Before implementation handoff on broad, contractor-reviewed, synthesized, or
+publish/release-sensitive work, require a run readiness gate. Use
+`templates/run-readiness-plan.md` or a JSON artifact shaped by
+`schemas/run-readiness-plan.schema.json`, then validate it with
+`scripts/validate_run_readiness_plan.py`. The plan must keep Beads canonical,
+declare `run-sheet`, `wrap-up-status`, and `next-version` as typed Beads
+projections, map rubric-owned criterion IDs to evidence, record provider
+provenance and quarantine semantics, require boundary negative tests, type
+next-version deferrals, keep patrol work research-only until accepted, and
+name handoff evidence for workers. For run-sheet or wrap-up/status requests,
+render Beads-derived projections with `scripts/render_run_projection.py` from a
+validated readiness plan. For next-version requests, require an allowed
+`reason_type` and follow-up Bead. For patrol or recurring-work requests, create
+research Beads only until ownership, locking, history, failure containment, and
+provider-neutral execution are accepted.
 
 Useful Beads patterns:
 

@@ -50,6 +50,7 @@
           <a href="#policies">Policies</a>
           <a href="#operator-controls">Operator Controls</a>
           <a href="#schemas">Schemas</a>
+          <a href="#run-readiness">Run Readiness</a>
           <a href="#experts">Experts</a>
           <a href="#scripts">Scripts</a>
           <a href="#deep-dives">Deep Dives</a>
@@ -113,8 +114,53 @@
               Schemas make helper outputs reviewable: prompt coach results,
               route results, contractor handoff packets, contractor returns,
               local dispatch envelopes, versioned harness dispatch envelopes,
-              execution environment profiles, acceptance decisions, audit
-              events, and attestations.
+              execution environment profiles, run readiness plans, acceptance
+              decisions, audit events, and attestations.
+            </p>
+          </section>
+
+          <section id="run-readiness">
+            <h2>Run Readiness</h2>
+            <p>
+              The run readiness plan is the pre-handoff control that proves a
+              broad CWO run has owners, exit conditions, validation evidence,
+              artifact authority, provider provenance, quarantine handling,
+              boundary negative tests, next-version deferrals, and handoff
+              evidence before workers execute.
+            </p>
+            <p>
+              The schema is
+              <code>schemas/run-readiness-plan.schema.json</code>. The sample
+              input is <code>examples/sample-run-readiness-plan.json</code>.
+              The readable template is
+              <code>templates/run-readiness-plan.md</code>. The operator
+              reference is <code>references/run-readiness.md</code>.
+            </p>
+            <pre><code>python3 scripts/validate_run_readiness_plan.py \
+  examples/sample-run-readiness-plan.json
+python3 scripts/render_run_projection.py \
+  examples/sample-run-readiness-plan.json --projection run-sheet
+python3 scripts/render_run_projection.py \
+  examples/sample-run-readiness-plan.json --projection wrap-up-status</code></pre>
+            <p>
+              The key field is the
+              <strong>criterion-to-evidence matrix</strong>: every acceptance
+              criterion must point at an artifact, validator, or review gate.
+              The rubric owns the criterion IDs, and the matrix proves each one.
+              Run sheets, wrap-up/status reports, and next-version rails stay
+              typed projections from Beads; contractor and local-worker returns
+              stay evidence until evaluation and architect adjudication.
+            </p>
+            <p>
+              Allowed projection types are <code>run-sheet</code>,
+              <code>wrap-up-status</code>, and <code>next-version</code>.
+              Allowed next-version reasons are <code>out-of-scope</code>,
+              <code>needs-credential</code>, <code>needs-research</code>,
+              <code>hardening</code>, <code>later-version</code>, and
+              <code>blocked</code>. Patrol or recurring work remains research
+              only until <code>ownership</code>, <code>locking</code>,
+              <code>history</code>, <code>failure_containment</code>, and
+              <code>provider_neutral_execution</code> are accepted.
             </p>
           </section>
 
@@ -220,6 +266,7 @@ python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.jso
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
 python3 scripts/render_harness_dispatch.py --environment connected-opencode-exemplar --harness opencode --role worker --json "&lt;task text&gt;"
+python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
 python3 scripts/check_installed_skill.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py

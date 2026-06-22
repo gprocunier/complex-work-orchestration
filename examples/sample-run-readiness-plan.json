@@ -1,0 +1,169 @@
+{
+  "plan_type": "cwo-run-readiness-plan",
+  "version": 1,
+  "run_id": "complex-work-orchestration-example",
+  "beads_scope": {
+    "epic_id": "complex-work-orchestration-example",
+    "implementation_bead": "complex-work-orchestration-example.4",
+    "canonical_source": "beads",
+    "dolt_remote": null
+  },
+  "artifact_authority": {
+    "canonical_source": "beads",
+    "projections": [
+      {
+        "name": "run sheet",
+        "type": "run-sheet",
+        "authority": "projection",
+        "canonical_source": "beads",
+        "source_command": "python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet"
+      },
+      {
+        "name": "wrap-up/status report",
+        "type": "wrap-up-status",
+        "authority": "projection",
+        "canonical_source": "beads",
+        "source_command": "python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status"
+      },
+      {
+        "name": "next-version rail",
+        "type": "next-version",
+        "authority": "projection",
+        "canonical_source": "beads",
+        "source_command": "python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection next-version"
+      }
+    ],
+    "external_returns": "evidence",
+    "final_authority": "architect-adjudication"
+  },
+  "workstreams": [
+    {
+      "name": "rubric schema",
+      "owner": "architect",
+      "exit_condition": "Rubric version, immutability rule, and evaluator linkage are documented and tested.",
+      "validation_refs": ["criterion:rubric-versioned"],
+      "handoff_evidence": ["rubric schema path", "unit test output"]
+    },
+    {
+      "name": "run sheet projection",
+      "owner": "implementation worker",
+      "exit_condition": "Run sheet regenerates from Beads-backed state and cannot become the canonical source.",
+      "validation_refs": ["criterion:projection-regenerates"],
+      "handoff_evidence": ["generated artifact path", "regeneration command"]
+    }
+  ],
+  "rubric": {
+    "version": "rubric-v1",
+    "owner": "architect",
+    "schema_ref": "schemas/run-readiness-plan.schema.json#/properties/rubric",
+    "immutable_per_run": true,
+    "evaluation_uses_version": true,
+    "criterion_ids": [
+      "rubric-versioned",
+      "projection-regenerates"
+    ]
+  },
+  "criterion_evidence_matrix": [
+    {
+      "criterion": "rubric-versioned",
+      "evidence_type": "validator",
+      "evidence": "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",
+      "owner": "validation"
+    },
+    {
+      "criterion": "projection-regenerates",
+      "evidence_type": "review-gate",
+      "evidence": "architect confirms run sheet and wrap-up/status views are projections from Beads",
+      "owner": "architect"
+    }
+  ],
+  "provider_provenance": [
+    {
+      "provider_key": "internal-codex",
+      "provider_family": "openai",
+      "provenance_class": "internal",
+      "disposition": "primary"
+    },
+    {
+      "provider_key": "gemini_3_1_pro_preview_agy",
+      "provider_family": "google",
+      "provenance_class": "external-contractor",
+      "disposition": "quarantined"
+    }
+  ],
+  "quarantine_rules": [
+    {
+      "trigger": "external return claims command execution or file mutation under a redacted no-mutation packet",
+      "disposition": "quarantine-until-adjudicated",
+      "release_condition": "architect corroborates the finding with trusted local evidence"
+    }
+  ],
+  "boundary_negative_tests": [
+    {
+      "name": "raw Beads comments blocked",
+      "prohibited_input": "raw_comments",
+      "expected_result": "reject",
+      "validator": "tests/test_packet_validation.py"
+    },
+    {
+      "name": "secrets blocked",
+      "prohibited_input": "secrets",
+      "expected_result": "reject",
+      "validator": "tests/test_redaction.py"
+    },
+    {
+      "name": "full Bead JSON blocked",
+      "prohibited_input": "full_bead_json",
+      "expected_result": "reject",
+      "validator": "tests/test_packet_gate.py"
+    },
+    {
+      "name": "unauthorized mutation claims quarantined",
+      "prohibited_input": "unauthorized_mutation_claim",
+      "expected_result": "quarantine",
+      "validator": "tests/test_evaluate_return.py"
+    },
+    {
+      "name": "unsupported command execution claims quarantined",
+      "prohibited_input": "unsupported_command_execution_claim",
+      "expected_result": "quarantine",
+      "validator": "tests/test_evaluate_return.py"
+    }
+  ],
+  "next_version_rail": [
+    {
+      "item": "recurring patrol execution",
+      "reason_type": "needs-research",
+      "followup_bead": "complex-work-orchestration-example.9"
+    }
+  ],
+  "patrol_stopping_rule": {
+    "research_only_until_accepted": true,
+    "required_acceptance_evidence": [
+      "ownership",
+      "locking",
+      "history",
+      "failure_containment",
+      "provider_neutral_execution"
+    ]
+  },
+  "handoff_evidence_requirements": [
+    "changed files",
+    "validation commands",
+    "accepted and rejected contractor findings",
+    "residual risks",
+    "follow-up Beads"
+  ],
+  "adjudication_record": {
+    "accepted_findings": [
+      "run sheet and wrap-up/status views are useful as projections"
+    ],
+    "rejected_findings": [
+      "flat files are not peers to Beads"
+    ],
+    "quarantined_findings": [
+      "Gemini mutation claim from redacted no-mutation packet"
+    ],
+    "decision_owner": "architect"
+  }
+}

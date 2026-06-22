@@ -109,6 +109,37 @@ class SchemaParityTests(unittest.TestCase):
         schema = load_schema("execution-environment.schema.json")
         self.assertIn("profiles", schema["properties"])
 
+    def test_run_readiness_schema_has_handoff_gates(self) -> None:
+        schema = load_schema("run-readiness-plan.schema.json")
+        properties = schema["properties"]
+        for field in [
+            "workstreams",
+            "rubric",
+            "criterion_evidence_matrix",
+            "provider_provenance",
+            "quarantine_rules",
+            "boundary_negative_tests",
+            "next_version_rail",
+            "patrol_stopping_rule",
+            "handoff_evidence_requirements",
+            "adjudication_record",
+        ]:
+            self.assertIn(field, schema["required"])
+            self.assertIn(field, properties)
+        projection_schema = properties["artifact_authority"]["properties"]["projections"]["items"]
+        self.assertIn("type", projection_schema["required"])
+        self.assertEqual(
+            set(projection_schema["properties"]["type"]["enum"]),
+            {"run-sheet", "wrap-up-status", "next-version"},
+        )
+        self.assertEqual(projection_schema["properties"]["canonical_source"]["const"], "beads")
+        self.assertIn("criterion_ids", properties["rubric"]["required"])
+        patrol_evidence = properties["patrol_stopping_rule"]["properties"]["required_acceptance_evidence"]
+        self.assertEqual(
+            set(patrol_evidence["items"]["enum"]),
+            {"ownership", "locking", "history", "failure_containment", "provider_neutral_execution"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

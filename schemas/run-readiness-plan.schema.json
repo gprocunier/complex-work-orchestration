@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Run Readiness Plan",
+  "type": "object",
+  "required": [
+    "plan_type",
+    "version",
+    "run_id",
+    "beads_scope",
+    "artifact_authority",
+    "workstreams",
+    "rubric",
+    "criterion_evidence_matrix",
+    "provider_provenance",
+    "quarantine_rules",
+    "boundary_negative_tests",
+    "next_version_rail",
+    "patrol_stopping_rule",
+    "handoff_evidence_requirements",
+    "adjudication_record"
+  ],
+  "properties": {
+    "plan_type": {"const": "cwo-run-readiness-plan"},
+    "version": {"type": "integer", "minimum": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "beads_scope": {
+      "type": "object",
+      "required": ["epic_id", "canonical_source"],
+      "properties": {
+        "epic_id": {"type": "string"},
+        "implementation_bead": {"type": ["string", "null"]},
+        "canonical_source": {"const": "beads"},
+        "dolt_remote": {"type": ["string", "null"]}
+      }
+    },
+    "artifact_authority": {
+      "type": "object",
+      "required": ["canonical_source", "projections", "external_returns", "final_authority"],
+      "properties": {
+        "canonical_source": {"const": "beads"},
+        "projections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "authority", "canonical_source"],
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"enum": ["run-sheet", "wrap-up-status", "next-version"]},
+              "authority": {"enum": ["projection", "evidence", "reference"]},
+              "canonical_source": {"const": "beads"},
+              "source_command": {"type": "string", "minLength": 1},
+              "source_bead": {"type": "string", "minLength": 1}
+            },
+            "anyOf": [
+              {"required": ["source_command"]},
+              {"required": ["source_bead"]}
+            ]
+          }
+        },
+        "external_returns": {"const": "evidence"},
+        "final_authority": {"const": "architect-adjudication"}
+      }
+    },
+    "workstreams": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "owner", "exit_condition", "validation_refs", "handoff_evidence"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "owner": {"type": "string", "minLength": 1},
+          "exit_condition": {"type": "string", "minLength": 1},
+          "validation_refs": {"type": "array", "items": {"type": "string"}},
+          "handoff_evidence": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "rubric": {
+      "type": "object",
+      "required": [
+        "version",
+        "owner",
+        "schema_ref",
+        "immutable_per_run",
+        "evaluation_uses_version",
+        "criterion_ids"
+      ],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "schema_ref": {"type": "string", "minLength": 1},
+        "immutable_per_run": {"const": true},
+        "evaluation_uses_version": {"const": true},
+        "criterion_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "criterion_evidence_matrix": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["criterion", "evidence_type", "evidence", "owner"],
+        "properties": {
+          "criterion": {"type": "string", "minLength": 1},
+          "evidence_type": {"enum": ["artifact", "validator", "review-gate"]},
+          "evidence": {"type": "string", "minLength": 1},
+          "owner": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "provider_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provider_key", "provider_family", "provenance_class", "disposition"],
+        "properties": {
+          "provider_key": {"type": "string"},
+          "provider_family": {"type": "string"},
+          "provenance_class": {"enum": ["internal", "external-contractor", "local-worker", "unknown"]},
+          "disposition": {"enum": ["primary", "salvage-only", "rejected", "quarantined", "not-used"]}
+        }
+      }
+    },
+    "quarantine_rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["trigger", "disposition", "release_condition"],
+        "properties": {
+          "trigger": {"type": "string", "minLength": 1},
+          "disposition": {"const": "quarantine-until-adjudicated"},
+          "release_condition": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "boundary_negative_tests": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["name", "prohibited_input", "expected_result", "validator"],
+        "properties": {
+          "name": {"type": "string"},
+          "prohibited_input": {
+            "enum": [
+              "raw_comments",
+              "secrets",
+              "full_bead_json",
+              "unauthorized_mutation_claim",
+              "unsupported_command_execution_claim"
+            ]
+          },
+          "expected_result": {"enum": ["reject", "quarantine", "fail-closed"]},
+          "validator": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "next_version_rail": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item", "reason_type", "followup_bead"],
+        "properties": {
+          "item": {"type": "string"},
+          "reason_type": {
+            "enum": [
+              "out-of-scope",
+              "needs-credential",
+              "needs-research",
+              "hardening",
+              "later-version",
+              "blocked"
+            ]
+          },
+          "followup_bead": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "patrol_stopping_rule": {
+      "type": "object",
+      "required": ["research_only_until_accepted", "required_acceptance_evidence"],
+      "properties": {
+        "research_only_until_accepted": {"const": true},
+        "required_acceptance_evidence": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "ownership",
+              "locking",
+              "history",
+              "failure_containment",
+              "provider_neutral_execution"
+            ]
+          }
+        }
+      }
+    },
+    "handoff_evidence_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"}
+    },
+    "adjudication_record": {
+      "type": "object",
+      "required": ["accepted_findings", "rejected_findings", "quarantined_findings", "decision_owner"],
+      "properties": {
+        "accepted_findings": {"type": "array", "items": {"type": "string"}},
+        "rejected_findings": {"type": "array", "items": {"type": "string"}},
+        "quarantined_findings": {"type": "array", "items": {"type": "string"}},
+        "decision_owner": {"const": "architect"}
+      }
+    }
+  }
+}

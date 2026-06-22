@@ -51,6 +51,7 @@
           <a href="#invoke-codex">Invoke From Codex</a>
           <a href="#coach-decide">Coach And Decide</a>
           <a href="#beads-graph">Beads Task Graph</a>
+          <a href="#run-readiness">Run Readiness</a>
           <a href="#optional-lanes">Optional Workstreams</a>
           <a href="#execution-environments">Execution Environments</a>
           <a href="./use-cases.html">Use Cases</a>
@@ -215,6 +216,57 @@ python3 scripts/spawn_expert_reviews.py \
   --exclude-label no-codex-exec \
   --json</code></pre>
             </details>
+          </section>
+
+          <section id="run-readiness">
+            <h2>Run Readiness</h2>
+            <p>
+              Before worker handoff on broad, reviewed, synthesized, public, or
+              release-sensitive work, Codex should prove the run is ready to
+              execute. The readiness plan keeps Beads as the durable source of
+              truth and records the execution checks workers need before they
+              start.
+            </p>
+            <p>
+              The gate names each workstream owner, exit condition, validation
+              evidence, authority rule, boundary negative test, next-version
+              item, and handoff evidence requirement. It also records which
+              outside or local findings were accepted, rejected, or quarantined
+              by architect adjudication.
+            </p>
+            <p>
+              Run sheets, wrap-up/status reports, and next-version rails are
+              generated views from the durable work state. They help humans
+              review and hand off the run, but they do not become a separate
+              source of truth.
+            </p>
+            <div class="workflow-diagram linear" role="img" aria-label="Beads state feeds readiness checks, architect adjudication, and worker handoff.">
+              <div class="flow-card"><strong>Beads</strong><span>canonical state</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Readiness</strong><span>owners and evidence</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Adjudicate</strong><span>accepted findings</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Handoff</strong><span>worker evidence</span></div>
+            </div>
+            <details>
+              <summary><strong>Operator Reference: Run Readiness Helpers</strong></summary>
+              <pre><code>python3 scripts/validate_run_readiness_plan.py \
+  examples/sample-run-readiness-plan.json
+python3 scripts/render_run_projection.py \
+  examples/sample-run-readiness-plan.json --projection run-sheet
+python3 scripts/render_run_projection.py \
+  examples/sample-run-readiness-plan.json --projection wrap-up-status</code></pre>
+            </details>
+            <p>
+              The validator checks
+              <code>schemas/run-readiness-plan.schema.json</code>. The
+              projection renderer produces <code>run-sheet</code>,
+              <code>wrap-up-status</code>, and <code>next-version</code>
+              views from a validated readiness plan. The readable planning aid is
+              <code>templates/run-readiness-plan.md</code>, and the detailed
+              operator reference is <code>references/run-readiness.md</code>.
+            </p>
           </section>
 
           <section id="optional-lanes">

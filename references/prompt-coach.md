@@ -137,6 +137,18 @@ Publish, release, GitHub, tag, and upstream-push language recommends
 `publish-release`; the generated prompt must include validation evidence and
 publish-sanitization before any formal push, release, or tag.
 
+Broad implementation, contractor-reviewed plans, model synthesis, and
+publish/release-sensitive work should add a run readiness gate before worker
+handoff. Use `references/run-readiness.md` and
+`scripts/validate_run_readiness_plan.py` to make owners, exit conditions,
+criterion-to-evidence mapping, artifact authority, quarantine handling,
+boundary negative tests, and handoff evidence explicit. When the user asks for
+a run sheet, wrap-up/status report, next-version rail, or patrol/recurring
+lane, route through the run-readiness reference before worker handoff:
+projections stay non-authoritative, next-version work needs a typed reason and
+follow-up Bead, and patrol work remains research-only until its acceptance
+evidence is complete.
+
 Public docs, README/install docs, GitHub Pages, site flow, and
 documentation-architecture language also enables editor review. The route
 should include documentation, web design when a site/page is involved, and the

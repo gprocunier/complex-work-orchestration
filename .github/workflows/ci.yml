@@ -24,6 +24,14 @@ jobs:
         run: bash examples/sample-route-command.sh
       - name: Prompt coach dry run
         run: bash examples/sample-prompt-coach-command.sh
+      - name: Run readiness validator
+        run: python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
+      - name: Run projection renderer
+        run: python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet
+      - name: Run wrap-up/status projection renderer
+        run: python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status
+      - name: Run next-version projection renderer
+        run: python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection next-version
       - name: Closure summary dry run
         run: python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why "validated" --follow-up none --dry-run --json
       - name: Stale agent cleanup dry run

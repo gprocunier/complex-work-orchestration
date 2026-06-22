@@ -21,6 +21,7 @@ from cwo_core.harness import (
     validate_execution_environment_registry,
 )
 from cwo_core.policy import load_policy
+from validate_run_readiness_plan import validate_plan as validate_run_readiness_plan
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
     "assignment_summary",
@@ -33,6 +34,10 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/validate_site.py",
     "python -m unittest discover -s tests",
     "bash examples/sample-prompt-coach-command.sh",
+    "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",
+    "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet",
+    "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status",
+    "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection next-version",
     "python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why \"validated\" --follow-up none --dry-run --json",
     "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
@@ -275,6 +280,25 @@ def validate_repository() -> list[str]:
         schema=load_json(REPO_ROOT / "schemas" / "execution-environment.schema.json"),
         properties=["profiles"],
     )
+    require_schema_properties(
+        errors,
+        schema_name="run-readiness-plan.schema.json",
+        schema=load_json(REPO_ROOT / "schemas" / "run-readiness-plan.schema.json"),
+        properties=[
+            "workstreams",
+            "rubric",
+            "criterion_evidence_matrix",
+            "provider_provenance",
+            "quarantine_rules",
+            "boundary_negative_tests",
+            "next_version_rail",
+            "patrol_stopping_rule",
+            "handoff_evidence_requirements",
+            "adjudication_record",
+        ],
+    )
+    for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
+        errors.append(f"sample-run-readiness-plan.json: {error}")
 
     require_doc_terms(
         errors,
@@ -366,10 +390,17 @@ def validate_repository() -> list[str]:
             "--prefer-local",
             "--local-profile openshift-ai-vllm",
             "references/local-inference.md",
+            "references/run-readiness.md",
             "malpractice_score",
             "peer_review_required",
             "schemas/local-dispatch-envelope.schema.json",
             "schemas/harness-dispatch-envelope.schema.json",
+            "schemas/run-readiness-plan.schema.json",
+            "scripts/validate_run_readiness_plan.py",
+            "scripts/render_run_projection.py",
+            "wrap-up-status",
+            "criterion-to-evidence matrix",
+            "run readiness plan",
             "policy/harness-registry.yaml",
             "policy/execution-environments.yaml",
             "references/redhat-expert-catalog.md",
@@ -499,6 +530,7 @@ def validate_repository() -> list[str]:
             "Invoke From Codex",
             "Coach And Decide",
             "Beads Task Graph",
+            "Run Readiness",
             "Optional Workstreams",
             "Validate And Handoff",
             "./use-cases.html",
@@ -518,6 +550,13 @@ def validate_repository() -> list[str]:
             "--workspace-root",
             "helper execution only for advanced automation",
             "scripts/scaffold_workgraph.py",
+            "scripts/validate_run_readiness_plan.py",
+            "scripts/render_run_projection.py",
+            "wrap-up-status",
+            "schemas/run-readiness-plan.schema.json",
+            "templates/run-readiness-plan.md",
+            "references/run-readiness.md",
+            "boundary negative test",
             "scripts/build_beads_brief.py",
             "scripts/build_contractor_packet.py",
             "scripts/dispatch_work.py",
@@ -698,8 +737,14 @@ def validate_repository() -> list[str]:
             "notes",
             "scripts/validate_site.py",
             "scripts/render_harness_dispatch.py",
+            "scripts/validate_run_readiness_plan.py",
+            "scripts/render_run_projection.py",
+            "wrap-up-status",
+            "schemas/run-readiness-plan.schema.json",
             "workspace_mutation_guard.py",
             "closure-memory comments",
+            "Run Readiness",
+            "criterion-to-evidence matrix",
             "Durable Memory",
             "what changed",
             "how validated",
@@ -797,6 +842,7 @@ def validate_repository() -> list[str]:
             "malpractice_score",
             "CONTRACTOR RETURN TEMPLATE - COPY EXACTLY",
             "references/redhat-expert-catalog.md",
+            "references/run-readiness.md",
             "scripts/close_bead_with_summary.py",
         ],
     )
@@ -834,6 +880,35 @@ def validate_repository() -> list[str]:
             "publish-release",
             "Scaffold Size",
             "Exact contract labels belong",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "references/run-readiness.md",
+        [
+            "Run Readiness Gate",
+            "Beads remain canonical",
+            "criterion maps to an artifact, validator, or review gate",
+            "Rubrics have a version",
+            "typed projections",
+            "Unsupported or boundary-breaking returns are quarantined",
+            "Next-version items have a typed reason",
+            "Patrol or recurring work remains research-only",
+            "scripts/render_run_projection.py",
+            "wrap-up-status",
+            "criterion_ids",
+            "provider_neutral_execution",
+            "out-of-scope",
+            "needs-credential",
+            "needs-research",
+            "hardening",
+            "later-version",
+            "blocked",
+            "schemas/run-readiness-plan.schema.json",
+            "examples/sample-run-readiness-plan.json",
+            "scripts/validate_run_readiness_plan.py",
+            "templates/run-readiness-plan.md",
+            "Architect adjudication is the handoff decision",
         ],
     )
     require_doc_terms(

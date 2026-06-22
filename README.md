@@ -152,6 +152,58 @@ Generated Beads should populate the native Beads fields for `skills`,
 `acceptance`, `design`, and `notes`; descriptions remain the human-readable
 assignment body.
 
+## Run Readiness Gate
+
+Use a run readiness plan before worker handoff when the run has broad
+implementation scope, contractor or local-worker evidence, model synthesis, or
+public/release risk. The plan proves that the work is ready to execute; it does
+not replace the Beads graph.
+
+The readiness gate is the place to define done before workers execute: owners,
+exit conditions, a criterion-to-evidence matrix, rubric version, projection
+authority, typed next-version follow-up, and handoff evidence. The first-class
+projection types are `run-sheet`, `wrap-up-status`, and `next-version`; each
+declares Beads as the canonical source and a renderer command or source Bead.
+Run sheets and wrap-up/status reports are generated views from durable Beads
+state; they are not new authority.
+
+Use the JSON shape when automation needs a hard gate, then render projection
+views when humans need a run sheet, wrap-up, or next-version rail:
+
+```bash
+python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
+python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet
+python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status
+```
+
+Deferred work must use one of the allowed next-version reason types:
+`out-of-scope`, `needs-credential`, `needs-research`, `hardening`,
+`later-version`, or `blocked`. Patrol or recurring work remains research-only
+until `ownership`, `locking`, `history`, `failure_containment`, and
+`provider_neutral_execution` are accepted.
+
+Reference files:
+
+- `references/run-readiness.md`
+- `templates/run-readiness-plan.md`
+- `schemas/run-readiness-plan.schema.json`
+- `examples/sample-run-readiness-plan.json`
+- `scripts/validate_run_readiness_plan.py`
+- `scripts/render_run_projection.py`
+
+```mermaid
+flowchart TD
+    Beads[(Beads canonical state)] --> Plan[Run readiness plan]
+    Plan --> Owners[Owners and exit conditions]
+    Plan --> Matrix[criterion-to-evidence matrix]
+    Plan --> Authority[Authority and projection rules]
+    Plan --> Tests[Boundary negative tests]
+    Plan --> Handoff[Worker handoff]
+    Contractor[Contractor or local return] --> Evaluate[Evaluator]
+    Evaluate --> Adjudicate[Architect adjudication]
+    Adjudicate --> Plan
+```
+
 ## Where CWO Fits
 
 CWO is a governance, evidence, and handoff layer for Codex-led work. It does
@@ -185,7 +237,9 @@ The control-plane files are:
 - `policy/execution-environments.yaml`
 - `schemas/execution-environment.schema.json`
 - `schemas/harness-dispatch-envelope.schema.json`
+- `schemas/run-readiness-plan.schema.json`
 - `references/execution-environments.md`
+- `references/run-readiness.md`
 
 OpenCode is the first v2 open-source exemplar because it is terminal-first,
 scriptable, provider-flexible, and can target local OpenAI-compatible model
@@ -437,13 +491,20 @@ binding, and expert profile for outside or local review.
   previous-event hash when a prior event exists.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
   graph state.
+- `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
+  before worker handoff, including owners, exit conditions, evidence mapping,
+  authority rules, typed projections, quarantine handling, boundary negative
+  tests, and handoff evidence.
+- `scripts/render_run_projection.py`: render non-authoritative run sheet,
+  wrap-up/status, or next-version projections from a validated readiness plan.
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
   executor controls, or emitted packet artifact names drift apart.
 
 Schemas in `schemas/` describe prompt-coach results, route results, contractor
 packets, contractor return bundles, local dispatch envelopes, attestations,
-acceptance decisions, Beads metadata, and audit events. `examples/` contains
-small sample artifacts that can be used as smoke-test inputs.
+acceptance decisions, run readiness plans, Beads metadata, and audit events.
+`examples/` contains small sample artifacts that can be used as smoke-test
+inputs.
 
 Example route check:
 
