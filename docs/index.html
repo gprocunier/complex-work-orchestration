@@ -67,6 +67,11 @@
               compacted, another agent joins, or a reviewer gives advice that
               still needs checking.
             </p>
+            <p>
+              Because a shell can change the project, CWO also makes model
+              returns checkable before they shape implementation.
+              <a href="./malpractice-sabotage.html">See how risky returns are checked</a>.
+            </p>
           </div>
           <div class="comparison-panel" aria-label="Web chat and coding shell comparison">
             <div>
@@ -102,7 +107,11 @@
           </article>
           <article>
             <h3>Review needs boundaries</h3>
-            <p>Another model can critique the work, but its advice is not automatically true.</p>
+            <p>
+              Another model can critique the work, but its advice is not
+              automatically true. Guardrails keep unsupported, unsafe, or
+              boundary-breaking returns from becoming project direction.
+            </p>
           </article>
           <article>
             <h3>Validation must be visible</h3>
@@ -136,14 +145,27 @@
           <article>
             <p class="eyebrow">Run</p>
             <h3>Review and validation</h3>
-            <p>Bounded review workers can inspect flow, terminology, tests, and publish readiness while the main thread keeps final judgment.</p>
-            <p><a href="./model-synthesis.html">See how model synthesis stays evidence-based</a></p>
+            <p>
+              Bounded review workers can inspect flow, terminology, tests, and
+              publish readiness while the main thread keeps final judgment.
+              The same gate checks whether returns are supported and safe to
+              use.
+            </p>
+            <p>
+              <a href="./model-synthesis.html">See how model synthesis stays evidence-based</a>
+              <span aria-hidden="true"> | </span>
+              <a href="./malpractice-sabotage.html">See the return-safety gate</a>
+            </p>
           </article>
           <article>
             <p class="eyebrow">Fly</p>
             <h3>Advanced environments</h3>
-            <p>When needed, CWO can add outside reviewers, model synthesis, local workers, OpenCode, airgapped paths, and RHOAI/vLLM model profiles.</p>
-            <p><a href="./malpractice-sabotage.html">See how risky returns are checked</a></p>
+            <p>
+              When needed, CWO can add outside reviewers, model synthesis,
+              local workers, OpenCode, airgapped paths, and RHOAI/vLLM model
+              profiles without letting any one return bypass evaluation.
+            </p>
+            <p><a href="./malpractice-sabotage.html">Open the guardrails deep dive</a></p>
           </article>
         </div>
       </section>
