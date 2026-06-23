@@ -16,6 +16,8 @@ from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
 from scaffold_workgraph import beads_graph_plan, planned_graph  # noqa: E402
 
+BD_PATH = shutil.which("bd")
+
 
 class ScaffoldBeadsGraphTests(unittest.TestCase):
     def test_beads_graph_plan_uses_graph_apply_schema(self) -> None:
@@ -94,11 +96,8 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertTrue(synthesis["active"])
         self.assertIn("input evaluator dispositions", synthesis["artifact_contract"])
 
+    @unittest.skipUnless(BD_PATH, "bd is not installed")
     def test_cli_beads_graph_output_validates_with_bd_create_graph_dry_run(self) -> None:
-        bd = shutil.which("bd")
-        if not bd:
-            self.skipTest("bd is not installed")
-
         result = subprocess.run(
             [
                 sys.executable,
@@ -125,7 +124,7 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
             graph_path = Path(temp_dir) / "graph.json"
             graph_path.write_text(json.dumps(graph), encoding="utf-8")
             dry_run = subprocess.run(
-                [bd, "create", "--graph", str(graph_path), "--dry-run", "--json"],
+                [BD_PATH or "bd", "create", "--graph", str(graph_path), "--dry-run", "--json"],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,

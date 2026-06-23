@@ -22,6 +22,9 @@ Use Get Started when you are ready to install and run the first small task:
 - Get Started: https://gprocunier.github.io/complex-work-orchestration/get-started.html
 - Workflows: https://gprocunier.github.io/complex-work-orchestration/workflows.html
 - Explanation: https://gprocunier.github.io/complex-work-orchestration/explanation.html
+- Beads Memory: https://gprocunier.github.io/complex-work-orchestration/beads-memory.html
+- Model Synthesis: https://gprocunier.github.io/complex-work-orchestration/model-synthesis.html
+- Guardrails: https://gprocunier.github.io/complex-work-orchestration/malpractice-sabotage.html
 - Reference: https://gprocunier.github.io/complex-work-orchestration/reference.html
 
 ## Installation

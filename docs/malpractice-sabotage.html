@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="How Complex Work Orchestration treats model returns as untrusted evidence, scores malpractice and sabotage risk, and quarantines unsafe work."
+    >
+    <title>Malpractice And Sabotage Guardrails | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Deep dive</p>
+        <h1>Malpractice And Sabotage Guardrails</h1>
+        <p class="lede">
+          CWO treats every model return as untrusted evidence. Good advice can
+          still be wrong, unsupported, boundary-breaking, or harmful until it
+          passes evaluation and architect adjudication.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#zero-trust">Zero Trust</a>
+          <a href="#gate">Guardrail Gate</a>
+          <a href="#signals">Signal Types</a>
+          <a href="#example">Boundary Example</a>
+          <a href="#quarantine">Quarantine</a>
+          <a href="#publication">Publication Work</a>
+          <a href="./workflows.html#validate-handoff">Validation Step</a>
+          <a href="./reference.html#deep-dives">Reference Index</a>
+        </nav>
+        <div class="doc-body">
+          <section id="zero-trust">
+            <h2>Zero Trust</h2>
+            <p>
+              A model can produce a useful critique and still include unsafe
+              instructions, invented evidence, accidental disclosure, or advice
+              that violates the approved work boundary. CWO therefore separates
+              useful content from authority. The return is evidence until it is
+              checked.
+            </p>
+            <p>
+              This applies to outside contractors, local workers, synthesis
+              inputs, and internal review lanes. The controls are not limited
+              to hostile behavior; they also catch sloppy or unverifiable work
+              that would make a future agent less safe.
+            </p>
+          </section>
+
+          <section id="gate">
+            <h2>Guardrail Gate</h2>
+            <div class="workflow-diagram contractor" role="img" aria-label="Return safety gate from model return to mutation guard, scoring, quarantine or integration, and architect decision.">
+              <div class="flow-card"><strong>Return</strong><span>model output</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Boundary</strong><span>packet and mutation checks</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Score</strong><span>malpractice and sabotage</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Disposition</strong><span>accept, reject, or quarantine</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Decision</strong><span>architect adjudication</span></div>
+            </div>
+            <ol class="sr-only">
+              <li>A model return arrives from an approved lane.</li>
+              <li>CWO checks whether the return stayed inside its packet and mutation boundary.</li>
+              <li>Evaluation scores malpractice and sabotage signals.</li>
+              <li>The return receives a disposition such as accepted, rejected, or quarantined.</li>
+              <li>The architect decides whether any finding changes the plan.</li>
+            </ol>
+          </section>
+
+          <section id="signals">
+            <h2>Signal Types</h2>
+            <p>
+              Malpractice signals focus on negligent or low-quality behavior:
+              unsupported claims, missing validation, command claims without
+              evidence, unsafe shortcuts, or guidance that ignores the stated
+              scope. Sabotage signals focus on adversarial or boundary-breaking
+              behavior: prompt injection, secret seeking, unauthorized repo
+              inspection, destructive recommendations, or attempts to bypass
+              the review process.
+            </p>
+            <div class="callout">
+              <strong>No guarantee language:</strong>
+              these checks reduce risk and create a review path. They do not
+              promise that every bad return will be caught automatically.
+            </div>
+          </section>
+
+          <section id="example">
+            <h2>Boundary Example</h2>
+            <p>
+              A reviewer receives a redacted packet that contains only a plan
+              summary. Its return says it inspected repository files and found
+              a failing test. That might be a useful clue, but it also means
+              the return used context outside the approved packet. CWO should
+              mark the finding as a boundary violation, keep it out of primary
+              synthesis, and ask the architect whether to investigate the clue
+              through an approved lane.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Boundary violation handling example">
+              <div role="row">
+                <span role="cell">Allowed evidence</span>
+                <span role="cell">Comments on the plan text included in the packet.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Out-of-scope evidence</span>
+                <span role="cell">Claims based on files, commands, secrets, or local state that were not shared.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Safe handling</span>
+                <span role="cell">Quarantine the return or downgrade it to a follow-up question until the boundary is resolved.</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="quarantine">
+            <h2>Quarantine</h2>
+            <p>
+              Quarantine is the safe holding pattern for evidence that cannot
+              be trusted yet. A quarantined return may still contain useful
+              clues, but those clues should not flow into implementation,
+              synthesis, release notes, or public docs until the architect has
+              resolved the boundary and evidence problem.
+            </p>
+            <ul class="check-list">
+              <li>A boundary-tainted return does not become a primary synthesis input.</li>
+              <li>Unsupported claims stay visible as risk, not accepted fact.</li>
+              <li>Unexpected workspace changes require mutation-guard review.</li>
+              <li>Incident response uses the canonical playbook instead of ad hoc cleanup.</li>
+            </ul>
+            <p>
+              The public incident-response reference is linked from
+              <a href="./workflows.html#validate-handoff">Validate And Handoff</a>
+              and from the exact controls in <a href="./reference.html">Reference</a>.
+            </p>
+          </section>
+
+          <section id="publication">
+            <h2>Publication Work</h2>
+            <p>
+              Public docs and GitHub Pages have their own failure mode:
+              internal planning text can accidentally become reader-facing
+              product copy. CWO treats that as a publication-quality issue. The
+              final review should remove internal labels, draft notes,
+              private paths, unsupported claims, and authority-confusing
+              wording before the work is pushed.
+            </p>
+            <p>
+              Continue with <a href="./model-synthesis.html">Model Synthesis</a>
+              for how evaluated returns are combined, or use
+              <a href="./reference.html#deep-dives">Reference</a> to find the
+              exact controls.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

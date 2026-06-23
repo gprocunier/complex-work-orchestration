@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="How Complex Work Orchestration evaluates independent model reviews, synthesizes evidence, and keeps final adjudication with the architect."
+    >
+    <title>Model Synthesis | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Deep dive</p>
+        <h1>Model Synthesis And Adjudication</h1>
+        <p class="lede">
+          CWO can ask several models for independent reviews, but it does not
+          average their answers into truth. Synthesis reports the evidence;
+          the architect decides what to accept.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#why">Why It Exists</a>
+          <a href="#pipeline">Synthesis Pipeline</a>
+          <a href="#input-quality">Input Quality</a>
+          <a href="#example">Contradiction Example</a>
+          <a href="#adjudication">Adjudication</a>
+          <a href="#use-it">When To Use It</a>
+          <a href="./external-contracting.html#multi-expert-review">Contracting Flow</a>
+          <a href="./reference.html#deep-dives">Reference Index</a>
+        </nav>
+        <div class="doc-body">
+          <section id="why">
+            <h2>Why It Exists</h2>
+            <p>
+              Independent reviews are useful because different model families
+              notice different risks. One model may catch a docs-flow problem,
+              another may challenge a security boundary, and a third may find a
+              missing validation gate. The value comes from preserving those
+              independent findings before combining them.
+            </p>
+            <p>
+              The danger is treating agreement as permission. CWO keeps model
+              returns as advisory evidence until they are evaluated,
+              dispositioned, synthesized, and adjudicated by the architect.
+            </p>
+          </section>
+
+          <section id="pipeline">
+            <h2>Synthesis Pipeline</h2>
+            <div class="workflow-diagram contractor" role="img" aria-label="Model synthesis flow from architect plan to isolated review lanes, return evaluation, synthesis, and architect adjudication.">
+              <div class="flow-card"><strong>Plan</strong><span>Codex architect</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Review</strong><span>isolated model lanes</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Evaluate</strong><span>quality and boundary</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Synthesize</strong><span>consensus and conflict</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Adjudicate</strong><span>architect decides</span></div>
+            </div>
+            <ol class="sr-only">
+              <li>The Codex architect creates the initial plan.</li>
+              <li>Independent model lanes review bounded packets.</li>
+              <li>Returns are evaluated for evidence, quality, and boundary fit.</li>
+              <li>Synthesis records consensus, conflict, unsupported claims, and risk deltas.</li>
+              <li>The architect decides what changes the work plan.</li>
+            </ol>
+          </section>
+
+          <section id="input-quality">
+            <h2>Input Quality</h2>
+            <p>
+              Synthesis is only as useful as the returns it receives. CWO
+              tracks input dispositions before synthesis: accepted,
+              accepted-with-modification, salvage-only, open-risk, missing,
+              timed-out, rejected, quarantined, or boundary-tainted.
+            </p>
+            <div class="callout">
+              <strong>Salvage-only means useful but limited.</strong>
+              A return may provide wording ideas, alternate framing, or risk
+              prompts without counting toward the minimum usable primary inputs.
+              Gemini architecture critique is treated this way by default unless
+              the architect explicitly upgrades a specific evaluated finding.
+            </div>
+            <p>
+              Boundary-tainted returns are not silently blended into the result.
+              If a reviewer used unapproved context, claimed shell work it was
+              not allowed to perform, or crossed the sharing boundary, that
+              return must be rejected or quarantined before synthesis can be
+              trusted.
+            </p>
+          </section>
+
+          <section id="example">
+            <h2>Contradiction Example</h2>
+            <p>
+              A Codex architect proposes a public-docs refactor. One reviewer
+              says three deep-dive pages are the clearest structure. Another
+              says to merge guardrails into the synthesis page to reduce
+              navigation. Synthesis does not vote. It records the disagreement,
+              checks which recommendation matches the operator requirement,
+              and asks the architect to decide.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Synthesis contradiction example">
+              <div role="row">
+                <span role="cell">Accepted signal</span>
+                <span role="cell">Use problem-first intros, examples, accessible diagrams, and top-nav restraint.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Rejected signal</span>
+                <span role="cell">Collapse the guardrails page when the operator explicitly requested a dedicated page.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Architect decision</span>
+                <span role="cell">Keep three pages, but make the guardrails page concrete and evidence-focused.</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="adjudication">
+            <h2>Adjudication</h2>
+            <p>
+              The synthesis artifact should say what the reviewers agreed on,
+              where they disagreed, which claims lacked evidence, what risks
+              changed, which inputs were salvage-only or missing, and what plan
+              revisions are recommended. It should preserve provider provenance
+              and should not make the release decision.
+            </p>
+            <ul class="check-list">
+              <li>Synthesis reports; it does not decide.</li>
+              <li>Outside models provide evidence; they do not gain authority.</li>
+              <li>Accepted findings become plan changes only after architect adjudication.</li>
+              <li>Rejected or quarantined findings stay in the record as boundary evidence.</li>
+            </ul>
+          </section>
+
+          <section id="use-it">
+            <h2>When To Use It</h2>
+            <p>
+              Use synthesis for high-risk architecture, security-sensitive
+              planning, publication work, provider-conflict review, airgapped
+              model substitution choices, or any task where independent
+              critiques are expected to materially improve the plan. Do not use
+              it for narrow edits where one Beads task and focused validation
+              are enough.
+            </p>
+            <p>
+              Continue with the <a href="./external-contracting.html#multi-expert-review">multi-expert review flow</a>,
+              or use <a href="./reference.html#experts">Reference</a> for exact
+              executor IDs and helper commands.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

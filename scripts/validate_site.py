@@ -21,6 +21,9 @@ REQUIRED_PAGES = [
     "external-contracting.html",
     "local-workers.html",
     "contractor-demo.html",
+    "beads-memory.html",
+    "model-synthesis.html",
+    "malpractice-sabotage.html",
     "reference.html",
 ]
 SOURCE_LINK_PATTERNS = [
@@ -80,6 +83,10 @@ INDEX_FIRST_SCREEN_FORBIDDEN_TERMS = [
     "Beads",
     "contractor",
     "synthesis",
+    "sabotage",
+    "malpractice",
+    "quarantine",
+    "adjudication",
     "RHOAI",
     "model profile",
     "execution environment",
@@ -93,6 +100,9 @@ INDEX_FIRST_SCREEN_FORBIDDEN_TERMS = [
 ]
 INDEX_EXPERT_ROUTE_HREFS = [
     "./workflows.html",
+    "./beads-memory.html",
+    "./model-synthesis.html",
+    "./malpractice-sabotage.html",
     "./reference.html",
     "./contractor-demo.html",
     REPO_URL,

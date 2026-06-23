@@ -231,6 +231,8 @@ claude --model claude-opus-4-6 --effort high \
               <li>Let the Codex architect accept, modify, defer, reject, or quarantine each finding.</li>
             </ol>
             <p>
+              For the public explanation of this pattern, see
+              <a href="./model-synthesis.html">Model Synthesis And Adjudication</a>.
               The matching reader-facing summary is in
               <a href="./use-cases.html#complex-use-cases">Use Cases</a>. The
               exact executor IDs, review labels, and command examples remain in
@@ -429,6 +431,8 @@ python3 scripts/evaluate_return.py \
               complete. Use the canonical
               <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">incident-response playbook</a>
               for suspected sabotage, malpractice, or quarantine handling.
+              The <a href="./malpractice-sabotage.html">Guardrails deep dive</a>
+              explains why those returns stay isolated until adjudication.
             </div>
             <div class="callout">
               <strong>Peer-review rule:</strong>

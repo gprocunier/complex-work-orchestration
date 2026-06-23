@@ -88,7 +88,9 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               For exact closure helper syntax, use
               <a href="./reference.html#durable-memory">Reference</a>. This
               page keeps the use-case view focused on why the durable record
-              matters.
+              matters. The <a href="./beads-memory.html">Beads Memory deep dive</a>
+              explains the same idea from the perspective of context recovery
+              and agent handoff.
             </p>
             <p>
               If no Dolt remote is configured, say that the Beads trail is
@@ -181,12 +183,20 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               <li>Accept only returns with the expected dispatch identity, packet hash, boundary fit, and model/share-link evidence.</li>
             </ol>
             <p>
+              The <a href="./model-synthesis.html">Model Synthesis deep dive</a>
+              shows why these reviews remain evidence until architect
+              adjudication.
+            </p>
+            <p>
               The operator details are in
               <a href="./external-contracting.html#multi-expert-review">External Contracting</a>,
               and the browser-mediated master review setup is in
               <a href="./external-contracting.html#master-review">Master Review</a>.
               The <a href="./contractor-demo.html">contractor demo</a> shows the
               same evidence-first control model on a smaller public project.
+              The <a href="./malpractice-sabotage.html">Guardrails deep dive</a>
+              explains how rejected, quarantined, or boundary-tainted returns
+              stay out of implementation.
             </p>
           </section>
 

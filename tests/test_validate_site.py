@@ -105,9 +105,12 @@ class ValidateSiteTests(unittest.TestCase):
         errors = self.validate_snippet(
             "index.html",
             """
-<section id="top"><p>Beads and model synthesis make this powerful.</p></section>
+<section id="top"><p>Beads, model synthesis, sabotage, malpractice, quarantine, and adjudication make this powerful.</p></section>
 <section id="walk"><p>Now explain the ramp.</p></section>
 <a href="./workflows.html">Workflows</a>
+<a href="./beads-memory.html">Beads Memory</a>
+<a href="./model-synthesis.html">Model Synthesis</a>
+<a href="./malpractice-sabotage.html">Guardrails</a>
 <a href="./reference.html">Reference</a>
 <a href="./contractor-demo.html">Demo</a>
 <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
@@ -116,6 +119,10 @@ class ValidateSiteTests(unittest.TestCase):
         rendered = "\n".join(errors)
         self.assertIn("advanced term before novice ramp: Beads", rendered)
         self.assertIn("advanced term before novice ramp: synthesis", rendered)
+        self.assertIn("advanced term before novice ramp: sabotage", rendered)
+        self.assertIn("advanced term before novice ramp: malpractice", rendered)
+        self.assertIn("advanced term before novice ramp: quarantine", rendered)
+        self.assertIn("advanced term before novice ramp: adjudication", rendered)
 
     def test_index_requires_expert_routes(self) -> None:
         errors = self.validate_snippet(
@@ -127,6 +134,9 @@ class ValidateSiteTests(unittest.TestCase):
         )
         rendered = "\n".join(errors)
         self.assertIn("missing expert route link: ./workflows.html", rendered)
+        self.assertIn("missing expert route link: ./beads-memory.html", rendered)
+        self.assertIn("missing expert route link: ./model-synthesis.html", rendered)
+        self.assertIn("missing expert route link: ./malpractice-sabotage.html", rendered)
         self.assertIn("missing expert route link: ./reference.html", rendered)
         self.assertIn("missing expert route link: ./contractor-demo.html", rendered)
 
@@ -138,6 +148,9 @@ class ValidateSiteTests(unittest.TestCase):
 <section id="crawl"><p>A web chat answers questions. A coding shell works in the project.</p></section>
 <section id="walk"><p>Now introduce the workflow.</p></section>
 <a href="./workflows.html">Workflows</a>
+<a href="./beads-memory.html">Beads Memory</a>
+<a href="./model-synthesis.html">Model Synthesis</a>
+<a href="./malpractice-sabotage.html">Guardrails</a>
 <a href="./reference.html">Reference</a>
 <a href="./contractor-demo.html">Demo</a>
 <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>

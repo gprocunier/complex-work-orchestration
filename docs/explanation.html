@@ -49,6 +49,8 @@
           <a href="#evidence">Evidence Boundaries</a>
           <a href="#publication">Publication Quality</a>
           <a href="#failure-modes">Failure Modes</a>
+          <a href="./beads-memory.html">Beads Memory</a>
+          <a href="./model-synthesis.html">Synthesis</a>
           <a href="./workflows.html">Workflows</a>
       </nav>
         <div class="doc-body">
@@ -116,6 +118,11 @@
               durable local state. It is not synced to another machine until a
               remote exists and the operator pushes it.
             </div>
+            <p>
+              The <a href="./beads-memory.html">Beads Memory deep dive</a>
+              explains how closure comments and context-depth choices help
+              spawned agents and compacted sessions recover the work story.
+            </p>
           </section>
 
           <section id="evidence">
@@ -132,6 +139,12 @@
               supposed to expose. If a redacted review accidentally uses local
               repository context, that extra evidence should be rejected or
               quarantined instead of folded into the plan without review.
+            </p>
+            <p>
+              When several reviewers are involved, the
+              <a href="./model-synthesis.html">Model Synthesis deep dive</a>
+              shows how CWO records consensus, disagreement, salvage-only
+              returns, and final architect adjudication.
             </p>
           </section>
 
@@ -166,6 +179,9 @@
               The <a href="./workflows.html">Workflows guide</a> shows how to
               run the process. The <a href="./reference.html">Reference</a>
               page gives exact policy and helper details when you need them.
+              The <a href="./malpractice-sabotage.html">Guardrails deep dive</a>
+              explains how suspicious or low-quality returns are scored,
+              quarantined, and escalated.
             </p>
           </section>
         </div>
