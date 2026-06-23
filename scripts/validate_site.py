@@ -76,6 +76,27 @@ PUBLIC_COPY_FORBIDDEN_PATTERNS = [
     re.compile(r"\bGemini\b.{0,80}\baccepted\s+authority\b", re.IGNORECASE),
 ]
 INTERNAL_LABEL_REFERENCE_PAGES = {"reference.html"}
+INDEX_FIRST_SCREEN_FORBIDDEN_TERMS = [
+    "Beads",
+    "contractor",
+    "synthesis",
+    "RHOAI",
+    "model profile",
+    "execution environment",
+    "evidence lane",
+    "PM",
+    "architect",
+    "workerbee",
+    "Dolt",
+    "OpenCode",
+    "airgapped",
+]
+INDEX_EXPERT_ROUTE_HREFS = [
+    "./workflows.html",
+    "./reference.html",
+    "./contractor-demo.html",
+    REPO_URL,
+]
 
 
 class SiteParser(HTMLParser):
@@ -180,6 +201,17 @@ def validate_html(path: Path) -> list[str]:
         for term in ["External Contract", "Local Worker"]:
             if term not in text:
                 errors.append(f"{path.relative_to(ROOT)} missing prompt-coach output level: {term}")
+    if path.name == "index.html":
+        first_screen = text.split('<section id="walk"', 1)[0]
+        first_screen_plain = re.sub(r"<[^>]+>", " ", first_screen)
+        for term in INDEX_FIRST_SCREEN_FORBIDDEN_TERMS:
+            if re.search(rf"\b{re.escape(term)}\b", first_screen_plain, re.IGNORECASE):
+                errors.append(
+                    f"{path.relative_to(ROOT)} introduces advanced term before novice ramp: {term}"
+                )
+        for href in INDEX_EXPERT_ROUTE_HREFS:
+            if f'href="{href}"' not in text:
+                errors.append(f"{path.relative_to(ROOT)} missing expert route link: {href}")
     if path.name in {"external-contracting.html", "local-workers.html"} and "Publication handoff" not in text:
         errors.append(f"{path.relative_to(ROOT)} missing publication handoff note")
     for landmark in ["main", "nav", "header", "footer"]:

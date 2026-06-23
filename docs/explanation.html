@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Understand why Complex Work Orchestration separates architect authority, Beads memory, review workers, outside contractors, local workers, validation, and handoff."
+      content="Understand why Complex Work Orchestration adds memory, review, validation, and handoff around powerful AI coding-agent shells."
     >
     <title>Explanation | Complex Work Orchestration</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -35,15 +35,15 @@
         <p class="eyebrow">Explanation</p>
         <h1>Why The Workflow Is Structured This Way</h1>
         <p class="lede">
-          Complex work needs more than one long prompt. The skill separates
-          planning, durable memory, evidence gathering, validation, and final
-          judgment so a later agent can understand what happened without
-          inheriting the whole transcript.
+          A coding-agent shell can do real project work, not just answer
+          questions. CWO adds the structure that keeps that work recoverable,
+          reviewable, validated, and ready for handoff.
         </p>
       </section>
 
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
+          <a href="#shells">From Chat To Shell</a>
           <a href="#roles">Role Separation</a>
           <a href="#memory">Durable Memory</a>
           <a href="#evidence">Evidence Boundaries</a>
@@ -52,19 +52,37 @@
           <a href="./workflows.html">Workflows</a>
       </nav>
         <div class="doc-body">
+          <section id="shells">
+            <h2>From Chat To Shell</h2>
+            <p>
+              Web-chat AI is strongest when you need an answer, draft, summary,
+              or thought partner. A coding-agent shell is different: it can
+              work inside a repository, edit files, run tests, inspect command
+              output, and verify the result.
+            </p>
+            <p>
+              That power creates a new problem. The work can outgrow the chat
+              transcript. Decisions need to be recorded, reviews need
+              boundaries, validation needs evidence, and the next agent needs a
+              clean place to resume.
+            </p>
+          </section>
+
           <section id="roles">
             <h2>Role Separation</h2>
             <p>
-              The main Codex thread acts as the architect. It owns scope,
+              The main Codex thread acts as the decision owner. It owns scope,
               design tradeoffs, integration, validation judgment, and release
-              decisions. The project-manager layer keeps the work graph current
-              and makes sure each lane has a clear assignment and handoff.
+              decisions. For larger work, project-management coordination keeps
+              the work graph current and makes sure each lane has a clear
+              assignment and handoff.
             </p>
             <p>
               Review workers, outside models, and local models are deliberately
               narrower. They investigate, critique, summarize, or return a
               bounded patch. Their output is useful because it is focused, but
-              it is not authority. The architect still decides what to accept.
+              it is not authority. The main thread still decides what to
+              accept.
             </p>
           </section>
 
@@ -73,8 +91,8 @@
             <p>
               Chat history is not a reliable project database. A spawned agent
               may start with no transcript, and a long-running session may be
-              compacted into a fuzzy summary. Beads gives the project a durable
-              work graph with task scope, dependencies, evidence, decisions,
+              compacted into a fuzzy summary. Beads is the durable task graph
+              CWO uses to record task scope, dependencies, evidence, decisions,
               validation, and handoff notes.
             </p>
             <p>

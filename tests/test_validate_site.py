@@ -101,6 +101,51 @@ class ValidateSiteTests(unittest.TestCase):
         )
         self.assertEqual(internal_copy_errors(errors), [])
 
+    def test_rejects_advanced_terms_before_index_novice_ramp(self) -> None:
+        errors = self.validate_snippet(
+            "index.html",
+            """
+<section id="top"><p>Beads and model synthesis make this powerful.</p></section>
+<section id="walk"><p>Now explain the ramp.</p></section>
+<a href="./workflows.html">Workflows</a>
+<a href="./reference.html">Reference</a>
+<a href="./contractor-demo.html">Demo</a>
+<a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+""",
+        )
+        rendered = "\n".join(errors)
+        self.assertIn("advanced term before novice ramp: Beads", rendered)
+        self.assertIn("advanced term before novice ramp: synthesis", rendered)
+
+    def test_index_requires_expert_routes(self) -> None:
+        errors = self.validate_snippet(
+            "index.html",
+            """
+<section id="top"><p>Shell work should be recoverable.</p></section>
+<section id="walk"><p>Now explain the ramp.</p></section>
+""",
+        )
+        rendered = "\n".join(errors)
+        self.assertIn("missing expert route link: ./workflows.html", rendered)
+        self.assertIn("missing expert route link: ./reference.html", rendered)
+        self.assertIn("missing expert route link: ./contractor-demo.html", rendered)
+
+    def test_allows_plain_index_opening_before_walk(self) -> None:
+        errors = self.validate_snippet(
+            "index.html",
+            """
+<section id="top"><p>Turn AI coding sessions into work you can resume, review, test, and trust.</p></section>
+<section id="crawl"><p>A web chat answers questions. A coding shell works in the project.</p></section>
+<section id="walk"><p>Now introduce the workflow.</p></section>
+<a href="./workflows.html">Workflows</a>
+<a href="./reference.html">Reference</a>
+<a href="./contractor-demo.html">Demo</a>
+<a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+""",
+        )
+        self.assertFalse(any("advanced term before novice ramp" in error for error in errors))
+        self.assertFalse(any("missing expert route link" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

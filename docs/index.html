@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Complex Work Orchestration is a Codex skill for architect-led, Beads-backed multi-agent work, contractor handoff packets, validation, and handoff."
+      content="Complex Work Orchestration helps AI coding sessions become recoverable, reviewable, tested work instead of one long transcript."
     >
     <title>Complex Work Orchestration</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -33,264 +33,206 @@
     <main id="main">
       <section id="top" class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Codex skill · Beads-backed coordination</p>
-          <h1>Complex Work Orchestration</h1>
+          <p class="eyebrow">For work that has outgrown web chat</p>
+          <h1>Turn AI coding sessions into work you can resume, review, test, and trust.</h1>
           <p class="lede">
-            Keep complex AI-assisted work from disappearing into one long
-            transcript. Your agents remember what happened, outside models
-            review without owning the project, and validation evidence is
-            recorded before the work is accepted.
+            ChatGPT and Claude.ai are excellent places to ask questions and
+            draft ideas. Coding-agent shells such as Codex and Claude Code can
+            go further: they work inside your project, inspect files, make
+            edits, run commands, test results, and hand you back evidence.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="./get-started.html">Start the guided setup</a>
-            <a class="button secondary" href="./workflows.html">See the workflow</a>
+            <a class="button primary" href="./get-started.html">Start the 5-minute path</a>
+            <a class="button secondary" href="./workflows.html">I already know agent shells</a>
           </div>
         </div>
       </section>
 
-      <section id="start" class="band intro">
+      <section id="crawl" class="band intro">
         <div class="section-heading">
-          <p class="eyebrow">Two-minute version</p>
-          <h2>The first-class interface is the Codex conversation.</h2>
+          <p class="eyebrow">Crawl</p>
+          <h2>Why a shell changes the game.</h2>
         </div>
         <div class="split">
           <div>
             <p>
-              Ask Codex to use the skill and coach the prompt. Codex runs the
-              local helper, asks only the decisions that change execution,
-              creates a durable Beads task graph when needed, and records
-              validation evidence before the work is accepted or published.
+              A web chat can explain code, propose a patch, or help you think.
+              A coding shell can do the project work with you. It can read the
+              repository, change the right files, run the test suite, inspect
+              failures, and verify that the result actually works.
             </p>
             <p>
-              That gives spawned agents and compacted sessions a reliable
-              memory source, keeps outside or local model output in evidence
-              lanes, and leaves final architecture and release judgment with
-              the main Codex thread.
-            </p>
-            <p>
-              Beads is the durable work graph. An evidence lane is a review
-              return that must be evaluated before it can influence the project.
-            </p>
-            <p>
-              For a connected single-operator run, the short path is enough:
-              ask Codex for the prompt coach, accept the recommended Beads
-              tracking, run the work in the main thread or bounded review
-              lanes, validate, and close with reusable memory. Restricted and
-              airgapped profiles keep the same governance model while swapping
-              the execution shell and model endpoints.
-            </p>
-            <p>
-              CWO complements model and agent tools; it does not replace
-              OpenRouter Fusion, LangGraph, AutoGen, CrewAI, Claude Code,
-              Gemini CLI, or Codex CLI. It records which tool or model was used,
-              which BYOS, BYOK, or local endpoint boundary applied, and
-              which evidence was accepted into the Beads work graph.
-              The v2 execution-environment model keeps Codex as the default
-              connected shell while adding OpenCode as the first open-source
-              harness exemplar for restricted zones and RHOAI/vLLM-style local
-              model serving. For airgapped OpenCode paths, model profiles map
-              architect, PM, workerbee, review, and synthesis roles to approved
-              local RHOAI endpoints instead of public frontier calls.
-              Disconnected deployments can start with practical RHOAI defaults,
-              then benchmark enterprise evaluation targets for deeper
-              architecture and synthesis lanes.
+              That is a much more powerful loop. It is also easier to lose
+              track of what happened when the task gets long, a session is
+              compacted, another agent joins, or a reviewer gives advice that
+              still needs checking.
             </p>
           </div>
-          <div class="command-panel" aria-label="Prompt coach example">
-            <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Publish-ready documentation pass.</code></pre>
+          <div class="comparison-panel" aria-label="Web chat and coding shell comparison">
+            <div>
+              <h3>Web chat</h3>
+              <p>Great for answers, drafts, summaries, and brainstorming.</p>
+            </div>
+            <div>
+              <h3>Coding shell</h3>
+              <p>Works in the project, changes files, runs checks, and verifies outcomes.</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="flow" class="band">
+      <section id="walk" class="section">
         <div class="section-heading">
-          <p class="eyebrow">Operating flow</p>
-          <h2>Everything starts with sizing the work before dispatching it.</h2>
-        </div>
-        <ol class="flow-list">
-          <li>
-            <span>1</span>
-            <div>
-              <h3>Invoke from Codex</h3>
-              <p>Use <code>/plan</code> with <code>$complex-work-orchestration</code> when the work needs durable coordination.</p>
-            </div>
-          </li>
-          <li>
-            <span>2</span>
-            <div>
-              <h3>Coach and route</h3>
-              <p>Let Codex run the coach and policy route, then answer only the choices that change execution.</p>
-            </div>
-          </li>
-          <li>
-            <span>3</span>
-            <div>
-              <h3>Record Beads</h3>
-              <p>Create an epic or task graph with clear scope, dependencies, evidence, and handoff notes.</p>
-            </div>
-          </li>
-          <li>
-            <span>4</span>
-            <div>
-              <h3>Validate before accepting</h3>
-              <p>Use the selected validation gates before accepting findings, contractor returns, or publication work.</p>
-            </div>
-          </li>
-        </ol>
-        <figure class="system-map" aria-labelledby="system-map-title">
-          <figcaption id="system-map-title">How the workflow maps to internal roles</figcaption>
-          <div class="workflow-diagram contractor" role="img" aria-label="User request flows to coach, Beads, evidence lanes, validation, and handoff.">
-            <div class="flow-card"><strong>User</strong><span>asks Codex</span></div>
-            <div class="flow-arrow" aria-hidden="true">→</div>
-            <div class="flow-card"><strong>Coach</strong><span>sizes work</span></div>
-            <div class="flow-arrow" aria-hidden="true">→</div>
-            <div class="flow-card"><strong>Beads</strong><span>durable graph</span></div>
-            <div class="flow-arrow" aria-hidden="true">→</div>
-            <div class="flow-card"><strong>Evidence</strong><span>workers or reviewers</span></div>
-            <div class="flow-arrow" aria-hidden="true">→</div>
-            <div class="flow-card"><strong>Validate</strong><span>accept or reject</span></div>
-            <div class="flow-arrow" aria-hidden="true">→</div>
-            <div class="flow-card"><strong>Handoff</strong><span>recovery notes</span></div>
-          </div>
-          <ol class="sr-only">
-            <li>The user asks Codex to use CWO.</li>
-            <li>The prompt coach sizes the work before execution.</li>
-            <li>Beads records the durable task graph.</li>
-            <li>Optional workers or reviewers produce evidence.</li>
-            <li>The architect validates and accepts or rejects findings.</li>
-            <li>Closure notes preserve handoff context.</li>
-          </ol>
-        </figure>
-      </section>
-
-      <section id="docs" class="section">
-        <div class="section-heading">
-          <p class="eyebrow">Documentation paths</p>
-          <h2>Follow the guided path first, then use deep dives when a workstream appears.</h2>
+          <p class="eyebrow">Walk</p>
+          <h2>Power needs a work story.</h2>
           <p>
-            Public docs and GitHub Pages work gets a final editorial review so
-            the reader path is clear, terms are introduced before use, repeated
-            content is removed, and the published story reads as one coherent
-            guide.
+            Complex Work Orchestration, or CWO, adds the missing operating
+            model around shell-based AI work. It keeps scope, decisions,
+            review, validation, and handoff from disappearing into a transcript.
           </p>
+        </div>
+        <div class="problem-grid">
+          <article>
+            <h3>Context gets lost</h3>
+            <p>Long sessions get summarized, restarted, or handed to another agent.</p>
+          </article>
+          <article>
+            <h3>Decisions blur</h3>
+            <p>It becomes hard to tell what was accepted, rejected, deferred, or guessed.</p>
+          </article>
+          <article>
+            <h3>Review needs boundaries</h3>
+            <p>Another model can critique the work, but its advice is not automatically true.</p>
+          </article>
+          <article>
+            <h3>Validation must be visible</h3>
+            <p>Tests, checks, and publication evidence need to be recorded where the next agent can find them.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="run" class="band">
+        <div class="section-heading">
+          <p class="eyebrow">Run</p>
+          <h2>The CWO path grows with the work.</h2>
+          <p>
+            Start small. Add structure only when the work needs it. The same
+            path can handle a simple documentation fix, a release-quality
+            review, or a multi-model planning pass.
+          </p>
+        </div>
+        <div class="stage-grid">
+          <article>
+            <p class="eyebrow">Crawl</p>
+            <h3>One operator, one task</h3>
+            <p>Ask Codex to size the request and keep one durable record of what changed.</p>
+          </article>
+          <article>
+            <p class="eyebrow">Walk</p>
+            <h3>Prompt coach and memory</h3>
+            <p>The coach asks only the choices that change execution. Beads is the durable task graph that records scope, evidence, and closure memory.</p>
+          </article>
+          <article>
+            <p class="eyebrow">Run</p>
+            <h3>Review and validation</h3>
+            <p>Bounded review workers can inspect flow, terminology, tests, and publish readiness while the main thread keeps final judgment.</p>
+          </article>
+          <article>
+            <p class="eyebrow">Fly</p>
+            <h3>Advanced environments</h3>
+            <p>When needed, CWO can add outside reviewers, model synthesis, local workers, OpenCode, airgapped paths, and RHOAI/vLLM model profiles.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="first-step" class="section narrow">
+        <p class="eyebrow">First step</p>
+        <h2>Start in Codex, then let the coach size the work.</h2>
+        <p>
+          The homepage explains why the workflow exists. The Get Started guide
+          covers installation, required terms, and the smallest useful run.
+        </p>
+        <div class="command-panel" aria-label="Prompt coach example">
+          <pre><code>/plan Use $complex-work-orchestration prompt coach:
+Clean up installer docs, tests, and handoff notes.</code></pre>
+        </div>
+        <p>
+          Paste that into a Codex conversation after the skill is installed.
+          Codex will ask the few decisions that affect execution, then record
+          validation evidence before the work is accepted.
+        </p>
+        <p><a class="button primary" href="./get-started.html">Run the guided first task</a></p>
+      </section>
+
+      <section id="routes" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Choose your depth</p>
+          <h2>Start simple, then open the deeper pages when they match your work.</h2>
         </div>
         <div class="doc-grid">
           <article class="doc-card">
-            <h3>Tutorial</h3>
-            <p>Install the skill, run the prompt coach, and create a small Beads-backed task.</p>
-            <a href="./get-started.html">Run your first orchestration</a>
+            <h3>Get Started</h3>
+            <p>Install the skill, learn the minimum terms, and complete one small CWO-guided task.</p>
+            <a href="./get-started.html">Run the first path</a>
           </article>
           <article class="doc-card">
-            <h3>Guided Workflows</h3>
-            <p>Use <code>/plan</code>, the skill, and the coach to choose the right amount of structure.</p>
-            <a href="./workflows.html">Use the Codex workflow</a>
+            <h3>Workflows</h3>
+            <p>Use the full in-Codex flow once a task needs tracking, review, validation, or handoff.</p>
+            <a href="./workflows.html">Use the guided workflow</a>
           </article>
           <article class="doc-card">
             <h3>Use Cases</h3>
-            <p>Compare the simple prompt-coach path with the complex multi-expert review pattern.</p>
-            <a href="./use-cases.html">Choose a use-case path</a>
-          </article>
-          <article class="doc-card">
-            <h3>Reference</h3>
-            <p>Look up policies, schemas, helper scripts, expert labels, and share boundaries after you know the flow.</p>
-            <a href="./reference.html">Look up exact controls</a>
-          </article>
-          <article class="doc-card">
-            <h3>Evidence Lanes</h3>
-            <p>Use the Contractor handoff packet details, local-worker references, or execution-environment references after the guided flow selects those workstreams.</p>
-            <a href="./workflows.html#optional-lanes">Review optional workstreams</a>
-          </article>
-          <article class="doc-card">
-            <h3>Case Study</h3>
-            <p>After the guided workflow, see the public hello-world contractor demo with Beads, <code>agy -p</code>, Claude Code, review, and Pages validation.</p>
-            <a href="./contractor-demo.html">Study the contractor demo</a>
+            <p>Compare a small prompt-coach run with larger multi-review and publication patterns.</p>
+            <a href="./use-cases.html">Pick a use case</a>
           </article>
           <article class="doc-card">
             <h3>Explanation</h3>
-            <p>Understand why the model separates architect authority, PM coordination, and contractor evidence.</p>
-            <a href="./explanation.html">Learn the operating model</a>
+            <p>Understand why CWO separates planning, memory, evidence, validation, and final judgment.</p>
+            <a href="./explanation.html">Read why it works</a>
+          </article>
+          <article class="doc-card">
+            <h3>Demo</h3>
+            <p>See a hello-world contractor project where Codex coordinated outside tools and then validated the result.</p>
+            <a href="./contractor-demo.html">Study the demo</a>
+          </article>
+          <article class="doc-card">
+            <h3>Reference</h3>
+            <p>Look up exact policies, schemas, helper scripts, expert labels, and share boundaries.</p>
+            <a href="./reference.html">Open the reference</a>
           </article>
         </div>
       </section>
 
-      <section id="tutorial" class="section narrow">
-        <p class="eyebrow">Tutorial</p>
-        <h2>Run your first orchestration check</h2>
+      <section id="reference" class="band narrow">
+        <p class="eyebrow">For returning operators</p>
+        <h2>The expert map is still one click away.</h2>
         <p>
-          Start from the Codex prompt. The coach returns a paste-ready launch
-          prompt and missing-question guardrails before the work graph is
-          created.
-        </p>
-        <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Clean up installer docs, tests, and handoff notes.</code></pre>
-        <p><a href="./get-started.html">Continue with the full getting started guide</a>.</p>
-      </section>
-
-      <section id="how-to" class="section narrow">
-        <p class="eyebrow">How-to guides</p>
-        <h2>Common operator tasks</h2>
-        <p>
-          Use these after you understand the operating flow and need a specific
-          next step.
-        </p>
-        <ul class="link-list">
-          <li><a href="./get-started.html">Install the skill</a></li>
-          <li><a href="./prompt-coach.html">Choose the right invocation</a></li>
-          <li><a href="./workflows.html">Run the guided in-Codex workflow</a></li>
-          <li><a href="./use-cases.html#simple-use-cases">Use the simple prompt-coach path</a></li>
-          <li><a href="./use-cases.html#complex-use-cases">Use the complex multi-expert review pattern</a></li>
-          <li><a href="./workflows.html#optional-lanes">Decide whether contractor or local-worker workstreams are needed</a></li>
-          <li><a href="./workflows.html#execution-environments">Review execution environment choices and the airgapped model matrix</a></li>
-          <li><a href="./explanation.html">Understand why the workflow separates roles and evidence</a></li>
-          <li><a href="./reference.html">Look up exact helper scripts and control-plane files</a></li>
-        </ul>
-      </section>
-
-      <section id="reference" class="section narrow">
-        <p class="eyebrow">Reference</p>
-        <h2>Control-plane files</h2>
-        <p>
-          Flow comes first. Use these files when you need the exact policy,
-          schema, expert, or helper behavior behind a guided workflow decision.
+          CWO is a governance, evidence, and handoff layer. It does not replace
+          Codex CLI, Claude Code, Gemini CLI, OpenCode, LangGraph, AutoGen,
+          CrewAI, OpenRouter Fusion, or local model serving. It records which
+          surface was used, what boundary applied, what evidence was accepted,
+          and what validation proved the work was ready.
         </p>
         <div class="reference-table" role="table" aria-label="Repository reference links">
           <div role="row">
-            <span role="cell">Policies</span>
-            <a role="cell" href="./reference.html#policies">Route, executor, provider, peer-review, and acceptance controls</a>
+            <span role="cell">Workflows</span>
+            <a role="cell" href="./workflows.html">In-Codex orchestration, optional workstreams, and execution environments</a>
           </div>
           <div role="row">
-            <span role="cell">Schemas</span>
-            <a role="cell" href="./reference.html#schemas">Prompt coach, route result, handoff packet, return, audit, and attestation contracts</a>
+            <span role="cell">Reference</span>
+            <a role="cell" href="./reference.html">Policies, schemas, helpers, experts, and exact controls</a>
           </div>
           <div role="row">
-            <span role="cell">Experts</span>
-            <a role="cell" href="./reference.html#experts">Distinguished Engineer review lenses and job-description labels</a>
+            <span role="cell">Source</span>
+            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration">GitHub repository</a>
           </div>
           <div role="row">
-            <span role="cell">Scripts</span>
-            <a role="cell" href="./reference.html#scripts">Coach, route, scaffold, packet, dispatch, evaluate, and validate helpers</a>
+            <span role="cell">License</span>
+            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
           </div>
         </div>
       </section>
 
-      <section id="explanation" class="band narrow">
-        <p class="eyebrow">Explanation</p>
-        <h2>Why the harness separates roles</h2>
-        <p>
-          Complex work fails when planning, execution, validation, and final
-          judgment collapse into one hidden thread. This skill keeps the main
-          Codex thread as architect, records durable state in Beads, assigns
-          bounded work to internal review workers, and treats outside or local models as
-          evidence sources rather than implementation authority.
-        </p>
-        <p>
-          The full explanation covers durable memory, contractor boundaries,
-          publication quality, and the failure modes the harness is designed to
-          avoid.
-        </p>
-        <p><a href="./explanation.html">Read the explanation</a>.</p>
-      </section>
     </main>
 
     <footer class="site-footer">

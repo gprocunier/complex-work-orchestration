@@ -35,8 +35,9 @@
         <p class="eyebrow">Tutorial</p>
         <h1>Get Started</h1>
         <p class="lede">
-          Install the skill, let the prompt coach size the work, and create the
-          first durable Beads record before execution starts.
+          Go from an installed skill to one small CWO-guided task with a
+          durable record, a validation note, and enough context for a later
+          session to resume the work.
         </p>
       </section>
 
@@ -54,6 +55,11 @@
         <div class="doc-body">
           <section id="install">
             <h2>Install the Skill</h2>
+            <p>
+              A Codex skill is a local instruction pack that Codex can load
+              during a conversation. Install CWO into your Codex skills
+              directory, then invoke it from the Codex prompt.
+            </p>
             <p>
               Clone the repository and run the guided installer. It detects a
               Codex skills directory from <code>CODEX_SKILLS_DIR</code>,
@@ -115,12 +121,22 @@ sudo dnf install beads</code></pre>
                   Use the in-Codex coach, one local Beads graph, focused tests,
                   and normal validation. This is the fastest first run.
                 </p>
+                <p>
+                  Choose this when you have Codex, repository access, and a
+                  normal network connection. Do not choose it for airgapped or
+                  shared-operator environments.
+                </p>
               </article>
               <article>
                 <h3>Connected With Contractors</h3>
                 <p>
                   Add Claude, Gemini, ChatGPT Pro, or another approved reviewer
                   only after the sharing boundary and packet are explicit.
+                </p>
+                <p>
+                  Choose this when a second opinion is worth the disclosure and
+                  review overhead. Do not choose it for private context that
+                  cannot leave the machine.
                 </p>
               </article>
               <article>
@@ -130,13 +146,23 @@ sudo dnf install beads</code></pre>
                   operator shell while keeping Beads, evaluator scoring, and
                   architect adjudication.
                 </p>
+                <p>
+                  Choose this when Codex is not the right execution shell but
+                  the workflow can still use local project state. Do not choose
+                  it if no approved shell can run the assignment.
+                </p>
               </article>
               <article>
-                <h3>Airgapped Manual Or RHOAI</h3>
+                <h3>Airgapped Or RHOAI</h3>
                 <p>
                   Assume no public frontier calls. Use local Beads plus approved
                   OpenAI-compatible RHOAI/vLLM model profiles or manual
                   operators.
+                </p>
+                <p>
+                  Choose this when public services are unavailable or forbidden.
+                  Do not choose it until local model endpoints and operator
+                  handoff rules are known.
                 </p>
               </article>
             </div>
@@ -186,10 +212,18 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
           <section id="core-terms">
             <h2>Core Terms</h2>
             <p>
-              These terms appear throughout the docs. Learn them once, then use
-              the workflow and reference pages when you need exact controls.
+              These terms appear in the first run. Learn only these first, then
+              use the workflow and reference pages when you need exact controls.
             </p>
             <div class="tile-grid">
+              <article>
+                <h3>Codex</h3>
+                <p>The coding-agent shell where you invoke the skill and where the main thread keeps final judgment.</p>
+              </article>
+              <article>
+                <h3>CWO</h3>
+                <p>Complex Work Orchestration: the workflow that sizes, records, reviews, validates, and hands off complex agent work.</p>
+              </article>
               <article>
                 <h3>Prompt Coach</h3>
                 <p>Sizes a request before execution so Codex uses the right amount of tracking, review, and validation.</p>
@@ -197,6 +231,22 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               <article>
                 <h3>Beads</h3>
                 <p>The durable task graph for scope, dependencies, evidence, validation, closure memory, and handoff.</p>
+              </article>
+              <article>
+                <h3>Epic</h3>
+                <p>A parent Bead for a larger goal. Small first runs usually need only one task, not a full epic.</p>
+              </article>
+              <article>
+                <h3>Dolt Remote</h3>
+                <p>An optional sync target for Beads. Without one, the work graph is durable on this machine but not shared elsewhere.</p>
+              </article>
+              <article>
+                <h3>Validation</h3>
+                <p>The checks that prove the work is ready, such as tests, docs validation, install smoke, or Pages deployment.</p>
+              </article>
+              <article>
+                <h3>Closure Memory</h3>
+                <p>The final Beads comment that explains what happened, how it was checked, and what a future agent should know.</p>
               </article>
               <article>
                 <h3>Review Worker</h3>
@@ -224,7 +274,7 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               the durable state, initialize it once. If a Dolt remote is
               configured, pull before handoff work and commit or push after
               recording evidence. Without a remote, the graph is durable local
-              state but not shared across machines.
+              state on this machine but not shared across machines.
             </p>
             <details>
               <summary><strong>Operator Reference: Beads Checks</strong></summary>
@@ -287,16 +337,15 @@ EOF
           <section id="execute">
             <h2>Execute Safely</h2>
             <p>
-              Let the coach decide whether the work stays in-thread, becomes a
-              lightweight Beads task, or needs full architect/PM/internal
-              worker workstreams. Outside contractors and local workers are
-              optional workstreams selected later; they are not the starting
-              point.
+              Let the coach decide whether the work stays in the current Codex
+              thread, becomes a lightweight Beads task, or needs a larger work
+              graph. Outside reviewers and local workers are optional paths
+              selected later; they are not the starting point.
             </p>
             <ol class="check-list">
               <li>Invoke the skill from Codex when sizing is unclear.</li>
               <li>Let Codex route non-trivial work against the policy.</li>
-              <li>Create a Beads task or epic with dependencies.</li>
+              <li>Create a Beads task, or an epic when the goal has several dependent parts.</li>
               <li>Run validation before accepting findings or publishing.</li>
             </ol>
           </section>

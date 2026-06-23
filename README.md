@@ -1,9 +1,11 @@
 # Complex Work Orchestration
 
 This skill keeps complex AI-assisted work from disappearing into one long
-transcript. It gives Codex a controlled operating model with a senior
-architect, project-manager coordination, bounded review workers, optional
-outside model contractors, and a Beads-backed task graph.
+transcript. If you have only used ChatGPT or Claude.ai in a browser, the key
+shift is this: coding-agent shells such as Codex and Claude Code can work
+inside a real project, edit files, run checks, and verify results. CWO adds the
+memory, review, validation, and handoff structure that makes that power usable
+for serious work.
 
 Use it when a project needs durable memory, multiple agents, independent
 review, external or local model evidence, or careful release judgment.
@@ -13,7 +15,9 @@ Project site: https://gprocunier.github.io/complex-work-orchestration/
 Version: see `VERSION`. Release notes and breaking-change notes live in
 `CHANGELOG.md`; no Git tag is implied by the working-tree version file.
 
-Start with Get Started when you are using the skill interactively:
+Start with the project site when you are new to the idea. It explains the
+web-chat-to-coding-shell transition before introducing the deeper machinery.
+Use Get Started when you are ready to install and run the first small task:
 
 - Get Started: https://gprocunier.github.io/complex-work-orchestration/get-started.html
 - Workflows: https://gprocunier.github.io/complex-work-orchestration/workflows.html
@@ -119,7 +123,7 @@ Clean up installer docs, tests, and handoff notes.
 ```
 
 Use the explicit scaffold trigger when you already know the work needs the full
-architect/PM/worker harness:
+operator workflow:
 
 ```text
 Use $complex-work-orchestration to scaffold this project.
@@ -132,12 +136,10 @@ For a full external review chain, keep the prompt short and outcome-focused:
 ```
 
 The prompt coach treats explicit scaffold language as a full-harness request.
-If the work needs a focused review chain instead of broad expert fan-out, say
-`tight-chain review` in the prompt coach or use `--scaffold-size tight` when
-running the scaffold helper. Public docs call bounded helpers review workers or
-subagents; internal routing terms still work when you are using the operator
-reference. Contractor workstream language asks for the outside-sharing boundary
-before any external dispatch.
+Public docs call bounded helpers review workers or subagents; internal routing
+terms still work when you are using the operator reference. Contractor
+workstream language asks for the outside-sharing boundary before any external
+dispatch.
 
 Codex may run the helper behind the scenes. Use direct script execution only
 for automation, CI, troubleshooting, or an operator shell outside Codex:
@@ -147,8 +149,8 @@ python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."
 ```
 
-When the user has accepted a recommended synthesis lane, advanced helpers use
-the same activation flag at each stage:
+Operator reference: when the user has accepted a recommended synthesis lane,
+advanced helpers use the same activation flag at each stage:
 
 ```bash
 python3 scripts/coach_prompt.py --model-synthesis "<task text>"
@@ -156,16 +158,17 @@ python3 scripts/route_work.py --model-synthesis "<task text>"
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --model-synthesis
 ```
 
-For focused review work, keep the graph compact while preserving required gates:
+Operator reference: for focused review work, keep the graph compact while
+preserving required gates:
 
 ```bash
 python3 scripts/coach_prompt.py --scaffold-size tight "<task text>"
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --scaffold-size tight
 ```
 
-For advanced automation, the coach and route helpers also expose Beads
-context-depth overrides. Normal in-Codex use should let the coach size this and
-surface the Plan-mode choice only when it matters:
+Operator reference: the coach and route helpers also expose Beads context-depth
+overrides. Normal in-Codex use should let the coach size this and surface the
+Plan-mode choice only when it matters:
 
 ```bash
 python3 scripts/coach_prompt.py --beads-context-depth focused "<task text>"
