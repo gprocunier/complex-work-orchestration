@@ -110,11 +110,20 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
   --requested-role documentation \
   "OpenShift AI vLLM local review of README command examples."</code></pre>
             <p>
-              The route should return <code>route=local-worker</code>,
-              <code>local_worker_allowed=true</code>, guard labels
-              <code>local-worker-only</code> and <code>no-codex-exec</code>,
-              evaluator requirement, and architect adjudication requirement.
+              The route should confirm that local-worker dispatch is enabled,
+              that normal Codex workers cannot claim the assignment, and that
+              evaluator plus architect checkpoints remain required before any
+              follow-up implementation.
             </p>
+            <details>
+              <summary><strong>Operator reference: expected route fields</strong></summary>
+              <p>
+                Advanced operators should see <code>route=local-worker</code>,
+                <code>local_worker_allowed=true</code>,
+                <code>local-worker-only</code>, <code>no-codex-exec</code>,
+                evaluator requirement, and architect adjudication requirement.
+              </p>
+            </details>
           </section>
 
           <section id="openshift-ai">
@@ -309,7 +318,7 @@ python3 scripts/workspace_mutation_guard.py \
             </p>
             <ol class="check-list">
               <li>Use local workers only after explicit local opt-in.</li>
-              <li>Treat output as evidence, not implementation authority.</li>
+              <li>Evaluate local output before it can shape implementation.</li>
               <li>Normalize and evaluate local returns before use.</li>
               <li>Require architect adjudication before follow-up implementation.</li>
               <li>Quarantine failed, disputed, or suspicious returns.</li>

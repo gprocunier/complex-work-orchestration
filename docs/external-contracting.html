@@ -80,12 +80,17 @@
           <section id="labels">
             <h2>Labels</h2>
             <p>
-              Contractor work needs guard labels so normal Codex workers do not
-              claim it from the ready queue.
+              Contractor work needs a separate review lane so normal Codex
+              workers do not claim it from the ready queue. The lane also names
+              the reasoning lens, such as security, architecture, documentation,
+              or editorial review.
             </p>
-            <pre><code>contractor-only
+            <details>
+              <summary><strong>Operator reference: guard labels</strong></summary>
+              <pre><code>contractor-only
 no-codex-exec
 contract-jd-security-reasoning</code></pre>
+            </details>
             <p>
               Use exactly one primary job-description label. Split the work
               into separate Beads when a security review, docs review, and
@@ -439,8 +444,8 @@ python3 scripts/evaluate_return.py \
               If route policy or provider conflict requires peer review, a
               contractor cannot dismiss that gate. Unexpected tracked-file
               mutation also blocks direct implementation use. Provider-policy
-              limitations and opaque intervention risks are handled through the
-              <a href="./malpractice-sabotage.html#provider-policy">Guardrails provider-policy workflow</a>.
+              limitations and opaque intervention risks stay in the evidence
+              gate until the architect adjudicates them.
             </div>
             <div class="callout">
               <strong>Critique rule:</strong>

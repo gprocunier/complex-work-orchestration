@@ -33,13 +33,15 @@
     <main id="main">
       <section class="page-hero">
         <p class="breadcrumb"><a href="./index.html">Home</a> / <a href="./use-cases.html">Use Cases</a> / Guardrails</p>
-        <p class="eyebrow">Deep dive</p>
+        <p class="eyebrow">Risk deep dive</p>
         <h1>Malpractice And Sabotage Guardrails</h1>
         <p class="lede">
           CWO treats every model return as untrusted evidence. Frontier,
           local, and open-weight models can all be useful, but provider policy,
           deployment rules, training choices, tool access, and operating context
-          can still shape what they return.
+          can still shape what they return. The terms malpractice and sabotage
+          name evidence-quality and boundary-risk categories; they are not
+          accusations of intent.
         </p>
       </section>
 
@@ -55,8 +57,6 @@
           <a href="#evidence">Evidence Example</a>
           <a href="#quarantine">Quarantine</a>
           <a href="#publication">Publication Work</a>
-          <a href="./workflows.html#validate-handoff">Validation Step</a>
-          <a href="./reference.html#deep-dives">Reference Index</a>
         </nav>
         <div class="doc-body">
           <section id="zero-trust">
@@ -69,10 +69,12 @@
               checked.
             </p>
             <p>
-              This applies to outside contractors, local workers, synthesis
-              inputs, and internal review lanes. The controls are not limited
-              to hostile behavior; they also catch sloppy or unverifiable work
-              that would make a future agent less safe.
+              Provider identity, model family, self-attestation, and confident
+              prose do not confer authority. This applies to outside
+              contractors, local workers, synthesis inputs, and internal review
+              lanes. The controls are not limited to deliberate misuse; they
+              also catch boundary-violating, insufficiently supported, or
+              unverifiable work that would make a future agent less safe.
             </p>
           </section>
 
@@ -86,22 +88,20 @@
               provenance, peer review, and a clear decision owner.
             </p>
             <p>
-              A recent public example makes the control problem concrete.
-              Anthropic's June 9, 2026 Fable/Mythos system card describes
-              classifier-triggered safeguards for topics such as cybersecurity,
-              biology and chemistry, distillation attempts, and accelerating
-              frontier LLM development. For frontier LLM development, the
-              examples include pretraining pipelines, distributed training
-              infrastructure, and ML accelerator design.
+              One dated public example makes the control problem concrete. A
+              June 2026 system card describes classifier-triggered safeguards
+              for several high-risk topics, including some frontier AI
+              development work. The cited examples include pretraining
+              pipelines, distributed training infrastructure, and accelerator
+              design.
             </p>
             <p>
-              That specific documentation describes fallback or blocking
-              behavior, not a hidden technical mechanism. When Fable's fallback
-              classifiers trigger in client applications, the request routes to
-              the most recent Claude Opus model at the time of release, Claude
-              Opus 4.8, and the user is notified. In the Messages API, the
-              request is blocked by default with a structured reason unless the
-              developer configures retry or fallback behavior.
+              At the time of publication, that documentation described
+              fallback or blocking behavior rather than a hidden technical
+              mechanism. The durable point is not the specific model version or
+              API behavior. The durable point is that provider policy and client
+              surface can change which model answers, whether a request is
+              answered, and what limitations should be disclosed.
             </p>
             <p>
               The broader lesson applies across providers and local deployments.
@@ -140,15 +140,15 @@
               </div>
               <div role="row">
                 <span role="cell">Source fact</span>
-                <span role="cell">Fallback behavior can route client-app requests to Claude Opus 4.8 at release, while API requests are blocked by default unless fallback is configured.</span>
+                <span role="cell">Fallback or blocking behavior can vary by client surface and developer configuration, according to the cited documentation.</span>
               </div>
               <div role="row">
                 <span role="cell">Source fact</span>
-                <span role="cell">A June 11, 2026 system-card changelog says an earlier frontier LLM safeguard description was updated; public docs should use the current fallback-classifier wording.</span>
+                <span role="cell">A June 2026 system-card changelog says an earlier safeguard description was updated; public docs should be source-bound and time-bound.</span>
               </div>
               <div role="row">
                 <span role="cell">CWO risk reading</span>
-                <span role="cell">A model may appear cooperative while provider policy, opaque classification, fallback routing, endpoint configuration, or deployment rules change which model answers or how much assistance is available.</span>
+                <span role="cell">A model may appear cooperative while provider policy, opaque classification, fallback routing, endpoint configuration, or deployment rules shape the answer.</span>
               </div>
               <div role="row">
                 <span role="cell">Required posture</span>
@@ -207,18 +207,18 @@
           <section id="signals">
             <h2>Signal Types</h2>
             <p>
-              Malpractice signals focus on negligent or low-quality behavior:
+              Malpractice signals focus on unsupported or low-quality returns:
               unsupported claims, missing validation, command claims without
               evidence, unsafe shortcuts, or guidance that ignores the stated
-              scope. Sabotage signals focus on adversarial or boundary-breaking
-              behavior: prompt injection, secret seeking, unauthorized repo
-              inspection, destructive recommendations, or attempts to bypass
-              the review process.
+              scope. Sabotage signals focus on boundary-risk patterns: prompt
+              injection signals, sensitive-data requests, unauthorized repo
+              inspection, irreversible-change recommendations, or
+              review-process evasion.
             </p>
             <p>
               Provider-policy signals cover a different failure mode: the
-              return reports, hides, or mishandles policy constraints that can
-              affect output. An opaque intervention signal, missing
+              return reports, omits, obscures, or mishandles policy constraints
+              that can affect output. An opaque intervention signal, missing
               provider-conflict disposition, or a claim that peer review is not
               needed when provider conflict is present should be scored as a
               review risk.
@@ -241,10 +241,10 @@
             </p>
             <p>
               Honest disclosure should normally trigger review and provenance
-              tracking, not automatic rejection. The hard failure is pretending
-              no provider limitation exists, dismissing required peer review, or
-              asking the architect to treat the return as implementation
-              authority.
+              tracking, not automatic rejection. The high-risk condition is a
+              return that omits or misrepresents provider limitations, dismisses
+              required peer review, or asks the architect to treat the return as
+              implementation authority.
             </p>
             <div class="reference-table compact" role="table" aria-label="Provider policy limitation handling">
               <div role="row">
@@ -324,8 +324,8 @@
               internal planning text can accidentally become reader-facing
               product copy. CWO treats that as a publication-quality issue. The
               final review should remove internal labels, draft notes,
-              private paths, unsupported claims, and authority-confusing
-              wording before the work is pushed.
+              private paths, unsupported claims, loaded provider rhetoric, and
+              authority-confusing wording before the work is pushed.
             </p>
             <ul class="check-list">
               <li>No private paths, command guesses, or internal planning labels.</li>
@@ -335,9 +335,10 @@
             </ul>
             <p>
               Continue with <a href="./model-synthesis.html">Model Synthesis</a>
-              for how evaluated returns are combined, or use
-              <a href="./reference.html#deep-dives">Reference</a> to find the
-              exact controls.
+              for how evaluated returns are combined, use
+              <a href="./workflows.html#validate-handoff">Validate And Handoff</a>
+              for the operational step, or open
+              <a href="./reference.html#deep-dives">Reference</a> for exact controls.
             </p>
           </section>
         </div>

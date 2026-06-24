@@ -275,7 +275,18 @@ Beads, routing, packet validation, return evaluation, architect adjudication,
 validation, and handoff. A harness such as Codex CLI, OpenCode, or a manual
 operator shell runs only the assignment CWO renders for it.
 
-The control-plane files are:
+The control plane is intentionally explicit: one layer describes the available
+harnesses, one layer describes deployment environments, and one layer maps CWO
+roles to model profiles. That keeps connected defaults, OpenCode paths,
+airgapped paths, and local RHOAI/vLLM substitutions reviewable instead of hidden
+inside prompt text.
+
+The model-profile matrix is a deployment starting point, not a claim that an
+open model has proprietary frontier parity. Treat every local profile as
+evaluated evidence until the operator benchmarks it for the role and hardware.
+
+<details>
+<summary><strong>Operator reference: control-plane files</strong></summary>
 
 - `policy/harness-registry.yaml`
 - `policy/execution-environments.yaml`
@@ -287,12 +298,7 @@ The control-plane files are:
 - `references/execution-environments.md`
 - `references/run-readiness.md`
 
-`policy/model-profiles.yaml` is the RedHatAI-first role substitution matrix for
-local RHOAI/vLLM execution. It compares the connected defaults CWO currently
-expects, such as the Codex 5.5 x-high architect, a simpler PM/coordination
-model, and Codex 5.3 Spark workerbees, with public Hugging Face models that can
-be served behind OpenShift AI vLLM. The comparison is a deployment starting
-point, not a claim that an open model has proprietary frontier parity.
+</details>
 
 ### Airgapped Model Matrix
 
@@ -648,11 +654,11 @@ flowchart TD
     Decision -->|architect-review| Architect[Architect review Beads]
     Decision -->|external-contract| Gate
 
-    Local --> LocalGuard[local-worker-only + no-codex-exec + one job-description label]
+    Local --> LocalGuard[Isolated local-review lane]
     LocalGuard --> Return[evaluate_return.py]
     Gate -->|No| Architect
-    Gate -->|Yes| Contract[Contractor-only Bead]
-    Contract --> Guard[contractor-only + no-codex-exec + one job-description label]
+    Gate -->|Yes| Contract[External contractor review lane]
+    Contract --> Guard[Boundary and role controls]
     Guard --> Packet[build_contractor_packet.py]
     Packet --> Validate[dispatch_work.py packet revalidation]
     Validate --> Outside[Outside model contractor]
@@ -697,18 +703,18 @@ flowchart TD
     OptIn -->|No outside sharing| Internal[Keep reasoning inside Codex workflow]
     OptIn -->|Allowed| Boundary[Record share boundary]
 
-    Boundary --> JD[Choose one job-description label]
-    JD --> General[contract-jd-general-reasoning]
-    JD --> Security[contract-jd-security-reasoning]
-    JD --> Architecture[contract-jd-architecture-reasoning]
-    JD --> Specialist[contract-jd-domain-name]
+    Boundary --> JD[Choose one reasoning lens]
+    JD --> General[General reasoning]
+    JD --> Security[Security reasoning]
+    JD --> Architecture[Architecture reasoning]
+    JD --> Specialist[Specialist domain reasoning]
 
-    General --> Create[Create contractor-only bead]
+    General --> Create[Create isolated contractor bead]
     Security --> Create
     Architecture --> Create
     Specialist --> Create
 
-    Create --> Guard[Add contractor-only and no-codex-exec labels]
+    Create --> Guard[Add boundary and ownership controls]
     Guard --> Metadata[Add executor, codex_pickup, discipline, share_boundary metadata]
     Metadata --> PMPacket[PM prepares boundary-gated packet]
     PMPacket --> Validate[Validate packet hash, provider, disclosure stage, opt-in, profile, snippets, exclusions, and artifacts]
@@ -731,7 +737,7 @@ flowchart TD
     Plan -->|No| Graph[Create normal Beads task graph]
     Plan -->|Yes| Boundary[Confirm share boundary and opt-in]
 
-    Boundary --> Contract[Create contractor-only Bead]
+    Boundary --> Contract[Create isolated contractor bead]
     Contract --> Packet[build_contractor_packet.py]
     Packet --> Prompt[dispatch_work.py renders manual prompt]
 
@@ -786,21 +792,20 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Ready[bd ready] --> Filter{Which actor is looking?}
-    Filter -->|Codex review worker| CodexCmd[bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json]
-    Filter -->|PM or architect external dispatch| ContractorCmd[bd ready --label contractor-only --json]
-    Filter -->|PM or architect local dispatch| LocalCmd[bd ready --label local-worker-only --json]
+    Ready[Ready work graph] --> Filter{Who is claiming work?}
+    Filter -->|Codex worker| Normal[Implementation, docs, tests, validation]
+    Filter -->|PM or architect| External[External contractor review lane]
+    Filter -->|PM or architect| Local[Local-worker review lane]
 
-    CodexCmd --> Normal[Normal implementation, test, docs, validation beads]
-    ContractorCmd --> Contracts[External contractor beads only]
-    LocalCmd --> LocalContracts[Local-worker review contracts only]
-
-    Contracts --> ContractLabels[contractor-only + no-codex-exec + one contract-jd label]
-    LocalContracts --> LocalLabels[local-worker-only + no-codex-exec + one contract-jd label]
-    ContractLabels --> Packet[Brief outside model]
-    LocalLabels --> LocalEnvelope[Brief local worker]
+    External --> Packet[Boundary-gated contractor packet]
+    Local --> LocalEnvelope[Local dispatch envelope]
     Normal --> Execute[Codex may claim and execute]
+    Packet --> Evaluate[Evaluate and adjudicate return]
+    LocalEnvelope --> Evaluate
 ```
+
+Operator commands and exact guard labels live in the Job Description Labels
+reference below and in the GitHub Pages Reference page.
 
 ## Operating Flow
 
@@ -1142,6 +1147,10 @@ The PM prepares the contractor handoff packet. The architect remains the final
 decision owner.
 
 ## Job Description Labels
+
+This is an operator reference. Narrative docs should describe contractor,
+local-worker, peer-review, and editor lanes in plain language first; these
+labels are the machine-readable controls used by Beads and CWO helpers.
 
 Every outside contract gets guard labels:
 
@@ -1700,9 +1709,10 @@ python3 scripts/evaluate_return.py \
   --workspace-mutation-report mutation-report.json
 ```
 
-Contractor returns are untrusted input. Preserve hostile or surprising text as
-evidence; do not execute, summarize into instructions, or promote it into
-follow-up work until evaluator scoring and architect adjudication are complete.
+Contractor returns are untrusted input. Preserve unsafe, boundary-breaking, or
+surprising text as evidence; do not execute, summarize into instructions, or
+promote it into follow-up work until evaluator scoring and architect
+adjudication are complete.
 Evaluator output includes `sabotage_score`, `malpractice_score`,
 `peer_review_required`, `peer_review_status`, `human_adjudication_required`,
 and `recommended_disposition`. If the evaluator reports `Verdict: quarantine`,
