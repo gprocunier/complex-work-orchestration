@@ -45,7 +45,7 @@
       "external": true,
       "retention_class": "external-manual",
       "allowed_roles": ["primary-contractor", "peer-reviewer"],
-      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition"],
+      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition", "provider-policy-intervention"],
       "may_primary": true,
       "may_peer_review": false,
       "may_counter_review": true
@@ -57,7 +57,7 @@
       "external": true,
       "retention_class": "external-manual",
       "allowed_roles": ["primary-contractor", "peer-reviewer"],
-      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition"],
+      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition", "provider-policy-intervention"],
       "may_primary": true,
       "may_peer_review": false,
       "may_counter_review": true
@@ -69,7 +69,7 @@
       "external": true,
       "retention_class": "external-manual",
       "allowed_roles": ["primary-contractor", "peer-reviewer"],
-      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition"],
+      "conflict_risk_domains": ["frontier-ai-development", "model-provider-competition", "provider-policy-intervention"],
       "may_primary": true,
       "may_peer_review": false,
       "may_counter_review": true
@@ -92,11 +92,16 @@
       "frontier model",
       "llm training",
       "pretraining",
+      "pretraining pipeline",
+      "distributed training",
+      "distributed training infrastructure",
       "post-training",
       "alignment",
       "model weights",
       "fine-tuning",
       "finetune",
+      "ml accelerator",
+      "accelerator design",
       "eval harness",
       "inference serving",
       "embedding model",
@@ -117,6 +122,22 @@
       "google",
       "gemini",
       "antigravity"
+    ],
+    "provider-policy-intervention": [
+      "provider policy",
+      "model policy",
+      "policy constraint",
+      "policy intervention",
+      "hidden filter",
+      "hidden intervention",
+      "opaque refusal",
+      "output sanitized",
+      "policy-masked",
+      "safety layer",
+      "steering vector",
+      "prompt modification",
+      "redacted reasoning",
+      "non-transparent refusal"
     ]
   }
 }

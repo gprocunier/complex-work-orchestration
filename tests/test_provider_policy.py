@@ -28,6 +28,28 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertGreaterEqual(route["peer_review_count"], 1)
         self.assertIn("provider_key", route["selected_executor"])
 
+    def test_provider_policy_intervention_terms_force_peer_review(self) -> None:
+        route = classify_work(
+            "Review a model policy hidden filter that may use prompt modification or a safety layer.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["general-reasoning"],
+        )
+
+        self.assertTrue(route["provider_conflict_detected"])
+        self.assertIn("provider-policy-intervention", route["provider_conflict_domains"])
+        self.assertTrue(route["peer_review_required"])
+        self.assertGreaterEqual(route["peer_review_count"], 1)
+
+    def test_external_frontier_providers_carry_policy_intervention_risk_domain(self) -> None:
+        providers = load_policy("provider-registry")["providers"]
+        for provider_key in ["openai_manual", "anthropic_manual", "google_gemini_manual"]:
+            with self.subTest(provider_key=provider_key):
+                self.assertIn(
+                    "provider-policy-intervention",
+                    providers[provider_key]["conflict_risk_domains"],
+                )
+
     def test_peer_review_controls_enforce_count_and_provider_diversity(self) -> None:
         result = validate_peer_review_controls(
             primary_provider_family="openai",

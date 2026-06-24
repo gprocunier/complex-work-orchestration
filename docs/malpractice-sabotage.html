@@ -32,21 +32,27 @@
 
     <main id="main">
       <section class="page-hero">
+        <p class="breadcrumb"><a href="./index.html">Home</a> / <a href="./use-cases.html">Use Cases</a> / Guardrails</p>
         <p class="eyebrow">Deep dive</p>
         <h1>Malpractice And Sabotage Guardrails</h1>
         <p class="lede">
-          CWO treats every model return as untrusted evidence. Good advice can
-          still be wrong, unsupported, boundary-breaking, or harmful until it
-          passes evaluation and architect adjudication.
+          CWO treats every model return as untrusted evidence. A frontier,
+          local, or open-weight model can be useful while hidden provider
+          policy, opaque classification, trainer choices, or deployment rules
+          still shape the answer.
         </p>
       </section>
 
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
           <a href="#zero-trust">Zero Trust</a>
+          <a href="#why-now">Why Now</a>
+          <a href="#source">Source And Risk</a>
           <a href="#gate">Guardrail Gate</a>
+          <a href="#handlers">Handlers</a>
           <a href="#signals">Signal Types</a>
-          <a href="#example">Boundary Example</a>
+          <a href="#provider-policy">Provider Policy</a>
+          <a href="#evidence">Evidence Example</a>
           <a href="#quarantine">Quarantine</a>
           <a href="#publication">Publication Work</a>
           <a href="./workflows.html#validate-handoff">Validation Step</a>
@@ -67,6 +73,88 @@
               inputs, and internal review lanes. The controls are not limited
               to hostile behavior; they also catch sloppy or unverifiable work
               that would make a future agent less safe.
+            </p>
+          </section>
+
+          <section id="why-now">
+            <h2>Why This Matters Now</h2>
+            <p>
+              Anthropic's June 9, 2026 Fable/Mythos system card makes the
+              trust problem concrete. The card describes classifier-triggered
+              safeguards for topics such as cybersecurity, biology and
+              chemistry, distillation attempts, and accelerating frontier LLM
+              development. For frontier LLM development, the examples include
+              pretraining pipelines, distributed training infrastructure, and
+              ML accelerator design.
+            </p>
+            <p>
+              The current public card describes fallback or blocking behavior,
+              not a hidden technical mechanism. When Fable's fallback
+              classifiers trigger in client applications, the request routes to
+              the most recent Claude Opus model at the time of release, Claude
+              Opus 4.8, and the user is notified. In the Messages API, the
+              request is blocked by default with a structured reason unless the
+              developer configures retry or fallback behavior.
+            </p>
+            <p>
+              The lesson is larger than one provider. Any model can carry
+              hidden incentives or constraints: provider policy, competitive
+              interest, political pressure, safety tuning, benchmark incentives,
+              training-data gaps, local deployment rules, or censorship in an
+              open-weight derivative. The operator cannot inspect every choice
+              that shaped the model, so the output cannot be treated as
+              authority.
+            </p>
+            <div class="callout">
+              <strong>Evidence-bound warning:</strong>
+              the Anthropic source supports the claim that provider-side
+              classifiers can alter routing or availability for a defined class
+              of requests. CWO uses that disclosure as a trust-boundary example,
+              not as a license to assert malicious intent, legal fault, or a
+              hidden mechanism beyond the source.
+            </div>
+          </section>
+
+          <section id="source">
+            <h2>Source Facts And Risk Interpretation</h2>
+            <p>
+              Public documentation should separate source facts from risk
+              interpretation. Source facts are what the cited material says.
+              Risk interpretation is what an operator should conclude for
+              high-stakes work.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Anthropic source facts and CWO risk interpretation">
+              <div role="row">
+                <span role="cell">Source fact</span>
+                <span role="cell">Anthropic disclosed classifiers that trigger on accelerating frontier LLM development, alongside other high-risk topics.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Source fact</span>
+                <span role="cell">The frontier LLM examples are pretraining pipelines, distributed training infrastructure, and ML accelerator design.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Source fact</span>
+                <span role="cell">Fallback behavior can route client-app requests to Claude Opus 4.8 at release, while API requests are blocked by default unless fallback is configured.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Source fact</span>
+                <span role="cell">A June 11, 2026 system-card changelog says an earlier frontier LLM safeguard description was updated; public docs should use the current fallback-classifier wording.</span>
+              </div>
+              <div role="row">
+                <span role="cell">CWO risk reading</span>
+                <span role="cell">A model may appear cooperative while provider policy, opaque classification, fallback routing, or deployment rules change which model answers or how much assistance is available.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Required posture</span>
+                <span role="cell">Treat the return as evidence, require Provider conflict disposition, run peer review when policy demands it, and leave final authority with architect adjudication.</span>
+              </div>
+            </div>
+            <p>
+              Public source references:
+              <a href="https://www.anthropic.com/news/claude-fable-5-mythos-5">Anthropic launch post</a>,
+              <a href="https://www.anthropic.com/system-cards">Anthropic system-card index</a>,
+              and
+              <a href="https://www-cdn.anthropic.com/2f9323abbcc4abe219577539efe19a623c9ca2bd/Claude%20Fable%205%20%26%20Claude%20Mythos%205%20System%20Card.pdf">Claude Fable 5 and Claude Mythos 5 System Card</a>.
             </p>
           </section>
 
@@ -92,6 +180,24 @@
             </ol>
           </section>
 
+          <section id="handlers">
+            <h2>Handlers For Model Work</h2>
+            <p>
+              The useful analogy is handler discipline, not blind trust. In
+              intelligence work, an asset may be valuable while still being
+              untrusted. The handler constrains the assignment, records
+              provenance, cross-checks claims, and escalates contradictions.
+              CWO applies that operating model to model output.
+            </p>
+            <p>
+              A contractor packet limits what the model receives. The evidence
+              rubric says what a valid return must include. The evaluator scores
+              malpractice and sabotage signals. Peer review and synthesis keep
+              provider provenance visible. The architect decides what can
+              influence implementation.
+            </p>
+          </section>
+
           <section id="signals">
             <h2>Signal Types</h2>
             <p>
@@ -103,6 +209,14 @@
               inspection, destructive recommendations, or attempts to bypass
               the review process.
             </p>
+            <p>
+              Provider-policy signals cover a different failure mode: the
+              return reports, hides, or mishandles policy constraints that can
+              affect output. An opaque intervention signal, missing
+              provider-conflict disposition, or a claim that peer review is not
+              needed when provider conflict is present should be scored as a
+              review risk.
+            </p>
             <div class="callout">
               <strong>No guarantee language:</strong>
               these checks reduce risk and create a review path. They do not
@@ -110,16 +224,48 @@
             </div>
           </section>
 
-          <section id="example">
-            <h2>Boundary Example</h2>
+          <section id="provider-policy">
+            <h2>Provider-Policy Limitations</h2>
+            <p>
+              A return from a provider-connected model should disclose material
+              provider-policy limitations and name the Provider conflict
+              disposition. Disclosure is not a confession of bad work; it is
+              the evidence needed to route the return safely.
+            </p>
+            <p>
+              Honest disclosure should normally trigger review and provenance
+              tracking, not automatic rejection. The hard failure is pretending
+              no provider limitation exists, dismissing required peer review, or
+              asking the architect to treat the return as implementation
+              authority.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Provider policy limitation handling">
+              <div role="row">
+                <span role="cell">Conflict domain detected</span>
+                <span role="cell">Record provider provenance and require provider-conflict disposition.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Opaque intervention language</span>
+                <span role="cell">Score a provider-policy signal and require review before use.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Disposition missing</span>
+                <span role="cell">Treat as incomplete evidence and keep peer review active.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Review dismissed</span>
+                <span role="cell">Reject the return as authority and escalate to architect adjudication.</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="evidence">
+            <h2>Evidence Example</h2>
             <p>
               A reviewer receives a redacted packet that contains only a plan
-              summary. Its return says it inspected repository files and found
-              a failing test. That might be a useful clue, but it also means
-              the return used context outside the approved packet. CWO should
-              mark the finding as a boundary violation, keep it out of primary
-              synthesis, and ask the architect whether to investigate the clue
-              through an approved lane.
+              summary. Its return includes a claim based on repository files
+              that were not shared. The claim may be a useful lead, but it is
+              not valid evidence for implementation.
             </p>
             <div class="reference-table compact" role="table" aria-label="Boundary violation handling example">
               <div role="row">
@@ -133,6 +279,10 @@
               <div role="row">
                 <span role="cell">Safe handling</span>
                 <span role="cell">Quarantine the return or downgrade it to a follow-up question until the boundary is resolved.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Disposition</span>
+                <span role="cell">Boundary-tainted; not a primary synthesis input until architect adjudication resolves it.</span>
               </div>
             </div>
           </section>
@@ -149,6 +299,7 @@
             <ul class="check-list">
               <li>A boundary-tainted return does not become a primary synthesis input.</li>
               <li>Unsupported claims stay visible as risk, not accepted fact.</li>
+              <li>Provider-policy limitations require provider provenance and disposition.</li>
               <li>Unexpected workspace changes require mutation-guard review.</li>
               <li>Incident response uses the canonical playbook instead of ad hoc cleanup.</li>
             </ul>
@@ -169,6 +320,12 @@
               private paths, unsupported claims, and authority-confusing
               wording before the work is pushed.
             </p>
+            <ul class="check-list">
+              <li>No private paths, command guesses, or internal planning labels.</li>
+              <li>No model-asserted claim without artifact evidence or source provenance.</li>
+              <li>No authority inflation: a model return is evidence, not proof.</li>
+              <li>No provider-policy claim without a source, limitation note, or disposition.</li>
+            </ul>
             <p>
               Continue with <a href="./model-synthesis.html">Model Synthesis</a>
               for how evaluated returns are combined, or use

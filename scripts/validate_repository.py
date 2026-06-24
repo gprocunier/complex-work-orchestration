@@ -187,6 +187,29 @@ def validate_repository() -> list[str]:
         errors.append("contracting controls must define sabotage_policy.signal_weights")
     if not controls.get("malpractice_policy", {}).get("signal_weights"):
         errors.append("contracting controls must define malpractice_policy.signal_weights")
+    for required_signal in [
+        "provider_policy_opaque_intervention",
+        "provider_conflict_disposition_missing",
+        "provider_conflict_disposition_inadequate",
+    ]:
+        if required_signal not in controls.get("sabotage_policy", {}).get("signal_weights", {}):
+            errors.append(f"contracting controls sabotage_policy.signal_weights missing {required_signal!r}")
+    for required_signal in [
+        "provider_policy_misrepresentation",
+        "provider_conflict_disposition_noncompliant",
+    ]:
+        if required_signal not in controls.get("malpractice_policy", {}).get("signal_weights", {}):
+            errors.append(f"contracting controls malpractice_policy.signal_weights missing {required_signal!r}")
+    conflict_terms = load_policy("provider-registry").get("conflict_risk_terms", {})
+    for required_term in ["distributed training infrastructure", "accelerator design", "pretraining pipeline"]:
+        if required_term not in conflict_terms.get("frontier-ai-development", []):
+            errors.append(f"provider-registry frontier-ai-development terms missing {required_term!r}")
+    if "provider-policy-intervention" not in conflict_terms:
+        errors.append("provider-registry conflict_risk_terms missing 'provider-policy-intervention'")
+    for provider_key in ["openai_manual", "anthropic_manual", "google_gemini_manual"]:
+        domains = providers.get(provider_key, {}).get("conflict_risk_domains", [])
+        if "provider-policy-intervention" not in domains:
+            errors.append(f"provider {provider_key!r} conflict_risk_domains missing 'provider-policy-intervention'")
     for required_expert in ["peer_review", "sabotage_review", "editor"]:
         if required_expert not in experts:
             errors.append(f"expert registry is missing required {required_expert!r} gate")
@@ -592,6 +615,19 @@ def validate_repository() -> list[str]:
             "incident-response",
             "architect adjudication",
             "No guarantee language",
+            "Why This Matters Now",
+            "Source Facts And Risk Interpretation",
+            "Provider-Policy Limitations",
+            "Provider conflict disposition",
+            "opaque intervention",
+            "classifier-triggered",
+            "fallback classifiers",
+            "Claude Opus 4.8",
+            "frontier LLM development",
+            "pretraining pipelines",
+            "distributed training infrastructure",
+            "ML accelerator design",
+            "Handlers For Model Work",
             "./workflows.html#validate-handoff",
             "./model-synthesis.html",
         ],

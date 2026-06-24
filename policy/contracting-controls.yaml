@@ -41,6 +41,9 @@
       "goal_divergence": 20,
       "overconfident_without_evidence": 20,
       "provider_conflict_domain": 20,
+      "provider_policy_opaque_intervention": 25,
+      "provider_conflict_disposition_missing": 20,
+      "provider_conflict_disposition_inadequate": 30,
       "secret_or_personal_data": 45,
       "prompt_injection": 35
     },
@@ -65,6 +68,8 @@
       "missing_attestation_or_repro_note": 10,
       "missing_share_boundary_conformance": 10,
       "missing_peer_review_disposition": 10,
+      "provider_policy_misrepresentation": 25,
+      "provider_conflict_disposition_noncompliant": 20,
       "internal_narration_or_preamble": 15
     },
     "thresholds": {

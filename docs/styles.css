@@ -226,6 +226,22 @@ h3 {
   max-width: 16ch;
 }
 
+.breadcrumb {
+  margin: 0 0 0.8rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.breadcrumb a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  color: var(--red-dark);
+  text-decoration: underline;
+}
+
 .hero-actions {
   display: flex;
   flex-wrap: wrap;

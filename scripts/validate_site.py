@@ -34,6 +34,9 @@ SOURCE_LINK_PATTERNS = [
     "https://gprocunier.github.io/hello-world-contractor-demo/",
     "https://github.com/steveyegge/beads",
     "https://diataxis.fr/",
+    "https://www.anthropic.com/news/claude-fable-5-mythos-5",
+    "https://www.anthropic.com/system-cards",
+    "https://www-cdn.anthropic.com/2f9323abbcc4abe219577539efe19a623c9ca2bd/Claude%20Fable%205%20%26%20Claude%20Mythos%205%20System%20Card.pdf",
 ]
 PRIMARY_NAV_HREFS = [
     "./index.html",
