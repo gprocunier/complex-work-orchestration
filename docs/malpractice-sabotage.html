@@ -36,10 +36,10 @@
         <p class="eyebrow">Deep dive</p>
         <h1>Malpractice And Sabotage Guardrails</h1>
         <p class="lede">
-          CWO treats every model return as untrusted evidence. A frontier,
-          local, or open-weight model can be useful while hidden provider
-          policy, opaque classification, trainer choices, or deployment rules
-          still shape the answer.
+          CWO treats every model return as untrusted evidence. Frontier,
+          local, and open-weight models can all be useful, but provider policy,
+          deployment rules, training choices, tool access, and operating context
+          can still shape what they return.
         </p>
       </section>
 
@@ -79,17 +79,24 @@
           <section id="why-now">
             <h2>Why This Matters Now</h2>
             <p>
-              Anthropic's June 9, 2026 Fable/Mythos system card makes the
-              trust problem concrete. The card describes classifier-triggered
-              safeguards for topics such as cybersecurity, biology and
-              chemistry, distillation attempts, and accelerating frontier LLM
-              development. For frontier LLM development, the examples include
-              pretraining pipelines, distributed training infrastructure, and
-              ML accelerator design.
+              Zero trust is the practical baseline for model-assisted work.
+              The point is not to rank providers. The operational issue is
+              that every model has boundaries the operator may not fully see.
+              Good governance therefore needs guardrails, observability,
+              provenance, peer review, and a clear decision owner.
             </p>
             <p>
-              The current public card describes fallback or blocking behavior,
-              not a hidden technical mechanism. When Fable's fallback
+              A recent public example makes the control problem concrete.
+              Anthropic's June 9, 2026 Fable/Mythos system card describes
+              classifier-triggered safeguards for topics such as cybersecurity,
+              biology and chemistry, distillation attempts, and accelerating
+              frontier LLM development. For frontier LLM development, the
+              examples include pretraining pipelines, distributed training
+              infrastructure, and ML accelerator design.
+            </p>
+            <p>
+              That specific documentation describes fallback or blocking
+              behavior, not a hidden technical mechanism. When Fable's fallback
               classifiers trigger in client applications, the request routes to
               the most recent Claude Opus model at the time of release, Claude
               Opus 4.8, and the user is notified. In the Messages API, the
@@ -97,21 +104,20 @@
               developer configures retry or fallback behavior.
             </p>
             <p>
-              The lesson is larger than one provider. Any model can carry
-              hidden incentives or constraints: provider policy, competitive
-              interest, political pressure, safety tuning, benchmark incentives,
-              training-data gaps, local deployment rules, or censorship in an
-              open-weight derivative. The operator cannot inspect every choice
-              that shaped the model, so the output cannot be treated as
+              The broader lesson applies across providers and local deployments.
+              Any model can be shaped by provider policy, safety tuning,
+              benchmark incentives, training-data gaps, jurisdictional
+              requirements, endpoint configuration, tool availability, or local
+              deployment rules. The operator cannot inspect every choice that
+              shaped the model, so the output should be routed as evidence, not
               authority.
             </p>
             <div class="callout">
-              <strong>Evidence-bound warning:</strong>
-              the Anthropic source supports the claim that provider-side
-              classifiers can alter routing or availability for a defined class
-              of requests. CWO uses that disclosure as a trust-boundary example,
-              not as a license to assert malicious intent, legal fault, or a
-              hidden mechanism beyond the source.
+              <strong>Evidence-bound example:</strong>
+              this page cites one public provider disclosure because it is
+              concrete and inspectable. It is not a provider ranking. The same
+              zero-trust posture applies to OpenAI, Anthropic, Google, Meta,
+              xAI, local open-weight deployments, and any other model source.
             </div>
           </section>
 
@@ -123,10 +129,10 @@
               Risk interpretation is what an operator should conclude for
               high-stakes work.
             </p>
-            <div class="reference-table compact" role="table" aria-label="Anthropic source facts and CWO risk interpretation">
+            <div class="reference-table compact" role="table" aria-label="Provider source facts and CWO risk interpretation">
               <div role="row">
-                <span role="cell">Source fact</span>
-                <span role="cell">Anthropic disclosed classifiers that trigger on accelerating frontier LLM development, alongside other high-risk topics.</span>
+                <span role="cell">Published example</span>
+                <span role="cell">One cited system card describes classifiers that trigger on accelerating frontier LLM development, alongside other high-risk topics.</span>
               </div>
               <div role="row">
                 <span role="cell">Source fact</span>
@@ -142,7 +148,7 @@
               </div>
               <div role="row">
                 <span role="cell">CWO risk reading</span>
-                <span role="cell">A model may appear cooperative while provider policy, opaque classification, fallback routing, or deployment rules change which model answers or how much assistance is available.</span>
+                <span role="cell">A model may appear cooperative while provider policy, opaque classification, fallback routing, endpoint configuration, or deployment rules change which model answers or how much assistance is available.</span>
               </div>
               <div role="row">
                 <span role="cell">Required posture</span>
@@ -220,7 +226,8 @@
             <div class="callout">
               <strong>No guarantee language:</strong>
               these checks reduce risk and create a review path. They do not
-              promise that every bad return will be caught automatically.
+              promise that every unsafe or incorrect return will be caught
+              automatically.
             </div>
           </section>
 
@@ -229,8 +236,8 @@
             <p>
               A return from a provider-connected model should disclose material
               provider-policy limitations and name the Provider conflict
-              disposition. Disclosure is not a confession of bad work; it is
-              the evidence needed to route the return safely.
+              disposition. Disclosure is not a defect; it is the evidence
+              needed to route the return safely.
             </p>
             <p>
               Honest disclosure should normally trigger review and provenance
