@@ -25,6 +25,7 @@ Use Get Started when you are ready to install and run the first small task:
 - Beads Memory: https://gprocunier.github.io/complex-work-orchestration/beads-memory.html
 - Model Synthesis: https://gprocunier.github.io/complex-work-orchestration/model-synthesis.html
 - Guardrails: https://gprocunier.github.io/complex-work-orchestration/malpractice-sabotage.html
+- Codex Beads Hooks: https://gprocunier.github.io/complex-work-orchestration/codex-beads-hooks.html
 - Reference: https://gprocunier.github.io/complex-work-orchestration/reference.html
 
 ## Installation
@@ -195,6 +196,51 @@ one Beads task with evidence, validation, and handoff notes.
 Generated Beads should populate the native Beads fields for `skills`,
 `acceptance`, `design`, and `notes`; descriptions remain the human-readable
 assignment body.
+
+## Codex Beads Hook Output
+
+Codex lifecycle hooks can inject Beads memory at session start, prompt submit,
+and compaction boundaries. Some Codex CLI builds display the SessionStart hook
+context in the shell. Treat that as a display problem, not as a reason to reduce
+the context a future agent receives.
+
+The safe default is `full-context`, which preserves `bd codex-hook SessionStart`:
+
+```bash
+python3 scripts/configure_codex_beads_hooks.py \
+  --project-dir . \
+  --mode full-context \
+  --json
+```
+
+When the installed Codex binary supports the stable `visibilityHint` hook
+field, quiet mode keeps the same Beads commands and adds only the display hint:
+
+```bash
+python3 scripts/configure_codex_beads_hooks.py \
+  --project-dir . \
+  --mode quiet \
+  --apply
+```
+
+If support is not detected, the helper fails closed. Do not disable hooks,
+redirect hook output, switch the default to memories-only context, or rely on
+Beads-side quiet output unless validation proves the model still receives the
+same `hookSpecificOutput.additionalContext`. The degraded fallback is explicit:
+`compact-degraded` requires `--allow-degraded-context`.
+
+Reference: `references/codex-beads-hooks.md`.
+
+```mermaid
+flowchart TD
+    Visible[SessionStart output appears in Codex] --> Detect[Detect visibilityHint support]
+    Detect -->|supported| Quiet[Apply quiet display hint]
+    Detect -->|not supported| Full[Keep full-context hooks]
+    Quiet --> Same[bd codex-hook commands unchanged]
+    Full --> Same
+    Same --> Context[Beads additionalContext remains available to the model]
+    Detect -->|explicit fallback| Degraded[compact-degraded with operator acknowledgement]
+```
 
 ## Run Readiness Gate
 
@@ -552,6 +598,10 @@ binding, and expert profile for outside or local review.
 - `scripts/check_installed_skill.py`: compare this checkout with the installed
   Codex skill using a content manifest; use `--check` to fail on missing or
   drifted installs and rerun `scripts/install.sh` to reload.
+- `scripts/configure_codex_beads_hooks.py`: render or apply `.codex/hooks.json`
+  Beads lifecycle hooks; `full-context` preserves automatic Beads injection,
+  while `quiet` requires detected Codex `visibilityHint` support or an explicit
+  operator force flag.
 - `scripts/workspace_mutation_guard.py`: snapshot and compare tracked git state
   around tool-running external CLIs so unexpected checkout mutation becomes
   evaluation evidence instead of an unnoticed side effect. Pass

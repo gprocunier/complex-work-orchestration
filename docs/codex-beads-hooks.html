@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="How CWO configures Codex lifecycle hooks for Beads context while avoiding noisy hook output without reducing model-visible context."
+    >
+    <title>Codex Beads Hooks | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Operator Reference</p>
+        <h1>Codex Beads Hooks</h1>
+        <p class="lede">
+          Codex can show Beads SessionStart context in the shell. CWO treats
+          that as a display problem, not a reason to reduce the context that
+          keeps future agents oriented.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#principle">Principle</a>
+          <a href="#profiles">Profiles</a>
+          <a href="#helper">Helper</a>
+          <a href="#subagents">Subagents</a>
+          <a href="#validation">Validation</a>
+          <a href="./reference.html">Reference</a>
+        </nav>
+        <div class="doc-body">
+          <section id="principle">
+            <h2>Principle</h2>
+            <p>
+              Beads hook output is useful because it gives a new or compacted
+              Codex session the project memory, active work, and session rules
+              before the agent starts making decisions. The display may be
+              noisy, but the model-visible context is still valuable.
+            </p>
+            <p>
+              The safe fix is display-layer suppression. Keep
+              <code>bd codex-hook SessionStart</code> as the full-context path
+              unless the installed Codex binary supports a stable
+              <code>visibilityHint</code> hook field that hides presentation
+              without changing <code>hookSpecificOutput.additionalContext</code>.
+            </p>
+            <div class="callout">
+              Do not disable hooks, redirect hook output, switch the default to
+              memories-only context, or rely on Beads-side quiet output as a
+              noise fix unless a validation fixture proves the model receives
+              the same context.
+            </div>
+          </section>
+
+          <section id="profiles">
+            <h2>Profiles</h2>
+            <div class="reference-table compact" role="table" aria-label="Codex Beads hook profiles">
+              <div role="row">
+                <span role="cell">full-context</span>
+                <span role="cell">Default. Uses the normal <code>bd codex-hook</code> lifecycle commands and accepts visible output when Codex cannot hide it safely.</span>
+              </div>
+              <div role="row">
+                <span role="cell">quiet</span>
+                <span role="cell">Adds <code>visibilityHint: "quiet"</code> only when support is detected or forced by an operator.</span>
+              </div>
+              <div role="row">
+                <span role="cell">verbose</span>
+                <span role="cell">Adds <code>visibilityHint: "verbose"</code> for inspection on supported Codex builds.</span>
+              </div>
+              <div role="row">
+                <span role="cell">compact-degraded</span>
+                <span role="cell">Requires <code>--allow-degraded-context</code> because it is not equivalent to full Beads context.</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="helper">
+            <h2>Helper</h2>
+            <p>
+              The helper is dry-run by default and preserves unrelated hooks.
+              It replaces only managed Beads lifecycle hooks when
+              <code>--apply</code> is passed.
+            </p>
+            <pre><code>python3 scripts/configure_codex_beads_hooks.py \
+  --project-dir . \
+  --mode full-context \
+  --json</code></pre>
+            <p>
+              On a Codex build with the stable display hint, quiet mode keeps
+              the Beads commands unchanged and adds only the presentation hint:
+            </p>
+            <pre><code>python3 scripts/configure_codex_beads_hooks.py \
+  --project-dir . \
+  --mode quiet \
+  --apply</code></pre>
+            <p>
+              On unsupported Codex builds, quiet mode fails closed. The result
+              includes the Codex version, inspected binary paths, and support
+              signal so the operator can upgrade Codex or keep
+              <code>full-context</code>.
+            </p>
+            <div class="workflow-diagram contractor" role="img" aria-label="Hook display decision flow">
+              <div class="flow-card"><strong>Symptom</strong><span>SessionStart context is visible</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Inspect</strong><span>installed Codex support</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Decide</strong><span>quiet if supported, full-context otherwise</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Preserve</strong><span>Beads additionalContext</span></div>
+            </div>
+          </section>
+
+          <section id="subagents">
+            <h2>Subagents</h2>
+            <p>
+              CWO still wants spawned agents and compacted sessions to recover
+              from Beads, but support must be described accurately. Beads 1.0.5
+              does not support a <code>SubagentStart</code> Codex hook event.
+              Until both Codex and Beads support that event, use
+              <code>scripts/build_beads_brief.py</code> for internal subagent
+              briefing and keep outside reviewers on boundary-checked
+              contractor packets.
+            </p>
+          </section>
+
+          <section id="validation">
+            <h2>Validation</h2>
+            <p>
+              The acceptance check is simple: quiet display must not reduce the
+              Beads context available to the model. Current unsupported Codex
+              builds should show a fail-closed quiet attempt and a working
+              full-context profile.
+            </p>
+            <pre><code>bd codex-hook SessionStart &gt; /tmp/beads-sessionstart.json
+jq -r '.hookSpecificOutput.additionalContext' /tmp/beads-sessionstart.json | wc -c
+python3 scripts/configure_codex_beads_hooks.py --mode quiet --json
+python -m unittest tests/test_configure_codex_beads_hooks.py -v</code></pre>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

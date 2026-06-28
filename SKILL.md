@@ -71,6 +71,9 @@ when posting or reviewing outside model contracts,
 sabotage, `references/prompt-coach.md` when sizing the invocation,
 `references/execution-environments.md` when selecting Codex, OpenCode,
 OpenShift AI vLLM, or manual execution environments,
+`references/codex-beads-hooks.md` when Codex lifecycle hook output becomes
+noisy and the operator needs to preserve Beads context injection while changing
+only display behavior,
 `policy/model-profiles.yaml` and `schemas/model-profile.schema.json` when
 binding CWO roles to RedHatAI-first Hugging Face models served through RHOAI
 vLLM in restricted or airgapped OpenCode paths,
@@ -278,6 +281,11 @@ bd dolt pull    # only when a Dolt remote exists
 8. If Beads has no Dolt remote, keep the graph local and do not claim it is
    synced. If Beads is unavailable, create the same task or graph structure in a
    temporary Markdown plan and say that durability is reduced.
+9. If Codex displays the SessionStart Beads hook context in the shell, treat it
+   as a presentation issue. Use `scripts/configure_codex_beads_hooks.py` and
+   `references/codex-beads-hooks.md`; keep `full-context` unless the installed
+   Codex binary supports `visibilityHint`. Do not disable hooks, redirect hook
+   output, or switch to memories-only context as a default noise fix.
 
 ## Scaffold Shape
 

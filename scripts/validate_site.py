@@ -24,6 +24,7 @@ REQUIRED_PAGES = [
     "beads-memory.html",
     "model-synthesis.html",
     "malpractice-sabotage.html",
+    "codex-beads-hooks.html",
     "reference.html",
 ]
 SOURCE_LINK_PATTERNS = [

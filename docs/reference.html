@@ -47,6 +47,7 @@
           <a href="#operator-controls">Operator Controls</a>
           <a href="#schemas">Schemas</a>
           <a href="#run-readiness">Run Readiness</a>
+          <a href="#codex-hooks">Codex Hooks</a>
           <a href="#experts">Experts</a>
           <a href="#scripts">Scripts</a>
           <a href="#deep-dives">Deep Dives</a>
@@ -82,6 +83,10 @@
               <div role="row">
                 <span role="cell">Airgapped RHOAI</span>
                 <span role="cell">Use local Beads and approved RHOAI/vLLM model profiles; no outside sharing by default.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Codex hook output</span>
+                <span role="cell">Use <a href="./codex-beads-hooks.html">Codex Beads Hooks</a> when SessionStart context is visible but full Beads injection must remain intact.</span>
               </div>
             </div>
           </section>
@@ -261,6 +266,36 @@ python3 scripts/render_run_projection.py \
             </p>
           </section>
 
+          <section id="codex-hooks">
+            <h2>Codex Beads Hooks</h2>
+            <p>
+              Codex lifecycle hooks can inject Beads recovery context at
+              session start, prompt submit, and compaction boundaries. If the
+              shell displays that context, treat it as a presentation issue:
+              keep <code>bd codex-hook SessionStart</code> as the
+              <code>full-context</code> path unless the installed Codex binary
+              supports a stable <code>visibilityHint</code> display hint.
+            </p>
+            <pre><code>python3 scripts/configure_codex_beads_hooks.py \
+  --project-dir . \
+  --mode full-context \
+  --json
+
+python3 scripts/configure_codex_beads_hooks.py \
+  --project-dir . \
+  --mode quiet \
+  --apply</code></pre>
+            <p>
+              Quiet mode fails closed when support is not detected. The
+              degraded profile requires <code>--allow-degraded-context</code>
+              because memories-only context is not equivalent to the full
+              Beads hook. The operator reference is
+              <code>references/codex-beads-hooks.md</code>, and the
+              reader-facing page is
+              <a href="./codex-beads-hooks.html">Codex Beads Hooks</a>.
+            </p>
+          </section>
+
           <section id="scripts">
             <h2>Scripts</h2>
             <p>
@@ -289,6 +324,7 @@ python3 scripts/build_beads_brief.py --bead "&lt;id&gt;" --depth focused --for s
 python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --scaffold-size tight --dry-run
 python3 scripts/cleanup_stale_agents.py --json
 python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
+python3 scripts/configure_codex_beads_hooks.py --project-dir . --mode full-context --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --confirm-only --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
@@ -350,6 +386,7 @@ python3 scripts/validate_site.py</code></pre>
               <li><a href="./beads-memory.html">Beads durable memory and closure context</a></li>
               <li><a href="./model-synthesis.html">Model synthesis and architect adjudication</a></li>
               <li><a href="./malpractice-sabotage.html">Malpractice and sabotage guardrails</a></li>
+              <li><a href="./codex-beads-hooks.html">Codex Beads hook display controls</a></li>
               <li><a href="./external-contracting.html">External contracting controls</a></li>
               <li><a href="./local-workers.html">Local worker and OpenShift AI controls</a></li>
               <li><a href="./explanation.html">Operating model explanation</a></li>
