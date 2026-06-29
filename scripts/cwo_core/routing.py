@@ -174,6 +174,18 @@ def explicit_openai_deep_research_requested(text: str) -> bool:
     return bool(term_hits(text, ["deep research"]))
 
 
+CHATGPT_MASTER_REVIEW_GATE = "chatgpt-pro-5.5-master-plan-review"
+CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_5_5_extended_reasoning_browser"
+CHATGPT_MASTER_REVIEW_JOB = "contract-jd-master-plan-review"
+CHATGPT_MASTER_REVIEW_FAILURE_BEHAVIOR = "stop-before-implementation-unless-explicit-operator-waiver"
+CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
+    "confirmed model_attestation for ChatGPT Pro 5.5 Extended Reasoning",
+    "share-link return ingested with dispatch_id and packet_sha256",
+    "contractor return evaluated before use",
+    "Codex architect adjudication recorded before implementation",
+]
+
+
 BEADS_CONTEXT_DEPTHS = ["none", "summary", "focused", "heavy", "audit"]
 COMMENT_BEARING_BEADS_CONTEXT_DEPTHS = {"focused", "heavy", "audit"}
 BEADS_CONTEXT_DEPTH_ALIASES = {
@@ -907,6 +919,7 @@ def classify_work(
             contract["manual_command"] = default_command
         architecture_critic_contracts.append(contract)
 
+    chatgpt_master_review_required = explicit_chatgpt_master_plan_review_requested(text)
     dispatch_mode = selected.get("dispatch_mode")
     if selected.get("external"):
         route = "external-contract"
@@ -995,6 +1008,23 @@ def classify_work(
         "acceptance_required_experts": acceptance_required_experts,
         "recommended_executor": recommended_executor,
         "selected_executor": selected,
+        "blocking_review_required": chatgpt_master_review_required,
+        "blocking_review_active": bool(
+            chatgpt_master_review_required
+            and route == "external-contract"
+            and recommended_executor == CHATGPT_MASTER_REVIEW_EXECUTOR
+            and not hard_stops
+        ),
+        "blocking_review_gate": CHATGPT_MASTER_REVIEW_GATE if chatgpt_master_review_required else None,
+        "blocking_review_executor": CHATGPT_MASTER_REVIEW_EXECUTOR if chatgpt_master_review_required else None,
+        "blocking_review_job_description_label": CHATGPT_MASTER_REVIEW_JOB if chatgpt_master_review_required else None,
+        "blocking_review_waiver_required": chatgpt_master_review_required,
+        "blocking_review_failure_behavior": (
+            CHATGPT_MASTER_REVIEW_FAILURE_BEHAVIOR if chatgpt_master_review_required else None
+        ),
+        "blocking_review_required_evidence": (
+            list(CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE) if chatgpt_master_review_required else []
+        ),
         "architecture_review_complexity": architecture_complexity,
         "claude_architecture_effort": claude_effort,
         "requested_architecture_critic_executors": requested_critic_keys,
@@ -1135,4 +1165,19 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
                 "claude_effort",
             }
         }
+    if (
+        route.get("blocking_review_required")
+        and route.get("blocking_review_executor") == executor
+        and route.get("blocking_review_job_description_label") == expert.get("job_description_label")
+    ):
+        metadata.update(
+            {
+                "blocking_review_required": True,
+                "blocking_review_gate": route.get("blocking_review_gate"),
+                "blocking_review_active": bool(route.get("blocking_review_active")),
+                "blocking_review_waiver_required": bool(route.get("blocking_review_waiver_required")),
+                "blocking_review_failure_behavior": route.get("blocking_review_failure_behavior"),
+                "blocking_review_required_evidence": route.get("blocking_review_required_evidence", []),
+            }
+        )
     return metadata

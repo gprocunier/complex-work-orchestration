@@ -274,6 +274,14 @@ content in Beads, prompts, audit logs, or public docs. Dispatch summaries report
 safe booleans and labels, not local config paths, browser profile paths, or CDP
 URLs.
 
+When the user explicitly requests ChatGPT Pro 5.5 master review before
+execution, this lane is a blocking ChatGPT Pro gate. If model confirmation,
+dispatch, share-link ingest, return evaluation, or architect adjudication fails,
+stop before implementation and record the failed gate in Beads. Continue only
+after the operator fixes the Pro lane or explicitly records a waiver/downgrade
+in Beads. Do not silently substitute Gemini, Opus, OpenAI Deep Research, or an
+internal review for the requested Pro review.
+
 The ChatGPT Pro lane is intentionally fail-closed. Keep
 `require_model_confirmation` enabled for real Pro work and configure selectors
 that prove the selected model and effort before prompt submission. The dispatch
@@ -667,6 +675,18 @@ python3 scripts/build_contractor_packet.py \
 
    python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
    ```
+
+   Research-style returns can add optional structured sections without changing
+   the required return template. Use `Research evidence`, `Research
+   contradictions`, and `Research reflection` when a contractor is making
+   source-backed claims that should influence planning or synthesis. The
+   evaluator extracts `research_evidence_items`, `research_contradictions`, and
+   `research_reflection`, scores them as part of `evidence_quality_score`, and
+   exposes `research_evidence_score` plus signal categories in the normalized
+   bundle. Missing source locators, missing citation spans or excerpts,
+   limited-access sources treated as full support, unresolved contradictions,
+   and missing reflection lower the score before architect adjudication.
+   See `examples/sample-research-contractor-return.md` for the compact shape.
 
 10. If evaluation returns `quarantine`, a high `malpractice_score`, or a
    failed peer review, preserve artifacts, avoid implementation dependencies,

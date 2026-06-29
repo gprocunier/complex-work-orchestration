@@ -654,6 +654,12 @@ evidence only when the dispatch result includes `model_attestation.status` of
 record the invalidation in Beads and do not use it to revise the plan. Use
 `--dry-run` before live Pro work and require
 `model_confirmation_configured: true` in the summary.
+When the user explicitly asks for ChatGPT Pro 5.5 master review before
+execution, that review is a blocking gate. If model confirmation, dispatch,
+share-link ingest, return evaluation, or architect adjudication fails, stop
+before implementation and ask the operator to fix the lane or explicitly record
+a waiver/downgrade in Beads. Do not silently substitute Gemini, Opus, Deep
+Research, or a normal internal review for the requested Pro lane.
 When Cloudflare or account prompts require a normal browser session, launch
 Chrome manually with the dedicated profile and a localhost remote-debugging
 port, then set `connect_over_cdp_url` in the local config. CDP attach URLs must
@@ -692,7 +698,11 @@ Evaluation emits `evidence_quality_score`, `recommended_synthesis_use`,
 `sabotage_score`, `malpractice_score`,
 `peer_review_required`, `peer_review_status`,
 `human_adjudication_required`, `provider_key`, `provider_trust_tier`,
-`provenance_class`, and `recommended_disposition`. For local-worker returns,
+`provenance_class`, and `recommended_disposition`. Research-style returns may
+also emit `research_evidence_score`, `research_evidence_items`,
+`research_contradictions`, `research_reflection`, unresolved contradiction
+counts, and replan signals; treat those as source-grounding evidence for
+adjudication, not as direct implementation authority. For local-worker returns,
 pass `--executor openshift_ai_vllm_worker` or the equivalent provider and local
 profile fields from the dispatch envelope so architect adjudication can
 distinguish local OpenShift AI vLLM evidence from external frontier contractor

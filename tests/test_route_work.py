@@ -281,6 +281,10 @@ class RouteWorkTests(unittest.TestCase):
         text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
         blocked = classify_work(text, share_boundary="redacted-packet")
         self.assertNotEqual(blocked["route"], "external-contract")
+        self.assertTrue(blocked["blocking_review_required"])
+        self.assertFalse(blocked["blocking_review_active"])
+        self.assertTrue(blocked["blocking_review_waiver_required"])
+        self.assertEqual(blocked["blocking_review_gate"], "chatgpt-pro-5.5-master-plan-review")
         candidate = next(
             item for item in blocked["ranked_executors"] if item["key"] == "chatgpt_pro_5_5_extended_reasoning_browser"
         )
@@ -290,6 +294,12 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(allowed["route"], "external-contract")
         self.assertEqual(allowed["task_class"], "master-plan-review")
         self.assertEqual(allowed["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertTrue(allowed["blocking_review_required"])
+        self.assertTrue(allowed["blocking_review_active"])
+        self.assertTrue(allowed["blocking_review_waiver_required"])
+        self.assertEqual(allowed["blocking_review_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(allowed["blocking_review_job_description_label"], "contract-jd-master-plan-review")
+        self.assertIn("share-link return ingested", " ".join(allowed["blocking_review_required_evidence"]))
         self.assertEqual(allowed["guard_labels"], [
             "contractor-only",
             "no-codex-exec",

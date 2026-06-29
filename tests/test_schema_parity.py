@@ -33,6 +33,12 @@ class SchemaParityTests(unittest.TestCase):
             "evidence_quality_score",
             "evidence_quality_signals",
             "evidence_quality_signal_categories",
+            "research_evidence_score",
+            "research_evidence_signals",
+            "research_evidence_signal_categories",
+            "research_evidence_items",
+            "research_contradictions",
+            "research_reflection",
             "signal_categories",
             "peer_review_required",
             "peer_review_status",
@@ -63,6 +69,18 @@ class SchemaParityTests(unittest.TestCase):
         self.assertIn("evidence_quality_score", properties)
         self.assertIn("evidence_quality_signals", properties)
         self.assertIn("evidence_quality_signal_categories", properties)
+        self.assertIn("research_evidence_score", properties)
+        self.assertIn("research_evidence_signals", properties)
+        self.assertIn("research_evidence_signal_categories", properties)
+        self.assertIn("research_evidence_items", properties)
+        self.assertIn("research_contradictions", properties)
+        self.assertIn("research_reflection", properties)
+
+    def test_contractor_return_schema_supports_research_evidence(self) -> None:
+        properties = load_schema("contractor-return.schema.json")["properties"]
+        self.assertIn("research_evidence_items", properties)
+        self.assertIn("research_contradictions", properties)
+        self.assertIn("research_reflection", properties)
 
     def test_local_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("local-dispatch-envelope.schema.json")

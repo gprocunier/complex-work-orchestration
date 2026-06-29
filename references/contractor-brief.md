@@ -146,6 +146,11 @@ Avoid generic evidence. Phrases like "looks good", "best practice", "robust",
 or "no issues found" are not reusable evidence unless tied to a concrete packet
 artifact, file/path, policy clause, command output, or explicit inference.
 
+For research-style claims, add optional `Research evidence`, `Research
+contradictions`, and `Research reflection` sections after `Evidence`. Include
+source locators, citation spans or short excerpts, reliability and relevance
+scores, support type, access status, contradiction handling, and replan notes.
+
 ## Beads Interaction
 
 Output only the final contractor return. Do not include a preamble, internal

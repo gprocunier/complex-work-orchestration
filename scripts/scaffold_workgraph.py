@@ -105,6 +105,16 @@ def route_notes(route: dict[str, Any]) -> str:
                 f"Synthesis partial policy: allow_partial={bool(partial_policy.get('allow_partial'))}",
             ]
         )
+    if route.get("blocking_review_required"):
+        lines.extend(
+            [
+                f"Blocking review gate: {route.get('blocking_review_gate')}",
+                f"Blocking review active: {bool(route.get('blocking_review_active'))}",
+                f"Blocking review executor: {route.get('blocking_review_executor')}",
+                f"Blocking review job: {route.get('blocking_review_job_description_label')}",
+                f"Blocking review failure behavior: {route.get('blocking_review_failure_behavior')}",
+            ]
+        )
     return "\n".join(lines)
 
 

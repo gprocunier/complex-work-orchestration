@@ -108,6 +108,7 @@ Rules:
 - Do not publish, release, tag, or run destructive commands.
 - If the share boundary is patch-branch, return a diff, patch proposal, or branch reference by default. Do not mutate the active checkout unless direct workspace mutation is explicitly authorized.
 - If peer review is required or provider conflict domains are listed, do not claim peer review is unnecessary.
+- For research-style claims, add optional Research evidence, Research contradictions, and Research reflection sections with source locators, citation spans or short excerpts, reliability/relevance scores, support type, access status, contradiction handling, and replan notes.
 - Return conclusions, evidence, alternatives considered, confidence, risks or gaps, and recommended next Beads.
 - Your output will be scored by an evaluator and adjudicated by the architect before implementation.
 """
@@ -187,6 +188,7 @@ Rules:
 - Do not publish, release, tag, or run destructive commands.
 - If the share boundary is patch-branch, return a diff, patch proposal, or branch reference by default. Do not mutate the active checkout unless direct workspace mutation is explicitly authorized in the assignment.
 - If peer review is required or provider conflict domains are listed, do not claim peer review is unnecessary.
+- For research-style claims, add optional Research evidence, Research contradictions, and Research reflection sections with source locators, citation spans or short excerpts, reliability/relevance scores, support type, access status, contradiction handling, and replan notes.
 - Return conclusions, evidence, alternatives considered, confidence, risks or gaps, and recommended next Beads.
 - Your output will be scored by an evaluator and adjudicated by the architect before implementation.
 """

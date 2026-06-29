@@ -233,7 +233,13 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["recommended_orchestration_level"], "external-contract")
         self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
         self.assertIn("contractor-only-bead", result["enabled_levers"])
+        self.assertIn("chatgpt-pro-master-review-blocking-gate", result["enabled_levers"])
+        self.assertIn("operator-waiver-required-for-chatgpt-pro-skip", result["enabled_levers"])
+        self.assertTrue(result["route"]["blocking_review_active"])
         self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
+        self.assertIn("blocking gate before implementation", result["paste_ready_prompt"])
+        self.assertIn("explicitly waive/downgrade it in Beads", result["paste_ready_prompt"])
+        self.assertTrue(any("ChatGPT Pro 5.5 master review is blocking" in item for item in result["warnings"]))
 
     def test_chatgpt_pro_weigh_in_master_review_wording_is_coached(self) -> None:
         result = coach_orchestration_prompt(

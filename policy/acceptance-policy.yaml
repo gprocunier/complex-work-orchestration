@@ -34,7 +34,11 @@
     "provider limitations": "Provider policy limitations",
     "policy limitations": "Provider policy limitations",
     "patch branch": "Patch proposal",
-    "patch diff": "Patch proposal"
+    "patch diff": "Patch proposal",
+    "research evidence items": "Research evidence",
+    "research sources": "Research evidence",
+    "contradictions": "Research contradictions",
+    "research replan": "Research reflection"
   },
   "hard_disqualifiers": [
     "boundary violation",
@@ -75,7 +79,12 @@
       "missing or thin evidence",
       "claim-only evidence",
       "generic or non-actionable evidence wording",
-      "weak evidence provenance"
+      "weak evidence provenance",
+      "missing research source locator",
+      "missing research citation span or excerpt",
+      "unresolved research contradiction",
+      "missing research reflection",
+      "research replan recommended"
     ]
   },
   "verdicts": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"],
@@ -102,7 +111,8 @@
   },
   "rubric": [
     "The output stays inside the assigned bead and job-description label.",
-    "Claims cite evidence from code, commands, docs, or explicit inference.",
+    "Claims cite evidence from code, commands, docs, sources, or explicit inference.",
+    "Research-style claims include reusable source locators, citation spans or short excerpts, source/relevance scoring, contradiction handling, and reflection or replan notes.",
     "Validation status is explicit and reproducible enough for the architect to check.",
     "Residual risks and missing context are named.",
     "Recommended next action is concrete enough to become a Beads task."

@@ -145,10 +145,18 @@
               attestations.
             </p>
             <div class="reference-table compact" role="table" aria-label="Schema files">
+              <div role="row"><span role="cell">Contractor return</span><code role="cell">schemas/contractor-return.schema.json</code></div>
+              <div role="row"><span role="cell">Return bundle</span><code role="cell">schemas/contractor-return-bundle.schema.json</code></div>
+              <div role="row"><span role="cell">Acceptance decision</span><code role="cell">schemas/acceptance-decision.schema.json</code></div>
               <div role="row"><span role="cell">Harness dispatch</span><code role="cell">schemas/harness-dispatch-envelope.schema.json</code></div>
               <div role="row"><span role="cell">Execution environment</span><code role="cell">schemas/execution-environment.schema.json</code></div>
               <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
             </div>
+            <p>
+              Research-style contractor returns can add optional source-grounded
+              evidence fields to those schemas. They remain evaluator input,
+              not direct synthesis or implementation authority.
+            </p>
           </section>
 
           <section id="run-readiness">
@@ -255,7 +263,11 @@ python3 scripts/render_run_projection.py \
               implementation authority and not OpenAI Deep Research. For real
               Pro reviews, the dispatch JSON must include a confirmed
               <code>model_attestation</code>; otherwise the return is
-              invalidated instead of used.
+              invalidated instead of used. Explicit Pro master review requests
+              are blocking gates before implementation; failed confirmation,
+              dispatch, ingest, evaluation, or adjudication requires operator
+              repair or an explicit Beads-recorded waiver/downgrade before the
+              work can continue.
             </p>
             <p>
               Red Hat lenses include OpenShift Platform, OpenShift Application

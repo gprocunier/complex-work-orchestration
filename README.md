@@ -1513,6 +1513,15 @@ the model and effort confirmation is fixed.
 Use `--confirm-only` to prove the live browser attestation before submitting the
 packet.
 
+When the user explicitly asks for ChatGPT Pro 5.5 master review before
+execution, treat it as a blocking ChatGPT Pro gate, not a best-effort opinion.
+It is a blocking gate before implementation.
+If model confirmation, dispatch, share-link ingest, return evaluation, or
+architect adjudication fails, stop before implementation and record the failure
+in Beads. Continue only after the operator fixes the lane or explicitly records
+a waiver/downgrade in Beads. Do not silently substitute Gemini, Opus, Deep
+Research, or an internal review for the requested Pro lane.
+
 Minimal local config shape:
 
 ```json
@@ -1775,6 +1784,16 @@ unresolved, failed, or contractor-dismissed peer-review disposition blocks
 implementation conversion. Unexpected tracked-file mutation in a supplied
 workspace mutation report is treated as quarantine-worthy evidence unless the
 operator intentionally evaluates it with `--mutation-strategy warn`.
+
+Research-style returns can add optional structured evidence without changing
+the base contractor template. Use `Research evidence`, `Research
+contradictions`, and `Research reflection` when a contractor or research model
+is making source-backed claims. The evaluator reads structured
+`research_evidence_items`, folds `research_evidence_score` into
+`evidence_quality_score`, and records signal categories for missing source
+locators, missing citation spans or excerpts, limited-access sources treated as
+full support, unresolved contradictions, missing reflection, or replan
+recommendations. See `examples/sample-research-contractor-return.md`.
 
 Audit and attestation checks:
 

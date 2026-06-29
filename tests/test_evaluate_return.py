@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.returns import (  # noqa: E402
     classify_patch_authorization,
+    evidence_items_from_sections,
     make_acceptance_decision,
     normalize_contractor_return,
     parse_return_sections,
@@ -16,6 +17,9 @@ from cwo_core.returns import (  # noqa: E402
 
 
 class EvaluateReturnTests(unittest.TestCase):
+    def sample_return(self) -> str:
+        return (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+
     def test_missing_sections_lower_score(self) -> None:
         result = make_acceptance_decision("Status: complete\nSummary: shallow\n")
         self.assertLess(result["score"], 85)
@@ -356,6 +360,173 @@ Escalation needed: no
         self.assertIn("evidence_quality_score", bundle)
         self.assertIn("evidence_quality_signals", bundle)
         self.assertIn("evidence_quality_signal_categories", bundle)
+
+    def test_well_grounded_research_evidence_scores_primary(self) -> None:
+        text = self.sample_return() + """
+
+Research evidence:
+```json
+{
+  "research_evidence_items": [
+    {
+      "claim_id": "claim-1",
+      "claim": "Structured research evidence should be evaluated before synthesis.",
+      "source_id": "src-1",
+      "source_type": "official-doc",
+      "source_locator": "policy/acceptance-policy.yaml",
+      "citation_span": "evidence_quality.thresholds",
+      "quoted_excerpt": "primary: 85",
+      "source_reliability_score": 95,
+      "relevance_score": 95,
+      "support_type": "supports",
+      "access_status": "full",
+      "notes": "Repo policy evidence."
+    }
+  ]
+}
+```
+Research contradictions:
+```json
+[]
+```
+Research reflection:
+```json
+{"coverage": 90, "factual_support": 95, "depth": 85, "consistency": 90, "gaps": [], "followup_queries": [], "replan_recommended": false}
+```
+"""
+        result = make_acceptance_decision(text)
+        self.assertTrue(result["research_evidence_present"])
+        self.assertEqual(result["research_evidence_score"], 100)
+        self.assertEqual(result["evidence_quality_score"], 100)
+        self.assertEqual(result["research_evidence_signal_categories"], [])
+
+    def test_claim_only_research_evidence_is_downgraded(self) -> None:
+        text = self.sample_return() + """
+
+Research evidence:
+```json
+{"research_evidence_items": [{"claim_id": "claim-1", "claim": "This seems likely."}]}
+```
+Research reflection:
+```json
+{"coverage": 40, "factual_support": 20, "depth": 20, "consistency": 50, "gaps": [], "followup_queries": [], "replan_recommended": false}
+```
+"""
+        result = make_acceptance_decision(text)
+        self.assertLess(result["evidence_quality_score"], 85)
+        self.assertIn("missing_research_source_locator", result["evidence_quality_signal_categories"])
+        self.assertIn("missing_research_grounding", result["evidence_quality_signal_categories"])
+        self.assertNotEqual(result["recommended_synthesis_use"], "primary")
+
+    def test_paywalled_abstract_only_research_support_is_penalized(self) -> None:
+        text = self.sample_return() + """
+
+Research evidence:
+```json
+{
+  "research_evidence_items": [
+    {
+      "claim_id": "claim-1",
+      "claim": "The full paper proves the design.",
+      "source_id": "paper-1",
+      "source_type": "academic-paper",
+      "source_locator": "https://example.invalid/paper",
+      "quoted_excerpt": "abstract only",
+      "source_reliability_score": 90,
+      "relevance_score": 90,
+      "support_type": "supports",
+      "access_status": "paywalled"
+    }
+  ]
+}
+```
+Research reflection:
+```json
+{"coverage": 70, "factual_support": 60, "depth": 50, "consistency": 80, "gaps": [], "followup_queries": [], "replan_recommended": false}
+```
+"""
+        result = make_acceptance_decision(text)
+        self.assertIn("inaccessible_research_support", result["research_evidence_signal_categories"])
+        self.assertLess(result["research_evidence_score"], 100)
+
+    def test_unresolved_research_contradictions_lower_score(self) -> None:
+        text = self.sample_return() + """
+
+Research evidence:
+```json
+{
+  "research_evidence_items": [
+    {
+      "claim_id": "claim-1",
+      "claim": "Research returns should use explicit source grounding.",
+      "source_id": "src-1",
+      "source_type": "official-doc",
+      "source_locator": "references/external-contracting.md",
+      "citation_span": "Return Review",
+      "quoted_excerpt": "normalized, evaluated, and adjudicated",
+      "source_reliability_score": 90,
+      "relevance_score": 90,
+      "support_type": "supports",
+      "access_status": "full"
+    }
+  ],
+  "research_contradictions": [
+    {"claim_id": "claim-1", "source_ids": ["src-1", "src-2"], "summary": "conflicting guidance", "resolution_status": "unresolved"}
+  ],
+  "research_reflection": {"coverage": 80, "factual_support": 80, "depth": 75, "consistency": 50, "gaps": [], "followup_queries": [], "replan_recommended": false}
+}
+```
+"""
+        result = make_acceptance_decision(text)
+        self.assertEqual(result["research_unresolved_contradiction_count"], 1)
+        self.assertIn("unresolved_research_contradiction", result["research_evidence_signal_categories"])
+
+    def test_missing_research_reflection_is_visible(self) -> None:
+        text = self.sample_return() + """
+
+Research evidence:
+```json
+{
+  "research_evidence_items": [
+    {
+      "claim_id": "claim-1",
+      "claim": "Evidence exists.",
+      "source_id": "src-1",
+      "source_type": "packet",
+      "source_locator": "contractor-packet.json",
+      "citation_span": "included_artifacts",
+      "quoted_excerpt": "assignment_summary",
+      "source_reliability_score": 80,
+      "relevance_score": 80,
+      "support_type": "supports",
+      "access_status": "full"
+    }
+  ]
+}
+```
+"""
+        result = make_acceptance_decision(text)
+        self.assertIn("missing_research_reflection", result["research_evidence_signal_categories"])
+        self.assertLess(result["research_evidence_score"], 100)
+
+    def test_fenced_research_json_in_evidence_does_not_pollute_legacy_items(self) -> None:
+        text = self.sample_return().replace("Evidence:\n", """Evidence:
+```json
+{"research_evidence_items": [{"claim_id": "claim-1", "claim": "Evidence exists", "source_locator": "packet://one"}]}
+```
+""")
+        sections = parse_return_sections(text)
+        items = evidence_items_from_sections(sections)
+        self.assertTrue(items)
+        self.assertFalse(any("research_evidence_items" in item["text"] for item in items))
+        result = make_acceptance_decision(text)
+        self.assertTrue(result["research_evidence_present"])
+
+    def test_legacy_return_has_no_research_evidence_fields_active(self) -> None:
+        result = make_acceptance_decision(self.sample_return())
+        self.assertFalse(result["research_evidence_present"])
+        self.assertEqual(result["research_evidence_items"], [])
+        self.assertEqual(result["research_evidence_score"], 100)
 
 
 if __name__ == "__main__":

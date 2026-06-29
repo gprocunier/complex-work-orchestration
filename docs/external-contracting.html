@@ -370,6 +370,18 @@ python3 scripts/ingest_chatgpt_share_return.py \
               <code>--confirm-only</code> before submitting.
             </div>
             <div class="callout">
+              <strong>Blocking ChatGPT Pro gate:</strong>
+              When the user explicitly asks for ChatGPT Pro 5.5 master review
+              before execution, this is a blocking ChatGPT Pro gate, not a
+              best-effort lane. If model
+              confirmation, dispatch, share-link ingest, return evaluation, or
+              architect adjudication fails, stop before implementation and
+              record the failed gate in Beads. Continue only after the operator
+              fixes the lane or explicitly records a waiver/downgrade in Beads.
+              Do not silently substitute Gemini, Opus, Deep Research, or an
+              internal review for the requested Pro lane.
+            </div>
+            <div class="callout">
               <strong>Attach mode:</strong>
               If a normal browser is needed for account or Cloudflare prompts,
               start Chrome with a localhost debugging port, complete the prompt
@@ -446,6 +458,15 @@ python3 scripts/evaluate_return.py \
               mutation also blocks direct implementation use. Provider-policy
               limitations and opaque intervention risks stay in the evidence
               gate until the architect adjudicates them.
+            </div>
+            <div class="callout">
+              <strong>Research evidence rule:</strong>
+              Research-style returns may add optional
+              <code>Research evidence</code>, <code>Research contradictions</code>,
+              and <code>Research reflection</code> sections. The evaluator scores
+              source locators, citation spans or excerpts, reliability,
+              relevance, access limits, contradictions, and replan notes before
+              those claims can influence synthesis or implementation.
             </div>
             <div class="callout">
               <strong>Critique rule:</strong>

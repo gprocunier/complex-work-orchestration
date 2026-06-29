@@ -71,6 +71,10 @@ Do not use generic reassurance such as "looks good", "best practice", or
 "no issues" as evidence. If the packet does not contain enough evidence for a
 specific finding, say `Status: no-actionable-findings` and name the missing
 evidence instead of filling the return with broad advice.
+For research-style claims, add optional `Research evidence`, `Research
+contradictions`, and `Research reflection` sections after `Evidence`. Include
+source locators, citation spans or short excerpts, reliability and relevance
+scores, support type, access status, contradiction handling, and replan notes.
 
 Confidence scale:
 low, medium, medium-high, high. Explain confidence when below high.

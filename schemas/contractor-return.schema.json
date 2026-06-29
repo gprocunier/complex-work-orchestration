@@ -16,6 +16,28 @@
     "validation_result": {"type": "string"},
     "provider_policy_limitations": {"type": "string"},
     "evidence": {"type": "array", "items": {"type": "string"}},
+    "research_evidence_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim_id": {"type": "string"},
+          "claim": {"type": "string"},
+          "source_id": {"type": "string"},
+          "source_type": {"type": "string"},
+          "source_locator": {"type": "string"},
+          "citation_span": {"type": "string"},
+          "quoted_excerpt": {"type": "string"},
+          "source_reliability_score": {"type": "integer", "minimum": 0, "maximum": 100},
+          "relevance_score": {"type": "integer", "minimum": 0, "maximum": 100},
+          "support_type": {"type": "string"},
+          "access_status": {"type": "string"},
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "research_contradictions": {"type": "array", "items": {"type": "object"}},
+    "research_reflection": {"type": "object"},
     "evidence_provenance": {"type": "string"},
     "attestation_or_reproducibility_note": {"type": "string"},
     "share_boundary_conformance": {"type": "string"},

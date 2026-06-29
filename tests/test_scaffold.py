@@ -103,6 +103,30 @@ class ScaffoldTests(unittest.TestCase):
             "claude --model claude-opus-4-6 --effort xhigh -p",
         )
 
+    def test_chatgpt_pro_master_review_is_blocking_gate(self) -> None:
+        route = classify_work(
+            "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["master-plan-review"],
+        )
+        graph = planned_graph("ChatGPT Gate Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+        lane = "expert-review-master-plan-review"
+
+        self.assertIn(lane, by_lane)
+        self.assertTrue(by_lane[lane]["metadata"]["blocking_review_required"])
+        self.assertTrue(by_lane[lane]["metadata"]["blocking_review_active"])
+        self.assertTrue(by_lane[lane]["metadata"]["blocking_review_waiver_required"])
+        self.assertEqual(
+            by_lane[lane]["metadata"]["blocking_review_failure_behavior"],
+            "stop-before-implementation-unless-explicit-operator-waiver",
+        )
+        self.assertIn(lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertEqual(by_lane["architect-adjudication"]["depends_on_lanes"], ["evaluation"])
+        self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+        self.assertIn("Blocking review gate: chatgpt-pro-5.5-master-plan-review", by_lane[lane]["notes"])
+
     def test_tight_scaffold_limits_optional_expert_fanout(self) -> None:
         route = classify_work(
             "Security and web design review for contractor packet behavior.",

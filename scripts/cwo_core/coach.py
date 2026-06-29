@@ -872,6 +872,12 @@ def prompt_coach_enabled_levers(
         levers.extend(["architect-review", "validation-lane"])
     if level == "external-contract":
         levers.extend(["contractor-only-bead", f"share-boundary={route.get('share_boundary')}"])
+    if route.get("blocking_review_required"):
+        levers.append("chatgpt-pro-master-review-blocking-gate")
+        if route.get("blocking_review_active"):
+            levers.append("chatgpt-pro-master-review-active")
+        if route.get("blocking_review_waiver_required"):
+            levers.append("operator-waiver-required-for-chatgpt-pro-skip")
     critic_contracts = route.get("architecture_critic_contracts") or []
     if critic_contracts:
         levers.append("architecture-second-opinion-critics")
@@ -979,6 +985,10 @@ def prompt_coach_rationale(
         rationale.append("A local-worker route is selected and local inference was explicitly allowed.")
     elif level == "publish-release":
         rationale.append("Publish or release language requires sanitization and explicit validation evidence.")
+    if route.get("blocking_review_required"):
+        rationale.append(
+            "The user explicitly requested ChatGPT Pro 5.5 master review; treat that lane as a blocking gate before implementation."
+        )
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
         rationale.append(
             "Subagent parallelism is recommended as "
@@ -1020,6 +1030,10 @@ def prompt_coach_warnings(
         warnings.append("Provider conflict detected; keep peer review and architect adjudication in the flow.")
     if route.get("peer_review_required"):
         warnings.append("Peer review is required before findings become implementation direction.")
+    if route.get("blocking_review_required"):
+        warnings.append(
+            "ChatGPT Pro 5.5 master review is blocking when explicitly requested; if confirmation, dispatch, ingest, evaluation, or adjudication fails, stop for operator action or an explicit waiver."
+        )
     if any(question["id"] == "outside_sharing_boundary" for question in missing_questions):
         warnings.append("Do not export context to outside models until the sharing boundary is explicitly answered.")
     if model_synthesis and model_synthesis.get("recommended_mode") != "none":
@@ -1086,6 +1100,18 @@ def beads_context_prompt_line(beads_context_depth_signal: dict[str, Any] | None)
     )
 
 
+def blocking_review_prompt_line(route: dict[str, Any]) -> str:
+    if not route.get("blocking_review_required"):
+        return ""
+    executor = route.get("blocking_review_executor") or "chatgpt_pro_5_5_extended_reasoning_browser"
+    job = route.get("blocking_review_job_description_label") or "contract-jd-master-plan-review"
+    return (
+        "Treat the explicit ChatGPT Pro 5.5 master review as a blocking gate before implementation. "
+        f"Use {executor} with {job}; require confirmed model/effort attestation, share-link ingest, return evaluation, "
+        "and Codex architect adjudication. If any step fails, stop and ask the operator to fix the lane or explicitly waive/downgrade it in Beads.\n"
+    )
+
+
 def render_coached_prompt(
     level: str,
     route: dict[str, Any],
@@ -1105,6 +1131,7 @@ def render_coached_prompt(
     workerbees = workerbee_prompt_line(workerbee_parallelism)
     synthesis = synthesis_prompt_line(model_synthesis)
     beads_context = beads_context_prompt_line(beads_context_depth_signal)
+    blocking_review = blocking_review_prompt_line(route)
     scaffold_line = ""
     if scaffold_sizing and scaffold_sizing.get("recommended_size") == "tight":
         scaffold_line = (
@@ -1118,6 +1145,7 @@ def render_coached_prompt(
             f"{workerbees}"
             f"{synthesis}"
             f"{beads_context}"
+            f"{blocking_review}"
             f"{scaffold_line}"
             "Create or update one Beads task for the work story, evidence, validation, and handoff. "
             "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
@@ -1131,6 +1159,7 @@ def render_coached_prompt(
             f"{workerbees}"
             f"{synthesis}"
             f"{beads_context}"
+            f"{blocking_review}"
             f"{scaffold_line}"
             "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
             "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
@@ -1143,6 +1172,7 @@ def render_coached_prompt(
             f"{workerbees}"
             f"{synthesis}"
             f"{beads_context}"
+            f"{blocking_review}"
             f"{scaffold_line}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
             "and any policy-required peer-review workstreams. Keep final decisions with the architect.\n"
@@ -1170,6 +1200,7 @@ def render_coached_prompt(
                 f"{workerbees}"
                 f"{synthesis}"
                 f"{beads_context}"
+                f"{blocking_review}"
                 f"{scaffold_line}"
                 f"Share boundary: {route.get('share_boundary')}.\n"
                 "Create one contractor-only/no-codex-exec Bead per selected architecture critic, all using "
@@ -1185,6 +1216,7 @@ def render_coached_prompt(
             f"{workerbees}"
             f"{synthesis}"
             f"{beads_context}"
+            f"{blocking_review}"
             f"{scaffold_line}"
             f"Share boundary: {route.get('share_boundary')}.\n"
             f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
@@ -1199,6 +1231,7 @@ def render_coached_prompt(
             f"{workerbees}"
             f"{synthesis}"
             f"{beads_context}"
+            f"{blocking_review}"
             f"{scaffold_line}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
             "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
@@ -1211,6 +1244,7 @@ def render_coached_prompt(
         f"{workerbees}"
         f"{synthesis}"
         f"{beads_context}"
+        f"{blocking_review}"
         f"{scaffold_line}"
         "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization workstreams. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
