@@ -37,7 +37,7 @@ RETURN_SECTION_ALIASES = {
     "attestation or reproduction note": "Attestation or reproducibility note",
     "risks gaps": "Risks or gaps",
     "risks and gaps": "Risks or gaps",
-    "recommended next Bead": "Recommended next bead",
+    "recommended next bead": "Recommended next bead",
     "recommended next action": "Recommended next bead",
     "secret spill": "Secret or personal-data spill",
     "personal data spill": "Secret or personal-data spill",

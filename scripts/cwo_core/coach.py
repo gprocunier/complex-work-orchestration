@@ -1289,10 +1289,10 @@ def coach_orchestration_prompt(
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
     scaffold_sizing = prompt_coach_scaffold_sizing_signal(text, level, route, force_size=scaffold_size)
-    model_synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
-    if model_synthesis is None:
-        model_synthesis = recommend_model_synthesis(text, route)
-        route = {**route, "model_synthesis": model_synthesis}
+    model_synthesis_config = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
+    if model_synthesis_config is None:
+        model_synthesis_config = recommend_model_synthesis(text, route)
+        route = {**route, "model_synthesis": model_synthesis_config}
     beads_context_depth_signal = prompt_coach_beads_context_depth_signal(
         text,
         level,
@@ -1313,7 +1313,7 @@ def coach_orchestration_prompt(
         text,
         file_paths,
         workerbee_parallelism,
-        model_synthesis,
+        model_synthesis_config,
         scaffold_sizing,
         beads_context_depth_signal,
     )
@@ -1322,7 +1322,7 @@ def coach_orchestration_prompt(
         route,
         questions,
         workerbee_parallelism,
-        model_synthesis,
+        model_synthesis_config,
         scaffold_sizing,
         beads_context_depth_signal,
     )
@@ -1340,7 +1340,7 @@ def coach_orchestration_prompt(
             route,
             questions,
             workerbee_parallelism,
-            model_synthesis,
+            model_synthesis_config,
             scaffold_sizing,
             beads_context_depth_signal,
         ),
@@ -1350,7 +1350,7 @@ def coach_orchestration_prompt(
             level,
             route,
             workerbee_parallelism,
-            model_synthesis,
+            model_synthesis_config,
             scaffold_sizing,
             beads_context_depth_signal,
         ),
@@ -1358,12 +1358,12 @@ def coach_orchestration_prompt(
             level,
             route,
             workerbee_parallelism,
-            model_synthesis,
+            model_synthesis_config,
             scaffold_sizing,
             beads_context_depth_signal,
         ),
         "workerbee_parallelism": workerbee_parallelism,
-        "model_synthesis": model_synthesis,
+        "model_synthesis": model_synthesis_config,
         "route": route,
         "paste_ready_prompt": render_coached_prompt(
             level,
@@ -1371,9 +1371,9 @@ def coach_orchestration_prompt(
             text,
             questions,
             workerbee_parallelism,
-            model_synthesis,
+            model_synthesis_config,
             scaffold_sizing,
             beads_context_depth_signal,
         ),
-        "warnings": prompt_coach_warnings(route, questions, model_synthesis, beads_context_depth_signal),
+        "warnings": prompt_coach_warnings(route, questions, model_synthesis_config, beads_context_depth_signal),
     }

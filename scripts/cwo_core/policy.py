@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -94,12 +96,21 @@ def load_json_compatible_yaml(path: Path) -> dict[str, Any]:
     return value
 
 
-def load_policy(name: str) -> dict[str, Any]:
-    filename = name if name.endswith(".yaml") else f"{name}.yaml"
+@lru_cache(maxsize=None)
+def _load_policy_cached(filename: str) -> dict[str, Any]:
     path = POLICY_DIR / filename
     if not path.is_file():
         raise SystemExit(f"missing policy file: {path}")
     return load_json_compatible_yaml(path)
+
+
+def clear_policy_cache() -> None:
+    _load_policy_cached.cache_clear()
+
+
+def load_policy(name: str) -> dict[str, Any]:
+    filename = name if name.endswith(".yaml") else f"{name}.yaml"
+    return copy.deepcopy(_load_policy_cached(filename))
 
 
 def provider_profile(provider_key: str | None) -> dict[str, Any]:

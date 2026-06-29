@@ -13,8 +13,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 ALLOWED_IMPORTS = {
     "paths": set(),
     "util": set(),
+    "chatgpt_urls": set(),
     "policy": {"paths", "util"},
-    "routing": {"policy", "synthesis", "util"},
+    "routing": {"policy", "routing_signals", "synthesis", "util"},
+    "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "util"},
     "packets": {"paths", "policy", "util"},

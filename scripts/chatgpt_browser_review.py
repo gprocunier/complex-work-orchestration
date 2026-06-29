@@ -5,7 +5,6 @@ import argparse
 import datetime as dt
 import json
 import os
-import re
 import shutil
 import stat
 import subprocess
@@ -15,8 +14,10 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt
-from cwo_core.paths import REPO_ROOT
+from cwo_core.chatgpt_urls import CHATGPT_SHARE_URL_RE, valid_chatgpt_share_url
+from cwo_core.paths import REPO_ROOT, assert_safe_output_path
 from cwo_core.util import (
+    atomic_write_text,
     artifact_hash,
     make_dispatch_id,
 )
@@ -36,11 +37,7 @@ DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
     "button[aria-label*='Go to bottom'], "
     "button[aria-label*='Go to latest']"
 )
-CHATGPT_HOSTS = {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}
 LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
-CHATGPT_SHARE_URL_RE = re.compile(
-    r"https://(?:www\.)?(?:chatgpt\.com|chat\.openai\.com)/(?:s|share)/[^\s\"'<>),\]&]+"
-)
 FORBIDDEN_CONFIG_KEYS = {
     "google_email",
     "google_password",
@@ -181,13 +178,6 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
         "provider_key": "openai_manual",
         "share_boundary": args.share_boundary,
     }
-
-
-def valid_chatgpt_share_url(value: str) -> bool:
-    parsed = urlparse(value)
-    return parsed.scheme == "https" and (parsed.hostname or "").lower() in CHATGPT_HOSTS and (
-        parsed.path.startswith("/s/") or parsed.path.startswith("/share/")
-    )
 
 
 def extract_chatgpt_share_url(value: str) -> str:
@@ -759,6 +749,7 @@ def main() -> None:
     config_path = resolve_config_path(args.config)
     config = load_browser_config(config_path)
     prompt, metadata = load_prompt_from_args(args)
+    exit_message = ""
     if args.dry_run and args.confirm_only:
         raise SystemExit("--dry-run and --confirm-only are mutually exclusive")
     if args.dry_run:
@@ -774,7 +765,6 @@ def main() -> None:
             status="model-confirmed",
         )
     else:
-        exit_message = ""
         try:
             browser_result = PlaywrightChatGPTRunner(config).run(prompt)
             result = build_result(
@@ -824,10 +814,10 @@ def main() -> None:
         )
     rendered = json.dumps(result, indent=2, sort_keys=True)
     if args.output:
-        Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+        atomic_write_text(assert_safe_output_path(Path(args.output)), rendered + "\n")
     else:
         print(rendered)
-    if "exit_message" in locals() and exit_message:
+    if exit_message:
         raise SystemExit(exit_message)
 
 

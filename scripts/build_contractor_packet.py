@@ -10,8 +10,10 @@ from typing import Any
 from cwo_core.paths import (
     REPO_ROOT,
     assert_repo_safe_path,
+    assert_safe_output_path,
 )
 from cwo_core.util import (
+    atomic_write_text,
     artifact_hash,
     make_dispatch_id,
     packet_payload_hash,
@@ -380,9 +382,10 @@ def main() -> None:
     )
     rendered = json.dumps(packet, indent=2, sort_keys=True) if args.format == "json" else packet_markdown(packet)
     if args.output:
-        output_path = Path(args.output)
-        output_path.write_text(rendered, encoding="utf-8")
+        output_path = assert_safe_output_path(Path(args.output))
+        atomic_write_text(output_path, rendered)
         if args.attest_packet:
+            attestation_path = assert_safe_output_path(output_path.with_suffix(output_path.suffix + ".attestation.json"))
             attestation = make_attestation(
                 subject_type="contractor-packet",
                 subject_sha256=artifact_hash(rendered),
@@ -395,10 +398,7 @@ def main() -> None:
                     "packet_sha256": packet["packet_sha256"],
                 },
             )
-            output_path.with_suffix(output_path.suffix + ".attestation.json").write_text(
-                json.dumps(attestation, indent=2, sort_keys=True),
-                encoding="utf-8",
-            )
+            atomic_write_text(attestation_path, json.dumps(attestation, indent=2, sort_keys=True))
     else:
         print(rendered)
     if args.audit:

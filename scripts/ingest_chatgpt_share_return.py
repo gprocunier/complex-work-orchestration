@@ -8,20 +8,17 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
-from cwo_core.util import artifact_hash
+from cwo_core.chatgpt_urls import valid_chatgpt_share_url
+from cwo_core.paths import assert_safe_output_path
+from cwo_core.util import atomic_write_text, artifact_hash
 
-CHATGPT_HOSTS = {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}
 DEFAULT_EXECUTOR = "chatgpt_pro_5_5_extended_reasoning_browser"
 
 
 def is_chatgpt_share_source(source: str) -> bool:
-    parsed = urlparse(source)
-    if parsed.scheme in {"http", "https"}:
-        return (parsed.hostname or "").lower() in CHATGPT_HOSTS and (
-            parsed.path.startswith("/s/") or parsed.path.startswith("/share/")
-        )
+    if source.startswith(("http://", "https://")):
+        return valid_chatgpt_share_url(source)
     return Path(source).is_file()
 
 
@@ -180,7 +177,7 @@ def main() -> None:
         "provenance": provenance,
     }
     if args.output:
-        Path(args.output).write_text(rendered, encoding="utf-8")
+        atomic_write_text(assert_safe_output_path(Path(args.output)), rendered)
     if args.json:
         print(json.dumps(metadata, indent=2, sort_keys=True))
     elif not args.output:

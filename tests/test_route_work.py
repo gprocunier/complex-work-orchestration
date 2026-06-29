@@ -267,6 +267,25 @@ class RouteWorkTests(unittest.TestCase):
             ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
         )
 
+    def test_dual_architecture_critics_accept_hyphenated_plural_wording(self) -> None:
+        result = classify_work(
+            "Have Claude Opus and Gemini provide second-opinion critics for the architect design.",
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+        self.assertEqual(
+            result["requested_architecture_critic_executors"],
+            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+        )
+
+    def test_routing_public_imports_remain_available(self) -> None:
+        from cwo_core.routing import classify_work as imported_classify_work
+        from cwo_core.routing import explicit_gemini_architect_critique_requested
+
+        self.assertIs(imported_classify_work, classify_work)
+        self.assertTrue(explicit_gemini_architect_critique_requested("Gemini second-opinion critic for architecture"))
+
     def test_generic_second_opinion_does_not_authorize_external_critic(self) -> None:
         result = classify_work(
             "Get a second opinion on the architect design.",

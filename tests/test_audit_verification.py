@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.audit import (  # noqa: E402
+    iter_audit_events,
     record_audit_event,
     verify_audit_log,
 )
@@ -61,6 +62,16 @@ class AuditVerificationTests(unittest.TestCase):
 
             self.assertFalse(result["valid"])
             self.assertTrue(any("previous_event_hash" in error for error in result["errors"]))
+
+    def test_iter_audit_events_is_strict_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit_file = Path(tmp) / "audit.jsonl"
+            audit_file.write_text('{"event_type":"ok"}\nnot-json\n', encoding="utf-8")
+
+            with self.assertRaises(SystemExit):
+                iter_audit_events(audit_file)
+
+            self.assertEqual(iter_audit_events(audit_file, strict=False), [{"event_type": "ok"}])
 
     def test_concurrent_audit_writes_do_not_lose_events_or_break_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

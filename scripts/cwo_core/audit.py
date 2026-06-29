@@ -11,20 +11,24 @@ from .policy import executor_dispatch_mode, executor_external, load_contracting_
 from .util import artifact_hash
 
 
-def iter_audit_events(audit_file: Path | None = None) -> list[dict[str, Any]]:
+def iter_audit_events(audit_file: Path | None = None, *, strict: bool = True) -> list[dict[str, Any]]:
     audit_file = audit_file or AUDIT_LOG
     if not audit_file.exists():
         return []
     events: list[dict[str, Any]] = []
-    for line in audit_file.read_text(encoding="utf-8").splitlines():
+    for line_number, line in enumerate(audit_file.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
         try:
             value = json.loads(line)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            if strict:
+                raise SystemExit(f"{audit_file}: line {line_number}: invalid audit JSON: {exc}") from exc
             continue
         if isinstance(value, dict):
             events.append(value)
+        elif strict:
+            raise SystemExit(f"{audit_file}: line {line_number}: audit event is not an object")
     return events
 
 
@@ -114,6 +118,8 @@ def record_audit_event(event: dict[str, Any], audit_file: Path | None = None) ->
         enriched["event_hash"] = artifact_hash(json.dumps(enriched, sort_keys=True))
         with audit_file.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(enriched, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
         return enriched
     finally:
         release_audit_lock(lock_handle)
@@ -134,7 +140,11 @@ def acquire_audit_lock(audit_file: Path) -> tuple[Any | None, str]:
         if audit_strict_lock_required():
             raise SystemExit("audit locking is unavailable on this platform and CWO_AUDIT_REQUIRE_LOCK is set")
         return None, "unsupported"
-    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    except BaseException:
+        handle.close()
+        raise
     return handle, "posix-flock"
 
 

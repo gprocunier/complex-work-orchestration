@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from cwo_core.util import atomic_write_text
+
 DEFAULT_WORKSPACE_ROOT = Path.cwd()
 DEFAULT_STATE_DIR = DEFAULT_WORKSPACE_ROOT / ".orchestration-agents"
 SESSION_FILE = "sessions.jsonl"
@@ -170,7 +172,7 @@ def write_records(state_dir: Path, records: list[dict[str, Any]]) -> None:
         return
     state_dir.mkdir(parents=True, exist_ok=True)
     payload = "\n".join(json.dumps(record, sort_keys=True) for record in records) + "\n"
-    path.write_text(payload, encoding="utf-8")
+    atomic_write_text(path, payload)
 
 
 def terminate_process(pid: int, *, dry_run: bool, grace_seconds: float) -> str:

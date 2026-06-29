@@ -5,6 +5,8 @@ import argparse
 import json
 from pathlib import Path
 
+from cwo_core.paths import assert_safe_output_path
+from cwo_core.util import atomic_write_text
 from cwo_core.workspace import (
     capture_tracked_workspace_state,
     diff_workspace_state,
@@ -49,7 +51,7 @@ def main() -> None:
 
     rendered = json.dumps(result, indent=2, sort_keys=True)
     if args.output:
-        Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+        atomic_write_text(assert_safe_output_path(Path(args.output)), rendered + "\n")
     else:
         print(rendered)
 

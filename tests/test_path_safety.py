@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.packets import file_snippet  # noqa: E402
+from cwo_core.paths import assert_safe_output_path  # noqa: E402
 
 
 class PathSafetyTests(unittest.TestCase):
@@ -37,6 +38,34 @@ class PathSafetyTests(unittest.TestCase):
         self.assertLessEqual(snippet["line_count"], 3)
         self.assertTrue(snippet["truncated"])
         self.assertNotIn("token=", snippet["content"].lower())
+
+    def test_output_path_allows_repo_and_tmp_artifacts(self) -> None:
+        self.assertEqual(assert_safe_output_path(ROOT / "review-output.json"), ROOT / "review-output.json")
+        tmp_path = Path(tempfile.gettempdir()) / "cwo-output-test.json"
+        self.assertEqual(assert_safe_output_path(tmp_path), tmp_path)
+
+    def test_output_path_rejects_control_paths_and_secret_names(self) -> None:
+        with self.assertRaises(SystemExit):
+            assert_safe_output_path(ROOT / ".git" / "cwo-output.json")
+        with self.assertRaises(SystemExit):
+            assert_safe_output_path(Path(tempfile.gettempdir()) / "id_rsa")
+
+    def test_output_path_rejects_symlink_target_and_symlink_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            target = tmp / "target.txt"
+            target.write_text("x\n", encoding="utf-8")
+            link = tmp / "link.txt"
+            link.symlink_to(target)
+            with self.assertRaises(SystemExit):
+                assert_safe_output_path(link)
+
+            real_parent = tmp / "real"
+            real_parent.mkdir()
+            parent_link = tmp / "parent-link"
+            parent_link.symlink_to(real_parent, target_is_directory=True)
+            with self.assertRaises(SystemExit):
+                assert_safe_output_path(parent_link / "out.txt")
 
 
 if __name__ == "__main__":

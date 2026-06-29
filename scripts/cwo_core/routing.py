@@ -24,6 +24,16 @@ from .policy import (
     route_requires_peer_review,
     validate_peer_review_controls,
 )
+from .routing_signals import (
+    architecture_review_complexity,
+    claude_architecture_effort,
+    command_with_claude_effort,
+    explicit_chatgpt_master_plan_review_requested,
+    explicit_claude_architect_critique_requested,
+    explicit_gemini_architect_critique_requested,
+    explicit_openai_deep_research_requested,
+    requested_architecture_critic_executor_keys,
+)
 from .synthesis import recommend_model_synthesis
 from .util import rank_allows, rank_max, term_hits
 
@@ -42,136 +52,6 @@ def dispatch_sensitivity_for_boundary(sensitivity: str, share_boundary: str) -> 
     if share_boundary == "redacted-packet" and sensitivity == "internal":
         return "redacted"
     return sensitivity
-
-
-def explicit_gemini_architect_critique_requested(text: str) -> bool:
-    """Return true only for the opt-in Gemini/Agy design-critic pattern."""
-    return bool(
-        term_hits(text, ["gemini", "agy", "antigravity"])
-        and term_hits(text, ["architect", "architecture", "design"])
-        and term_hits(
-            text,
-            [
-                "second opinion",
-                "second opinions",
-                "2nd opinion",
-                "2nd opinions",
-                "independent opinion",
-                "independent opinions",
-                "peer opinion",
-                "peer opinions",
-                "critique",
-                "critic",
-            ],
-        )
-    )
-
-
-def explicit_claude_architect_critique_requested(text: str) -> bool:
-    """Return true only for the opt-in Claude Opus design-critic pattern."""
-    return bool(
-        term_hits(text, ["claude", "opus", "anthropic"])
-        and term_hits(text, ["architect", "architecture", "design"])
-        and term_hits(
-            text,
-            [
-                "second opinion",
-                "second opinions",
-                "2nd opinion",
-                "2nd opinions",
-                "independent opinion",
-                "independent opinions",
-                "peer opinion",
-                "peer opinions",
-                "critique",
-                "critic",
-                "review",
-            ],
-        )
-    )
-
-
-def requested_architecture_critic_executor_keys(text: str) -> list[str]:
-    keys: list[str] = []
-    if explicit_claude_architect_critique_requested(text):
-        keys.append("claude_opus_4_6_architecture_critic")
-    if explicit_gemini_architect_critique_requested(text):
-        keys.append("gemini_3_1_pro_preview_agy")
-    return keys
-
-
-def architecture_review_complexity(text: str, risk: str) -> str:
-    if risk == "critical" or term_hits(
-        text,
-        [
-            "total-system",
-            "total system",
-            "irreversible",
-            "high-cost",
-            "high cost",
-            "blast radius",
-            "mission critical",
-        ],
-    ):
-        return "critical"
-    if term_hits(
-        text,
-        [
-            "cross-cutting",
-            "cross cutting",
-            "security-sensitive",
-            "security sensitive",
-            "persistent-state",
-            "persistent state",
-            "public-contract",
-            "public contract",
-            "multi-provider",
-            "multi provider",
-            "architecture migration",
-        ],
-    ):
-        return "high"
-    return "medium"
-
-
-def claude_architecture_effort(complexity: str) -> str:
-    if complexity == "critical":
-        return "max"
-    if complexity == "high":
-        return "xhigh"
-    return "high"
-
-
-def command_with_claude_effort(command: str, effort: str) -> str:
-    return re.sub(r"--effort\s+\S+", f"--effort {effort}", command)
-
-
-def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
-    """Return true for the ChatGPT Pro Extended Reasoning plan-review lane."""
-    return bool(
-        term_hits(text, ["chatgpt", "gpt 5.5", "5.5 pro", "openai"])
-        and term_hits(
-            text,
-            [
-                "extended reasoning",
-                "master plan",
-                "master review",
-                "master critique",
-                "master reviewer",
-                "total work packet",
-                "work packet reviewer",
-                "final execution plan",
-                "final plan review",
-                "final review",
-                "weigh in as a master review",
-            ],
-        )
-    )
-
-
-def explicit_openai_deep_research_requested(text: str) -> bool:
-    """Return true for the separate ChatGPT Deep Research opt-in lane."""
-    return bool(term_hits(text, ["deep research"]))
 
 
 CHATGPT_MASTER_REVIEW_GATE = "chatgpt-pro-5.5-master-plan-review"
@@ -671,10 +551,11 @@ def score_executors(
             score += scoring.get("latency_fit", 3)
         if executor.get("cost_tier") in ["low", "medium"]:
             score += scoring.get("cost_fit", 2)
-        if key == "gemini_3_1_pro_preview_agy" and explicit_gemini_architect_critique_requested(text):
+        is_architecture_review_task = task_class == "architecture-review"
+        if is_architecture_review_task and key == "gemini_3_1_pro_preview_agy" and explicit_gemini_architect_critique_requested(text):
             score += 30
             reasons.append("explicit Gemini/Agy architect critique request")
-        if key == "claude_opus_4_6_architecture_critic" and explicit_claude_architect_critique_requested(text):
+        if is_architecture_review_task and key == "claude_opus_4_6_architecture_critic" and explicit_claude_architect_critique_requested(text):
             score += 32
             reasons.append("explicit Claude Opus architect critique request")
         if key == "chatgpt_pro_5_5_extended_reasoning_browser" and explicit_chatgpt_master_plan_review_requested(text):

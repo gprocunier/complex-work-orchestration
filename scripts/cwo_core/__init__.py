@@ -7,6 +7,7 @@ does not re-export symbols.
 __all__ = [
     "audit",
     "beads",
+    "chatgpt_urls",
     "coach",
     "harness",
     "packets",
@@ -14,6 +15,7 @@ __all__ = [
     "policy",
     "returns",
     "routing",
+    "routing_signals",
     "synthesis",
     "util",
     "workspace",

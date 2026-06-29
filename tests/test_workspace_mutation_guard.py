@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +19,7 @@ from cwo_core.workspace import (  # noqa: E402
 class WorkspaceMutationGuardTests(unittest.TestCase):
     def make_repo(self) -> Path:
         root = Path(tempfile.mkdtemp(prefix="cwo-workspace-guard-"))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
         subprocess.run(["git", "config", "user.name", "CWO Test"], cwd=root, check=True)

@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 from typing import Any
 
 from cwo_core.beads import show_bead_json
+from cwo_core.paths import assert_safe_output_path
 from cwo_core.routing import COMMENT_BEARING_BEADS_CONTEXT_DEPTHS, normalize_beads_context_depth
+from cwo_core.util import atomic_write_text
 
 
 STATUS_HINTS = {
@@ -228,8 +231,7 @@ def main() -> None:
     )
     rendered = json.dumps(brief, indent=2, sort_keys=True) + "\n" if args.json else render_markdown(brief)
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as handle:
-            handle.write(rendered)
+        atomic_write_text(assert_safe_output_path(Path(args.output)), rendered)
     else:
         print(rendered, end="")
 
