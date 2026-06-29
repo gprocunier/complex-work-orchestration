@@ -47,6 +47,7 @@
           <a href="#problem">Problem</a>
           <a href="#flow">Flow</a>
           <a href="#claims">Structured Claims</a>
+          <a href="#normalization">Normalization</a>
           <a href="#domains">Trust Domains</a>
           <a href="#divergence">Divergence</a>
           <a href="#guardrails">Guardrails</a>
@@ -122,6 +123,23 @@
               set focuses on security-sensitive areas such as cryptography,
               authentication, network behavior, dependencies, concurrency, data
               handling, privilege boundaries, and supply chain concerns.
+            </p>
+          </section>
+
+          <section id="normalization">
+            <h2>Claim Normalization</h2>
+            <p>
+              CWO reduces only narrow formatting noise before comparing claim
+              values. Short technical identifiers in cryptography,
+              authentication, and network categories can match across common
+              punctuation or spacing differences, such as
+              <code>AES-256-GCM</code> and <code>aes256gcm</code>.
+            </p>
+            <p>
+              The normalizer does not rewrite URLs, paths, configuration
+              fragments, version-like values such as <code>TLS-1.2</code>, or
+              ordinary prose. That keeps the comparison useful without turning
+              a formatting helper into semantic approval.
             </p>
           </section>
 

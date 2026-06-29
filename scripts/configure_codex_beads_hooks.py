@@ -36,6 +36,7 @@ MANAGED_EVENTS = {
 }
 VISIBILITY_MODES = {"quiet", "verbose"}
 VISIBILITY_NEEDLES = (b"visibilityHint", b"HookVisibilityHint")
+MAX_VISIBILITY_PROBE_BYTES = 4 * 1024 * 1024
 
 
 class ConfigurationError(RuntimeError):
@@ -82,8 +83,11 @@ def codex_binary_candidates(codex_bin: str) -> list[Path]:
 
 
 def file_has_visibility_hint(path: Path) -> bool:
+    if path.is_symlink() or not path.is_file():
+        return False
     try:
-        data = path.read_bytes()
+        with path.open("rb") as handle:
+            data = handle.read(MAX_VISIBILITY_PROBE_BYTES)
     except OSError:
         return False
     return all(needle in data for needle in VISIBILITY_NEEDLES)

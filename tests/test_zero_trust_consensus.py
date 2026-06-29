@@ -125,6 +125,165 @@ class ZeroTrustConsensusTests(unittest.TestCase):
         self.assertTrue(zero["agreement_is_not_validation"])
         self.assertNotIn(zero["consensus_status"], {"confirmed", "validated", "trusted", "passed"})
 
+    def test_formatting_only_technical_claim_difference_is_not_divergence(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_family": "anthropic",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "AES-256-GCM")],
+                },
+                {
+                    "lane": "chatgpt",
+                    "provider_family": "openai",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "aes256gcm")],
+                },
+            ],
+            zero_trust_required=True,
+        )
+
+        zero = result["zero_trust_consensus"]
+        self.assertEqual(zero["consensus_status"], "informational")
+        self.assertFalse(zero["divergence_report"])
+
+    def test_semantic_technical_claim_difference_still_diverges(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_family": "anthropic",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "AES-256-CBC")],
+                },
+                {
+                    "lane": "chatgpt",
+                    "provider_family": "openai",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "AES-256-GCM")],
+                },
+            ],
+            zero_trust_required=True,
+        )
+
+        zero = result["zero_trust_consensus"]
+        self.assertEqual(zero["consensus_status"], "divergent")
+        self.assertTrue(zero["divergence_report"])
+
+    def test_version_punctuation_is_not_collapsed(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_family": "anthropic",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("network", "tls_version", "TLS-1.2")],
+                },
+                {
+                    "lane": "chatgpt",
+                    "provider_family": "openai",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("network", "tls_version", "TLS-1.3")],
+                },
+            ],
+            zero_trust_required=True,
+        )
+
+        zero = result["zero_trust_consensus"]
+        self.assertEqual(zero["consensus_status"], "divergent")
+        self.assertTrue(zero["divergence_report"])
+
+    def test_domain_aliases_resolve_before_independence_count(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "codex",
+                    "trust_domain": "codex",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("auth", "jwt_algorithms", "RS256 only")],
+                },
+                {
+                    "lane": "chatgpt",
+                    "provider_family": "openai",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("auth", "jwt_algorithms", "RS-256 only")],
+                },
+                {
+                    "lane": "local",
+                    "provider_family": "local-openai-compatible",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("auth", "jwt_algorithms", "RS256 only")],
+                },
+            ],
+            zero_trust_required=True,
+        )
+
+        zero = result["zero_trust_consensus"]
+        self.assertEqual(zero["independent_trust_domains"], ["local", "openai"])
+        self.assertEqual(zero["independent_trust_domain_count"], 2)
+        self.assertEqual(zero["consensus_status"], "informational")
+
+    def test_partial_four_domain_divergence_can_quarantine(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_family": "anthropic",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "AES-256-GCM")],
+                },
+                {
+                    "lane": "chatgpt",
+                    "provider_family": "openai",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "AES-256-GCM")],
+                },
+                {
+                    "lane": "gemini",
+                    "provider_family": "google",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "AES-128-CBC")],
+                },
+                {
+                    "lane": "local",
+                    "provider_family": "local-openai-compatible",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("crypto", "cipher_mode", "AES-256-GCM")],
+                },
+            ],
+            zero_trust_required=True,
+        )
+
+        zero = result["zero_trust_consensus"]
+        self.assertEqual(zero["independent_trust_domain_count"], 4)
+        self.assertEqual(zero["consensus_status"], "divergent")
+        self.assertEqual(zero["recommended_action"], "quarantine")
+        self.assertTrue(result["blocked"])
+
+    def test_optional_zero_trust_without_claims_is_informational(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_family": "anthropic",
+                    "disposition": "accepted",
+                },
+                {
+                    "lane": "chatgpt",
+                    "provider_family": "openai",
+                    "disposition": "accepted",
+                },
+            ],
+            zero_trust_required=False,
+        )
+
+        zero = result["zero_trust_consensus"]
+        self.assertEqual(zero["consensus_status"], "informational")
+        self.assertEqual(zero["recommended_action"], "none")
+        self.assertFalse(result["blocked"])
+        self.assertFalse(zero["blocked_reasons"])
+
     def test_required_zero_trust_blocks_without_explicit_claims(self) -> None:
         result = evaluate_synthesis_inputs(
             [

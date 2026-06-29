@@ -48,6 +48,7 @@
           <a href="#coach-opt-in">Coach Local Opt-In</a>
           <a href="#openshift-ai">OpenShift AI vLLM</a>
           <a href="#dispatch-envelope">Dispatch Envelope</a>
+          <a href="#endpoint-safety">Endpoint Safety</a>
           <a href="#execute-local">Execute Explicitly</a>
           <a href="#evaluate">Evaluate Returns</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
@@ -246,6 +247,33 @@ python3 scripts/dispatch_work.py \
   --bead example \
   --json \
   "Summarize docs-review risks."</code></pre>
+          </section>
+
+          <section id="endpoint-safety">
+            <h2>Endpoint Safety</h2>
+            <p>
+              Execution is fail-closed. Before <code>--execute-local</code>
+              sends a request, CWO validates the endpoint URL, disables proxy
+              use, blocks redirects, and checks that the host resolves only to
+              loopback, RFC1918 private, or RFC4193 local IPv6 addresses.
+            </p>
+            <p>
+              The URL must not contain credentials. Plain HTTP is allowed only
+              for loopback endpoints such as <code>127.0.0.1</code> or
+              <code>::1</code>; private network endpoints should use HTTPS.
+              Hostnames that fail DNS, resolve to public addresses, or mix
+              private and public addresses are rejected before any POST occurs.
+            </p>
+            <p>
+              API keys are read only from an allowlisted environment variable
+              name. The built-in names are
+              <code>CWO_OPENSHIFT_AI_VLLM_API_KEY</code>,
+              <code>CWO_LOCAL_OPENAI_API_KEY</code>,
+              <code>LOCAL_OPENAI_API_KEY</code>,
+              <code>LOCAL_VLLM_API_KEY</code>, and
+              <code>VLLM_API_KEY</code>. Values are never copied into the
+              dispatch envelope.
+            </p>
           </section>
 
           <section id="execute-local">

@@ -1727,6 +1727,13 @@ The generated `local_envelope` follows
 `schemas/local-dispatch-envelope.schema.json`; `--execute-local` is never
 implicit.
 
+`--execute-local` validates the endpoint before any request is sent. URLs must
+use `http` or `https`, must not include credentials, and must resolve only to
+loopback, RFC1918 private, or RFC4193 local IPv6 addresses. HTTP is accepted
+only for loopback endpoints; private network endpoints should use HTTPS. The
+dispatcher disables proxy use, rejects redirects, and reads API keys only from
+allowlisted local environment variable names.
+
 Do not ask outside models for raw chain-of-thought. Ask for conclusions,
 assumptions, evidence, alternatives considered, risks, confidence, and
 recommended next actions.

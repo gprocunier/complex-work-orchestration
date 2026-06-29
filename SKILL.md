@@ -150,8 +150,11 @@ Default roles:
   and still needs evaluator scoring plus architect adjudication.
 - **OpenShift AI vLLM Worker**: named local profile selected with
   `--local-profile openshift-ai-vllm`. It uses an OpenAI-compatible endpoint
-  configured by environment variables and is still treated as bounded
-  local-worker evidence, not implementation authority.
+  configured by environment variables. `--execute-local` validates that the
+  endpoint is loopback or private, rejects URL credentials, disables proxies
+  and redirects, and reads API keys only from allowlisted local environment
+  variable names. Output is still bounded local-worker evidence, not
+  implementation authority.
 - **Execution Environment**: v2 policy profile that names the harness,
   provider boundary, role bindings, and constraints for a deployment zone.
   Codex CLI is the connected default. OpenCode is the first open-source

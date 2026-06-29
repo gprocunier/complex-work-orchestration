@@ -332,6 +332,27 @@ def _zero_trust_normalize(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip().lower())
 
 
+def _zero_trust_normalize_claim_value(value: Any, *, category: str) -> str:
+    """Normalize short technical identifiers without treating prose as equivalent."""
+
+    normalized = _zero_trust_normalize(value)
+    if category not in {"crypto", "auth", "network"}:
+        return normalized
+    if len(normalized) > 64:
+        return normalized
+    if re.search(r"https?://|[/\\{}\\[\\]=]", normalized):
+        return normalized
+    if "." in normalized:
+        return normalized
+    if not re.fullmatch(r"[a-z0-9][a-z0-9\s_-]*[a-z0-9]", normalized):
+        return normalized
+    compact = re.sub(r"[\s_-]+", "", normalized)
+    tokens = re.findall(r"[a-z]+|\d+", compact)
+    if 2 <= len(tokens) <= 6 and "".join(tokens) == compact:
+        return " ".join(tokens)
+    return normalized
+
+
 def _zero_trust_domain_for_input(
     entry: dict[str, Any],
     policy: dict[str, Any],
@@ -399,7 +420,7 @@ def _zero_trust_normalize_claims(
                 "category": category,
                 "key": key,
                 "value": value,
-                "normalized_value": _zero_trust_normalize(value),
+                "normalized_value": _zero_trust_normalize_claim_value(value, category=category),
                 "claim_type": claim_type,
                 "evidence": str(raw_claim.get("evidence", "")).strip(),
                 "lane": lane,

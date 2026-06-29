@@ -62,6 +62,21 @@ claims from prose.
 Use a stable `claim_id` when two reviewers are describing the same claim with
 different local wording. Without `claim_id`, CWO falls back to `category:key`.
 
+## Claim Value Normalization
+
+CWO normalizes only narrow, low-risk formatting differences before comparing
+claim values. For short technical identifiers in cryptography, authentication,
+and network categories, punctuation and spacing differences such as
+`AES-256-GCM` versus `aes256gcm` can compare as the same value. This reduces
+false divergence for identifiers that are commonly written with different
+separators.
+
+The normalizer deliberately avoids broad semantic cleanup. URLs, paths,
+configuration fragments, version-like values such as `TLS-1.2`, and ordinary
+prose remain distinct unless the architect explicitly adjudicates them. This
+keeps zero-trust consensus conservative: agreement is easier to compare, but it
+still is not validation.
+
 ## Output Fields
 
 `evaluate_synthesis_inputs(..., zero_trust_required=True)` returns a

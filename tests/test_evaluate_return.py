@@ -14,6 +14,9 @@ from cwo_core.returns import (  # noqa: E402
     make_acceptance_decision,
     normalize_contractor_return,
     parse_return_sections,
+    score_evidence_quality,
+    score_malpractice_signals,
+    score_research_evidence,
     section_value,
 )
 
@@ -193,6 +196,24 @@ Attestation/repro note: reproducible from packet.
         self.assertEqual(reader.value("Attestation or reproducibility note"), "reproducible from packet.")
         self.assertEqual(section_value(sections, "Share boundary conformance"), reader.value("Share-boundary conformance"))
 
+    def test_precomputed_scoring_matches_default_malpractice_path(self) -> None:
+        text = self.sample_return()
+        sections = parse_return_sections(text)
+        reader = SectionReader(sections)
+        research = score_research_evidence(sections, reader=reader)
+        evidence = score_evidence_quality(sections, research_quality=research, reader=reader)
+
+        default = score_malpractice_signals(text, sections)
+        precomputed = score_malpractice_signals(
+            text,
+            sections,
+            reader=reader,
+            research_quality=research,
+            evidence_quality=evidence,
+        )
+
+        self.assertEqual(precomputed, default)
+
     def test_patch_branch_proposal_does_not_require_direct_mutation(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
         text = text.replace(
@@ -274,6 +295,49 @@ Attestation/repro note: reproducible from packet.
         result = make_acceptance_decision(text, share_boundary="redacted-packet")
         self.assertEqual(result["boundary_taint_status"], "clear")
         self.assertFalse(result["boundary_taint_findings"])
+
+    def test_chatgpt_share_reader_absolute_path_is_not_boundary_taint(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Commands run: none",
+            "Commands run: /home/d00d/.codex/skills/chatgpt-share-local-reader/scripts/read_chatgpt_share.py direct-to-ChatGPT/local parser.",
+        ).replace(
+            "Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.",
+            "Validation result: Share page parsed with the local ChatGPT share reader.",
+        )
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertEqual(result["boundary_taint_status"], "clear")
+        self.assertFalse(result["boundary_taint_findings"])
+
+    def test_chatgpt_share_reader_with_shell_chain_is_boundary_taint(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Commands run: none",
+            "Commands run: chatgpt-share-local-reader/scripts/read_chatgpt_share.py && whoami",
+        )
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertEqual(result["boundary_taint_status"], "boundary-tainted")
+        self.assertIn("redacted packet return claims command or test execution", result["hard_disqualifiers"])
+
+    def test_chatgpt_share_reader_with_subshell_is_boundary_taint(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Commands run: none",
+            'Commands run: chatgpt-share-local-reader/scripts/read_chatgpt_share.py "$(whoami)"',
+        )
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertEqual(result["boundary_taint_status"], "boundary-tainted")
+        self.assertIn("redacted packet return claims command or test execution", result["hard_disqualifiers"])
+
+    def test_safe_reader_marker_inside_fake_path_is_boundary_taint(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Commands run: none",
+            "Commands run: /tmp/chatgpt-share-local-reader-exploit/run.sh direct-to-ChatGPT/local parser.",
+        )
+        result = make_acceptance_decision(text, share_boundary="redacted-packet")
+        self.assertEqual(result["boundary_taint_status"], "boundary-tainted")
+        self.assertIn("redacted packet return claims command or test execution", result["hard_disqualifiers"])
 
     def test_workspace_mutation_report_rejects_unexpected_changes(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")

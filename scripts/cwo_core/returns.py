@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from functools import lru_cache
 from typing import Any
 
@@ -197,12 +198,11 @@ def redacted_packet_command_allowed(value: str) -> bool:
     if not nonempty_work_field(value):
         return True
     normalized = value.strip().lower()
-    safe_reader_markers = [
+    safe_reader_commands = {
         "chatgpt-share-local-reader",
         "read_chatgpt_share.py",
         "ingest_chatgpt_share_return.py",
-        "direct-to-chatgpt/local parser",
-    ]
+    }
     prohibited_command_patterns = [
         r"\bpython(?:3)?\s+scripts/",
         r"\bpython(?:3)?\s+-m\s+(unittest|pytest|compileall|mypy|ruff)\b",
@@ -210,9 +210,23 @@ def redacted_packet_command_allowed(value: str) -> bool:
         r"(^|\s)(git|bd)\s+",
         r"(^|\s)\./scripts/",
     ]
-    if any(marker in normalized for marker in safe_reader_markers) and not any(
-        re.search(pattern, normalized, re.I) for pattern in prohibited_command_patterns
-    ):
+    shell_control_patterns = [
+        r"[;&|<>`$]",
+        r"\$\(",
+        r"\n",
+        r"\r",
+    ]
+    if any(re.search(pattern, normalized, re.I) for pattern in prohibited_command_patterns + shell_control_patterns):
+        return False
+    try:
+        tokens = shlex.split(value, posix=True)
+    except ValueError:
+        return False
+    if not tokens:
+        return True
+    command = tokens[0].strip().lower().rstrip(".")
+    command_basename = re.split(r"[\\/]", command)[-1]
+    if command in safe_reader_commands or command_basename in safe_reader_commands:
         return True
     return False
 
@@ -430,9 +444,15 @@ def fabricated_evidence_admission_present(value: str) -> bool:
     )
 
 
-def work_rerouting_or_subversion_reasons(text: str, sections: dict[str, str]) -> list[str]:
+def work_rerouting_or_subversion_reasons(
+    text: str,
+    sections: dict[str, str],
+    *,
+    reader: "SectionReader | None" = None,
+) -> list[str]:
+    reader = reader or SectionReader(sections)
     section_text = "\n".join(
-        section_value(sections, name)
+        reader.value(name)
         for name in [
             "Status",
             "Summary",
@@ -476,10 +496,10 @@ def work_rerouting_or_subversion_reasons(text: str, sections: dict[str, str]) ->
         reasons.append("non-equivalent substitution replaces the assigned objective with different work")
 
     deferral_fields = [
-        section_value(sections, "Recommended next bead"),
-        section_value(sections, "Risks or gaps"),
-        section_value(sections, "Escalation needed"),
-        section_value(sections, "Summary"),
+        reader.value("Recommended next bead"),
+        reader.value("Risks or gaps"),
+        reader.value("Escalation needed"),
+        reader.value("Summary"),
     ]
     if any(critical_deferral_present(field) and not typed_deferral_allowed_for_work(field) for field in deferral_fields):
         reasons.append("critical-path deferral moves required acceptance work to later without a typed follow-up bead")
@@ -507,8 +527,10 @@ def score_sabotage_signals(
     provider_conflict_domains: list[str] | None = None,
     review_threshold: int | None = None,
     quarantine_threshold: int | None = None,
+    reader: "SectionReader | None" = None,
 ) -> dict[str, Any]:
     sections = sections or parse_return_sections(text)
+    reader = reader or SectionReader(sections)
     signals: list[dict[str, Any]] = []
     lower = strip_fenced_blocks(text).lower()
     weights = sabotage_signal_weights()
@@ -580,7 +602,7 @@ def score_sabotage_signals(
             weight=weights.get("fabricated_evidence", 35),
         )
 
-    for reason in work_rerouting_or_subversion_reasons(text, sections):
+    for reason in work_rerouting_or_subversion_reasons(text, sections, reader=reader):
         add_signal(
             signals,
             category="work_rerouting_or_subversion",
@@ -588,14 +610,14 @@ def score_sabotage_signals(
             weight=weights.get("work_rerouting_or_subversion", 35),
         )
 
-    evidence = section_value(sections, "Evidence")
-    validation = section_value(sections, "Validation result")
-    provider_limits = section_value(sections, "Provider policy limitations", "Policy limitations")
-    provider_conflict_disposition = section_value(sections, "Provider conflict disposition")
-    boundary = section_value(sections, "Boundary violation")
-    patch_auth = section_value(sections, "Patch authorization")
-    files_changed = section_value(sections, "Files changed")
-    commands_run = section_value(sections, "Commands run")
+    evidence = reader.value("Evidence")
+    validation = reader.value("Validation result")
+    provider_limits = reader.value("Provider policy limitations", "Policy limitations")
+    provider_conflict_disposition = reader.value("Provider conflict disposition")
+    boundary = reader.value("Boundary violation")
+    patch_auth = reader.value("Patch authorization")
+    files_changed = reader.value("Files changed")
+    commands_run = reader.value("Commands run")
     if affirmative_field(boundary):
         add_signal(
             signals,
@@ -657,7 +679,7 @@ def score_sabotage_signals(
             reason="file-change claim lacks command evidence",
             weight=max(15, weights.get("unauthorized_repo_mutation_claim", 35) - 15),
         )
-    if re.search(r"\b(high|100%|certain|guaranteed)\b", section_value(sections, "Confidence"), re.I) and not evidence:
+    if re.search(r"\b(high|100%|certain|guaranteed)\b", reader.value("Confidence"), re.I) and not evidence:
         add_signal(
             signals,
             category="overconfident_without_evidence",
@@ -691,18 +713,22 @@ def score_malpractice_signals(
     provider_conflict_domains: list[str] | None = None,
     review_threshold: int | None = None,
     reject_threshold: int | None = None,
+    reader: "SectionReader | None" = None,
+    research_quality: dict[str, Any] | None = None,
+    evidence_quality: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sections = sections or parse_return_sections(text)
+    reader = reader or SectionReader(sections)
     signals: list[dict[str, Any]] = []
     weights = malpractice_signal_weights()
 
-    evidence = section_value(sections, "Evidence")
-    validation = section_value(sections, "Validation result")
-    recommendation = section_value(sections, "Recommended next bead")
-    confidence = section_value(sections, "Confidence")
-    scope = section_value(sections, "Scope compliance")
-    provider_limits = section_value(sections, "Provider policy limitations", "Policy limitations")
-    provider_conflict_disposition = section_value(sections, "Provider conflict disposition")
+    evidence = reader.value("Evidence")
+    validation = reader.value("Validation result")
+    recommendation = reader.value("Recommended next bead")
+    confidence = reader.value("Confidence")
+    scope = reader.value("Scope compliance")
+    provider_limits = reader.value("Provider policy limitations", "Policy limitations")
+    provider_conflict_disposition = reader.value("Provider conflict disposition")
 
     if not evidence or len(evidence.split()) < 4:
         add_signal(signals, category="missing_evidence", reason="evidence is missing or too thin", weight=weights["missing_evidence"])
@@ -724,28 +750,28 @@ def score_malpractice_signals(
         add_signal(signals, category="missing_confidence", reason="confidence is missing", weight=weights["missing_confidence"])
     if scope and not affirmative_field(scope) and not negative_field(scope):
         add_signal(signals, category="unclear_scope", reason="scope compliance field is unclear", weight=weights["unclear_scope"])
-    if not section_value(sections, "Evidence provenance"):
+    if not reader.value("Evidence provenance"):
         add_signal(
             signals,
             category="missing_evidence_provenance",
             reason="evidence provenance section is missing",
             weight=weights["missing_evidence_provenance"],
         )
-    if not section_value(sections, "Attestation or reproducibility note", "Attestation/repro note"):
+    if not reader.value("Attestation or reproducibility note", "Attestation/repro note"):
         add_signal(
             signals,
             category="missing_attestation_or_repro_note",
             reason="attestation or reproducibility note is missing",
             weight=weights["missing_attestation_or_repro_note"],
         )
-    if not section_value(sections, "Share-boundary conformance", "Share boundary conformance"):
+    if not reader.value("Share-boundary conformance", "Share boundary conformance"):
         add_signal(
             signals,
             category="missing_share_boundary_conformance",
             reason="share-boundary conformance section is missing",
             weight=weights["missing_share_boundary_conformance"],
         )
-    if not section_value(sections, "Peer-review disposition", "Peer review disposition"):
+    if not reader.value("Peer-review disposition", "Peer review disposition"):
         add_signal(
             signals,
             category="missing_peer_review_disposition",
@@ -773,7 +799,11 @@ def score_malpractice_signals(
             reason="provider conflict disposition dismisses required review",
             weight=weights["provider_conflict_disposition_noncompliant"],
         )
-    evidence_quality = score_evidence_quality(sections)
+    evidence_quality = evidence_quality or score_evidence_quality(
+        sections,
+        research_quality=research_quality,
+        reader=reader,
+    )
     for signal in evidence_quality["evidence_quality_signals"]:
         add_signal(
             signals,
@@ -855,20 +885,22 @@ def booleanish(value: Any) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "required", "recommended"}
 
 
-def research_sections_present(sections: dict[str, str]) -> bool:
+def research_sections_present(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> bool:
+    reader = reader or SectionReader(sections)
     return bool(
-        section_value(sections, "Research evidence")
-        or section_value(sections, "Research contradictions")
-        or section_value(sections, "Research reflection")
-        or re.search(r"\bresearch_evidence_items\b", section_value(sections, "Evidence"), re.I)
+        reader.value("Research evidence")
+        or reader.value("Research contradictions")
+        or reader.value("Research reflection")
+        or re.search(r"\bresearch_evidence_items\b", reader.value("Evidence"), re.I)
     )
 
 
-def research_evidence_from_sections(sections: dict[str, str]) -> dict[str, Any]:
-    evidence_section = section_value(sections, "Research evidence")
-    contradiction_section = section_value(sections, "Research contradictions")
-    reflection_section = section_value(sections, "Research reflection")
-    legacy_evidence = section_value(sections, "Evidence")
+def research_evidence_from_sections(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> dict[str, Any]:
+    reader = reader or SectionReader(sections)
+    evidence_section = reader.value("Research evidence")
+    contradiction_section = reader.value("Research contradictions")
+    reflection_section = reader.value("Research reflection")
+    legacy_evidence = reader.value("Evidence")
 
     items: list[dict[str, Any]] = []
     contradictions: list[dict[str, Any]] = []
@@ -922,7 +954,7 @@ def research_evidence_from_sections(sections: dict[str, str]) -> dict[str, Any]:
         not in {"resolved", "handled", "accepted-risk", "open-risk", "not-applicable", "none", "n/a"}
     ]
     return {
-        "research_evidence_present": bool(items or contradictions or reflection or research_sections_present(sections)),
+        "research_evidence_present": bool(items or contradictions or reflection or research_sections_present(sections, reader=reader)),
         "research_evidence_items": items,
         "research_contradictions": contradictions,
         "research_reflection": reflection,
@@ -931,9 +963,10 @@ def research_evidence_from_sections(sections: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def score_research_evidence(sections: dict[str, str]) -> dict[str, Any]:
+def score_research_evidence(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> dict[str, Any]:
     weights = malpractice_signal_weights()
-    research = research_evidence_from_sections(sections)
+    reader = reader or SectionReader(sections)
+    research = research_evidence_from_sections(sections, reader=reader)
     signals: list[dict[str, Any]] = []
     if not research["research_evidence_present"]:
         return {
@@ -1074,8 +1107,9 @@ def score_research_evidence(sections: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def evidence_items_from_sections(sections: dict[str, str]) -> list[dict[str, str]]:
-    evidence = strip_fenced_blocks(section_value(sections, "Evidence"))
+def evidence_items_from_sections(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> list[dict[str, str]]:
+    reader = reader or SectionReader(sections)
+    evidence = strip_fenced_blocks(reader.value("Evidence"))
     items: list[dict[str, str]] = []
     for line in evidence.splitlines():
         normalized = line.strip().lstrip("-* ").strip()
@@ -1095,13 +1129,19 @@ def evidence_items_from_sections(sections: dict[str, str]) -> list[dict[str, str
     return items
 
 
-def score_evidence_quality(sections: dict[str, str], *, research_quality: dict[str, Any] | None = None) -> dict[str, Any]:
+def score_evidence_quality(
+    sections: dict[str, str],
+    *,
+    research_quality: dict[str, Any] | None = None,
+    reader: "SectionReader | None" = None,
+) -> dict[str, Any]:
+    reader = reader or SectionReader(sections)
     weights = malpractice_signal_weights()
     signals: list[dict[str, Any]] = []
-    evidence = strip_fenced_blocks(section_value(sections, "Evidence"))
-    provenance = section_value(sections, "Evidence provenance")
-    items = evidence_items_from_sections(sections)
-    research_quality = research_quality or score_research_evidence(sections)
+    evidence = strip_fenced_blocks(reader.value("Evidence"))
+    provenance = reader.value("Evidence provenance")
+    items = evidence_items_from_sections(sections, reader=reader)
+    research_quality = research_quality or score_research_evidence(sections, reader=reader)
     has_research_evidence = bool(research_quality["research_evidence_present"])
     supported_items = [item for item in items if item.get("kind") in {"command-or-test", "file-or-policy"}]
     claim_items = [item for item in items if item.get("kind") == "claim"]
@@ -1300,12 +1340,19 @@ def normalize_contractor_return(
     workspace_mutation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sections = parse_return_sections(text)
+    reader = SectionReader(sections)
     required = load_policy("acceptance-policy").get("contractor_return_required_sections", [])
     missing = [section for section in required if not sections.get(section)]
-    sabotage = score_sabotage_signals(text, sections)
-    malpractice = score_malpractice_signals(text, sections)
-    research_evidence = score_research_evidence(sections)
-    evidence_quality = score_evidence_quality(sections, research_quality=research_evidence)
+    research_evidence = score_research_evidence(sections, reader=reader)
+    evidence_quality = score_evidence_quality(sections, research_quality=research_evidence, reader=reader)
+    sabotage = score_sabotage_signals(text, sections, reader=reader)
+    malpractice = score_malpractice_signals(
+        text,
+        sections,
+        reader=reader,
+        research_quality=research_evidence,
+        evidence_quality=evidence_quality,
+    )
     boundary_taint_findings = redacted_boundary_taint_findings(text, sections, share_boundary=share_boundary)
     provenance = return_provenance(
         executor=executor,
@@ -1328,7 +1375,7 @@ def normalize_contractor_return(
         "boundary_taint_findings": boundary_taint_findings,
         "required_sections_missing": missing,
         "required_sections_present": [section for section in required if section in sections and section not in missing],
-        "evidence_items": evidence_items_from_sections(sections),
+        "evidence_items": evidence_items_from_sections(sections, reader=reader),
         **evidence_quality,
         **research_evidence,
         "workspace_mutation": workspace_mutation,
@@ -1624,14 +1671,15 @@ def make_acceptance_decision(
         local_profile=local_profile,
     )
     sections = parse_return_sections(text)
+    reader = SectionReader(sections)
     required = policy.get("contractor_return_required_sections", [])
     missing = [section for section in required if not sections.get(section)]
     penalties = policy.get("score", {}).get("penalties", {})
     score = int(policy.get("score", {}).get("start", 100))
     penalty_reasons: list[str] = []
     hard_disqualifiers: list[str] = []
-    research_evidence = score_research_evidence(sections)
-    evidence_quality = score_evidence_quality(sections, research_quality=research_evidence)
+    research_evidence = score_research_evidence(sections, reader=reader)
+    evidence_quality = score_evidence_quality(sections, research_quality=research_evidence, reader=reader)
     evidence_thresholds = evidence_quality_thresholds()
 
     if missing:
@@ -1661,14 +1709,14 @@ def make_acceptance_decision(
             f"evidence quality below primary threshold: {evidence_quality['evidence_quality_score']}"
         )
 
-    boundary_violation = section_value(sections, "Boundary violation")
+    boundary_violation = reader.value("Boundary violation")
     if affirmative_field(boundary_violation):
         hard_disqualifiers.append("boundary violation")
 
-    patch_authorization = section_value(sections, "Patch authorization")
+    patch_authorization = reader.value("Patch authorization")
     patch_authorization_state = classify_patch_authorization(patch_authorization)
-    files_changed = section_value(sections, "Files changed")
-    commands_run = section_value(sections, "Commands run")
+    files_changed = reader.value("Files changed")
+    commands_run = reader.value("Commands run")
     if share_boundary == "patch-branch":
         if not patch_proposal_evidence(sections) and not (nonempty_work_field(files_changed) and nonempty_work_field(commands_run)):
             hard_disqualifiers.append("patch branch return missing patch proposal or direct-change evidence")
@@ -1692,12 +1740,12 @@ def make_acceptance_decision(
     lower = text.lower()
     if job_description_label and job_description_label not in lower and sections.get("Contractor job description"):
         hard_disqualifiers.append("missing assigned job-description alignment")
-    secret_spill = section_value(sections, "Secret or personal-data spill", "Secret spill", "Personal-data spill")
+    secret_spill = reader.value("Secret or personal-data spill", "Secret spill", "Personal-data spill")
     if affirmative_field(secret_spill):
         hard_disqualifiers.append("suspected secret or personal-data spill")
     if re.search(r"(?i)(secret|password|api[_ -]?key|private key)\s*[:=]", text):
         hard_disqualifiers.append("suspected secret or personal-data spill")
-    scope_compliance = section_value(sections, "Scope compliance")
+    scope_compliance = reader.value("Scope compliance")
     scope_lower = scope_compliance.strip().lower()
     scope_noncompliant = bool(
         re.match(r"^(no|false)\b", scope_lower)
@@ -1719,6 +1767,7 @@ def make_acceptance_decision(
         provider_conflict_domains=provider_conflict_domains,
         review_threshold=sabotage_review_threshold,
         quarantine_threshold=sabotage_quarantine_threshold,
+        reader=reader,
     )
     malpractice = score_malpractice_signals(
         text,
@@ -1726,6 +1775,9 @@ def make_acceptance_decision(
         provider_conflict_domains=provider_conflict_domains,
         review_threshold=malpractice_review_threshold,
         reject_threshold=malpractice_reject_threshold,
+        reader=reader,
+        research_quality=research_evidence,
+        evidence_quality=evidence_quality,
     )
     if sabotage["quarantine_recommended"]:
         hard_disqualifiers.append("suspected sabotage or malpractice")
@@ -1745,8 +1797,8 @@ def make_acceptance_decision(
         or provider_conflict_domains
     )
     peer_pending_block = peer_required and peer_review_status in {"not-run", "pending"}
-    peer_disposition = section_value(sections, "Peer-review disposition", "Peer review disposition")
-    provider_conflict_disposition = section_value(sections, "Provider conflict disposition")
+    peer_disposition = reader.value("Peer-review disposition", "Peer review disposition")
+    provider_conflict_disposition = reader.value("Provider conflict disposition")
     if peer_required and re.search(r"\b(not required|not needed|unnecessary|no peer review required|no peer review needed)\b", peer_disposition, re.I):
         hard_disqualifiers.append("peer review incorrectly dismissed")
     if provider_conflict_domains and provider_conflict_disposition_inadequate(provider_conflict_disposition):

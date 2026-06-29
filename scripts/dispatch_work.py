@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
+import socket
 from pathlib import Path
 from typing import Any
 from urllib import request
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt
 from cwo_core.routing import classify_work
@@ -23,6 +26,33 @@ from cwo_core.util import (
 from cwo_core.packets import require_valid_contractor_packet
 
 
+LOCAL_ENDPOINT_NETWORKS = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "::1/128",
+        "fc00::/7",
+    )
+)
+ALLOWED_LOCAL_API_KEY_ENV_NAMES = {
+    "CWO_LOCAL_OPENAI_API_KEY",
+    "CWO_OPENSHIFT_AI_VLLM_API_KEY",
+    "LOCAL_OPENAI_API_KEY",
+    "LOCAL_VLLM_API_KEY",
+    "VLLM_API_KEY",
+}
+
+
+class NoRedirectHandler(request.HTTPRedirectHandler):
+    """Reject redirects so a validated local endpoint cannot shift targets."""
+
+    def redirect_request(self, req: request.Request, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
+        return None
+
+
 def local_executor_fallback(executor_key: str) -> dict[str, Any]:
     executor = load_policy("executor-registry").get("executors", {}).get(executor_key, {})
     return dict(executor) if isinstance(executor, dict) else {}
@@ -32,6 +62,70 @@ def endpoint_url(base_url: str, endpoint_path: str) -> str:
     base = base_url.rstrip("/")
     path = "/" + endpoint_path.strip("/")
     return f"{base}{path}"
+
+
+def _local_endpoint_ip_allowed(ip: ipaddress._BaseAddress) -> bool:
+    return any(ip in network for network in LOCAL_ENDPOINT_NETWORKS)
+
+
+def _resolve_local_endpoint_addresses(host: str, port: int | None) -> list[ipaddress._BaseAddress]:
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        return [literal]
+    try:
+        records = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise SystemExit(f"local endpoint host could not be resolved: {host}") from exc
+    addresses: list[ipaddress._BaseAddress] = []
+    for record in records:
+        sockaddr = record[4]
+        if not sockaddr:
+            continue
+        try:
+            addresses.append(ipaddress.ip_address(str(sockaddr[0])))
+        except ValueError as exc:
+            raise SystemExit(f"local endpoint resolved to an invalid address: {sockaddr[0]}") from exc
+    unique = sorted(set(addresses), key=str)
+    if not unique:
+        raise SystemExit(f"local endpoint host resolved no usable addresses: {host}")
+    return unique
+
+
+def validate_local_endpoint_base_url(base_url: str) -> None:
+    try:
+        parsed = urlparse(base_url)
+        port = parsed.port
+    except ValueError as exc:
+        raise SystemExit(f"local endpoint URL is invalid: {base_url}") from exc
+    if parsed.scheme not in {"http", "https"}:
+        raise SystemExit(f"local endpoint must use http or https, got: {parsed.scheme or 'missing'}")
+    if parsed.username or parsed.password:
+        raise SystemExit("local endpoint URL must not contain credentials")
+    if not parsed.hostname:
+        raise SystemExit(f"local endpoint URL must include a host: {base_url}")
+    addresses = _resolve_local_endpoint_addresses(parsed.hostname, port)
+    disallowed = [str(ip) for ip in addresses if not _local_endpoint_ip_allowed(ip)]
+    if disallowed:
+        raise SystemExit(
+            "local endpoint must resolve only to loopback, RFC1918, or RFC4193 addresses; "
+            f"got {', '.join(disallowed)}"
+        )
+    if parsed.scheme == "http" and not all(ip.is_loopback for ip in addresses):
+        raise SystemExit("local endpoint may use http only for loopback addresses; use https for private network endpoints")
+
+
+def validate_local_api_key_env_name(name: str | None) -> None:
+    if not name:
+        return
+    normalized = str(name).strip()
+    if normalized not in ALLOWED_LOCAL_API_KEY_ENV_NAMES:
+        raise SystemExit(
+            "local API key environment variable is not allowlisted; "
+            "use one of: " + ", ".join(sorted(ALLOWED_LOCAL_API_KEY_ENV_NAMES))
+        )
 
 
 def local_transport(selected_executor: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
@@ -135,6 +229,9 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     model = transport.get("model")
     if not model:
         raise SystemExit(f"--execute-local requires --local-model or ${transport.get('model_env')}")
+    validate_local_endpoint_base_url(str(base_url))
+    api_key_env = str(transport.get("api_key_env") or "")
+    validate_local_api_key_env_name(api_key_env)
     payload = {
         "model": model,
         "messages": envelope["messages"],
@@ -142,7 +239,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     }
     body = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json"}
-    api_key = os.environ.get(str(transport.get("api_key_env") or ""))
+    api_key = os.environ.get(api_key_env)
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     req = request.Request(
@@ -152,7 +249,8 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         method="POST",
     )
     try:
-        with request.urlopen(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
+        opener = request.build_opener(NoRedirectHandler, request.ProxyHandler({}))
+        with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
             raw = response.read().decode("utf-8")
             try:
                 parsed: Any = json.loads(raw)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import sys
 import unittest
 from argparse import Namespace
@@ -10,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from dispatch_work import build_local_envelope, execute_local_envelope  # noqa: E402
+from dispatch_work import build_local_envelope, execute_local_envelope, validate_local_endpoint_base_url  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 
 
@@ -25,6 +26,15 @@ class FakeResponse:
 
     def read(self) -> bytes:
         return b'{"choices":[{"message":{"content":"ok"}}]}'
+
+
+class FakeOpener:
+    def __init__(self) -> None:
+        self.called = False
+
+    def open(self, *args: object, **kwargs: object) -> FakeResponse:
+        self.called = True
+        return FakeResponse()
 
 
 class LocalDispatchTests(unittest.TestCase):
@@ -102,10 +112,100 @@ class LocalDispatchTests(unittest.TestCase):
                 epic_id=None,
                 args=args,
             )
-            with patch("dispatch_work.request.urlopen", return_value=FakeResponse()) as mocked:
+            opener = FakeOpener()
+            with patch("dispatch_work.request.build_opener", return_value=opener):
                 response = execute_local_envelope(envelope, route["selected_executor"], args)
         self.assertEqual(response["status_code"], 200)
-        self.assertTrue(mocked.called)
+        self.assertTrue(opener.called)
+
+    def test_execute_local_rejects_public_endpoint_before_post(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="https://example.com",
+            local_model="test-model",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Documentation review for internal example notes.",
+            route=route,
+            dispatch_id="dispatch-local-test",
+            bead_id="cwo-local",
+            epic_id=None,
+            args=args,
+        )
+        fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            with self.assertRaises(SystemExit):
+                execute_local_envelope(envelope, route["selected_executor"], args)
+
+    def test_execute_local_rejects_url_credentials(self) -> None:
+        with self.assertRaises(SystemExit) as context:
+            validate_local_endpoint_base_url("http://user:pass@127.0.0.1:8000")
+        self.assertIn("must not contain credentials", str(context.exception))
+
+    def test_execute_local_accepts_private_hostname_resolution(self) -> None:
+        fake_records = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.25", 443)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.10.8", 443)),
+        ]
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            validate_local_endpoint_base_url("https://vllm.internal.example:8443")
+
+    def test_execute_local_rejects_public_hostname_resolution(self) -> None:
+        fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            with self.assertRaises(SystemExit) as context:
+                validate_local_endpoint_base_url("https://vllm.example.com")
+        self.assertIn("must resolve only", str(context.exception))
+
+    def test_execute_local_rejects_mixed_hostname_resolution(self) -> None:
+        fake_records = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.25", 443)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),
+        ]
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            with self.assertRaises(SystemExit):
+                validate_local_endpoint_base_url("https://mixed.example.com")
+
+    def test_execute_local_rejects_private_http_non_loopback(self) -> None:
+        with self.assertRaises(SystemExit) as context:
+            validate_local_endpoint_base_url("http://10.0.0.25:8000")
+        self.assertIn("http only for loopback", str(context.exception))
+
+    def test_execute_local_rejects_unallowlisted_api_key_env(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env="AWS_SECRET_ACCESS_KEY",
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model="test-model",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Documentation review for internal example notes.",
+            route=route,
+            dispatch_id="dispatch-local-test",
+            bead_id="cwo-local",
+            epic_id=None,
+            args=args,
+        )
+        with self.assertRaises(SystemExit) as context:
+            execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertIn("not allowlisted", str(context.exception))
 
 
 if __name__ == "__main__":

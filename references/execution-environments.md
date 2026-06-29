@@ -102,10 +102,10 @@ large-cluster profiles that are deliberately marked as candidates:
   `meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8` for multimodal or
   general review work. It is not the primary x-high architecture substitute.
 
-The current tested hardware exemplar is a compact OpenShift cluster with H200
-GPUs, CerIO PCIe 5.0 fabric, same-root-complex GPU enumeration, adjacent
-GPU-to-GPU paths, and an extra CPU hop. Other enterprise-scale deployments can
-use the same profile tier, but they should not skip the benchmark gate.
+These candidates are deployment-neutral. Record the actual accelerator, fabric,
+topology, vLLM flags, context window, smoke-test results, and representative CWO
+packet results for the cluster being promoted. Do not turn one lab topology into
+a public category name.
 
 Before promoting either enterprise evaluation target, record evidence for:
 
@@ -118,9 +118,9 @@ Before promoting either enterprise evaluation target, record evidence for:
 - representative CWO architect and synthesis packets
 - evaluator scoring and architect adjudication
 
-Use `airgapped-rhoai-h200-nemotron` or `airgapped-rhoai-h200-glm` only after
-that benchmark gate is satisfied. Until then, keep `airgapped-rhoai` as the
-reasonable practical default.
+Use enterprise candidate environments only after that benchmark gate is
+satisfied. Until then, keep `airgapped-rhoai` as the reasonable practical
+default.
 
 ### Profile Resolution
 

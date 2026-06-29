@@ -775,8 +775,11 @@ The local secure reviewer (`local_secure_review_worker`) is for read-only
 security, peer-review, repo-review, and sabotage-review work. It may inspect
 approved local repo context but has no web, shell, or repo-write authority.
 For OpenShift AI vLLM, require `--local-profile openshift-ai-vllm`; endpoint
-settings are documented in `references/local-inference.md`. When normalizing
-or evaluating a local-worker return, pass the executor key, for example
+settings and endpoint validation rules are documented in
+`references/local-inference.md`. `--execute-local` rejects URL credentials,
+public or mixed-DNS endpoints, non-loopback HTTP, redirects, proxy use, and
+unallowlisted API-key environment variable names before any finding can be
+generated. When normalizing or evaluating a local-worker return, pass the executor key, for example
 `--executor openshift_ai_vllm_worker`, so adjudication records
 `provider_trust_tier=local-platform` and `provenance_class=local-worker`
 instead of unknown provenance.

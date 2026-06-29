@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -15,6 +16,7 @@ from configure_codex_beads_hooks import (  # noqa: E402
     assert_safe_hooks_file_path,
     build_managed_hooks,
     detect_visibility_hint_support,
+    file_has_visibility_hint,
     merge_hooks,
 )
 
@@ -28,6 +30,24 @@ class ConfigureCodexBeadsHooksTests(unittest.TestCase):
             support = detect_visibility_hint_support(str(codex))
         self.assertTrue(support["visibility_hint_supported"])
         self.assertEqual(support["support_signal"], "binary contains visibilityHint and HookVisibilityHint")
+
+    def test_visibility_hint_probe_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            codex = Path(tmpdir) / "codex"
+            codex.write_bytes(b"prefix visibilityHint" + b"x" * 32 + b"HookVisibilityHint")
+            codex.chmod(0o755)
+            with patch("configure_codex_beads_hooks.MAX_VISIBILITY_PROBE_BYTES", 24):
+                self.assertFalse(file_has_visibility_hint(codex))
+
+    def test_visibility_hint_probe_skips_symlink_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real = Path(tmpdir) / "real-codex"
+            real.write_bytes(b"prefix visibilityHint middle HookVisibilityHint suffix")
+            real.chmod(0o755)
+            link = Path(tmpdir) / "codex"
+            link.symlink_to(real)
+            self.assertFalse(file_has_visibility_hint(link))
+            self.assertTrue(file_has_visibility_hint(real))
 
     def test_quiet_profile_fails_closed_without_visibility_hint_support(self) -> None:
         with self.assertRaises(ConfigurationError) as context:
