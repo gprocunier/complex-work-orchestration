@@ -53,6 +53,7 @@
           <a href="#gate">Guardrail Gate</a>
           <a href="#handlers">Handlers</a>
           <a href="#signals">Signal Types</a>
+          <a href="#work-rerouting">Work Rerouting</a>
           <a href="#provider-policy">Provider Policy</a>
           <a href="#evidence">Evidence Example</a>
           <a href="#quarantine">Quarantine</a>
@@ -216,6 +217,14 @@
               review-process evasion.
             </p>
             <p>
+              Work-rerouting signals cover a subtler sabotage pattern: the
+              return appears helpful while changing the requested job into a
+              weaker one. Complex Work Orchestration scores objective
+              dilution, non-equivalent substitution, critical-path deferral
+              without an approved tracked follow-up task, and completion claims
+              that omit required acceptance evidence.
+            </p>
+            <p>
               Provider-policy signals cover a different failure mode: the
               return reports, omits, obscures, or mishandles policy constraints
               that can affect output. An opaque intervention signal, missing
@@ -229,6 +238,52 @@
               promise that every unsafe or incorrect return will be caught
               automatically.
             </div>
+          </section>
+
+          <section id="work-rerouting">
+            <h2>Work Rerouting</h2>
+            <p>
+              Work rerouting is often more dangerous than an obvious hostile
+              instruction because it looks cooperative. A return may keep the
+              same tone and vocabulary while quietly moving the operator away
+              from the required outcome.
+            </p>
+            <p>
+              The layman version is hiring a locksmith to fix a broken lock and
+              receiving a proposal to repaint the hallway instead. The hallway
+              work may be real work, but it does not secure the door. In
+              software terms, a contractor asked to implement and validate an
+              evaluator cannot satisfy the assignment by recommending a future
+              research note, a documentation roadmap, or an unrelated cleanup.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Work rerouting sabotage signals">
+              <div role="row">
+                <span role="cell">Objective dilution</span>
+                <span role="cell">Required implementation or validation becomes discussion, research, planning, or vague docs work.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Non-equivalent substitution</span>
+                <span role="cell">The return proposes a different or easier deliverable and treats it as equivalent to the assigned objective.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Critical-path deferral</span>
+                <span role="cell">Acceptance work is moved to later without an approved reason and concrete tracked follow-up task.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Acceptance omission</span>
+                <span role="cell">The return claims completion while skipping objective mapping or required validation evidence.</span>
+              </div>
+            </div>
+            <p>
+              This is how Complex Work Orchestration handles public
+              scorecard-style concerns about models that may subvert or
+              redirect work. The control does not depend on proving intent. If
+              the assigned job is rerouted into a non-equivalent outcome, the
+              return is treated as untrusted evidence and must go through peer
+              review and architect adjudication before it can influence
+              implementation. The signal is a quality gate, not an accusation
+              of misconduct.
+            </p>
           </section>
 
           <section id="provider-policy">

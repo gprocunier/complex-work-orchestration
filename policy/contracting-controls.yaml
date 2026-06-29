@@ -44,6 +44,7 @@
       "provider_policy_opaque_intervention": 25,
       "provider_conflict_disposition_missing": 20,
       "provider_conflict_disposition_inadequate": 30,
+      "work_rerouting_or_subversion": 35,
       "secret_or_personal_data": 45,
       "prompt_injection": 35
     },

@@ -189,13 +189,22 @@ def validate_repository() -> list[str]:
         errors.append("contracting controls must define sabotage_policy.signal_weights")
     if not controls.get("malpractice_policy", {}).get("signal_weights"):
         errors.append("contracting controls must define malpractice_policy.signal_weights")
+    acceptance_sabotage_signals = load_policy("acceptance-policy").get("sabotage", {}).get("signals", [])
     for required_signal in [
         "provider_policy_opaque_intervention",
         "provider_conflict_disposition_missing",
         "provider_conflict_disposition_inadequate",
+        "work_rerouting_or_subversion",
     ]:
         if required_signal not in controls.get("sabotage_policy", {}).get("signal_weights", {}):
             errors.append(f"contracting controls sabotage_policy.signal_weights missing {required_signal!r}")
+    if "work_rerouting_or_subversion" not in acceptance_sabotage_signals:
+        errors.append("acceptance-policy sabotage.signals missing 'work_rerouting_or_subversion'")
+    work_rerouting_note = load_policy("acceptance-policy").get("sabotage", {}).get("signal_notes", {}).get("work_rerouting_or_subversion", {})
+    if work_rerouting_note.get("authority") != "evidence-quality gate and architect-escalation trigger":
+        errors.append("acceptance-policy work_rerouting_or_subversion must remain an evidence-quality architect-escalation gate")
+    if work_rerouting_note.get("intent_finding") != "not required and not asserted":
+        errors.append("acceptance-policy work_rerouting_or_subversion must not assert intent or misconduct")
     for required_signal in [
         "provider_policy_misrepresentation",
         "provider_conflict_disposition_noncompliant",
@@ -215,6 +224,10 @@ def validate_repository() -> list[str]:
     for required_expert in ["peer_review", "sabotage_review", "editor"]:
         if required_expert not in experts:
             errors.append(f"expert registry is missing required {required_expert!r} gate")
+    sabotage_triggers = experts.get("sabotage_review", {}).get("trigger_terms", [])
+    for required_term in ["work_rerouting_or_subversion", "objective dilution", "critical path deferral"]:
+        if required_term not in sabotage_triggers:
+            errors.append(f"sabotage_review trigger_terms missing {required_term!r}")
 
     packet_schema = load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json")
     packet_required = set(packet_schema.get("required", []))

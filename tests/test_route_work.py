@@ -56,6 +56,18 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIn("security", names[:3])
         self.assertIn("web_design", names[:3])
 
+    def test_work_rerouting_terms_require_sabotage_review_without_provider_conflict(self) -> None:
+        result = classify_work(
+            "Evaluate a contractor return for work_rerouting_or_subversion, objective dilution, and critical path deferral.",
+            share_boundary="redacted-packet",
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+
+        self.assertIn("sabotage_review", names[:3])
+        self.assertTrue(result["sabotage_review_required"])
+        self.assertTrue(result["peer_review_required"])
+        self.assertFalse(result["provider_conflict_detected"])
+
     def test_ranked_experts_have_per_expert_executor_metadata(self) -> None:
         result = classify_work(
             "Security and web design review for contractor packet behavior.",

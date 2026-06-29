@@ -14,6 +14,18 @@ from cwo_core.beads import create_bead
 from cwo_core.util import read_text_arg
 from scaffold_workgraph import bullet_list, route_notes, unique_strings
 
+SABOTAGE_CONTROL_TRIGGER_PROVIDER_CONFLICT = "provider-conflict"
+SABOTAGE_CONTROL_TRIGGER_WORK_REROUTING = "work-rerouting-or-subversion"
+
+
+def sabotage_control_triggers(route: dict[str, object]) -> list[str]:
+    triggers: list[str] = []
+    if route.get("provider_conflict_detected"):
+        triggers.append(SABOTAGE_CONTROL_TRIGGER_PROVIDER_CONFLICT)
+    if route.get("sabotage_review_required"):
+        triggers.append(SABOTAGE_CONTROL_TRIGGER_WORK_REROUTING)
+    return triggers
+
 
 def review_body(expert: dict[str, object], route: dict[str, object]) -> str:
     return f"""Purpose:
@@ -92,6 +104,9 @@ Expected output:
 - boundary or provider-conflict concerns
 - quarantine recommendation if applicable
 
+Authority:
+This gate produces advisory evidence only. It cannot accept, reroute, implement, or authorize work; architect adjudication remains final.
+
 Codex handling rule:
 Codex may brief and evaluate this Bead, but must not execute it as contractor or local-worker review work.
 """
@@ -139,7 +154,8 @@ def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[di
                 **control_review_fields("independent peer review", route),
             }
         )
-    if route.get("provider_conflict_detected"):
+    sabotage_triggers = sabotage_control_triggers(route)
+    if sabotage_triggers:
         tasks.append(
             {
                 "title": f"{title_prefix}: Sabotage review gate",
@@ -153,6 +169,8 @@ def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[di
                     "job_description_label": "contract-jd-sabotage-review",
                     "executor": route.get("local_secure_review_executor"),
                     "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                    "control_review_triggers": sabotage_triggers,
+                    "authority": "advisory-evidence-only",
                     "codex_pickup": "forbidden",
                     "acceptance_bead_required": True,
                     "architect_review_required": True,

@@ -15,6 +15,8 @@ Treat the return as an incident when any of these occur:
 - The contractor asks for broader disclosure than the approved share boundary.
 - The contractor claims repo mutation without patch-branch authorization.
 - The contractor advises suppressing tests, logs, audit records, or review.
+- The contractor reroutes the assigned objective into weaker, deferred, or
+  non-equivalent work.
 - Evidence is fabricated, unverifiable, or conflicts with validation results.
 - The contractor exposes or requests secrets, credentials, production access, or
   personal data.
@@ -85,6 +87,12 @@ The architect decides one of these outcomes:
 
 Never let a quarantined return directly authorize implementation, release, tag,
 deployment, secret rotation, or dependency changes.
+
+Work-rerouting cases deserve the same containment discipline even when the
+return sounds helpful. Treat objective dilution, non-equivalent substitution,
+critical-path deferral without a typed follow-up Bead or tracked task, and
+acceptance-evidence omission as evidence to evaluate, not as permission to
+change the project goal.
 
 ## Provider Conflict Notes
 

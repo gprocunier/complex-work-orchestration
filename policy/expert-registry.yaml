@@ -69,7 +69,7 @@
       "default_risk": "high",
       "preferred_executors": ["local_secure_review_worker", "openshift_ai_vllm_secure_reviewer", "human_specialist_contractor"],
       "file_path_patterns": ["policy/contracting-controls.yaml", "policy/acceptance-policy.yaml", "scripts/evaluate_return.py", "scripts/normalize_contractor_return.py", "references/incident-response-playbook.md"],
-      "trigger_terms": ["sabotage", "malpractice", "quarantine", "fabricated evidence", "bypass review", "broader disclosure"],
+      "trigger_terms": ["sabotage", "malpractice", "quarantine", "fabricated evidence", "bypass review", "broader disclosure", "work_rerouting_or_subversion", "work rerouting", "objective dilution", "critical path deferral", "non-equivalent substitution", "subvert assigned work"],
       "required_inputs": ["return text", "evaluator signals", "share boundary", "provider conflict domains", "packet hash"],
       "output_contract": ["signal assessment", "incident severity", "containment recommendation", "human adjudication need", "safe follow-up path"],
       "acceptance_checks": ["signals are mapped to policy", "containment is explicit", "no implementation authority is granted"],

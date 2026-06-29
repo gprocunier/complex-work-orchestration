@@ -894,6 +894,8 @@ def prompt_coach_enabled_levers(
         levers.append("publish-sanitization")
     if route.get("peer_review_required"):
         levers.append("peer-review-required")
+    if route.get("sabotage_review_required"):
+        levers.append("sabotage-review-required")
     if route.get("provider_conflict_detected"):
         levers.append("provider-conflict-review")
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
@@ -1030,6 +1032,8 @@ def prompt_coach_warnings(
         warnings.append("Provider conflict detected; keep peer review and architect adjudication in the flow.")
     if route.get("peer_review_required"):
         warnings.append("Peer review is required before findings become implementation direction.")
+    if route.get("sabotage_review_required"):
+        warnings.append("Sabotage-review routing is active; evaluate any return for work rerouting, objective dilution, critical-path deferral, and non-equivalent substitution before use.")
     if route.get("blocking_review_required"):
         warnings.append(
             "ChatGPT Pro 5.5 master review is blocking when explicitly requested; if confirmation, dispatch, ingest, evaluation, or adjudication fails, stop for operator action or an explicit waiver."

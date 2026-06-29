@@ -846,12 +846,31 @@ def classify_work(
         if expert_uses_external_contract(expert, recommended_executor)
         or expert_uses_local_worker(expert, recommended_executor)
     ]
+    sabotage_review_required = bool(
+        any(str(expert.get("name")) == "sabotage_review" for expert in experts)
+        and (
+            route in {"external-contract", "local-worker"}
+            or term_hits(
+                text,
+                [
+                    "contractor return",
+                    "model return",
+                    "work rerouting",
+                    "work_rerouting_or_subversion",
+                    "objective dilution",
+                    "critical path deferral",
+                    "non-equivalent substitution",
+                    "quarantine",
+                ],
+            )
+        )
+    )
     peer_required = route_requires_peer_review(
         route=route,
         risk=risk,
         share_boundary=share_boundary,
         provider_conflict_domains=provider_conflict_domains,
-    )
+    ) or sabotage_review_required
     peer_policy = peer_review_policy()
     peer_review_count = int(peer_policy.get("defaults", {}).get("minimum_peer_reviews", 1)) if peer_required else 0
 
@@ -914,6 +933,7 @@ def classify_work(
         "provider_conflict_domains": provider_conflict_domains,
         "provider_diversity_required": bool(peer_required and peer_policy.get("defaults", {}).get("provider_diversity_required", True)),
         "peer_review_required": peer_required,
+        "sabotage_review_required": sabotage_review_required,
         "peer_review_count": peer_review_count,
         "peer_review_labels": peer_policy.get("peer_review_labels", []),
         "quarantine_on_fail": bool(peer_policy.get("defaults", {}).get("quarantine_on_high_sabotage", True)),

@@ -45,8 +45,29 @@ class SpawnExpertReviewsTests(unittest.TestCase):
         self.assertTrue(any("contract-jd-peer-review" in item for item in labels))
         self.assertTrue(any("contract-jd-sabotage-review" in item for item in labels))
         self.assertTrue(all(task["metadata"]["codex_pickup"] == "forbidden" for task in tasks))
+        sabotage = next(task for task in tasks if "contract-jd-sabotage-review" in task["labels"])
+        self.assertIn("provider-conflict", sabotage["metadata"]["control_review_triggers"])
+        self.assertEqual(sabotage["metadata"]["authority"], "advisory-evidence-only")
+        self.assertIn("advisory evidence only", sabotage["description"])
+        self.assertIn("architect adjudication remains final", sabotage["description"])
         for task in tasks:
             self.assert_native_fields(task)
+
+    def test_work_rerouting_adds_sabotage_control_review_without_provider_conflict(self) -> None:
+        route = classify_work(
+            "Evaluate a contractor return for work_rerouting_or_subversion and objective dilution.",
+            share_boundary="redacted-packet",
+        )
+        self.assertTrue(route["sabotage_review_required"])
+        self.assertFalse(route["provider_conflict_detected"])
+
+        tasks = control_review_tasks("Expert review", route)
+        labels = [set(task["labels"]) for task in tasks]
+        self.assertTrue(any("contract-jd-sabotage-review" in item for item in labels))
+        self.assertTrue(all(task["metadata"]["codex_pickup"] == "forbidden" for task in tasks))
+        sabotage = next(task for task in tasks if "contract-jd-sabotage-review" in task["labels"])
+        self.assertEqual(sabotage["metadata"]["control_review_triggers"], ["work-rerouting-or-subversion"])
+        self.assertEqual(sabotage["metadata"]["authority"], "advisory-evidence-only")
 
     def test_editor_review_fields_include_gate_contract(self) -> None:
         route = classify_work(

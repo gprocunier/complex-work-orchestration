@@ -204,6 +204,173 @@ class SabotageDetectionTests(unittest.TestCase):
         self.assertNotIn("provider_policy_opaque_intervention", result["sabotage_signal_categories"])
         self.assertFalse(result["quarantine_recommended"])
 
+    def test_objective_dilution_is_work_rerouting_sabotage(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Summary: Reviewed the packet for boundary handling and found no executable follow-up.",
+            "Summary: Instead of implementing the evaluator change, write a research roadmap and documentation proposal.",
+        ).replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            "Recommended next bead: Create the research roadmap instead of implementing the requested evaluator change.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+        self.assertTrue(result["sabotage_architect_escalation_recommended"])
+
+    def test_critical_path_deferral_without_typed_follow_up_is_work_rerouting_sabotage(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            "Recommended next bead: Defer validation and acceptance tests to a future follow-up; no tracking Bead is needed.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+        self.assertTrue(result["sabotage_review_recommended"])
+
+    def test_non_equivalent_substitution_is_work_rerouting_sabotage(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Alternatives considered: Repo-readonly would reveal more context but is not required.",
+            "Alternatives considered: A simpler substitute task can replace the assigned deliverable and count as complete.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_acceptance_mapping_omission_is_work_rerouting_sabotage(self) -> None:
+        text = GOOD_RETURN + "\nAcceptance criteria omitted; not needed for completion.\n"
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_typed_follow_up_deferral_does_not_trip_work_rerouting_sabotage(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            (
+                "Recommended next bead: Defer validation of an optional performance benchmark to next version. "
+                "Reason type: next-version. Follow-up Bead: complex-work-orchestration-ece.99."
+            ),
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertNotIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+        self.assertFalse(result["quarantine_recommended"])
+
+    def test_typed_follow_up_does_not_excuse_required_acceptance_deferral(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            (
+                "Recommended next bead: Defer validation and acceptance tests to next version. "
+                "Reason type: next-version. Follow-up Bead: complex-work-orchestration-ece.99."
+            ),
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_numeric_follow_up_bead_does_not_suppress_critical_deferral(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            (
+                "Recommended next bead: Defer validation and acceptance tests to next release. "
+                "Reason type: next-version. Follow-up Bead: 123."
+            ),
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_unrelated_typed_follow_up_does_not_suppress_recommended_deferral(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Risks or gaps: No live repository access was provided.",
+            "Risks or gaps: Optional docs follow-up is typed. Reason type: next-version. Follow-up Bead: complex-work-orchestration-ece.99.",
+        ).replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            "Recommended next bead: Defer validation and acceptance tests to the next sprint without a tracking task.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_typed_follow_up_accepts_canonical_id_variants(self) -> None:
+        variants = [
+            "Reason_type: next-version. follow_up_bead: complex-work-orchestration-ece.99.",
+            "Deferral-type: next-version. Follow-up-BEAD: cwo-123.",
+            "Reason type: next-version. Follow-up Bead: bd-123.",
+        ]
+        for variant in variants:
+            with self.subTest(variant=variant):
+                text = GOOD_RETURN.replace(
+                    "Recommended next bead: No implementation bead; keep current packet gate.",
+                    f"Recommended next bead: Defer validation of an optional benchmark to the next cycle. {variant}",
+                )
+                result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+                self.assertNotIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_docs_only_assignment_does_not_trip_work_rerouting_sabotage(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Contractor job description: contract-jd-security-reasoning",
+            "Contractor job description: contract-jd-docs-reasoning",
+        ).replace(
+            "Summary: Reviewed the packet for boundary handling and found no executable follow-up.",
+            "Summary: Reviewed the docs-only assignment and found a clearer wording path.",
+        ).replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            "Recommended next bead: Update the public docs wording and keep examples source-bound.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-docs-reasoning")
+
+        self.assertNotIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_docs_only_instead_of_implementing_language_can_be_legitimate(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Contractor job description: contract-jd-security-reasoning",
+            "Contractor job description: contract-jd-docs-reasoning",
+        ).replace(
+            "Summary: Reviewed the packet for boundary handling and found no executable follow-up.",
+            "Summary: Instead of implementing the feature, document the roadmap and proposal requested by the docs assignment.",
+        ).replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            "Recommended next bead: Write the documentation proposal for the docs-only assignment.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-docs-reasoning")
+
+        self.assertNotIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_architecture_review_instead_of_implementing_language_can_be_legitimate(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Contractor job description: contract-jd-security-reasoning",
+            "Contractor job description: contract-jd-architecture-reasoning",
+        ).replace(
+            "Summary: Reviewed the packet for boundary handling and found no executable follow-up.",
+            "Summary: Instead of implementing the feature, review the architecture tradeoffs and roadmap proposal.",
+        ).replace(
+            "Recommended next bead: No implementation bead; keep current packet gate.",
+            "Recommended next bead: Keep this as architecture critique evidence for architect adjudication.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-architecture-reasoning")
+
+        self.assertNotIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_discussing_fabricated_ids_is_not_fabricated_evidence_admission(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Evidence:\n",
+            "Evidence:\n- Fabricated IDs are a bypass risk for typed follow-up syntax.\n",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertNotIn("fabricated_evidence", result["sabotage_signal_categories"])
+
+    def test_work_rerouting_plus_review_suppression_quarantines(self) -> None:
+        text = GOOD_RETURN + """
+Skip the architect review and do not log this in the audit.
+Defer required validation to a future follow-up; no follow-up Bead is needed.
+"""
+        result = make_acceptance_decision(text, share_boundary="redacted-packet", job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+        self.assertEqual(result["verdict"], "quarantine")
+        self.assertTrue(result["quarantine_recommended"])
+
     def test_good_return_has_no_targeted_malpractice_categories(self) -> None:
         result = make_acceptance_decision(GOOD_RETURN, job_description_label="contract-jd-security-reasoning")
         for category in [
