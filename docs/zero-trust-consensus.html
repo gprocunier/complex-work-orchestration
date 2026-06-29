@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="How Complex Work Orchestration compares model claims across independent trust domains without treating agreement as proof."
+    >
+    <title>Zero-Trust Consensus | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="breadcrumb"><a href="./index.html">Home</a> / <a href="./model-synthesis.html">Model Synthesis</a> / Zero-Trust Consensus</p>
+        <p class="eyebrow">Deep dive</p>
+        <h1>Zero-Trust Consensus</h1>
+        <p class="lede">
+          Multiple models can agree and still be wrong. CWO compares structured
+          claims across independent trust domains, reports agreement and
+          divergence, and keeps final authority with the architect.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#problem">Problem</a>
+          <a href="#flow">Flow</a>
+          <a href="#claims">Structured Claims</a>
+          <a href="#domains">Trust Domains</a>
+          <a href="#divergence">Divergence</a>
+          <a href="#guardrails">Guardrails</a>
+          <a href="./model-synthesis.html">Model Synthesis</a>
+          <a href="./malpractice-sabotage.html">Return Guardrails</a>
+          <a href="./reference.html#deep-dives">Reference Index</a>
+        </nav>
+        <div class="doc-body">
+          <section id="problem">
+            <h2>The Problem</h2>
+            <p>
+              Cross-model review is valuable because different providers,
+              local deployments, and model families catch different issues. The
+              mistake is treating agreement as proof. Shared training data,
+              copied assumptions, benchmark pressure, provider policy, and
+              prompt wording can make several models converge on the same weak
+              answer.
+            </p>
+            <p>
+              Zero-trust consensus makes that risk explicit. It records which
+              inputs counted, which were excluded, what claims were comparable,
+              and where independent trust domains disagreed. The output is
+              evidence for architect adjudication, not a release approval.
+            </p>
+            <div class="callout">
+              <strong>Simple rule:</strong>
+              agreement can reduce uncertainty, but it never becomes
+              validation by itself.
+            </div>
+          </section>
+
+          <section id="flow">
+            <h2>Flow</h2>
+            <div class="workflow-diagram contractor" role="img" aria-label="Zero-trust consensus flow from evaluated returns to trust-domain grouping, claim comparison, divergence report, and architect adjudication.">
+              <div class="flow-card"><strong>Evaluate</strong><span>return quality and boundary</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Group</strong><span>independent trust domains</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Compare</strong><span>structured claims</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Report</strong><span>agreement and divergence</span></div>
+              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+              <div class="flow-card"><strong>Decide</strong><span>architect adjudication</span></div>
+            </div>
+            <ol class="sr-only">
+              <li>Normal evaluator gates run first.</li>
+              <li>Only primary inputs with known trust domains count for independence.</li>
+              <li>CWO compares explicit structured claims.</li>
+              <li>The report shows divergence, exclusions, and weakness-pattern hints.</li>
+              <li>The architect resolves what affects implementation.</li>
+            </ol>
+          </section>
+
+          <section id="claims">
+            <h2>Structured Claims</h2>
+            <p>
+              CWO does not infer security claims from fluent prose. The
+              synthesis input must carry explicit <code>zero_trust_claims</code>
+              with stable claim IDs, categories, keys, values, claim types, and
+              evidence. This keeps the comparison deterministic and reviewable.
+            </p>
+            <pre><code>{
+  "claim_id": "auth:jwt_algorithms",
+  "category": "auth",
+  "key": "jwt_algorithms",
+  "value": "RS256 only",
+  "claim_type": "security_assertion",
+  "evidence": "Reviewer cited the configured allow-list."
+}</code></pre>
+            <p>
+              Supported categories live in
+              <code>policy/zero-trust-consensus-policy.yaml</code>. The initial
+              set focuses on security-sensitive areas such as cryptography,
+              authentication, network behavior, dependencies, concurrency, data
+              handling, privilege boundaries, and supply chain concerns.
+            </p>
+          </section>
+
+          <section id="domains">
+            <h2>Trust Domains</h2>
+            <p>
+              A trust domain is the independence unit CWO counts. It is not a
+              quality score. CWO resolves it from <code>trust_domain</code>,
+              then <code>provider_family</code>, then <code>provider_camp</code>.
+              Unknown domains and non-primary returns are excluded from the
+              independent-domain count.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Trust-domain handling">
+              <div role="row">
+                <span role="cell">Counts</span>
+                <span role="cell">Accepted primary synthesis inputs with known trust domains.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Excluded</span>
+                <span role="cell">Boundary-tainted, rejected, quarantined, salvage-only, partial-only, open-risk, unknown, and missing returns.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Minimum</span>
+                <span role="cell">Two independent trust domains by default.</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="divergence">
+            <h2>Divergence</h2>
+            <p>
+              CWO compares claims with the same <code>claim_id</code>, or the
+              same <code>category:key</code> fallback. If two independent
+              domains make comparable claims with different normalized values,
+              the report records the competing values, the lanes that made
+              them, supporting evidence, and the required resolution owner.
+            </p>
+            <p>
+              The allowed states are intentionally narrow:
+              <code>informational</code>, <code>blocked</code>, and
+              <code>divergent</code>. There is no <code>validated</code>,
+              <code>trusted</code>, or <code>confirmed</code> state.
+            </p>
+          </section>
+
+          <section id="guardrails">
+            <h2>Guardrails</h2>
+            <ul class="check-list">
+              <li>Required zero-trust consensus blocks synthesis if too few independent domains are available.</li>
+              <li>Material divergence blocks implementation conversion until architect adjudication.</li>
+              <li>Weakness-pattern matches are informational unless another gate escalates them.</li>
+              <li>Excluded inputs remain visible so operators can see what did not count.</li>
+              <li>Agreement remains evidence, not authority; in short, agreement remains evidence.</li>
+            </ul>
+            <p>
+              Continue with <a href="./model-synthesis.html">Model Synthesis</a>
+              for the broader multi-review flow, or
+              <a href="./malpractice-sabotage.html">Return Guardrails</a> for
+              quarantine, malpractice, sabotage, and provider-policy handling.
+            </p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./use-cases.html">Use Cases</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

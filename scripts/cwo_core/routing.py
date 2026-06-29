@@ -34,7 +34,7 @@ from .routing_signals import (
     explicit_openai_deep_research_requested,
     requested_architecture_critic_executor_keys,
 )
-from .synthesis import recommend_model_synthesis
+from .synthesis import recommend_model_synthesis, zero_trust_route_requirement
 from .util import rank_allows, rank_max, term_hits
 
 
@@ -873,6 +873,7 @@ def classify_work(
     ) or sabotage_review_required
     peer_policy = peer_review_policy()
     peer_review_count = int(peer_policy.get("defaults", {}).get("minimum_peer_reviews", 1)) if peer_required else 0
+    zero_trust_route = zero_trust_route_requirement(text, risk=risk)
 
     synthesis_result = recommend_model_synthesis(text, {}, force_accepted=model_synthesis)
     beads_depth = resolve_beads_context_depth(
@@ -938,6 +939,7 @@ def classify_work(
         "peer_review_labels": peer_policy.get("peer_review_labels", []),
         "quarantine_on_fail": bool(peer_policy.get("defaults", {}).get("quarantine_on_high_sabotage", True)),
         "local_secure_review_executor": peer_policy.get("defaults", {}).get("local_secure_review_executor"),
+        **zero_trust_route,
         "required_experts": experts,
         "ranked_experts": experts,
         "ranked_executors": ranked_executors,

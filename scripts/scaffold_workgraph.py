@@ -354,10 +354,14 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             }
         )
 
-    needs_acceptance = bool(acceptance_review_lanes) or route.get("route") in ["external-contract", "local-worker"]
     peer_review_required = bool(route.get("peer_review_required"))
     publish_sanitization_required = bool(route.get("editor_gate_required"))
     model_synthesis_required = synthesis_lane_enabled(route.get("model_synthesis"))
+    needs_external_acceptance = bool(acceptance_review_lanes) or route.get("route") in ["external-contract", "local-worker"]
+    needs_internal_acceptance = bool(
+        not needs_external_acceptance
+        and (route.get("architect_adjudication_required") or peer_review_required)
+    )
     graph: list[dict[str, Any]] = [
         {
             "title": title,
@@ -424,7 +428,7 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             **lane_fields("docs", route),
         }
     )
-    if needs_acceptance:
+    if needs_external_acceptance:
         peer_review_lanes = ["peer-review"] if peer_review_required else []
         acceptance_lanes: list[dict[str, Any]] = [
             {
@@ -496,6 +500,71 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             }
         )
         graph.extend(acceptance_lanes)
+        for item in graph:
+            if item.get("lane") == "implementation":
+                item.setdefault("depends_on_lanes", []).append("architect-adjudication")
+    elif needs_internal_acceptance:
+        internal_gate_lanes: list[dict[str, Any]] = []
+        adjudication_dependencies = ["architect"]
+        if peer_review_required:
+            internal_gate_lanes.extend(
+                [
+                    {
+                        "title": f"Peer review return: {title}",
+                        "type": "task",
+                        "lane": "peer-review",
+                        "labels": [
+                            *(route.get("peer_review_labels")
+                              or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
+                            "contract-jd-peer-review",
+                        ],
+                        "metadata": {
+                            "job_description_label": "contract-jd-peer-review",
+                            "peer_review_count": route.get("peer_review_count", 1),
+                            "provider_diversity_required": route.get("provider_diversity_required", True),
+                            "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                            "local_secure_review_executor": route.get("local_secure_review_executor"),
+                            "codex_pickup": "forbidden",
+                            "architect_review_required": True,
+                        },
+                        "depends_on_lanes": ["architect"],
+                        **lane_fields("peer-review", route),
+                    },
+                    {
+                        "title": f"Evaluate return: {title}",
+                        "type": "task",
+                        "lane": "evaluation",
+                        "labels": ["evaluation", "contractor-evaluator"],
+                        "depends_on_lanes": ["peer-review"],
+                        **lane_fields("evaluation", route),
+                    },
+                ]
+            )
+            adjudication_dependencies = ["evaluation"]
+        if model_synthesis_required:
+            internal_gate_lanes.append(
+                {
+                    "title": f"Model synthesis: {title}",
+                    "type": "task",
+                    "lane": "model-synthesis",
+                    "labels": ["synthesis", "adjudication-support"],
+                    "metadata": {"model_synthesis": route.get("model_synthesis")},
+                    "depends_on_lanes": adjudication_dependencies,
+                    **lane_fields("model-synthesis", route),
+                }
+            )
+            adjudication_dependencies = ["model-synthesis"]
+        internal_gate_lanes.append(
+            {
+                "title": f"Architect adjudication: {title}",
+                "type": "task",
+                "lane": "architect-adjudication",
+                "labels": ["architect", "adjudication"],
+                "depends_on_lanes": adjudication_dependencies,
+                **lane_fields("architect-adjudication", route),
+            }
+        )
+        graph.extend(internal_gate_lanes)
         for item in graph:
             if item.get("lane") == "implementation":
                 item.setdefault("depends_on_lanes", []).append("architect-adjudication")

@@ -71,6 +71,9 @@ when posting or reviewing outside model contracts,
 sabotage, `references/prompt-coach.md` when sizing the invocation,
 `references/execution-environments.md` when selecting Codex, OpenCode,
 OpenShift AI vLLM, or manual execution environments,
+`references/zero-trust-consensus.md` when security-sensitive or explicitly
+requested synthesis work needs cross-domain claim comparison without treating
+agreement as validation,
 `references/codex-beads-hooks.md` when Codex lifecycle hook output becomes
 noisy and the operator needs to preserve Beads context injection while changing
 only display behavior,
@@ -138,7 +141,10 @@ Default roles:
   exist. It records consensus, material disagreements, unsupported claims,
   risk deltas, evidence provenance, and recommended plan revisions. It is
   CWO-native evidence collation, not direct OpenRouter Fusion API dispatch, and
-  architect adjudication remains the final authority.
+  architect adjudication remains the final authority. When zero-trust consensus
+  is required, synthesis also compares explicit structured claims across
+  independent trust domains and blocks implementation conversion on unresolved
+  material divergence.
 - **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
   local-worker review contracts after explicit `--local-ok`; output is evidence
   and still needs evaluator scoring plus architect adjudication.
@@ -208,6 +214,13 @@ python3 scripts/coach_prompt.py "<task text>"
    synthesis panel members still require explicit share-boundary opt-in, and the
    synthesis artifact must carry evaluator dispositions for rejected,
    quarantined, missing, timed-out, or boundary-tainted inputs.
+   If route output sets `zero_trust_consensus_required=true`, keep
+   `zero_trust_claims` as explicit structured input for accepted primary lanes.
+   Zero-trust consensus counts independent trust domains, reports excluded
+   inputs, scores comparable claim divergence, and uses only
+   `informational`, `blocked`, or `divergent` states. Agreement is never a
+   validation status; unresolved divergence remains architect-adjudicated
+   evidence.
    Gemini/Agy architecture critique is salvage-only by default. It can inform
    risk notes, alternate framing, and follow-up questions, but it does not count
    toward `minimum_usable_inputs` unless the architect explicitly upgrades a

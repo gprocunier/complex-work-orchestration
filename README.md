@@ -24,6 +24,7 @@ Use Get Started when you are ready to install and run the first small task:
 - Explanation: https://gprocunier.github.io/complex-work-orchestration/explanation.html
 - Beads Memory: https://gprocunier.github.io/complex-work-orchestration/beads-memory.html
 - Model Synthesis: https://gprocunier.github.io/complex-work-orchestration/model-synthesis.html
+- Zero-Trust Consensus: https://gprocunier.github.io/complex-work-orchestration/zero-trust-consensus.html
 - Guardrails: https://gprocunier.github.io/complex-work-orchestration/malpractice-sabotage.html
 - Codex Beads Hooks: https://gprocunier.github.io/complex-work-orchestration/codex-beads-hooks.html
 - Reference: https://gprocunier.github.io/complex-work-orchestration/reference.html
@@ -534,6 +535,9 @@ Core policy files:
   independent peer review before evaluation.
 - `policy/acceptance-policy.yaml`: contractor return sections, sabotage and
   malpractice scoring thresholds, quarantine, and architect review rules.
+- `policy/zero-trust-consensus-policy.yaml`: cross-domain claim comparison,
+  independent trust-domain counting, divergence thresholds, weakness-pattern
+  metadata, and no-positive-confidence status vocabulary.
 - `policy/contracting-controls.yaml`: dispatch, audit, and adjudication
   controls for outside or local-worker contracts.
 
@@ -902,6 +906,10 @@ reference below and in the GitHub Pages Reference page.
    acceptance decision's advisory `recommended_synthesis_use` so generic or
    low-signal advice is visible. Synthesis remains the authority for primary,
    salvage-only, open-risk, rejected, quarantined, and readiness classification.
+   For security-sensitive or explicitly requested zero-trust synthesis, add
+   structured `zero_trust_claims` to accepted primary inputs so CWO can compare
+   claims across independent trust domains. Matching claims do not become
+   validation; conflicting claims remain evidence for architect adjudication.
    `scaffold_sizing` is the graph-size lever. Full graph remains the default
    for broad orchestration. Tight-chain sizing keeps the architect, PM,
    implementation, validation, docs/handoff, required peer/editor/evaluation
@@ -963,7 +971,11 @@ reference below and in the GitHub Pages Reference page.
    the prompt coach, or enabled with the shared `--model-synthesis` flag on
    coach, route, or scaffold helpers. Use `--scaffold-size tight` for a focused
    review chain; use a single manual Bead instead when there are no independent
-   lanes to coordinate.
+   lanes to coordinate. When route output sets
+   `zero_trust_consensus_required=true`, preserve structured
+   `zero_trust_claims` from accepted primary inputs and block implementation
+   conversion until required trust-domain coverage and divergence handling are
+   adjudicated.
 10. For outside work, post contractor-only Beads with job-description labels.
    The scaffold wires dispatch, peer review when required, expert review,
    evaluation, and architect adjudication as real Beads dependencies.
@@ -1165,7 +1177,8 @@ default: they may inform risk notes or follow-up questions, but they do not
 count as primary synthesis inputs unless the architect explicitly upgrades a
 specific evaluated finding. The acceptance decision may report advisory
 `recommended_synthesis_use`, but the synthesis layer still enforces provider
-camp policy, boundary-taint handling, and readiness.
+camp policy, boundary-taint handling, zero-trust consensus when required, and
+readiness.
 The ChatGPT Pro 5.5 Extended Reasoning browser lane is different from OpenAI
 Deep Research. Use `chatgpt_pro_5_5_extended_reasoning_browser` only when the
 user explicitly wants ChatGPT Pro to review the final architect plan or total

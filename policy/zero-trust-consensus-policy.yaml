@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "scope": "post-synthesis cross-domain divergence reporting",
+  "defaults": {
+    "minimum_independent_domains": 2
+  },
+  "status_values": ["informational", "blocked", "divergent"],
+  "recommended_actions": ["none", "review", "escalate", "quarantine", "block"],
+  "resolution_authority": "architect",
+  "trust_domain_independence_disclaimer": "Agreement across model returns is not verification. CWO treats agreement and disagreement as evidence for architect adjudication, not as proof of correctness.",
+  "trust_domain_resolution": {
+    "field_precedence": ["trust_domain", "provider_family", "provider_camp"],
+    "unknown_domain": "unknown",
+    "domain_aliases": {
+      "codex": "openai",
+      "internal codex": "openai",
+      "local-openai-compatible": "local",
+      "openshift-ai-vllm": "local",
+      "openshift ai vllm": "local"
+    }
+  },
+  "routing_triggers": {
+    "explicit_terms": [
+      "zero-trust consensus",
+      "zero trust consensus",
+      "cross-domain divergence",
+      "cross domain divergence",
+      "trust-domain",
+      "trust domain",
+      "independent trust domains",
+      "agreement is not proof"
+    ],
+    "security_sensitive_terms": [
+      "crypto",
+      "cryptography",
+      "encryption",
+      "key size",
+      "nonce",
+      "iv generation",
+      "jwt",
+      "oauth",
+      "auth flow",
+      "authentication",
+      "authorization",
+      "tls",
+      "certificate validation",
+      "network configuration",
+      "dependency",
+      "supply chain",
+      "privilege boundary",
+      "concurrency",
+      "toctou"
+    ],
+    "activation_context_terms": [
+      "implement",
+      "implementation",
+      "review",
+      "architecture",
+      "synthesis",
+      "contractor",
+      "model",
+      "security",
+      "high risk",
+      "critical"
+    ],
+    "required_risk_levels": ["high", "critical"]
+  },
+  "claim_types": ["factual", "design_judgment", "security_assertion"],
+  "claim_categories": {
+    "crypto": {"weight": 40},
+    "auth": {"weight": 35},
+    "network": {"weight": 30},
+    "dependencies": {"weight": 25},
+    "concurrency": {"weight": 30},
+    "data_handling": {"weight": 25},
+    "privilege": {"weight": 35},
+    "supply_chain": {"weight": 25}
+  },
+  "thresholds": {
+    "review": 20,
+    "escalation": 40,
+    "quarantine": 70
+  },
+  "weakness_pattern_source_version": 1,
+  "weakness_patterns": [
+    {
+      "id": "CRYPTO-001",
+      "name": "predictable randomness",
+      "category": "crypto",
+      "severity": "high",
+      "terms": ["math.random", "time-based seed", "predictable random", "weak random"]
+    },
+    {
+      "id": "AUTH-001",
+      "name": "jwt algorithm confusion",
+      "category": "auth",
+      "severity": "high",
+      "terms": ["jwt none", "alg none", "algorithm none", "missing algorithm pin"]
+    },
+    {
+      "id": "NET-001",
+      "name": "disabled certificate validation",
+      "category": "network",
+      "severity": "high",
+      "terms": ["verify=false", "node_tls_reject_unauthorized=0", "disable certificate validation", "skip tls verification"]
+    },
+    {
+      "id": "CONC-001",
+      "name": "check-then-act race",
+      "category": "concurrency",
+      "severity": "medium",
+      "terms": ["check then act", "toctou", "time-of-check", "time of check"]
+    }
+  ]
+}

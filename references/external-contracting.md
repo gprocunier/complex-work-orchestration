@@ -37,6 +37,9 @@ Use the policy files as the source of truth for contractor routing:
   peer review.
 - `policy/acceptance-policy.yaml`: required contractor return sections,
   sabotage/malpractice scoring, and quarantine.
+- `policy/zero-trust-consensus-policy.yaml`: independent trust-domain counting,
+  structured claim comparison, divergence thresholds, and no-positive-confidence
+  states for synthesis work that needs cross-domain security review.
 - `policy/contracting-controls.yaml`: manual dispatch, audit, and
   adjudication requirements.
 - `schemas/`: machine-readable shapes for route results, contractor packets,
@@ -330,6 +333,9 @@ Use these adjudication dispositions for contractor critique findings:
 - `deferred`: keep the finding visible without blocking current acceptance.
 - `quarantined`: isolate the return because sabotage, malpractice, boundary,
   or mutation signals need review.
+- `divergent`: keep the return as evaluated evidence, but block implementation
+  conversion until zero-trust consensus or architect adjudication resolves the
+  material disagreement.
 
 ## Beads Setup
 
@@ -687,6 +693,10 @@ python3 scripts/build_contractor_packet.py \
    limited-access sources treated as full support, unresolved contradictions,
    and missing reflection lower the score before architect adjudication.
    See `examples/sample-research-contractor-return.md` for the compact shape.
+   Security-sensitive synthesis can also add explicit structured
+   `zero_trust_claims` to accepted primary inputs. CWO compares those claims
+   across independent trust domains after normal evaluation. Agreement is not
+   validation; unresolved divergence remains architect-adjudicated evidence.
 
 10. If evaluation returns `quarantine`, a high `malpractice_score`, or a
    failed peer review, preserve artifacts, avoid implementation dependencies,

@@ -205,6 +205,37 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
         self.assertNotIn("evaluation", by_lane)
 
+    def test_high_risk_architect_review_route_adds_architect_adjudication(self) -> None:
+        route = classify_work(
+            "Architect a high-risk cross-cutting policy migration for route behavior.",
+            requested_roles=["architecture"],
+        )
+        graph = planned_graph("Internal Architect Review", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertEqual(route["route"], "architect-review")
+        self.assertTrue(route["architect_adjudication_required"])
+        self.assertIn("architect-adjudication", by_lane)
+        self.assertEqual(by_lane["architect-adjudication"]["depends_on_lanes"], ["architect"])
+        self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+
+    def test_internal_peer_review_required_route_adds_peer_review_and_adjudication(self) -> None:
+        route = classify_work(
+            "Evaluate a contractor return for work_rerouting_or_subversion, objective dilution, and critical path deferral.",
+            share_boundary="redacted-packet",
+        )
+        graph = planned_graph("Internal Peer Review", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertTrue(route["peer_review_required"])
+        self.assertIn("peer-review", by_lane)
+        self.assertIn("evaluation", by_lane)
+        self.assertIn("architect-adjudication", by_lane)
+        self.assertEqual(by_lane["peer-review"]["depends_on_lanes"], ["architect"])
+        self.assertEqual(by_lane["evaluation"]["depends_on_lanes"], ["peer-review"])
+        self.assertEqual(by_lane["architect-adjudication"]["depends_on_lanes"], ["evaluation"])
+        self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+
     def test_public_docs_pages_graph_uses_editor_validation_gate(self) -> None:
         route = classify_work(
             "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",

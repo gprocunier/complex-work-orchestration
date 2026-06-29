@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from typing import Any
 
 from .policy import load_policy
@@ -10,6 +13,16 @@ def synthesis_policy() -> dict[str, Any]:
     return load_policy("synthesis-policy")
 
 
+def zero_trust_consensus_policy() -> dict[str, Any]:
+    return load_policy("zero-trust-consensus-policy")
+
+
+def zero_trust_policy_sha256(policy: dict[str, Any] | None = None) -> str:
+    config = policy or zero_trust_consensus_policy()
+    encoded = json.dumps(config, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def mentioned_provider_camps(text: str, policy: dict[str, Any] | None = None) -> list[str]:
     config = policy or synthesis_policy()
     camps = config.get("provider_camps", {})
@@ -18,6 +31,38 @@ def mentioned_provider_camps(text: str, policy: dict[str, Any] | None = None) ->
         if term_hits(text, list(details.get("terms", []))):
             mentioned.append(str(camp))
     return sorted(set(mentioned))
+
+
+def zero_trust_route_requirement(
+    text: str,
+    *,
+    risk: str = "low",
+    policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return route-level zero-trust trigger state without changing dispatch authority."""
+
+    config = policy or zero_trust_consensus_policy()
+    triggers = dict(config.get("routing_triggers", {}))
+    explicit_hits = term_hits(text, list(triggers.get("explicit_terms", [])))
+    security_hits = term_hits(text, list(triggers.get("security_sensitive_terms", [])))
+    context_hits = term_hits(text, list(triggers.get("activation_context_terms", [])))
+    required_risks = {str(item) for item in triggers.get("required_risk_levels", ["high", "critical"])}
+    reasons: list[str] = []
+    if explicit_hits:
+        reasons.append("explicit zero-trust or cross-domain divergence request: " + ", ".join(explicit_hits[:5]))
+    if security_hits and context_hits:
+        reasons.append("security-sensitive review terms: " + ", ".join(security_hits[:5]))
+    required = bool(explicit_hits or (security_hits and context_hits))
+    if not required and security_hits and risk in required_risks and term_hits(text, ["security", "secure", "threat", "vulnerability"]):
+        required = True
+        reasons.append("high-risk security-sensitive work: " + ", ".join(security_hits[:5]))
+    defaults = dict(config.get("defaults", {}))
+    return {
+        "zero_trust_consensus_required": required,
+        "zero_trust_consensus_trigger_reasons": reasons if required else [],
+        "zero_trust_minimum_independent_domains": int(defaults.get("minimum_independent_domains", 2)),
+        "zero_trust_policy_version": config.get("version"),
+    }
 
 
 def _route_has_architecture_signal(text: str, route: dict[str, Any], policy: dict[str, Any]) -> bool:
@@ -114,6 +159,8 @@ def _normalize_synthesis_use(value: Any) -> str | None:
 def evaluate_synthesis_inputs(
     inputs: list[dict[str, Any]],
     policy: dict[str, Any] | None = None,
+    *,
+    zero_trust_required: bool = False,
 ) -> dict[str, Any]:
     """Apply synthesis disposition policy to independently evaluated model returns."""
 
@@ -232,6 +279,19 @@ def evaluate_synthesis_inputs(
     if unknown_inputs:
         blocked_reasons.append("one or more inputs have unknown evaluator dispositions")
 
+    zero_trust_consensus = evaluate_zero_trust_consensus(
+        inputs,
+        input_summaries,
+        required=zero_trust_required,
+    )
+    if zero_trust_consensus["required"]:
+        if zero_trust_consensus["consensus_status"] == "blocked":
+            blocked_reasons.extend(zero_trust_consensus["blocked_reasons"])
+        elif zero_trust_consensus["recommended_action"] in {"escalate", "quarantine"}:
+            blocked_reasons.append(
+                "zero-trust cross-domain divergence requires architect resolution"
+            )
+
     allow_partial = bool(partial_policy.get("allow_partial", True))
     status = "ready"
     if blocked_reasons:
@@ -264,6 +324,276 @@ def evaluate_synthesis_inputs(
         "quarantined_inputs": quarantined_inputs,
         "rejected_inputs": rejected_inputs,
         "unknown_inputs": unknown_inputs,
+        "zero_trust_consensus": zero_trust_consensus,
+    }
+
+
+def _zero_trust_normalize(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _zero_trust_domain_for_input(
+    entry: dict[str, Any],
+    policy: dict[str, Any],
+) -> dict[str, Any]:
+    resolution = dict(policy.get("trust_domain_resolution", {}))
+    precedence = list(resolution.get("field_precedence", ["trust_domain", "provider_family", "provider_camp"]))
+    aliases = {
+        _zero_trust_normalize(key): _zero_trust_normalize(value)
+        for key, value in dict(resolution.get("domain_aliases", {})).items()
+    }
+    observed: list[dict[str, str]] = []
+    for field in precedence:
+        raw = entry.get(field)
+        if raw is None:
+            continue
+        normalized = _zero_trust_normalize(raw)
+        if not normalized:
+            continue
+        observed.append({"field": str(field), "value": aliases.get(normalized, normalized)})
+    unknown = str(resolution.get("unknown_domain", "unknown"))
+    selected = observed[0] if observed else {"field": "none", "value": unknown}
+    conflicts = [
+        item for item in observed[1:] if item["value"] != selected["value"]
+    ]
+    return {
+        "trust_domain": selected["value"],
+        "source_field": selected["field"],
+        "conflicting_domain_fields": conflicts,
+        "unknown": selected["value"] == unknown,
+    }
+
+
+def _zero_trust_normalize_claims(
+    entry: dict[str, Any],
+    *,
+    lane: str,
+    trust_domain: str,
+    policy: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    allowed_types = {str(item) for item in policy.get("claim_types", ["security_assertion"])}
+    allowed_categories = set(policy.get("claim_categories", {}).keys())
+    claims: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    for index, raw_claim in enumerate(entry.get("zero_trust_claims") or [], start=1):
+        if not isinstance(raw_claim, dict):
+            warnings.append(f"{lane}: claim {index} is not an object")
+            continue
+        category = _zero_trust_normalize(raw_claim.get("category"))
+        key = _zero_trust_normalize(raw_claim.get("key"))
+        value = str(raw_claim.get("value", "")).strip()
+        if not category or not key or not value:
+            warnings.append(f"{lane}: claim {index} missing category, key, or value")
+            continue
+        if allowed_categories and category not in allowed_categories:
+            warnings.append(f"{lane}: claim {index} unknown category {category!r}")
+            continue
+        claim_type = _zero_trust_normalize(raw_claim.get("claim_type") or "security_assertion")
+        if claim_type not in allowed_types:
+            warnings.append(f"{lane}: claim {index} unknown claim_type {claim_type!r}")
+            continue
+        claim_id = _zero_trust_normalize(raw_claim.get("claim_id")) or f"{category}:{key}"
+        claims.append(
+            {
+                "claim_id": claim_id,
+                "category": category,
+                "key": key,
+                "value": value,
+                "normalized_value": _zero_trust_normalize(value),
+                "claim_type": claim_type,
+                "evidence": str(raw_claim.get("evidence", "")).strip(),
+                "lane": lane,
+                "trust_domain": trust_domain,
+            }
+        )
+    return claims, warnings
+
+
+def _zero_trust_weakness_findings(
+    claims: list[dict[str, Any]],
+    *,
+    policy: dict[str, Any],
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for pattern in policy.get("weakness_patterns", []):
+        if not isinstance(pattern, dict):
+            continue
+        terms = [_zero_trust_normalize(term) for term in pattern.get("terms", [])]
+        if not terms:
+            continue
+        for claim in claims:
+            haystack = _zero_trust_normalize(" ".join([claim["value"], claim.get("evidence", "")]))
+            hits = [term for term in terms if term and term in haystack]
+            if hits:
+                findings.append(
+                    {
+                        "id": pattern.get("id"),
+                        "name": pattern.get("name"),
+                        "category": pattern.get("category"),
+                        "severity": pattern.get("severity", "informational"),
+                        "lane": claim["lane"],
+                        "trust_domain": claim["trust_domain"],
+                        "claim_id": claim["claim_id"],
+                        "matched_terms": hits,
+                        "effect": "informational-only",
+                    }
+                )
+    return findings
+
+
+def evaluate_zero_trust_consensus(
+    inputs: list[dict[str, Any]],
+    input_summaries: list[dict[str, Any]],
+    *,
+    required: bool = False,
+    policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    config = policy or zero_trust_consensus_policy()
+    defaults = dict(config.get("defaults", {}))
+    thresholds = dict(config.get("thresholds", {}))
+    category_weights = {
+        str(key): int(value.get("weight", value) if isinstance(value, dict) else value)
+        for key, value in dict(config.get("claim_categories", {})).items()
+    }
+    minimum = int(defaults.get("minimum_independent_domains", 2))
+    allowed_statuses = {str(item) for item in config.get("status_values", ["informational", "blocked", "divergent"])}
+    disclaimer = str(config.get("trust_domain_independence_disclaimer", "Agreement is not verification."))
+    resolution_authority = str(config.get("resolution_authority", "architect"))
+
+    trust_domain_summaries: list[dict[str, Any]] = []
+    excluded_inputs: list[dict[str, Any]] = []
+    eligible_claims: list[dict[str, Any]] = []
+    claim_warnings: list[str] = []
+    independent_domains: set[str] = set()
+
+    for entry, summary in zip(inputs, input_summaries):
+        lane = str(summary.get("lane") or entry.get("lane") or entry.get("id") or "input")
+        domain_info = _zero_trust_domain_for_input({**entry, **summary}, config)
+        synthesis_use = str(summary.get("synthesis_use") or "unknown")
+        included = synthesis_use == "primary" and not domain_info["unknown"]
+        trust_domain_summaries.append(
+            {
+                "lane": lane,
+                "trust_domain": domain_info["trust_domain"],
+                "source_field": domain_info["source_field"],
+                "synthesis_use": synthesis_use,
+                "included_for_independence": included,
+                "conflicting_domain_fields": domain_info["conflicting_domain_fields"],
+            }
+        )
+        if not included:
+            excluded_inputs.append(
+                {
+                    "lane": lane,
+                    "trust_domain": domain_info["trust_domain"],
+                    "synthesis_use": synthesis_use,
+                    "reason": "only primary synthesis inputs with known trust domains count",
+                }
+            )
+            continue
+        independent_domains.add(domain_info["trust_domain"])
+        claims, warnings = _zero_trust_normalize_claims(
+            entry,
+            lane=lane,
+            trust_domain=domain_info["trust_domain"],
+            policy=config,
+        )
+        eligible_claims.extend(claims)
+        claim_warnings.extend(warnings)
+
+    by_claim: dict[str, list[dict[str, Any]]] = {}
+    for claim in eligible_claims:
+        by_claim.setdefault(str(claim["claim_id"]), []).append(claim)
+
+    divergence_report: list[dict[str, Any]] = []
+    divergence_score = 0
+    comparable_claim_count = 0
+    for claim_id, claims in sorted(by_claim.items()):
+        domains = {claim["trust_domain"] for claim in claims}
+        if len(domains) < 2:
+            continue
+        comparable_claim_count += 1
+        values = {}
+        for claim in claims:
+            values.setdefault(claim["normalized_value"], []).append(claim)
+        if len(values) < 2:
+            continue
+        sample = claims[0]
+        weight = int(category_weights.get(sample["category"], 10))
+        score = weight * max(1, len(domains) - 1)
+        divergence_score += score
+        divergence_report.append(
+            {
+                "claim_id": claim_id,
+                "category": sample["category"],
+                "key": sample["key"],
+                "claim_type": sample["claim_type"],
+                "score": score,
+                "resolution_authority": resolution_authority,
+                "values": [
+                    {
+                        "value": grouped[0]["value"],
+                        "trust_domains": sorted({item["trust_domain"] for item in grouped}),
+                        "lanes": sorted({item["lane"] for item in grouped}),
+                        "evidence": [item["evidence"] for item in grouped if item.get("evidence")],
+                    }
+                    for grouped in values.values()
+                ],
+            }
+        )
+
+    weakness_findings = _zero_trust_weakness_findings(eligible_claims, policy=config)
+    blocked_reasons: list[str] = []
+    if required and len(independent_domains) < minimum:
+        blocked_reasons.append(
+            f"zero-trust consensus requires {minimum} independent trust domains; observed {len(independent_domains)}"
+        )
+    if required and not eligible_claims:
+        blocked_reasons.append("zero-trust consensus requires explicit zero_trust_claims on accepted primary inputs")
+    elif required and comparable_claim_count == 0:
+        blocked_reasons.append("zero-trust consensus requires comparable claims across independent trust domains")
+    recommended_action = "none"
+    if divergence_score >= int(thresholds.get("quarantine", 70)):
+        recommended_action = "quarantine"
+    elif divergence_score >= int(thresholds.get("escalation", 40)):
+        recommended_action = "escalate"
+    elif divergence_score >= int(thresholds.get("review", 20)):
+        recommended_action = "review"
+
+    if blocked_reasons:
+        status = "blocked"
+        recommended_action = "block"
+    elif divergence_report:
+        status = "divergent"
+    else:
+        status = "informational"
+    if status not in allowed_statuses:
+        status = "blocked"
+        blocked_reasons.append("zero-trust policy produced disallowed status")
+
+    return {
+        "required": bool(required),
+        "policy_version": config.get("version"),
+        "policy_sha256": zero_trust_policy_sha256(config),
+        "minimum_independent_domains": minimum,
+        "independent_trust_domain_count": len(independent_domains),
+        "independent_trust_domains": sorted(independent_domains),
+        "trust_domain_summaries": trust_domain_summaries,
+        "excluded_input_count": len(excluded_inputs),
+        "excluded_inputs": excluded_inputs,
+        "claim_count": len(eligible_claims),
+        "comparable_claim_count": comparable_claim_count,
+        "claim_warnings": claim_warnings,
+        "divergence_score": divergence_score,
+        "divergence_report": divergence_report,
+        "weakness_pattern_findings": weakness_findings,
+        "weakness_pattern_source_version": config.get("weakness_pattern_source_version"),
+        "consensus_status": status,
+        "recommended_action": recommended_action,
+        "blocked_reasons": blocked_reasons,
+        "trust_domain_independence_disclaimer": disclaimer,
+        "resolution_authority": resolution_authority,
+        "agreement_is_not_validation": True,
     }
 
 

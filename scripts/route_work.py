@@ -27,6 +27,11 @@ def print_human(route: dict[str, object], top_n: int) -> None:
         print(f"Model synthesis: {synthesis.get('recommended_mode')} active={synthesis.get('active')}")
         if synthesis.get("provider_conflict_flags"):
             print(f"Model synthesis provider flags: {len(synthesis.get('provider_conflict_flags', []))}")
+    print(f"Zero-trust consensus required: {route.get('zero_trust_consensus_required')}")
+    if route.get("zero_trust_consensus_required"):
+        print(f"Zero-trust minimum domains: {route.get('zero_trust_minimum_independent_domains')}")
+        for reason in route.get("zero_trust_consensus_trigger_reasons", []):  # type: ignore[assignment]
+            print(f"- zero-trust trigger: {reason}")
     print(f"Beads context depth: {route.get('beads_context_depth')}")
     print(f"Beads briefing depth: {route.get('beads_briefing_depth')}")
     print(f"Beads context source: {route.get('beads_context_depth_source')}")

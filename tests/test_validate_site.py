@@ -110,6 +110,7 @@ class ValidateSiteTests(unittest.TestCase):
 <a href="./workflows.html">Workflows</a>
 <a href="./beads-memory.html">Beads Memory</a>
 <a href="./model-synthesis.html">Model Synthesis</a>
+<a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
 <a href="./malpractice-sabotage.html">Guardrails</a>
 <a href="./reference.html">Reference</a>
 <a href="./contractor-demo.html">Demo</a>
@@ -136,6 +137,7 @@ class ValidateSiteTests(unittest.TestCase):
         self.assertIn("missing expert route link: ./workflows.html", rendered)
         self.assertIn("missing expert route link: ./beads-memory.html", rendered)
         self.assertIn("missing expert route link: ./model-synthesis.html", rendered)
+        self.assertIn("missing expert route link: ./zero-trust-consensus.html", rendered)
         self.assertIn("missing expert route link: ./malpractice-sabotage.html", rendered)
         self.assertIn("missing expert route link: ./reference.html", rendered)
         self.assertIn("missing expert route link: ./contractor-demo.html", rendered)
@@ -150,6 +152,7 @@ class ValidateSiteTests(unittest.TestCase):
 <a href="./workflows.html">Workflows</a>
 <a href="./beads-memory.html">Beads Memory</a>
 <a href="./model-synthesis.html">Model Synthesis</a>
+<a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
 <a href="./malpractice-sabotage.html">Guardrails</a>
 <a href="./reference.html">Reference</a>
 <a href="./contractor-demo.html">Demo</a>

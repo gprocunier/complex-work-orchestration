@@ -35,6 +35,19 @@ class ScaffoldDryRunTests(unittest.TestCase):
                 self.assertIn("no-codex-exec", item["labels"])
                 self.assertIn(item["lane"], graph[[node.get("lane") for node in graph].index("evaluation")]["depends_on_lanes"])
 
+    def test_internal_architect_review_dry_run_includes_architect_adjudication(self) -> None:
+        route = classify_work(
+            "Architect a high-risk policy route migration for CWO synthesis behavior.",
+            requested_roles=["architecture"],
+        )
+        graph = planned_graph("Internal Architect Review", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertEqual(route["route"], "architect-review")
+        self.assertTrue(route["architect_adjudication_required"])
+        self.assertIn("architect-adjudication", by_lane)
+        self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+
 
 if __name__ == "__main__":
     unittest.main()

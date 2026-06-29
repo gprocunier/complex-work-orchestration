@@ -96,6 +96,7 @@ def validate_repository() -> list[str]:
         boundaries = load_policy("share-boundaries").get("boundaries", {})
         providers = load_policy("provider-registry").get("providers", {})
         peer_review = load_policy("peer-review-policy")
+        zero_trust = load_policy("zero-trust-consensus-policy")
     except SystemExit as exc:
         return [str(exc)]
 
@@ -233,6 +234,25 @@ def validate_repository() -> list[str]:
     for required_term in ["work_rerouting_or_subversion", "objective dilution", "critical path deferral"]:
         if required_term not in sabotage_triggers:
             errors.append(f"sabotage_review trigger_terms missing {required_term!r}")
+    if set(zero_trust.get("status_values", [])) != {"informational", "blocked", "divergent"}:
+        errors.append("zero-trust-consensus-policy status_values must be informational, blocked, and divergent only")
+    if {"confirmed", "validated", "trusted", "passed"} & set(zero_trust.get("status_values", [])):
+        errors.append("zero-trust-consensus-policy must not use positive-confidence status names")
+    if zero_trust.get("resolution_authority") != "architect":
+        errors.append("zero-trust-consensus-policy resolution_authority must be architect")
+    if int(zero_trust.get("defaults", {}).get("minimum_independent_domains", 0)) < 2:
+        errors.append("zero-trust-consensus-policy minimum_independent_domains must be at least 2")
+    if not zero_trust.get("trust_domain_independence_disclaimer"):
+        errors.append("zero-trust-consensus-policy must define trust_domain_independence_disclaimer")
+    if not zero_trust.get("claim_categories"):
+        errors.append("zero-trust-consensus-policy must define claim_categories")
+    for category, details in zero_trust.get("claim_categories", {}).items():
+        weight = details.get("weight", 0) if isinstance(details, dict) else details
+        if int(weight) <= 0:
+            errors.append(f"zero-trust claim category {category!r} must have a positive weight")
+    thresholds = zero_trust.get("thresholds", {})
+    if not all(name in thresholds for name in ["review", "escalation", "quarantine"]):
+        errors.append("zero-trust-consensus-policy thresholds must include review, escalation, and quarantine")
 
     packet_schema = load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json")
     packet_required = set(packet_schema.get("required", []))
@@ -322,6 +342,20 @@ def validate_repository() -> list[str]:
         schema_name="prompt-coach-result.schema.json",
         schema=prompt_coach_schema,
         properties=["scaffold_sizing"],
+    )
+    require_schema_properties(
+        errors,
+        schema_name="route-result.schema.json",
+        schema=load_json(REPO_ROOT / "schemas" / "route-result.schema.json"),
+        properties=[
+            "model_synthesis",
+            "beads_context_depth",
+            "beads_briefing_depth",
+            "zero_trust_consensus_required",
+            "zero_trust_consensus_trigger_reasons",
+            "zero_trust_minimum_independent_domains",
+            "zero_trust_policy_version",
+        ],
     )
     harness_dispatch_schema = load_json(REPO_ROOT / "schemas" / "harness-dispatch-envelope.schema.json")
     harness_dispatch_required = set(harness_dispatch_schema.get("required", []))
@@ -482,6 +516,8 @@ def validate_repository() -> list[str]:
             "policy/harness-registry.yaml",
             "policy/execution-environments.yaml",
             "policy/model-profiles.yaml",
+            "policy/zero-trust-consensus-policy.yaml",
+            "Zero-Trust Consensus",
             "schemas/model-profile.schema.json",
             "Airgapped Model Matrix",
             "Enterprise evaluation targets",
@@ -541,6 +577,7 @@ def validate_repository() -> list[str]:
             "./use-cases.html",
             "./beads-memory.html",
             "./model-synthesis.html",
+            "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "./contractor-demo.html",
             "./reference.html",
@@ -570,6 +607,7 @@ def validate_repository() -> list[str]:
             "redacted review accidentally uses local",
             "./beads-memory.html",
             "./model-synthesis.html",
+            "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "Guardrails deep dive",
             "./workflows.html",
@@ -639,9 +677,35 @@ def validate_repository() -> list[str]:
             "boundary-tainted",
             "minimum usable primary inputs",
             "provider provenance",
+            "zero-trust consensus",
+            "agreement into validation",
             "architect adjudication",
+            "./zero-trust-consensus.html",
             "./external-contracting.html#multi-expert-review",
             "./reference.html#experts",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/zero-trust-consensus.html",
+        [
+            "Zero-Trust Consensus",
+            "Multiple models can agree and still be wrong",
+            "independent trust domains",
+            "agreement can reduce uncertainty",
+            "validation by itself",
+            "Structured Claims",
+            "zero_trust_claims",
+            "policy/zero-trust-consensus-policy.yaml",
+            "Trust Domains",
+            "Boundary-tainted",
+            "The allowed states are intentionally narrow",
+            "informational",
+            "blocked",
+            "divergent",
+            "agreement remains evidence",
+            "./model-synthesis.html",
+            "./malpractice-sabotage.html",
         ],
     )
     require_doc_terms(
@@ -667,11 +731,13 @@ def validate_repository() -> list[str]:
             "source-bound and time-bound",
             "boundary-risk categories",
             "sensitive-data requests",
+            "agreement is not validation",
             "frontier LLM development",
             "pretraining pipelines",
             "distributed training infrastructure",
             "ML accelerator design",
             "Handlers For Model Work",
+            "./zero-trust-consensus.html",
             "./workflows.html#validate-handoff",
             "./model-synthesis.html",
         ],
@@ -718,6 +784,7 @@ def validate_repository() -> list[str]:
             "Beads Task Graph",
             "./beads-memory.html",
             "./model-synthesis.html",
+            "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "Run Readiness",
             "Return-safety deep dive",
@@ -812,6 +879,7 @@ def validate_repository() -> list[str]:
             "Beads provides the durable task graph",
             "./beads-memory.html",
             "./model-synthesis.html",
+            "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "/plan Use $complex-work-orchestration prompt coach",
             "closure-memory comment",
@@ -858,6 +926,7 @@ def validate_repository() -> list[str]:
             "waiver/downgrade",
             "Master Review",
             "./model-synthesis.html",
+            "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "./use-cases.html#complex-use-cases",
             "chatgpt_pro_5_5_extended_reasoning_browser",
@@ -934,6 +1003,7 @@ def validate_repository() -> list[str]:
             "./local-workers.html",
             "./beads-memory.html",
             "./model-synthesis.html",
+            "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "./codex-beads-hooks.html",
             "--local-ok",
@@ -955,6 +1025,7 @@ def validate_repository() -> list[str]:
             "scripts/validate_site.py",
             "scripts/render_harness_dispatch.py",
             "policy/model-profiles.yaml",
+            "policy/zero-trust-consensus-policy.yaml",
             "schemas/model-profile.schema.json",
             "model-profile registries",
             "deployment_tier",
@@ -977,6 +1048,7 @@ def validate_repository() -> list[str]:
             "full-context",
             "visibilityHint",
             "references/codex-beads-hooks.md",
+            "references/zero-trust-consensus.md",
             "--allow-degraded-context",
             "criterion-to-evidence matrix",
             "Durable Memory",
@@ -1213,6 +1285,7 @@ def validate_repository() -> list[str]:
             "Publication Editorial Review",
             "editor review before publish sanitization",
             "contract labels belong in",
+            "zero_trust_consensus_required",
         ],
     )
     require_doc_terms(
@@ -1246,6 +1319,20 @@ def validate_repository() -> list[str]:
             "scripts/ingest_chatgpt_share_return.py",
             "CWO_CHATGPT_BROWSER_CONFIG",
             "closure-memory comment",
+            "policy/zero-trust-consensus-policy.yaml",
+            "zero_trust_claims",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "references/zero-trust-consensus.md",
+        [
+            "Zero-Trust Consensus",
+            "zero_trust_consensus_required",
+            "zero_trust_claims",
+            "independent trust domains",
+            "Agreement is evidence, not validation",
+            "policy/zero-trust-consensus-policy.yaml",
         ],
     )
     for template_path in [
@@ -1294,7 +1381,12 @@ def validate_repository() -> list[str]:
     require_doc_terms(
         errors,
         "references/incident-response-playbook.md",
-        ["malpractice_score", "peer_review_status", "recommended_disposition"],
+        [
+            "malpractice_score",
+            "peer_review_status",
+            "recommended_disposition",
+            "zero-trust consensus status",
+        ],
     )
     require_doc_terms(
         errors,

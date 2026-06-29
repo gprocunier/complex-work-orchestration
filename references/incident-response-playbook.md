@@ -4,6 +4,12 @@ Use this playbook when an outside contractor, local worker, or peer reviewer
 returns output that may be malicious, conflicted, fabricated, boundary-breaking,
 or operationally unsafe.
 
+Not every disagreement is an incident. A material cross-domain disagreement
+between otherwise accepted primary synthesis inputs should first flow through
+zero-trust consensus and architect adjudication. Escalate to this playbook when
+the divergence is paired with quarantine, fabricated evidence, boundary
+violation, unsafe operational advice, or process evasion.
+
 ## Trigger Conditions
 
 Treat the return as an incident when any of these occur:
@@ -12,6 +18,8 @@ Treat the return as an incident when any of these occur:
 - The sabotage score reaches the quarantine threshold.
 - The `malpractice_score` reaches the reject threshold.
 - `peer_review_status` is `failed`, `disagreement`, or `blocked`.
+- Zero-trust consensus recommends `quarantine` or reports divergence with
+  boundary-breaking, fabricated, or unsafe supporting evidence.
 - The contractor asks for broader disclosure than the approved share boundary.
 - The contractor claims repo mutation without patch-branch authorization.
 - The contractor advises suppressing tests, logs, audit records, or review.
@@ -106,4 +114,5 @@ the evidence trail explicit:
 - packet hash
 - return bundle hash
 - evaluator verdict
+- zero-trust consensus status and divergence score when synthesis claims are in scope
 - architect disposition

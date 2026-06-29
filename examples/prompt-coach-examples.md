@@ -192,6 +192,26 @@ synthesis lane when scaffolding. The lane preserves separate model evidence,
 captures consensus and disagreement, carries evaluator dispositions for partial
 or rejected inputs, and remains input to architect adjudication.
 
+## Zero-Trust Consensus
+
+```text
+/plan Use $complex-work-orchestration prompt coach:
+Use zero-trust consensus for security-sensitive auth and TLS review.
+```
+
+Advanced helper equivalent:
+
+```bash
+python3 scripts/route_work.py --model-synthesis \
+  "Use zero-trust consensus for security-sensitive auth and TLS review."
+```
+
+Expected routing includes `zero_trust_consensus_required=true`,
+`zero_trust_consensus_trigger_reasons`, and
+`zero_trust_minimum_independent_domains=2`. Accepted primary synthesis lanes
+should carry explicit `zero_trust_claims`; agreement remains evidence, not
+validation.
+
 ## External Security Contractor
 
 ```text

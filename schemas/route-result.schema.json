@@ -15,6 +15,10 @@
     "beads_context_depth",
     "beads_briefing_depth",
     "beads_context_depth_provenance",
+    "zero_trust_consensus_required",
+    "zero_trust_consensus_trigger_reasons",
+    "zero_trust_minimum_independent_domains",
+    "zero_trust_policy_version",
     "model_synthesis"
   ],
   "properties": {
@@ -85,6 +89,10 @@
     "peer_review_labels": {"type": "array", "items": {"type": "string"}},
     "quarantine_on_fail": {"type": "boolean"},
     "local_secure_review_executor": {"type": ["string", "null"]},
+    "zero_trust_consensus_required": {"type": "boolean"},
+    "zero_trust_consensus_trigger_reasons": {"type": "array", "items": {"type": "string"}},
+    "zero_trust_minimum_independent_domains": {"type": "integer", "minimum": 1},
+    "zero_trust_policy_version": {"type": ["integer", "string", "null"]},
     "model_synthesis": {
       "type": "object",
       "required": [

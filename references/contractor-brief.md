@@ -206,4 +206,7 @@ architect adjudication is still required before Codex workers implement
 follow-up work. The acceptance decision may report advisory
 `recommended_synthesis_use`, but model-synthesis remains the authority that
 applies salvage-only policy and keeps weak or provider-conflicted returns out
-of primary consensus.
+of primary consensus. For security-sensitive synthesis, the coordinator may ask
+for explicit `zero_trust_claims` with stable claim IDs, categories, values, and
+evidence. Those claims are compared across independent trust domains; agreement
+is not validation, and material divergence is resolved by the architect.

@@ -202,6 +202,15 @@ architect gates. Rejected, quarantined, missing, empty, timed-out, or
 boundary-tainted inputs are carried forward as dispositions; they are not
 silently treated as consensus evidence.
 
+If the task explicitly asks for zero-trust consensus, cross-domain divergence
+handling, independent trust domains, or agreement-not-proof review, the route
+sets `zero_trust_consensus_required=true`. Security-sensitive implementation or
+architecture review can also activate this gate. The coach should surface that
+state as a synthesis acceptance gate, not as another contractor by itself:
+accepted primary lanes need structured `zero_trust_claims`, excluded lanes stay
+visible, and unresolved divergence blocks implementation conversion until the
+architect adjudicates it.
+
 Gemini/Agy architecture critique is salvage-only by default. It can contribute
 ideas, missing-case prompts, and risk notes, but it does not count toward
 `minimum_usable_inputs` for synthesis readiness. A Gemini/Agy return needs

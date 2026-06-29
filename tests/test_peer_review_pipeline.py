@@ -29,6 +29,24 @@ class PeerReviewPipelineTests(unittest.TestCase):
         self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
         self.assertEqual(by_lane["peer-review"]["metadata"]["codex_pickup"], "forbidden")
 
+    def test_internal_peer_review_route_inserts_review_evaluation_and_adjudication(self) -> None:
+        route = classify_work(
+            "Evaluate a contractor return for work_rerouting_or_subversion and non-equivalent substitution.",
+            share_boundary="redacted-packet",
+        )
+        self.assertNotEqual(route["route"], "external-contract")
+        self.assertTrue(route["peer_review_required"])
+        graph = planned_graph("Internal peer review", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertIn("peer-review", by_lane)
+        self.assertIn("evaluation", by_lane)
+        self.assertIn("architect-adjudication", by_lane)
+        self.assertEqual(by_lane["peer-review"]["depends_on_lanes"], ["architect"])
+        self.assertEqual(by_lane["evaluation"]["depends_on_lanes"], ["peer-review"])
+        self.assertEqual(by_lane["architect-adjudication"]["depends_on_lanes"], ["evaluation"])
+        self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
+
 
 if __name__ == "__main__":
     unittest.main()
