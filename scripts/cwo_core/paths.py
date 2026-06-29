@@ -93,7 +93,7 @@ def assert_safe_output_path(path: Path) -> Path:
             raise SystemExit(f"refusing to overwrite directory output path: {raw}")
         if raw.is_symlink():
             raise SystemExit(f"refusing symlink output path: {raw}")
-    parent = raw.parent if raw.parent != Path("") else Path.cwd()
+    parent = raw.parent
     if not parent.exists():
         raise SystemExit(f"output parent does not exist: {parent}")
     if not parent.is_dir():

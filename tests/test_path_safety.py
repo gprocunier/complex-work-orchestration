@@ -41,6 +41,7 @@ class PathSafetyTests(unittest.TestCase):
 
     def test_output_path_allows_repo_and_tmp_artifacts(self) -> None:
         self.assertEqual(assert_safe_output_path(ROOT / "review-output.json"), ROOT / "review-output.json")
+        self.assertEqual(assert_safe_output_path(Path("review-output.json")), ROOT / "review-output.json")
         tmp_path = Path(tempfile.gettempdir()) / "cwo-output-test.json"
         self.assertEqual(assert_safe_output_path(tmp_path), tmp_path)
 

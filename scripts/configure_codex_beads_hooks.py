@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cwo_core.util import atomic_write_text
+
 
 MANAGED_EVENTS = {
     "SessionStart": {
@@ -199,9 +201,55 @@ def load_existing_hooks(path: Path) -> dict[str, Any]:
         raise ConfigurationError(f"{path} is not valid JSON: {exc}") from exc
 
 
+def path_has_existing_symlink_component(path: Path) -> bool:
+    current = Path(path.anchor) if path.is_absolute() else Path.cwd()
+    parts = path.parts[1:] if path.is_absolute() else path.parts
+    for part in parts:
+        current = current / part
+        if current.exists() and current.is_symlink():
+            return True
+    return False
+
+
+def assert_safe_hooks_file_path(path: Path, *, project_dir: Path) -> Path:
+    raw = Path(path).expanduser()
+    if raw.name != "hooks.json":
+        raise ConfigurationError("hooks file override must target a hooks.json file")
+    if raw.exists():
+        if raw.is_dir():
+            raise ConfigurationError(f"refusing to overwrite directory hooks path: {raw}")
+        if raw.is_symlink():
+            raise ConfigurationError(f"refusing symlink hooks path: {raw}")
+    parent = raw.parent
+    if parent.name != ".codex":
+        raise ConfigurationError("hooks file must live in a .codex directory")
+    if parent.exists() and not parent.is_dir():
+        raise ConfigurationError(f"hooks file parent is not a directory: {parent}")
+    if path_has_existing_symlink_component(raw):
+        raise ConfigurationError(f"refusing hooks path with symlink component: {raw}")
+    nearest = parent
+    while not nearest.exists() and nearest != nearest.parent:
+        nearest = nearest.parent
+    if not nearest.exists() or not nearest.is_dir():
+        raise ConfigurationError(f"hooks file parent base does not exist: {parent}")
+    resolved = raw.resolve(strict=False)
+    allowed_roots = [project_dir.resolve(), Path.home().resolve()]
+    if not any(_path_is_relative_to(resolved, root) for root in allowed_roots):
+        raise ConfigurationError("hooks file must be inside the project directory or the operator home directory")
+    return resolved
+
+
+def _path_is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
 def write_hooks(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def build_result(
@@ -279,7 +327,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     project_dir = Path(args.project_dir).resolve()
-    hooks_file = Path(args.hooks_file).resolve() if args.hooks_file else project_dir / ".codex" / "hooks.json"
+    hooks_file = assert_safe_hooks_file_path(
+        Path(args.hooks_file).expanduser() if args.hooks_file else project_dir / ".codex" / "hooks.json",
+        project_dir=project_dir,
+    )
     support = detect_visibility_hint_support(args.codex_bin)
     warnings: list[str] = []
     try:

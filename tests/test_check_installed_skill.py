@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -15,6 +16,7 @@ from check_installed_skill import (  # noqa: E402
     installed_status,
     write_install_manifest,
 )
+from cwo_core import util as cwo_util  # noqa: E402
 
 
 class CheckInstalledSkillTests(unittest.TestCase):
@@ -90,6 +92,16 @@ class CheckInstalledSkillTests(unittest.TestCase):
         self.assertEqual(before["status"], "current")
         self.assertEqual(after["status"], "current")
         self.assertEqual(before["installed_content_sha256"], after["installed_content_sha256"])
+
+    def test_atomic_write_preserves_existing_file_when_replace_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = Path(tmpdir) / "manifest.json"
+            target.write_text("old\n", encoding="utf-8")
+            with patch("cwo_core.util.os.replace", side_effect=OSError("boom")):
+                with self.assertRaises(OSError):
+                    cwo_util.atomic_write_text(target, "new\n")
+            self.assertEqual(target.read_text(encoding="utf-8"), "old\n")
+            self.assertEqual(list(Path(tmpdir).glob(".manifest.json.*.tmp")), [])
 
 
 if __name__ == "__main__":

@@ -8,11 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.returns import (  # noqa: E402
+    SectionReader,
     classify_patch_authorization,
     evidence_items_from_sections,
     make_acceptance_decision,
     normalize_contractor_return,
     parse_return_sections,
+    section_value,
 )
 
 
@@ -177,6 +179,19 @@ Escalation needed: no
         self.assertIn("Attestation or reproducibility note", sections)
         self.assertIn("Risks or gaps", sections)
         self.assertIn("Recommended next bead", sections)
+
+    def test_section_reader_matches_section_value_compatibility_wrapper(self) -> None:
+        sections = parse_return_sections(
+            """Status: complete
+Share boundary conformance: stayed inside repo-readonly.
+Attestation/repro note: reproducible from packet.
+"""
+        )
+        reader = SectionReader(sections)
+
+        self.assertEqual(reader.value("Share-boundary conformance"), "stayed inside repo-readonly.")
+        self.assertEqual(reader.value("Attestation or reproducibility note"), "reproducible from packet.")
+        self.assertEqual(section_value(sections, "Share boundary conformance"), reader.value("Share-boundary conformance"))
 
     def test_patch_branch_proposal_does_not_require_direct_mutation(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")

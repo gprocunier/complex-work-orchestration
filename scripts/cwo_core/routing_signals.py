@@ -148,4 +148,18 @@ def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
 
 def explicit_openai_deep_research_requested(text: str) -> bool:
     """Return true for the separate ChatGPT Deep Research opt-in lane."""
-    return bool(_hits(text, ["deep research"]))
+    return bool(
+        _hits(text, ["deep research"])
+        and _hits(
+            text,
+            [
+                "openai",
+                "chatgpt",
+                "chat gpt",
+                "gpt",
+                "gpt-5",
+                "gpt 5",
+                "5.5 pro",
+            ],
+        )
+    )

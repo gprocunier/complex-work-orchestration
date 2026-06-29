@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from cwo_core.util import atomic_write_text
+
 
 SKILL_NAME = "complex-work-orchestration"
 INSTALL_MANIFEST_NAME = ".cwo-install-manifest.json"
@@ -193,7 +195,7 @@ def write_install_manifest(target_dir: Path, status: dict[str, Any]) -> Path:
         "source_file_count": status.get("source_file_count"),
         "installed_file_count": status.get("installed_file_count"),
     }
-    manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return manifest_path
 
 

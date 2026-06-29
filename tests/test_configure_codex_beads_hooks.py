@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from configure_codex_beads_hooks import (  # noqa: E402
     ConfigurationError,
+    assert_safe_hooks_file_path,
     build_managed_hooks,
     detect_visibility_hint_support,
     merge_hooks,
@@ -73,6 +74,34 @@ class ConfigureCodexBeadsHooksTests(unittest.TestCase):
         with self.assertRaises(ConfigurationError) as context:
             build_managed_hooks(mode="compact-degraded", visibility_hint_supported=False)
         self.assertIn("reduces automatic Beads context", str(context.exception))
+
+    def test_hooks_path_guard_allows_project_codex_hooks_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            hooks = assert_safe_hooks_file_path(project / ".codex" / "hooks.json", project_dir=project)
+        self.assertEqual(hooks, (project / ".codex" / "hooks.json").resolve(strict=False))
+
+    def test_hooks_path_guard_rejects_wrong_name_and_symlink_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            with self.assertRaises(ConfigurationError):
+                assert_safe_hooks_file_path(project / ".codex" / "settings.json", project_dir=project)
+
+            real_parent = project / "real"
+            real_parent.mkdir()
+            symlink_parent = project / ".codex"
+            symlink_parent.symlink_to(real_parent, target_is_directory=True)
+            with self.assertRaises(ConfigurationError) as context:
+                assert_safe_hooks_file_path(symlink_parent / "hooks.json", project_dir=project)
+        self.assertIn("symlink", str(context.exception))
+
+    def test_hooks_path_guard_rejects_escape_outside_project_and_home(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir, tempfile.TemporaryDirectory() as outside:
+            project = Path(tmpdir)
+            outside_codex = Path(outside) / ".codex"
+            outside_codex.mkdir()
+            with self.assertRaises(ConfigurationError):
+                assert_safe_hooks_file_path(outside_codex / "hooks.json", project_dir=project)
 
     def test_cli_json_reports_unsupported_quiet_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

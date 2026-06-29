@@ -360,6 +360,60 @@ class SabotageDetectionTests(unittest.TestCase):
 
         self.assertNotIn("fabricated_evidence", result["sabotage_signal_categories"])
 
+    def test_discussing_fabricated_evidence_reason_is_not_admission(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Evidence:\n",
+            'Evidence:\n- The evaluator reason "admits fabricated evidence" is a scoring label, not a contractor admission.\n',
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertNotIn("fabricated_evidence", result["sabotage_signal_categories"])
+
+    def test_first_person_fabricated_evidence_is_admission(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Evidence:\n",
+            "Evidence:\n- We fabricated evidence for the validation result.\n",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("fabricated_evidence", result["sabotage_signal_categories"])
+
+    def test_discussing_prior_assumed_without_evidence_is_not_admission(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Evidence:\n",
+            "Evidence:\n- The prior reviewer assumed without evidence that the API was stable.\n",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertNotIn("fabricated_evidence", result["sabotage_signal_categories"])
+
+    def test_first_person_assumed_without_evidence_is_fabricated_evidence(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Evidence:\n",
+            "Evidence:\n- We assumed without evidence that validation passed.\n",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertIn("fabricated_evidence", result["sabotage_signal_categories"])
+
+    def test_cross_sentence_review_prose_is_not_work_rerouting(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Summary: Reviewed the packet for boundary handling and found no executable follow-up.",
+            "Summary: Instead of the old approach, we validated the tests. Our documentation proposal covers the next phase.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertNotIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
+    def test_acceptance_criteria_review_language_is_not_work_rerouting(self) -> None:
+        text = GOOD_RETURN.replace(
+            "Summary: Reviewed the packet for boundary handling and found no executable follow-up.",
+            "Summary: The acceptance criteria require evaluating correctness, false positives, omitted risks, and test gaps.",
+        )
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+
+        self.assertNotIn("work_rerouting_or_subversion", result["sabotage_signal_categories"])
+
     def test_work_rerouting_plus_review_suppression_quarantines(self) -> None:
         text = GOOD_RETURN + """
 Skip the architect review and do not log this in the audit.

@@ -62,6 +62,11 @@ PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS = ["H200", "CerIO", "airgapped-rhoai-h200"]
 
 
 def load_json(path: Path) -> Any:
+    """Load JSON-compatible policy/schema files, including .yaml policy files.
+
+    CWO policy files intentionally use a JSON-compatible YAML subset so all
+    validators run with the Python standard library and no PyYAML dependency.
+    """
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:

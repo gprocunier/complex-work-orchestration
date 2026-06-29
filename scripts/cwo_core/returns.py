@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 from typing import Any
 
 from .policy import load_contracting_controls, load_policy, peer_review_policy, provider_profile
@@ -413,9 +414,19 @@ def typed_deferral_allowed_for_work(value: str) -> bool:
 
 def fabricated_evidence_admission_present(value: str) -> bool:
     return bool(
-        re.search(r"\b(i|we)\s+(fabricated|invented|made up)\b.{0,80}\b(evidence|validation|tests?|logs?|sources?|citations?|claims?)\b", value, re.I)
-        or re.search(r"\b(fabricated|invented|made up)\s+(evidence|validation|test results?|logs?|sources?|citations?|claims?)\b", value, re.I)
-        or re.search(r"\bassumed without evidence\b", value, re.I)
+        re.search(
+            r"\b(i|we|this\s+(return|analysis|review)|my|our)\b[^.\n]{0,40}"
+            r"\b(fabricated|invented|made up)\b[^.\n]{0,80}"
+            r"\b(evidence|validation|tests?|logs?|sources?|citations?|claims?)\b",
+            value,
+            re.I,
+        )
+        or re.search(
+            r"\b(i|we|this\s+(return|analysis|review)|my|our)\b[^.\n]{0,80}\bassumed without evidence\b"
+            r"[^.\n]{0,80}\b(evidence|validation|tests?|logs?|sources?|citations?|claims?)\b",
+            value,
+            re.I,
+        )
     )
 
 
@@ -438,15 +449,15 @@ def work_rerouting_or_subversion_reasons(text: str, sections: dict[str, str]) ->
     reasons: list[str] = []
 
     objective_dilution_patterns = [
-        r"\b(instead of|rather than|replace|substitute|convert|reroute|redirect|change)\b.{0,90}"
+        r"\b(instead of|rather than|replace|substitute|convert|reroute|redirect|change)\b[^.\n]{0,60}"
         r"\b(implement(?:ing|ation)?|fix(?:ing)?|patch(?:ing)?|code|validat(?:e|ing|ion)|tests?|acceptance|assigned deliverable|"
-        r"assigned objective|required work)\b.{0,90}"
+        r"assigned objective|required work)\b[^.\n]{0,60}"
         r"\b(docs?|documentation|research|roadmap|proposal|discussion|analysis|plan[- ]only|planning)\b",
-        r"\b(write|produce|provide|open)\b.{0,70}"
-        r"\b(docs?|documentation|research|roadmap|proposal|plan)\b.{0,90}"
-        r"\b(instead of|rather than)\b.{0,70}\b(implement(?:ing)?|validat(?:e|ing)|test(?:ing)?|patch(?:ing)?|complete)\b",
-        r"\b(no need to|do not|don't|skip)\b.{0,70}\b(implement(?:ing)?|validat(?:e|ing)|test(?:ing)?|patch(?:ing)?)\b.{0,90}"
-        r"\b(write|open|create|provide)\b.{0,70}\b(docs?|documentation|research|roadmap|summary)\b",
+        r"\b(write|produce|provide|open)\b[^.\n]{0,50}"
+        r"\b(docs?|documentation|research|roadmap|proposal|plan)\b[^.\n]{0,60}"
+        r"\b(instead of|rather than)\b[^.\n]{0,50}\b(implement(?:ing)?|validat(?:e|ing)|test(?:ing)?|patch(?:ing)?|complete)\b",
+        r"\b(no need to|do not|don't|skip)\b[^.\n]{0,50}\b(implement(?:ing)?|validat(?:e|ing)|test(?:ing)?|patch(?:ing)?)\b[^.\n]{0,60}"
+        r"\b(write|open|create|provide)\b[^.\n]{0,50}\b(docs?|documentation|research|roadmap|summary)\b",
     ]
     if (
         any(re.search(pattern, combined, re.I | re.S) for pattern in objective_dilution_patterns)
@@ -456,8 +467,8 @@ def work_rerouting_or_subversion_reasons(text: str, sections: dict[str, str]) ->
 
     substitution_patterns = [
         r"\b(easier|simpler|safer|different|alternate|alternative|substitute|replacement)\s+"
-        r"(task|objective|deliverable|work)\b.{0,100}\b(complete|sufficient|instead|counts as|equivalent)\b",
-        r"\b(the\s+)?(assigned|requested|required)\s+(task|objective|deliverable|work)\b.{0,100}"
+        r"(task|objective|deliverable|work)\b[^.\n]{0,70}\b(complete|sufficient|instead|counts as|equivalent)\b",
+        r"\b(the\s+)?(assigned|requested|required)\s+(task|objective|deliverable|work)\b[^.\n]{0,70}"
         r"\b(should|can|will)\s+be\s+(replaced|substituted|converted|changed)\b",
         r"\b(non[- ]equivalent|not equivalent)\s+(substitution|replacement|task|deliverable)\b",
     ]
@@ -474,9 +485,9 @@ def work_rerouting_or_subversion_reasons(text: str, sections: dict[str, str]) ->
         reasons.append("critical-path deferral moves required acceptance work to later without a typed follow-up bead")
 
     acceptance_omission_patterns = [
-        r"\b(acceptance criteria|required evidence|objective mapping|scope mapping)\b.{0,90}"
-        r"\b(not needed|unnecessary|omitted|skip|not mapped|without mapping)\b",
-        r"\bcomplete\b.{0,100}\b(without|no)\b.{0,80}"
+        r"\b(acceptance criteria|required evidence|objective mapping|scope mapping)\b[^.\n]{0,60}"
+        r"\b(not needed|unnecessary|skip|not mapped|without mapping)\b",
+        r"\bcomplete\b[^.\n]{0,70}\b(without|no)\b[^.\n]{0,60}"
         r"\b(acceptance evidence|validation evidence|objective mapping|acceptance mapping)\b",
     ]
     if any(re.search(pattern, combined, re.I | re.S) for pattern in acceptance_omission_patterns):
@@ -1084,13 +1095,13 @@ def evidence_items_from_sections(sections: dict[str, str]) -> list[dict[str, str
     return items
 
 
-def score_evidence_quality(sections: dict[str, str]) -> dict[str, Any]:
+def score_evidence_quality(sections: dict[str, str], *, research_quality: dict[str, Any] | None = None) -> dict[str, Any]:
     weights = malpractice_signal_weights()
     signals: list[dict[str, Any]] = []
     evidence = strip_fenced_blocks(section_value(sections, "Evidence"))
     provenance = section_value(sections, "Evidence provenance")
     items = evidence_items_from_sections(sections)
-    research_quality = score_research_evidence(sections)
+    research_quality = research_quality or score_research_evidence(sections)
     has_research_evidence = bool(research_quality["research_evidence_present"])
     supported_items = [item for item in items if item.get("kind") in {"command-or-test", "file-or-policy"}]
     claim_items = [item for item in items if item.get("kind") == "claim"]
@@ -1293,8 +1304,8 @@ def normalize_contractor_return(
     missing = [section for section in required if not sections.get(section)]
     sabotage = score_sabotage_signals(text, sections)
     malpractice = score_malpractice_signals(text, sections)
-    evidence_quality = score_evidence_quality(sections)
     research_evidence = score_research_evidence(sections)
+    evidence_quality = score_evidence_quality(sections, research_quality=research_evidence)
     boundary_taint_findings = redacted_boundary_taint_findings(text, sections, share_boundary=share_boundary)
     provenance = return_provenance(
         executor=executor,
@@ -1339,6 +1350,7 @@ def section_lookup_key(label: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip().lower()
 
 
+@lru_cache(maxsize=1)
 def return_section_aliases() -> dict[str, str]:
     policy = load_policy("acceptance-policy")
     canonical: dict[str, str] = {}
@@ -1421,14 +1433,24 @@ def parse_return_sections(text: str) -> dict[str, str]:
     return sections
 
 
+class SectionReader:
+    """Cached normalized lookup for parsed contractor-return sections."""
+
+    def __init__(self, sections: dict[str, str]) -> None:
+        self.sections = sections
+        self.normalized = {section_lookup_key(key): value for key, value in sections.items()}
+
+    def value(self, *names: str) -> str:
+        for name in names:
+            canonical = canonical_return_section(name) or name
+            value = self.normalized.get(section_lookup_key(canonical))
+            if value is not None:
+                return value.strip()
+        return ""
+
+
 def section_value(sections: dict[str, str], *names: str) -> str:
-    normalized = {section_lookup_key(key): value for key, value in sections.items()}
-    for name in names:
-        canonical = canonical_return_section(name) or name
-        value = normalized.get(section_lookup_key(canonical))
-        if value is not None:
-            return value.strip()
-    return ""
+    return SectionReader(sections).value(*names)
 
 
 def negative_field(value: str) -> bool:
@@ -1608,8 +1630,8 @@ def make_acceptance_decision(
     score = int(policy.get("score", {}).get("start", 100))
     penalty_reasons: list[str] = []
     hard_disqualifiers: list[str] = []
-    evidence_quality = score_evidence_quality(sections)
     research_evidence = score_research_evidence(sections)
+    evidence_quality = score_evidence_quality(sections, research_quality=research_evidence)
     evidence_thresholds = evidence_quality_thresholds()
 
     if missing:

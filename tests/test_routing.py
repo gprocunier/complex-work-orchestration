@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.routing import classify_work  # noqa: E402
+from cwo_core.routing_signals import explicit_openai_deep_research_requested  # noqa: E402
 
 
 class RoutingTests(unittest.TestCase):
@@ -62,6 +63,11 @@ class RoutingTests(unittest.TestCase):
         self.assertIn("local-worker-only", result["guard_labels"])
         self.assertIn("no-codex-exec", result["guard_labels"])
         self.assertTrue(result["evaluator_required"])
+
+    def test_openai_deep_research_requires_provider_co_signal(self) -> None:
+        self.assertFalse(explicit_openai_deep_research_requested("Do a deep research pass on this design."))
+        self.assertTrue(explicit_openai_deep_research_requested("Use ChatGPT Deep Research for this design."))
+        self.assertTrue(explicit_openai_deep_research_requested("Use OpenAI deep research for this design."))
 
 
 if __name__ == "__main__":

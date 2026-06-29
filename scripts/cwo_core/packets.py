@@ -79,6 +79,12 @@ def sanitize_bead(bead_json: Any, share_boundary: str) -> dict[str, Any]:
     forbidden = set(boundary.get("forbidden_fields", []))
     if isinstance(bead_json, list) and len(bead_json) == 1 and isinstance(bead_json[0], dict):
         bead_json = bead_json[0]
+    elif isinstance(bead_json, list):
+        return {
+            "raw_type": "list",
+            "item_count": len(bead_json),
+            "reason": "multi-item bead list requires explicit selection before sharing",
+        }
     if not isinstance(bead_json, dict):
         return {"raw_type": type(bead_json).__name__}
     source = bead_json.get("issue") if isinstance(bead_json.get("issue"), dict) else bead_json

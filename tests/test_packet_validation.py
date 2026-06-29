@@ -293,6 +293,19 @@ class PacketValidationTests(unittest.TestCase):
         self.assertEqual(summary["id"], "cwo-1")
         self.assertEqual(summary["title"], "Design review")
 
+    def test_multi_item_bead_list_fails_closed_with_ambiguity_reason(self) -> None:
+        summary = sanitize_bead(
+            [
+                {"id": "cwo-1", "title": "First"},
+                {"id": "cwo-2", "title": "Second"},
+            ],
+            "patch-branch",
+        )
+        self.assertEqual(summary["raw_type"], "list")
+        self.assertEqual(summary["item_count"], 2)
+        self.assertIn("explicit selection", summary["reason"])
+        self.assertNotIn("id", summary)
+
 
 if __name__ == "__main__":
     unittest.main()
