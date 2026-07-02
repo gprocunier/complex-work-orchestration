@@ -28,6 +28,7 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "disabled_levers",
     "workerbee_parallelism",
     "model_synthesis",
+    "operator_calibration",
     "route",
     "paste_ready_prompt",
     "warnings",
@@ -276,6 +277,106 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         ),
         "prompt_user_in_plan_mode": prompt_user,
         "suggested_lanes": suggested_lanes,
+        "rationale": rationale,
+    }
+
+
+def prompt_coach_operator_calibration_signal(text: str, route: dict[str, Any]) -> dict[str, Any]:
+    lower = text.lower()
+    required_terms = [
+        "clean-negative",
+        "clean negative",
+        "source-negative",
+        "source negative",
+        "runtime-negative",
+        "runtime negative",
+        "false closure",
+        "false clean",
+        "not run",
+        "not-run",
+        "skipped test",
+        "skipped tests",
+        "blocked by safety",
+        "safety-deferred",
+        "safety deferred",
+        "policy-blocked",
+        "authority-blocked",
+        "not safe",
+        "parked",
+        "exhausted",
+        "lane exhausted",
+        "pivot away",
+        "close this lane",
+        "close the lane",
+        "model disagreement",
+        "reviewer disagreement",
+        "reviewers disagree",
+        "models disagree",
+        "conflicting reviews",
+        "conflicting feedback",
+    ]
+    recommended_terms = [
+        "proceed autonomously",
+        "autonomous sprint",
+        "sprint loop",
+        "continuous autonomous",
+        "continue across",
+        "commit and push",
+        "publish",
+        "mirror",
+        "package",
+        "handoff artifact",
+        "artifact hygiene",
+        "source/live",
+        "source and live",
+        "source review",
+        "live execution",
+        "mixed evidence",
+        "inferred",
+        "multiple repos",
+        "multiple targets",
+        "independent workstreams",
+    ]
+    required_hits = term_hits(lower, required_terms)
+    recommended_hits = term_hits(lower, recommended_terms)
+    ranked_names = {
+        str(item.get("name"))
+        for item in route.get("ranked_experts", [])
+        if isinstance(item, dict) and item.get("name")
+    }
+    route_selected = "operator_calibrated_execution" in ranked_names
+
+    mode = "none"
+    rationale: list[str] = []
+    if required_hits:
+        mode = "required"
+        rationale.append(
+            "Closure-risk language is present; distinguish true technical negatives from unexecuted or safety-deferred paths."
+        )
+    elif recommended_hits or route_selected:
+        mode = "recommended"
+        if recommended_hits:
+            rationale.append(
+                "Autonomous, publish, push, mixed-evidence, or multi-scope language benefits from closeout calibration."
+            )
+        if route_selected:
+            rationale.append("The router selected operator-calibrated execution as a relevant expert.")
+    else:
+        rationale.append("No closure-risk or closeout-calibration signal is present.")
+
+    return {
+        "mode": mode,
+        "expert": "operator_calibrated_execution",
+        "job_description_label": "contract-jd-operator-calibrated-execution",
+        "trigger_reasons": (
+            required_hits
+            + recommended_hits
+            + (["route-selected-operator-calibrated-execution"] if route_selected else [])
+        ),
+        "acceptance_question": (
+            "Are we closing this because the hypothesis is disproven, or because the allowed execution path stopped short?"
+        ),
+        "prompt_user_in_plan_mode": False,
         "rationale": rationale,
     }
 
@@ -851,6 +952,7 @@ def prompt_coach_enabled_levers(
     model_synthesis: dict[str, Any] | None = None,
     scaffold_sizing: dict[str, Any] | None = None,
     beads_context_depth_signal: dict[str, Any] | None = None,
+    operator_calibration: dict[str, Any] | None = None,
 ) -> list[str]:
     levers = [
         f"route={route.get('route')}",
@@ -914,6 +1016,9 @@ def prompt_coach_enabled_levers(
             levers.append("model-synthesis-opt-in-choice")
         else:
             levers.append("model-synthesis-lane")
+    if operator_calibration and operator_calibration.get("mode") != "none":
+        levers.append(f"operator-calibrated-execution={operator_calibration.get('mode')}")
+        levers.append(str(operator_calibration.get("job_description_label")))
     return levers
 
 
@@ -965,6 +1070,7 @@ def prompt_coach_rationale(
     model_synthesis: dict[str, Any] | None = None,
     scaffold_sizing: dict[str, Any] | None = None,
     beads_context_depth_signal: dict[str, Any] | None = None,
+    operator_calibration: dict[str, Any] | None = None,
 ) -> list[str]:
     rationale = [
         f"Policy route is {route.get('route')} with {route.get('risk_level')} risk.",
@@ -1013,6 +1119,11 @@ def prompt_coach_rationale(
             f"{beads_context_depth_signal.get('beads_context_depth')} "
             f"({beads_context_depth_signal.get('beads_context_depth_source')})."
         )
+    if operator_calibration and operator_calibration.get("mode") != "none":
+        rationale.append(
+            "Operator-calibrated execution is "
+            f"{operator_calibration.get('mode')} for closure discipline and evidence calibration."
+        )
     if missing_questions:
         rationale.append("The generated prompt includes missing-question guardrails before execution.")
     return rationale
@@ -1023,6 +1134,7 @@ def prompt_coach_warnings(
     missing_questions: list[dict[str, str]],
     model_synthesis: dict[str, Any] | None = None,
     beads_context_depth_signal: dict[str, Any] | None = None,
+    operator_calibration: dict[str, Any] | None = None,
 ) -> list[str]:
     warnings: list[str] = []
     hard_stops = route.get("hard_stops") or []
@@ -1048,6 +1160,8 @@ def prompt_coach_warnings(
         and beads_context_depth_signal.get("beads_context_depth") in {"focused", "heavy", "audit"}
     ):
         warnings.append("Comment-bearing Beads briefs are internal only; outside contractors must receive redacted contractor packets.")
+    if operator_calibration and operator_calibration.get("mode") == "required":
+        warnings.append("Operator-calibrated execution is required before accepting the closeout disposition.")
     return warnings
 
 
@@ -1116,6 +1230,20 @@ def blocking_review_prompt_line(route: dict[str, Any]) -> str:
     )
 
 
+def operator_calibration_prompt_line(operator_calibration: dict[str, Any] | None) -> str:
+    if not operator_calibration or operator_calibration.get("mode") == "none":
+        return ""
+    question = operator_calibration.get("acceptance_question")
+    if operator_calibration.get("mode") == "required":
+        return (
+            "Add contract-jd-operator-calibrated-execution as a closure/evidence-calibration lane before accepting the disposition. "
+            f"Acceptance question: {question}\n"
+        )
+    return (
+        "Consider contract-jd-operator-calibrated-execution for closeout/evidence calibration if the result will be closed, parked, published, or pushed.\n"
+    )
+
+
 def render_coached_prompt(
     level: str,
     route: dict[str, Any],
@@ -1125,6 +1253,7 @@ def render_coached_prompt(
     model_synthesis: dict[str, Any] | None = None,
     scaffold_sizing: dict[str, Any] | None = None,
     beads_context_depth_signal: dict[str, Any] | None = None,
+    operator_calibration: dict[str, Any] | None = None,
 ) -> str:
     question_block = ""
     if missing_questions:
@@ -1136,6 +1265,7 @@ def render_coached_prompt(
     synthesis = synthesis_prompt_line(model_synthesis)
     beads_context = beads_context_prompt_line(beads_context_depth_signal)
     blocking_review = blocking_review_prompt_line(route)
+    operator_line = operator_calibration_prompt_line(operator_calibration)
     scaffold_line = ""
     if scaffold_sizing and scaffold_sizing.get("recommended_size") == "tight":
         scaffold_line = (
@@ -1150,6 +1280,7 @@ def render_coached_prompt(
             f"{synthesis}"
             f"{beads_context}"
             f"{blocking_review}"
+            f"{operator_line}"
             f"{scaffold_line}"
             "Create or update one Beads task for the work story, evidence, validation, and handoff. "
             "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
@@ -1164,6 +1295,7 @@ def render_coached_prompt(
             f"{synthesis}"
             f"{beads_context}"
             f"{blocking_review}"
+            f"{operator_line}"
             f"{scaffold_line}"
             "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
             "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
@@ -1177,6 +1309,7 @@ def render_coached_prompt(
             f"{synthesis}"
             f"{beads_context}"
             f"{blocking_review}"
+            f"{operator_line}"
             f"{scaffold_line}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
             "and any policy-required peer-review workstreams. Keep final decisions with the architect.\n"
@@ -1205,6 +1338,7 @@ def render_coached_prompt(
                 f"{synthesis}"
                 f"{beads_context}"
                 f"{blocking_review}"
+                f"{operator_line}"
                 f"{scaffold_line}"
                 f"Share boundary: {route.get('share_boundary')}.\n"
                 "Create one contractor-only/no-codex-exec Bead per selected architecture critic, all using "
@@ -1221,6 +1355,7 @@ def render_coached_prompt(
             f"{synthesis}"
             f"{beads_context}"
             f"{blocking_review}"
+            f"{operator_line}"
             f"{scaffold_line}"
             f"Share boundary: {route.get('share_boundary')}.\n"
             f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
@@ -1236,6 +1371,7 @@ def render_coached_prompt(
             f"{synthesis}"
             f"{beads_context}"
             f"{blocking_review}"
+            f"{operator_line}"
             f"{scaffold_line}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
             "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
@@ -1249,6 +1385,7 @@ def render_coached_prompt(
         f"{synthesis}"
         f"{beads_context}"
         f"{blocking_review}"
+        f"{operator_line}"
         f"{scaffold_line}"
         "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization workstreams. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
@@ -1312,6 +1449,7 @@ def coach_orchestration_prompt(
         "beads_context_depth_rationale",
         "beads_context_depth_provenance",
     ]}}
+    operator_calibration = prompt_coach_operator_calibration_signal(text, route)
     questions = prompt_coach_missing_questions(
         route,
         text,
@@ -1332,7 +1470,7 @@ def coach_orchestration_prompt(
     )
     return {
         "coach_result_type": "complex-work-orchestration-prompt-coach",
-        "version": 6,
+        "version": 7,
         "beads_tracking_required": True,
         "recommended_orchestration_level": level,
         "scaffold_sizing": scaffold_sizing,
@@ -1347,6 +1485,7 @@ def coach_orchestration_prompt(
             model_synthesis_config,
             scaffold_sizing,
             beads_context_depth_signal,
+            operator_calibration,
         ),
         "missing_questions": questions,
         "interactive_questions": interactive_questions,
@@ -1357,6 +1496,7 @@ def coach_orchestration_prompt(
             model_synthesis_config,
             scaffold_sizing,
             beads_context_depth_signal,
+            operator_calibration,
         ),
         "disabled_levers": prompt_coach_disabled_levers(
             level,
@@ -1368,6 +1508,7 @@ def coach_orchestration_prompt(
         ),
         "workerbee_parallelism": workerbee_parallelism,
         "model_synthesis": model_synthesis_config,
+        "operator_calibration": operator_calibration,
         "route": route,
         "paste_ready_prompt": render_coached_prompt(
             level,
@@ -1378,6 +1519,13 @@ def coach_orchestration_prompt(
             model_synthesis_config,
             scaffold_sizing,
             beads_context_depth_signal,
+            operator_calibration,
         ),
-        "warnings": prompt_coach_warnings(route, questions, model_synthesis_config, beads_context_depth_signal),
+        "warnings": prompt_coach_warnings(
+            route,
+            questions,
+            model_synthesis_config,
+            beads_context_depth_signal,
+            operator_calibration,
+        ),
     }

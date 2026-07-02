@@ -137,6 +137,33 @@ Publish, release, GitHub, tag, and upstream-push language recommends
 `publish-release`; the generated prompt must include validation evidence and
 publish-sanitization before any formal push, release, or tag.
 
+## Operator-Calibrated Execution
+
+`operator_calibration` tells the coach when to add the
+`contract-jd-operator-calibrated-execution` lens. This is not a global expert
+default. It is a closeout and evidence-discipline circuit breaker for work that
+could otherwise look complete because execution stopped early, safety limits
+blocked the natural path, or reviewers disagree about the disposition.
+
+The coach marks this lane `required` when task text includes false-closure or
+closure-risk language such as `clean-negative`, `source-negative`, `not run`,
+`blocked by safety`, `safety-deferred`, `parked`, `exhausted`, `pivot away`, or
+model/reviewer disagreement. The generated prompt must add
+`contract-jd-operator-calibrated-execution` before accepting the disposition
+and ask: "Are we closing this because the hypothesis is disproven, or because
+the allowed execution path stopped short?"
+
+The coach marks this lane `recommended` for autonomous sprint loops,
+commit/push or publish closeout, handoff artifacts, mixed source/live evidence,
+multi-target work, or when normal routing already selected the
+operator-calibrated execution expert. Recommended means the lane is useful for
+closeout calibration if the result will be closed, parked, published, or pushed;
+it does not block ordinary implementation by itself.
+
+Ordinary focused tasks, such as a typo fix or narrow docs edit, should keep
+`operator_calibration.mode=none` unless the request also contains one of the
+signals above.
+
 Broad implementation, contractor-reviewed plans, model synthesis, and
 publish/release-sensitive work should add a run readiness gate before worker
 handoff. Use `references/run-readiness.md` and

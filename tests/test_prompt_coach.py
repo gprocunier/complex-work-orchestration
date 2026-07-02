@@ -17,6 +17,7 @@ class PromptCoachTests(unittest.TestCase):
         result = coach_orchestration_prompt("Fix typo in README.md")
         self.assertEqual(result["recommended_orchestration_level"], "in-thread")
         self.assertEqual(result["model_synthesis"]["recommended_mode"], "none")
+        self.assertEqual(result["operator_calibration"]["mode"], "none")
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn(result["beads_context_depth"], {"summary", "focused"})
         self.assertEqual(result["beads_briefing_depth"], result["beads_context_depth"])
@@ -27,6 +28,48 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("full-harness", result["disabled_levers"])
         self.assertIn("model-synthesis-unselected", result["disabled_levers"])
         self.assertNotIn("beads-work-graph", result["disabled_levers"])
+
+    def test_safety_deferred_clean_negative_requires_operator_calibration(self) -> None:
+        result = coach_orchestration_prompt(
+            "Close this lane as clean-negative after safety-deferred live execution was not run."
+        )
+
+        self.assertEqual(result["operator_calibration"]["mode"], "required")
+        self.assertIn("clean-negative", result["operator_calibration"]["trigger_reasons"])
+        self.assertIn("not run", result["operator_calibration"]["trigger_reasons"])
+        self.assertIn("operator-calibrated-execution=required", result["enabled_levers"])
+        self.assertIn("contract-jd-operator-calibrated-execution", result["enabled_levers"])
+        self.assertIn("contract-jd-operator-calibrated-execution", result["paste_ready_prompt"])
+        self.assertIn("Are we closing this because the hypothesis is disproven", result["paste_ready_prompt"])
+        self.assertFalse(result["operator_calibration"]["prompt_user_in_plan_mode"])
+
+    def test_autonomous_commit_push_recommends_operator_calibration(self) -> None:
+        result = coach_orchestration_prompt(
+            "Proceed autonomously through the sprint loop, then commit and push the completed artifacts."
+        )
+
+        self.assertEqual(result["operator_calibration"]["mode"], "recommended")
+        self.assertIn("proceed autonomously", result["operator_calibration"]["trigger_reasons"])
+        self.assertIn("commit and push", result["operator_calibration"]["trigger_reasons"])
+        self.assertIn("operator-calibrated-execution=recommended", result["enabled_levers"])
+        self.assertIn("Consider contract-jd-operator-calibrated-execution", result["paste_ready_prompt"])
+
+    def test_model_disagreement_exhausted_lane_requires_operator_calibration(self) -> None:
+        result = coach_orchestration_prompt(
+            "Review conflicting feedback from two models before we mark the lane exhausted and pivot away."
+        )
+
+        self.assertEqual(result["operator_calibration"]["mode"], "required")
+        self.assertIn("pivot away", result["operator_calibration"]["trigger_reasons"])
+        self.assertIn("operator-calibrated-execution=required", result["enabled_levers"])
+
+    def test_ordinary_docs_task_does_not_add_operator_calibration_lever(self) -> None:
+        result = coach_orchestration_prompt("Fix typo in README.md")
+
+        self.assertEqual(result["operator_calibration"]["mode"], "none")
+        self.assertNotIn("operator-calibrated-execution=required", result["enabled_levers"])
+        self.assertNotIn("operator-calibrated-execution=recommended", result["enabled_levers"])
+        self.assertNotIn("contract-jd-operator-calibrated-execution", result["paste_ready_prompt"])
 
     def test_multi_session_work_recommends_lightweight_beads(self) -> None:
         result = coach_orchestration_prompt("Plan a multi-session cleanup of installer docs, tests, and handoff notes.")
@@ -448,12 +491,13 @@ class PromptCoachTests(unittest.TestCase):
         )
         result = json.loads(output)
         self.assertEqual(result["coach_result_type"], "complex-work-orchestration-prompt-coach")
-        self.assertEqual(result["version"], 6)
+        self.assertEqual(result["version"], 7)
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("paste_ready_prompt", result)
         self.assertIn("interactive_questions", result)
         self.assertIn("workerbee_parallelism", result)
         self.assertIn("model_synthesis", result)
+        self.assertIn("operator_calibration", result)
         self.assertIn("route", result)
         self.assertIn("beads_context_depth", result)
         self.assertIn("beads_context_depth_provenance", result)

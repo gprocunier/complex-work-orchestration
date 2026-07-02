@@ -384,6 +384,7 @@ contract-jd-reliability-reasoning
 contract-jd-performance-reasoning
 contract-jd-docs-reasoning
 contract-jd-editorial-reasoning
+contract-jd-operator-calibrated-execution
 contract-jd-peer-review
 contract-jd-sabotage-review
 contract-jd-domain-<name>

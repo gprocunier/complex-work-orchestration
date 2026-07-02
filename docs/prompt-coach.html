@@ -167,6 +167,16 @@ Publish-ready docs with validation and editorial review.</code></pre>
               unsupported claims, and risk changes. It is a review gate, not a
               way to let outside models own the plan.
             </div>
+            <div class="callout">
+              <strong>Operator calibration:</strong>
+              <code>operator_calibration</code> is a closeout discipline signal,
+              not a global default. The coach requires the operator-calibrated
+              execution lens when the prompt contains false-closure, not-run,
+              safety-deferred, exhausted-lane, or conflicting-review language.
+              It recommends the same lens for autonomous loops, publish,
+              commit/push, mixed-evidence, or multi-target work. Ordinary
+              focused tasks keep it off.
+            </div>
             <details>
               <summary><strong>Operator Reference: Model Synthesis Fields</strong></summary>
               <p>

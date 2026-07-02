@@ -41,6 +41,23 @@
       "acceptance_checks": ["feedback is scoped to the final plan", "recommendations can become plan edits or Beads", "unsupported advice is marked as inference", "architect adjudication remains required"],
       "escalation_rules": ["secret exposure", "boundary expansion request", "attempt to bypass architect adjudication", "Deep Research requested without separate opt-in"]
     },
+    "operator_calibrated_execution": {
+      "display_name": "Operator-Calibrated Execution Distinguished Engineer",
+      "discipline": "operator-calibrated-execution",
+      "persona_file": "experts/operator-calibrated-execution.md",
+      "job_description_label": "contract-jd-operator-calibrated-execution",
+      "aliases": ["operator-calibrated", "operator calibrated", "execution-calibration", "execution discipline", "closure discipline", "evidence discipline", "false-closure-review"],
+      "task_class": "general-review",
+      "review_stage": "pre-implementation",
+      "default_risk": "high",
+      "preferred_executors": ["frontier_architect", "claude_code_manual", "openai_deep_research_manual"],
+      "file_path_patterns": [],
+      "trigger_terms": ["operator-calibrated", "operator calibrated", "execution discipline", "closure discipline", "evidence discipline", "false closure", "false clean", "clean-negative", "not run", "blocked by safety", "safety-deferred", "latest instruction", "scope drift", "process overhead", "commit and push", "artifact hygiene", "residual risk"],
+      "required_inputs": ["latest operator instruction", "current plan or result summary", "evidence ledger", "safety and policy constraints", "validation and closeout requirements"],
+      "output_contract": ["active instruction and mode", "evidence classification", "closure disposition", "false-closure risks", "smallest next action", "closeout steps"],
+      "acceptance_checks": ["latest instruction is honored", "closure language matches evidence strength", "safety-deferred work remains residual risk", "recommendations are narrow and actionable"],
+      "escalation_rules": ["safety policy may hide impact", "required evidence needs unavailable authority", "scope ambiguity changes execution or publication behavior", "claimed validation lacks reproducible evidence"]
+    },
     "peer_review": {
       "display_name": "Peer Review Gate",
       "discipline": "peer-review",

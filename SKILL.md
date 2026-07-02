@@ -197,9 +197,14 @@ python3 scripts/coach_prompt.py "<task text>"
 
    Use the coach output to avoid under- or over-leveraging Beads, contractors,
    local inference, peer review, workerbee parallelism, model synthesis, or
-   publish-sanitization. The coach always includes a subagent parallelization
-   choice in `interactive_questions`; surface it in Plan mode even when the
-   recommended default is no subagents. If
+   publish-sanitization. The coach also returns `operator_calibration`: require
+   `contract-jd-operator-calibrated-execution` for false-closure,
+   safety-deferred, not-run, exhausted-lane, or conflicting-review closeout
+   language; recommend it for autonomous loops, commit/push, publish,
+   mixed-evidence, and multi-target work. Do not treat that expert as a global
+   default for ordinary focused tasks. The coach always includes a subagent
+   parallelization choice in `interactive_questions`; surface it in Plan mode
+   even when the recommended default is no subagents. If
    `workerbee_parallelism.recommended_mode` is `review-only` or `heavy-review`,
    use Codex 5.3 Spark when available, or the smallest available capable review
    model, for bounded parallel review or investigation lanes before automatic
@@ -487,6 +492,9 @@ peer-review gates, and editor gates; guard labels such as `contractor-only` or
 - `contract-jd-architecture-reasoning`: system design, boundaries, coupling, migration paths, data flow, long-term maintainability, and reversibility.
 - `contract-jd-master-plan-review`: independent master review of the final
   execution plan or total work packet before implementation handoff.
+- `contract-jd-operator-calibrated-execution`: execution discipline, evidence
+  classification, scope control, safety-deferred residual risk, false-closure
+  checks, and requested closeout.
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery, observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost, resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing warnings, examples, and publishability.
