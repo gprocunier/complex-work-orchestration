@@ -74,6 +74,9 @@ other discipline-specific contract into a generic project review.
   paths, data flow, maintainability, and reversibility.
 - `contract-jd-master-plan-review`: final execution plan or total work packet
   review before implementation handoff.
+- `contract-jd-operator-calibrated-execution`: execution discipline, evidence
+  classification, scope control, safety-deferred residual risk, false-closure
+  checks, and requested closeout.
 - `contract-jd-peer-review`: independent gate for contractor or local-worker
   returns before implementation use.
 - `contract-jd-sabotage-review`: integrity review for suspected sabotage,

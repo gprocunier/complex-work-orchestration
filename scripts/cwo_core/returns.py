@@ -375,6 +375,7 @@ def non_implementation_review_job(sections: dict[str, str]) -> bool:
         re.search(
             r"\bcontract-jd-(general|security|architecture|reliability|performance|docs|editorial)-reasoning\b"
             r"|\bcontract-jd-(master-plan-review|peer-review|sabotage-review)\b"
+            r"|\bcontract-jd-operator-calibrated-execution\b"
             r"|\bcontract-jd-(domain|redhat)-[a-z0-9-]+\b",
             job,
             re.I,

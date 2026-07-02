@@ -487,6 +487,9 @@ peer-review gates, and editor gates; guard labels such as `contractor-only` or
 - `contract-jd-architecture-reasoning`: system design, boundaries, coupling, migration paths, data flow, long-term maintainability, and reversibility.
 - `contract-jd-master-plan-review`: independent master review of the final
   execution plan or total work packet before implementation handoff.
+- `contract-jd-operator-calibrated-execution`: execution discipline, evidence
+  classification, scope control, safety-deferred residual risk, false-closure
+  checks, and requested closeout.
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery, observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost, resource pressure, hot paths, caching, and benchmark gaps.
 - `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing warnings, examples, and publishability.

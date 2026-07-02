@@ -1235,6 +1235,9 @@ up the work.
   migration paths, data flow, maintainability, and reversibility.
 - `contract-jd-master-plan-review`: independent master review of the final
   execution plan or total work packet before handoff to implementation.
+- `contract-jd-operator-calibrated-execution`: execution discipline, evidence
+  classification, scope control, safety-deferred residual risk, false-closure
+  checks, and requested closeout.
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery,
   observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost,

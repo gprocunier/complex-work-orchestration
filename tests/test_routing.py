@@ -69,6 +69,17 @@ class RoutingTests(unittest.TestCase):
         self.assertTrue(explicit_openai_deep_research_requested("Use ChatGPT Deep Research for this design."))
         self.assertTrue(explicit_openai_deep_research_requested("Use OpenAI deep research for this design."))
 
+    def test_operator_calibrated_execution_can_be_requested_explicitly(self) -> None:
+        result = classify_work(
+            "Review whether this sprint result is a true clean-negative or a safety-deferred not-run.",
+            requested_roles=["operator-calibrated"],
+        )
+
+        primary = result["ranked_experts"][0]
+        self.assertEqual(primary["name"], "operator_calibrated_execution")
+        self.assertEqual(primary["job_description_label"], "contract-jd-operator-calibrated-execution")
+        self.assertIn("closure disposition", primary["output_contract"])
+
 
 if __name__ == "__main__":
     unittest.main()
