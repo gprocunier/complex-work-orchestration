@@ -52,6 +52,13 @@ Generated run sheets and wrap-up/status reports must be regenerated from Beads
 plus validation, evaluation, and adjudication records. Do not edit them as a
 parallel work database.
 
+When `adjudication_record` declares accepted, rejected, or quarantined findings,
+it must also include `evidence_refs` entries with `artifact`, `artifact_type`,
+and lowercase SHA-256. The wrap-up/status projection renders those refs so the
+architect decision is bound to evaluator, contractor-return, synthesis,
+validation, or Beads-comment evidence instead of relying on self-attested
+finding text alone.
+
 Allowed `artifact_authority.projections[].type` values are `run-sheet`,
 `wrap-up-status`, and `next-version`. Each projection must declare
 `canonical_source: beads` and either a `source_command` or `source_bead`.

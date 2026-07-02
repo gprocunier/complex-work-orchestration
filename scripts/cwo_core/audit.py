@@ -37,9 +37,12 @@ def count_audit_events(
     epic_id: str | None,
     executor_external: bool,
     *,
-    ignore_dispatch_id: str | None = None,
+    ignore_reserved_dispatch_id: str | None = None,
+    ignore_reserved_packet_sha256: str | None = None,
 ) -> int:
-    unique_dispatches: set[str] = set()
+    reserved: set[tuple[str, str]] = set()
+    consumed_reserved: set[tuple[str, str]] = set()
+    consumed_events: set[str] = set()
     for event in iter_audit_events():
         if event.get("quota_event_type") != event_type:
             continue
@@ -52,10 +55,24 @@ def count_audit_events(
         if bool(event.get("executor_external")) != executor_external:
             continue
         dispatch_id = str(event.get("dispatch_id") or event.get("event_hash") or json.dumps(event, sort_keys=True))
-        if ignore_dispatch_id and dispatch_id == ignore_dispatch_id:
+        packet_sha256 = str(event.get("packet_sha256") or "")
+        is_reserved = event.get("quota_stage") == "reserved" or event.get("event_type") == "packet_built"
+        if is_reserved:
+            if (
+                ignore_reserved_dispatch_id
+                and dispatch_id == ignore_reserved_dispatch_id
+                and (
+                    ignore_reserved_packet_sha256 is None
+                    or packet_sha256 == ignore_reserved_packet_sha256
+                )
+            ):
+                continue
+            reserved.add((dispatch_id, packet_sha256 or str(event.get("event_hash") or "")))
             continue
-        unique_dispatches.add(dispatch_id)
-    return len(unique_dispatches)
+        consumed_events.add(str(event.get("event_hash") or json.dumps(event, sort_keys=True)))
+        if packet_sha256:
+            consumed_reserved.add((dispatch_id, packet_sha256))
+    return len(consumed_events) + len(reserved - consumed_reserved)
 
 
 def enforce_contracting_quota(
@@ -64,6 +81,7 @@ def enforce_contracting_quota(
     route: str,
     *,
     dispatch_id: str | None = None,
+    packet_sha256: str | None = None,
 ) -> dict[str, Any]:
     controls = load_contracting_controls()
     quotas = controls.get("quota_policy", {})
@@ -86,7 +104,13 @@ def enforce_contracting_quota(
     limit = int(quotas.get(quota_key, 0))
     if limit <= 0:
         raise SystemExit(f"quota {quota_key} is not configured")
-    used = count_audit_events(quota_event_type, epic_id, is_external, ignore_dispatch_id=dispatch_id)
+    used = count_audit_events(
+        quota_event_type,
+        epic_id,
+        is_external,
+        ignore_reserved_dispatch_id=dispatch_id,
+        ignore_reserved_packet_sha256=packet_sha256,
+    )
     remaining_before = limit - used
     if remaining_before <= 0:
         scope = epic_id or "global"
@@ -98,6 +122,53 @@ def enforce_contracting_quota(
         "quota_remaining": remaining_before - 1,
         "executor_external": is_external,
     }
+
+
+def matching_audit_events(
+    *,
+    event_type: str | None = None,
+    dispatch_id: str | None = None,
+    bead_id: str | None = None,
+    packet_sha256: str | None = None,
+    prompt_sha256: str | None = None,
+    audit_file: Path | None = None,
+) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for event in iter_audit_events(audit_file):
+        if event_type is not None and event.get("event_type") != event_type:
+            continue
+        if dispatch_id is not None and event.get("dispatch_id") != dispatch_id:
+            continue
+        if bead_id is not None and event.get("bead_id") != bead_id:
+            continue
+        if packet_sha256 is not None and event.get("packet_sha256") != packet_sha256:
+            continue
+        if prompt_sha256 is not None and event.get("prompt_sha256") != prompt_sha256:
+            continue
+        matches.append(event)
+    return matches
+
+
+def require_packet_build_audit(
+    *,
+    dispatch_id: str,
+    bead_id: str | None,
+    packet_sha256: str,
+    audit_file: Path | None = None,
+) -> dict[str, Any]:
+    matches = matching_audit_events(
+        event_type="packet_built",
+        dispatch_id=dispatch_id,
+        bead_id=bead_id,
+        packet_sha256=packet_sha256,
+        audit_file=audit_file,
+    )
+    if not matches:
+        raise SystemExit(
+            "packet dispatch requires a matching packet_built audit event "
+            f"for dispatch_id={dispatch_id} packet_sha256={packet_sha256}"
+        )
+    return matches[-1]
 
 
 def record_audit_event(event: dict[str, Any], audit_file: Path | None = None) -> dict[str, Any]:
@@ -190,6 +261,7 @@ def verify_audit_log(audit_file: Path | None = None) -> dict[str, Any]:
         expected_previous = event.get("previous_event_hash")
         if previous_hash and expected_previous is None:
             unlinked_events += 1
+            errors.append(f"line {index}: previous_event_hash missing")
         elif previous_hash and expected_previous != previous_hash:
             errors.append(f"line {index}: previous_event_hash mismatch")
         if not previous_hash and expected_previous:

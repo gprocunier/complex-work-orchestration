@@ -34,6 +34,16 @@ class PolicyCacheTests(unittest.TestCase):
         self.assertEqual(read_count, 1)
         self.assertNotIn("mutated", second)
 
+    def test_duplicate_json_keys_are_rejected(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "policy.yaml"
+            path.write_text('{"a": 1, "a": 2}', encoding="utf-8")
+            with self.assertRaises(SystemExit) as exc:
+                policy.load_json_compatible_yaml(path)
+        self.assertIn("duplicate key", str(exc.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

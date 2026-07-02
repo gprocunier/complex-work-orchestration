@@ -8,6 +8,7 @@ from typing import Any
 
 from cwo_core.beads import show_bead_json
 from cwo_core.paths import assert_safe_output_path
+from cwo_core.packets import fenced_block, redact_value
 from cwo_core.routing import COMMENT_BEARING_BEADS_CONTEXT_DEPTHS, normalize_beads_context_depth
 from cwo_core.util import atomic_write_text
 
@@ -67,8 +68,8 @@ def comment_entries(bead: dict[str, Any], max_comments: int) -> list[dict[str, A
                 "id": comment.get("id"),
                 "author": comment.get("author"),
                 "created_at": comment.get("created_at"),
-                "status": status_for_text(text),
-                "text": compact_text(text, 1600),
+                "status": "unknown",
+                "text": compact_text(redact_value(text), 1600),
             }
         )
     return entries
@@ -84,9 +85,9 @@ def issue_summary(bead: dict[str, Any]) -> dict[str, Any]:
         "issue_type": bead.get("issue_type"),
         "parent": bead.get("parent"),
         "labels": [str(label) for label in labels],
-        "description": compact_text(bead.get("description")),
-        "design": compact_text(bead.get("design")),
-        "notes": compact_text(bead.get("notes")),
+        "description": compact_text(redact_value(bead.get("description"))),
+        "design": compact_text(redact_value(bead.get("design"))),
+        "notes": compact_text(redact_value(bead.get("notes"))),
     }
 
 
@@ -206,7 +207,7 @@ def render_markdown(brief: dict[str, Any]) -> str:
                 lines.append(f"- {key}: {entry[key]}")
         text = entry.get("text") or entry.get("description") or entry.get("notes") or entry.get("design")
         if text:
-            lines.extend(["", "```text", str(text), "```"])
+            lines.extend(["", fenced_block(text, "text")])
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 

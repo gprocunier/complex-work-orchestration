@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -27,6 +28,26 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("CONTRACTOR RETURN TEMPLATE - COPY EXACTLY", prompt)
         self.assertIn("Output only the contractor return", prompt)
         self.assertIn("Do not include a preamble", prompt)
+
+    def test_raw_external_manual_prompt_cli_requires_degraded_flag(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "generate_manual_dispatch_prompt.py"),
+                "Security review the contractor redaction flow.",
+                "--external-ok",
+                "--share-boundary",
+                "redacted-packet",
+                "--requested-role",
+                "security",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("external manual prompts require --packet", result.stderr)
 
     def test_packet_prompt_contains_assignment_and_required_sections(self) -> None:
         packet = {

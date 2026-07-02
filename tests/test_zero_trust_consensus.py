@@ -224,6 +224,29 @@ class ZeroTrustConsensusTests(unittest.TestCase):
         self.assertEqual(zero["independent_trust_domain_count"], 2)
         self.assertEqual(zero["consensus_status"], "informational")
 
+    def test_self_declared_trust_domain_without_provider_metadata_is_excluded(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "spoofed",
+                    "trust_domain": "anthropic",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("auth", "jwt_algorithms", "RS256 only")],
+                },
+                {
+                    "lane": "chatgpt",
+                    "provider_family": "openai",
+                    "disposition": "accepted",
+                    "zero_trust_claims": [claim("auth", "jwt_algorithms", "RS256 only")],
+                },
+            ],
+            zero_trust_required=True,
+        )
+
+        zero = result["zero_trust_consensus"]
+        self.assertEqual(zero["independent_trust_domain_count"], 1)
+        self.assertEqual(zero["consensus_status"], "blocked")
+
     def test_partial_four_domain_divergence_can_quarantine(self) -> None:
         result = evaluate_synthesis_inputs(
             [

@@ -69,6 +69,9 @@ class ScaffoldTests(unittest.TestCase):
         self.assertTrue(local_review_lanes)
         self.assertIn("evaluation", by_lane)
         self.assertIn("architect-adjudication", by_lane)
+        self.assertEqual(by_lane["external-dispatch"]["metadata"]["codex_pickup"], "forbidden")
+        self.assertIn("local-worker-only", by_lane["external-dispatch"]["labels"])
+        self.assertIn("no-codex-exec", by_lane["external-dispatch"]["labels"])
         for lane in local_review_lanes:
             item = by_lane[lane]
             self.assertEqual(item["metadata"]["codex_pickup"], "forbidden")

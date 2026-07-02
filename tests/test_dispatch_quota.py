@@ -48,9 +48,11 @@ class DispatchQuotaTests(unittest.TestCase):
                     {
                         "event_type": "packet_built",
                         "quota_event_type": "external_manual_dispatch",
+                        "quota_stage": "reserved",
                         "dispatch_id": "dispatch-same",
                         "epic_id": "epic-1",
                         "executor_external": True,
+                        "packet_sha256": "packet-sha",
                     }
                 )
                 result = lib.enforce_contracting_quota(
@@ -58,8 +60,37 @@ class DispatchQuotaTests(unittest.TestCase):
                     "claude_code_manual",
                     "external-contract",
                     dispatch_id="dispatch-same",
+                    packet_sha256="packet-sha",
                 )
                 self.assertEqual(result["quota_remaining"], 4)
+            finally:
+                lib.AUDIT_LOG = original_audit
+
+    def test_reused_dispatch_id_counts_multiple_consumed_dispatch_rows(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            try:
+                for index in range(2):
+                    lib.record_audit_event(
+                        {
+                            "event_type": "dispatch_prepared",
+                            "quota_event_type": "external_manual_dispatch",
+                            "quota_stage": "consumed",
+                            "dispatch_id": "dispatch-reused",
+                            "epic_id": "epic-1",
+                            "executor_external": True,
+                            "packet_sha256": f"packet-{index}",
+                        }
+                    )
+                result = lib.enforce_contracting_quota(
+                    "epic-1",
+                    "claude_code_manual",
+                    "external-contract",
+                    dispatch_id="dispatch-reused",
+                    packet_sha256="packet-new",
+                )
+                self.assertEqual(result["quota_remaining"], 2)
             finally:
                 lib.AUDIT_LOG = original_audit
 

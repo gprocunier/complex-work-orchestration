@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
 from .policy import load_policy
@@ -306,6 +307,11 @@ def validate_harness_dispatch_envelope(envelope: dict[str, Any]) -> list[str]:
     requirements = envelope.get("capability_requirements")
     if not isinstance(requirements, dict):
         errors.append("harness dispatch envelope capability_requirements must be an object")
+    prompt = envelope.get("prompt")
+    if not isinstance(prompt, str):
+        errors.append("harness dispatch envelope prompt must be a string")
+    elif envelope.get("prompt_sha256") != artifact_hash(prompt):
+        errors.append("harness dispatch envelope prompt_sha256 does not match prompt")
     return errors
 
 
@@ -458,11 +464,11 @@ def _suggested_command(
     if harness_key == "opencode":
         parts = ["opencode", "run", "--dir", "<repo>", "--format", "json"]
         if agent:
-            parts.extend(["--agent", agent])
+            parts.extend(["--agent", shlex.quote(agent)])
         if model:
-            parts.extend(["--model", model])
+            parts.extend(["--model", shlex.quote(model)])
         if variant:
-            parts.extend(["--variant", variant])
+            parts.extend(["--variant", shlex.quote(variant)])
         parts.append('"$(cat <prompt-file>)"')
         return " ".join(parts)
     if harness_key == "manual_operator":

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,13 @@ ALLOWED_NEXT_VERSION_REASONS = {
     "hardening",
     "later-version",
     "blocked",
+}
+ALLOWED_ADJUDICATION_EVIDENCE_TYPES = {
+    "beads-comment",
+    "contractor-return",
+    "evaluator-result",
+    "synthesis-result",
+    "validation-log",
 }
 REQUIRED_PATROL_EVIDENCE = {
     "ownership",
@@ -268,6 +276,27 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     for field in ["accepted_findings", "rejected_findings", "quarantined_findings"]:
         if not isinstance(adjudication.get(field), list):
             errors.append(f"adjudication_record.{field} must be a list")
+    adjudicated_findings = [
+        item
+        for field in ["accepted_findings", "rejected_findings", "quarantined_findings"]
+        for item in _list(adjudication.get(field))
+        if str(item).strip()
+    ]
+    evidence_refs = _list(adjudication.get("evidence_refs"))
+    if adjudicated_findings and not evidence_refs:
+        errors.append("adjudication_record.evidence_refs must bind adjudicated findings to evaluator/adjudication artifacts")
+    for index, item in enumerate(evidence_refs):
+        ref = _dict(item)
+        prefix = f"adjudication_record.evidence_refs[{index}]"
+        if not _nonempty_string(ref.get("artifact")):
+            errors.append(f"{prefix}.artifact is required")
+        if ref.get("artifact_type") not in ALLOWED_ADJUDICATION_EVIDENCE_TYPES:
+            errors.append(
+                f"{prefix}.artifact_type must be one of: "
+                + ", ".join(sorted(ALLOWED_ADJUDICATION_EVIDENCE_TYPES))
+            )
+        if not re.fullmatch(r"[0-9a-f]{64}", str(ref.get("sha256", ""))):
+            errors.append(f"{prefix}.sha256 must be a lowercase SHA-256 hex digest")
 
     return errors
 

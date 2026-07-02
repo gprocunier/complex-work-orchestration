@@ -95,6 +95,22 @@ class RunReadinessPlanTests(unittest.TestCase):
         self.assertIn("artifact_authority.projections[0].canonical_source must be beads", errors)
         self.assertIn("artifact_authority.projections[0] must declare source_command or source_bead", errors)
 
+    def test_adjudication_findings_require_bound_evidence_refs(self) -> None:
+        plan = copy.deepcopy(sample_plan())
+        plan["adjudication_record"].pop("evidence_refs", None)
+
+        errors = "\n".join(validate_plan(plan))
+        self.assertIn("adjudication_record.evidence_refs must bind adjudicated findings", errors)
+
+    def test_adjudication_evidence_refs_require_known_type_and_sha(self) -> None:
+        plan = copy.deepcopy(sample_plan())
+        plan["adjudication_record"]["evidence_refs"][0]["artifact_type"] = "note"
+        plan["adjudication_record"]["evidence_refs"][0]["sha256"] = "not-a-sha"
+
+        errors = "\n".join(validate_plan(plan))
+        self.assertIn("adjudication_record.evidence_refs[0].artifact_type must be one of:", errors)
+        self.assertIn("adjudication_record.evidence_refs[0].sha256 must be a lowercase SHA-256 hex digest", errors)
+
     def test_rubric_criterion_ids_must_match_evidence_matrix(self) -> None:
         plan = copy.deepcopy(sample_plan())
         plan["rubric"]["criterion_ids"].append("missing-criterion")

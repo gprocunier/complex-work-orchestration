@@ -388,13 +388,14 @@ python3 scripts/render_harness_dispatch.py \
 ```
 
 The renderer does not run OpenCode. It produces a versioned prompt envelope
-with lifecycle state `rendered`, prompt hash, capability requirements,
-constraints, selected `model_profile`, sanitized model profile details,
-suggested command, timeout, and harness metadata so an operator or future
-adapter can execute under the selected environment boundary. If the role has a
-model profile in `policy/execution-environments.yaml`, the renderer resolves it
-automatically. Use `--model-profile` for an explicit approved profile or
-`--model` for an operator override; the two flags are mutually exclusive.
+with lifecycle state `rendered`, a prompt hash bound to the rendered prompt,
+capability requirements, constraints, selected `model_profile`, sanitized model
+profile details, a shell-quoted suggested command, timeout, and harness metadata
+so an operator or future adapter can execute under the selected environment
+boundary. If the role has a model profile in
+`policy/execution-environments.yaml`, the renderer resolves it automatically.
+Use `--model-profile` for an explicit approved profile or `--model` for an
+operator override; the two flags are mutually exclusive.
 
 Non-trivial closed Beads should also receive a final closure-memory comment
 before `bd close`. Keep `close_reason` short; put reusable context in the
@@ -587,11 +588,15 @@ binding, and expert profile for outside or local review.
   default.
 - `scripts/generate_manual_dispatch_prompt.py`: turn an approved packet into a
   manual prompt for Claude, Gemini, OpenAI deep research, or another contractor.
+  Raw external prompts are an explicit degraded/operator path and require
+  `--allow-raw-manual-prompt`; normal external dispatch starts from a validated
+  packet.
 - `scripts/dispatch_work.py`: revalidate a contractor handoff packet, record a manual
   dispatch event by default, and produce the prompt without claiming that an
   external model was called automatically. Direct dispatch can use
   `--dispatch-id` so quota checks, output, and audit records share the same
-  identity.
+  identity. Packet dispatch requires the matching `packet_built` audit row
+  unless the operator explicitly uses `--allow-unlinked-packet`.
 - `scripts/chatgpt_browser_review.py`: opt-in browser dispatch for a redacted
   master-plan review with `chatgpt_pro_5_5_extended_reasoning_browser`.
   Configure it with `CWO_CHATGPT_BROWSER_CONFIG`; keep the config outside the
@@ -626,13 +631,15 @@ binding, and expert profile for outside or local review.
 - `scripts/verify_audit_log.py`: verify audit event hashes and hash-chain links.
 - `scripts/record_audit_event.py`: append a local audit entry for routing,
   packet, dispatch, evaluation, and adjudication events. New entries include a
-  previous-event hash when a prior event exists.
+  previous-event hash when a prior event exists. Packet build rows reserve
+  quota; dispatch rows consume it, so reusing a dispatch ID does not bypass the
+  external/local dispatch quota.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
   graph state.
 - `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
   before worker handoff, including owners, exit conditions, evidence mapping,
   authority rules, typed projections, quarantine handling, boundary negative
-  tests, and handoff evidence.
+  tests, adjudication evidence refs with SHA-256 bindings, and handoff evidence.
 - `scripts/render_run_projection.py`: render non-authoritative run sheet,
   wrap-up/status, or next-version projections from a validated readiness plan.
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
@@ -1344,8 +1351,9 @@ share boundary, `allowed_external_executors`, decision source, timezone-aware
 timestamp, scope, and optional expiry; see `examples/sample-opt-in-record.json`.
 Legacy records with `allowed_executors` still validate for compatibility. Pass
 `--epic <id>` when the contract belongs to a durable epic so quota checks are
-scoped to that epic. Without `--epic`, the helper uses the global dispatch
-bucket for quota accounting.
+scoped to that epic. If the record includes `bead_id` or `epic_id`, those fields
+must match the packet's assigned Bead and epic. Without `--epic`, the helper
+uses the global dispatch bucket for quota accounting.
 Records may also include `allowed_providers` to constrain which provider family
 is approved for the packet.
 

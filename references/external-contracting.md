@@ -567,9 +567,10 @@ python3 scripts/build_contractor_packet.py \
   recorded in a structured local JSON audit note. Preferred records include
   `allowed: true`, a matching share boundary, `allowed_external_executors`,
   decision source, timezone-aware `recorded_at`, optional `expires_at`, scope,
-  optional `allowed_providers`, and optional project/epic/bead IDs; see
-  `examples/sample-opt-in-record.json`. Legacy records with `allowed_executors`
-  remain accepted for compatibility.
+  optional `allowed_providers`, and optional project/epic/bead IDs; when
+  `bead_id` or `epic_id` is present, it must match the assigned contract.
+  See `examples/sample-opt-in-record.json`. Legacy records with
+  `allowed_executors` remain accepted for compatibility.
 
 5. PM verifies the packet includes the expert profile, opt-in basis, quota
    metadata, and only safe redacted snippets. Packet build audits by default;
@@ -609,6 +610,13 @@ python3 scripts/build_contractor_packet.py \
    If a return uses repository context that was not approved by the share
    boundary, mark that evidence invalid or quarantine it for architect
    adjudication.
+
+   Packet dispatch is audit-bound by default. `build_contractor_packet.py`
+   records a quota-reservation `packet_built` event, and `dispatch_work.py` or
+   `chatgpt_browser_review.py` require the matching `dispatch_id`, Bead, and
+   `packet_sha256` before preparing or submitting the packet. Use
+   `--allow-unlinked-packet` only for an explicitly degraded/operator-managed
+   packet that cannot be linked to the local audit ledger.
 
    When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
    over putting large prompts in process arguments. If the CLI only accepts
@@ -655,7 +663,9 @@ python3 scripts/build_contractor_packet.py \
 
    The share link is a return channel, not a new share boundary. Evaluate the
    rendered return and confirm the dispatch `model_attestation` before revising
-   the plan. Keep Deep Research as a later explicit opt-in.
+   the plan. Clipboard fallback accepts only a fresh copied ChatGPT share URL,
+   not a stale URL already present on the operator clipboard. Keep Deep
+   Research as a later explicit opt-in.
 
 8. Contractor returns a Beads comment or patch branch.
 9. PM normalizes the return and checks format, evidence, boundary fit, and

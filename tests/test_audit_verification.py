@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.audit import (  # noqa: E402
     iter_audit_events,
     record_audit_event,
+    require_packet_build_audit,
     verify_audit_log,
 )
 
@@ -63,6 +64,24 @@ class AuditVerificationTests(unittest.TestCase):
             self.assertFalse(result["valid"])
             self.assertTrue(any("previous_event_hash" in error for error in result["errors"]))
 
+    def test_hash_chained_audit_log_rejects_unlinked_middle_event(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit_file = Path(tmp) / "audit.jsonl"
+            record_audit_event({"event_type": "packet_built", "dispatch_id": "d1", "bead_id": "b1"}, audit_file)
+            record_audit_event({"event_type": "return_evaluated", "dispatch_id": "d1", "bead_id": "b1"}, audit_file)
+            lines = [json.loads(line) for line in audit_file.read_text(encoding="utf-8").splitlines()]
+            lines[1].pop("previous_event_hash", None)
+            lines[1].pop("event_hash", None)
+            from cwo_core.audit import audit_event_payload_hash  # noqa: E402
+
+            lines[1]["event_hash"] = audit_event_payload_hash(lines[1])
+            audit_file.write_text("\n".join(json.dumps(line, sort_keys=True) for line in lines) + "\n", encoding="utf-8")
+
+            result = verify_audit_log(audit_file)
+            self.assertFalse(result["valid"])
+            self.assertEqual(result["unlinked_event_count"], 1)
+            self.assertTrue(any("previous_event_hash missing" in error for error in result["errors"]))
+
     def test_iter_audit_events_is_strict_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             audit_file = Path(tmp) / "audit.jsonl"
@@ -72,6 +91,35 @@ class AuditVerificationTests(unittest.TestCase):
                 iter_audit_events(audit_file)
 
             self.assertEqual(iter_audit_events(audit_file, strict=False), [{"event_type": "ok"}])
+
+    def test_require_packet_build_audit_binds_dispatch_bead_and_packet_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit_file = Path(tmp) / "audit.jsonl"
+            record_audit_event(
+                {
+                    "event_type": "packet_built",
+                    "dispatch_id": "dispatch-1",
+                    "bead_id": "bead-1",
+                    "packet_sha256": "a" * 64,
+                },
+                audit_file,
+            )
+
+            match = require_packet_build_audit(
+                dispatch_id="dispatch-1",
+                bead_id="bead-1",
+                packet_sha256="a" * 64,
+                audit_file=audit_file,
+            )
+            self.assertEqual(match["dispatch_id"], "dispatch-1")
+
+            with self.assertRaises(SystemExit):
+                require_packet_build_audit(
+                    dispatch_id="dispatch-1",
+                    bead_id="bead-1",
+                    packet_sha256="b" * 64,
+                    audit_file=audit_file,
+                )
 
     def test_concurrent_audit_writes_do_not_lose_events_or_break_chain(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

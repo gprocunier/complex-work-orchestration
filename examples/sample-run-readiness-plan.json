@@ -164,6 +164,20 @@
     "quarantined_findings": [
       "Gemini mutation claim from redacted no-mutation packet"
     ],
-    "decision_owner": "architect"
+    "decision_owner": "architect",
+    "evidence_refs": [
+      {
+        "artifact": "examples/sample-contractor-return.md",
+        "artifact_type": "contractor-return",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "description": "Sample contractor return used to demonstrate adjudication binding."
+      },
+      {
+        "artifact": "examples/sample-evaluator-result.json",
+        "artifact_type": "evaluator-result",
+        "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "description": "Sample evaluator artifact referenced by the architect decision."
+      }
+    ]
   }
 }

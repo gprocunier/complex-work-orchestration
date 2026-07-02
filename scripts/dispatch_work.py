@@ -5,6 +5,7 @@ import argparse
 import ipaddress
 import json
 import os
+import re
 import socket
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,11 @@ from cwo_core.routing import classify_work
 from cwo_core.audit import (
     enforce_contracting_quota,
     record_audit_event,
+    require_packet_build_audit,
 )
 from cwo_core.policy import load_policy
 from cwo_core.util import (
+    artifact_hash,
     make_dispatch_id,
     read_text_arg,
 )
@@ -106,6 +109,16 @@ def validate_local_endpoint_base_url(base_url: str) -> None:
         raise SystemExit("local endpoint URL must not contain credentials")
     if not parsed.hostname:
         raise SystemExit(f"local endpoint URL must include a host: {base_url}")
+    hostname = parsed.hostname.lower()
+    literal_host = True
+    try:
+        ipaddress.ip_address(hostname)
+    except ValueError:
+        literal_host = False
+    if not literal_host and hostname not in {"localhost"}:
+        raise SystemExit(
+            "local endpoint host must be a literal IP address or localhost so validation and dispatch use the same target"
+        )
     addresses = _resolve_local_endpoint_addresses(parsed.hostname, port)
     disallowed = [str(ip) for ip in addresses if not _local_endpoint_ip_allowed(ip)]
     if disallowed:
@@ -258,9 +271,23 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                 parsed = {"raw": raw}
             return {"status_code": response.status, "response": parsed}
     except HTTPError as exc:
-        raise SystemExit(f"local endpoint returned HTTP {exc.code}: {exc.read().decode('utf-8', errors='replace')}") from exc
+        body = exc.read().decode("utf-8", errors="replace")
+        raise SystemExit(
+            f"local endpoint returned HTTP {exc.code}; response body omitted "
+            f"(sha256={artifact_hash(body)}, chars={len(body)})"
+            + _debug_local_http_excerpt(body)
+        ) from exc
     except URLError as exc:
         raise SystemExit(f"local endpoint request failed: {exc}") from exc
+
+
+def _debug_local_http_excerpt(body: str) -> str:
+    if os.environ.get("CWO_DEBUG_LOCAL_HTTP_BODY", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return ""
+    safe = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "?", body)
+    if len(safe) > 240:
+        safe = safe[:240] + "...[truncated]"
+    return f"; sanitized excerpt={safe!r}"
 
 
 def main() -> None:
@@ -272,6 +299,16 @@ def main() -> None:
         "--allow-degraded-packet",
         action="store_true",
         help="Allow dispatch of a packet that omits the expert profile after validation.",
+    )
+    parser.add_argument(
+        "--allow-unlinked-packet",
+        action="store_true",
+        help="Operator-only escape hatch: allow a valid packet without a matching packet_built audit event.",
+    )
+    parser.add_argument(
+        "--allow-raw-manual-prompt",
+        action="store_true",
+        help="Operator-only degraded path: render an external manual prompt without a validated packet.",
     )
     parser.add_argument("--mode", choices=["manual"], default="manual")
     parser.add_argument("--external-ok", action="store_true")
@@ -305,11 +342,18 @@ def main() -> None:
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
         require_valid_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
+        if not args.allow_unlinked_packet:
+            require_packet_build_audit(
+                dispatch_id=str(packet.get("dispatch_id") or ""),
+                bead_id=packet.get("bead_id"),
+                packet_sha256=str(packet.get("packet_sha256") or ""),
+            )
         quota_info = enforce_contracting_quota(
             packet.get("epic_id") or args.epic,
             packet["executor"],
             "external-contract",
             dispatch_id=packet.get("dispatch_id"),
+            packet_sha256=packet.get("packet_sha256"),
         )
         artifact = {
             "dispatch_id": packet.get("dispatch_id"),
@@ -330,6 +374,7 @@ def main() -> None:
                 {
                     "event_type": "dispatch_prepared",
                     "quota_event_type": quota_info.get("quota_event_type"),
+                    "quota_stage": "consumed",
                     "dispatch_id": artifact["dispatch_id"],
                     "bead_id": artifact["bead_id"],
                     "epic_id": artifact["epic_id"],
@@ -361,6 +406,10 @@ def main() -> None:
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
     )
+    if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:
+        raise SystemExit(
+            "external manual dispatch requires --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"
+        )
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "unassigned")
     quota_info = enforce_contracting_quota(
         args.epic,
@@ -402,6 +451,7 @@ def main() -> None:
             {
                 "event_type": "dispatch_prepared",
                 "quota_event_type": quota_info.get("quota_event_type"),
+                "quota_stage": "consumed",
                 "dispatch_id": dispatch_id,
                 "bead_id": args.bead,
                 "epic_id": args.epic,

@@ -458,13 +458,45 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             with patch("subprocess.run", return_value=completed):
                 self.assertEqual(read_local_clipboard_share_url(), "")
 
+    def test_create_share_link_rejects_unchanged_clipboard_without_copy_signal(self) -> None:
+        class FakeLocator:
+            @property
+            def first(self) -> "FakeLocator":
+                return self
+
+            def click(self, timeout: int, force: bool = False) -> None:
+                return None
+
+            def evaluate(self, script: str) -> bool:
+                return True
+
+            def inner_text(self, timeout: int) -> str:
+                return "share dialog still open"
+
+        class FakePage:
+            def locator(self, selector: str) -> FakeLocator:
+                return FakeLocator()
+
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": True})
+        stale = "https://chatgpt.com/s/t_stale"
+        with patch("chatgpt_browser_review.read_local_clipboard_share_url", return_value=stale):
+            with patch.object(runner, "_click_scroll_to_bottom_if_present", return_value=None):
+                with patch.object(runner, "_wait_for_share_ready", return_value=None):
+                    with patch.object(runner, "_click_share_button", return_value=None):
+                        with patch.object(runner, "_extract_share_url_from_page", return_value=""):
+                            with patch.object(runner, "_try_social_share_url", return_value=""):
+                                with patch("chatgpt_browser_review.time.monotonic", side_effect=[0, 1, 11]):
+                                    with patch("chatgpt_browser_review.time.sleep", return_value=None):
+                                        self.assertEqual(runner._create_share_link(FakePage(), 1, TimeoutError), "")
+
     def test_prompt_file_dispatch_metadata_uses_executor_without_leaking_prompt(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
             prompt_path = Path(tmpdir) / "prompt.md"
             prompt_path.write_text("Review this final plan.", encoding="utf-8")
             args = Namespace(
                 packet=None,
                 prompt_file=str(prompt_path),
+                allow_degraded_packet=True,
                 dispatch_id="dispatch-chatgpt",
                 bead="cwo-1",
                 epic="cwo",
@@ -488,11 +520,28 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertEqual(result["share_url"], "https://chatgpt.com/s/t_abc")
         self.assertNotIn("Review this final plan.", json.dumps(result))
 
+    def test_prompt_file_requires_explicit_degraded_operator_flag(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            prompt_path = Path(tmpdir) / "prompt.md"
+            prompt_path.write_text("Review this final plan.", encoding="utf-8")
+            args = Namespace(
+                packet=None,
+                prompt_file=str(prompt_path),
+                allow_degraded_packet=False,
+                dispatch_id="dispatch-chatgpt",
+                bead="cwo-1",
+                epic="cwo",
+                packet_sha256="packet-sha",
+                share_boundary="redacted-packet",
+            )
+            with self.assertRaises(SystemExit):
+                load_prompt_from_args(args)
+
     def test_failed_live_cli_writes_structured_failure_output(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
+            tmp = Path(cfgdir)
             config = self.write_config(tmp)
-            prompt = tmp / "prompt.md"
+            prompt = Path(promptdir) / "prompt.md"
             output = tmp / "result.json"
             prompt.write_text("Review this final plan.", encoding="utf-8")
             failure = ChatGPTBrowserReviewError(
@@ -511,6 +560,13 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "chatgpt_browser_review.py",
                     "--prompt-file",
                     str(prompt),
+                    "--allow-degraded-packet",
+                    "--dispatch-id",
+                    "dispatch-chatgpt",
+                    "--bead",
+                    "cwo-1",
+                    "--packet-sha256",
+                    "packet-sha",
                     "--config",
                     str(config),
                     "--output",
@@ -518,11 +574,21 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--no-audit",
                 ],
             ):
-                with patch.object(PlaywrightChatGPTRunner, "run", side_effect=failure):
-                    import chatgpt_browser_review
+                import chatgpt_browser_review
 
-                    with self.assertRaises(SystemExit):
-                        chatgpt_browser_review.main()
+                with patch.object(PlaywrightChatGPTRunner, "run", side_effect=failure):
+                    with patch.object(
+                        chatgpt_browser_review,
+                        "enforce_contracting_quota",
+                        return_value={
+                            "quota_checked": True,
+                            "quota_event_type": "external_manual_dispatch",
+                            "quota_remaining": 4,
+                            "executor_external": True,
+                        },
+                    ):
+                        with self.assertRaises(SystemExit):
+                            chatgpt_browser_review.main()
             result = json.loads(output.read_text(encoding="utf-8"))
         self.assertEqual(result["status"], "failed")
         self.assertEqual(result["failure_stage"], "share-link")
@@ -530,10 +596,10 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertNotIn("Review this final plan.", json.dumps(result))
 
     def test_dry_run_cli_validates_config_without_audit(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
+            tmp = Path(cfgdir)
             config = self.write_config(tmp)
-            prompt = tmp / "prompt.md"
+            prompt = Path(promptdir) / "prompt.md"
             prompt.write_text("Review this final plan.", encoding="utf-8")
             with patch.object(
                 sys,
@@ -542,6 +608,13 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "chatgpt_browser_review.py",
                     "--prompt-file",
                     str(prompt),
+                    "--allow-degraded-packet",
+                    "--dispatch-id",
+                    "dispatch-chatgpt",
+                    "--bead",
+                    "cwo-1",
+                    "--packet-sha256",
+                    "packet-sha",
                     "--config",
                     str(config),
                     "--dry-run",
@@ -556,10 +629,10 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertTrue(mocked_print.called)
 
     def test_confirm_only_cli_records_model_attestation_without_submission(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
+            tmp = Path(cfgdir)
             config = self.write_config(tmp)
-            prompt = tmp / "prompt.md"
+            prompt = Path(promptdir) / "prompt.md"
             prompt.write_text("Review this final plan.", encoding="utf-8")
             with patch.object(
                 sys,
@@ -568,6 +641,13 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "chatgpt_browser_review.py",
                     "--prompt-file",
                     str(prompt),
+                    "--allow-degraded-packet",
+                    "--dispatch-id",
+                    "dispatch-chatgpt",
+                    "--bead",
+                    "cwo-1",
+                    "--packet-sha256",
+                    "packet-sha",
                     "--config",
                     str(config),
                     "--confirm-only",

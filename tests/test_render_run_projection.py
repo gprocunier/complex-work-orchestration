@@ -52,6 +52,8 @@ class RenderRunProjectionTests(unittest.TestCase):
         self.assertIn("run sheet and wrap-up/status views are useful as projections", rendered)
         self.assertIn("Gemini mutation claim", rendered)
         self.assertIn("gemini_3_1_pro_preview_agy", rendered)
+        self.assertIn("## Adjudication Evidence Refs", rendered)
+        self.assertIn("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", rendered)
 
     def test_next_version_projection_keeps_patrol_research_only(self) -> None:
         projection = build_projection(sample_plan(), "next-version", Path("sample.json"))
@@ -148,6 +150,18 @@ class RenderRunProjectionTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("beads_scope.canonical_source must be beads", result.stderr)
+
+    def test_markdown_table_escapes_pipes_backticks_and_newlines(self) -> None:
+        plan = sample_plan()
+        plan["workstreams"][0]["name"] = "name | injected"
+        plan["workstreams"][0]["exit_condition"] = "done\n| bad |"
+        plan["workstreams"][0]["owner"] = "`owner`"
+        projection = build_projection(plan, "run-sheet", Path("sample.json"))
+        rendered = render_markdown(projection)
+
+        self.assertIn("name \\| injected", rendered)
+        self.assertIn("done<br>\\| bad \\|", rendered)
+        self.assertIn("\\`owner\\`", rendered)
 
 
 if __name__ == "__main__":

@@ -48,6 +48,22 @@ class PacketProfileInclusionTests(unittest.TestCase):
         self.assertIsNone(packet["expert_profile"])
         self.assertIn("minimal compatibility", packet["degraded_context_justification"])
 
+    def test_caller_selected_profile_must_stay_under_experts(self) -> None:
+        bead = json.loads((ROOT / "examples" / "sample-bead.json").read_text(encoding="utf-8"))
+        with self.assertRaises(SystemExit) as exc:
+            build_packet(
+                bead_id=bead["id"],
+                bead_json=bead,
+                executor="claude_code_manual",
+                share_boundary="redacted-packet",
+                job_description_label="contract-jd-security-reasoning",
+                allowed_files=[],
+                inline_snippets=[],
+                dispatch_id="dispatch-profile-test",
+                expert_profile_path="README.md",
+            )
+        self.assertIn("expert profile must be", str(exc.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

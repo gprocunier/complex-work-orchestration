@@ -162,6 +162,30 @@ Escalation needed: no
         result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
         self.assertEqual(result["missing_sections"], [])
 
+    def test_job_description_alignment_requires_structured_field(self) -> None:
+        text = """Status: complete
+Contractor job description: contract-jd-docs-reasoning
+Summary: Mentions contract-jd-security-reasoning elsewhere but wrong structured field.
+Validation result: Reviewed packet.
+Evidence: packet excerpt.
+Evidence provenance: packet.
+Attestation or reproducibility note: packet.
+Share boundary conformance: stayed inside packet.
+Peer-review disposition: not required.
+Alternatives considered: none.
+Confidence: medium
+Risks or gaps: none.
+Recommended next bead: none.
+Escalation needed: no
+"""
+        result = make_acceptance_decision(text, job_description_label="contract-jd-security-reasoning")
+        self.assertIn("missing assigned job-description alignment", result["hard_disqualifiers"])
+
+    def test_underscore_prefixed_secret_assignment_is_detected(self) -> None:
+        text = self.sample_return() + "\n_evaluator_api_key = plain-secret\n"
+        result = make_acceptance_decision(text)
+        self.assertIn("suspected secret or personal-data spill", result["hard_disqualifiers"])
+
     def test_policy_aliases_are_authoritative(self) -> None:
         text = """Status: complete
 Contractor job description: contract-jd-security-reasoning
@@ -300,7 +324,7 @@ Attestation/repro note: reproducible from packet.
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
         text = text.replace(
             "Commands run: none",
-            "Commands run: /home/d00d/.codex/skills/chatgpt-share-local-reader/scripts/read_chatgpt_share.py direct-to-ChatGPT/local parser.",
+            "Commands run: /home/operator/.codex/skills/chatgpt-share-local-reader/scripts/read_chatgpt_share.py direct-to-ChatGPT/local parser.",
         ).replace(
             "Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.",
             "Validation result: Share page parsed with the local ChatGPT share reader.",

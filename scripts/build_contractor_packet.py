@@ -31,11 +31,13 @@ from cwo_core.audit import (
     record_audit_event,
 )
 from cwo_core.packets import (
+    fenced_block,
     file_snippet,
     load_expert_profile,
     make_attestation,
     redact_text,
     sanitize_bead,
+    validate_contractor_packet,
     validate_opt_in_record,
 )
 from cwo_core.beads import show_bead_json
@@ -53,9 +55,11 @@ def extract_labels(bead: Any) -> list[str]:
 
 
 def find_job_label(labels: list[str]) -> str:
-    for label in labels:
-        if label.startswith("contract-jd-"):
-            return label
+    job_labels = [label for label in labels if label.startswith("contract-jd-")]
+    if len(job_labels) > 1:
+        raise SystemExit("assigned Bead must have exactly one primary job-description label; found: " + ", ".join(job_labels))
+    for label in job_labels:
+        return label
     return "contract-jd-general-reasoning"
 
 
@@ -74,6 +78,8 @@ def validate_gate(
     *,
     external_ok: bool,
     opt_in_record: str | None,
+    bead_id: str | None = None,
+    epic_id: str | None = None,
     allow_disclosure_escalation: bool = False,
 ) -> str:
     executors = load_policy("executor-registry").get("executors", {})
@@ -84,7 +90,13 @@ def validate_gate(
     if not external_ok and not opt_in_record:
         raise SystemExit("external packet build requires --external-ok or an opt-in record")
     if opt_in_record:
-        validate_opt_in_record(opt_in_record, executor=executor, share_boundary=share_boundary)
+        validate_opt_in_record(
+            opt_in_record,
+            executor=executor,
+            share_boundary=share_boundary,
+            bead_id=bead_id,
+            epic_id=epic_id,
+        )
     if not boundary_allows_external(share_boundary):
         raise SystemExit(f"share boundary {share_boundary!r} does not allow external contracting")
     if share_boundary_requires_escalation(share_boundary) and not allow_disclosure_escalation:
@@ -94,6 +106,9 @@ def validate_gate(
     missing = [label for label in ["contractor-only", "no-codex-exec"] if label not in labels]
     if missing:
         raise SystemExit(f"assigned Bead is missing contractor guard labels: {', '.join(missing)}")
+    job_labels = [label for label in labels if label.startswith("contract-jd-")]
+    if len(job_labels) > 1:
+        raise SystemExit("assigned Bead must have exactly one primary job-description label; found: " + ", ".join(job_labels))
     if job_description_label not in labels:
         raise SystemExit(f"assigned Bead is missing job-description label: {job_description_label}")
     return "cli-flag" if external_ok else "audit-record"
@@ -235,7 +250,7 @@ def packet_markdown(packet: dict[str, Any]) -> str:
     snippets = []
     for item in packet.get("selected_snippets", []):
         snippets.append(
-            f"### {item['path']}\n\n```text\n{item['content']}\n```"
+            f"### {item['path']}\n\n{fenced_block(item['content'], 'text')}"
         )
     profile = packet.get("expert_profile") or {}
     if profile:
@@ -244,9 +259,7 @@ def packet_markdown(packet: dict[str, Any]) -> str:
 Path: {profile['path']}
 SHA-256: {profile['sha256']}
 
-```markdown
-{profile['content']}
-```
+{fenced_block(profile['content'], 'markdown')}
 """
     else:
         profile_block = f"""## Expert Profile
@@ -274,21 +287,15 @@ Packet SHA-256: {packet['packet_sha256']}
 
 ## Bead Summary
 
-```json
-{json.dumps(packet['bead_summary'], indent=2, sort_keys=True)}
-```
+{fenced_block(json.dumps(packet['bead_summary'], indent=2, sort_keys=True), 'json')}
 
 ## Included Artifacts
 
-```json
-{json.dumps(packet['included_artifacts'], indent=2, sort_keys=True)}
-```
+{fenced_block(json.dumps(packet['included_artifacts'], indent=2, sort_keys=True), 'json')}
 
 ## Excluded Artifacts
 
-```json
-{json.dumps(packet['excluded_artifacts'], indent=2, sort_keys=True)}
-```
+{fenced_block(json.dumps(packet['excluded_artifacts'], indent=2, sort_keys=True), 'json')}
 
 ## Selected Snippets
 
@@ -352,6 +359,8 @@ def main() -> None:
         job_label,
         external_ok=args.external_ok,
         opt_in_record=args.opt_in_record,
+        bead_id=args.bead,
+        epic_id=args.epic,
         allow_disclosure_escalation=args.allow_disclosure_escalation,
     )
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead)
@@ -380,6 +389,12 @@ def main() -> None:
         quota_info=quota_info,
         disclosure_escalation_approved=args.allow_disclosure_escalation,
     )
+    packet_errors = validate_contractor_packet(
+        packet,
+        allow_degraded_packet=not args.include_expert_profile,
+    )
+    if packet_errors:
+        raise SystemExit("contractor packet validation failed before render: " + "; ".join(packet_errors))
     rendered = json.dumps(packet, indent=2, sort_keys=True) if args.format == "json" else packet_markdown(packet)
     if args.output:
         output_path = assert_safe_output_path(Path(args.output))
@@ -406,6 +421,7 @@ def main() -> None:
             {
                 "event_type": "packet_built",
                 "quota_event_type": quota_info.get("quota_event_type"),
+                "quota_stage": "reserved",
                 "dispatch_id": packet["dispatch_id"],
                 "bead_id": args.bead,
                 "epic_id": args.epic,

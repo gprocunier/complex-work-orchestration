@@ -83,10 +83,19 @@ PUBLIC_DOCS_PATHS = {"README.md", "SKILL.md"}
 PUBLIC_DOCS_PAGE_SUFFIXES = {".html", ".css", ".js"}
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate key {key!r}")
+        value[key] = item
+    return value
+
+
 def load_json_compatible_yaml(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_json_keys)
+    except (json.JSONDecodeError, ValueError) as exc:
         raise SystemExit(
             f"{path} is not JSON-compatible YAML: {exc}. "
             "Policy files use a JSON-compatible YAML subset so helpers can run with the Python standard library."

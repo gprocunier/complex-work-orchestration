@@ -51,8 +51,51 @@ class PacketGateTests(unittest.TestCase):
                 "contract-jd-security-reasoning",
                 external_ok=False,
                 opt_in_record=handle.name,
+                bead_id="epic-1.1",
+                epic_id="epic-1",
             )
         self.assertEqual(basis, "audit-record")
+
+    def test_opt_in_record_rejects_wrong_bead_or_epic_scope(self) -> None:
+        labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
+        cases = [
+            {
+                "allowed": True,
+                "share_boundary": "redacted-packet",
+                "allowed_external_executors": ["claude_code_manual"],
+                "decision_source": "test",
+                "recorded_at": "2026-06-09T00:00:00Z",
+                "scope": "wrong bead",
+                "bead_id": "epic-1.2",
+                "epic_id": "epic-1",
+            },
+            {
+                "allowed": True,
+                "share_boundary": "redacted-packet",
+                "allowed_external_executors": ["claude_code_manual"],
+                "decision_source": "test",
+                "recorded_at": "2026-06-09T00:00:00Z",
+                "scope": "wrong epic",
+                "bead_id": "epic-1.1",
+                "epic_id": "epic-2",
+            },
+        ]
+        for record in cases:
+            with self.subTest(record=record["scope"]):
+                with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+                    json.dump(record, handle)
+                    handle.flush()
+                    with self.assertRaises(SystemExit):
+                        validate_gate(
+                            "claude_code_manual",
+                            "redacted-packet",
+                            labels,
+                            "contract-jd-security-reasoning",
+                            external_ok=False,
+                            opt_in_record=handle.name,
+                            bead_id="epic-1.1",
+                            epic_id="epic-1",
+                        )
 
     def test_legacy_allowed_executors_field_still_works(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]

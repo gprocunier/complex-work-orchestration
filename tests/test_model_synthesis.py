@@ -152,6 +152,7 @@ class ModelSynthesisTests(unittest.TestCase):
                     "provider_camp": "google",
                     "disposition": "accepted",
                     "synthesis_use": "primary",
+                    "synthesis_use_authority": "architect",
                     "reason": "architect upgraded one evaluated finding",
                 },
                 {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
@@ -162,6 +163,22 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertEqual(result["usable_input_count"], 2)
         self.assertEqual(result["salvage_input_count"], 0)
         self.assertEqual(result["input_summaries"][0]["synthesis_use"], "primary")
+
+    def test_primary_override_without_architect_authority_cannot_upgrade_gemini(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "gemini",
+                    "provider_camp": "google",
+                    "disposition": "accepted",
+                    "synthesis_use": "primary",
+                },
+                {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "salvage-only")
 
     def test_invalid_synthesis_use_cannot_upgrade_gemini(self) -> None:
         result = evaluate_synthesis_inputs(

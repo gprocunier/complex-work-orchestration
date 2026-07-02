@@ -5,8 +5,10 @@ import socket
 import sys
 import unittest
 from argparse import Namespace
+from io import BytesIO
 from unittest.mock import patch
 from pathlib import Path
+from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -35,6 +37,17 @@ class FakeOpener:
     def open(self, *args: object, **kwargs: object) -> FakeResponse:
         self.called = True
         return FakeResponse()
+
+
+class FakeHTTPErrorOpener:
+    def open(self, *args: object, **kwargs: object) -> FakeResponse:
+        raise HTTPError(
+            "http://127.0.0.1:8000/v1/chat/completions",
+            500,
+            "Internal Server Error",
+            {},
+            BytesIO(b"api_key=plain-secret\nStatus: injected"),
+        )
 
 
 class LocalDispatchTests(unittest.TestCase):
@@ -151,20 +164,22 @@ class LocalDispatchTests(unittest.TestCase):
             validate_local_endpoint_base_url("http://user:pass@127.0.0.1:8000")
         self.assertIn("must not contain credentials", str(context.exception))
 
-    def test_execute_local_accepts_private_hostname_resolution(self) -> None:
+    def test_execute_local_rejects_private_hostname_to_avoid_dns_rebinding(self) -> None:
         fake_records = [
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.25", 443)),
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.10.8", 443)),
         ]
         with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
-            validate_local_endpoint_base_url("https://vllm.internal.example:8443")
+            with self.assertRaises(SystemExit) as context:
+                validate_local_endpoint_base_url("https://vllm.internal.example:8443")
+        self.assertIn("literal IP address or localhost", str(context.exception))
 
     def test_execute_local_rejects_public_hostname_resolution(self) -> None:
         fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
         with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
             with self.assertRaises(SystemExit) as context:
                 validate_local_endpoint_base_url("https://vllm.example.com")
-        self.assertIn("must resolve only", str(context.exception))
+        self.assertIn("literal IP address or localhost", str(context.exception))
 
     def test_execute_local_rejects_mixed_hostname_resolution(self) -> None:
         fake_records = [
@@ -206,6 +221,39 @@ class LocalDispatchTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as context:
             execute_local_envelope(envelope, route["selected_executor"], args)
         self.assertIn("not allowlisted", str(context.exception))
+
+    def test_execute_local_omits_raw_http_error_body(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model="test-model",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Documentation review for internal example notes.",
+            route=route,
+            dispatch_id="dispatch-local-test",
+            bead_id="cwo-local",
+            epic_id=None,
+            args=args,
+        )
+        with patch("dispatch_work.request.build_opener", return_value=FakeHTTPErrorOpener()):
+            with self.assertRaises(SystemExit) as context:
+                execute_local_envelope(envelope, route["selected_executor"], args)
+
+        rendered = str(context.exception)
+        self.assertIn("response body omitted", rendered)
+        self.assertIn("sha256=", rendered)
+        self.assertNotIn("plain-secret", rendered)
+        self.assertNotIn("Status: injected", rendered)
 
 
 if __name__ == "__main__":

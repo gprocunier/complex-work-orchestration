@@ -194,6 +194,11 @@ def strip_fenced_blocks(text: str) -> str:
     return re.sub(r"(?ms)^\s*(```|~~~)[^\n]*\n.*?^\s*\1\s*$", "", text)
 
 
+SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?:^|[^a-z0-9])([\"']?_?(?:credential|password|api[_ -]?key|private[_ -]?key|token|secret)[\"']?)\s*[:=]\s*[\"']?[^\"'\s,}\]]+"
+)
+
+
 def redacted_packet_command_allowed(value: str) -> bool:
     if not nonempty_work_field(value):
         return True
@@ -532,7 +537,7 @@ def score_sabotage_signals(
     sections = sections or parse_return_sections(text)
     reader = reader or SectionReader(sections)
     signals: list[dict[str, Any]] = []
-    lower = strip_fenced_blocks(text).lower()
+    lower = text.lower()
     weights = sabotage_signal_weights()
 
     patterns: list[tuple[str, str, str]] = [
@@ -564,7 +569,7 @@ def score_sabotage_signals(
         ),
         (
             "secret_or_personal_data",
-            r"\b(credential|password|api[_ -]?key|private key|token)\s*[:=]",
+            SECRET_ASSIGNMENT_RE.pattern,
             "appears to expose secret material",
         ),
         (
@@ -1324,6 +1329,16 @@ def recommend_synthesis_use(
     return "reject"
 
 
+def job_description_matches(sections: dict[str, str], expected_label: str | None) -> bool:
+    if not expected_label:
+        return True
+    value = section_value(sections, "Contractor job description")
+    if not value:
+        return False
+    labels = set(re.findall(r"\bcontract-jd-[a-z0-9-]+\b", value.lower()))
+    return expected_label.lower() in labels
+
+
 def normalize_contractor_return(
     text: str,
     *,
@@ -1737,13 +1752,12 @@ def make_acceptance_decision(
             score -= 20
             penalty_reasons.append("unexpected tracked-file mutation observed")
 
-    lower = text.lower()
-    if job_description_label and job_description_label not in lower and sections.get("Contractor job description"):
+    if job_description_label and not job_description_matches(sections, job_description_label):
         hard_disqualifiers.append("missing assigned job-description alignment")
     secret_spill = reader.value("Secret or personal-data spill", "Secret spill", "Personal-data spill")
     if affirmative_field(secret_spill):
         hard_disqualifiers.append("suspected secret or personal-data spill")
-    if re.search(r"(?i)(secret|password|api[_ -]?key|private key)\s*[:=]", text):
+    if SECRET_ASSIGNMENT_RE.search(text):
         hard_disqualifiers.append("suspected secret or personal-data spill")
     scope_compliance = reader.value("Scope compliance")
     scope_lower = scope_compliance.strip().lower()

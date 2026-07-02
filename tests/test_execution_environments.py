@@ -231,6 +231,36 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         envelope["envelope_version"] = "2.0"
         self.assertTrue(any("unsupported" in error for error in validate_harness_dispatch_envelope(envelope)))
 
+    def test_harness_dispatch_rejects_prompt_hash_mismatch(self) -> None:
+        envelope = build_harness_dispatch(
+            task="Review docs.",
+            dispatch_id="dispatch-test",
+            environment_key="connected-opencode-exemplar",
+            role="worker",
+            harness_key="opencode",
+        )
+        envelope["prompt"] = "substituted prompt"
+        self.assertIn(
+            "harness dispatch envelope prompt_sha256 does not match prompt",
+            validate_harness_dispatch_envelope(envelope),
+        )
+
+    def test_opencode_suggested_command_quotes_model_fields(self) -> None:
+        envelope = build_harness_dispatch(
+            task="Review docs.",
+            dispatch_id="dispatch-test",
+            environment_key="connected-opencode-exemplar",
+            role="worker",
+            harness_key="opencode",
+            agent="review; echo agent",
+            model="model; echo model",
+            variant="high && echo variant",
+        )
+        command = envelope["suggested_command"]
+        self.assertIn("--agent 'review; echo agent'", command)
+        self.assertIn("--model 'model; echo model'", command)
+        self.assertIn("--variant 'high && echo variant'", command)
+
     def test_airgapped_profile_has_no_codex_or_external_contracting(self) -> None:
         profile = execution_environment_registry()["profiles"]["airgapped-rhoai"]
         self.assertNotIn("codex_cli", profile["allowed_harnesses"])

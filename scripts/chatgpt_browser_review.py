@@ -15,13 +15,13 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt
 from cwo_core.chatgpt_urls import CHATGPT_SHARE_URL_RE, valid_chatgpt_share_url
-from cwo_core.paths import REPO_ROOT, assert_safe_output_path
+from cwo_core.paths import REPO_ROOT, assert_repo_safe_path, assert_safe_output_path
 from cwo_core.util import (
     atomic_write_text,
     artifact_hash,
     make_dispatch_id,
 )
-from cwo_core.audit import record_audit_event
+from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
 from cwo_core.packets import require_valid_contractor_packet
 
 EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
@@ -159,6 +159,12 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
         require_valid_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
         if packet.get("executor") != EXECUTOR_KEY:
             raise SystemExit(f"packet executor must be {EXECUTOR_KEY}")
+        if not args.allow_unlinked_packet:
+            require_packet_build_audit(
+                dispatch_id=str(packet.get("dispatch_id") or ""),
+                bead_id=packet.get("bead_id"),
+                packet_sha256=str(packet.get("packet_sha256") or ""),
+            )
         return render_packet_prompt(packet), {
             "dispatch_id": packet.get("dispatch_id"),
             "bead_id": packet.get("bead_id"),
@@ -168,7 +174,12 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
             "provider_key": packet.get("provider_key"),
             "share_boundary": packet.get("share_boundary"),
         }
-    prompt = Path(args.prompt_file).read_text(encoding="utf-8")
+    if not args.allow_degraded_packet:
+        raise SystemExit("ChatGPT prompt-file dispatch bypasses packet validation; use --packet or pass --allow-degraded-packet for an operator-only degraded dispatch")
+    prompt_path = assert_repo_safe_path(Path(args.prompt_file))
+    prompt = prompt_path.read_text(encoding="utf-8")
+    if not args.dispatch_id or not args.bead or not args.packet_sha256:
+        raise SystemExit("prompt-file dispatch requires --dispatch-id, --bead, and --packet-sha256")
     return prompt, {
         "dispatch_id": args.dispatch_id or make_dispatch_id("chatgpt-browser"),
         "bead_id": args.bead,
@@ -584,7 +595,8 @@ class PlaywrightChatGPTRunner:
                         body_text = str(page.locator("body").inner_text(timeout=1000)).lower()
                     except Exception:
                         pass
-                    if value != clipboard_before or "link copied" in body_text or "public link copied" in body_text:
+                    copy_confirmed = "link copied" in body_text or "public link copied" in body_text
+                    if value != clipboard_before and (clipboard_before or copy_confirmed):
                         self.last_share_link_method = "clipboard"
                         return value
                 time.sleep(1)
@@ -738,6 +750,11 @@ def main() -> None:
     parser.add_argument("--packet-sha256")
     parser.add_argument("--share-boundary", default="redacted-packet")
     parser.add_argument("--allow-degraded-packet", action="store_true")
+    parser.add_argument(
+        "--allow-unlinked-packet",
+        action="store_true",
+        help="Operator-only escape hatch: allow a valid packet without a matching packet_built audit event.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Validate prompt/config and print the redacted dispatch plan.")
     parser.add_argument("--confirm-only", action="store_true", help="Open ChatGPT and confirm configured model/effort without submitting the prompt.")
     parser.add_argument("--json", action="store_true", help="Compatibility flag; output is always JSON.")
@@ -752,6 +769,20 @@ def main() -> None:
     exit_message = ""
     if args.dry_run and args.confirm_only:
         raise SystemExit("--dry-run and --confirm-only are mutually exclusive")
+    quota_info = {
+        "quota_checked": False,
+        "quota_event_type": None,
+        "quota_remaining": None,
+        "executor_external": True,
+    }
+    if not args.dry_run and not args.confirm_only:
+        quota_info = enforce_contracting_quota(
+            metadata.get("epic_id"),
+            EXECUTOR_KEY,
+            "external-contract",
+            dispatch_id=metadata.get("dispatch_id"),
+            packet_sha256=metadata.get("packet_sha256"),
+        )
     if args.dry_run:
         result = build_result(prompt=prompt, metadata=metadata, config=config, config_path=config_path, browser_result=None, status="dry-run")
     elif args.confirm_only:
@@ -791,10 +822,13 @@ def main() -> None:
                 failure_reason=exc.reason,
             )
             exit_message = f"{exc.stage}: {exc.reason}"
+    result.update(quota_info)
     if args.audit:
         record_audit_event(
             {
                 "event_type": "chatgpt_browser_dispatch",
+                "quota_event_type": quota_info.get("quota_event_type"),
+                "quota_stage": "consumed" if quota_info.get("quota_checked") else None,
                 "dispatch_id": result["dispatch_id"],
                 "bead_id": result["bead_id"],
                 "epic_id": result["epic_id"],
@@ -805,6 +839,7 @@ def main() -> None:
                 "share_boundary": result["share_boundary"],
                 "packet_sha256": result["packet_sha256"],
                 "prompt_sha256": result["prompt_sha256"],
+                "quota_remaining": quota_info.get("quota_remaining"),
                 "share_url_present": bool(result.get("share_url")),
                 "share_link_method": result.get("share_link_method"),
                 "model_attestation_present": bool(result.get("model_attestation")),

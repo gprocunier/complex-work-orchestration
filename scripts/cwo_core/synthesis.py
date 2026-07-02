@@ -219,10 +219,18 @@ def evaluate_synthesis_inputs(
             entry.get("synthesis_use") or entry.get("recommended_synthesis_use")
         )
 
+        requested_primary_authorized = bool(
+            entry.get("architect_adjudicated")
+            or entry.get("architect_upgrade")
+            or str(entry.get("synthesis_use_authority") or "").strip().lower() in {"architect", "architect-adjudication"}
+        )
+
         if effective_disposition in quarantine:
             synthesis_use = "quarantine"
         elif effective_disposition in rejected:
             synthesis_use = "reject"
+        elif requested_synthesis_use == "primary" and not requested_primary_authorized:
+            synthesis_use = "salvage-only" if provider_camp in salvage_only_camps else "unknown"
         elif requested_synthesis_use:
             synthesis_use = requested_synthesis_use
         elif effective_disposition in salvage_only:
@@ -373,6 +381,20 @@ def _zero_trust_domain_for_input(
             continue
         observed.append({"field": str(field), "value": aliases.get(normalized, normalized)})
     unknown = str(resolution.get("unknown_domain", "unknown"))
+    if len({item["value"] for item in observed}) > 1:
+        return {
+            "trust_domain": unknown,
+            "source_field": "conflict",
+            "conflicting_domain_fields": observed,
+            "unknown": True,
+        }
+    if observed and observed[0]["field"] == "trust_domain" and len(observed) == 1:
+        return {
+            "trust_domain": unknown,
+            "source_field": "trust_domain-unbound",
+            "conflicting_domain_fields": [],
+            "unknown": True,
+        }
     selected = observed[0] if observed else {"field": "none", "value": unknown}
     conflicts = [
         item for item in observed[1:] if item["value"] != selected["value"]

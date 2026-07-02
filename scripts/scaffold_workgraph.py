@@ -430,12 +430,21 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
     )
     if needs_external_acceptance:
         peer_review_lanes = ["peer-review"] if peer_review_required else []
+        dispatch_guard_labels = list(route.get("guard_labels") or [])
+        dispatch_metadata = {
+            "codex_pickup": "forbidden",
+            "guard_labels": dispatch_guard_labels,
+            "route": route.get("route"),
+            "share_boundary": route.get("share_boundary"),
+            "architect_review_required": True,
+        }
         acceptance_lanes: list[dict[str, Any]] = [
             {
                 "title": f"Dispatch: {title}",
                 "type": "task",
                 "lane": "external-dispatch",
-                "labels": ["dispatch", route["route"]],
+                "labels": unique_strings(["dispatch", route["route"], *dispatch_guard_labels]),
+                "metadata": dispatch_metadata,
                 "depends_on_lanes": ["pm"],
                 **lane_fields("external-dispatch", route),
             },

@@ -23,6 +23,30 @@ die() {
   exit 1
 }
 
+valid_copr_ref() {
+  case "$1" in
+    (*[!A-Za-z0-9_.@/-]*|*//*|/*|*/|*/*/*|'')
+      return 1
+      ;;
+    (*/*)
+      return 0
+      ;;
+    (*)
+      return 1
+      ;;
+  esac
+}
+
+print_copr_command() {
+  local copr_ref="$1"
+
+  if valid_copr_ref "$copr_ref"; then
+    say "  sudo dnf copr enable '$copr_ref'"
+  else
+    say "Configured BEADS_COPR contains unsupported characters; not printing a copy-paste COPR command."
+  fi
+}
+
 usage() {
   cat <<'USAGE'
 Install the complex-work-orchestration Codex skill.
@@ -271,10 +295,10 @@ check_beads() {
     say "For Fedora or EPEL systems, install Beads from your configured package source."
     if [ "$BEADS_COPR" = "$DEFAULT_BEADS_COPR" ]; then
       say "If you do not have your own Beads package, you can use the public COPR:"
-      say "  sudo dnf copr enable $BEADS_COPR"
+      print_copr_command "$BEADS_COPR"
     elif [ -n "$BEADS_COPR" ]; then
       say "To use your configured COPR:"
-      say "  sudo dnf copr enable $BEADS_COPR"
+      print_copr_command "$BEADS_COPR"
     fi
     say "  sudo dnf install beads"
     say "Then verify:"

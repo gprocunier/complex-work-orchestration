@@ -14,6 +14,12 @@ from .util import artifact_hash, packet_payload_hash, parse_iso_datetime
 
 
 MANDATORY_EXCLUDED_ARTIFACTS = {"full_bead_json", "secrets", "production_access"}
+SECRET_LIKE_FIELD_RE = re.compile(r"(?i)(api[_-]?key|token|password|secret|credential|private[_-]?key)")
+DEFAULT_REDACTION_PATTERNS = [
+    r"(?i)([\"']?(?:api[_-]?key|token|password|secret|credential)[\"']?\s*[:=]\s*)[\"']?[^\"'\s,}\]]+",
+    r"(?i)(\b_?(?:api[_-]?key|token|password|secret|credential)\b\s+)[\"']?[^\"'\s,}\]]+",
+    r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----",
+]
 
 
 CONTRACTOR_PACKET_REQUIRED_FIELDS = [
@@ -58,8 +64,8 @@ LOCAL_DISPATCH_REQUIRED_FIELDS = [
 
 def redact_text(value: str) -> str:
     redacted = value
-    for pattern in load_policy("share-boundaries").get("redaction_patterns", []):
-        redacted = re.sub(pattern, "[REDACTED]", redacted)
+    for pattern in [*DEFAULT_REDACTION_PATTERNS, *load_policy("share-boundaries").get("redaction_patterns", [])]:
+        redacted = re.sub(pattern, lambda match: (match.group(1) if match.groups() else "") + "[REDACTED]", redacted)
     return redacted
 
 
@@ -71,6 +77,23 @@ def redact_value(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: redact_value(item) for key, item in value.items()}
     return value
+
+
+def sanitize_boundary_value(value: Any, forbidden: set[str]) -> Any:
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text in forbidden:
+                continue
+            if SECRET_LIKE_FIELD_RE.search(key_text):
+                sanitized[key_text] = "[REDACTED]"
+                continue
+            sanitized[key_text] = sanitize_boundary_value(item, forbidden)
+        return sanitized
+    if isinstance(value, list):
+        return [sanitize_boundary_value(item, forbidden) for item in value]
+    return redact_value(value)
 
 
 def sanitize_bead(bead_json: Any, share_boundary: str) -> dict[str, Any]:
@@ -94,7 +117,10 @@ def sanitize_bead(bead_json: Any, share_boundary: str) -> dict[str, Any]:
             continue
         if whitelist and key not in whitelist:
             continue
-        sanitized[key] = redact_value(value)
+        if SECRET_LIKE_FIELD_RE.search(str(key)):
+            sanitized[key] = "[REDACTED]"
+        else:
+            sanitized[key] = sanitize_boundary_value(value, forbidden)
     return sanitized
 
 
@@ -102,7 +128,14 @@ def artifact_whitelist_for_boundary(share_boundary: str) -> set[str]:
     return set(boundary_config(share_boundary).get("artifact_whitelist", []))
 
 
-def validate_opt_in_record(path: str | Path, *, executor: str, share_boundary: str) -> dict[str, Any]:
+def validate_opt_in_record(
+    path: str | Path,
+    *,
+    executor: str,
+    share_boundary: str,
+    bead_id: str | None = None,
+    epic_id: str | None = None,
+) -> dict[str, Any]:
     record_path = Path(path)
     if not record_path.is_file():
         raise SystemExit(f"opt-in record does not exist: {record_path}")
@@ -163,6 +196,12 @@ def validate_opt_in_record(path: str | Path, *, executor: str, share_boundary: s
             raise SystemExit("opt-in record has expired")
     if not record.get("scope"):
         raise SystemExit("opt-in record must include scope")
+    record_bead = record.get("bead_id")
+    if record_bead and bead_id and record_bead != bead_id:
+        raise SystemExit(f"opt-in record bead_id {record_bead!r} does not match assigned bead {bead_id!r}")
+    record_epic = record.get("epic_id")
+    if record_epic and epic_id and record_epic != epic_id:
+        raise SystemExit(f"opt-in record epic_id {record_epic!r} does not match assigned epic {epic_id!r}")
     return record
 
 
@@ -230,8 +269,23 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         errors.append("packet external_opt_in must be true")
     if packet.get("opt_in_basis") in [None, "", "not-recorded"]:
         errors.append("packet opt_in_basis must record explicit user opt-in")
-    if not str(packet.get("job_description_label", "")).startswith("contract-jd-"):
+    job_label = str(packet.get("job_description_label", ""))
+    if not job_label.startswith("contract-jd-"):
         errors.append("packet job_description_label must be a contract-jd label")
+    registry_job_labels = {
+        str(profile.get("job_description_label"))
+        for profile in load_policy("expert-registry").get("experts", {}).values()
+        if isinstance(profile, dict) and profile.get("job_description_label")
+    }
+    if registry_job_labels and job_label not in registry_job_labels:
+        errors.append(f"packet job_description_label {job_label!r} is not registered")
+    bead_labels = packet.get("bead_summary", {}).get("labels", []) if isinstance(packet.get("bead_summary"), dict) else []
+    if isinstance(bead_labels, list):
+        job_labels = [str(label) for label in bead_labels if str(label).startswith("contract-jd-")]
+        if len(job_labels) > 1:
+            errors.append("packet bead_summary contains multiple primary job-description labels: " + ", ".join(job_labels))
+        if job_labels and job_label not in job_labels:
+            errors.append("packet job_description_label does not match bead_summary job-description label")
     if packet.get("expert_profile_included") is not True and not allow_degraded_packet:
         errors.append("packet is missing the expert profile; pass --allow-degraded-packet to dispatch anyway")
     if packet.get("expert_profile_included") is not True and not str(packet.get("degraded_context_justification", "")).strip():
@@ -335,9 +389,15 @@ def load_expert_profile(persona_file: str | None) -> dict[str, str]:
     if not persona_file:
         return {}
     safe_path = assert_repo_safe_path(REPO_ROOT / persona_file)
-    content = safe_path.read_text(encoding="utf-8")
+    relative = Path(repo_relative_path(safe_path))
+    if not relative.parts or relative.parts[0] != "experts" or safe_path.suffix != ".md":
+        raise SystemExit("expert profile must be a Markdown file under experts/")
+    content = redact_text(safe_path.read_text(encoding="utf-8"))
+    line_count = len(content.splitlines())
+    if line_count > 220:
+        raise SystemExit(f"expert profile exceeds line limit 220: {relative.as_posix()}")
     return {
-        "path": repo_relative_path(safe_path),
+        "path": relative.as_posix(),
         "sha256": artifact_hash(content),
         "content": content,
     }
@@ -387,13 +447,45 @@ def make_attestation(
     return attestation
 
 
-def verify_attestation(subject: str | bytes, attestation: dict[str, Any]) -> dict[str, Any]:
+def verify_attestation(
+    subject: str | bytes,
+    attestation: dict[str, Any],
+    *,
+    expected_subject_type: str | None = None,
+    expected_subject_id: str | None = None,
+    expected_predicate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     subject_bytes = subject if isinstance(subject, bytes) else subject.encode("utf-8")
     actual_subject_hash = hashlib.sha256(subject_bytes).hexdigest()
-    expected_attestation_hash = attestation_payload_hash(attestation)
     errors: list[str] = []
+    if not isinstance(attestation, dict):
+        errors.append("attestation must be an object")
+        return {
+            "valid": False,
+            "errors": errors,
+            "subject_sha256": actual_subject_hash,
+            "attestation_sha256": None,
+        }
+    expected_attestation_hash = attestation_payload_hash(attestation)
+    if attestation.get("attestation_type") != "sha256-subject-attestation":
+        errors.append("attestation_type must be sha256-subject-attestation")
+    if attestation.get("version") != 1:
+        errors.append("attestation version must be 1")
+    if not isinstance(attestation.get("predicate"), dict):
+        errors.append("attestation predicate must be an object")
+    if expected_subject_type and attestation.get("subject_type") != expected_subject_type:
+        errors.append("subject_type does not match expected context")
+    if expected_subject_id and attestation.get("subject_id") != expected_subject_id:
+        errors.append("subject_id does not match expected context")
+    if expected_predicate:
+        predicate = attestation.get("predicate") if isinstance(attestation.get("predicate"), dict) else {}
+        for key, expected in expected_predicate.items():
+            if predicate.get(key) != expected:
+                errors.append(f"predicate {key!r} does not match expected context")
     if attestation.get("subject_sha256") != actual_subject_hash:
         errors.append("subject_sha256 does not match subject bytes")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(attestation.get("subject_sha256", ""))):
+        errors.append("subject_sha256 is not a lowercase SHA-256 hex digest")
     if attestation.get("attestation_sha256") != expected_attestation_hash:
         errors.append("attestation_sha256 does not match attestation payload")
     return {
@@ -402,3 +494,17 @@ def verify_attestation(subject: str | bytes, attestation: dict[str, Any]) -> dic
         "subject_sha256": actual_subject_hash,
         "attestation_sha256": expected_attestation_hash,
     }
+
+
+def fenced_block(content: Any, info: str = "text") -> str:
+    text = str(content if content is not None else "")
+    longest = max((len(match.group(0)) for match in re.finditer(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    suffix = info.strip()
+    opener = f"{fence}{suffix}" if suffix else fence
+    return f"{opener}\n{text}\n{fence}"
+
+
+def markdown_table_cell(value: Any) -> str:
+    text = str(value if value is not None else "")
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>").replace("`", "\\`")

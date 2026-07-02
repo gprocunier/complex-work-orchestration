@@ -58,11 +58,12 @@ python3 scripts/render_harness_dispatch.py \
 ```
 
 The JSON envelope follows `schemas/harness-dispatch-envelope.schema.json`. It
-includes `envelope_version=1.0`, lifecycle state `rendered`, a prompt SHA-256,
-execution environment, harness, role, capability requirements, timeout,
-selected `model_profile`, sanitized `model_profile_details`, suggested command,
-and constraints. It must not include API keys, bearer tokens, browser cookies,
-kubeconfigs, or other credential values.
+includes `envelope_version=1.0`, lifecycle state `rendered`, a prompt SHA-256
+that must match the rendered prompt, execution environment, harness, role,
+capability requirements, timeout, selected `model_profile`, sanitized
+`model_profile_details`, shell-quoted suggested command, and constraints. It
+must not include API keys, bearer tokens, browser cookies, kubeconfigs, or other
+credential values.
 
 ## Airgapped Model Matrix
 

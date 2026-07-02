@@ -213,7 +213,22 @@
         "accepted_findings": {"type": "array", "items": {"type": "string"}},
         "rejected_findings": {"type": "array", "items": {"type": "string"}},
         "quarantined_findings": {"type": "array", "items": {"type": "string"}},
-        "decision_owner": {"const": "architect"}
+        "decision_owner": {"const": "architect"},
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["artifact", "artifact_type", "sha256"],
+            "properties": {
+              "artifact": {"type": "string", "minLength": 1},
+              "artifact_type": {
+                "enum": ["beads-comment", "contractor-return", "evaluator-result", "synthesis-result", "validation-log"]
+              },
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "description": {"type": "string"}
+            }
+          }
+        }
       }
     }
   }

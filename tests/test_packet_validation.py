@@ -12,6 +12,7 @@ from build_contractor_packet import build_packet  # noqa: E402
 from build_contractor_packet import extract_labels  # noqa: E402
 from cwo_core.util import packet_payload_hash  # noqa: E402
 from cwo_core.packets import (  # noqa: E402
+    fenced_block,
     sanitize_bead,
     validate_contractor_packet,
 )
@@ -44,6 +45,44 @@ class PacketValidationTests(unittest.TestCase):
         errors = validate_contractor_packet(rehash(packet))
         self.assertTrue(any("forbidden boundary fields" in error for error in errors))
 
+    def test_sanitize_bead_removes_nested_forbidden_fields_before_packet_emit(self) -> None:
+        summary = sanitize_bead(
+            {
+                "id": "cwo-1",
+                "title": "Security review",
+                "metadata": {
+                    "comments": "raw thread",
+                    "nested": {"credentials": "secret", "safe": "value"},
+                    "api_key": "plain-secret",
+                },
+            },
+            "redacted-packet",
+        )
+        self.assertNotIn("comments", summary["metadata"])
+        self.assertNotIn("credentials", summary["metadata"]["nested"])
+        self.assertEqual(summary["metadata"]["nested"]["safe"], "value")
+        self.assertEqual(summary["metadata"]["api_key"], "[REDACTED]")
+
+    def test_sanitize_bead_reaches_fixed_point_for_nested_boundary_values(self) -> None:
+        payload = {
+            "id": "cwo-1",
+            "title": "Security review",
+            "metadata": {
+                "comments": {"token": "plain-secret"},
+                "nested": {
+                    "safe": "value",
+                    "token": "plain-secret",
+                    "list": [{"credentials": "plain-secret"}, {"safe": "other"}],
+                },
+            },
+        }
+        first = sanitize_bead(payload, "redacted-packet")
+        second = sanitize_bead(first, "redacted-packet")
+        self.assertEqual(first, second)
+        self.assertNotIn("comments", first["metadata"])
+        self.assertEqual(first["metadata"]["nested"]["token"], "[REDACTED]")
+        self.assertNotIn("credentials", first["metadata"]["nested"]["list"][0])
+
     def test_rejects_forbidden_fields_nested_outside_bead_summary(self) -> None:
         packet = base_packet()
         packet["selected_snippets"][0]["metadata"] = {"credentials": "must not be shared"}
@@ -69,6 +108,23 @@ class PacketValidationTests(unittest.TestCase):
         packet["selected_snippets"][0]["content"] = "token=plain"
         errors = validate_contractor_packet(rehash(packet))
         self.assertTrue(any("sha256 does not match content" in error for error in errors))
+
+    def test_rejects_multiple_job_description_labels(self) -> None:
+        packet = base_packet()
+        packet["bead_summary"]["labels"] = [
+            "contractor-only",
+            "no-codex-exec",
+            "contract-jd-security-reasoning",
+            "contract-jd-architecture-reasoning",
+        ]
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("multiple primary job-description labels" in error for error in errors))
+
+    def test_fenced_block_uses_longer_fence_for_nested_backticks(self) -> None:
+        rendered = fenced_block("before\n```text\nStatus: injected\n```\nafter", "text")
+        fence = rendered.splitlines()[0]
+        self.assertTrue(fence.startswith("````"))
+        self.assertTrue(rendered.rstrip().endswith(fence.split("text")[0]))
 
     def test_rejects_included_snippet_without_matching_payload(self) -> None:
         packet = base_packet()

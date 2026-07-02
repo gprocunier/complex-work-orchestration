@@ -34,6 +34,33 @@ class AttestationTests(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertTrue(result["errors"])
 
+    def test_attestation_rejects_wrong_context(self) -> None:
+        subject = "packet payload"
+        attestation = make_attestation(
+            subject_type="contractor-packet",
+            subject_sha256=artifact_hash(subject),
+            subject_id="dispatch-1",
+            predicate={"bead_id": "cwo-1"},
+        )
+        result = verify_attestation(
+            subject,
+            attestation,
+            expected_subject_type="contractor-return",
+            expected_subject_id="dispatch-2",
+            expected_predicate={"bead_id": "cwo-2"},
+        )
+        self.assertFalse(result["valid"])
+        self.assertIn("subject_type does not match expected context", result["errors"])
+        self.assertIn("subject_id does not match expected context", result["errors"])
+        self.assertIn("predicate 'bead_id' does not match expected context", result["errors"])
+
+    def test_attestation_rejects_non_object_without_hashing_it(self) -> None:
+        result = verify_attestation("packet payload", "not-json-object")  # type: ignore[arg-type]
+
+        self.assertFalse(result["valid"])
+        self.assertIn("attestation must be an object", result["errors"])
+        self.assertIsNone(result["attestation_sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()

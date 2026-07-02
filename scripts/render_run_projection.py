@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from validate_run_readiness_plan import load_plan, validate_plan
+from cwo_core.packets import markdown_table_cell
 
 PROJECTION_TYPES = {"run-sheet", "wrap-up-status", "next-version"}
 PROJECTION_ALIASES = {
@@ -85,6 +86,7 @@ def build_projection(plan: dict[str, Any], projection_type: str, source_path: Pa
                 "accepted_findings": _strings(adjudication.get("accepted_findings")),
                 "rejected_findings": _strings(adjudication.get("rejected_findings")),
                 "quarantined_findings": _strings(adjudication.get("quarantined_findings")),
+                "adjudication_evidence_refs": _items(adjudication.get("evidence_refs")),
                 "provider_provenance": _items(plan.get("provider_provenance")),
                 "quarantine_rules": _items(plan.get("quarantine_rules")),
                 "validation_evidence": _items(plan.get("criterion_evidence_matrix")),
@@ -120,7 +122,7 @@ def _render_table(headers: list[str], rows: list[list[str]]) -> list[str]:
         rendered.append("| " + " | ".join("None recorded." if index == 0 else "" for index, _ in enumerate(headers)) + " |")
         return rendered
     for row in rows:
-        rendered.append("| " + " | ".join(cell.replace("\n", " ") for cell in row) + " |")
+        rendered.append("| " + " | ".join(markdown_table_cell(cell) for cell in row) + " |")
     return rendered
 
 
@@ -187,6 +189,17 @@ def render_markdown(projection: dict[str, Any]) -> str:
         lines.extend(_bullet_lines(_strings(projection.get("rejected_findings"))))
         lines.extend(["", "### Quarantined", ""])
         lines.extend(_bullet_lines(_strings(projection.get("quarantined_findings"))))
+        lines.extend(["", "## Adjudication Evidence Refs", ""])
+        rows = [
+            [
+                str(item.get("artifact", "")),
+                str(item.get("artifact_type", "")),
+                str(item.get("sha256", "")),
+                str(item.get("description", "")),
+            ]
+            for item in _items(projection.get("adjudication_evidence_refs"))
+        ]
+        lines.extend(_render_table(["Artifact", "Type", "SHA-256", "Description"], rows))
         lines.extend(["", "## Provider Provenance", ""])
         rows = [
             [

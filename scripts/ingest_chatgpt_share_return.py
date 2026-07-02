@@ -11,6 +11,7 @@ from typing import Any
 
 from cwo_core.chatgpt_urls import valid_chatgpt_share_url
 from cwo_core.paths import assert_safe_output_path
+from cwo_core.packets import fenced_block
 from cwo_core.util import atomic_write_text, artifact_hash
 
 DEFAULT_EXECUTOR = "chatgpt_pro_5_5_extended_reasoning_browser"
@@ -115,9 +116,7 @@ Scope compliance: Ingested one ChatGPT share response for bead {bead_line} and d
 Validation result: Share page parsed with the local ChatGPT share reader. Source: {source_line}.
 Provider policy limitations: External OpenAI browser output requires evaluator scoring, peer review when policy requires it, and architect adjudication.
 Evidence:
-```text
-{assistant_text}
-```
+{fenced_block(assistant_text, 'text')}
 Evidence provenance: reader={reader}; method={provenance.get('method')}; message_id={provenance.get('message_id')}; messages={provenance.get('message_count')}; packet_sha256={packet_line}
 Attestation or reproducibility note: reader_output_sha256={artifact_hash(json.dumps(provenance, sort_keys=True) + assistant_text)}
 Share-boundary conformance: Expected boundary was {share_boundary}; the ingest helper read only the provided ChatGPT share URL or local HTML file.

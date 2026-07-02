@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 from typing import Any
 
+from cwo_core.packets import fenced_block, require_valid_contractor_packet
 from cwo_core.routing import classify_work
 from cwo_core.util import read_text_arg
 
@@ -123,7 +125,7 @@ def render_packet_prompt(packet: dict[str, Any]) -> str:
     required_sections = "\n".join(f"- {section}" for section in required_return_sections)
     snippets = []
     for item in packet.get("selected_snippets", []):
-        snippets.append(f"### {item.get('path')}\n\n```text\n{item.get('content', '')}\n```")
+        snippets.append(f"### {item.get('path')}\n\n{fenced_block(item.get('content', ''), 'text')}")
     snippet_text = "\n\n".join(snippets) if snippets else "No file snippets were included."
     profile = packet.get("expert_profile") or {}
     if profile:
@@ -131,9 +133,7 @@ def render_packet_prompt(packet: dict[str, Any]) -> str:
 Path: {profile.get('path')}
 SHA-256: {profile.get('sha256')}
 
-```markdown
-{profile.get('content', '')}
-```"""
+{fenced_block(profile.get('content', ''), 'markdown')}"""
     else:
         justification = packet.get("degraded_context_justification", "")
         profile_text = f"""Distinguished Engineer calibration profile: not included. Treat this as degraded context and say so in the return.
@@ -158,9 +158,7 @@ Boundary:
 {packet.get('boundary_description', 'No boundary description provided.')}
 
 Bead summary:
-```json
-{json.dumps(packet.get('bead_summary', {}), indent=2, sort_keys=True)}
-```
+{fenced_block(json.dumps(packet.get('bead_summary', {}), indent=2, sort_keys=True), 'json')}
 
 Included artifacts:
 {included_lines or '- assignment summary only'}
@@ -198,6 +196,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate a copy-paste prompt for manual UI dispatch.")
     parser.add_argument("text", nargs="*")
     parser.add_argument("--file")
+    parser.add_argument("--packet", help="Boundary-gated contractor packet JSON to render.")
+    parser.add_argument(
+        "--allow-degraded-packet",
+        action="store_true",
+        help="Allow rendering a valid packet that omits the expert profile after validation.",
+    )
+    parser.add_argument(
+        "--allow-raw-manual-prompt",
+        action="store_true",
+        help="Operator-only degraded path: render an external manual prompt without a validated packet.",
+    )
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument(
         "--allow-disclosure-escalation",
@@ -211,6 +220,16 @@ def main() -> None:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
+    if args.packet:
+        packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
+        require_valid_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
+        prompt = render_packet_prompt(packet)
+        if args.json:
+            print(json.dumps({"packet": packet, "prompt": prompt}, indent=2, sort_keys=True))
+        else:
+            print(prompt)
+        return
+
     task = read_text_arg(" ".join(args.text).strip() or None, args.file)
     route = classify_work(
         task,
@@ -221,6 +240,10 @@ def main() -> None:
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
     )
+    if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:
+        raise SystemExit(
+            "external manual prompts require --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"
+        )
     prompt = render_prompt(task, route)
     if args.json:
         print(json.dumps({"route": route, "prompt": prompt}, indent=2, sort_keys=True))
