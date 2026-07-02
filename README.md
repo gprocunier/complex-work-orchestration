@@ -878,9 +878,9 @@ reference below and in the GitHub Pages Reference page.
 
    The coach returns a recommended orchestration level,
    `beads_tracking_required=true`, `scaffold_sizing`,
-   `workerbee_parallelism`, `model_synthesis`, missing questions, bounded
-   `interactive_questions`, enabled/disabled levers, warnings, and a
-   paste-ready launch prompt. In Plan mode, use
+   `workerbee_parallelism`, `model_synthesis`, `operator_calibration`, missing
+   questions, bounded `interactive_questions`, enabled/disabled levers,
+   warnings, and a paste-ready launch prompt. In Plan mode, use
    `interactive_questions` for selectable user input when the answer changes
    execution behavior. The coach always asks whether to parallelize with
    subagents. If the coach recommends
@@ -910,6 +910,12 @@ reference below and in the GitHub Pages Reference page.
    structured `zero_trust_claims` to accepted primary inputs so CWO can compare
    claims across independent trust domains. Matching claims do not become
    validation; conflicting claims remain evidence for architect adjudication.
+   `operator_calibration` is separate from normal expert routing. It requires
+   `contract-jd-operator-calibrated-execution` for false-closure,
+   safety-deferred, not-run, exhausted-lane, or conflicting-review closeout
+   language, and recommends it for autonomous loops, commit/push, publish,
+   mixed-evidence, and multi-target work. It should stay off for ordinary
+   focused tasks.
    `scaffold_sizing` is the graph-size lever. Full graph remains the default
    for broad orchestration. Tight-chain sizing keeps the architect, PM,
    implementation, validation, docs/handoff, required peer/editor/evaluation

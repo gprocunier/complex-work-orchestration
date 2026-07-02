@@ -277,6 +277,11 @@ python3 scripts/render_run_projection.py \
               instruction fit, evidence classification, safety-deferred
               residual risk, false-closure checks, artifact hygiene, and
               requested closeout such as validation, commit, push, or handoff.
+              The prompt coach reports this as <code>operator_calibration</code>:
+              required for false-closure, not-run, safety-deferred,
+              exhausted-lane, or conflicting-review closeout language;
+              recommended for autonomous, publish, commit/push, mixed-evidence,
+              or multi-target work; and off for ordinary focused tasks.
             </p>
             <p>
               Red Hat lenses include OpenShift Platform, OpenShift Application

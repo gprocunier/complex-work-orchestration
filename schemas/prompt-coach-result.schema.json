@@ -18,6 +18,7 @@
     "disabled_levers",
     "workerbee_parallelism",
     "model_synthesis",
+    "operator_calibration",
     "route",
     "paste_ready_prompt",
     "warnings"
@@ -201,6 +202,27 @@
         "partial_synthesis_policy": {"type": "object"},
         "provider_conflict_policy": {"type": "object"},
         "provider_conflict_flags": {"type": "array", "items": {"type": "object"}},
+        "rationale": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "operator_calibration": {
+      "type": "object",
+      "required": [
+        "mode",
+        "expert",
+        "job_description_label",
+        "trigger_reasons",
+        "acceptance_question",
+        "prompt_user_in_plan_mode",
+        "rationale"
+      ],
+      "properties": {
+        "mode": {"enum": ["none", "recommended", "required"]},
+        "expert": {"const": "operator_calibrated_execution"},
+        "job_description_label": {"const": "contract-jd-operator-calibrated-execution"},
+        "trigger_reasons": {"type": "array", "items": {"type": "string"}},
+        "acceptance_question": {"type": "string"},
+        "prompt_user_in_plan_mode": {"type": "boolean"},
         "rationale": {"type": "array", "items": {"type": "string"}}
       }
     },
