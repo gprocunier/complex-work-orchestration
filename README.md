@@ -258,6 +258,11 @@ declares Beads as the canonical source and a renderer command or source Bead.
 Run sheets and wrap-up/status reports are generated views from durable Beads
 state; they are not new authority.
 
+For end-of-plan resource and review-lane accounting, render the execution
+status report from explicit audit, readiness, evaluator, and return-bundle
+artifacts. Missing calls, retries, token counts, or timings stay `?` rather
+than estimated:
+
 Use the JSON shape when automation needs a hard gate, then render projection
 views when humans need a run sheet, wrap-up, or next-version rail:
 
@@ -265,6 +270,7 @@ views when humans need a run sheet, wrap-up, or next-version rail:
 python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
 python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status
+python3 scripts/render_execution_status_report.py --format terminal
 ```
 
 Deferred work must use one of the allowed next-version reason types:
@@ -278,9 +284,11 @@ Reference files:
 - `references/run-readiness.md`
 - `templates/run-readiness-plan.md`
 - `schemas/run-readiness-plan.schema.json`
+- `schemas/execution-status-report.schema.json`
 - `examples/sample-run-readiness-plan.json`
 - `scripts/validate_run_readiness_plan.py`
 - `scripts/render_run_projection.py`
+- `scripts/render_execution_status_report.py`
 
 ```mermaid
 flowchart TD
@@ -642,12 +650,16 @@ binding, and expert profile for outside or local review.
   tests, adjudication evidence refs with SHA-256 bindings, and handoff evidence.
 - `scripts/render_run_projection.py`: render non-authoritative run sheet,
   wrap-up/status, or next-version projections from a validated readiness plan.
+- `scripts/render_execution_status_report.py`: render a terminal or JSON
+  end-of-plan status report from explicit audit, readiness, evaluator, and
+  return-bundle artifacts; unknown telemetry remains `?`.
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
   executor controls, or emitted packet artifact names drift apart.
 
 Schemas in `schemas/` describe prompt-coach results, route results, contractor
 packets, contractor return bundles, local dispatch envelopes, attestations,
-acceptance decisions, run readiness plans, Beads metadata, and audit events.
+acceptance decisions, run readiness plans, execution status reports, Beads
+metadata, and audit events.
 `examples/` contains small sample artifacts that can be used as smoke-test
 inputs.
 

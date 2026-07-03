@@ -1,0 +1,235 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from cwo_core.execution_status_report import build_execution_status_report, render_terminal  # noqa: E402
+
+
+def sample_audit_events() -> list[dict[str, object]]:
+    return [
+        {
+            "dispatch_id": "main-architect-1",
+            "event_type": "dispatch",
+            "timestamp": "2026-07-03T12:00:00Z",
+            "bead_id": "cwo-1",
+            "executor_key": "frontier_architect",
+            "provider_key": "openai_internal",
+            "provider_family": "openai",
+            "executor_external": False,
+            "lane": "architect",
+            "expert_profile": "architecture",
+            "model": "codex-5.5-x-high",
+            "calls": 1,
+            "retry_count": 0,
+            "input_tokens": 500,
+            "output_tokens": 200,
+            "elapsed_seconds": 30,
+            "status": "completed",
+            "raw_prompt": "LEAK_RAW_PROMPT",
+            "chain_of_thought": "LEAK_CHAIN_OF_THOUGHT",
+        },
+        {
+            "dispatch_id": "opus-review-1",
+            "event_type": "external_manual_dispatch",
+            "timestamp": "2026-07-03T12:05:00Z",
+            "bead_id": "cwo-2",
+            "executor_key": "claude_opus",
+            "provider_key": "anthropic",
+            "provider_family": "anthropic",
+            "executor_external": True,
+            "lane": "second-opinion-review",
+            "expert_profile": "contract-jd-operator-calibrated-execution",
+            "model": "claude-opus-4-6",
+            "retry_count": 1,
+            "usage": {"input_tokens": 1000, "output_tokens": 500},
+            "duration_seconds": 90,
+            "status": "completed",
+        },
+    ]
+
+
+def sample_acceptance_decisions() -> list[dict[str, object]]:
+    return [
+        {
+            "dispatch_id": "opus-review-1",
+            "bead_id": "cwo-2",
+            "executor": "claude_opus",
+            "provider_key": "anthropic",
+            "provider_family": "anthropic",
+            "provider_external": True,
+            "provenance_class": "external-contractor",
+            "verdict": "partial-accept",
+            "score": 86,
+            "accepted_findings": ["Preserve unavailable telemetry as ?."],
+            "rejected_findings": ["Render raw transcript text."],
+            "evidence_quality_score": 72,
+            "sabotage_score": 0,
+            "malpractice_score": 0,
+            "peer_review_required": True,
+            "human_adjudication_required": True,
+            "recommended_disposition": "partial-accept",
+            "recommended_synthesis_use": "salvage-only",
+            "followup_beads": ["cwo-3"],
+        }
+    ]
+
+
+def sample_return_bundles() -> list[dict[str, object]]:
+    return [
+        {
+            "bundle_type": "contractor-return-bundle",
+            "version": 1,
+            "dispatch_id": "gemini-review-1",
+            "bead_id": "cwo-4",
+            "executor": "gemini",
+            "provider_key": "google",
+            "provider_family": "google",
+            "provider_external": True,
+            "provenance_class": "external-contractor",
+            "job_description_label": "contract-jd-sabotage-review",
+            "evidence_quality_score": 42,
+            "sabotage_score": 1,
+            "malpractice_score": 2,
+            "quarantine_recommended": True,
+            "required_sections_missing": [],
+            "raw_transcript": "LEAK_RAW_TRANSCRIPT",
+        }
+    ]
+
+
+class ExecutionStatusReportTests(unittest.TestCase):
+    def test_aggregates_complete_telemetry_from_explicit_records(self) -> None:
+        report = build_execution_status_report(
+            audit_events=sample_audit_events(),
+            acceptance_decisions=sample_acceptance_decisions(),
+            return_bundles=sample_return_bundles(),
+            readiness_plan={
+                "workstreams": [
+                    {"name": "validation", "owner": "reliability", "status": "deferred"},
+                ]
+            },
+        )
+
+        self.assertEqual(report["result_type"], "cwo-execution-status-report")
+        summary = report["executive_summary"]
+        self.assertEqual(summary["work_units"], 4)
+        self.assertEqual(summary["completed"], 3)
+        self.assertEqual(summary["deferred"], 1)
+        self.assertEqual(summary["agent_model_calls"], "2")
+        self.assertEqual(summary["total_tokens"], "2200")
+        self.assertEqual(summary["elapsed_seconds"], "120")
+        self.assertEqual(summary["second_opinion_calls"], "1")
+
+        quality = report["quality_malpractice_sabotage_summary"]
+        self.assertEqual(quality["totals"]["low_evidence_quality"], 1)
+        self.assertEqual(quality["totals"]["sabotage_concerns"], 1)
+        self.assertEqual(quality["totals"]["malpractice_concerns"], 1)
+        self.assertEqual(quality["totals"]["quarantine_recommended"], 1)
+        self.assertEqual(report["evidence_disposition_summary"]["salvage-only"], 1)
+        self.assertEqual(report["evidence_disposition_summary"]["accepted_findings"], 1)
+        self.assertEqual(report["evidence_disposition_summary"]["rejected_findings"], 1)
+
+    def test_missing_telemetry_remains_unavailable(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "missing-telemetry",
+                    "event_type": "dispatch",
+                    "timestamp": "2026-07-03T12:00:00Z",
+                    "bead_id": "cwo-5",
+                    "executor_key": "frontier_architect",
+                    "status": "completed",
+                }
+            ],
+        )
+
+        summary = report["executive_summary"]
+        self.assertEqual(summary["agent_model_calls"], "1")
+        self.assertEqual(summary["total_tokens"], "?")
+        self.assertEqual(summary["elapsed_seconds"], "?")
+        self.assertGreater(summary["missing_telemetry_cells"], 0)
+        rendered = render_terminal(report, width=80)
+        self.assertIn("?", rendered)
+
+    def test_terminal_renderer_degrades_for_narrow_width(self) -> None:
+        report = build_execution_status_report(
+            audit_events=sample_audit_events(),
+            acceptance_decisions=sample_acceptance_decisions(),
+        )
+
+        rendered = render_terminal(report, width=60)
+        self.assertIn("CWO Execution Status Report", rendered)
+        self.assertIn("Executive Summary", rendered)
+        self.assertIn("Second-Opinion Review Lane Productivity", rendered)
+        self.assertTrue(all(len(line) <= 60 for line in rendered.splitlines()))
+
+    def test_outputs_do_not_expose_raw_prompts_transcripts_or_chain_of_thought(self) -> None:
+        report = build_execution_status_report(
+            audit_events=sample_audit_events(),
+            acceptance_decisions=sample_acceptance_decisions(),
+            return_bundles=sample_return_bundles(),
+        )
+
+        payload = json.dumps(report, sort_keys=True)
+        rendered = render_terminal(report, width=100)
+        for forbidden in ["LEAK_RAW_PROMPT", "LEAK_CHAIN_OF_THOUGHT", "LEAK_RAW_TRANSCRIPT"]:
+            self.assertNotIn(forbidden, payload)
+            self.assertNotIn(forbidden, rendered)
+
+    def test_cli_json_output_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp = Path(tempdir)
+            audit_log = temp / "audit.jsonl"
+            audit_log.write_text("\n".join(json.dumps(event) for event in sample_audit_events()) + "\n", encoding="utf-8")
+            decision = temp / "decision.json"
+            decision.write_text(json.dumps(sample_acceptance_decisions()[0]), encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "render_execution_status_report.py"),
+                    "--audit-log",
+                    str(audit_log),
+                    "--acceptance-decision",
+                    str(decision),
+                    "--format",
+                    "json",
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["result_type"], "cwo-execution-status-report")
+        for key in [
+            "executive_summary",
+            "expert_profile_utilization",
+            "agent_model_utilization",
+            "main_thread_architect_productivity",
+            "second_opinion_review_lane_productivity",
+            "quality_malpractice_sabotage_summary",
+            "evidence_disposition_summary",
+        ]:
+            self.assertIn(key, payload)
+
+    def test_schema_required_keys_are_emitted(self) -> None:
+        schema = json.loads((ROOT / "schemas" / "execution-status-report.schema.json").read_text(encoding="utf-8"))
+        report = build_execution_status_report(audit_events=sample_audit_events())
+
+        self.assertEqual(schema["properties"]["result_type"]["const"], "cwo-execution-status-report")
+        for key in schema["required"]:
+            self.assertIn(key, report)
+
+
+if __name__ == "__main__":
+    unittest.main()

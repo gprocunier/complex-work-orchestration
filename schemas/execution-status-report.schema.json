@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Execution Status Report",
+  "type": "object",
+  "required": [
+    "result_type",
+    "version",
+    "authority",
+    "canonical_source",
+    "source_counts",
+    "executive_summary",
+    "expert_profile_utilization",
+    "agent_model_utilization",
+    "main_thread_architect_productivity",
+    "second_opinion_review_lane_productivity",
+    "quality_malpractice_sabotage_summary",
+    "evidence_disposition_summary"
+  ],
+  "properties": {
+    "result_type": {"const": "cwo-execution-status-report"},
+    "version": {"type": "integer", "minimum": 1},
+    "authority": {"const": "projection"},
+    "canonical_source": {"type": "string"},
+    "source_counts": {"type": "object"},
+    "source_files": {"type": "object"},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "executive_summary": {"type": "object"},
+    "expert_profile_utilization": {"type": "array", "items": {"type": "object"}},
+    "agent_model_utilization": {"type": "array", "items": {"type": "object"}},
+    "main_thread_architect_productivity": {"type": "object"},
+    "second_opinion_review_lane_productivity": {"type": "array", "items": {"type": "object"}},
+    "quality_malpractice_sabotage_summary": {"type": "object"},
+    "evidence_disposition_summary": {"type": "object"}
+  }
+}

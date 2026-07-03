@@ -57,6 +57,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "audit": {"paths", "policy", "util"},
     "beads": {"paths", "util"},
     "harness": {"policy", "util"},
+    "execution_status_report": {"audit", "paths"},
 }
 PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS = ["H200", "CerIO", "airgapped-rhoai-h200"]
 

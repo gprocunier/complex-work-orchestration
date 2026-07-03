@@ -84,6 +84,9 @@ vLLM in restricted or airgapped OpenCode paths,
 contractor evidence, synthesis, or publish/release risk requires owners, exit
 criteria, validation evidence, projection rules, quarantine semantics, and
 handoff evidence,
+`scripts/render_execution_status_report.py` when the operator needs an
+end-of-plan terminal or JSON accounting of explicit audit, readiness,
+evaluator, and return-bundle telemetry without estimating missing values,
 `references/redhat-expert-catalog.md` when selecting Red Hat product-focused
 Distinguished Engineer lenses, and `references/contractor-brief.md` as the
 briefing artifact given to an outside contractor with a specific Beads
@@ -354,10 +357,14 @@ provenance and quarantine semantics, require boundary negative tests, type
 next-version deferrals, keep patrol work research-only until accepted, and
 name handoff evidence for workers. For run-sheet or wrap-up/status requests,
 render Beads-derived projections with `scripts/render_run_projection.py` from a
-validated readiness plan. For next-version requests, require an allowed
-`reason_type` and follow-up Bead. For patrol or recurring-work requests, create
-research Beads only until ownership, locking, history, failure containment, and
-provider-neutral execution are accepted.
+validated readiness plan. For end-of-plan resource, expert, agent/model, and
+review-lane accounting, use `scripts/render_execution_status_report.py` with
+explicit audit, readiness, evaluator, and return-bundle inputs; missing tokens,
+timings, calls, and retries must render as unavailable instead of inferred.
+For next-version requests, require an allowed `reason_type` and follow-up Bead.
+For patrol or recurring-work requests, create research Beads only until
+ownership, locking, history, failure containment, and provider-neutral
+execution are accepted.
 
 Useful Beads patterns:
 

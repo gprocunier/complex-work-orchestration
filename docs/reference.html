@@ -152,6 +152,7 @@
               <div role="row"><span role="cell">Harness dispatch</span><code role="cell">schemas/harness-dispatch-envelope.schema.json</code></div>
               <div role="row"><span role="cell">Execution environment</span><code role="cell">schemas/execution-environment.schema.json</code></div>
               <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
+              <div role="row"><span role="cell">Execution status report</span><code role="cell">schemas/execution-status-report.schema.json</code></div>
             </div>
             <p>
               Research-style contractor returns can add optional source-grounded
@@ -182,7 +183,8 @@
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py \
-  examples/sample-run-readiness-plan.json --projection wrap-up-status</code></pre>
+  examples/sample-run-readiness-plan.json --projection wrap-up-status
+python3 scripts/render_execution_status_report.py --format terminal</code></pre>
             <p>
               The key field is the
               <strong>criterion-to-evidence matrix</strong>: every acceptance
@@ -191,6 +193,9 @@ python3 scripts/render_run_projection.py \
               Run sheets, wrap-up/status reports, and next-version rails stay
               typed projections from Beads; contractor and local-worker returns
               stay evidence until evaluation and architect adjudication.
+              The execution status report is a separate end-of-plan accounting
+              view over explicit audit and evaluator artifacts; unknown calls,
+              retries, token counts, and timings are shown as unavailable.
             </p>
             <p>
               Allowed projection types are <code>run-sheet</code>,
@@ -356,6 +361,7 @@ python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.jso
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
 python3 scripts/render_harness_dispatch.py --environment connected-opencode-exemplar --harness opencode --role worker --json "&lt;task text&gt;"
 python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
+python3 scripts/render_execution_status_report.py --format terminal
 python3 scripts/check_installed_skill.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py

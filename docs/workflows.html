@@ -292,7 +292,8 @@ python3 scripts/spawn_expert_reviews.py \
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py \
-  examples/sample-run-readiness-plan.json --projection wrap-up-status</code></pre>
+  examples/sample-run-readiness-plan.json --projection wrap-up-status
+python3 scripts/render_execution_status_report.py --format terminal</code></pre>
             </details>
             <p>
               The validator checks
@@ -302,6 +303,9 @@ python3 scripts/render_run_projection.py \
               views from a validated readiness plan. The readable planning aid is
               <code>templates/run-readiness-plan.md</code>, and the detailed
               operator reference is <code>references/run-readiness.md</code>.
+              The execution status report is a separate end-of-plan view over
+              explicit audit and evaluator artifacts; missing telemetry is shown
+              as unavailable.
             </p>
           </section>
 

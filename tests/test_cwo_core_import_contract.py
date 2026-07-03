@@ -25,6 +25,7 @@ ALLOWED_IMPORTS = {
     "audit": {"paths", "policy", "util"},
     "beads": {"paths", "util"},
     "harness": {"policy", "util"},
+    "execution_status_report": {"audit", "paths"},
 }
 
 

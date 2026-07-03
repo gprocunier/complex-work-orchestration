@@ -52,6 +52,21 @@ Generated run sheets and wrap-up/status reports must be regenerated from Beads
 plus validation, evaluation, and adjudication records. Do not edit them as a
 parallel work database.
 
+For end-of-plan resource accounting, use the separate execution status report
+renderer. It summarizes explicit work-unit, expert profile, agent/model,
+main-thread, second-opinion, quality, sabotage, malpractice, and evidence
+disposition telemetry from audit logs, readiness records, acceptance decisions,
+and return bundles. It is a projection only; unavailable calls, retries,
+tokens, timings, or active-time values render as `?`:
+
+```bash
+python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format json
+```
+
+The machine-readable output is documented by
+`schemas/execution-status-report.schema.json`.
+
 When `adjudication_record` declares accepted, rejected, or quarantined findings,
 it must also include `evidence_refs` entries with `artifact`, `artifact_type`,
 and lowercase SHA-256. The wrap-up/status projection renders those refs so the
