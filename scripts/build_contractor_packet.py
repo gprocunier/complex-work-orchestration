@@ -30,6 +30,7 @@ from cwo_core.audit import (
     enforce_contracting_quota,
     record_audit_event,
 )
+from cwo_core.telemetry import telemetry_fields
 from cwo_core.packets import (
     fenced_block,
     file_snippet,
@@ -417,6 +418,9 @@ def main() -> None:
     else:
         print(rendered)
     if args.audit:
+        included_artifacts = packet.get("included_artifacts") if isinstance(packet.get("included_artifacts"), list) else []
+        selected_snippets = packet.get("selected_snippets") if isinstance(packet.get("selected_snippets"), list) else []
+        profile = packet.get("expert_profile") if isinstance(packet.get("expert_profile"), dict) else {}
         record_audit_event(
             {
                 "event_type": "packet_built",
@@ -428,9 +432,30 @@ def main() -> None:
                 "executor_key": args.executor,
                 "executor_external": quota_info.get("executor_external"),
                 "share_boundary": args.share_boundary,
+                "disclosure_stage": packet.get("disclosure_stage"),
                 "opt_in_basis": opt_in_basis,
                 "quota_remaining": quota_info.get("quota_remaining"),
                 "packet_sha256": packet["packet_sha256"],
+                **telemetry_fields(
+                    telemetry_kind="packet_build",
+                    telemetry_status="completed",
+                    provider_family=packet.get("provider_family"),
+                    provider_retention_class=packet.get("provider_retention_class"),
+                    job_description_label=packet.get("job_description_label"),
+                    expert_profile=profile.get("path"),
+                    expert_profile_path=profile.get("path"),
+                    expert_profile_included=bool(packet.get("expert_profile_included")),
+                    degraded_packet=not bool(packet.get("expert_profile_included")),
+                    disclosure_escalation_approved=bool(packet.get("disclosure_escalation_approved")),
+                    included_artifacts_count=len(included_artifacts),
+                    included_artifact_types=[item.get("type") for item in included_artifacts if isinstance(item, dict)],
+                    selected_snippets_count=len(selected_snippets),
+                    selected_snippet_paths=[item.get("path") for item in selected_snippets if isinstance(item, dict) and item.get("path")],
+                    selected_snippet_lines=sum(
+                        int(item.get("line_count") or 0) for item in selected_snippets if isinstance(item, dict)
+                    ),
+                    packet_output_sha256=artifact_hash(rendered),
+                ),
             }
         )
 

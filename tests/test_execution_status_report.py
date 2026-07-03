@@ -216,7 +216,52 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertTrue(gaps["source_artifacts_supplied"])
         self.assertEqual(gaps["fields"]["agent_model_calls"]["available_records"], 1)
         self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
+        self.assertEqual(gaps["fields"]["total_tokens"]["not_applicable_records"], 0)
         self.assertEqual(gaps["fields"]["total_tokens"]["missing_source_kinds"], ["audit_event"])
+
+    def test_readiness_telemetry_is_not_applicable_not_missing(self) -> None:
+        report = build_execution_status_report(
+            readiness_plan={
+                "workstreams": [
+                    {"name": "validation", "owner": "reliability", "status": "completed"},
+                ]
+            },
+        )
+
+        gaps = report["telemetry_gaps"]
+        self.assertEqual(gaps["records_considered"], 1)
+        for field in ["agent_model_calls", "total_tokens", "elapsed_seconds"]:
+            self.assertEqual(gaps["fields"][field]["missing_records"], 0)
+            self.assertEqual(gaps["fields"][field]["not_applicable_records"], 1)
+        self.assertEqual(report["executive_summary"]["missing_telemetry_cells"], 0)
+        self.assertEqual(report["executive_summary"]["total_tokens"], "n/a")
+
+    def test_mixed_missing_and_not_applicable_telemetry_are_counted_separately(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "missing-token-time",
+                    "event_type": "dispatch",
+                    "bead_id": "cwo-8",
+                    "executor_key": "frontier_architect",
+                    "status": "completed",
+                    "calls": 1,
+                }
+            ],
+            readiness_plan={
+                "workstreams": [
+                    {"name": "validation", "owner": "reliability", "status": "completed"},
+                ]
+            },
+        )
+
+        gaps = report["telemetry_gaps"]
+        self.assertEqual(gaps["records_considered"], 2)
+        self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
+        self.assertEqual(gaps["fields"]["total_tokens"]["not_applicable_records"], 1)
+        rendered = render_terminal(report, width=100)
+        self.assertIn("?", rendered)
+        self.assertIn("n/a", rendered)
 
     def test_terminal_renderer_degrades_for_narrow_width(self) -> None:
         report = build_execution_status_report(
@@ -292,6 +337,11 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["result_type"]["const"], "cwo-execution-status-report")
         for key in schema["required"]:
             self.assertIn(key, report)
+        for field, summary in report["telemetry_gaps"]["fields"].items():
+            with self.subTest(field=field):
+                self.assertIn("available_records", summary)
+                self.assertIn("missing_records", summary)
+                self.assertIn("not_applicable_records", summary)
 
 
 if __name__ == "__main__":

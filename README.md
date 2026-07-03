@@ -263,8 +263,10 @@ status report from explicit audit, readiness, evaluator, and return-bundle
 artifacts. The terminal view defaults to expanded fan-out rows so long expert,
 role, and agent/model identifiers remain visible; use `--layout summary` for
 the older grouped table view. Missing calls, retries, token counts, or timings
-stay `?` rather than estimated, and the JSON output includes field-level
-telemetry gap counts:
+stay `?` rather than estimated. Telemetry that is structurally irrelevant to a
+record, such as packet construction or readiness planning, renders as `n/a`.
+The JSON output includes field-level `available`, `missing`, and
+`not_applicable` telemetry gap counts:
 
 Use the JSON shape when automation needs a hard gate, then render projection
 views when humans need a run sheet, wrap-up, or next-version rail:
@@ -645,7 +647,9 @@ binding, and expert profile for outside or local review.
   packet, dispatch, evaluation, and adjudication events. New entries include a
   previous-event hash when a prior event exists. Packet build rows reserve
   quota; dispatch rows consume it, so reusing a dispatch ID does not bypass the
-  external/local dispatch quota.
+  external/local dispatch quota. Telemetry flags record sanitized model,
+  provider, token, retry, and timing summaries without storing raw prompts,
+  transcripts, responses, share URLs, endpoint URLs, or secret values.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
   graph state.
 - `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
@@ -657,7 +661,8 @@ binding, and expert profile for outside or local review.
 - `scripts/render_execution_status_report.py`: render a terminal or JSON
   end-of-plan status report from explicit audit, readiness, evaluator, and
   return-bundle artifacts; expanded terminal output fans out utilization
-  details, summary layout remains available, and unknown telemetry remains `?`.
+  details, summary layout remains available, unknown expected telemetry remains
+  `?`, and non-applicable telemetry renders as `n/a`.
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
   executor controls, or emitted packet artifact names drift apart.
 

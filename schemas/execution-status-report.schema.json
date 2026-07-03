@@ -36,7 +36,51 @@
     "main_thread_architect_productivity": {"type": "object"},
     "second_opinion_review_lane_productivity": {"type": "array", "items": {"type": "object"}},
     "second_opinion_review_lane_productivity_details": {"type": "array", "items": {"type": "object"}},
-    "telemetry_gaps": {"type": "object"},
+    "telemetry_gaps": {
+      "type": "object",
+      "required": [
+        "records_considered",
+        "source_artifacts_supplied",
+        "fields_with_missing_values",
+        "fields"
+      ],
+      "properties": {
+        "records_considered": {"type": "integer", "minimum": 0},
+        "source_artifacts_supplied": {"type": "boolean"},
+        "fields_with_missing_values": {"type": "array", "items": {"type": "string"}},
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "available_records",
+              "missing_records",
+              "not_applicable_records",
+              "missing_source_kinds",
+              "by_source_kind"
+            ],
+            "properties": {
+              "available_records": {"type": "integer", "minimum": 0},
+              "missing_records": {"type": "integer", "minimum": 0},
+              "not_applicable_records": {"type": "integer", "minimum": 0},
+              "missing_source_kinds": {"type": "array", "items": {"type": "string"}},
+              "by_source_kind": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "required": ["available_records", "missing_records", "not_applicable_records"],
+                  "properties": {
+                    "available_records": {"type": "integer", "minimum": 0},
+                    "missing_records": {"type": "integer", "minimum": 0},
+                    "not_applicable_records": {"type": "integer", "minimum": 0}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "quality_malpractice_sabotage_summary": {"type": "object"},
     "evidence_disposition_summary": {"type": "object"}
   }

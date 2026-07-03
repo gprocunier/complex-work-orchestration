@@ -23,6 +23,7 @@ from cwo_core.util import (
 )
 from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
 from cwo_core.packets import find_residual_private_context, require_valid_contractor_packet
+from cwo_core.telemetry import safe_text_hash, telemetry_fields
 
 EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
@@ -165,6 +166,7 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
                 bead_id=packet.get("bead_id"),
                 packet_sha256=str(packet.get("packet_sha256") or ""),
             )
+        profile = packet.get("expert_profile") if isinstance(packet.get("expert_profile"), dict) else {}
         return render_packet_prompt(packet), {
             "dispatch_id": packet.get("dispatch_id"),
             "bead_id": packet.get("bead_id"),
@@ -172,6 +174,10 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
             "packet_sha256": packet.get("packet_sha256"),
             "executor": packet.get("executor"),
             "provider_key": packet.get("provider_key"),
+            "provider_family": packet.get("provider_family"),
+            "provider_retention_class": packet.get("provider_retention_class"),
+            "job_description_label": packet.get("job_description_label"),
+            "expert_profile": profile.get("path"),
             "share_boundary": packet.get("share_boundary"),
         }
     if not args.allow_degraded_packet:
@@ -201,6 +207,8 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
         "packet_sha256": args.packet_sha256,
         "executor": EXECUTOR_KEY,
         "provider_key": "openai_manual",
+        "provider_family": "openai",
+        "provider_retention_class": "external-manual",
         "share_boundary": args.share_boundary,
     }
 
@@ -741,6 +749,13 @@ def build_result(
         "epic_id": metadata.get("epic_id"),
         "executor": metadata.get("executor") or EXECUTOR_KEY,
         "provider_key": metadata.get("provider_key") or "openai_manual",
+        "provider_family": metadata.get("provider_family") or "openai",
+        "provider_retention_class": metadata.get("provider_retention_class") or "external-manual",
+        "job_description_label": metadata.get("job_description_label"),
+        "expert_profile": metadata.get("expert_profile"),
+        "model": config.get("model_label"),
+        "model_label": config.get("model_label"),
+        "reasoning_label": config.get("reasoning_label"),
         "share_boundary": metadata.get("share_boundary"),
         "packet_sha256": metadata.get("packet_sha256"),
         "prompt_sha256": artifact_hash(prompt),
@@ -806,6 +821,7 @@ def main() -> None:
             dispatch_id=metadata.get("dispatch_id"),
             packet_sha256=metadata.get("packet_sha256"),
         )
+    dispatch_started = time.monotonic()
     if args.dry_run:
         result = build_result(prompt=prompt, metadata=metadata, config=config, config_path=config_path, browser_result=None, status="dry-run")
     elif args.confirm_only:
@@ -845,8 +861,16 @@ def main() -> None:
                 failure_reason=exc.reason,
             )
             exit_message = f"{exc.stage}: {exc.reason}"
+    result["elapsed_seconds"] = round(time.monotonic() - dispatch_started, 3)
     result.update(quota_info)
     if args.audit:
+        attestation = result.get("model_attestation") if isinstance(result.get("model_attestation"), dict) else {}
+        telemetry_kind = "browser_dispatch"
+        if args.dry_run:
+            telemetry_kind = "browser_rehearsal"
+        elif args.confirm_only:
+            telemetry_kind = "browser_confirmation"
+        live_submission = telemetry_kind == "browser_dispatch"
         record_audit_event(
             {
                 "event_type": "chatgpt_browser_dispatch",
@@ -868,6 +892,28 @@ def main() -> None:
                 "model_attestation_present": bool(result.get("model_attestation")),
                 "status": result["status"],
                 "failure_stage": result.get("failure_stage"),
+                **telemetry_fields(
+                    telemetry_kind=telemetry_kind,
+                    telemetry_status=result["status"],
+                    telemetry_missing_reason="browser-ui-token-usage-unavailable" if live_submission else None,
+                    agent_model_calls=1 if live_submission else 0,
+                    retry_count=0,
+                    model=result.get("model"),
+                    model_label=result.get("model_label"),
+                    reasoning_label=result.get("reasoning_label"),
+                    provider_family=result.get("provider_family"),
+                    provider_retention_class=result.get("provider_retention_class"),
+                    job_description_label=result.get("job_description_label"),
+                    expert_profile=result.get("expert_profile"),
+                    elapsed_seconds=result.get("elapsed_seconds") if live_submission else None,
+                    response_chars=result.get("response_chars"),
+                    share_url_sha256=safe_text_hash(result.get("share_url")),
+                    share_url_chars=len(str(result.get("share_url") or "")) if result.get("share_url") else None,
+                    failure_reason_sha256=safe_text_hash(result.get("failure_reason")),
+                    failure_reason_chars=len(str(result.get("failure_reason") or "")) if result.get("failure_reason") else None,
+                    model_attestation_status=attestation.get("status"),
+                    model_attestation_required=attestation.get("required"),
+                ),
             }
         )
     rendered = json.dumps(result, indent=2, sort_keys=True)

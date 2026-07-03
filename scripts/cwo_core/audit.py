@@ -8,6 +8,7 @@ from typing import Any
 
 from .paths import AUDIT_LOG
 from .policy import executor_dispatch_mode, executor_external, load_contracting_controls
+from .telemetry import sanitize_audit_event
 from .util import artifact_hash
 
 
@@ -180,7 +181,7 @@ def record_audit_event(event: dict[str, Any], audit_file: Path | None = None) ->
         prior_events = iter_audit_events(audit_file)
         if prior_events:
             previous_hash = prior_events[-1].get("event_hash")
-        enriched = dict(event)
+        enriched = sanitize_audit_event(dict(event))
         enriched.setdefault("timestamp", dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         enriched.setdefault("audit_lock_mode", lock_mode)
         if previous_hash:

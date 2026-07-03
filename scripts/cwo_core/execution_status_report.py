@@ -11,8 +11,9 @@ from .audit import iter_audit_events
 from .paths import AUDIT_LOG
 
 UNAVAILABLE = "?"
+NOT_APPLICABLE = "n/a"
 REPORT_TYPE = "cwo-execution-status-report"
-REPORT_VERSION = 2
+REPORT_VERSION = 3
 
 STATUS_KEYS = ("completed", "failed", "skipped", "blocked", "deferred")
 METRIC_KEYS = (
@@ -321,8 +322,22 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
     model = _clean(record.get("model") or record.get("model_name") or record.get("model_label") or record.get("local_profile"))
     provider = _clean(record.get("provider_key") or record.get("provider"))
     lane = _clean(record.get("lane") or record.get("role") or record.get("dispatch_mode") or provenance_class)
+    telemetry_kind = _telemetry_kind(record, source_kind)
+    metrics = {
+        "agent_model_calls": _calls_from_record(record),
+        "retries": _numeric(record, ("retry_count", "retries", "attempt_retries")),
+        "input_tokens": _tokens(record, ("input_tokens", "prompt_tokens"), "input"),
+        "output_tokens": _tokens(record, ("output_tokens", "completion_tokens"), "output"),
+        "total_tokens": _total_tokens(record),
+        "active_seconds": _numeric(record, ("active_seconds", "model_active_seconds", "compute_seconds")),
+        "elapsed_seconds": _numeric(record, ("elapsed_seconds", "duration_seconds", "wall_time_seconds", "wall_clock_seconds")),
+    }
+    for field, value in list(metrics.items()):
+        if value is None and not _telemetry_metric_expected(record, source_kind, telemetry_kind, field):
+            metrics[field] = NOT_APPLICABLE
     view = {
         "source_kind": source_kind,
+        "telemetry_kind": telemetry_kind,
         "bead_id": _clean(record.get("bead_id") or record.get("work_unit_id")),
         "dispatch_id": _clean(record.get("dispatch_id")),
         "event_type": _clean(record.get("event_type")),
@@ -337,13 +352,7 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "job_description_label": job_label,
         "expert_profile": expert_profile,
         "agent_model": _agent_model_name(executor, model),
-        "agent_model_calls": _calls_from_record(record),
-        "retries": _numeric(record, ("retry_count", "retries", "attempt_retries")),
-        "input_tokens": _tokens(record, ("input_tokens", "prompt_tokens"), "input"),
-        "output_tokens": _tokens(record, ("output_tokens", "completion_tokens"), "output"),
-        "total_tokens": _total_tokens(record),
-        "active_seconds": _numeric(record, ("active_seconds", "model_active_seconds", "compute_seconds")),
-        "elapsed_seconds": _numeric(record, ("elapsed_seconds", "duration_seconds", "wall_time_seconds", "wall_clock_seconds")),
+        **metrics,
         "accepted_findings": _count_items(record.get("accepted_findings"), record.get("accepted_findings_count")),
         "rejected_findings": _count_items(record.get("rejected_findings"), record.get("rejected_findings_count")),
         "followup_beads": _count_items(record.get("followup_beads"), record.get("followup_beads_count")),
@@ -368,12 +377,68 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
     return view
 
 
+def _telemetry_kind(record: dict[str, Any], source_kind: str) -> str:
+    explicit = _clean(record.get("telemetry_kind"))
+    if explicit:
+        return explicit
+    event_type = str(record.get("event_type") or "").strip().lower()
+    dispatch_mode = str(record.get("dispatch_mode") or "").strip().lower()
+    if source_kind == "readiness_workstream":
+        return "readiness"
+    if source_kind in {"acceptance_decision", "readiness_adjudication_record"}:
+        return "evaluation"
+    if source_kind == "contractor_return_bundle":
+        return "return_bundle"
+    if event_type == "packet_built":
+        return "packet_build"
+    if event_type == "return_evaluated":
+        return "evaluation"
+    if event_type == "chatgpt_browser_dispatch":
+        return "browser_dispatch"
+    if event_type == "harness_dispatch_rendered":
+        return "harness_render"
+    if event_type == "dispatch_prepared":
+        if dispatch_mode in {"local_openai_compatible", "local_secure_review"}:
+            return "local_dispatch"
+        if record.get("executor_external") is True or dispatch_mode == "manual_ui":
+            return "manual_dispatch"
+        return "dispatch"
+    if event_type in DISPATCH_EVENT_TYPES or event_type.endswith("_dispatch"):
+        return "dispatch"
+    return "artifact"
+
+
+def _telemetry_metric_expected(
+    record: dict[str, Any],
+    source_kind: str,
+    telemetry_kind: str,
+    field: str,
+) -> bool:
+    if source_kind.startswith("readiness_"):
+        return False
+    if telemetry_kind in {
+        "packet_build",
+        "evaluation",
+        "readiness",
+        "return_bundle",
+        "harness_render",
+        "browser_confirmation",
+        "browser_rehearsal",
+        "artifact",
+    }:
+        return False
+    if telemetry_kind == "local_dispatch" and record.get("execution_enabled") is False:
+        return field in {"agent_model_calls", "retries"}
+    return True
+
+
 def _readiness_records(plan: dict[str, Any]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for item in _dict_items(plan.get("workstreams")):
         records.append(
             {
                 "source_kind": "readiness_workstream",
+                "telemetry_kind": "readiness",
                 "bead_id": _clean(item.get("bead_id") or item.get("source_bead") or item.get("name")),
                 "dispatch_id": None,
                 "event_type": "readiness_workstream",
@@ -388,13 +453,13 @@ def _readiness_records(plan: dict[str, Any]) -> list[dict[str, Any]]:
                 "job_description_label": _clean(item.get("job_description_label")),
                 "expert_profile": _clean(item.get("expert_profile") or item.get("owner")),
                 "agent_model": _clean(item.get("owner")) or UNAVAILABLE,
-                "agent_model_calls": None,
-                "retries": None,
-                "input_tokens": None,
-                "output_tokens": None,
-                "total_tokens": None,
-                "active_seconds": None,
-                "elapsed_seconds": None,
+                "agent_model_calls": NOT_APPLICABLE,
+                "retries": NOT_APPLICABLE,
+                "input_tokens": NOT_APPLICABLE,
+                "output_tokens": NOT_APPLICABLE,
+                "total_tokens": NOT_APPLICABLE,
+                "active_seconds": NOT_APPLICABLE,
+                "elapsed_seconds": NOT_APPLICABLE,
                 "accepted_findings": None,
                 "rejected_findings": None,
                 "followup_beads": None,
@@ -632,6 +697,7 @@ def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]
         fields[field] = {
             "available_records": 0,
             "missing_records": 0,
+            "not_applicable_records": 0,
             "missing_source_kinds": [],
             "by_source_kind": {},
         }
@@ -642,9 +708,13 @@ def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]
             field_summary = fields[field]
             by_source = field_summary["by_source_kind"].setdefault(
                 source_kind,
-                {"available_records": 0, "missing_records": 0},
+                {"available_records": 0, "missing_records": 0, "not_applicable_records": 0},
             )
-            if _has_numeric_metric(record.get(field)):
+            value = record.get(field)
+            if value == NOT_APPLICABLE:
+                field_summary["not_applicable_records"] += 1
+                by_source["not_applicable_records"] += 1
+            elif _has_numeric_metric(value):
                 field_summary["available_records"] += 1
                 by_source["available_records"] += 1
             else:
@@ -738,6 +808,8 @@ def _new_group(name: str) -> dict[str, Any]:
         "statuses": {key: 0 for key in STATUS_KEYS},
         "metrics": {},
         "metric_known": set(),
+        "metric_missing": set(),
+        "metric_not_applicable": set(),
     }
 
 
@@ -756,6 +828,10 @@ def _add_record(group: dict[str, Any], record: dict[str, Any]) -> None:
         if _has_numeric_metric(value):
             group["metrics"][key] = group["metrics"].get(key, 0) + value
             group["metric_known"].add(key)
+        elif value == NOT_APPLICABLE:
+            group["metric_not_applicable"].add(key)
+        else:
+            group["metric_missing"].add(key)
 
 
 def _finalize_group(group: dict[str, Any]) -> dict[str, Any]:
@@ -767,7 +843,12 @@ def _finalize_group(group: dict[str, Any]) -> dict[str, Any]:
     for status in STATUS_KEYS:
         row[status] = group["statuses"][status] if group["status_known"] else UNAVAILABLE
     for key in METRIC_KEYS:
-        row[key] = _format_number(group["metrics"].get(key)) if key in group["metric_known"] else UNAVAILABLE
+        if key in group["metric_known"]:
+            row[key] = _format_number(group["metrics"].get(key))
+        elif key in group["metric_not_applicable"] and key not in group["metric_missing"]:
+            row[key] = NOT_APPLICABLE
+        else:
+            row[key] = UNAVAILABLE
     return row
 
 
@@ -883,6 +964,8 @@ def _calls_from_record(record: dict[str, Any]) -> int | float | None:
     if explicit is not None:
         return explicit
     event_type = str(record.get("event_type") or "").strip().lower()
+    if event_type in {"packet_built", "return_evaluated", "harness_dispatch_rendered"}:
+        return None
     quota_event_type = str(record.get("quota_event_type") or "").strip().lower()
     if event_type in DISPATCH_EVENT_TYPES or event_type.endswith("_dispatch") or quota_event_type.endswith("_dispatch"):
         return 1
@@ -975,7 +1058,7 @@ def _format_number(value: Any) -> str:
 def _report_warnings(source_counts: dict[str, int]) -> list[str]:
     if any(value > 0 for value in source_counts.values()):
         return [
-            "Totals are scoped to explicit records supplied to this projection; missing telemetry remains unavailable.",
+            "Totals are scoped to explicit records supplied to this projection; expected missing telemetry remains '?' and non-applicable telemetry remains 'n/a'.",
         ]
     return [
         "No explicit execution artifacts were supplied; telemetry is unavailable.",
@@ -1074,6 +1157,7 @@ def _telemetry_gap_lines(gaps: Any, width: int) -> list[str]:
                 "field": field,
                 "available_records": summary.get("available_records"),
                 "missing_records": summary.get("missing_records"),
+                "not_applicable_records": summary.get("not_applicable_records"),
                 "missing_source_kinds": ", ".join(_strings(summary.get("missing_source_kinds"))),
             }
         )
@@ -1083,6 +1167,7 @@ def _telemetry_gap_lines(gaps: Any, width: int) -> list[str]:
             ("Field", "field"),
             ("Available records", "available_records"),
             ("Missing records", "missing_records"),
+            ("Not applicable records", "not_applicable_records"),
             ("Missing source kinds", "missing_source_kinds"),
         ],
         rows,

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from cwo_core.audit import record_audit_event
+from cwo_core.telemetry import telemetry_fields
 
 
 def main() -> None:
@@ -22,6 +23,22 @@ def main() -> None:
     parser.add_argument("--verdict")
     parser.add_argument("--sabotage-score", type=int)
     parser.add_argument("--quarantine-recommended", action="store_true")
+    parser.add_argument("--telemetry-kind")
+    parser.add_argument("--telemetry-status")
+    parser.add_argument("--telemetry-missing-reason")
+    parser.add_argument("--model")
+    parser.add_argument("--model-label")
+    parser.add_argument("--provider-family")
+    parser.add_argument("--provider-retention-class")
+    parser.add_argument("--job-description-label")
+    parser.add_argument("--expert-profile")
+    parser.add_argument("--agent-model-calls", type=int)
+    parser.add_argument("--retry-count", type=int)
+    parser.add_argument("--input-tokens", type=int)
+    parser.add_argument("--output-tokens", type=int)
+    parser.add_argument("--total-tokens", type=int)
+    parser.add_argument("--active-seconds", type=float)
+    parser.add_argument("--elapsed-seconds", type=float)
     parser.add_argument("--audit-file")
     args = parser.parse_args()
 
@@ -39,6 +56,24 @@ def main() -> None:
             "verdict": args.verdict,
             "sabotage_score": args.sabotage_score,
             "quarantine_recommended": args.quarantine_recommended or None,
+            **telemetry_fields(
+                telemetry_kind=args.telemetry_kind,
+                telemetry_status=args.telemetry_status,
+                telemetry_missing_reason=args.telemetry_missing_reason,
+                model=args.model,
+                model_label=args.model_label,
+                provider_family=args.provider_family,
+                provider_retention_class=args.provider_retention_class,
+                job_description_label=args.job_description_label,
+                expert_profile=args.expert_profile,
+                agent_model_calls=args.agent_model_calls,
+                retry_count=args.retry_count,
+                input_tokens=args.input_tokens,
+                output_tokens=args.output_tokens,
+                total_tokens=args.total_tokens,
+                active_seconds=args.active_seconds,
+                elapsed_seconds=args.elapsed_seconds,
+            ),
         },
         Path(args.audit_file) if args.audit_file else None,
     )

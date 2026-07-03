@@ -59,8 +59,10 @@ disposition telemetry from audit logs, readiness records, acceptance decisions,
 and return bundles. The terminal view defaults to expanded fan-out rows so
 multi-role or multi-model utilization details remain visible; pass
 `--layout summary` for the grouped table view. It is a projection only;
-unavailable calls, retries, tokens, timings, or active-time values render as
-`?`, and the JSON output includes field-level telemetry gap counts:
+expected-but-unavailable calls, retries, tokens, timings, or active-time values
+render as `?`, structurally irrelevant telemetry renders as `n/a`, and the JSON
+output includes field-level available, missing, and not-applicable telemetry
+gap counts:
 
 ```bash
 python3 scripts/render_execution_status_report.py --format terminal

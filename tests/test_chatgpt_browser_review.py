@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import contextlib
+import io
 import os
 import subprocess
 import stat
@@ -25,10 +27,12 @@ from chatgpt_browser_review import (  # noqa: E402
     extract_chatgpt_share_url,
     load_browser_config,
     load_prompt_from_args,
+    main as chatgpt_browser_main,
     read_local_clipboard_share_url,
     valid_chatgpt_share_url,
 )
 from build_contractor_packet import build_packet  # noqa: E402
+import cwo_core.audit as audit_lib  # noqa: E402
 
 
 class ChatGPTBrowserReviewTests(unittest.TestCase):
@@ -137,6 +141,48 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 load_browser_config(path)
         finally:
             path.unlink(missing_ok=True)
+
+    def test_dry_run_audit_records_sanitized_browser_telemetry(self) -> None:
+        original_audit = audit_lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        prompt_path = ROOT / "tmp-chatgpt-browser-prompt-test.md"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            config_path = self.write_config(tmp)
+            audit_lib.AUDIT_LOG = tmp / "audit.jsonl"
+            prompt_path.write_text("Review this bounded packet.", encoding="utf-8")
+            try:
+                sys.argv = [
+                    "chatgpt_browser_review.py",
+                    "--prompt-file",
+                    str(prompt_path),
+                    "--config",
+                    str(config_path),
+                    "--dispatch-id",
+                    "dispatch-browser-dry-run",
+                    "--bead",
+                    "cwo-browser",
+                    "--packet-sha256",
+                    "abc123",
+                    "--allow-degraded-packet",
+                    "--allow-unlinked-packet",
+                    "--rehearsal",
+                    "--dry-run",
+                    "--json",
+                ]
+                with contextlib.redirect_stdout(io.StringIO()):
+                    chatgpt_browser_main()
+                events = [json.loads(line) for line in audit_lib.AUDIT_LOG.read_text(encoding="utf-8").splitlines()]
+                self.assertEqual(events[0]["event_type"], "chatgpt_browser_dispatch")
+                self.assertEqual(events[0]["telemetry_kind"], "browser_rehearsal")
+                self.assertEqual(events[0]["agent_model_calls"], 0)
+                self.assertEqual(events[0]["model_label"], "ChatGPT Pro 5.5")
+                self.assertNotIn("prompt", events[0])
+                self.assertNotIn("share_url", events[0])
+            finally:
+                audit_lib.AUDIT_LOG = original_audit
+                sys.argv = original_argv
+                prompt_path.unlink(missing_ok=True)
 
     def test_valid_chatgpt_share_url_accepts_share_shapes(self) -> None:
         self.assertTrue(valid_chatgpt_share_url("https://chatgpt.com/s/t_abc"))

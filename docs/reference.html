@@ -197,9 +197,10 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               The execution status report is a separate end-of-plan accounting
               view over explicit audit and evaluator artifacts. Its default
               terminal layout fans out long utilization cells into readable
-              rows, the summary layout keeps the grouped table, and unknown
-              calls, retries, token counts, and timings are shown as
-              unavailable.
+              rows, the summary layout keeps the grouped table, expected but
+              unavailable calls, retries, token counts, and timings are shown as
+              <code>?</code>, and structurally irrelevant telemetry is shown as
+              <code>n/a</code>.
             </p>
             <p>
               Allowed projection types are <code>run-sheet</code>,

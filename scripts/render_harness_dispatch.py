@@ -4,7 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 
+from cwo_core.audit import record_audit_event
 from cwo_core.harness import build_harness_dispatch
+from cwo_core.policy import provider_profile
+from cwo_core.telemetry import telemetry_fields
 from cwo_core.util import make_dispatch_id, read_text_arg
 
 
@@ -26,6 +29,9 @@ def main() -> None:
     parser.add_argument("--requires-shell", action="store_true")
     parser.add_argument("--requires-web", action="store_true")
     parser.add_argument("--requires-local-openai-compatible", action="store_true")
+    parser.set_defaults(audit=True)
+    parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -55,6 +61,39 @@ def main() -> None:
         variant=args.variant,
         capability_requirements=capability_requirements,
     )
+    if args.audit:
+        profile_details = envelope.get("model_profile_details") if isinstance(envelope.get("model_profile_details"), dict) else {}
+        provider = provider_profile(profile_details.get("provider_key"))
+        record_audit_event(
+            {
+                "event_type": "harness_dispatch_rendered",
+                "dispatch_id": envelope.get("dispatch_id"),
+                "bead_id": envelope.get("bead_id"),
+                "epic_id": envelope.get("epic_id"),
+                "executor_key": envelope.get("agent"),
+                "provider_key": profile_details.get("provider_key"),
+                "provider_trust_tier": provider.get("trust_tier"),
+                "dispatch_mode": "harness_render",
+                "prompt_sha256": envelope.get("prompt_sha256"),
+                "local_profile": profile_details.get("local_profile"),
+                **telemetry_fields(
+                    telemetry_kind="harness_render",
+                    telemetry_status="rendered",
+                    execution_enabled=False,
+                    model=envelope.get("model"),
+                    model_profile=envelope.get("model_profile"),
+                    provider_family=provider.get("family"),
+                    provider_retention_class=provider.get("retention_class"),
+                    environment=envelope.get("environment"),
+                    harness=envelope.get("harness"),
+                    role=envelope.get("role"),
+                    agent=envelope.get("agent"),
+                    variant=envelope.get("variant"),
+                    capability_requirements=sorted(envelope.get("capability_requirements", {}).keys()),
+                    timeout_seconds=envelope.get("timeout_seconds"),
+                ),
+            }
+        )
     if args.json:
         print(json.dumps(envelope, indent=2, sort_keys=True))
         return

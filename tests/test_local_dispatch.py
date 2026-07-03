@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import socket
 import sys
 import unittest
@@ -13,7 +14,7 @@ from urllib.error import HTTPError
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from dispatch_work import build_local_envelope, execute_local_envelope, validate_local_endpoint_base_url  # noqa: E402
+from dispatch_work import build_local_envelope, execute_local_envelope, local_response_telemetry, validate_local_endpoint_base_url  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 
 
@@ -27,7 +28,7 @@ class FakeResponse:
         return None
 
     def read(self) -> bytes:
-        return b'{"choices":[{"message":{"content":"ok"}}]}'
+        return b'{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}}'
 
 
 class FakeOpener:
@@ -129,7 +130,18 @@ class LocalDispatchTests(unittest.TestCase):
             with patch("dispatch_work.request.build_opener", return_value=opener):
                 response = execute_local_envelope(envelope, route["selected_executor"], args)
         self.assertEqual(response["status_code"], 200)
+        self.assertIn("elapsed_seconds", response)
         self.assertTrue(opener.called)
+
+        telemetry = local_response_telemetry(response)
+        self.assertEqual(telemetry["input_tokens"], 11)
+        self.assertEqual(telemetry["output_tokens"], 7)
+        self.assertEqual(telemetry["total_tokens"], 18)
+        self.assertEqual(telemetry["agent_model_calls"], 1)
+        self.assertIn("local_response_sha256", telemetry)
+        self.assertNotIn("response", telemetry)
+        self.assertNotIn("\"content\"", json.dumps(telemetry))
+        self.assertNotIn("\"message\"", json.dumps(telemetry))
 
     def test_execute_local_rejects_public_endpoint_before_post(self) -> None:
         route = classify_work(

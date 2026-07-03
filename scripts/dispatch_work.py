@@ -7,6 +7,7 @@ import json
 import os
 import re
 import socket
+import time
 from pathlib import Path
 from typing import Any
 from urllib import request
@@ -20,6 +21,7 @@ from cwo_core.audit import (
     record_audit_event,
     require_packet_build_audit,
 )
+from cwo_core.telemetry import telemetry_fields
 from cwo_core.policy import load_policy
 from cwo_core.util import (
     artifact_hash,
@@ -261,6 +263,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         headers=headers,
         method="POST",
     )
+    started = time.monotonic()
     try:
         opener = request.build_opener(NoRedirectHandler, request.ProxyHandler({}))
         with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
@@ -269,7 +272,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                 parsed: Any = json.loads(raw)
             except json.JSONDecodeError:
                 parsed = {"raw": raw}
-            return {"status_code": response.status, "response": parsed}
+            return {"status_code": response.status, "response": parsed, "elapsed_seconds": round(time.monotonic() - started, 3)}
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise SystemExit(
@@ -288,6 +291,26 @@ def _debug_local_http_excerpt(body: str) -> str:
     if len(safe) > 240:
         safe = safe[:240] + "...[truncated]"
     return f"; sanitized excerpt={safe!r}"
+
+
+def local_response_telemetry(local_response: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(local_response, dict):
+        return {}
+    response_payload = local_response.get("response")
+    rendered = json.dumps(response_payload, sort_keys=True) if isinstance(response_payload, (dict, list)) else str(response_payload or "")
+    usage = response_payload.get("usage") if isinstance(response_payload, dict) and isinstance(response_payload.get("usage"), dict) else {}
+    return telemetry_fields(
+        telemetry_status="completed",
+        agent_model_calls=1,
+        retry_count=0,
+        input_tokens=usage.get("prompt_tokens") or usage.get("input_tokens"),
+        output_tokens=usage.get("completion_tokens") or usage.get("output_tokens"),
+        total_tokens=usage.get("total_tokens"),
+        elapsed_seconds=local_response.get("elapsed_seconds"),
+        local_status_code=local_response.get("status_code"),
+        local_response_sha256=artifact_hash(rendered),
+        local_response_chars=len(rendered),
+    )
 
 
 def main() -> None:
@@ -377,6 +400,8 @@ def main() -> None:
             **quota_info,
         }
         if args.audit:
+            profile = packet.get("expert_profile") if isinstance(packet.get("expert_profile"), dict) else {}
+            transport = packet.get("executor_transport") if isinstance(packet.get("executor_transport"), dict) else {}
             record_audit_event(
                 {
                     "event_type": "dispatch_prepared",
@@ -394,6 +419,20 @@ def main() -> None:
                     "disclosure_stage": artifact["disclosure_stage"],
                     "quota_remaining": quota_info.get("quota_remaining"),
                     "packet_sha256": artifact["packet_sha256"],
+                    **telemetry_fields(
+                        telemetry_kind="manual_dispatch",
+                        telemetry_status="prepared",
+                        telemetry_missing_reason="manual-dispatch-usage-unavailable",
+                        agent_model_calls=1,
+                        retry_count=0,
+                        model=transport.get("model") or transport.get("default_model_label"),
+                        model_label=transport.get("default_model_label"),
+                        provider_family=packet.get("provider_family"),
+                        provider_retention_class=packet.get("provider_retention_class"),
+                        job_description_label=packet.get("job_description_label"),
+                        expert_profile=profile.get("path"),
+                        expert_profile_path=profile.get("path"),
+                    ),
                 }
             )
         if args.json:
@@ -458,6 +497,27 @@ def main() -> None:
         **quota_info,
     }
     if args.audit:
+        selected_executor = route["selected_executor"]
+        dispatch_mode = artifact["dispatch_mode"]
+        job_label = ((route.get("ranked_experts") or [{}])[0] or {}).get("job_description_label")
+        is_local_dispatch = dispatch_mode in {"local_openai_compatible", "local_secure_review"}
+        base_telemetry = telemetry_fields(
+            telemetry_kind="local_dispatch" if is_local_dispatch else ("manual_dispatch" if dispatch_mode == "manual_ui" else "dispatch"),
+            telemetry_status="completed" if local_response else "prepared",
+            telemetry_missing_reason=None if local_response else "dispatch-usage-unavailable-until-execution",
+            agent_model_calls=1 if (local_response or dispatch_mode == "manual_ui") else 0,
+            retry_count=0,
+            model=(local_envelope or {}).get("model"),
+            provider_family=selected_executor.get("provider_family"),
+            provider_retention_class=selected_executor.get("provider_retention_class"),
+            job_description_label=job_label,
+            local_status_code=(local_response or {}).get("status_code") if local_response else None,
+            execution_enabled=bool(args.execute_local),
+            endpoint_path=(local_envelope or {}).get("endpoint_path"),
+            timeout_seconds=(local_envelope or {}).get("timeout_seconds"),
+            max_input_chars=(local_envelope or {}).get("max_input_chars"),
+        )
+        base_telemetry.update(local_response_telemetry(local_response))
         record_audit_event(
             {
                 "event_type": "dispatch_prepared",
@@ -474,6 +534,7 @@ def main() -> None:
                 "share_boundary": args.share_boundary,
                 "local_profile": args.local_profile,
                 "quota_remaining": quota_info.get("quota_remaining"),
+                **base_telemetry,
             }
         )
     if args.json:
