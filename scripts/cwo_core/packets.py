@@ -14,11 +14,24 @@ from .util import artifact_hash, packet_payload_hash, parse_iso_datetime
 
 
 MANDATORY_EXCLUDED_ARTIFACTS = {"full_bead_json", "secrets", "production_access"}
-SECRET_LIKE_FIELD_RE = re.compile(r"(?i)(api[_-]?key|token|password|secret|credential|private[_-]?key)")
+SECRET_FIELD_PATTERN = (
+    r"api[_-]?key|access[_-]?key|secret[_-]?access[_-]?key|aws[_-]?access[_-]?key[_-]?id|"
+    r"aws[_-]?secret[_-]?access[_-]?key|token|password|passwd|secret|credential|private[_-]?key|"
+    r"client[_-]?secret|connection[_-]?string|authorization|auth[_-]?token|session[_-]?token|cookie"
+)
+SECRET_LIKE_FIELD_RE = re.compile(rf"(?i)({SECRET_FIELD_PATTERN})")
 DEFAULT_REDACTION_PATTERNS = [
-    r"(?i)([\"']?(?:api[_-]?key|token|password|secret|credential)[\"']?\s*[:=]\s*)[\"']?[^\"'\s,}\]]+",
-    r"(?i)(\b_?(?:api[_-]?key|token|password|secret|credential)\b\s+)[\"']?[^\"'\s,}\]]+",
+    r"(?i)(\bauthorization\b\s*:\s*bearer\s+)[A-Za-z0-9._~+/=-]+",
+    r"(?i)(\bbearer\s+)[A-Za-z0-9._~+/=-]{8,}",
+    rf"(?i)([\"']?(?:{SECRET_FIELD_PATTERN})[\"']?\s*[:=]\s*)[\"']?[^\"'\s,}}\]]+",
+    rf"(?i)(\b_?(?:{SECRET_FIELD_PATTERN})\b\s+)[\"']?[^\"'\s,}}\]]+",
     r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----",
+]
+RESIDUAL_SECRET_PATTERNS = [
+    re.compile(rf"(?i)\b(?:{SECRET_FIELD_PATTERN})\b\s*[:=]\s*[\"']?(?!\[REDACTED\]\b)[^\"'\s,}}\]]{{4,}}"),
+    re.compile(r"(?i)\bauthorization\b\s*:\s*bearer\s+(?!\[REDACTED\]\b)[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"(?i)\bbearer\s+(?!\[REDACTED\]\b)[A-Za-z0-9._~+/=-]{20,}"),
+    re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----"),
 ]
 
 
@@ -124,6 +137,28 @@ def sanitize_bead(bead_json: Any, share_boundary: str) -> dict[str, Any]:
     return sanitized
 
 
+def _value_is_redacted(value: Any) -> bool:
+    return isinstance(value, str) and value.strip() == "[REDACTED]"
+
+
+def find_residual_private_context(value: Any, prefix: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if SECRET_LIKE_FIELD_RE.search(str(key)) and not _value_is_redacted(item):
+                hits.append(path)
+            hits.extend(find_residual_private_context(item, path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            path = f"{prefix}[{index}]" if prefix else f"[{index}]"
+            hits.extend(find_residual_private_context(item, path))
+    elif isinstance(value, str):
+        if any(pattern.search(value) for pattern in RESIDUAL_SECRET_PATTERNS):
+            hits.append(prefix or "<root>")
+    return sorted(set(hits))
+
+
 def artifact_whitelist_for_boundary(share_boundary: str) -> set[str]:
     return set(boundary_config(share_boundary).get("artifact_whitelist", []))
 
@@ -146,7 +181,14 @@ def validate_opt_in_record(
     if not isinstance(record, dict):
         raise SystemExit("opt-in record must contain a top-level object")
 
-    if record.get("allowed") is not True and record.get("external_contracting_allowed") is not True:
+    auth_fields = {
+        key: record[key]
+        for key in ["allowed", "external_contracting_allowed"]
+        if key in record
+    }
+    if len(auth_fields) == 2 and auth_fields["allowed"] != auth_fields["external_contracting_allowed"]:
+        raise SystemExit("opt-in record has conflicting allowed and external_contracting_allowed values")
+    if not auth_fields or not all(value is True for value in auth_fields.values()):
         raise SystemExit("opt-in record must set allowed=true or external_contracting_allowed=true")
 
     boundaries = record.get("share_boundaries", record.get("share_boundary"))
@@ -281,11 +323,20 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         errors.append(f"packet job_description_label {job_label!r} is not registered")
     bead_labels = packet.get("bead_summary", {}).get("labels", []) if isinstance(packet.get("bead_summary"), dict) else []
     if isinstance(bead_labels, list):
+        label_set = {str(label) for label in bead_labels}
+        missing_guard_labels = sorted({"contractor-only", "no-codex-exec"} - label_set)
+        if missing_guard_labels:
+            errors.append("packet bead_summary is missing contractor guard labels: " + ", ".join(missing_guard_labels))
         job_labels = [str(label) for label in bead_labels if str(label).startswith("contract-jd-")]
-        if len(job_labels) > 1:
-            errors.append("packet bead_summary contains multiple primary job-description labels: " + ", ".join(job_labels))
-        if job_labels and job_label not in job_labels:
+        if len(job_labels) != 1:
+            errors.append(
+                "packet bead_summary must contain exactly one primary job-description label"
+                + (": " + ", ".join(job_labels) if job_labels else "")
+            )
+        elif job_label not in job_labels:
             errors.append("packet job_description_label does not match bead_summary job-description label")
+    else:
+        errors.append("packet bead_summary labels must be a list")
     if packet.get("expert_profile_included") is not True and not allow_degraded_packet:
         errors.append("packet is missing the expert profile; pass --allow-degraded-packet to dispatch anyway")
     if packet.get("expert_profile_included") is not True and not str(packet.get("degraded_context_justification", "")).strip():
@@ -299,6 +350,14 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
     forbidden_hits = find_forbidden_fields(packet, forbidden_fields)
     if forbidden_hits:
         errors.append("packet contains forbidden boundary fields: " + ", ".join(sorted(forbidden_hits)))
+    residual_hits = find_residual_private_context(
+        {
+            "bead_summary": packet.get("bead_summary"),
+            "selected_snippets": packet.get("selected_snippets"),
+        }
+    )
+    if residual_hits:
+        errors.append("packet contains residual private or secret-like context at: " + ", ".join(residual_hits))
 
     excluded_types = {
         artifact.get("type")
@@ -357,6 +416,13 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         elif isinstance(profile, dict):
             if profile_artifact.get("path") != profile.get("path") or profile_artifact.get("sha256") != profile.get("sha256"):
                 errors.append("expert_profile artifact does not match expert_profile payload")
+            content = profile.get("content")
+            if not isinstance(content, str) or not content.strip():
+                errors.append("expert_profile.content is required when expert_profile_included is true")
+            elif artifact_hash(content) != profile.get("sha256"):
+                errors.append("expert_profile sha256 does not match content")
+        else:
+            errors.append("expert_profile must be an object when expert_profile_included is true")
 
     for artifact in included_artifacts:
         artifact_type = artifact.get("type")

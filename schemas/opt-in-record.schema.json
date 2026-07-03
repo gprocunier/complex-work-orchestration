@@ -21,6 +21,24 @@
         {"required": ["executors"]},
         {"required": ["executor"]}
       ]
+    },
+    {
+      "not": {
+        "required": ["allowed", "external_contracting_allowed"],
+        "properties": {
+          "allowed": {"const": true},
+          "external_contracting_allowed": {"const": false}
+        }
+      }
+    },
+    {
+      "not": {
+        "required": ["allowed", "external_contracting_allowed"],
+        "properties": {
+          "allowed": {"const": false},
+          "external_contracting_allowed": {"const": true}
+        }
+      }
     }
   ],
   "properties": {

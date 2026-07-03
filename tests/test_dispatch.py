@@ -49,6 +49,43 @@ class DispatchTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("external manual prompts require --packet", result.stderr)
 
+    def test_raw_external_manual_prompt_cli_requires_rehearsal(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "generate_manual_dispatch_prompt.py"),
+                "Security review the contractor redaction flow.",
+                "--external-ok",
+                "--share-boundary",
+                "redacted-packet",
+                "--requested-role",
+                "security",
+                "--allow-raw-manual-prompt",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--allow-raw-manual-prompt requires --rehearsal", result.stderr)
+
+    def test_dispatch_no_audit_requires_rehearsal(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "dispatch_work.py"),
+                "Security review the contractor redaction flow.",
+                "--no-audit",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--no-audit is allowed only with --rehearsal", result.stderr)
+
     def test_packet_prompt_contains_assignment_and_required_sections(self) -> None:
         packet = {
             "dispatch_id": "dispatch-test",
@@ -98,7 +135,11 @@ class DispatchTests(unittest.TestCase):
     def test_dispatch_packet_validation_accepts_built_packet(self) -> None:
         packet = build_packet(
             bead_id="cwo-1",
-            bead_json={"id": "cwo-1", "title": "Security review", "labels": ["contractor-only", "no-codex-exec"]},
+            bead_json={
+                "id": "cwo-1",
+                "title": "Security review",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
+            },
             executor="claude_code_manual",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-security-reasoning",
@@ -203,7 +244,11 @@ class DispatchTests(unittest.TestCase):
     def test_dispatch_packet_validation_rejects_tampering(self) -> None:
         packet = build_packet(
             bead_id="cwo-1",
-            bead_json={"id": "cwo-1", "title": "Security review", "labels": ["contractor-only", "no-codex-exec"]},
+            bead_json={
+                "id": "cwo-1",
+                "title": "Security review",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
+            },
             executor="claude_code_manual",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-security-reasoning",
@@ -222,7 +267,11 @@ class DispatchTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             build_packet(
                 bead_id="cwo-1",
-                bead_json={"id": "cwo-1", "title": "Security review", "labels": ["contractor-only", "no-codex-exec"]},
+                bead_json={
+                    "id": "cwo-1",
+                    "title": "Security review",
+                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
+                },
                 executor="claude_code_manual",
                 share_boundary="redacted-packet",
                 job_description_label="contract-jd-security-reasoning",
@@ -236,7 +285,11 @@ class DispatchTests(unittest.TestCase):
 
         packet = build_packet(
             bead_id="cwo-1",
-            bead_json={"id": "cwo-1", "title": "Security review", "labels": ["contractor-only", "no-codex-exec"]},
+            bead_json={
+                "id": "cwo-1",
+                "title": "Security review",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
+            },
             executor="claude_code_manual",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-security-reasoning",

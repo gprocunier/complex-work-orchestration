@@ -26,7 +26,7 @@ from cwo_core.util import (
     make_dispatch_id,
     read_text_arg,
 )
-from cwo_core.packets import require_valid_contractor_packet
+from cwo_core.packets import redact_text, require_valid_contractor_packet
 
 
 LOCAL_ENDPOINT_NETWORKS = tuple(
@@ -310,6 +310,11 @@ def main() -> None:
         action="store_true",
         help="Operator-only degraded path: render an external manual prompt without a validated packet.",
     )
+    parser.add_argument(
+        "--rehearsal",
+        action="store_true",
+        help="Permit degraded/no-audit dispatch preparation only as a local rehearsal.",
+    )
     parser.add_argument("--mode", choices=["manual"], default="manual")
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument(
@@ -338,6 +343,8 @@ def main() -> None:
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    if not args.audit and not args.rehearsal:
+        raise SystemExit("--no-audit is allowed only with --rehearsal for local tests or rehearsals")
 
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
@@ -410,6 +417,10 @@ def main() -> None:
         raise SystemExit(
             "external manual dispatch requires --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"
         )
+    if route.get("route") == "external-contract" and args.allow_raw_manual_prompt and not args.rehearsal:
+        raise SystemExit("--allow-raw-manual-prompt requires --rehearsal and must not be used as production dispatch evidence")
+    if args.allow_raw_manual_prompt:
+        task = redact_text(task)
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "unassigned")
     quota_info = enforce_contracting_quota(
         args.epic,

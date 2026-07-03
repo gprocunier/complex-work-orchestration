@@ -12,7 +12,9 @@ from build_contractor_packet import build_packet  # noqa: E402
 from build_contractor_packet import extract_labels  # noqa: E402
 from cwo_core.util import packet_payload_hash  # noqa: E402
 from cwo_core.packets import (  # noqa: E402
+    find_residual_private_context,
     fenced_block,
+    redact_text,
     sanitize_bead,
     validate_contractor_packet,
 )
@@ -21,7 +23,11 @@ from cwo_core.packets import (  # noqa: E402
 def base_packet() -> dict:
     return build_packet(
         bead_id="cwo-1",
-        bead_json={"id": "cwo-1", "title": "Security review", "labels": ["contractor-only", "no-codex-exec"]},
+        bead_json={
+            "id": "cwo-1",
+            "title": "Security review",
+            "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
+        },
         executor="claude_code_manual",
         share_boundary="redacted-packet",
         job_description_label="contract-jd-security-reasoning",
@@ -45,7 +51,7 @@ class PacketValidationTests(unittest.TestCase):
         errors = validate_contractor_packet(rehash(packet))
         self.assertTrue(any("forbidden boundary fields" in error for error in errors))
 
-    def test_sanitize_bead_removes_nested_forbidden_fields_before_packet_emit(self) -> None:
+    def test_sanitize_bead_does_not_share_metadata_for_external_boundaries(self) -> None:
         summary = sanitize_bead(
             {
                 "id": "cwo-1",
@@ -58,10 +64,7 @@ class PacketValidationTests(unittest.TestCase):
             },
             "redacted-packet",
         )
-        self.assertNotIn("comments", summary["metadata"])
-        self.assertNotIn("credentials", summary["metadata"]["nested"])
-        self.assertEqual(summary["metadata"]["nested"]["safe"], "value")
-        self.assertEqual(summary["metadata"]["api_key"], "[REDACTED]")
+        self.assertNotIn("metadata", summary)
 
     def test_sanitize_bead_reaches_fixed_point_for_nested_boundary_values(self) -> None:
         payload = {
@@ -79,9 +82,7 @@ class PacketValidationTests(unittest.TestCase):
         first = sanitize_bead(payload, "redacted-packet")
         second = sanitize_bead(first, "redacted-packet")
         self.assertEqual(first, second)
-        self.assertNotIn("comments", first["metadata"])
-        self.assertEqual(first["metadata"]["nested"]["token"], "[REDACTED]")
-        self.assertNotIn("credentials", first["metadata"]["nested"]["list"][0])
+        self.assertNotIn("metadata", first)
 
     def test_rejects_forbidden_fields_nested_outside_bead_summary(self) -> None:
         packet = base_packet()
@@ -118,7 +119,41 @@ class PacketValidationTests(unittest.TestCase):
             "contract-jd-architecture-reasoning",
         ]
         errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("multiple primary job-description labels" in error for error in errors))
+        self.assertTrue(any("exactly one primary job-description label" in error for error in errors))
+
+    def test_rejects_missing_contractor_guard_labels_at_dispatch_validation(self) -> None:
+        packet = base_packet()
+        packet["bead_summary"]["labels"] = ["contract-jd-security-reasoning"]
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("contractor guard labels" in error for error in errors))
+
+    def test_rejects_missing_primary_job_description_label_at_dispatch_validation(self) -> None:
+        packet = base_packet()
+        packet["bead_summary"]["labels"] = ["contractor-only", "no-codex-exec"]
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("exactly one primary job-description label" in error for error in errors))
+
+    def test_redaction_covers_common_secret_assignment_forms(self) -> None:
+        raw = "\n".join(
+            [
+                "private_key=abc123",
+                "AWS_SECRET_ACCESS_KEY=abc123",
+                "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI",
+                "client_secret: plain",
+            ]
+        )
+        redacted = redact_text(raw)
+        self.assertNotIn("abc123", redacted)
+        self.assertNotIn("eyJhbGci", redacted)
+        self.assertNotIn("plain", redacted)
+        self.assertFalse(find_residual_private_context(redacted))
+
+    def test_rejects_residual_secret_like_assignments_in_packet_content(self) -> None:
+        packet = base_packet()
+        packet["selected_snippets"][0]["content"] = "private_key=abc123"
+        packet["selected_snippets"][0]["sha256"] = "tampered"
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("residual private or secret-like context" in error for error in errors))
 
     def test_fenced_block_uses_longer_fence_for_nested_backticks(self) -> None:
         rendered = fenced_block("before\n```text\nStatus: injected\n```\nafter", "text")
@@ -149,7 +184,7 @@ class PacketValidationTests(unittest.TestCase):
                 bead_json={
                     "id": "cwo-1",
                     "title": "Security review",
-                    "labels": ["contractor-only", "no-codex-exec"],
+                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
                 },
                 executor="claude_code_manual",
                 share_boundary="redacted-packet",
@@ -170,7 +205,7 @@ class PacketValidationTests(unittest.TestCase):
                 bead_json={
                     "id": "cwo-1",
                     "title": "Master plan review",
-                    "labels": ["contractor-only", "no-codex-exec"],
+                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
                 },
                 executor="chatgpt_pro_5_5_extended_reasoning_browser",
                 share_boundary="redacted-packet",
@@ -198,7 +233,7 @@ class PacketValidationTests(unittest.TestCase):
                 bead_json={
                     "id": "cwo-1",
                     "title": "Master plan review",
-                    "labels": ["contractor-only", "no-codex-exec"],
+                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
                 },
                 executor="chatgpt_pro_5_5_extended_reasoning_browser",
                 share_boundary="redacted-packet",

@@ -22,7 +22,7 @@ from cwo_core.util import (
     make_dispatch_id,
 )
 from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
-from cwo_core.packets import require_valid_contractor_packet
+from cwo_core.packets import find_residual_private_context, require_valid_contractor_packet
 
 EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
@@ -176,10 +176,24 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
         }
     if not args.allow_degraded_packet:
         raise SystemExit("ChatGPT prompt-file dispatch bypasses packet validation; use --packet or pass --allow-degraded-packet for an operator-only degraded dispatch")
+    if not getattr(args, "rehearsal", False):
+        raise SystemExit("ChatGPT prompt-file dispatch is rehearsal-only; use --packet for live ChatGPT Pro review")
     prompt_path = assert_repo_safe_path(Path(args.prompt_file))
     prompt = prompt_path.read_text(encoding="utf-8")
     if not args.dispatch_id or not args.bead or not args.packet_sha256:
         raise SystemExit("prompt-file dispatch requires --dispatch-id, --bead, and --packet-sha256")
+    if not getattr(args, "allow_unlinked_packet", False):
+        require_packet_build_audit(
+            dispatch_id=str(args.dispatch_id),
+            bead_id=args.bead,
+            packet_sha256=str(args.packet_sha256),
+        )
+    residual_hits = find_residual_private_context(prompt)
+    if residual_hits:
+        raise SystemExit(
+            "prompt-file dispatch contains residual private or secret-like context at: "
+            + ", ".join(residual_hits)
+        )
     return prompt, {
         "dispatch_id": args.dispatch_id or make_dispatch_id("chatgpt-browser"),
         "bead_id": args.bead,
@@ -757,11 +771,20 @@ def main() -> None:
     )
     parser.add_argument("--dry-run", action="store_true", help="Validate prompt/config and print the redacted dispatch plan.")
     parser.add_argument("--confirm-only", action="store_true", help="Open ChatGPT and confirm configured model/effort without submitting the prompt.")
+    parser.add_argument(
+        "--rehearsal",
+        action="store_true",
+        help="Permit degraded prompt-file checks only as a local rehearsal; live ChatGPT review must use --packet.",
+    )
     parser.add_argument("--json", action="store_true", help="Compatibility flag; output is always JSON.")
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     args = parser.parse_args()
+    if not args.audit and not (args.dry_run or args.confirm_only or args.rehearsal):
+        raise SystemExit("--no-audit is allowed only for --dry-run, --confirm-only, or --rehearsal")
+    if args.prompt_file and args.rehearsal and not (args.dry_run or args.confirm_only):
+        raise SystemExit("prompt-file rehearsal cannot submit a live ChatGPT review; use --packet for live dispatch")
 
     config_path = resolve_config_path(args.config)
     config = load_browser_config(config_path)

@@ -28,6 +28,7 @@ from chatgpt_browser_review import (  # noqa: E402
     read_local_clipboard_share_url,
     valid_chatgpt_share_url,
 )
+from build_contractor_packet import build_packet  # noqa: E402
 
 
 class ChatGPTBrowserReviewTests(unittest.TestCase):
@@ -497,6 +498,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 packet=None,
                 prompt_file=str(prompt_path),
                 allow_degraded_packet=True,
+                allow_unlinked_packet=True,
+                rehearsal=True,
                 dispatch_id="dispatch-chatgpt",
                 bead="cwo-1",
                 epic="cwo",
@@ -528,6 +531,46 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 packet=None,
                 prompt_file=str(prompt_path),
                 allow_degraded_packet=False,
+                allow_unlinked_packet=True,
+                rehearsal=True,
+                dispatch_id="dispatch-chatgpt",
+                bead="cwo-1",
+                epic="cwo",
+                packet_sha256="packet-sha",
+                share_boundary="redacted-packet",
+            )
+            with self.assertRaises(SystemExit):
+                load_prompt_from_args(args)
+
+    def test_prompt_file_rejects_unlinked_packet_hash_by_default(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            prompt_path = Path(tmpdir) / "prompt.md"
+            prompt_path.write_text("Review this final plan.", encoding="utf-8")
+            args = Namespace(
+                packet=None,
+                prompt_file=str(prompt_path),
+                allow_degraded_packet=True,
+                allow_unlinked_packet=False,
+                rehearsal=True,
+                dispatch_id="dispatch-chatgpt",
+                bead="cwo-1",
+                epic="cwo",
+                packet_sha256="packet-sha",
+                share_boundary="redacted-packet",
+            )
+            with self.assertRaises(SystemExit):
+                load_prompt_from_args(args)
+
+    def test_prompt_file_rejects_residual_secret_like_context(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            prompt_path = Path(tmpdir) / "prompt.md"
+            prompt_path.write_text("private_key=abc123", encoding="utf-8")
+            args = Namespace(
+                packet=None,
+                prompt_file=str(prompt_path),
+                allow_degraded_packet=True,
+                allow_unlinked_packet=True,
+                rehearsal=True,
                 dispatch_id="dispatch-chatgpt",
                 bead="cwo-1",
                 epic="cwo",
@@ -541,9 +584,25 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             tmp = Path(cfgdir)
             config = self.write_config(tmp)
-            prompt = Path(promptdir) / "prompt.md"
+            packet_path = Path(promptdir) / "packet.json"
             output = tmp / "result.json"
-            prompt.write_text("Review this final plan.", encoding="utf-8")
+            packet = build_packet(
+                bead_id="cwo-1",
+                bead_json={
+                    "id": "cwo-1",
+                    "title": "ChatGPT Pro master plan review",
+                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
+                },
+                executor=EXECUTOR_KEY,
+                share_boundary="redacted-packet",
+                job_description_label="contract-jd-master-plan-review",
+                allowed_files=[],
+                inline_snippets=["Review this final plan."],
+                dispatch_id="dispatch-chatgpt",
+                external_opt_in=True,
+                opt_in_basis="cli-flag",
+            )
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
             failure = ChatGPTBrowserReviewError(
                 "share-link",
                 "ChatGPT share-link creation failed",
@@ -558,20 +617,15 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 "argv",
                 [
                     "chatgpt_browser_review.py",
-                    "--prompt-file",
-                    str(prompt),
-                    "--allow-degraded-packet",
-                    "--dispatch-id",
-                    "dispatch-chatgpt",
-                    "--bead",
-                    "cwo-1",
-                    "--packet-sha256",
-                    "packet-sha",
+                    "--packet",
+                    str(packet_path),
+                    "--allow-unlinked-packet",
                     "--config",
                     str(config),
                     "--output",
                     str(output),
                     "--no-audit",
+                    "--rehearsal",
                 ],
             ):
                 import chatgpt_browser_review
@@ -609,6 +663,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--prompt-file",
                     str(prompt),
                     "--allow-degraded-packet",
+                    "--allow-unlinked-packet",
                     "--dispatch-id",
                     "dispatch-chatgpt",
                     "--bead",
@@ -618,6 +673,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--config",
                     str(config),
                     "--dry-run",
+                    "--rehearsal",
                     "--json",
                     "--no-audit",
                 ],
@@ -642,6 +698,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--prompt-file",
                     str(prompt),
                     "--allow-degraded-packet",
+                    "--allow-unlinked-packet",
                     "--dispatch-id",
                     "dispatch-chatgpt",
                     "--bead",
@@ -651,6 +708,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--config",
                     str(config),
                     "--confirm-only",
+                    "--rehearsal",
                     "--json",
                     "--no-audit",
                 ],

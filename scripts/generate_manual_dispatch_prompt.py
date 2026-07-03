@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cwo_core.packets import fenced_block, require_valid_contractor_packet
+from cwo_core.packets import fenced_block, redact_text, require_valid_contractor_packet
 from cwo_core.routing import classify_work
 from cwo_core.util import read_text_arg
 
@@ -207,6 +207,11 @@ def main() -> None:
         action="store_true",
         help="Operator-only degraded path: render an external manual prompt without a validated packet.",
     )
+    parser.add_argument(
+        "--rehearsal",
+        action="store_true",
+        help="Permit degraded prompt rendering only as a local rehearsal; do not use as production dispatch evidence.",
+    )
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument(
         "--allow-disclosure-escalation",
@@ -244,7 +249,9 @@ def main() -> None:
         raise SystemExit(
             "external manual prompts require --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"
         )
-    prompt = render_prompt(task, route)
+    if route.get("route") == "external-contract" and args.allow_raw_manual_prompt and not args.rehearsal:
+        raise SystemExit("--allow-raw-manual-prompt requires --rehearsal and must not be used as production dispatch evidence")
+    prompt = render_prompt(redact_text(task) if args.allow_raw_manual_prompt else task, route)
     if args.json:
         print(json.dumps({"route": route, "prompt": prompt}, indent=2, sort_keys=True))
     else:

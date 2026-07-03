@@ -147,6 +147,37 @@ class PacketGateTests(unittest.TestCase):
             )
         self.assertEqual(basis, "audit-record")
 
+    def test_opt_in_record_rejects_conflicting_authorization_fields(self) -> None:
+        labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
+        cases = [
+            {"allowed": True, "external_contracting_allowed": False},
+            {"allowed": False, "external_contracting_allowed": True},
+        ]
+        for auth_fields in cases:
+            with self.subTest(auth_fields=auth_fields):
+                with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+                    json.dump(
+                        {
+                            **auth_fields,
+                            "share_boundary": "redacted-packet",
+                            "allowed_external_executors": ["claude_code_manual"],
+                            "decision_source": "test",
+                            "recorded_at": "2026-06-09T00:00:00Z",
+                            "scope": "conflicting opt-in",
+                        },
+                        handle,
+                    )
+                    handle.flush()
+                    with self.assertRaises(SystemExit):
+                        validate_gate(
+                            "claude_code_manual",
+                            "redacted-packet",
+                            labels,
+                            "contract-jd-security-reasoning",
+                            external_ok=False,
+                            opt_in_record=handle.name,
+                        )
+
     def test_opt_in_record_can_scope_to_provider(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:

@@ -38,7 +38,11 @@ class DifferentialDisclosureTests(unittest.TestCase):
     def test_packet_validation_rejects_unapproved_repo_readonly_disclosure(self) -> None:
         packet = build_packet(
             bead_id="cwo-1",
-            bead_json={"id": "cwo-1", "title": "Security review", "labels": ["contractor-only", "no-codex-exec"]},
+            bead_json={
+                "id": "cwo-1",
+                "title": "Security review",
+                "labels": ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"],
+            },
             executor="claude_code_manual",
             share_boundary="repo-readonly",
             job_description_label="contract-jd-security-reasoning",

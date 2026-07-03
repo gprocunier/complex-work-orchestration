@@ -17,7 +17,20 @@
     "disclosure_stage": {"enum": ["none", "redacted", "repo-readonly", "patch-branch"]},
     "disclosure_escalation_approved": {"type": "boolean"},
     "job_description_label": {"type": "string"},
-    "expert_profile": {"type": ["object", "null"]},
+    "expert_profile": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["path", "sha256", "content"],
+          "properties": {
+            "path": {"type": "string"},
+            "sha256": {"type": "string"},
+            "content": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    },
     "expert_profile_included": {"type": "boolean"},
     "degraded_context_justification": {"type": "string"},
     "external_opt_in": {"type": "boolean"},
