@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import shutil
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -11,9 +12,30 @@ from .paths import AUDIT_LOG
 
 UNAVAILABLE = "?"
 REPORT_TYPE = "cwo-execution-status-report"
-REPORT_VERSION = 1
+REPORT_VERSION = 2
 
 STATUS_KEYS = ("completed", "failed", "skipped", "blocked", "deferred")
+METRIC_KEYS = (
+    "agent_model_calls",
+    "retries",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "active_seconds",
+    "elapsed_seconds",
+    "accepted_findings",
+    "rejected_findings",
+    "followup_beads",
+)
+TELEMETRY_GAP_KEYS = (
+    "agent_model_calls",
+    "retries",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "active_seconds",
+    "elapsed_seconds",
+)
 SYNTHESIS_DISPOSITIONS = (
     "primary",
     "salvage-only",
@@ -89,104 +111,186 @@ def build_execution_status_report(
         "warnings": _report_warnings(source_counts),
         "executive_summary": _executive_summary(records),
         "expert_profile_utilization": _expert_profile_rows(records),
+        "expert_profile_utilization_details": _expert_profile_detail_rows(records),
         "agent_model_utilization": _agent_model_rows(records),
+        "agent_model_utilization_details": _agent_model_detail_rows(records),
         "main_thread_architect_productivity": _main_thread_summary(records),
         "second_opinion_review_lane_productivity": _second_opinion_rows(records),
+        "second_opinion_review_lane_productivity_details": _second_opinion_detail_rows(records),
+        "telemetry_gaps": _telemetry_gaps(records, source_counts),
         "quality_malpractice_sabotage_summary": _quality_summary(records),
         "evidence_disposition_summary": _evidence_disposition_summary(records),
     }
-    report["executive_summary"]["missing_telemetry_cells"] = _count_unavailable_cells(report)
+    report["executive_summary"]["missing_telemetry_cells"] = _telemetry_missing_total(report["telemetry_gaps"])
     return report
 
 
-def render_terminal(report: dict[str, Any], *, width: int | None = None) -> str:
+def render_terminal(report: dict[str, Any], *, width: int | None = None, layout: str = "expanded") -> str:
     term_width = width or shutil.get_terminal_size((100, 24)).columns
     term_width = max(48, min(term_width, 160))
+    expanded = layout != "summary"
     lines: list[str] = []
     lines.extend(_header("CWO Execution Status Report", "explicit artifact projection", term_width))
     lines.extend(_executive_lines(report, term_width))
-    lines.extend(
-        _table(
-            "Expert Profile Utilization",
-            ["Profile", "Role", "Work", "Done", "Fail", "Calls", "Tokens", "Time", "Agents/Models"],
-            [
+    if expanded:
+        lines.extend(
+            _detail_rows(
+                "Expert Profile Utilization",
                 [
-                    row.get("profile"),
-                    row.get("role"),
-                    row.get("work_units"),
-                    row.get("completed"),
-                    row.get("failed"),
-                    row.get("agent_model_calls"),
-                    row.get("total_tokens"),
-                    row.get("elapsed_seconds"),
-                    row.get("agents_models"),
-                ]
-                for row in report.get("expert_profile_utilization", [])
-            ],
-            term_width,
+                    ("Profile", "profile"),
+                    ("Role", "role"),
+                    ("Agent/Model", "agent_model"),
+                    ("Participation", "participation"),
+                    ("Work", "work_units"),
+                    ("Done", "completed"),
+                    ("Fail", "failed"),
+                    ("Calls", "agent_model_calls"),
+                    ("Tokens", "total_tokens"),
+                    ("Time", "elapsed_seconds"),
+                ],
+                report.get("expert_profile_utilization_details", []),
+                term_width,
+            )
         )
-    )
-    lines.extend(
-        _table(
-            "Agent / Model Utilization",
-            ["Agent/Model", "Provider", "Prov.", "Lane", "Dispatches", "Calls", "Retries", "Tokens", "Use"],
-            [
+        lines.extend(
+            _detail_rows(
+                "Agent / Model Utilization",
                 [
-                    row.get("agent_model"),
-                    row.get("provider"),
-                    row.get("provenance_class"),
-                    row.get("lane"),
-                    row.get("dispatches"),
-                    row.get("agent_model_calls"),
-                    row.get("retries"),
-                    row.get("total_tokens"),
-                    row.get("recommended_synthesis_use"),
-                ]
-                for row in report.get("agent_model_utilization", [])
-            ],
-            term_width,
+                    ("Agent/Model", "agent_model"),
+                    ("Provider", "provider"),
+                    ("Provider family", "provider_family"),
+                    ("Provenance", "provenance_class"),
+                    ("Lane", "lane"),
+                    ("Dispatches", "dispatches"),
+                    ("Calls", "agent_model_calls"),
+                    ("Retries", "retries"),
+                    ("Tokens", "total_tokens"),
+                    ("Use", "recommended_synthesis_use"),
+                ],
+                report.get("agent_model_utilization_details", []),
+                term_width,
+            )
         )
-    )
+    else:
+        lines.extend(
+            _table(
+                "Expert Profile Utilization",
+                ["Profile", "Role", "Work", "Done", "Fail", "Calls", "Tokens", "Time", "Agents/Models"],
+                [
+                    [
+                        row.get("profile"),
+                        row.get("role"),
+                        row.get("work_units"),
+                        row.get("completed"),
+                        row.get("failed"),
+                        row.get("agent_model_calls"),
+                        row.get("total_tokens"),
+                        row.get("elapsed_seconds"),
+                        row.get("agents_models"),
+                    ]
+                    for row in report.get("expert_profile_utilization", [])
+                ],
+                term_width,
+            )
+        )
+        lines.extend(
+            _table(
+                "Agent / Model Utilization",
+                ["Agent/Model", "Provider", "Prov.", "Lane", "Dispatches", "Calls", "Retries", "Tokens", "Use"],
+                [
+                    [
+                        row.get("agent_model"),
+                        row.get("provider"),
+                        row.get("provenance_class"),
+                        row.get("lane"),
+                        row.get("dispatches"),
+                        row.get("agent_model_calls"),
+                        row.get("retries"),
+                        row.get("total_tokens"),
+                        row.get("recommended_synthesis_use"),
+                    ]
+                    for row in report.get("agent_model_utilization", [])
+                ],
+                term_width,
+            )
+        )
     lines.extend(_key_value_box("Main Thread / Architect Productivity", report.get("main_thread_architect_productivity", {}), term_width))
-    lines.extend(
-        _table(
-            "Second-Opinion Review Lane Productivity",
-            ["Lane", "Profile", "Calls", "Accepted", "Rejected", "Quality", "Use", "Signals"],
-            [
+    if expanded:
+        lines.extend(
+            _detail_rows(
+                "Second-Opinion Review Lane Productivity",
                 [
-                    row.get("lane"),
-                    row.get("profile"),
-                    row.get("agent_model_calls"),
-                    row.get("accepted_findings"),
-                    row.get("rejected_findings"),
-                    row.get("evidence_quality_scores"),
-                    row.get("recommended_synthesis_use"),
-                    row.get("signals"),
-                ]
-                for row in report.get("second_opinion_review_lane_productivity", [])
-            ],
-            term_width,
+                    ("Lane", "lane"),
+                    ("Profile", "profile"),
+                    ("Agent/Model", "agent_model"),
+                    ("Calls", "agent_model_calls"),
+                    ("Accepted", "accepted_findings"),
+                    ("Rejected", "rejected_findings"),
+                    ("Quality", "evidence_quality_scores"),
+                    ("Use", "recommended_synthesis_use"),
+                    ("Signals", "signals"),
+                ],
+                report.get("second_opinion_review_lane_productivity_details", []),
+                term_width,
+            )
         )
-    )
+    else:
+        lines.extend(
+            _table(
+                "Second-Opinion Review Lane Productivity",
+                ["Lane", "Profile", "Calls", "Accepted", "Rejected", "Quality", "Use", "Signals"],
+                [
+                    [
+                        row.get("lane"),
+                        row.get("profile"),
+                        row.get("agent_model_calls"),
+                        row.get("accepted_findings"),
+                        row.get("rejected_findings"),
+                        row.get("evidence_quality_scores"),
+                        row.get("recommended_synthesis_use"),
+                        row.get("signals"),
+                    ]
+                    for row in report.get("second_opinion_review_lane_productivity", [])
+                ],
+                term_width,
+            )
+        )
+    lines.extend(_telemetry_gap_lines(report.get("telemetry_gaps", {}), term_width))
     quality = report.get("quality_malpractice_sabotage_summary", {})
     lines.extend(_key_value_box("Quality / Malpractice / Sabotage Summary", quality.get("totals", {}), term_width))
-    lines.extend(
-        _table(
-            "Quality Events",
-            ["Dispatch", "Bead", "Provider", "Signals", "Disposition"],
-            [
+    if expanded:
+        lines.extend(
+            _detail_rows(
+                "Quality Events",
                 [
-                    row.get("dispatch_id"),
-                    row.get("bead_id"),
-                    row.get("provider"),
-                    row.get("signals"),
-                    row.get("recommended_disposition"),
-                ]
-                for row in quality.get("events", [])
-            ],
-            term_width,
+                    ("Dispatch", "dispatch_id"),
+                    ("Bead", "bead_id"),
+                    ("Provider", "provider"),
+                    ("Signals", "signals"),
+                    ("Disposition", "recommended_disposition"),
+                ],
+                quality.get("events", []),
+                term_width,
+            )
         )
-    )
+    else:
+        lines.extend(
+            _table(
+                "Quality Events",
+                ["Dispatch", "Bead", "Provider", "Signals", "Disposition"],
+                [
+                    [
+                        row.get("dispatch_id"),
+                        row.get("bead_id"),
+                        row.get("provider"),
+                        row.get("signals"),
+                        row.get("recommended_disposition"),
+                    ]
+                    for row in quality.get("events", [])
+                ],
+                term_width,
+            )
+        )
     lines.extend(_key_value_box("Evidence Disposition Summary", report.get("evidence_disposition_summary", {}), term_width))
     warnings = _strings(report.get("warnings"))
     if warnings:
@@ -362,6 +466,36 @@ def _expert_profile_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
+def _expert_profile_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for record in records:
+        profile = _present(record.get("expert_profile") or record.get("job_description_label"))
+        role = _present(record.get("lane"))
+        agent_model = _present(record.get("agent_model"))
+        participation = "second-opinion" if _is_second_opinion(record) else "main-thread"
+        key = (profile, role, agent_model, participation)
+        group = groups.setdefault("|".join(key), _new_group("|".join(key)))
+        group["detail_key"] = key
+        _add_record(group, record)
+        _collect(group, "labels", record.get("job_description_label"))
+    rows: list[dict[str, Any]] = []
+    for group in sorted(groups.values(), key=lambda item: item["detail_key"]):
+        profile, role, agent_model, participation = group["detail_key"]
+        row = _finalize_group(group)
+        row.update(
+            {
+                "profile": profile,
+                "role": role,
+                "job_description_labels": _joined(group, "labels"),
+                "agent_model": agent_model,
+                "agents_models": agent_model,
+                "participation": participation,
+            }
+        )
+        rows.append(row)
+    return rows
+
+
 def _agent_model_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
     for record in records:
@@ -384,6 +518,37 @@ def _agent_model_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "provenance_class": _joined(group, "provenance"),
                 "lane": _joined(group, "lanes"),
                 "recommended_synthesis_use": _joined(group, "synthesis"),
+            }
+        )
+        rows.append(row)
+    return rows
+
+
+def _agent_model_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for record in records:
+        agent_model = _present(record.get("agent_model"))
+        provider = _present(record.get("provider"))
+        provider_family = _present(record.get("provider_family"))
+        provenance_class = _present(record.get("provenance_class"))
+        lane = _present(record.get("lane"))
+        synthesis_use = _present(record.get("recommended_synthesis_use"))
+        key = (agent_model, provider, provider_family, provenance_class, lane, synthesis_use)
+        group = groups.setdefault("|".join(key), _new_group("|".join(key)))
+        group["detail_key"] = key
+        _add_record(group, record)
+    rows: list[dict[str, Any]] = []
+    for group in sorted(groups.values(), key=lambda item: item["detail_key"]):
+        agent_model, provider, provider_family, provenance_class, lane, synthesis_use = group["detail_key"]
+        row = _finalize_group(group)
+        row.update(
+            {
+                "agent_model": agent_model,
+                "provider": provider,
+                "provider_family": provider_family,
+                "provenance_class": provenance_class,
+                "lane": lane,
+                "recommended_synthesis_use": synthesis_use,
             }
         )
         rows.append(row)
@@ -425,6 +590,78 @@ def _second_opinion_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         rows.append(row)
     return rows
+
+
+def _second_opinion_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for record in records:
+        if not _is_second_opinion(record):
+            continue
+        lane = _present(record.get("agent_model") or record.get("lane"))
+        profile = _present(record.get("expert_profile") or record.get("job_description_label"))
+        agent_model = _present(record.get("agent_model"))
+        synthesis_use = _present(record.get("recommended_synthesis_use"))
+        key = (lane, profile, agent_model, synthesis_use)
+        group = groups.setdefault("|".join(key), _new_group("|".join(key)))
+        group["detail_key"] = key
+        _add_record(group, record)
+        _collect_numeric(group, "evidence_quality_scores", record.get("evidence_quality_score"))
+        for signal in _record_quality_signals(record):
+            _collect(group, "signals", signal)
+    rows: list[dict[str, Any]] = []
+    for group in sorted(groups.values(), key=lambda item: item["detail_key"]):
+        lane, profile, agent_model, synthesis_use = group["detail_key"]
+        row = _finalize_group(group)
+        row.update(
+            {
+                "lane": lane,
+                "profile": profile,
+                "agent_model": agent_model,
+                "recommended_synthesis_use": synthesis_use,
+                "evidence_quality_scores": _joined(group, "evidence_quality_scores"),
+                "signals": _joined(group, "signals"),
+            }
+        )
+        rows.append(row)
+    return rows
+
+
+def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]) -> dict[str, Any]:
+    fields: dict[str, dict[str, Any]] = {}
+    for field in TELEMETRY_GAP_KEYS:
+        fields[field] = {
+            "available_records": 0,
+            "missing_records": 0,
+            "missing_source_kinds": [],
+            "by_source_kind": {},
+        }
+
+    for record in records:
+        source_kind = _present(record.get("source_kind"))
+        for field in TELEMETRY_GAP_KEYS:
+            field_summary = fields[field]
+            by_source = field_summary["by_source_kind"].setdefault(
+                source_kind,
+                {"available_records": 0, "missing_records": 0},
+            )
+            if _has_numeric_metric(record.get(field)):
+                field_summary["available_records"] += 1
+                by_source["available_records"] += 1
+            else:
+                field_summary["missing_records"] += 1
+                by_source["missing_records"] += 1
+
+    for field_summary in fields.values():
+        field_summary["missing_source_kinds"] = sorted(
+            source for source, counts in field_summary["by_source_kind"].items() if counts["missing_records"]
+        )
+    missing_fields = sorted(field for field, summary in fields.items() if summary["missing_records"])
+    return {
+        "records_considered": len(records),
+        "source_artifacts_supplied": any(count > 0 for count in source_counts.values()),
+        "fields_with_missing_values": missing_fields,
+        "fields": fields,
+    }
 
 
 def _quality_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -514,20 +751,9 @@ def _add_record(group: dict[str, Any], record: dict[str, Any]) -> None:
     if status in STATUS_KEYS:
         group["status_known"] = True
         group["statuses"][status] += 1
-    for key in [
-        "agent_model_calls",
-        "retries",
-        "input_tokens",
-        "output_tokens",
-        "total_tokens",
-        "active_seconds",
-        "elapsed_seconds",
-        "accepted_findings",
-        "rejected_findings",
-        "followup_beads",
-    ]:
+    for key in METRIC_KEYS:
         value = record.get(key)
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if _has_numeric_metric(value):
             group["metrics"][key] = group["metrics"].get(key, 0) + value
             group["metric_known"].add(key)
 
@@ -540,18 +766,7 @@ def _finalize_group(group: dict[str, Any]) -> dict[str, Any]:
     }
     for status in STATUS_KEYS:
         row[status] = group["statuses"][status] if group["status_known"] else UNAVAILABLE
-    for key in [
-        "agent_model_calls",
-        "retries",
-        "input_tokens",
-        "output_tokens",
-        "total_tokens",
-        "active_seconds",
-        "elapsed_seconds",
-        "accepted_findings",
-        "rejected_findings",
-        "followup_beads",
-    ]:
+    for key in METRIC_KEYS:
         row[key] = _format_number(group["metrics"].get(key)) if key in group["metric_known"] else UNAVAILABLE
     return row
 
@@ -570,6 +785,14 @@ def _collect_numeric(group: dict[str, Any], key: str, value: Any) -> None:
 def _joined(group: dict[str, Any], key: str) -> str:
     values = sorted(str(item) for item in group.get(key, set()) if str(item).strip())
     return ", ".join(values) if values else UNAVAILABLE
+
+
+def _present(value: Any) -> str:
+    return _clean(value) or UNAVAILABLE
+
+
+def _has_numeric_metric(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _is_second_opinion(record: dict[str, Any]) -> bool:
@@ -759,14 +982,15 @@ def _report_warnings(source_counts: dict[str, int]) -> list[str]:
     ]
 
 
-def _count_unavailable_cells(value: Any) -> int:
-    if value == UNAVAILABLE:
-        return 1
-    if isinstance(value, dict):
-        return sum(_count_unavailable_cells(item) for item in value.values())
-    if isinstance(value, list):
-        return sum(_count_unavailable_cells(item) for item in value)
-    return 0
+def _telemetry_missing_total(gaps: dict[str, Any]) -> int:
+    fields = gaps.get("fields") if isinstance(gaps, dict) else None
+    if not isinstance(fields, dict):
+        return 0
+    total = 0
+    for summary in fields.values():
+        if isinstance(summary, dict) and isinstance(summary.get("missing_records"), int):
+            total += summary["missing_records"]
+    return total
 
 
 def _header(title: str, subtitle: str, width: int) -> list[str]:
@@ -809,9 +1033,74 @@ def _key_value_box(title: str, mapping: Any, width: int) -> list[str]:
 def _text_box(title: str, body_lines: list[str], width: int) -> list[str]:
     lines = [_section_top(title, width)]
     for line in body_lines or ["None recorded."]:
-        lines.append("│ " + _fit(line, width - 4).ljust(width - 4) + " │")
+        lines.extend(_wrapped_box_lines(line, width))
     lines.append(_section_bottom(width))
     return lines
+
+
+def _detail_rows(title: str, fields: list[tuple[str, str]], rows: Any, width: int) -> list[str]:
+    if not isinstance(rows, list):
+        rows = []
+    lines = [_section_top(title, width)]
+    if not rows:
+        lines.extend(_wrapped_box_lines("None recorded.", width))
+        lines.append(_section_bottom(width))
+        return lines
+
+    for index, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            row = {}
+        for field_index, (label, key) in enumerate(fields):
+            prefix = f"{index}. {label}: " if field_index == 0 else f"   {label}: "
+            lines.extend(_wrapped_box_lines(prefix + _cell(row.get(key)), width))
+        if index < len(rows):
+            lines.append("│ " + "".ljust(width - 4) + " │")
+    lines.append(_section_bottom(width))
+    return lines
+
+
+def _telemetry_gap_lines(gaps: Any, width: int) -> list[str]:
+    if not isinstance(gaps, dict):
+        gaps = {}
+    fields = gaps.get("fields")
+    if not isinstance(fields, dict):
+        fields = {}
+    rows: list[dict[str, Any]] = []
+    for field, summary in sorted(fields.items()):
+        if not isinstance(summary, dict):
+            continue
+        rows.append(
+            {
+                "field": field,
+                "available_records": summary.get("available_records"),
+                "missing_records": summary.get("missing_records"),
+                "missing_source_kinds": ", ".join(_strings(summary.get("missing_source_kinds"))),
+            }
+        )
+    return _detail_rows(
+        "Telemetry Gaps",
+        [
+            ("Field", "field"),
+            ("Available records", "available_records"),
+            ("Missing records", "missing_records"),
+            ("Missing source kinds", "missing_source_kinds"),
+        ],
+        rows,
+        width,
+    )
+
+
+def _wrapped_box_lines(text: str, width: int) -> list[str]:
+    inner = width - 4
+    wrapper = textwrap.TextWrapper(
+        width=inner,
+        break_long_words=True,
+        break_on_hyphens=False,
+        replace_whitespace=False,
+        drop_whitespace=False,
+    )
+    wrapped = wrapper.wrap(text) or [""]
+    return ["│ " + line.ljust(inner) + " │" for line in wrapped]
 
 
 def _table(title: str, headers: list[str], rows: list[list[Any]], width: int) -> list[str]:

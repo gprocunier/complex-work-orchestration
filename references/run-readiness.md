@@ -56,11 +56,15 @@ For end-of-plan resource accounting, use the separate execution status report
 renderer. It summarizes explicit work-unit, expert profile, agent/model,
 main-thread, second-opinion, quality, sabotage, malpractice, and evidence
 disposition telemetry from audit logs, readiness records, acceptance decisions,
-and return bundles. It is a projection only; unavailable calls, retries,
-tokens, timings, or active-time values render as `?`:
+and return bundles. The terminal view defaults to expanded fan-out rows so
+multi-role or multi-model utilization details remain visible; pass
+`--layout summary` for the grouped table view. It is a projection only;
+unavailable calls, retries, tokens, timings, or active-time values render as
+`?`, and the JSON output includes field-level telemetry gap counts:
 
 ```bash
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout summary
 python3 scripts/render_execution_status_report.py --format json
 ```
 

@@ -260,8 +260,11 @@ state; they are not new authority.
 
 For end-of-plan resource and review-lane accounting, render the execution
 status report from explicit audit, readiness, evaluator, and return-bundle
-artifacts. Missing calls, retries, token counts, or timings stay `?` rather
-than estimated:
+artifacts. The terminal view defaults to expanded fan-out rows so long expert,
+role, and agent/model identifiers remain visible; use `--layout summary` for
+the older grouped table view. Missing calls, retries, token counts, or timings
+stay `?` rather than estimated, and the JSON output includes field-level
+telemetry gap counts:
 
 Use the JSON shape when automation needs a hard gate, then render projection
 views when humans need a run sheet, wrap-up, or next-version rail:
@@ -271,6 +274,7 @@ python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-pla
 python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout summary
 ```
 
 Deferred work must use one of the allowed next-version reason types:
@@ -652,7 +656,8 @@ binding, and expert profile for outside or local review.
   wrap-up/status, or next-version projections from a validated readiness plan.
 - `scripts/render_execution_status_report.py`: render a terminal or JSON
   end-of-plan status report from explicit audit, readiness, evaluator, and
-  return-bundle artifacts; unknown telemetry remains `?`.
+  return-bundle artifacts; expanded terminal output fans out utilization
+  details, summary layout remains available, and unknown telemetry remains `?`.
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
   executor controls, or emitted packet artifact names drift apart.
 

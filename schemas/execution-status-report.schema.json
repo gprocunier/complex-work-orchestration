@@ -10,9 +10,13 @@
     "source_counts",
     "executive_summary",
     "expert_profile_utilization",
+    "expert_profile_utilization_details",
     "agent_model_utilization",
+    "agent_model_utilization_details",
     "main_thread_architect_productivity",
     "second_opinion_review_lane_productivity",
+    "second_opinion_review_lane_productivity_details",
+    "telemetry_gaps",
     "quality_malpractice_sabotage_summary",
     "evidence_disposition_summary"
   ],
@@ -26,9 +30,13 @@
     "warnings": {"type": "array", "items": {"type": "string"}},
     "executive_summary": {"type": "object"},
     "expert_profile_utilization": {"type": "array", "items": {"type": "object"}},
+    "expert_profile_utilization_details": {"type": "array", "items": {"type": "object"}},
     "agent_model_utilization": {"type": "array", "items": {"type": "object"}},
+    "agent_model_utilization_details": {"type": "array", "items": {"type": "object"}},
     "main_thread_architect_productivity": {"type": "object"},
     "second_opinion_review_lane_productivity": {"type": "array", "items": {"type": "object"}},
+    "second_opinion_review_lane_productivity_details": {"type": "array", "items": {"type": "object"}},
+    "telemetry_gaps": {"type": "object"},
     "quality_malpractice_sabotage_summary": {"type": "object"},
     "evidence_disposition_summary": {"type": "object"}
   }

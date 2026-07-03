@@ -184,7 +184,8 @@ python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection wrap-up-status
-python3 scripts/render_execution_status_report.py --format terminal</code></pre>
+python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout summary</code></pre>
             <p>
               The key field is the
               <strong>criterion-to-evidence matrix</strong>: every acceptance
@@ -194,8 +195,11 @@ python3 scripts/render_execution_status_report.py --format terminal</code></pre>
               typed projections from Beads; contractor and local-worker returns
               stay evidence until evaluation and architect adjudication.
               The execution status report is a separate end-of-plan accounting
-              view over explicit audit and evaluator artifacts; unknown calls,
-              retries, token counts, and timings are shown as unavailable.
+              view over explicit audit and evaluator artifacts. Its default
+              terminal layout fans out long utilization cells into readable
+              rows, the summary layout keeps the grouped table, and unknown
+              calls, retries, token counts, and timings are shown as
+              unavailable.
             </p>
             <p>
               Allowed projection types are <code>run-sheet</code>,
@@ -362,6 +366,7 @@ python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;
 python3 scripts/render_harness_dispatch.py --environment connected-opencode-exemplar --harness opencode --role worker --json "&lt;task text&gt;"
 python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout summary
 python3 scripts/check_installed_skill.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py

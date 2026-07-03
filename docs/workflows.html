@@ -293,7 +293,8 @@ python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection wrap-up-status
-python3 scripts/render_execution_status_report.py --format terminal</code></pre>
+python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout summary</code></pre>
             </details>
             <p>
               The validator checks
@@ -304,8 +305,9 @@ python3 scripts/render_execution_status_report.py --format terminal</code></pre>
               <code>templates/run-readiness-plan.md</code>, and the detailed
               operator reference is <code>references/run-readiness.md</code>.
               The execution status report is a separate end-of-plan view over
-              explicit audit and evaluator artifacts; missing telemetry is shown
-              as unavailable.
+              explicit audit and evaluator artifacts; expanded utilization rows
+              are the default, summary tables remain available, and missing
+              telemetry is shown as unavailable.
             </p>
           </section>
 

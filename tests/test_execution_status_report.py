@@ -159,6 +159,65 @@ class ExecutionStatusReportTests(unittest.TestCase):
         rendered = render_terminal(report, width=80)
         self.assertIn("?", rendered)
 
+    def test_expanded_renderer_fans_out_long_values_without_ellipsis(self) -> None:
+        long_profile = "contract-jd-operator-calibrated-execution"
+        long_agent = "chatgpt_pro_5_5_extended_reasoning_browser"
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "browser-review-1",
+                    "event_type": "dispatch",
+                    "bead_id": "cwo-6",
+                    "executor_key": long_agent,
+                    "lane": "browser_automation",
+                    "expert_profile": long_profile,
+                    "calls": 1,
+                    "status": "completed",
+                },
+                {
+                    "dispatch_id": "browser-review-2",
+                    "event_type": "dispatch",
+                    "bead_id": "cwo-7",
+                    "executor_key": long_agent,
+                    "lane": "chatgpt-browser-master-review",
+                    "expert_profile": long_profile,
+                    "calls": 1,
+                    "status": "failed",
+                },
+            ],
+        )
+
+        detail_rows = report["expert_profile_utilization_details"]
+        self.assertEqual(len(detail_rows), 2)
+        self.assertEqual({row["role"] for row in detail_rows}, {"browser_automation", "chatgpt-browser-master-review"})
+
+        rendered = render_terminal(report, width=120)
+        self.assertIn("browser_automation", rendered)
+        self.assertIn("chatgpt-browser-master-review", rendered)
+        self.assertIn(long_agent, rendered)
+        self.assertNotIn("...", rendered)
+
+    def test_telemetry_gaps_report_missing_fields_by_source_kind(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "missing-token-time",
+                    "event_type": "dispatch",
+                    "bead_id": "cwo-8",
+                    "executor_key": "frontier_architect",
+                    "status": "completed",
+                    "calls": 1,
+                }
+            ],
+        )
+
+        gaps = report["telemetry_gaps"]
+        self.assertEqual(gaps["records_considered"], 1)
+        self.assertTrue(gaps["source_artifacts_supplied"])
+        self.assertEqual(gaps["fields"]["agent_model_calls"]["available_records"], 1)
+        self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
+        self.assertEqual(gaps["fields"]["total_tokens"]["missing_source_kinds"], ["audit_event"])
+
     def test_terminal_renderer_degrades_for_narrow_width(self) -> None:
         report = build_execution_status_report(
             audit_events=sample_audit_events(),
@@ -214,9 +273,13 @@ class ExecutionStatusReportTests(unittest.TestCase):
         for key in [
             "executive_summary",
             "expert_profile_utilization",
+            "expert_profile_utilization_details",
             "agent_model_utilization",
+            "agent_model_utilization_details",
             "main_thread_architect_productivity",
             "second_opinion_review_lane_productivity",
+            "second_opinion_review_lane_productivity_details",
+            "telemetry_gaps",
             "quality_malpractice_sabotage_summary",
             "evidence_disposition_summary",
         ]:

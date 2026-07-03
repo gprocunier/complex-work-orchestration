@@ -32,6 +32,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--acceptance-decision", action="append", help="Acceptance-decision JSON artifact. May be repeated.")
     parser.add_argument("--return-bundle", action="append", help="Contractor/local return-bundle JSON artifact. May be repeated.")
     parser.add_argument("--format", choices=["terminal", "json"], default="terminal")
+    parser.add_argument(
+        "--layout",
+        choices=["expanded", "summary"],
+        default="expanded",
+        help="Terminal layout. expanded fans out long utilization cells; summary uses grouped tables.",
+    )
     parser.add_argument("--width", type=int, help="Terminal render width. Defaults to the current terminal width.")
     args = parser.parse_args(argv)
 
@@ -64,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.format == "json":
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print(render_terminal(report, width=args.width), end="")
+        print(render_terminal(report, width=args.width, layout=args.layout), end="")
     return 0
 
 
