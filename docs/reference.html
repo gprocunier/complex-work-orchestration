@@ -184,7 +184,9 @@ python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection wrap-up-status
+python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary</code></pre>
             <p>
               The key field is the
@@ -196,11 +198,12 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               stay evidence until evaluation and architect adjudication.
               The execution status report is a separate end-of-plan accounting
               view over explicit audit and evaluator artifacts. Its default
-              terminal layout fans out long utilization cells into readable
-              rows, the summary layout keeps the grouped table, expected but
-              unavailable calls, retries, token counts, and timings are shown as
-              <code>?</code>, and structurally irrelevant telemetry is shown as
-              <code>n/a</code>.
+              terminal layout is a compact dashboard for 80-column,
+              half-height terminals, the expanded layout fans out long
+              utilization cells into readable rows, the summary layout keeps
+              the grouped table, expected but unavailable calls, retries, token
+              counts, and timings are shown as <code>?</code>, and structurally
+              irrelevant telemetry is shown as <code>n/a</code>.
             </p>
             <p>
               Allowed projection types are <code>run-sheet</code>,
@@ -366,7 +369,9 @@ python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.jso
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
 python3 scripts/render_harness_dispatch.py --environment connected-opencode-exemplar --harness opencode --role worker --json "&lt;task text&gt;"
 python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
+python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary
 python3 scripts/check_installed_skill.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json

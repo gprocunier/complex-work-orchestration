@@ -13,7 +13,7 @@ from .paths import AUDIT_LOG
 UNAVAILABLE = "?"
 NOT_APPLICABLE = "n/a"
 REPORT_TYPE = "cwo-execution-status-report"
-REPORT_VERSION = 3
+REPORT_VERSION = 4
 
 STATUS_KEYS = ("completed", "failed", "skipped", "blocked", "deferred")
 METRIC_KEYS = (
@@ -56,6 +56,34 @@ DISPATCH_EVENT_TYPES = {
     "dispatch_rendered",
     "work_dispatched",
 }
+USAGE_IMPORT_EVENT_TYPES = {
+    "execution_telemetry_import",
+    "telemetry_import",
+    "usage_import",
+}
+USAGE_IMPORT_MERGE_KEYS = (
+    "agent_model_calls",
+    "retry_count",
+    "retries",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "active_seconds",
+    "elapsed_seconds",
+    "model",
+    "model_label",
+    "provider_family",
+    "provider_key",
+    "provider",
+    "provider_retention_class",
+    "job_description_label",
+    "expert_profile",
+    "expert_profile_path",
+    "telemetry_missing_reason",
+    "telemetry_missing_reasons",
+    "telemetry_source",
+    "telemetry_target_event_hash",
+)
 
 
 def load_json_document(path: Path) -> dict[str, Any]:
@@ -77,6 +105,63 @@ def load_audit_events(paths: list[Path] | None = None) -> list[dict[str, Any]]:
     return events
 
 
+def _merge_usage_imports(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    usage_imports = [event for event in events if _is_usage_import_event(event)]
+    if not usage_imports:
+        return list(events), 0
+
+    merged = [dict(event) for event in events if not _is_usage_import_event(event)]
+    dispatch_index: dict[str, int] = {}
+    bead_index: dict[str, list[int]] = {}
+    for index, event in enumerate(merged):
+        if not _is_usage_import_target(event):
+            continue
+        dispatch_id = _clean(event.get("dispatch_id"))
+        bead_id = _clean(event.get("bead_id"))
+        if dispatch_id:
+            dispatch_index[dispatch_id] = index
+        if bead_id:
+            bead_index.setdefault(bead_id, []).append(index)
+
+    for usage_import in usage_imports:
+        target_index = None
+        dispatch_id = _clean(usage_import.get("dispatch_id"))
+        bead_id = _clean(usage_import.get("bead_id"))
+        if dispatch_id and dispatch_id in dispatch_index:
+            target_index = dispatch_index[dispatch_id]
+        elif bead_id and len(bead_index.get(bead_id, [])) == 1:
+            target_index = bead_index[bead_id][0]
+
+        if target_index is None:
+            merged.append(dict(usage_import))
+            continue
+
+        target = dict(merged[target_index])
+        for key in USAGE_IMPORT_MERGE_KEYS:
+            if _import_value_present(usage_import.get(key)):
+                target[key] = usage_import[key]
+        merged[target_index] = target
+
+    return merged, len(usage_imports)
+
+
+def _is_usage_import_event(record: dict[str, Any]) -> bool:
+    event_type = str(record.get("event_type") or "").strip().lower()
+    telemetry_kind = str(record.get("telemetry_kind") or "").strip().lower()
+    return event_type in USAGE_IMPORT_EVENT_TYPES or telemetry_kind == "usage_import"
+
+
+def _is_usage_import_target(record: dict[str, Any]) -> bool:
+    if _is_usage_import_event(record):
+        return False
+    telemetry_kind = _telemetry_kind(record, "audit_event")
+    return telemetry_kind in {"browser_dispatch", "dispatch", "local_dispatch", "manual_dispatch"}
+
+
+def _import_value_present(value: Any) -> bool:
+    return value not in [None, "", []]
+
+
 def build_execution_status_report(
     *,
     audit_events: list[dict[str, Any]] | None = None,
@@ -85,7 +170,8 @@ def build_execution_status_report(
     readiness_plan: dict[str, Any] | None = None,
     source_files: dict[str, list[str] | str | None] | None = None,
 ) -> dict[str, Any]:
-    events = audit_events or []
+    raw_events = audit_events or []
+    events, telemetry_imports = _merge_usage_imports(raw_events)
     decisions = acceptance_decisions or []
     bundles = return_bundles or []
     readiness_records = _readiness_records(readiness_plan or {})
@@ -97,7 +183,8 @@ def build_execution_status_report(
     )
 
     source_counts = {
-        "audit_events": len(events),
+        "audit_events": len(raw_events),
+        "telemetry_imports": telemetry_imports,
         "acceptance_decisions": len(decisions),
         "return_bundles": len(bundles),
         "readiness_records": len(readiness_records),
@@ -126,9 +213,14 @@ def build_execution_status_report(
     return report
 
 
-def render_terminal(report: dict[str, Any], *, width: int | None = None, layout: str = "expanded") -> str:
+def render_terminal(report: dict[str, Any], *, width: int | None = None, layout: str = "dashboard") -> str:
     term_width = width or shutil.get_terminal_size((100, 24)).columns
     term_width = max(48, min(term_width, 160))
+    if layout == "dashboard":
+        lines: list[str] = []
+        lines.extend(_header("CWO Execution Status Report", "dashboard projection", term_width))
+        lines.extend(_dashboard_lines(report, term_width))
+        return "\n".join(lines) + "\n"
     expanded = layout != "summary"
     lines: list[str] = []
     lines.extend(_header("CWO Execution Status Report", "explicit artifact projection", term_width))
@@ -389,6 +481,8 @@ def _telemetry_kind(record: dict[str, Any], source_kind: str) -> str:
         return "evaluation"
     if source_kind == "contractor_return_bundle":
         return "return_bundle"
+    if event_type in USAGE_IMPORT_EVENT_TYPES:
+        return "usage_import"
     if event_type == "packet_built":
         return "packet_build"
     if event_type == "return_evaluated":
@@ -422,6 +516,7 @@ def _telemetry_metric_expected(
         "readiness",
         "return_bundle",
         "harness_render",
+        "usage_import",
         "browser_confirmation",
         "browser_rehearsal",
         "artifact",
@@ -699,6 +794,7 @@ def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]
             "missing_records": 0,
             "not_applicable_records": 0,
             "missing_source_kinds": [],
+            "missing_reasons": {},
             "by_source_kind": {},
         }
 
@@ -720,6 +816,9 @@ def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]
             else:
                 field_summary["missing_records"] += 1
                 by_source["missing_records"] += 1
+                for reason in _telemetry_missing_reasons(record):
+                    missing_reasons = field_summary["missing_reasons"]
+                    missing_reasons[reason] = missing_reasons.get(reason, 0) + 1
 
     for field_summary in fields.values():
         field_summary["missing_source_kinds"] = sorted(
@@ -732,6 +831,15 @@ def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]
         "fields_with_missing_values": missing_fields,
         "fields": fields,
     }
+
+
+def _telemetry_missing_reasons(record: dict[str, Any]) -> list[str]:
+    reasons = _strings(record.get("telemetry_missing_reasons"))
+    single = _clean(record.get("telemetry_missing_reason"))
+    if single:
+        reasons.append(single)
+    normalized = sorted({reason for reason in reasons if reason})
+    return normalized or ["not-recorded"]
 
 
 def _quality_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1106,6 +1214,102 @@ def _executive_lines(report: dict[str, Any], width: int) -> list[str]:
     return _key_value_box("Executive Summary", values, width)
 
 
+def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
+    summary = report.get("executive_summary", {}) if isinstance(report.get("executive_summary"), dict) else {}
+    quality = report.get("quality_malpractice_sabotage_summary", {})
+    quality_totals = quality.get("totals", {}) if isinstance(quality, dict) and isinstance(quality.get("totals"), dict) else {}
+    evidence = report.get("evidence_disposition_summary", {})
+    evidence = evidence if isinstance(evidence, dict) else {}
+    gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
+
+    status_line = "  ".join(
+        [
+            f"Work {_cell(summary.get('work_units'))}",
+            f"Done {_cell(summary.get('completed'))}",
+            f"Fail {_cell(summary.get('failed'))}",
+            f"Block {_cell(summary.get('blocked'))}",
+            f"Calls {_cell(summary.get('agent_model_calls'))}",
+            f"Missing {_cell(summary.get('missing_telemetry_cells'))}",
+        ]
+    )
+    resource_line = "  ".join(
+        [
+            f"Tokens {_cell(summary.get('total_tokens'))}",
+            f"Elapsed {_cell(summary.get('elapsed_seconds'))}",
+            f"Retries {_cell(summary.get('retries'))}",
+            f"Main {_cell(summary.get('main_thread_calls'))}",
+            f"Review {_cell(summary.get('second_opinion_calls'))}",
+        ]
+    )
+    if gaps:
+        gap_line = "Top gaps: " + "; ".join(gaps)
+    else:
+        gap_line = "Top gaps: none recorded"
+    quality_line = "Quality: " + "  ".join(
+        [
+            f"sabotage {_cell(quality_totals.get('sabotage_concerns'))}",
+            f"malpractice {_cell(quality_totals.get('malpractice_concerns'))}",
+            f"quarantine {_cell(quality_totals.get('quarantine_recommended'))}",
+            f"peer {_cell(quality_totals.get('peer_review_required'))}",
+            f"adjudicate {_cell(quality_totals.get('human_adjudication_required'))}",
+        ]
+    )
+    evidence_line = "Evidence: " + "  ".join(
+        [
+            f"primary {_cell(evidence.get('primary'))}",
+            f"salvage {_cell(evidence.get('salvage-only'))}",
+            f"reject {_cell(evidence.get('reject'))}",
+            f"quarantine {_cell(evidence.get('quarantine'))}",
+            f"unavailable {_cell(evidence.get('unavailable'))}",
+        ]
+    )
+    next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
+
+    lines = [_section_top("Dashboard", width)]
+    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, next_line]:
+        lines.extend(_wrapped_box_lines(line, width))
+    lines.append(_section_bottom(width))
+    return lines
+
+
+def _top_gap_summaries(gaps: Any, *, limit: int) -> list[str]:
+    if not isinstance(gaps, dict):
+        return []
+    fields = gaps.get("fields")
+    if not isinstance(fields, dict):
+        return []
+    rows: list[tuple[int, str, str, str]] = []
+    for field, summary in fields.items():
+        if not isinstance(summary, dict):
+            continue
+        missing = summary.get("missing_records")
+        if not isinstance(missing, int) or missing <= 0:
+            continue
+        sources = ", ".join(_strings(summary.get("missing_source_kinds"))) or UNAVAILABLE
+        reasons = _missing_reason_summary(summary.get("missing_reasons"))
+        rows.append((missing, str(field), sources, reasons))
+    rows.sort(key=lambda row: (-row[0], row[1]))
+    return [
+        f"{field} {missing} ({sources}/{reasons})"
+        for missing, field, sources, reasons in rows[:limit]
+    ]
+
+
+def _missing_reason_summary(reasons: Any, *, limit: int = 2) -> str:
+    if not isinstance(reasons, dict) or not reasons:
+        return UNAVAILABLE
+    pairs = sorted(
+        ((count, str(reason)) for reason, count in reasons.items() if isinstance(count, int)),
+        key=lambda item: (-item[0], item[1]),
+    )
+    if not pairs:
+        return UNAVAILABLE
+    shown = [f"{reason}:{count}" for count, reason in pairs[:limit]]
+    if len(pairs) > limit:
+        shown.append("more")
+    return ",".join(shown)
+
+
 def _key_value_box(title: str, mapping: Any, width: int) -> list[str]:
     if not isinstance(mapping, dict):
         mapping = {}
@@ -1159,6 +1363,7 @@ def _telemetry_gap_lines(gaps: Any, width: int) -> list[str]:
                 "missing_records": summary.get("missing_records"),
                 "not_applicable_records": summary.get("not_applicable_records"),
                 "missing_source_kinds": ", ".join(_strings(summary.get("missing_source_kinds"))),
+                "missing_reasons": _missing_reason_summary(summary.get("missing_reasons"), limit=4),
             }
         )
     return _detail_rows(
@@ -1169,6 +1374,7 @@ def _telemetry_gap_lines(gaps: Any, width: int) -> list[str]:
             ("Missing records", "missing_records"),
             ("Not applicable records", "not_applicable_records"),
             ("Missing source kinds", "missing_source_kinds"),
+            ("Missing reasons", "missing_reasons"),
         ],
         rows,
         width,

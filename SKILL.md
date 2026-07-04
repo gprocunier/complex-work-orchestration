@@ -361,8 +361,9 @@ validated readiness plan. For end-of-plan resource, expert, agent/model, and
 review-lane accounting, use `scripts/render_execution_status_report.py` with
 explicit audit, readiness, evaluator, and return-bundle inputs; missing tokens,
 timings, calls, and retries must render as unavailable instead of inferred.
-The terminal report defaults to expanded fan-out rows for long expert, role, and
-agent/model identifiers; pass `--layout summary` for the older grouped view.
+The terminal report defaults to a compact dashboard for constrained terminals;
+pass `--layout expanded` for long expert, role, and agent/model identifiers, or
+`--layout summary` for the grouped view.
 For next-version requests, require an allowed `reason_type` and follow-up Bead.
 For patrol or recurring-work requests, create research Beads only until
 ownership, locking, history, failure containment, and provider-neutral

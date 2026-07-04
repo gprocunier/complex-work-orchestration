@@ -56,22 +56,27 @@ For end-of-plan resource accounting, use the separate execution status report
 renderer. It summarizes explicit work-unit, expert profile, agent/model,
 main-thread, second-opinion, quality, sabotage, malpractice, and evidence
 disposition telemetry from audit logs, readiness records, acceptance decisions,
-and return bundles. The terminal view defaults to expanded fan-out rows so
-multi-role or multi-model utilization details remain visible; pass
-`--layout summary` for the grouped table view. It is a projection only;
-expected-but-unavailable calls, retries, tokens, timings, or active-time values
-render as `?`, structurally irrelevant telemetry renders as `n/a`, and the JSON
-output includes field-level available, missing, and not-applicable telemetry
-gap counts:
+and return bundles. The terminal view defaults to a compact dashboard for
+80-column, half-height terminals; pass `--layout expanded` for full multi-role
+or multi-model utilization rows, or `--layout summary` for grouped tables. It is
+a projection only; expected-but-unavailable calls, retries, tokens, timings, or
+active-time values render as `?`, structurally irrelevant telemetry renders as
+`n/a`, and the JSON output includes field-level available, missing,
+not-applicable, and missing-reason telemetry gap counts. When manual/provider
+usage becomes available after dispatch, import it through a sanitized sidecar
+before rendering:
 
 ```bash
+python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary
 python3 scripts/render_execution_status_report.py --format json
 ```
 
 The machine-readable output is documented by
-`schemas/execution-status-report.schema.json`.
+`schemas/execution-status-report.schema.json`; telemetry sidecars are documented
+by `schemas/execution-telemetry-import.schema.json`.
 
 When `adjudication_record` declares accepted, rejected, or quarantined findings,
 it must also include `evidence_refs` entries with `artifact`, `artifact_type`,

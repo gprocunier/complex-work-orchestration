@@ -57,6 +57,7 @@
               "missing_records",
               "not_applicable_records",
               "missing_source_kinds",
+              "missing_reasons",
               "by_source_kind"
             ],
             "properties": {
@@ -64,6 +65,10 @@
               "missing_records": {"type": "integer", "minimum": 0},
               "not_applicable_records": {"type": "integer", "minimum": 0},
               "missing_source_kinds": {"type": "array", "items": {"type": "string"}},
+              "missing_reasons": {
+                "type": "object",
+                "additionalProperties": {"type": "integer", "minimum": 0}
+              },
               "by_source_kind": {
                 "type": "object",
                 "additionalProperties": {

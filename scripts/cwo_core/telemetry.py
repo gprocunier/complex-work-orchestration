@@ -40,6 +40,8 @@ TELEMETRY_STRING_FIELDS = {
     "telemetry_kind",
     "telemetry_status",
     "telemetry_missing_reason",
+    "telemetry_source",
+    "telemetry_target_event_hash",
     "model",
     "model_label",
     "provider_family",

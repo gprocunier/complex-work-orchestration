@@ -260,13 +260,15 @@ state; they are not new authority.
 
 For end-of-plan resource and review-lane accounting, render the execution
 status report from explicit audit, readiness, evaluator, and return-bundle
-artifacts. The terminal view defaults to expanded fan-out rows so long expert,
-role, and agent/model identifiers remain visible; use `--layout summary` for
-the older grouped table view. Missing calls, retries, token counts, or timings
-stay `?` rather than estimated. Telemetry that is structurally irrelevant to a
-record, such as packet construction or readiness planning, renders as `n/a`.
-The JSON output includes field-level `available`, `missing`, and
-`not_applicable` telemetry gap counts:
+artifacts. The terminal view defaults to a compact dashboard for 80-column,
+half-height terminals; use `--layout expanded` for long expert, role, and
+agent/model detail rows, or `--layout summary` for grouped tables. Missing
+calls, retries, token counts, or timings stay `?` rather than estimated.
+Telemetry that is structurally irrelevant to a record, such as packet
+construction or readiness planning, renders as `n/a`. The JSON output includes
+field-level `available`, `missing`, `not_applicable`, and missing-reason
+telemetry gap counts. When manual/provider usage is available after dispatch,
+import a safe sidecar before rendering:
 
 Use the JSON shape when automation needs a hard gate, then render projection
 views when humans need a run sheet, wrap-up, or next-version rail:
@@ -275,7 +277,9 @@ views when humans need a run sheet, wrap-up, or next-version rail:
 python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
 python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status
+python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary
 ```
 
@@ -660,9 +664,14 @@ binding, and expert profile for outside or local review.
   wrap-up/status, or next-version projections from a validated readiness plan.
 - `scripts/render_execution_status_report.py`: render a terminal or JSON
   end-of-plan status report from explicit audit, readiness, evaluator, and
-  return-bundle artifacts; expanded terminal output fans out utilization
-  details, summary layout remains available, unknown expected telemetry remains
-  `?`, and non-applicable telemetry renders as `n/a`.
+  return-bundle artifacts; dashboard terminal output is the compact default,
+  expanded output fans out utilization details, summary layout remains
+  available, unknown expected telemetry remains `?`, and non-applicable
+  telemetry renders as `n/a`.
+- `scripts/import_execution_telemetry.py`: import sanitized manual/provider
+  usage sidecars keyed by `dispatch_id` or an unambiguous `bead_id` so later
+  reports can account for collectible calls, retries, tokens, and timings
+  without raw prompts, responses, transcripts, or credentials.
 - `scripts/validate_repository.py`: fail CI when policies, schemas, personas,
   executor controls, or emitted packet artifact names drift apart.
 

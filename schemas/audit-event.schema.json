@@ -29,6 +29,8 @@
     "telemetry_status": {"type": "string"},
     "telemetry_missing_reason": {"type": "string"},
     "telemetry_missing_reasons": {"type": "array", "items": {"type": "string"}},
+    "telemetry_source": {"type": "string"},
+    "telemetry_target_event_hash": {"type": "string"},
     "model": {"type": "string"},
     "model_label": {"type": "string"},
     "reasoning_label": {"type": "string"},

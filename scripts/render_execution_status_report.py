@@ -34,9 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--format", choices=["terminal", "json"], default="terminal")
     parser.add_argument(
         "--layout",
-        choices=["expanded", "summary"],
-        default="expanded",
-        help="Terminal layout. expanded fans out long utilization cells; summary uses grouped tables.",
+        choices=["dashboard", "expanded", "summary"],
+        default="dashboard",
+        help="Terminal layout. dashboard is the compact default; expanded fans out long utilization cells; summary uses grouped tables.",
     )
     parser.add_argument("--width", type=int, help="Terminal render width. Defaults to the current terminal width.")
     args = parser.parse_args(argv)

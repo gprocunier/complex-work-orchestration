@@ -157,6 +157,8 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(summary["elapsed_seconds"], "?")
         self.assertGreater(summary["missing_telemetry_cells"], 0)
         rendered = render_terminal(report, width=80)
+        self.assertIn("Dashboard", rendered)
+        self.assertIn("Top gaps:", rendered)
         self.assertIn("?", rendered)
 
     def test_expanded_renderer_fans_out_long_values_without_ellipsis(self) -> None:
@@ -191,11 +193,49 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(len(detail_rows), 2)
         self.assertEqual({row["role"] for row in detail_rows}, {"browser_automation", "chatgpt-browser-master-review"})
 
-        rendered = render_terminal(report, width=120)
+        rendered = render_terminal(report, width=120, layout="expanded")
         self.assertIn("browser_automation", rendered)
         self.assertIn("chatgpt-browser-master-review", rendered)
         self.assertIn(long_agent, rendered)
         self.assertNotIn("...", rendered)
+
+    def test_usage_import_supplements_matching_dispatch_without_double_counting(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "manual-review-1",
+                    "event_type": "external_manual_dispatch",
+                    "bead_id": "cwo-usage",
+                    "executor_key": "claude_opus",
+                    "provider_key": "anthropic",
+                    "executor_external": True,
+                    "status": "completed",
+                },
+                {
+                    "dispatch_id": "manual-review-1",
+                    "event_type": "execution_telemetry_import",
+                    "telemetry_kind": "usage_import",
+                    "bead_id": "cwo-usage",
+                    "agent_model_calls": 1,
+                    "retry_count": 0,
+                    "input_tokens": 120,
+                    "output_tokens": 30,
+                    "elapsed_seconds": 12,
+                    "telemetry_source": "manual-sidecar",
+                },
+            ],
+        )
+
+        summary = report["executive_summary"]
+        self.assertEqual(summary["work_units"], 1)
+        self.assertEqual(summary["dispatches"], 1)
+        self.assertEqual(summary["agent_model_calls"], "1")
+        self.assertEqual(summary["total_tokens"], "150")
+        self.assertEqual(summary["elapsed_seconds"], "12")
+        self.assertEqual(report["source_counts"]["audit_events"], 2)
+        self.assertEqual(report["source_counts"]["telemetry_imports"], 1)
+        self.assertEqual(report["telemetry_gaps"]["records_considered"], 1)
+        self.assertEqual(report["telemetry_gaps"]["fields"]["total_tokens"]["missing_records"], 0)
 
     def test_telemetry_gaps_report_missing_fields_by_source_kind(self) -> None:
         report = build_execution_status_report(
@@ -218,6 +258,7 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
         self.assertEqual(gaps["fields"]["total_tokens"]["not_applicable_records"], 0)
         self.assertEqual(gaps["fields"]["total_tokens"]["missing_source_kinds"], ["audit_event"])
+        self.assertEqual(gaps["fields"]["total_tokens"]["missing_reasons"], {"not-recorded": 1})
 
     def test_readiness_telemetry_is_not_applicable_not_missing(self) -> None:
         report = build_execution_status_report(
@@ -259,11 +300,11 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(gaps["records_considered"], 2)
         self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
         self.assertEqual(gaps["fields"]["total_tokens"]["not_applicable_records"], 1)
-        rendered = render_terminal(report, width=100)
+        rendered = render_terminal(report, width=100, layout="expanded")
         self.assertIn("?", rendered)
         self.assertIn("n/a", rendered)
 
-    def test_terminal_renderer_degrades_for_narrow_width(self) -> None:
+    def test_terminal_dashboard_degrades_for_narrow_width(self) -> None:
         report = build_execution_status_report(
             audit_events=sample_audit_events(),
             acceptance_decisions=sample_acceptance_decisions(),
@@ -271,9 +312,19 @@ class ExecutionStatusReportTests(unittest.TestCase):
 
         rendered = render_terminal(report, width=60)
         self.assertIn("CWO Execution Status Report", rendered)
+        self.assertIn("Dashboard", rendered)
+        self.assertIn("Top gaps:", rendered)
+        self.assertTrue(all(len(line) <= 60 for line in rendered.splitlines()))
+
+    def test_expanded_terminal_keeps_full_detail_sections(self) -> None:
+        report = build_execution_status_report(
+            audit_events=sample_audit_events(),
+            acceptance_decisions=sample_acceptance_decisions(),
+        )
+
+        rendered = render_terminal(report, width=80, layout="expanded")
         self.assertIn("Executive Summary", rendered)
         self.assertIn("Second-Opinion Review Lane Productivity", rendered)
-        self.assertTrue(all(len(line) <= 60 for line in rendered.splitlines()))
 
     def test_outputs_do_not_expose_raw_prompts_transcripts_or_chain_of_thought(self) -> None:
         report = build_execution_status_report(
@@ -283,7 +334,7 @@ class ExecutionStatusReportTests(unittest.TestCase):
         )
 
         payload = json.dumps(report, sort_keys=True)
-        rendered = render_terminal(report, width=100)
+        rendered = render_terminal(report, width=100, layout="expanded")
         for forbidden in ["LEAK_RAW_PROMPT", "LEAK_CHAIN_OF_THOUGHT", "LEAK_RAW_TRANSCRIPT"]:
             self.assertNotIn(forbidden, payload)
             self.assertNotIn(forbidden, rendered)

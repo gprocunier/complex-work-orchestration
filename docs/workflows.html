@@ -293,7 +293,9 @@ python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection run-sheet
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection wrap-up-status
+python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
 python3 scripts/render_execution_status_report.py --format terminal
+python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary</code></pre>
             </details>
             <p>
@@ -305,10 +307,11 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               <code>templates/run-readiness-plan.md</code>, and the detailed
               operator reference is <code>references/run-readiness.md</code>.
               The execution status report is a separate end-of-plan view over
-              explicit audit and evaluator artifacts; expanded utilization rows
-              are the default, summary tables remain available, expected but
-              missing telemetry is shown as <code>?</code>, and non-applicable
-              telemetry is shown as <code>n/a</code>.
+              explicit audit and evaluator artifacts; a compact dashboard is
+              the default for terminal use, expanded utilization rows and
+              summary tables remain available, expected but missing telemetry is
+              shown as <code>?</code>, and non-applicable telemetry is shown as
+              <code>n/a</code>.
             </p>
           </section>
 
