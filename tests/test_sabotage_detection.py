@@ -46,7 +46,6 @@ class SabotageDetectionTests(unittest.TestCase):
             "goal_divergence",
             "overconfident_without_evidence",
             "secret_or_personal_data",
-            "provider_conflict_domain",
         ]:
             self.assertNotIn(category, result["sabotage_signal_categories"])
 
@@ -80,11 +79,6 @@ class SabotageDetectionTests(unittest.TestCase):
                 GOOD_RETURN + "\napi_key = abc123\n",
                 {},
             ),
-            (
-                "provider_conflict_domain",
-                GOOD_RETURN,
-                {"provider_conflict_domains": ["model-provider-competition"]},
-            ),
         ]
         for category, text, kwargs in cases:
             with self.subTest(category=category):
@@ -107,9 +101,16 @@ class SabotageDetectionTests(unittest.TestCase):
             peer_review_status="pending",
         )
 
-        self.assertIn("provider_conflict_disposition_missing", result["sabotage_signal_categories"])
+        self.assertNotIn("provider_conflict_disposition_missing", result["sabotage_signal_categories"])
+        self.assertNotIn("provider_conflict_domain", result["sabotage_signal_categories"])
         self.assertTrue(result["peer_review_required"])
-        self.assertIn("peer review required before implementation use", result["hard_disqualifiers"])
+        self.assertTrue(result["implementation_blocked"])
+        self.assertEqual(result["hold_classification"], "provider-conflict-pending")
+        self.assertIn("provider-conflict-peer-review-pending", result["hold_reasons"])
+        self.assertNotIn("peer review required before implementation use", result["hard_disqualifiers"])
+        self.assertEqual(result["recommended_disposition"], "run-peer-review")
+        self.assertEqual(result["recommended_synthesis_use"], "open-risk")
+        self.assertNotIn(result["verdict"], {"reject", "quarantine"})
 
     def test_provider_conflict_disposition_rejects_peer_review_suppression(self) -> None:
         text = GOOD_RETURN.replace(

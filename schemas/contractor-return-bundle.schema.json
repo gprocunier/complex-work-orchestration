@@ -51,6 +51,9 @@
     "malpractice_signal_categories": {"type": "array", "items": {"type": "string"}},
     "malpractice_review_recommended": {"type": "boolean"},
     "malpractice_reject_recommended": {"type": "boolean"},
+    "implementation_blocked": {"type": "boolean"},
+    "hold_reasons": {"type": "array", "items": {"type": "string"}},
+    "hold_classification": {"type": "string"},
     "quarantine_recommended": {"type": "boolean"},
     "bundle_sha256": {"type": "string"}
   }

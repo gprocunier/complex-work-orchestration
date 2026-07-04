@@ -393,9 +393,13 @@ Attestation/repro note: reproducible from packet.
             "Peer-review disposition: Required peer review is pending.",
         )
         result = make_acceptance_decision(text, peer_review_required=True)
-        self.assertEqual(result["verdict"], "reject")
-        self.assertIn("peer review required before implementation use", result["hard_disqualifiers"])
+        self.assertEqual(result["verdict"], "accept")
+        self.assertTrue(result["implementation_blocked"])
+        self.assertEqual(result["hold_classification"], "peer-review-pending")
+        self.assertIn("peer-review-pending", result["hold_reasons"])
+        self.assertNotIn("peer review required before implementation use", result["hard_disqualifiers"])
         self.assertEqual(result["recommended_disposition"], "run-peer-review")
+        self.assertEqual(result["recommended_synthesis_use"], "open-risk")
 
     def test_local_worker_acceptance_decision_carries_provider_provenance(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")

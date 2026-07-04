@@ -98,7 +98,7 @@
               Synthesis is only as useful as the returns it receives. CWO
               tracks input dispositions before synthesis: accepted,
               accepted-with-modification, salvage-only, open-risk, missing,
-              timed-out, rejected, quarantined, or boundary-tainted.
+              timed-out, process-held, rejected, quarantined, or boundary-tainted.
             </p>
             <div class="callout">
               <strong>Salvage-only means useful but limited.</strong>
@@ -119,7 +119,10 @@
               erased. When opaque intervention risk or provider conflict is
               present, the
               <a href="./malpractice-sabotage.html#provider-policy">Guardrails provider-policy workflow</a>
-              keeps peer review and architect adjudication in the path.
+              keeps peer review and architect adjudication in the path. Pending
+              peer review uses <code>implementation_blocked</code> and open-risk
+              synthesis handling instead of masquerading as substantive
+              quarantine.
             </p>
             <p>
               For security-sensitive synthesis, CWO can also require
@@ -172,6 +175,7 @@
               <li>Research claims need source locators, citation spans or excerpts, contradiction handling, and reflection before they become usable synthesis input.</li>
               <li>Zero-trust consensus reports cross-domain claim divergence; it does not turn agreement into validation.</li>
               <li>Accepted findings become plan changes only after architect adjudication.</li>
+              <li>Process-held findings stay visible as open-risk evidence until peer review or architect adjudication resolves the hold.</li>
               <li>Rejected or quarantined findings stay in the record as boundary evidence.</li>
             </ul>
           </section>

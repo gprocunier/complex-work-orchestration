@@ -156,6 +156,14 @@ def _normalize_synthesis_use(value: Any) -> str | None:
     return None
 
 
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def evaluate_synthesis_inputs(
     inputs: list[dict[str, Any]],
     policy: dict[str, Any] | None = None,
@@ -202,6 +210,7 @@ def evaluate_synthesis_inputs(
     quarantined_inputs: list[dict[str, Any]] = []
     rejected_inputs: list[dict[str, Any]] = []
     unknown_inputs: list[dict[str, Any]] = []
+    held_inputs: list[dict[str, Any]] = []
     external_inputs: list[dict[str, Any]] = []
 
     for index, entry in enumerate(inputs, start=1):
@@ -215,6 +224,9 @@ def evaluate_synthesis_inputs(
         lane = str(entry.get("lane") or entry.get("id") or entry.get("name") or f"input-{index}")
         external = bool(entry.get("external", True))
         provider_camp = str(entry.get("provider_camp") or "")
+        implementation_blocked = _truthy(entry.get("implementation_blocked"))
+        hold_reasons = [str(item) for item in entry.get("hold_reasons", []) if str(item).strip()]
+        hold_classification = str(entry.get("hold_classification") or "none")
         requested_synthesis_use = _normalize_synthesis_use(
             entry.get("synthesis_use") or entry.get("recommended_synthesis_use")
         )
@@ -222,6 +234,8 @@ def evaluate_synthesis_inputs(
         requested_primary_authorized = bool(
             entry.get("architect_adjudicated")
             or entry.get("architect_upgrade")
+            or entry.get("architect_adjudication_authorized")
+            or entry.get("implementation_block_override_authorized")
             or str(entry.get("synthesis_use_authority") or "").strip().lower() in {"architect", "architect-adjudication"}
         )
 
@@ -229,6 +243,8 @@ def evaluate_synthesis_inputs(
             synthesis_use = "quarantine"
         elif effective_disposition in rejected:
             synthesis_use = "reject"
+        elif implementation_blocked and not requested_primary_authorized:
+            synthesis_use = "open-risk"
         elif requested_synthesis_use == "primary" and not requested_primary_authorized:
             synthesis_use = "salvage-only" if provider_camp in salvage_only_camps else "unknown"
         elif requested_synthesis_use:
@@ -257,8 +273,13 @@ def evaluate_synthesis_inputs(
             "evidence_quality_score": entry.get("evidence_quality_score"),
             "external": external,
             "reason": entry.get("reason"),
+            "implementation_blocked": implementation_blocked,
+            "hold_classification": hold_classification,
+            "hold_reasons": hold_reasons,
         }
         input_summaries.append(summary)
+        if implementation_blocked:
+            held_inputs.append(summary)
         if external:
             external_inputs.append(summary)
         if synthesis_use == "primary":
@@ -324,6 +345,7 @@ def evaluate_synthesis_inputs(
         "quarantined_input_count": len(quarantined_inputs),
         "rejected_input_count": len(rejected_inputs),
         "unknown_input_count": len(unknown_inputs),
+        "held_input_count": len(held_inputs),
         "input_summaries": input_summaries,
         "primary_inputs": primary_inputs,
         "salvage_inputs": salvage_inputs,
@@ -332,6 +354,7 @@ def evaluate_synthesis_inputs(
         "quarantined_inputs": quarantined_inputs,
         "rejected_inputs": rejected_inputs,
         "unknown_inputs": unknown_inputs,
+        "held_inputs": held_inputs,
         "zero_trust_consensus": zero_trust_consensus,
     }
 

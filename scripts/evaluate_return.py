@@ -20,6 +20,10 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Malpractice score: {result.get('malpractice_score', 0)}")
     print(f"Peer review required: {result.get('peer_review_required', False)}")
     print(f"Peer review status: {result.get('peer_review_status', 'not-run')}")
+    print(f"Implementation blocked: {result.get('implementation_blocked', False)}")
+    print(f"Hold classification: {result.get('hold_classification', 'none')}")
+    hold_reasons = result.get("hold_reasons") or []
+    print("Hold reasons: " + (", ".join(str(item) for item in hold_reasons) if hold_reasons else "none"))
     print(f"Human adjudication required: {result.get('human_adjudication_required', False)}")
     print(f"Recommended disposition: {result.get('recommended_disposition', 'unknown')}")
     print(f"Recommended synthesis use: {result.get('recommended_synthesis_use', 'unknown')}")
@@ -181,6 +185,9 @@ def main() -> None:
                 "malpractice_score": result.get("malpractice_score"),
                 "peer_review_required": result.get("peer_review_required"),
                 "peer_review_status": result.get("peer_review_status"),
+                "implementation_blocked": result.get("implementation_blocked"),
+                "hold_reasons": result.get("hold_reasons"),
+                "hold_classification": result.get("hold_classification"),
                 "human_adjudication_required": result.get("human_adjudication_required"),
                 "recommended_disposition": result.get("recommended_disposition"),
                 "recommended_synthesis_use": result.get("recommended_synthesis_use"),

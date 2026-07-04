@@ -358,6 +358,51 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertEqual(result["input_summaries"][0]["synthesis_use"], "quarantine")
         self.assertEqual(result["input_summaries"][0]["requested_synthesis_use"], "primary")
 
+    def test_process_hold_blocks_primary_synthesis_without_architect_override(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_camp": "anthropic",
+                    "disposition": "accepted",
+                    "recommended_synthesis_use": "primary",
+                    "implementation_blocked": True,
+                    "hold_classification": "provider-conflict-pending",
+                    "hold_reasons": ["provider-conflict-peer-review-pending"],
+                },
+                {"lane": "chatgpt", "provider_camp": "openai", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["usable_input_count"], 1)
+        self.assertEqual(result["open_risk_input_count"], 1)
+        self.assertEqual(result["held_input_count"], 1)
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "open-risk")
+        self.assertTrue(result["input_summaries"][0]["implementation_blocked"])
+        self.assertEqual(result["input_summaries"][0]["hold_classification"], "provider-conflict-pending")
+
+    def test_architect_override_can_promote_process_held_input(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {
+                    "lane": "opus",
+                    "provider_camp": "anthropic",
+                    "disposition": "accepted",
+                    "recommended_synthesis_use": "primary",
+                    "implementation_blocked": True,
+                    "hold_reasons": ["peer-review-pending"],
+                    "architect_adjudication_authorized": True,
+                },
+                {"lane": "chatgpt", "provider_camp": "openai", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["usable_input_count"], 2)
+        self.assertEqual(result["held_input_count"], 1)
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "primary")
+
     def test_rejected_and_failed_inputs_are_excluded_from_minimum(self) -> None:
         result = evaluate_synthesis_inputs(
             [

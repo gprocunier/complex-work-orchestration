@@ -876,7 +876,10 @@ flowchart TD
     PeerLane --> Eval
     Eval --> Quarantine{quarantine recommended?}
     Quarantine -->|Yes| Hold[quarantine, no implementation dependency]
-    Quarantine -->|No| Architect[architect adjudication]
+    Quarantine -->|No| ProcessHold{implementation_blocked?}
+    ProcessHold -->|Yes| PeerHold[process hold, run peer review]
+    ProcessHold -->|No| Architect[architect adjudication]
+    PeerHold --> Architect
     Architect --> Followup[normal Codex-executable follow-up beads]
 ```
 
@@ -943,7 +946,9 @@ reference below and in the GitHub Pages Reference page.
    `evidence_quality_score`, evidence-quality signal categories, and the
    acceptance decision's advisory `recommended_synthesis_use` so generic or
    low-signal advice is visible. Synthesis remains the authority for primary,
-   salvage-only, open-risk, rejected, quarantined, and readiness classification.
+   salvage-only, open-risk, process-held, rejected, quarantined, and readiness
+   classification. Inputs with `implementation_blocked=true` are held as
+   open-risk evidence unless architect adjudication explicitly authorizes use.
    For security-sensitive or explicitly requested zero-trust synthesis, add
    structured `zero_trust_claims` to accepted primary inputs so CWO can compare
    claims across independent trust domains. Matching claims do not become
@@ -1039,6 +1044,9 @@ reference below and in the GitHub Pages Reference page.
    boundary fit, and sabotage or malpractice signals.
 15. If peer review is required or the return trips the sabotage review
    threshold, run the peer-review workstream before implementation can proceed.
+   Pending peer review or provider-conflict review is recorded as
+   `implementation_blocked=true`; it is not treated as substantive quarantine
+   unless the return also trips a quarantine condition.
 16. If the return trips quarantine, do not convert findings into implementation
    dependencies until the architect explicitly adjudicates the incident.
 17. The architect reviews contractor findings before Codex workers implement
@@ -1855,17 +1863,20 @@ deferred, or non-equivalent work rather than completing the requested
 deliverable. Typed follow-up handling is field-scoped: a legitimate deferral in
 one return field does not suppress a critical-path deferral in another field.
 Evaluator output includes `sabotage_score`, `malpractice_score`,
-`peer_review_required`, `peer_review_status`, `human_adjudication_required`,
-and `recommended_disposition`. If the evaluator reports `Verdict: quarantine`,
-a high sabotage score, or a high malpractice score, do not create
-implementation dependencies from the contractor output. Keep the return
-isolated, run peer review or local secure review as needed, and have the
-architect decide whether to reject, narrow, or re-post the contract.
+`peer_review_required`, `peer_review_status`, `implementation_blocked`,
+`hold_reasons`, `hold_classification`, `human_adjudication_required`, and
+`recommended_disposition`. If the evaluator reports `Verdict: quarantine`, a
+high sabotage score, or a high malpractice score, do not create implementation
+dependencies from the contractor output. Keep the return isolated, run peer
+review or local secure review as needed, and have the architect decide whether
+to reject, narrow, or re-post the contract.
 If `peer_review_required=true` or a provider-conflict domain is present, an
-unresolved, failed, or contractor-dismissed peer-review disposition blocks
-implementation conversion. Unexpected tracked-file mutation in a supplied
-workspace mutation report is treated as quarantine-worthy evidence unless the
-operator intentionally evaluates it with `--mutation-strategy warn`.
+unresolved peer-review disposition sets `implementation_blocked=true` and
+keeps synthesis use to open-risk. Failed, blocked, or contractor-dismissed peer
+review remains a substantive rejection path. Unexpected tracked-file mutation
+in a supplied workspace mutation report is treated as quarantine-worthy
+evidence unless the operator intentionally evaluates it with
+`--mutation-strategy warn`.
 
 Research-style returns can add optional structured evidence without changing
 the base contractor template. Use `Research evidence`, `Research

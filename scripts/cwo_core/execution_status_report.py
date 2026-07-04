@@ -42,6 +42,7 @@ SYNTHESIS_DISPOSITIONS = (
     "salvage-only",
     "open-risk",
     "partial-only",
+    "process-hold",
     "reject",
     "quarantine",
     "unknown",
@@ -460,6 +461,11 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         if isinstance(record.get("malpractice_review_recommended"), bool)
         else None,
         "peer_review_required": record.get("peer_review_required") if isinstance(record.get("peer_review_required"), bool) else None,
+        "implementation_blocked": record.get("implementation_blocked")
+        if isinstance(record.get("implementation_blocked"), bool)
+        else None,
+        "hold_reasons": _strings(record.get("hold_reasons")),
+        "hold_classification": _clean(record.get("hold_classification")),
         "human_adjudication_required": record.get("human_adjudication_required")
         if isinstance(record.get("human_adjudication_required"), bool)
         else None,
@@ -849,6 +855,7 @@ def _quality_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
         "malpractice_concerns": 0,
         "quarantine_recommended": 0,
         "peer_review_required": 0,
+        "implementation_blocked": 0,
         "human_adjudication_required": 0,
     }
     events: list[dict[str, Any]] = []
@@ -864,6 +871,8 @@ def _quality_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
             totals["quarantine_recommended"] += 1
         if record.get("peer_review_required") is True:
             totals["peer_review_required"] += 1
+        if record.get("implementation_blocked") is True:
+            totals["implementation_blocked"] += 1
         if record.get("human_adjudication_required") is True:
             totals["human_adjudication_required"] += 1
         if signals:
@@ -887,7 +896,7 @@ def _evidence_disposition_summary(records: list[dict[str, Any]]) -> dict[str, An
     rejected = 0
     followups = 0
     for record in records:
-        use = record.get("recommended_synthesis_use")
+        use = "process-hold" if record.get("implementation_blocked") is True else record.get("recommended_synthesis_use")
         if not use:
             use = "unavailable"
         elif use not in summary:
@@ -1022,6 +1031,8 @@ def _record_quality_signals(record: dict[str, Any]) -> list[str]:
         signals.append("malpractice-concern")
     if record.get("quarantine_recommended") is True or record.get("recommended_synthesis_use") == "quarantine":
         signals.append("quarantine-recommended")
+    if record.get("implementation_blocked") is True:
+        signals.append("process-hold")
     if record.get("peer_review_required") is True:
         signals.append("peer-review-required")
     if record.get("human_adjudication_required") is True:
@@ -1251,6 +1262,7 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
             f"malpractice {_cell(quality_totals.get('malpractice_concerns'))}",
             f"quarantine {_cell(quality_totals.get('quarantine_recommended'))}",
             f"peer {_cell(quality_totals.get('peer_review_required'))}",
+            f"hold {_cell(quality_totals.get('implementation_blocked'))}",
             f"adjudicate {_cell(quality_totals.get('human_adjudication_required'))}",
         ]
     )
@@ -1258,6 +1270,7 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
         [
             f"primary {_cell(evidence.get('primary'))}",
             f"salvage {_cell(evidence.get('salvage-only'))}",
+            f"hold {_cell(evidence.get('process-hold'))}",
             f"reject {_cell(evidence.get('reject'))}",
             f"quarantine {_cell(evidence.get('quarantine'))}",
             f"unavailable {_cell(evidence.get('unavailable'))}",

@@ -54,6 +54,11 @@
     "signal_categories": {"type": "array", "items": {"type": "string"}},
     "peer_review_required": {"type": "boolean"},
     "peer_review_status": {"enum": ["not-run", "pending", "passed", "failed", "disagreement", "blocked"]},
+    "implementation_blocked": {"type": "boolean"},
+    "hold_reasons": {"type": "array", "items": {"type": "string"}},
+    "hold_classification": {
+      "enum": ["none", "peer-review-pending", "provider-conflict-pending"]
+    },
     "patch_authorization_state": {"enum": ["explicit-allow", "explicit-deny", "proposal-only", "ambiguous", "absent"]},
     "provider_conflict_domains": {"type": "array", "items": {"type": "string"}},
     "boundary_taint_status": {"enum": ["clear", "boundary-tainted", "not-applicable"]},

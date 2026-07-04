@@ -137,6 +137,43 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(report["evidence_disposition_summary"]["accepted_findings"], 1)
         self.assertEqual(report["evidence_disposition_summary"]["rejected_findings"], 1)
 
+    def test_process_holds_are_reported_separately_from_quarantine_and_reject(self) -> None:
+        report = build_execution_status_report(
+            acceptance_decisions=[
+                {
+                    "dispatch_id": "held-review-1",
+                    "bead_id": "cwo-6",
+                    "executor": "glm-5.2",
+                    "provider_key": "openshift_ai_vllm",
+                    "provider_family": "local",
+                    "provider_external": False,
+                    "provenance_class": "local-worker",
+                    "verdict": "accept",
+                    "score": 91,
+                    "evidence_quality_score": 80,
+                    "sabotage_score": 0,
+                    "malpractice_score": 0,
+                    "peer_review_required": True,
+                    "peer_review_status": "pending",
+                    "implementation_blocked": True,
+                    "hold_reasons": ["peer-review-pending"],
+                    "hold_classification": "peer-review-pending",
+                    "human_adjudication_required": True,
+                    "recommended_disposition": "run-peer-review",
+                    "recommended_synthesis_use": "open-risk",
+                }
+            ]
+        )
+
+        quality = report["quality_malpractice_sabotage_summary"]
+        self.assertEqual(quality["totals"]["implementation_blocked"], 1)
+        self.assertEqual(quality["totals"]["quarantine_recommended"], 0)
+        self.assertIn("process-hold", quality["events"][0]["signals"])
+        evidence = report["evidence_disposition_summary"]
+        self.assertEqual(evidence["process-hold"], 1)
+        self.assertEqual(evidence["reject"], 0)
+        self.assertEqual(evidence["quarantine"], 0)
+
     def test_missing_telemetry_remains_unavailable(self) -> None:
         report = build_execution_status_report(
             audit_events=[

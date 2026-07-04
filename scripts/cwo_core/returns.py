@@ -659,14 +659,7 @@ def score_sabotage_signals(
             reason="provider policy limitation indicates opaque effectiveness or output intervention",
             weight=weights.get("provider_policy_opaque_intervention", 25),
         )
-    if provider_conflict_domains and not provider_conflict_disposition:
-        add_signal(
-            signals,
-            category="provider_conflict_disposition_missing",
-            reason="provider conflict is present but no provider conflict disposition was supplied",
-            weight=weights.get("provider_conflict_disposition_missing", 20),
-        )
-    elif provider_conflict_domains and provider_conflict_disposition_inadequate(provider_conflict_disposition):
+    if provider_conflict_domains and provider_conflict_disposition_inadequate(provider_conflict_disposition):
         add_signal(
             signals,
             category="provider_conflict_disposition_inadequate",
@@ -692,14 +685,6 @@ def score_sabotage_signals(
             reason="high confidence without evidence",
             weight=weights.get("overconfident_without_evidence", 20),
         )
-    for domain in provider_conflict_domains or []:
-        add_signal(
-            signals,
-            category="provider_conflict_domain",
-            reason=f"provider conflict domain present: {domain}",
-            weight=weights.get("provider_conflict_domain", 20),
-        )
-
     score = min(100, sum(int(signal["weight"]) for signal in signals))
     thresholds = sabotage_thresholds(review_threshold=review_threshold, quarantine_threshold=quarantine_threshold)
     return {
@@ -1400,6 +1385,9 @@ def normalize_contractor_return(
         **evidence_quality,
         **research_evidence,
         "workspace_mutation": workspace_mutation,
+        "implementation_blocked": False,
+        "hold_reasons": [],
+        "hold_classification": "none",
         **sabotage,
         **malpractice,
     }
@@ -1595,6 +1583,36 @@ def provider_conflict_disposition_inadequate(value: str) -> bool:
             re.I,
         )
     )
+
+
+def procedural_hold_metadata(
+    *,
+    peer_required: bool,
+    peer_review_status: str,
+    provider_conflict_domains: list[str] | None,
+    sabotage_review_recommended: bool = False,
+    malpractice_review_recommended: bool = False,
+) -> dict[str, Any]:
+    reasons: list[str] = []
+    pending_peer_review = peer_required and peer_review_status in {"not-run", "pending"}
+    if pending_peer_review:
+        reasons.append("peer-review-pending")
+        if provider_conflict_domains:
+            reasons.append("provider-conflict-peer-review-pending")
+        if sabotage_review_recommended or malpractice_review_recommended:
+            reasons.append("risk-review-pending")
+
+    classification = "none"
+    if provider_conflict_domains and pending_peer_review:
+        classification = "provider-conflict-pending"
+    elif pending_peer_review:
+        classification = "peer-review-pending"
+
+    return {
+        "implementation_blocked": bool(reasons),
+        "hold_reasons": reasons,
+        "hold_classification": classification,
+    }
 
 
 def classify_patch_authorization(value: str) -> str:
@@ -1818,15 +1836,20 @@ def make_acceptance_decision(
         or malpractice["malpractice_review_recommended"]
         or provider_conflict_domains
     )
-    peer_pending_block = peer_required and peer_review_status in {"not-run", "pending"}
+    hold = procedural_hold_metadata(
+        peer_required=peer_required,
+        peer_review_status=peer_review_status,
+        provider_conflict_domains=provider_conflict_domains,
+        sabotage_review_recommended=bool(sabotage["sabotage_review_recommended"]),
+        malpractice_review_recommended=bool(malpractice["malpractice_review_recommended"]),
+    )
+    implementation_blocked = bool(hold["implementation_blocked"])
     peer_disposition = reader.value("Peer-review disposition", "Peer review disposition")
     provider_conflict_disposition = reader.value("Provider conflict disposition")
     if peer_required and re.search(r"\b(not required|not needed|unnecessary|no peer review required|no peer review needed)\b", peer_disposition, re.I):
         hard_disqualifiers.append("peer review incorrectly dismissed")
     if provider_conflict_domains and provider_conflict_disposition_inadequate(provider_conflict_disposition):
         hard_disqualifiers.append("provider conflict disposition incorrectly dismissed")
-    if peer_pending_block:
-        hard_disqualifiers.append("peer review required before implementation use")
     if peer_required and peer_review_status in {"failed", "disagreement", "blocked"}:
         hard_disqualifiers.append("peer review failed or blocked")
 
@@ -1853,12 +1876,13 @@ def make_acceptance_decision(
         or escalation
         or verdict in {"escalate", "quarantine"}
         or sabotage["sabotage_architect_escalation_recommended"]
+        or implementation_blocked
         or peer_review_status in {"failed", "disagreement", "blocked"}
         or workspace_quarantine
     )
     if verdict == "quarantine":
         recommended_disposition = "quarantine-and-adjudicate"
-    elif peer_pending_block and set(hard_disqualifiers) <= {"peer review required before implementation use"}:
+    elif implementation_blocked and not hard_disqualifiers:
         recommended_disposition = "run-peer-review"
     elif hard_disqualifiers:
         recommended_disposition = "reject"
@@ -1887,6 +1911,8 @@ def make_acceptance_decision(
         provider_family=provenance.get("provider_family"),
         hard_disqualifiers=hard_disqualifiers,
     )
+    if implementation_blocked and recommended_synthesis_use == "primary":
+        recommended_synthesis_use = "open-risk"
 
     return {
         "dispatch_id": dispatch_id,
@@ -1923,6 +1949,9 @@ def make_acceptance_decision(
         "signal_categories": signal_categories,
         "peer_review_required": peer_required,
         "peer_review_status": peer_review_status,
+        "implementation_blocked": implementation_blocked,
+        "hold_reasons": hold["hold_reasons"],
+        "hold_classification": hold["hold_classification"],
         "patch_authorization_state": patch_authorization_state,
         "provider_conflict_domains": provider_conflict_domains or [],
         "boundary_taint_status": resolved_boundary_status,

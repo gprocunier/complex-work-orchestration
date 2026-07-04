@@ -365,6 +365,10 @@
               clues, but those clues should not flow into implementation,
               synthesis, release notes, or public docs until the architect has
               resolved the boundary and evidence problem.
+              Pending peer review or provider-conflict review is a process
+              hold: the evaluator records <code>implementation_blocked</code>,
+              <code>hold_reasons</code>, and <code>hold_classification</code>
+              without converting the substantive verdict to quarantine.
             </p>
             <ul class="check-list">
               <li>A boundary-tainted return does not become a primary synthesis input.</li>
