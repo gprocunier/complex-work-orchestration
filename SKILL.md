@@ -158,6 +158,12 @@ Default roles:
   and redirects, and reads API keys only from allowlisted local environment
   variable names. Output is still bounded local-worker evidence, not
   implementation authority.
+- **GLM-5.2 BF16 Thinking Critic**: named OpenShift AI vLLM local secure-review
+  executor `openshift_ai_vllm_glm_5_2_bf16_architecture_critic`. It is an
+  independent architecture-plan second opinion and primary-eligible synthesis
+  input when evaluator scoring and architect adjudication accept it. It sends
+  thinking-enabled request options but strips raw thinking from usable returns,
+  Beads, audit events, public docs, and synthesis artifacts.
 - **Execution Environment**: v2 policy profile that names the harness,
   provider boundary, role bindings, and constraints for a deployment zone.
   Codex CLI is the connected default. OpenCode is the first open-source

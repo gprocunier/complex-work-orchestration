@@ -134,13 +134,13 @@
       "allowed_harnesses": ["opencode", "manual_operator"],
       "allowed_providers": ["openshift_ai_vllm", "local_inference"],
       "role_bindings": {
-        "architect": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-fp8"},
-        "project_manager": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-fp8"},
+        "architect": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
+        "project_manager": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
         "worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"},
         "review_worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8"},
         "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
         "local_secure_reviewer": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
-        "synthesis_input": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-fp8"}
+        "synthesis_input": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"}
       },
       "constraints": {
         "network": "airgapped",

@@ -295,6 +295,7 @@ def validate_repository() -> list[str]:
             "provider_key",
             "provider_trust_tier",
             "provider_external",
+            "model_profile",
             "provenance_class",
             "human_adjudication_required",
             "recommended_disposition",
@@ -312,6 +313,7 @@ def validate_repository() -> list[str]:
             "provider_external",
             "dispatch_mode",
             "local_profile",
+            "model_profile",
             "provenance_class",
             "evidence_quality_score",
             "evidence_quality_signals",
@@ -331,6 +333,20 @@ def validate_repository() -> list[str]:
         errors.append(
             "local dispatch envelope schema is missing runtime required fields: " + ", ".join(missing_local_required)
         )
+    require_schema_properties(
+        errors,
+        schema_name="local-dispatch-envelope.schema.json",
+        schema=local_envelope_schema,
+        properties=[
+            "model_profile",
+            "allow_private_dns",
+            "tls_verify",
+            "tls_ca_bundle_env",
+            "request_options",
+            "thinking_parser",
+            "response_sanitization",
+        ],
+    )
     prompt_coach_schema = load_json(REPO_ROOT / "schemas" / "prompt-coach-result.schema.json")
     prompt_coach_required = set(prompt_coach_schema.get("required", []))
     missing_prompt_coach_required = sorted(set(PROMPT_COACH_RESULT_REQUIRED_FIELDS) - prompt_coach_required)
@@ -381,6 +397,9 @@ def validate_repository() -> list[str]:
         .get("properties", {})
     )
     for field in MODEL_PROFILE_REQUIRED_FIELDS:
+        if field not in profile_properties:
+            errors.append(f"model-profile.schema.json profile is missing property {field!r}")
+    for field in ["precision", "thinking_enabled", "reasoning_mode", "request_options", "required_vllm_flags"]:
         if field not in profile_properties:
             errors.append(f"model-profile.schema.json profile is missing property {field!r}")
     require_schema_properties(

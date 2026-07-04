@@ -42,6 +42,15 @@ Registered local profiles live in `policy/executor-registry.yaml`.
   `CWO_OPENSHIFT_AI_VLLM_BASE_URL`, `CWO_OPENSHIFT_AI_VLLM_MODEL`, and optional
   `CWO_OPENSHIFT_AI_VLLM_API_KEY`.
 
+GLM-5.2 BF16 thinking review is a named OpenShift AI vLLM lane, not a
+separate endpoint class. The executor
+`openshift_ai_vllm_glm_5_2_bf16_architecture_critic` uses the same local
+profile but reads the GLM route and model from
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL` and
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL`, defaulting the model name to
+`glm-5.2-bf16-128k`. Its model profile is
+`rhoai-architect-glm-5-2-bf16-thinking`.
+
 Execution environments can also bind role-specific model profiles from
 `policy/model-profiles.yaml`. That registry is the model matrix for replacing
 connected CWO roles with public Hugging Face models served through OpenShift AI
@@ -79,6 +88,8 @@ Enterprise-scale OpenShift AI clusters can benchmark two explicit candidates:
   synthesis lanes to `rhoai-architect-nemotron-3-ultra-550b-a55b-fp8`.
 - the GLM enterprise candidate binds long-context architecture, PM
   summarization, and synthesis lanes to `rhoai-architect-glm-5-2-fp8`.
+- the GLM BF16 thinking candidate binds architecture second-opinion and
+  synthesis lanes to `rhoai-architect-glm-5-2-bf16-thinking`.
 
 Both candidates require a benchmark gate before promotion: GPU topology, P2P,
 NCCL collectives, exact vLLM startup flags, `/v1/models`,
@@ -135,6 +146,26 @@ python3 scripts/dispatch_work.py \
 The envelope follows `schemas/local-dispatch-envelope.schema.json` and includes
 only endpoint environment variable names, never API key values.
 
+For GLM-5.2 BF16 thinking:
+
+```bash
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL="https://glm-route.example.internal"
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
+
+python3 scripts/dispatch_work.py \
+  --local-ok \
+  --local-profile openshift-ai-vllm \
+  --requested-role architecture \
+  --execute-local \
+  "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion."
+```
+
+The GLM executor sends `chat_template_kwargs.enable_thinking=true`. If the
+endpoint returns thinking text in the message content, CWO strips that reasoning
+from the usable response, records only hashes and character counts, and keeps
+the final answer as evaluator input. Raw thinking must not be copied into
+Beads, audit events, public docs, or synthesis artifacts.
+
 ## Endpoint Safety
 
 `--execute-local` validates the endpoint immediately before dispatch. It accepts
@@ -147,6 +178,16 @@ Plain HTTP is allowed only for loopback endpoints. Private network endpoints
 should use HTTPS. The dispatcher disables environment proxy use and rejects
 redirects so a validated local endpoint cannot silently shift the request to a
 different target.
+
+OpenShift Route hostnames are allowed only when the selected executor profile or
+`--local-allow-private-dns` opts in and every resolved address is loopback,
+RFC1918 private, or RFC4193 local IPv6. For TLS, prefer normal trust-store
+verification or set `CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE` to a route CA bundle.
+The GLM BF16 executor also supports the lab-only
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false` or `--local-insecure-tls`
+escape hatch; audit metadata records that insecure verification was selected,
+and other local executor profiles remain fail-closed unless they explicitly
+allow it.
 
 API-key values are never placed in the envelope. The API-key environment
 variable name must be one of the local allowlist entries:
@@ -166,9 +207,9 @@ reviewers may read approved local repo context; normal local workers may not.
 Local outputs must go through normalization and evaluation with the executor
 identity preserved. For OpenShift AI vLLM, pass the executor key so the return
 bundle and acceptance decision record `provider_key=openshift_ai_vllm`,
-`provider_trust_tier=local-platform`, `local_profile=openshift-ai-vllm`, and
-`provenance_class=local-worker` instead of treating the return as unknown
-evidence:
+`provider_trust_tier=local-platform`, `local_profile=openshift-ai-vllm`,
+`model_profile=<profile-key>`, and `provenance_class=local-worker` instead of
+treating the return as unknown evidence:
 
 ```bash
 python3 scripts/normalize_contractor_return.py --file local-return.md --executor openshift_ai_vllm_worker --output local-return-bundle.json
@@ -178,7 +219,7 @@ python3 scripts/evaluate_return.py --file local-return.md --executor openshift_a
 The minimal fallback is `python3 scripts/evaluate_return.py --file local-return.md`,
 but operator flows should prefer `--executor` or the equivalent
 `--provider-key`, `--provider-trust-tier`, `--dispatch-mode`, and
-`--local-profile` fields from the dispatch envelope.
+`--local-profile` and `--model-profile` fields from the dispatch envelope.
 
 Add `--peer-review-required` only when `route_work.py`, the Beads lane, or
 the evaluator policy says that peer review is required for that return:
@@ -192,6 +233,7 @@ Review the evaluator fields before using any finding:
 - `provider_key`
 - `provider_trust_tier`
 - `local_profile`
+- `model_profile`
 - `provenance_class`
 - `sabotage_score`
 - `malpractice_score`

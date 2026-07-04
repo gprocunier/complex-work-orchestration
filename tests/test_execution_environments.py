@@ -31,10 +31,15 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("rhoai-architect-mistral-small-4-119b-nvfp4", registry["profiles"])
         self.assertIn("rhoai-architect-nemotron-3-ultra-550b-a55b-fp8", registry["profiles"])
         self.assertIn("rhoai-architect-glm-5-2-fp8", registry["profiles"])
+        self.assertIn("rhoai-architect-glm-5-2-bf16-thinking", registry["profiles"])
         architect_row = next(row for row in registry["role_substitution_matrix"] if row["cwo_role"] == "architect")
         self.assertEqual(
             architect_row["enterprise_profiles"],
-            ["rhoai-architect-nemotron-3-ultra-550b-a55b-fp8", "rhoai-architect-glm-5-2-fp8"],
+            [
+                "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8",
+                "rhoai-architect-glm-5-2-bf16-thinking",
+                "rhoai-architect-glm-5-2-fp8",
+            ],
         )
         self.assertIn("benchmark_gate", registry["profiles"]["rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"])
 
@@ -132,7 +137,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("NCCL all_reduce_perf 8-GPU and 16-GPU", envelope["model_profile_details"]["benchmark_gate"])
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
 
-    def test_h200_glm_environment_resolves_long_context_profile(self) -> None:
+    def test_h200_glm_environment_resolves_bf16_thinking_profile(self) -> None:
         envelope = build_harness_dispatch(
             task="Review a Beads-heavy architecture packet.",
             dispatch_id="dispatch-test",
@@ -140,11 +145,17 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             role="synthesis_input",
             bead_id="cwo-test",
         )
-        self.assertEqual(envelope["model_profile"], "rhoai-architect-glm-5-2-fp8")
-        self.assertEqual(envelope["model"], "rhoai/architect-glm-5-2")
-        self.assertEqual(envelope["variant"], "reasoning-long-context")
+        self.assertEqual(envelope["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(envelope["model"], "glm-5.2-bf16-128k")
+        self.assertEqual(envelope["variant"], "reasoning-thinking")
         self.assertEqual(envelope["model_profile_details"]["deployment_tier"], "h200-enterprise-candidate")
-        self.assertIn("long-context Beads briefing packet", envelope["model_profile_details"]["benchmark_gate"])
+        self.assertEqual(envelope["model_profile_details"]["precision"], "BF16")
+        self.assertTrue(envelope["model_profile_details"]["thinking_enabled"])
+        self.assertEqual(
+            envelope["model_profile_details"]["request_options"],
+            {"chat_template_kwargs": {"enable_thinking": True}},
+        )
+        self.assertIn("CWO synthesis packet", envelope["model_profile_details"]["benchmark_gate"])
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
 
     def test_explicit_model_profile_can_select_workerbee_model(self) -> None:

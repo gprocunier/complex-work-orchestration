@@ -31,6 +31,14 @@ class FakeResponse:
         return b'{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}}'
 
 
+class FakeThinkingResponse(FakeResponse):
+    def read(self) -> bytes:
+        return (
+            b'{"choices":[{"message":{"content":"<think>private reasoning</think>GLM final"}}],'
+            b'"usage":{"prompt_tokens":13,"completion_tokens":9,"total_tokens":22}}'
+        )
+
+
 class FakeOpener:
     def __init__(self) -> None:
         self.called = False
@@ -38,6 +46,15 @@ class FakeOpener:
     def open(self, *args: object, **kwargs: object) -> FakeResponse:
         self.called = True
         return FakeResponse()
+
+
+class FakePayloadOpener:
+    def __init__(self) -> None:
+        self.payload: dict[str, object] | None = None
+
+    def open(self, req: object, **kwargs: object) -> FakeThinkingResponse:
+        self.payload = json.loads(req.data.decode("utf-8"))  # type: ignore[attr-defined]
+        return FakeThinkingResponse()
 
 
 class FakeHTTPErrorOpener:
@@ -186,6 +203,11 @@ class LocalDispatchTests(unittest.TestCase):
                 validate_local_endpoint_base_url("https://vllm.internal.example:8443")
         self.assertIn("literal IP address or localhost", str(context.exception))
 
+    def test_execute_local_accepts_private_dns_when_profile_allows_it(self) -> None:
+        fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.10.190", 443))]
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            validate_local_endpoint_base_url("https://vllm.internal.example", allow_private_dns=True)
+
     def test_execute_local_rejects_public_hostname_resolution(self) -> None:
         fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
         with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
@@ -266,6 +288,86 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertIn("sha256=", rendered)
         self.assertNotIn("plain-secret", rendered)
         self.assertNotIn("Status: injected", rendered)
+
+    def test_glm_envelope_carries_thinking_options_and_tls_metadata(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        self.assertEqual(route["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_architecture_critic")
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url=None,
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=True,
+            execute_local=False,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+
+        self.assertEqual(envelope["model"], "glm-5.2-bf16-128k")
+        self.assertEqual(envelope["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertTrue(envelope["allow_private_dns"])
+        self.assertFalse(envelope["tls_verify"])
+        self.assertEqual(envelope["tls_verify_source"], "--local-insecure-tls")
+        self.assertTrue(envelope["allow_insecure_tls"])
+        self.assertEqual(envelope["request_options"], {"chat_template_kwargs": {"enable_thinking": True}})
+        self.assertEqual(envelope["thinking_parser"], "glm-think-tags")
+        self.assertEqual(envelope["response_sanitization"], "strip-raw-thinking")
+
+    def test_glm_execute_posts_thinking_options_and_strips_reasoning(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakePayloadOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            response = execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertEqual(opener.payload["chat_template_kwargs"], {"enable_thinking": True})
+        self.assertEqual(opener.payload["model"], "glm-5.2-bf16-128k")
+        message = response["response"]["choices"][0]["message"]
+        self.assertEqual(message["content"], "GLM final")
+        self.assertTrue(response["reasoning_stripped"])
+        self.assertIn("raw_response_sha256", response)
+        self.assertNotIn("private reasoning", json.dumps(response))
+
+        telemetry = local_response_telemetry(response)
+        self.assertTrue(telemetry["reasoning_stripped"])
+        self.assertEqual(telemetry["reasoning_chars"], len("private reasoning"))
+        self.assertIn("raw_response_sha256", telemetry)
+        self.assertNotIn("private reasoning", json.dumps(telemetry))
 
 
 if __name__ == "__main__":

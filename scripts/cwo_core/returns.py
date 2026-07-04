@@ -1238,6 +1238,7 @@ def return_provenance(
     provider_trust_tier: str | None = None,
     dispatch_mode: str | None = None,
     local_profile: str | None = None,
+    model_profile: str | None = None,
 ) -> dict[str, Any]:
     executor_config = {}
     if executor:
@@ -1251,6 +1252,7 @@ def return_provenance(
     resolved_trust_tier = provider_trust_tier or registry_trust_tier
     resolved_dispatch_mode = dispatch_mode or executor_config.get("dispatch_mode")
     resolved_local_profile = local_profile or executor_config.get("local_profile")
+    resolved_model_profile = model_profile or executor_config.get("model_profile")
     provider_external = provider.get("external")
     warnings: list[str] = []
     if provider_key and registry_trust_tier and provider_trust_tier and provider_trust_tier != registry_trust_tier:
@@ -1280,6 +1282,7 @@ def return_provenance(
         "provider_external": provider_external,
         "dispatch_mode": resolved_dispatch_mode,
         "local_profile": resolved_local_profile,
+        "model_profile": resolved_model_profile,
         "provenance_class": provenance_class,
         "provenance_warnings": warnings,
     }
@@ -1353,6 +1356,7 @@ def normalize_contractor_return(
     provider_trust_tier: str | None = None,
     dispatch_mode: str | None = None,
     local_profile: str | None = None,
+    model_profile: str | None = None,
     workspace_mutation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sections = parse_return_sections(text)
@@ -1376,6 +1380,7 @@ def normalize_contractor_return(
         provider_trust_tier=provider_trust_tier,
         dispatch_mode=dispatch_mode,
         local_profile=local_profile,
+        model_profile=model_profile,
     )
     bundle: dict[str, Any] = {
         "bundle_type": "contractor-return-bundle",
@@ -1668,6 +1673,7 @@ def make_acceptance_decision(
     provider_trust_tier: str | None = None,
     dispatch_mode: str | None = None,
     local_profile: str | None = None,
+    model_profile: str | None = None,
     peer_review_required: bool = False,
     peer_review_status: str = "not-run",
     provider_conflict_domains: list[str] | None = None,
@@ -1685,6 +1691,7 @@ def make_acceptance_decision(
         provider_trust_tier=provider_trust_tier,
         dispatch_mode=dispatch_mode,
         local_profile=local_profile,
+        model_profile=model_profile,
     )
     sections = parse_return_sections(text)
     reader = SectionReader(sections)

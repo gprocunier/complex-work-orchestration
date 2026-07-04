@@ -31,6 +31,7 @@ from .routing_signals import (
     explicit_chatgpt_master_plan_review_requested,
     explicit_claude_architect_critique_requested,
     explicit_gemini_architect_critique_requested,
+    explicit_glm_architect_critique_requested,
     explicit_openai_deep_research_requested,
     requested_architecture_critic_executor_keys,
 )
@@ -558,6 +559,9 @@ def score_executors(
         if is_architecture_review_task and key == "claude_opus_4_6_architecture_critic" and explicit_claude_architect_critique_requested(text):
             score += 32
             reasons.append("explicit Claude Opus architect critique request")
+        if is_architecture_review_task and key == "openshift_ai_vllm_glm_5_2_bf16_architecture_critic" and explicit_glm_architect_critique_requested(text):
+            score += 34
+            reasons.append("explicit GLM-5.2 BF16 architect critique request")
         if key == "chatgpt_pro_5_5_extended_reasoning_browser" and explicit_chatgpt_master_plan_review_requested(text):
             score += 36
             reasons.append("explicit ChatGPT Pro Extended Reasoning master plan review request")
@@ -586,6 +590,7 @@ def score_executors(
                 "external": bool(executor.get("external")),
                 **provider_metadata,
                 "local_profile": executor.get("local_profile"),
+                "model_profile": executor.get("model_profile"),
                 "transport": executor.get("transport"),
                 "supports_repo_read": bool(executor.get("supports_repo_read")),
                 "supports_repo_write": bool(executor.get("supports_repo_write")),
@@ -796,6 +801,9 @@ def classify_work(
             contract["claude_effort"] = claude_effort
             if default_command:
                 contract["manual_command"] = command_with_claude_effort(default_command, claude_effort)
+        elif key == "openshift_ai_vllm_glm_5_2_bf16_architecture_critic":
+            contract["local_profile"] = candidate.get("local_profile")
+            contract["model_profile"] = candidate.get("model_profile")
         elif default_command:
             contract["manual_command"] = default_command
         architecture_critic_contracts.append(contract)

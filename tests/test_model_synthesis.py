@@ -144,6 +144,21 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertEqual(result["usable_input_count"], 2)
         self.assertEqual(result["salvage_input_count"], 1)
 
+    def test_glm_local_input_is_primary_eligible_while_gemini_remains_salvage(self) -> None:
+        result = evaluate_synthesis_inputs(
+            [
+                {"lane": "glm", "provider_camp": "local", "disposition": "accepted"},
+                {"lane": "opus", "provider_camp": "anthropic", "disposition": "accepted"},
+                {"lane": "gemini", "provider_camp": "google", "disposition": "accepted"},
+            ]
+        )
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["usable_input_count"], 2)
+        self.assertEqual(result["salvage_input_count"], 1)
+        self.assertEqual(result["input_summaries"][0]["synthesis_use"], "primary")
+        self.assertEqual(result["input_summaries"][2]["synthesis_use"], "salvage-only")
+
     def test_explicit_primary_override_can_upgrade_gemini_after_adjudication(self) -> None:
         result = evaluate_synthesis_inputs(
             [

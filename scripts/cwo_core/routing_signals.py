@@ -68,12 +68,43 @@ def explicit_claude_architect_critique_requested(text: str) -> bool:
     )
 
 
+def explicit_glm_architect_critique_requested(text: str) -> bool:
+    """Return true only for the opt-in GLM design-critic pattern."""
+    return bool(
+        _hits(text, ["glm", "glm 5.2", "glm-5.2", "glm52"])
+        and _hits(text, ["architect", "architecture", "design", "synthesis"])
+        and _hits(
+            text,
+            [
+                "second opinion",
+                "second opinions",
+                "2nd opinion",
+                "2nd opinions",
+                "independent opinion",
+                "independent opinions",
+                "peer opinion",
+                "peer opinions",
+                "critique",
+                "critiques",
+                "critic",
+                "critics",
+                "review",
+                "reviews",
+                "synthesis",
+                "synthesize",
+            ],
+        )
+    )
+
+
 def requested_architecture_critic_executor_keys(text: str) -> list[str]:
     keys: list[str] = []
     if explicit_claude_architect_critique_requested(text):
         keys.append("claude_opus_4_6_architecture_critic")
     if explicit_gemini_architect_critique_requested(text):
         keys.append("gemini_3_1_pro_preview_agy")
+    if explicit_glm_architect_critique_requested(text):
+        keys.append("openshift_ai_vllm_glm_5_2_bf16_architecture_critic")
     return keys
 
 

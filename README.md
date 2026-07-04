@@ -1775,6 +1775,15 @@ The generated `local_envelope` follows
 `schemas/local-dispatch-envelope.schema.json`; `--execute-local` is never
 implicit.
 
+GLM-5.2 BF16 thinking review is available through the named executor
+`openshift_ai_vllm_glm_5_2_bf16_architecture_critic`. It uses the
+`rhoai-architect-glm-5-2-bf16-thinking` model profile, sends
+`chat_template_kwargs.enable_thinking=true`, and strips raw thinking text from
+usable local-worker responses before evaluator scoring or model synthesis.
+Configure its route with `CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL`; use
+`CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE` for private route trust or the explicit
+lab-only TLS verification override when the operator accepts that risk.
+
 `--execute-local` validates the endpoint before any request is sent. URLs must
 use `http` or `https`, must not include credentials, and must resolve only to
 loopback, RFC1918 private, or RFC4193 local IPv6 addresses. HTTP is accepted

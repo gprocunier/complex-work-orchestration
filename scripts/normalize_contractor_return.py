@@ -23,6 +23,7 @@ def main() -> None:
     parser.add_argument("--provider-trust-tier", help="Provider trust tier from the dispatch envelope or packet.")
     parser.add_argument("--dispatch-mode", help="Dispatch mode from the route, packet, or local envelope.")
     parser.add_argument("--local-profile", help="Local executor profile, for example openshift-ai-vllm.")
+    parser.add_argument("--model-profile", help="Model profile key from the dispatch envelope or execution harness.")
     parser.add_argument(
         "--workspace-mutation-report",
         help="JSON report from scripts/workspace_mutation_guard.py comparing pre/post contractor workspace state.",
@@ -47,6 +48,7 @@ def main() -> None:
         provider_trust_tier=args.provider_trust_tier,
         dispatch_mode=args.dispatch_mode,
         local_profile=args.local_profile,
+        model_profile=args.model_profile,
         workspace_mutation=workspace_mutation,
     )
     rendered = json.dumps(bundle, indent=2, sort_keys=True)

@@ -173,6 +173,41 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertIn("master-plan-review", executor["allowed_task_classes"])
         self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", controls["allowed_external_executors"])
 
+    def test_glm_bf16_architecture_critic_is_registered_as_local_reviewer(self) -> None:
+        executors = load_policy("executor-registry")["executors"]
+        executor = executors["openshift_ai_vllm_glm_5_2_bf16_architecture_critic"]
+
+        self.assertFalse(executor["external"])
+        self.assertEqual(executor["provider_key"], "openshift_ai_vllm")
+        self.assertEqual(executor["dispatch_mode"], "local_secure_review")
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertEqual(executor["critique_mode"], "architect-design-second-opinion")
+        self.assertTrue(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertFalse(executor["supports_shell"])
+        self.assertFalse(executor["supports_web"])
+        self.assertIn("architecture-review", executor["allowed_task_classes"])
+        self.assertEqual(executor["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(executor["transport"]["default_model"], "glm-5.2-bf16-128k")
+        self.assertEqual(executor["transport"]["request_options"], {"chat_template_kwargs": {"enable_thinking": True}})
+        self.assertEqual(executor["transport"]["thinking_parser"], "glm-think-tags")
+
+    def test_explicit_glm_architecture_critic_routes_to_local_executor(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+
+        self.assertEqual(route["route"], "local-worker")
+        self.assertEqual(route["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_architecture_critic")
+        self.assertEqual(route["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertIn(
+            "openshift_ai_vllm_glm_5_2_bf16_architecture_critic",
+            route["requested_architecture_critic_executors"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

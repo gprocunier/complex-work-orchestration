@@ -14,6 +14,7 @@
     "provider_external": {"type": ["boolean", "null"]},
     "dispatch_mode": {"type": ["string", "null"]},
     "local_profile": {"type": ["string", "null"]},
+    "model_profile": {"type": ["string", "null"]},
     "provenance_class": {"enum": ["local-worker", "external-contractor", "internal", "unknown"]},
     "provenance_warnings": {"type": "array", "items": {"type": "string"}},
     "verdict": {"enum": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"]},

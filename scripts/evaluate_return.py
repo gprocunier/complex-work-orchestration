@@ -92,6 +92,7 @@ def main() -> None:
     parser.add_argument("--provider-trust-tier", help="Provider trust tier from the dispatch envelope or packet.")
     parser.add_argument("--dispatch-mode", help="Dispatch mode from the route, packet, or local envelope.")
     parser.add_argument("--local-profile", help="Local executor profile, for example openshift-ai-vllm.")
+    parser.add_argument("--model-profile", help="Model profile key from the dispatch envelope or execution harness.")
     parser.add_argument(
         "--peer-review-required",
         action="store_true",
@@ -146,6 +147,7 @@ def main() -> None:
         provider_trust_tier=args.provider_trust_tier,
         dispatch_mode=args.dispatch_mode,
         local_profile=args.local_profile,
+        model_profile=args.model_profile,
         peer_review_required=args.peer_review_required,
         peer_review_status=args.peer_review_status,
         provider_conflict_domains=args.provider_conflict_domain,

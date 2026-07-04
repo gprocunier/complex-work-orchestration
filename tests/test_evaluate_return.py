@@ -399,27 +399,49 @@ Attestation/repro note: reproducible from packet.
 
     def test_local_worker_acceptance_decision_carries_provider_provenance(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
-        result = make_acceptance_decision(text, executor="openshift_ai_vllm_worker")
+        result = make_acceptance_decision(
+            text,
+            executor="openshift_ai_vllm_worker",
+            model_profile="rhoai-secure-review-qwen3-6-35b-a3b-nvfp4",
+        )
 
         self.assertEqual(result["executor"], "openshift_ai_vllm_worker")
         self.assertEqual(result["provider_key"], "openshift_ai_vllm")
         self.assertEqual(result["provider_trust_tier"], "local-platform")
         self.assertEqual(result["dispatch_mode"], "local_openai_compatible")
         self.assertEqual(result["local_profile"], "openshift-ai-vllm")
+        self.assertEqual(result["model_profile"], "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4")
         self.assertEqual(result["provenance_class"], "local-worker")
         self.assertFalse(result["provider_external"])
 
     def test_normalized_local_worker_bundle_carries_provider_provenance(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
-        bundle = normalize_contractor_return(text, executor="openshift_ai_vllm_secure_reviewer")
+        bundle = normalize_contractor_return(
+            text,
+            executor="openshift_ai_vllm_secure_reviewer",
+            model_profile="rhoai-secure-review-qwen3-6-35b-a3b-nvfp4",
+        )
 
         self.assertEqual(bundle["executor"], "openshift_ai_vllm_secure_reviewer")
         self.assertEqual(bundle["provider_key"], "openshift_ai_vllm")
         self.assertEqual(bundle["provider_trust_tier"], "local-platform")
         self.assertEqual(bundle["dispatch_mode"], "local_secure_review")
         self.assertEqual(bundle["local_profile"], "openshift-ai-vllm")
+        self.assertEqual(bundle["model_profile"], "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4")
         self.assertEqual(bundle["provenance_class"], "local-worker")
         self.assertFalse(bundle["provider_external"])
+
+    def test_glm_bf16_high_quality_return_is_primary_eligible(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(
+            text,
+            executor="openshift_ai_vllm_glm_5_2_bf16_architecture_critic",
+        )
+
+        self.assertEqual(result["verdict"], "accept")
+        self.assertEqual(result["provider_key"], "openshift_ai_vllm")
+        self.assertEqual(result["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(result["recommended_synthesis_use"], "primary")
 
     def test_structurally_complete_generic_return_is_not_accepted(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")

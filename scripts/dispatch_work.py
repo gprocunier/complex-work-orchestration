@@ -7,6 +7,7 @@ import json
 import os
 import re
 import socket
+import ssl
 import time
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,14 @@ ALLOWED_LOCAL_API_KEY_ENV_NAMES = {
     "LOCAL_VLLM_API_KEY",
     "VLLM_API_KEY",
 }
+
+
+def _truthy(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _falsey(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"0", "false", "no", "off"}
 
 
 class NoRedirectHandler(request.HTTPRedirectHandler):
@@ -99,7 +108,7 @@ def _resolve_local_endpoint_addresses(host: str, port: int | None) -> list[ipadd
     return unique
 
 
-def validate_local_endpoint_base_url(base_url: str) -> None:
+def validate_local_endpoint_base_url(base_url: str, *, allow_private_dns: bool = False) -> None:
     try:
         parsed = urlparse(base_url)
         port = parsed.port
@@ -117,7 +126,7 @@ def validate_local_endpoint_base_url(base_url: str) -> None:
         ipaddress.ip_address(hostname)
     except ValueError:
         literal_host = False
-    if not literal_host and hostname not in {"localhost"}:
+    if not literal_host and hostname not in {"localhost"} and not allow_private_dns:
         raise SystemExit(
             "local endpoint host must be a literal IP address or localhost so validation and dispatch use the same target"
         )
@@ -130,6 +139,51 @@ def validate_local_endpoint_base_url(base_url: str) -> None:
         )
     if parsed.scheme == "http" and not all(ip.is_loopback for ip in addresses):
         raise SystemExit("local endpoint may use http only for loopback addresses; use https for private network endpoints")
+
+
+def local_tls_settings(transport: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    ca_bundle_env = str(transport.get("tls_ca_bundle_env") or "")
+    ca_bundle = getattr(args, "local_ca_bundle", None) or (os.environ.get(ca_bundle_env) if ca_bundle_env else None)
+    tls_verify_env = str(transport.get("tls_verify_env") or "")
+    tls_verify_value = os.environ.get(tls_verify_env) if tls_verify_env else None
+    allow_insecure = bool(transport.get("allow_insecure_tls"))
+    tls_verify = True
+    source = "default"
+
+    if tls_verify_value is not None:
+        if _falsey(tls_verify_value):
+            tls_verify = False
+            source = tls_verify_env
+        elif _truthy(tls_verify_value):
+            tls_verify = True
+            source = tls_verify_env
+        else:
+            raise SystemExit(f"{tls_verify_env} must be true/false style value")
+    if getattr(args, "local_insecure_tls", False):
+        tls_verify = False
+        source = "--local-insecure-tls"
+    if not tls_verify and not allow_insecure:
+        raise SystemExit("insecure TLS is not allowed for this local executor profile")
+    return {
+        "tls_verify": tls_verify,
+        "tls_verify_source": source,
+        "tls_ca_bundle_env": ca_bundle_env or None,
+        "tls_ca_bundle_configured": bool(ca_bundle),
+        "tls_ca_bundle": ca_bundle,
+        "allow_insecure_tls": allow_insecure,
+    }
+
+
+def local_ssl_context(base_url: str, transport: dict[str, Any], args: argparse.Namespace) -> ssl.SSLContext | None:
+    if urlparse(base_url).scheme != "https":
+        return None
+    tls = local_tls_settings(transport, args)
+    if not tls["tls_verify"]:
+        return ssl._create_unverified_context()
+    ca_bundle = tls.get("tls_ca_bundle")
+    if ca_bundle:
+        return ssl.create_default_context(cafile=str(ca_bundle))
+    return None
 
 
 def validate_local_api_key_env_name(name: str | None) -> None:
@@ -155,12 +209,18 @@ def local_transport(selected_executor: dict[str, Any], args: argparse.Namespace)
     transport.setdefault("default_model", "local-model")
     transport.setdefault("timeout_seconds", 120)
     transport.setdefault("max_input_chars", 24000)
-    if args.local_api_key_env:
+    if getattr(args, "local_api_key_env", None):
         transport["api_key_env"] = args.local_api_key_env
-    if args.local_timeout:
+    if getattr(args, "local_timeout", None):
         transport["timeout_seconds"] = args.local_timeout
-    base_url = args.local_base_url or os.environ.get(str(transport.get("base_url_env"))) or transport.get("default_base_url")
-    model = args.local_model or os.environ.get(str(transport.get("model_env"))) or transport.get("default_model")
+    if getattr(args, "local_allow_private_dns", False):
+        transport["allow_private_dns"] = True
+    base_url = (
+        getattr(args, "local_base_url", None)
+        or os.environ.get(str(transport.get("base_url_env")))
+        or transport.get("default_base_url")
+    )
+    model = getattr(args, "local_model", None) or os.environ.get(str(transport.get("model_env"))) or transport.get("default_model")
     return {
         **transport,
         "base_url": base_url,
@@ -168,6 +228,75 @@ def local_transport(selected_executor: dict[str, Any], args: argparse.Namespace)
         "timeout_seconds": int(transport.get("timeout_seconds", 120)),
         "max_input_chars": int(transport.get("max_input_chars", 24000)),
     }
+
+
+def local_request_options(transport: dict[str, Any]) -> dict[str, Any]:
+    options = transport.get("request_options")
+    if not isinstance(options, dict):
+        return {}
+    return json.loads(json.dumps(options))
+
+
+def _split_thinking_content(content: str) -> dict[str, Any]:
+    if "</think>" in content.lower():
+        parts = re.split(r"(?is)</think>", content, maxsplit=1)
+        reasoning = parts[0]
+        final = parts[1] if len(parts) > 1 else ""
+        reasoning = re.sub(r"(?is)^.*?<think>", "", reasoning, count=1).strip()
+        return {
+            "content": final.strip(),
+            "reasoning_stripped": True,
+            "reasoning_chars": len(reasoning),
+            "reasoning_sha256": artifact_hash(reasoning),
+            "reasoning_malformed": False,
+        }
+    if re.search(r"(?is)<think>", content):
+        return {
+            "content": "",
+            "reasoning_stripped": True,
+            "reasoning_chars": len(content),
+            "reasoning_sha256": artifact_hash(content),
+            "reasoning_malformed": True,
+        }
+    return {
+        "content": content,
+        "reasoning_stripped": False,
+        "reasoning_chars": 0,
+        "reasoning_sha256": None,
+        "reasoning_malformed": False,
+    }
+
+
+def sanitize_local_response_payload(payload: Any, thinking_parser: str | None) -> tuple[Any, dict[str, Any]]:
+    metadata = {
+        "thinking_parser": thinking_parser,
+        "reasoning_stripped": False,
+        "reasoning_malformed": False,
+        "reasoning_chars": 0,
+        "reasoning_sha256": None,
+    }
+    if thinking_parser != "glm-think-tags" or not isinstance(payload, dict):
+        return payload, metadata
+
+    sanitized = json.loads(json.dumps(payload))
+    for choice in sanitized.get("choices", []) if isinstance(sanitized.get("choices"), list) else []:
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            continue
+        split = _split_thinking_content(message["content"])
+        if not split["reasoning_stripped"]:
+            continue
+        message["content"] = split["content"]
+        message["reasoning_content_stripped"] = True
+        message["reasoning_content_sha256"] = split["reasoning_sha256"]
+        message["reasoning_content_chars"] = split["reasoning_chars"]
+        if split["reasoning_malformed"]:
+            message["reasoning_content_malformed"] = True
+        metadata["reasoning_stripped"] = True
+        metadata["reasoning_malformed"] = bool(metadata["reasoning_malformed"] or split["reasoning_malformed"])
+        metadata["reasoning_chars"] = int(metadata["reasoning_chars"]) + int(split["reasoning_chars"])
+        metadata["reasoning_sha256"] = split["reasoning_sha256"]
+    return sanitized, metadata
 
 
 def build_local_envelope(
@@ -181,6 +310,7 @@ def build_local_envelope(
 ) -> dict[str, Any]:
     selected = dict(route["selected_executor"])
     transport = local_transport(selected, args)
+    tls = local_tls_settings(transport, args)
     max_input_chars = int(transport["max_input_chars"])
     if len(task) > max_input_chars:
         raise SystemExit(f"local dispatch task exceeds max_input_chars={max_input_chars}")
@@ -219,6 +349,7 @@ def build_local_envelope(
         "provider_key": selected.get("provider_key"),
         "provider_trust_tier": selected.get("provider_trust_tier"),
         "local_profile": selected.get("local_profile"),
+        "model_profile": selected.get("model_profile"),
         "transport_kind": transport.get("kind"),
         "base_url_env": transport.get("base_url_env"),
         "base_url_configured": bool(transport.get("base_url")),
@@ -228,6 +359,15 @@ def build_local_envelope(
         "endpoint_path": transport.get("endpoint_path"),
         "timeout_seconds": transport.get("timeout_seconds"),
         "max_input_chars": max_input_chars,
+        "allow_private_dns": bool(transport.get("allow_private_dns")),
+        "tls_verify": bool(tls["tls_verify"]),
+        "tls_verify_source": tls["tls_verify_source"],
+        "tls_ca_bundle_env": tls["tls_ca_bundle_env"],
+        "tls_ca_bundle_configured": bool(tls["tls_ca_bundle_configured"]),
+        "allow_insecure_tls": bool(tls["allow_insecure_tls"]),
+        "request_options": local_request_options(transport),
+        "thinking_parser": transport.get("thinking_parser"),
+        "response_sanitization": transport.get("response_sanitization"),
         "constraints": constraints,
         "messages": messages,
         "execution_enabled": bool(args.execute_local),
@@ -244,7 +384,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     model = transport.get("model")
     if not model:
         raise SystemExit(f"--execute-local requires --local-model or ${transport.get('model_env')}")
-    validate_local_endpoint_base_url(str(base_url))
+    validate_local_endpoint_base_url(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
     api_key_env = str(transport.get("api_key_env") or "")
     validate_local_api_key_env_name(api_key_env)
     payload = {
@@ -252,6 +392,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         "messages": envelope["messages"],
         "temperature": 0,
     }
+    payload.update(local_request_options(transport))
     body = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     api_key = os.environ.get(api_key_env)
@@ -265,14 +406,26 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     )
     started = time.monotonic()
     try:
-        opener = request.build_opener(NoRedirectHandler, request.ProxyHandler({}))
+        opener_handlers: list[Any] = [NoRedirectHandler, request.ProxyHandler({})]
+        context = local_ssl_context(str(base_url), transport, args)
+        if context is not None:
+            opener_handlers.append(request.HTTPSHandler(context=context))
+        opener = request.build_opener(*opener_handlers)
         with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
             raw = response.read().decode("utf-8")
             try:
                 parsed: Any = json.loads(raw)
             except json.JSONDecodeError:
                 parsed = {"raw": raw}
-            return {"status_code": response.status, "response": parsed, "elapsed_seconds": round(time.monotonic() - started, 3)}
+            sanitized, response_metadata = sanitize_local_response_payload(parsed, transport.get("thinking_parser"))
+            return {
+                "status_code": response.status,
+                "response": sanitized,
+                "elapsed_seconds": round(time.monotonic() - started, 3),
+                "raw_response_sha256": artifact_hash(raw),
+                "raw_response_chars": len(raw),
+                **response_metadata,
+            }
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise SystemExit(
@@ -310,6 +463,13 @@ def local_response_telemetry(local_response: dict[str, Any] | None) -> dict[str,
         local_status_code=local_response.get("status_code"),
         local_response_sha256=artifact_hash(rendered),
         local_response_chars=len(rendered),
+        raw_response_sha256=local_response.get("raw_response_sha256"),
+        raw_response_chars=local_response.get("raw_response_chars"),
+        thinking_parser=local_response.get("thinking_parser"),
+        reasoning_stripped=local_response.get("reasoning_stripped"),
+        reasoning_malformed=local_response.get("reasoning_malformed"),
+        reasoning_chars=local_response.get("reasoning_chars"),
+        reasoning_sha256=local_response.get("reasoning_sha256"),
     )
 
 
@@ -355,6 +515,17 @@ def main() -> None:
     parser.add_argument("--local-model", help="Model name for local OpenAI-compatible dispatch.")
     parser.add_argument("--local-api-key-env", help="Environment variable containing the local endpoint API key.")
     parser.add_argument("--local-timeout", type=int, help="Timeout in seconds for --execute-local.")
+    parser.add_argument(
+        "--local-allow-private-dns",
+        action="store_true",
+        help="Allow private DNS route hostnames that resolve only to local/private addresses.",
+    )
+    parser.add_argument("--local-ca-bundle", help="CA bundle path for HTTPS local endpoint verification.")
+    parser.add_argument(
+        "--local-insecure-tls",
+        action="store_true",
+        help="Lab-only: disable TLS verification when the selected local executor profile explicitly allows it.",
+    )
     parser.add_argument("--execute-local", action="store_true", help="Actually POST a local-worker envelope to the endpoint.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[])
@@ -516,6 +687,14 @@ def main() -> None:
             endpoint_path=(local_envelope or {}).get("endpoint_path"),
             timeout_seconds=(local_envelope or {}).get("timeout_seconds"),
             max_input_chars=(local_envelope or {}).get("max_input_chars"),
+            allow_private_dns=(local_envelope or {}).get("allow_private_dns"),
+            allow_insecure_tls=(local_envelope or {}).get("allow_insecure_tls"),
+            tls_verify=(local_envelope or {}).get("tls_verify"),
+            tls_verify_source=(local_envelope or {}).get("tls_verify_source"),
+            tls_ca_bundle_env=(local_envelope or {}).get("tls_ca_bundle_env"),
+            tls_ca_bundle_configured=(local_envelope or {}).get("tls_ca_bundle_configured"),
+            thinking_parser=(local_envelope or {}).get("thinking_parser"),
+            response_sanitization=(local_envelope or {}).get("response_sanitization"),
         )
         base_telemetry.update(local_response_telemetry(local_response))
         record_audit_event(

@@ -101,8 +101,8 @@
       "executor": "gemini_3_1_pro_preview_agy"
     },
     "local": {
-      "terms": ["local worker", "local inference", "vllm", "openshift ai"],
-      "executor": "local_secure_review_worker"
+      "terms": ["local worker", "local inference", "vllm", "openshift ai", "rhoai", "glm", "glm-5.2", "glm 5.2", "glm52"],
+      "executor": "openshift_ai_vllm_glm_5_2_bf16_architecture_critic"
     }
   },
   "default_panel": [
@@ -126,6 +126,13 @@
       "provider_camp": "anthropic",
       "effort": "high-or-stronger",
       "external": true
+    },
+    {
+      "executor": "openshift_ai_vllm_glm_5_2_bf16_architecture_critic",
+      "role": "architecture-critic",
+      "provider_camp": "local",
+      "effort": "thinking-enabled",
+      "external": false
     },
     {
       "executor": "gemini_3_1_pro_preview_agy",

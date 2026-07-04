@@ -21,6 +21,8 @@ TELEMETRY_NUMERIC_FIELDS = {
     "local_status_code",
     "local_response_chars",
     "local_error_body_chars",
+    "raw_response_chars",
+    "reasoning_chars",
     "included_artifacts_count",
     "selected_snippets_count",
     "selected_snippet_lines",
@@ -35,6 +37,12 @@ TELEMETRY_BOOLEAN_FIELDS = {
     "expert_profile_included",
     "degraded_packet",
     "disclosure_escalation_approved",
+    "allow_private_dns",
+    "allow_insecure_tls",
+    "tls_verify",
+    "tls_ca_bundle_configured",
+    "reasoning_stripped",
+    "reasoning_malformed",
 }
 TELEMETRY_STRING_FIELDS = {
     "telemetry_kind",
@@ -63,7 +71,13 @@ TELEMETRY_STRING_FIELDS = {
     "share_url_sha256",
     "local_response_sha256",
     "local_error_body_sha256",
+    "raw_response_sha256",
+    "reasoning_sha256",
     "packet_output_sha256",
+    "tls_verify_source",
+    "tls_ca_bundle_env",
+    "thinking_parser",
+    "response_sanitization",
 }
 TELEMETRY_STRING_LIST_FIELDS = {
     "telemetry_missing_reasons",

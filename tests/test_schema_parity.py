@@ -47,6 +47,7 @@ class SchemaParityTests(unittest.TestCase):
             "provider_key",
             "provider_trust_tier",
             "provider_external",
+            "model_profile",
             "provenance_class",
             "human_adjudication_required",
             "recommended_disposition",
@@ -65,6 +66,7 @@ class SchemaParityTests(unittest.TestCase):
         self.assertIn("provider_external", properties)
         self.assertIn("dispatch_mode", properties)
         self.assertIn("local_profile", properties)
+        self.assertIn("model_profile", properties)
         self.assertIn("provenance_class", properties)
         self.assertIn("evidence_quality_score", properties)
         self.assertIn("evidence_quality_signals", properties)
@@ -85,6 +87,16 @@ class SchemaParityTests(unittest.TestCase):
     def test_local_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("local-dispatch-envelope.schema.json")
         self.assertTrue(set(LOCAL_DISPATCH_REQUIRED_FIELDS).issubset(set(schema["required"])))
+        for field in [
+            "model_profile",
+            "allow_private_dns",
+            "tls_verify",
+            "tls_ca_bundle_env",
+            "request_options",
+            "thinking_parser",
+            "response_sanitization",
+        ]:
+            self.assertIn(field, schema["properties"])
 
     def test_prompt_coach_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("prompt-coach-result.schema.json")
@@ -131,6 +143,11 @@ class SchemaParityTests(unittest.TestCase):
         self.assertTrue(set(MODEL_PROFILE_REQUIRED_FIELDS).issubset(set(profile_schema["required"])))
         properties = profile_schema["properties"]
         self.assertIn("deployment_tier", properties)
+        self.assertIn("precision", properties)
+        self.assertIn("thinking_enabled", properties)
+        self.assertIn("reasoning_mode", properties)
+        self.assertIn("request_options", properties)
+        self.assertIn("required_vllm_flags", properties)
         self.assertIn("hardware_profile", properties)
         self.assertIn("recommended_enterprise_scale", properties)
         self.assertIn("benchmark_gate", properties)
