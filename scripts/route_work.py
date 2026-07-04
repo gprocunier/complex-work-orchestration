@@ -15,6 +15,13 @@ def print_human(route: dict[str, object], top_n: int) -> None:
     print(f"Data sensitivity: {route['data_sensitivity']}")
     print(f"Dispatch sensitivity: {route['dispatch_sensitivity']}")
     print(f"Share boundary: {route['share_boundary']}")
+    print(f"Execution environment: {route.get('execution_environment')}")
+    if route.get("project_manager_executor"):
+        print(f"Project manager executor: {route.get('project_manager_executor')}")
+    if route.get("primary_architect_executor"):
+        print(f"Primary architect executor: {route.get('primary_architect_executor')}")
+    if route.get("architecture_counter_review_executor"):
+        print(f"Architecture counter-review executor: {route.get('architecture_counter_review_executor')}")
     print(f"Recommended executor: {route['recommended_executor']}")
     print(f"Provider conflict detected: {route.get('provider_conflict_detected')}")
     conflicts = route.get("provider_conflict_domains") or []
@@ -124,6 +131,10 @@ def main() -> None:
     parser.add_argument("--stage", help="Review stage such as pre-implementation, implementation-review, or pre-release.")
     parser.add_argument("--unattended", action="store_true", help="Penalize manual dispatch executors.")
     parser.add_argument(
+        "--execution-environment",
+        help="Select a CWO execution environment profile such as connected-codex-glm-primary.",
+    )
+    parser.add_argument(
         "--model-synthesis",
         action="store_true",
         help="Treat model synthesis as accepted opt-in and activate the CWO-native synthesis lane.",
@@ -155,6 +166,7 @@ def main() -> None:
         file_paths=args.file_path,
         stage=args.stage,
         unattended=args.unattended,
+        execution_environment=args.execution_environment,
         model_synthesis=args.model_synthesis,
         beads_context_depth=args.beads_context_depth,
         beads_briefing_depth=args.beads_briefing_depth,

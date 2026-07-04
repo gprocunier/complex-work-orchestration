@@ -51,6 +51,13 @@ profile but reads the GLM route and model from
 `glm-5.2-bf16-128k`. Its model profile is
 `rhoai-architect-glm-5-2-bf16-thinking`.
 
+The same endpoint can be selected as an experimental primary architect through
+`openshift_ai_vllm_glm_5_2_bf16_primary_architect` by choosing the
+`connected-codex-glm-primary` execution environment. That path keeps the Codex
+shell as project manager, moves Codex 5.5 x-high to an internal counter-review
+lane, and still treats GLM as local read-only evidence until evaluator,
+synthesis, and adjudication gates accept the work.
+
 Execution environments can also bind role-specific model profiles from
 `policy/model-profiles.yaml`. That registry is the model matrix for replacing
 connected CWO roles with public Hugging Face models served through OpenShift AI
@@ -113,6 +120,16 @@ python3 scripts/route_work.py \
   "Documentation review for the public README examples."
 ```
 
+Use the experimental GLM-primary bridge when testing architecture substitution:
+
+```bash
+python3 scripts/route_work.py \
+  --execution-environment connected-codex-glm-primary \
+  --model-synthesis \
+  --requested-role architecture \
+  "Review the architect plan with GLM-5.2 as primary architect."
+```
+
 ## Dispatch
 
 `scripts/dispatch_work.py` prepares a `local_envelope` by default. It does not
@@ -158,6 +175,16 @@ python3 scripts/dispatch_work.py \
   --requested-role architecture \
   --execute-local \
   "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion."
+```
+
+For a render-only harness envelope under the GLM-primary bridge:
+
+```bash
+python3 scripts/render_harness_dispatch.py \
+  --environment connected-codex-glm-primary \
+  --role architect \
+  --json \
+  "Review the architecture plan as the GLM-5.2 primary architect."
 ```
 
 The GLM executor sends `chat_template_kwargs.enable_thinking=true`. If the

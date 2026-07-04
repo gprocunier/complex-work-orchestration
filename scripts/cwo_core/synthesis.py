@@ -80,6 +80,49 @@ def active_synthesis_modes(policy: dict[str, Any] | None = None) -> set[str]:
     return {str(item) for item in config.get("active_modes", ["requested", "accepted"])}
 
 
+def route_provider_camps(route: dict[str, Any]) -> list[str]:
+    camps: set[str] = set()
+    architecture_authority = str(route.get("architecture_authority") or "")
+    if architecture_authority == "glm-5.2-primary-architect":
+        camps.update({"local", "codex"})
+    return sorted(camps)
+
+
+def synthesis_owner_for_route(policy: dict[str, Any], route: dict[str, Any]) -> str:
+    if route.get("architecture_authority") == "glm-5.2-primary-architect" and route.get("primary_architect_executor"):
+        return str(route["primary_architect_executor"])
+    return str(policy.get("synthesis_owner", "frontier_architect"))
+
+
+def synthesis_panel_for_route(policy: dict[str, Any], route: dict[str, Any]) -> list[dict[str, Any]]:
+    if route.get("architecture_authority") == "glm-5.2-primary-architect":
+        primary_architect = str(
+            route.get("primary_architect_executor")
+            or "openshift_ai_vllm_glm_5_2_bf16_primary_architect"
+        )
+        counter_review = str(
+            route.get("architecture_counter_review_executor")
+            or "codex_5_5_xhigh_architecture_critic"
+        )
+        return [
+            {
+                "executor": primary_architect,
+                "role": "primary-architect",
+                "provider_camp": "local",
+                "effort": "thinking-enabled",
+                "external": False,
+            },
+            {
+                "executor": counter_review,
+                "role": "architecture-counter-review",
+                "provider_camp": "codex",
+                "effort": "xhigh",
+                "external": False,
+            },
+        ]
+    return [dict(item) for item in policy.get("default_panel", [])]
+
+
 def provider_conflict_flags(route: dict[str, Any], camps: list[str]) -> list[dict[str, Any]]:
     flags: list[dict[str, Any]] = []
     if route.get("provider_conflict_detected"):
@@ -674,7 +717,7 @@ def recommend_model_synthesis(
     policy = synthesis_policy()
     explicit_hits = term_hits(text, list(policy.get("explicit_terms", [])))
     creativity_hits = term_hits(text, list(policy.get("creativity_terms", [])))
-    camps = mentioned_provider_camps(text, policy)
+    camps = sorted(set(mentioned_provider_camps(text, policy)) | set(route_provider_camps(route)))
     trigger_reasons: list[str] = []
 
     if force_accepted:
@@ -712,7 +755,7 @@ def recommend_model_synthesis(
     else:
         mode = "none"
 
-    panel = [dict(item) for item in policy.get("default_panel", [])]
+    panel = synthesis_panel_for_route(policy, route)
     external_panel = any(bool(item.get("external")) for item in panel)
     active_modes = active_synthesis_modes(policy)
     active = mode in active_modes
@@ -746,7 +789,7 @@ def recommend_model_synthesis(
         "requires_user_acceptance": mode == "recommended",
         "prompt_user_in_plan_mode": mode == "recommended",
         "synthesis_pattern": str(policy.get("default_pattern", "independent-then-synthesize")),
-        "synthesis_owner": str(policy.get("synthesis_owner", "frontier_architect")),
+        "synthesis_owner": synthesis_owner_for_route(policy, route),
         "trigger_reasons": trigger_reasons if mode not in {"none", "disabled"} else [],
         "recommended_panel": panel if mode not in {"none", "disabled"} else [],
         "mentioned_provider_camps": camps if mode not in {"none", "disabled"} else [],

@@ -192,6 +192,38 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertEqual(executor["transport"]["request_options"], {"chat_template_kwargs": {"enable_thinking": True}})
         self.assertEqual(executor["transport"]["thinking_parser"], "glm-think-tags")
 
+    def test_glm_bf16_primary_architect_is_read_only_local_architect(self) -> None:
+        executors = load_policy("executor-registry")["executors"]
+        executor = executors["openshift_ai_vllm_glm_5_2_bf16_primary_architect"]
+
+        self.assertFalse(executor["external"])
+        self.assertEqual(executor["provider_key"], "openshift_ai_vllm")
+        self.assertEqual(executor["dispatch_mode"], "local_secure_review")
+        self.assertEqual(executor["role"], "local-primary-architect")
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertEqual(executor["critique_mode"], "primary-architect")
+        self.assertTrue(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertFalse(executor["supports_shell"])
+        self.assertFalse(executor["supports_web"])
+        self.assertEqual(executor["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(executor["transport"]["request_options"], {"chat_template_kwargs": {"enable_thinking": True}})
+
+    def test_codex_xhigh_counter_review_is_internal_read_only_review_lane(self) -> None:
+        executors = load_policy("executor-registry")["executors"]
+        executor = executors["codex_5_5_xhigh_architecture_critic"]
+
+        self.assertFalse(executor["external"])
+        self.assertEqual(executor["provider_key"], "internal_codex")
+        self.assertEqual(executor["dispatch_mode"], "main_thread_review")
+        self.assertEqual(executor["role"], "architecture-critic")
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertEqual(executor["critique_mode"], "architect-design-second-opinion")
+        self.assertTrue(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertFalse(executor["supports_shell"])
+        self.assertFalse(executor["supports_web"])
+
     def test_explicit_glm_architecture_critic_routes_to_local_executor(self) -> None:
         route = classify_work(
             "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",

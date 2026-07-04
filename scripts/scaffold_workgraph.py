@@ -83,6 +83,11 @@ def route_notes(route: dict[str, Any]) -> str:
         f"Task class: {route.get('task_class')}",
         f"Risk: {route.get('risk_level')}",
         f"Share boundary: {route.get('share_boundary')}",
+        f"Execution environment: {route.get('execution_environment')}",
+        f"Architecture authority: {route.get('architecture_authority')}",
+        f"Project manager executor: {route.get('project_manager_executor')}",
+        f"Primary architect executor: {route.get('primary_architect_executor')}",
+        f"Architecture counter-review executor: {route.get('architecture_counter_review_executor')}",
         f"Scaffold size: {route.get('scaffold_size', 'full')}",
         f"Beads context depth: {route.get('beads_context_depth', 'focused')}",
         f"Beads briefing depth: {route.get('beads_briefing_depth', route.get('beads_context_depth', 'focused'))}",
@@ -148,6 +153,16 @@ LANE_FIELDS: dict[str, dict[str, object]] = {
         "skills": ["documentation", "operator-guides", "handoff"],
         "acceptance": "Docs, examples, and handoff instructions match the implemented behavior.",
         "design": "Keep the skill entrypoint concise and place durable operator detail in README and references.",
+    },
+    "wrap-up-report": {
+        "skills": ["run-readiness", "wrap-up-status", "handoff", "operator-calibrated-execution"],
+        "acceptance": "Wrap-up/status projection is rendered from accepted evidence and records validation, residual risk, and next-version deferrals.",
+        "design": "Use Beads/readiness evidence as source of truth; do not invent missing telemetry or closeout claims.",
+    },
+    "dashboard-report": {
+        "skills": ["execution-status-report", "telemetry", "dashboard", "operator-calibrated-execution"],
+        "acceptance": "Execution status dashboard and expanded layout are rendered with lane/model telemetry gaps shown as ? or n/a.",
+        "design": "Render compact terminal status first, then expanded output for long expert, role, and agent/model identifiers.",
     },
     "external-dispatch": {
         "skills": ["contractor-control", "beads", "packet-dispatch"],
@@ -428,6 +443,26 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             **lane_fields("docs", route),
         }
     )
+    graph.extend(
+        [
+            {
+                "title": f"Wrap-up report: {title}",
+                "type": "task",
+                "lane": "wrap-up-report",
+                "labels": ["reporting", "wrap-up-status"],
+                "depends_on_lanes": ["docs"],
+                **lane_fields("wrap-up-report", route),
+            },
+            {
+                "title": f"Dashboard report: {title}",
+                "type": "task",
+                "lane": "dashboard-report",
+                "labels": ["reporting", "dashboard"],
+                "depends_on_lanes": ["validation"],
+                **lane_fields("dashboard-report", route),
+            },
+        ]
+    )
     if needs_external_acceptance:
         peer_review_lanes = ["peer-review"] if peer_review_required else []
         dispatch_guard_labels = list(route.get("guard_labels") or [])
@@ -640,6 +675,11 @@ def string_metadata(item: dict[str, Any]) -> dict[str, str]:
                     "task_class": value.get("task_class"),
                     "risk_level": value.get("risk_level"),
                     "share_boundary": value.get("share_boundary"),
+                    "execution_environment": value.get("execution_environment"),
+                    "architecture_authority": value.get("architecture_authority"),
+                    "project_manager_executor": value.get("project_manager_executor"),
+                    "primary_architect_executor": value.get("primary_architect_executor"),
+                    "architecture_counter_review_executor": value.get("architecture_counter_review_executor"),
                     "recommended_executor": value.get("recommended_executor"),
                     "peer_review_required": bool(value.get("peer_review_required")),
                     "provider_conflict_detected": bool(value.get("provider_conflict_detected")),
@@ -736,6 +776,10 @@ def main() -> None:
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument(
+        "--execution-environment",
+        help="Select a CWO execution environment profile such as connected-codex-glm-primary.",
+    )
+    parser.add_argument(
         "--model-synthesis",
         action="store_true",
         help="Treat model synthesis as accepted opt-in and activate the CWO-native synthesis lane.",
@@ -782,6 +826,7 @@ def main() -> None:
         local_profile=args.local_profile,
         share_boundary=args.share_boundary,
         requested_roles=args.requested_role,
+        execution_environment=args.execution_environment,
         model_synthesis=args.model_synthesis,
         beads_context_depth=args.beads_context_depth,
         beads_briefing_depth=args.beads_briefing_depth,

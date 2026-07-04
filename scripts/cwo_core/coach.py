@@ -957,6 +957,7 @@ def prompt_coach_enabled_levers(
     levers = [
         f"route={route.get('route')}",
         f"risk={route.get('risk_level')}",
+        f"execution-environment={route.get('execution_environment')}",
         f"primary_expert={(route.get('ranked_experts') or [{}])[0].get('name', 'unknown')}",
         f"executor={route.get('recommended_executor')}",
         "beads-durable-state",
@@ -992,6 +993,12 @@ def prompt_coach_enabled_levers(
                 levers.append(f"claude-effort={contract['claude_effort']}")
     if level == "local-worker":
         levers.append(f"local-profile={route.get('local_profile') or 'generic-openai-compatible'}")
+    if route.get("primary_architect_executor"):
+        levers.append(f"primary-architect={route.get('primary_architect_executor')}")
+    if route.get("project_manager_executor"):
+        levers.append(f"project-manager={route.get('project_manager_executor')}")
+    if route.get("architecture_counter_review_executor"):
+        levers.append(f"architecture-counter-review={route.get('architecture_counter_review_executor')}")
     if level == "publish-release":
         levers.append("publish-sanitization")
     if route.get("peer_review_required"):
@@ -1076,6 +1083,12 @@ def prompt_coach_rationale(
         f"Policy route is {route.get('route')} with {route.get('risk_level')} risk.",
         f"Recommended executor is {route.get('recommended_executor')}.",
     ]
+    if route.get("execution_environment"):
+        rationale.append(f"Execution environment is {route.get('execution_environment')}.")
+    if route.get("architecture_authority") == "glm-5.2-primary-architect":
+        rationale.append(
+            "Codex coordinates as PM while GLM-5.2 BF16 Thinking is the primary architecture authority for this experimental profile."
+        )
     if level == "in-thread":
         rationale.append("The task can execute in the current thread, but it still requires a durable Beads record.")
     elif level == "lightweight-beads":
@@ -1188,10 +1201,11 @@ def synthesis_prompt_line(model_synthesis: dict[str, Any] | None) -> str:
     ]
     panel_text = ", ".join(panel) if panel else "selected independent reviewers"
     boundary = model_synthesis.get("required_share_boundary") or "redacted-packet"
+    owner = model_synthesis.get("synthesis_owner") or "the architect"
     base = (
         "Preserve each model return as separate evidence, then create a synthesis artifact "
         "covering consensus, material disagreements, unsupported claims, risk deltas, and recommended plan revisions. "
-        "Keep final decisions with the Codex architect."
+        f"Keep final decisions with {owner}."
     )
     if model_synthesis.get("active"):
         return (
@@ -1244,6 +1258,20 @@ def operator_calibration_prompt_line(operator_calibration: dict[str, Any] | None
     )
 
 
+def execution_environment_prompt_line(route: dict[str, Any]) -> str:
+    environment = route.get("execution_environment")
+    if not environment or environment == "connected-codex":
+        return ""
+    parts = [f"Execution environment: {environment}."]
+    if route.get("project_manager_executor"):
+        parts.append(f"PM: {route.get('project_manager_executor')}.")
+    if route.get("primary_architect_executor"):
+        parts.append(f"Primary architect: {route.get('primary_architect_executor')}.")
+    if route.get("architecture_counter_review_executor"):
+        parts.append(f"Counter-review: {route.get('architecture_counter_review_executor')}.")
+    return " ".join(parts) + "\n"
+
+
 def render_coached_prompt(
     level: str,
     route: dict[str, Any],
@@ -1266,6 +1294,7 @@ def render_coached_prompt(
     beads_context = beads_context_prompt_line(beads_context_depth_signal)
     blocking_review = blocking_review_prompt_line(route)
     operator_line = operator_calibration_prompt_line(operator_calibration)
+    environment_line = execution_environment_prompt_line(route)
     scaffold_line = ""
     if scaffold_sizing and scaffold_sizing.get("recommended_size") == "tight":
         scaffold_line = (
@@ -1281,6 +1310,7 @@ def render_coached_prompt(
             f"{beads_context}"
             f"{blocking_review}"
             f"{operator_line}"
+            f"{environment_line}"
             f"{scaffold_line}"
             "Create or update one Beads task for the work story, evidence, validation, and handoff. "
             "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
@@ -1296,6 +1326,7 @@ def render_coached_prompt(
             f"{beads_context}"
             f"{blocking_review}"
             f"{operator_line}"
+            f"{environment_line}"
             f"{scaffold_line}"
             "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
             "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
@@ -1310,6 +1341,7 @@ def render_coached_prompt(
             f"{beads_context}"
             f"{blocking_review}"
             f"{operator_line}"
+            f"{environment_line}"
             f"{scaffold_line}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
             "and any policy-required peer-review workstreams. Keep final decisions with the architect.\n"
@@ -1339,6 +1371,7 @@ def render_coached_prompt(
                 f"{beads_context}"
                 f"{blocking_review}"
                 f"{operator_line}"
+                f"{environment_line}"
                 f"{scaffold_line}"
                 f"Share boundary: {route.get('share_boundary')}.\n"
                 "Create one contractor-only/no-codex-exec Bead per selected architecture critic, all using "
@@ -1356,6 +1389,7 @@ def render_coached_prompt(
             f"{beads_context}"
             f"{blocking_review}"
             f"{operator_line}"
+            f"{environment_line}"
             f"{scaffold_line}"
             f"Share boundary: {route.get('share_boundary')}.\n"
             f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
@@ -1372,6 +1406,7 @@ def render_coached_prompt(
             f"{beads_context}"
             f"{blocking_review}"
             f"{operator_line}"
+            f"{environment_line}"
             f"{scaffold_line}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
             "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
@@ -1386,6 +1421,7 @@ def render_coached_prompt(
         f"{beads_context}"
         f"{blocking_review}"
         f"{operator_line}"
+        f"{environment_line}"
         f"{scaffold_line}"
         "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization workstreams. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
@@ -1410,6 +1446,7 @@ def coach_orchestration_prompt(
     scaffold_size: str | None = None,
     beads_context_depth: str | None = None,
     beads_briefing_depth: str | None = None,
+    execution_environment: str | None = None,
 ) -> dict[str, Any]:
     route = classify_work(
         text,
@@ -1423,6 +1460,7 @@ def coach_orchestration_prompt(
         file_paths=file_paths,
         stage=stage,
         unattended=unattended,
+        execution_environment=execution_environment,
         model_synthesis=model_synthesis,
         beads_context_depth=beads_context_depth,
         beads_briefing_depth=beads_briefing_depth,

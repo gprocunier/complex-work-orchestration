@@ -113,6 +113,40 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(result["model_synthesis"]["active"])
         self.assertFalse(result["model_synthesis"]["requires_user_acceptance"])
 
+    def test_glm_primary_environment_routes_architecture_to_glm_with_codex_counter_review(self) -> None:
+        result = classify_work(
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            requested_roles=["architecture"],
+            execution_environment="connected-codex-glm-primary",
+            model_synthesis=True,
+        )
+
+        self.assertEqual(result["execution_environment"], "connected-codex-glm-primary")
+        self.assertEqual(result["architecture_authority"], "glm-5.2-primary-architect")
+        self.assertEqual(result["project_manager_executor"], "codex_project_manager")
+        self.assertEqual(result["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_primary_architect")
+        self.assertEqual(result["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(result["local_worker_opt_in_source"], "execution-environment")
+        self.assertIn("codex_5_5_xhigh_architecture_critic", result["requested_architecture_critic_executors"])
+        self.assertEqual(
+            result["model_synthesis"]["synthesis_owner"],
+            "openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+        )
+        panel = {item["executor"]: item for item in result["model_synthesis"]["recommended_panel"]}
+        self.assertEqual(panel["codex_5_5_xhigh_architecture_critic"]["role"], "architecture-counter-review")
+        self.assertEqual(panel["openshift_ai_vllm_glm_5_2_bf16_primary_architect"]["role"], "primary-architect")
+
+    def test_default_environment_keeps_codex_as_architect(self) -> None:
+        result = classify_work(
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+
+        self.assertEqual(result["execution_environment"], "connected-codex")
+        self.assertEqual(result["architecture_authority"], "codex-frontier-architect")
+        self.assertNotEqual(result["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_primary_architect")
+
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
         output = subprocess.check_output(
             [

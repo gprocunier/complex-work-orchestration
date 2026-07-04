@@ -163,6 +163,26 @@ python3 scripts/route_work.py --model-synthesis "<task text>"
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --model-synthesis
 ```
 
+Operator reference: to test Codex-shell PM coordination with GLM-5.2 BF16
+Thinking as the primary architect, select the experimental execution
+environment. This leaves the default connected Codex path unchanged and moves
+Codex 5.5 x-high into an internal counter-review synthesis lane:
+
+```bash
+python3 scripts/route_work.py \
+  --execution-environment connected-codex-glm-primary \
+  --model-synthesis \
+  --requested-role architecture \
+  "<task text>"
+
+python3 scripts/scaffold_workgraph.py \
+  --execution-environment connected-codex-glm-primary \
+  --model-synthesis \
+  --requested-role architecture \
+  --title "<goal>" \
+  --description "<scope>"
+```
+
 Operator reference: for focused review work, keep the graph compact while
 preserving required gates:
 
@@ -369,12 +389,12 @@ evaluated evidence until the operator benchmarks it for the role and hardware.
 
 | CWO role | Connected default | Practical airgapped profile | Enterprise evaluation targets | Boundary |
 | --- | --- | --- | --- | --- |
-| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | Strong local planning candidates; benchmark before promotion. |
+| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-bf16-thinking</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | Strong local planning candidates; benchmark before promotion. |
 | Project manager | Codex main-thread PM or smaller coordination model | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-architect-glm-5-2-fp8</code> for summarization-heavy workloads</li></ul> | Use for dependencies, status, and handoff drafting. |
 | Workerbee | Codex 5.3 Spark | `rhoai-worker-qwen2-5-coder-32b-fp8` | <ul><li><code>rhoai-architect-glm-5-2-fp8</code> for large reasoning packets</li></ul> | Use for bounded code review, test triage, and patch proposal drafting. |
 | Review worker | Codex 5.3 Spark review-only subagent | `rhoai-reviewer-nemotron-3-nano-30b-fp8` | <ul><li><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code></li><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li></ul> | Use the larger lanes only for multimodal or high-stakes review. |
 | Local secure reviewer | Local secure reviewer or Codex evaluator | `rhoai-secure-review-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code> for high-stakes local review</li></ul> | Read-only review evidence; no shell, web, or repo write. |
-| Synthesis input | CWO-native synthesis with architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | Local synthesis input only; CWO still owns provenance and final synthesis. |
+| Synthesis input | CWO-native synthesis with architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-bf16-thinking</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | Local synthesis input only; CWO still owns provenance and final synthesis. |
 
 The practical defaults are the reasonable starting point for disconnected
 deployments. Enterprise evaluation targets are opt-in benchmark targets for
@@ -385,6 +405,13 @@ topology, P2P/NCCL behavior, vLLM startup flags, `/v1/models` and
 packets, evaluator scoring, and architect adjudication. Llama 4 Maverick is
 documented as a multimodal or general-review lane, not as the primary x-high
 architect replacement.
+
+The `connected-codex-glm-primary` environment is an experimental bridge toward
+that airgapped model. Codex CLI remains the connected PM/operator shell, GLM-5.2
+BF16 Thinking is the no-write local primary architect, and
+`codex_5_5_xhigh_architecture_critic` becomes the independent counter-review
+input for synthesis. Selecting the environment is also the explicit local
+architect opt-in; raw GLM thinking remains stripped from durable artifacts.
 
 OpenCode is the first v2 open-source exemplar because it is terminal-first,
 scriptable, provider-flexible, and can target local OpenAI-compatible model

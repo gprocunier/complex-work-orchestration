@@ -89,6 +89,32 @@ local-secure-review, and synthesis roles to RHOAI vLLM profiles. CWO still owns
 Beads memory, dispatch rendering, validation, return evaluation, synthesis
 provenance, and architect adjudication.
 
+### Connected GLM-Primary Bridge
+
+`connected-codex-glm-primary` is the first-pass bridge for testing an
+airgap-ready hierarchy without leaving the Codex shell. The main Codex thread is
+the project manager and operator surface. GLM-5.2 BF16 Thinking is bound as the
+primary architect through `openshift_ai_vllm_glm_5_2_bf16_primary_architect`.
+Codex 5.5 x-high is represented by
+`codex_5_5_xhigh_architecture_critic` as the internal counter-review lane.
+
+Select it explicitly:
+
+```bash
+python3 scripts/route_work.py \
+  --execution-environment connected-codex-glm-primary \
+  --model-synthesis \
+  --requested-role architecture \
+  "<task text>"
+```
+
+The environment selection is the local architect opt-in. It does not give GLM
+shell, web, or repo-write authority. The Codex PM applies changes only after
+GLM architect output, evaluator/synthesis evidence, and required adjudication
+are recorded. Synthesis ownership moves from `frontier_architect` to the GLM
+primary architect for this environment only; the default `connected-codex`
+profile remains unchanged.
+
 ### Enterprise Evaluation Targets
 
 For medium enterprise and larger disconnected work, the registry includes two
@@ -99,6 +125,8 @@ large-cluster profiles that are deliberately marked as candidates:
   architecture, security/malpractice review, and synthesis.
 - `rhoai-architect-glm-5-2-fp8` uses `zai-org/GLM-5.2-FP8` for long-context
   architecture, large work-graph briefings, PM summarization, and synthesis.
+- `rhoai-architect-glm-5-2-bf16-thinking` uses the GLM-5.2 BF16 endpoint for
+  thinking-enabled primary architecture tests and synthesis input.
 - `rhoai-reviewer-llama-4-maverick-17b-128e-fp8` uses
   `meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8` for multimodal or
   general review work. It is not the primary x-high architecture substitute.

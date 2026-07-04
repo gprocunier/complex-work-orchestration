@@ -66,6 +66,13 @@ CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
     "Codex architect adjudication recorded before implementation",
 ]
 
+DEFAULT_EXECUTION_ENVIRONMENT = "connected-codex"
+GLM_PRIMARY_EXECUTION_ENVIRONMENT = "connected-codex-glm-primary"
+GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "openshift_ai_vllm_glm_5_2_bf16_architecture_critic"
+GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "openshift_ai_vllm_glm_5_2_bf16_primary_architect"
+CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_5_5_xhigh_architecture_critic"
+LOCAL_DISPATCH_MODES = {"local_openai_compatible", "local_secure_review"}
+
 
 BEADS_CONTEXT_DEPTHS = ["none", "summary", "focused", "heavy", "audit"]
 COMMENT_BEARING_BEADS_CONTEXT_DEPTHS = {"focused", "heavy", "audit"}
@@ -79,6 +86,50 @@ BEADS_CONTEXT_DEPTH_ALIASES = {
     "full": "heavy",
     "forensic": "audit",
 }
+
+
+def resolve_execution_environment(execution_environment: str | None) -> tuple[str, dict[str, Any]]:
+    key = str(execution_environment or DEFAULT_EXECUTION_ENVIRONMENT)
+    profiles = load_policy("execution-environments").get("profiles", {})
+    profile = profiles.get(key)
+    if not isinstance(profile, dict):
+        raise SystemExit(f"unknown execution environment: {key}")
+    return key, profile
+
+
+def execution_environment_role_binding(environment: dict[str, Any], role: str) -> dict[str, Any]:
+    binding = (environment.get("role_bindings") or {}).get(role)
+    return dict(binding) if isinstance(binding, dict) else {}
+
+
+def execution_environment_role_executor(environment: dict[str, Any], role: str) -> str | None:
+    executor = execution_environment_role_binding(environment, role).get("executor")
+    return str(executor) if executor else None
+
+
+def executor_registry_entry(executor_key: str | None) -> dict[str, Any]:
+    if not executor_key:
+        return {}
+    executor = load_policy("executor-registry").get("executors", {}).get(executor_key)
+    return dict(executor) if isinstance(executor, dict) else {}
+
+
+def execution_environment_summary(environment_key: str, environment: dict[str, Any]) -> dict[str, Any]:
+    bindings: dict[str, Any] = {}
+    for role, binding in (environment.get("role_bindings") or {}).items():
+        if isinstance(binding, dict):
+            bindings[str(role)] = {
+                key: value
+                for key, value in binding.items()
+                if key in {"harness", "executor", "agent", "model_profile"}
+            }
+    return {
+        "key": environment_key,
+        "display_name": environment.get("display_name"),
+        "mode": environment.get("mode"),
+        "default_harness": environment.get("default_harness"),
+        "role_bindings": bindings,
+    }
 
 
 def normalize_beads_context_depth(value: str | None, *, field_name: str = "beads_context_depth") -> str | None:
@@ -437,7 +488,7 @@ def executor_policy_violations(
         violations.append(f"share boundary {share_boundary} requires disclosure escalation approval")
     if executor.get("external") and sensitivity == "restricted" and executor.get("dispatch_mode") != "human":
         violations.append("restricted data cannot be sent to non-human external executors")
-    if executor.get("dispatch_mode") in {"local_openai_compatible", "local_secure_review"}:
+    if executor.get("dispatch_mode") in LOCAL_DISPATCH_MODES:
         local_policy = load_policy("routing-policy").get("local_worker", {})
         allowed_classes = set(executor.get("allowed_task_classes") or local_policy.get("allowed_task_classes", []))
         allowed_risks = set(executor.get("allowed_risks") or local_policy.get("allowed_risks", []))
@@ -522,7 +573,7 @@ def score_executors(
         ):
             score += scoring.get("task_class_fit", 6)
             reasons.append("task class fit")
-        if prefer_local and executor.get("dispatch_mode") in {"local_openai_compatible", "local_secure_review"} and not violations:
+        if prefer_local and executor.get("dispatch_mode") in LOCAL_DISPATCH_MODES and not violations:
             score += scoring.get("prefer_local_fit", 12)
             reasons.append("preferred local worker")
         if local_profile and executor.get("local_profile") == local_profile and not violations:
@@ -553,6 +604,9 @@ def score_executors(
         if executor.get("cost_tier") in ["low", "medium"]:
             score += scoring.get("cost_fit", 2)
         is_architecture_review_task = task_class == "architecture-review"
+        if key == CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR:
+            score -= 100
+            reasons.append("reserved for explicit architecture counter-review lanes")
         if is_architecture_review_task and key == "gemini_3_1_pro_preview_agy" and explicit_gemini_architect_critique_requested(text):
             score += 30
             reasons.append("explicit Gemini/Agy architect critique request")
@@ -676,9 +730,27 @@ def classify_work(
     model_synthesis: bool = False,
     beads_context_depth: str | None = None,
     beads_briefing_depth: str | None = None,
+    execution_environment: str | None = None,
 ) -> dict[str, Any]:
     routing = load_policy("routing-policy")
     expert_registry = load_policy("expert-registry")
+    execution_environment_key, execution_environment_config = resolve_execution_environment(execution_environment)
+    environment_project_manager_executor = execution_environment_role_executor(
+        execution_environment_config, "project_manager"
+    )
+    environment_architect_executor = execution_environment_role_executor(execution_environment_config, "architect")
+    environment_counter_review_executor = execution_environment_role_executor(
+        execution_environment_config, "architecture_counter_review"
+    )
+    environment_architect_config = executor_registry_entry(environment_architect_executor)
+    environment_implies_local_architect = bool(
+        execution_environment
+        and environment_architect_config.get("dispatch_mode") in LOCAL_DISPATCH_MODES
+    )
+    effective_local_ok = bool(local_ok or environment_implies_local_architect)
+    effective_local_profile = local_profile
+    if environment_implies_local_architect and not effective_local_profile:
+        effective_local_profile = environment_architect_config.get("local_profile")
     experts = score_experts_v2(
         text,
         expert_registry,
@@ -740,9 +812,9 @@ def classify_work(
                 share_boundary=share_boundary,
                 external_ok=external_ok,
                 allow_disclosure_escalation=allow_disclosure_escalation,
-                local_ok=local_ok,
+                local_ok=effective_local_ok,
                 prefer_local=prefer_local,
-                local_profile=local_profile,
+                local_profile=effective_local_profile,
                 unattended=unattended,
                 provider_conflict_domains=provider_conflict_domains,
             )
@@ -761,9 +833,9 @@ def classify_work(
         share_boundary=share_boundary,
         external_ok=external_ok,
         allow_disclosure_escalation=allow_disclosure_escalation,
-        local_ok=local_ok,
+        local_ok=effective_local_ok,
         prefer_local=prefer_local,
-        local_profile=local_profile,
+        local_profile=effective_local_profile,
         experts=experts,
         text=text,
         unattended=unattended,
@@ -775,6 +847,31 @@ def classify_work(
     claude_effort = claude_architecture_effort(architecture_complexity)
     requested_critic_keys = requested_architecture_critic_executor_keys(text)
     ranked_by_key = {str(item.get("key")): item for item in ranked_executors}
+    if execution_environment_key == GLM_PRIMARY_EXECUTION_ENVIRONMENT:
+        requested_critic_keys = [
+            key for key in requested_critic_keys if key != GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR
+        ]
+        if (
+            environment_counter_review_executor
+            and environment_counter_review_executor not in requested_critic_keys
+        ):
+            requested_critic_keys.append(environment_counter_review_executor)
+    if (
+        execution_environment_key == GLM_PRIMARY_EXECUTION_ENVIRONMENT
+        and task_class == "architecture-review"
+        and environment_architect_executor in ranked_by_key
+    ):
+        selected = ranked_by_key[str(environment_architect_executor)]
+        recommended_executor = str(environment_architect_executor)
+        for expert in experts:
+            if expert.get("name") == "architecture":
+                expert["recommended_executor"] = recommended_executor
+                expert["selected_executor"] = selected
+                expert["executor_policy_violations"] = selected.get("policy_violations", [])
+                expert["executor_candidates"] = ranked_executors
+        if primary.get("name") == "architecture":
+            primary = next((expert for expert in experts if expert.get("name") == "architecture"), primary)
+            route_primary = primary
     architecture_critic_contracts: list[dict[str, Any]] = []
     for key in requested_critic_keys:
         candidate = ranked_by_key.get(key)
@@ -812,7 +909,7 @@ def classify_work(
     dispatch_mode = selected.get("dispatch_mode")
     if selected.get("external"):
         route = "external-contract"
-    elif dispatch_mode in {"local_openai_compatible", "local_secure_review"}:
+    elif dispatch_mode in LOCAL_DISPATCH_MODES:
         route = "local-worker"
     elif recommended_executor in ["frontier_architect", "contractor_evaluator"]:
         route = "architect-review"
@@ -903,12 +1000,27 @@ def classify_work(
         "data_sensitivity": sensitivity,
         "dispatch_sensitivity": dispatch_sensitivity,
         "share_boundary": share_boundary,
+        "execution_environment": execution_environment_key,
+        "execution_environment_profile": execution_environment_summary(
+            execution_environment_key, execution_environment_config
+        ),
+        "project_manager_executor": environment_project_manager_executor,
+        "primary_architect_executor": environment_architect_executor,
+        "architecture_counter_review_executor": environment_counter_review_executor,
+        "architecture_authority": (
+            "glm-5.2-primary-architect"
+            if execution_environment_key == GLM_PRIMARY_EXECUTION_ENVIRONMENT
+            else "codex-frontier-architect"
+        ),
         "external_opt_in": external_ok,
         "disclosure_escalation_approved": allow_disclosure_escalation,
         "external_contract_allowed": route == "external-contract" and not hard_stops,
-        "local_worker_allowed": local_ok,
+        "local_worker_allowed": effective_local_ok,
+        "local_worker_opt_in_source": (
+            "execution-environment" if environment_implies_local_architect and not local_ok else "operator-flag" if local_ok else None
+        ),
         "prefer_local_worker": prefer_local,
-        "local_profile": local_profile,
+        "local_profile": effective_local_profile,
         "has_external_expert_contracts": bool(external_experts),
         "has_local_worker_contracts": bool(local_worker_experts),
         "external_experts": external_experts,
@@ -1011,10 +1123,7 @@ def expert_uses_external_contract(expert: dict[str, Any], fallback_executor: str
 
 
 def expert_uses_local_worker(expert: dict[str, Any], fallback_executor: str | None = None) -> bool:
-    return selected_executor_for_expert(expert, fallback_executor).get("dispatch_mode") in {
-        "local_openai_compatible",
-        "local_secure_review",
-    }
+    return selected_executor_for_expert(expert, fallback_executor).get("dispatch_mode") in LOCAL_DISPATCH_MODES
 
 
 def expert_review_lane(expert: dict[str, Any]) -> str:
@@ -1038,7 +1147,10 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
     executor = expert.get("recommended_executor") or selected.get("key") or route.get("recommended_executor")
     external = bool(selected.get("external"))
     dispatch_mode = selected.get("dispatch_mode")
-    local_worker = dispatch_mode in {"local_openai_compatible", "local_secure_review"}
+    local_worker = dispatch_mode in LOCAL_DISPATCH_MODES
+    contract = expert.get("contractor_contract") if isinstance(expert.get("contractor_contract"), dict) else {}
+    contract_acceptance_required = bool(contract.get("acceptance_required"))
+    contract_codex_pickup = contract.get("codex_pickup")
     metadata = {
         "expert": expert.get("name"),
         "discipline": expert.get("discipline"),
@@ -1051,13 +1163,15 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
         "provider_family": selected.get("provider_family"),
         "provider_trust_tier": selected.get("provider_trust_tier"),
         "executor_policy_violations": expert.get("executor_policy_violations", []),
-        "codex_pickup": "forbidden" if external or local_worker else selected.get("codex_pickup", "allowed"),
+        "codex_pickup": (
+            contract_codex_pickup
+            or ("forbidden" if external or local_worker else selected.get("codex_pickup", "allowed"))
+        ),
         "architect_review_required": True,
-        "acceptance_bead_required": external or local_worker,
+        "acceptance_bead_required": external or local_worker or contract_acceptance_required,
         "validation_gate_required": bool(expert.get("validation_gate_required")),
         "gate_scope": expert.get("gate_scope"),
     }
-    contract = expert.get("contractor_contract") if isinstance(expert.get("contractor_contract"), dict) else {}
     if contract:
         metadata["architecture_critic_contract"] = {
             key: value

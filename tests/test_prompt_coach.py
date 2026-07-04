@@ -332,6 +332,27 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("model-synthesis=accepted", result["enabled_levers"])
         self.assertIn("model-synthesis-lane", result["enabled_levers"])
 
+    def test_glm_primary_environment_is_visible_in_coach_output(self) -> None:
+        result = coach_orchestration_prompt(
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            requested_roles=["architecture"],
+            execution_environment="connected-codex-glm-primary",
+            model_synthesis=True,
+        )
+
+        self.assertEqual(result["route"]["execution_environment"], "connected-codex-glm-primary")
+        self.assertIn("execution-environment=connected-codex-glm-primary", result["enabled_levers"])
+        self.assertIn(
+            "primary-architect=openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+            result["enabled_levers"],
+        )
+        self.assertIn("project-manager=codex_project_manager", result["enabled_levers"])
+        self.assertIn("Primary architect: openshift_ai_vllm_glm_5_2_bf16_primary_architect", result["paste_ready_prompt"])
+        self.assertEqual(
+            result["model_synthesis"]["synthesis_owner"],
+            "openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+        )
+
     def test_generic_weigh_in_does_not_coach_chatgpt_master_review(self) -> None:
         result = coach_orchestration_prompt(
             "Have someone weigh in on this plan.",

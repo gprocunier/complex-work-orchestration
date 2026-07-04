@@ -158,6 +158,40 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("CWO synthesis packet", envelope["model_profile_details"]["benchmark_gate"])
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
 
+    def test_connected_glm_primary_environment_splits_pm_architect_and_counter_review(self) -> None:
+        environment = execution_environment_registry()["profiles"]["connected-codex-glm-primary"]
+        bindings = environment["role_bindings"]
+
+        self.assertEqual(bindings["project_manager"]["executor"], "codex_project_manager")
+        self.assertEqual(bindings["architect"]["executor"], "openshift_ai_vllm_glm_5_2_bf16_primary_architect")
+        self.assertEqual(bindings["architecture_counter_review"]["executor"], "codex_5_5_xhigh_architecture_critic")
+
+        architect = build_harness_dispatch(
+            task="Review a GLM-primary architecture plan.",
+            dispatch_id="dispatch-test",
+            environment_key="connected-codex-glm-primary",
+            role="architect",
+            bead_id="cwo-test",
+        )
+        self.assertEqual(architect["harness"], "manual_operator")
+        self.assertEqual(architect["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(architect["model"], "glm-5.2-bf16-128k")
+        self.assertTrue(architect["model_profile_details"]["thinking_enabled"])
+        self.assertFalse(architect["execution_enabled"])
+        self.assertEqual(validate_harness_dispatch_envelope(architect), [])
+
+        pm = build_harness_dispatch(
+            task="Coordinate the same run.",
+            dispatch_id="dispatch-test-pm",
+            environment_key="connected-codex-glm-primary",
+            role="project_manager",
+            bead_id="cwo-test",
+        )
+        self.assertEqual(pm["harness"], "codex_cli")
+        self.assertIsNone(pm["model_profile"])
+        self.assertIn("Codex conversation", pm["suggested_command"])
+        self.assertEqual(validate_harness_dispatch_envelope(pm), [])
+
     def test_explicit_model_profile_can_select_workerbee_model(self) -> None:
         envelope = build_harness_dispatch(
             task="Review command examples.",

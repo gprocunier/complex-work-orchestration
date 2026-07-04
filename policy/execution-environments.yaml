@@ -26,6 +26,33 @@
       },
       "notes": "Current production-quality path. Codex owns architecture and integration while optional local or external lanes return evaluated evidence."
     },
+    "connected-codex-glm-primary": {
+      "display_name": "Connected Codex PM plus GLM-5.2 Primary Architect",
+      "mode": "connected",
+      "default_harness": "codex_cli",
+      "allowed_harnesses": ["codex_cli", "manual_operator", "opencode"],
+      "allowed_providers": ["internal_codex", "openshift_ai_vllm", "local_inference", "anthropic_manual", "google_gemini_manual", "openai_manual"],
+      "role_bindings": {
+        "project_manager": {"harness": "codex_cli", "executor": "codex_project_manager"},
+        "architect": {"harness": "manual_operator", "executor": "openshift_ai_vllm_glm_5_2_bf16_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
+        "architecture_counter_review": {"harness": "codex_cli", "executor": "codex_5_5_xhigh_architecture_critic"},
+        "worker": {"harness": "codex_cli", "executor": "internal_worker"},
+        "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "local_secure_reviewer": {"harness": "manual_operator", "executor": "openshift_ai_vllm_secure_reviewer", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
+        "synthesis_input": {"harness": "manual_operator", "executor": "openshift_ai_vllm_glm_5_2_bf16_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
+        "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_5_5_extended_reasoning_browser"}
+      },
+      "constraints": {
+        "network": "available",
+        "external_contracting": "opt-in-redacted-by-default",
+        "beads_required": true,
+        "repo_write_requires": "Codex PM applies changes only after GLM architect output, evaluator/synthesis evidence, and required adjudication are recorded",
+        "secret_handling": "no secrets in dispatch artifacts",
+        "execution_lifecycle_owner": "CWO",
+        "concurrent_bead_execution": "disabled-by-default"
+      },
+      "notes": "Experimental first-pass path for airgap preparation. Codex shell coordinates as PM; GLM-5.2 BF16 Thinking owns architecture decisions as no-write local evidence; Codex 5.5 x-high becomes an internal second-opinion lane."
+    },
     "connected-opencode-exemplar": {
       "display_name": "Connected OpenCode Exemplar",
       "mode": "connected",
@@ -135,7 +162,7 @@
       "allowed_providers": ["openshift_ai_vllm", "local_inference"],
       "role_bindings": {
         "architect": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
-        "project_manager": {"harness": "opencode", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
+        "project_manager": {"harness": "opencode", "model_profile": "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4"},
         "worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-worker-qwen2-5-coder-32b-fp8"},
         "review_worker": {"harness": "opencode", "agent": "cwo-review", "model_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8"},
         "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},

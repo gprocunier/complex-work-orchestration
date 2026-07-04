@@ -164,6 +164,14 @@ Default roles:
   input when evaluator scoring and architect adjudication accept it. It sends
   thinking-enabled request options but strips raw thinking from usable returns,
   Beads, audit events, public docs, and synthesis artifacts.
+- **GLM-5.2 BF16 Primary Architect Bridge**: opt-in execution environment
+  `connected-codex-glm-primary`. The Codex shell acts as project manager,
+  `openshift_ai_vllm_glm_5_2_bf16_primary_architect` owns the architecture
+  plan as local read-only evidence, and
+  `codex_5_5_xhigh_architecture_critic` becomes the Codex 5.5 x-high
+  counter-review lane. GLM still has no shell, web, or repo-write authority;
+  Codex applies changes only after evaluator, synthesis, and adjudication gates
+  accept the work.
 - **Execution Environment**: v2 policy profile that names the harness,
   provider boundary, role bindings, and constraints for a deployment zone.
   Codex CLI is the connected default. OpenCode is the first open-source
@@ -202,6 +210,17 @@ conflicting findings back to the architect.
 
 ```bash
 python3 scripts/coach_prompt.py "<task text>"
+```
+
+   To test the GLM-primary architecture hierarchy while keeping Codex as the
+   project-manager shell, select the experimental environment explicitly:
+
+```bash
+python3 scripts/route_work.py \
+  --execution-environment connected-codex-glm-primary \
+  --model-synthesis \
+  --requested-role architecture \
+  "<task text>"
 ```
 
    Use the coach output to avoid under- or over-leveraging Beads, contractors,

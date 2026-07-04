@@ -71,6 +71,10 @@ def main() -> None:
     parser.add_argument("--stage", help="Review stage such as pre-implementation, implementation-review, or pre-release.")
     parser.add_argument("--unattended", action="store_true", help="Penalize manual dispatch executors.")
     parser.add_argument(
+        "--execution-environment",
+        help="Select a CWO execution environment profile such as connected-codex-glm-primary.",
+    )
+    parser.add_argument(
         "--model-synthesis",
         action="store_true",
         help="Treat model synthesis as accepted opt-in and activate the CWO-native synthesis lane.",
@@ -106,6 +110,7 @@ def main() -> None:
         file_paths=args.file_path,
         stage=args.stage,
         unattended=args.unattended,
+        execution_environment=args.execution_environment,
         model_synthesis=args.model_synthesis,
         scaffold_size=args.scaffold_size,
         beads_context_depth=args.beads_context_depth,

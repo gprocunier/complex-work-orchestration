@@ -208,6 +208,37 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
         self.assertNotIn("evaluation", by_lane)
 
+    def test_glm_primary_environment_scaffold_has_pm_architect_counter_review_and_reports(self) -> None:
+        route = classify_work(
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            requested_roles=["architecture"],
+            execution_environment="connected-codex-glm-primary",
+            model_synthesis=True,
+        )
+        graph = planned_graph("GLM Primary Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        self.assertIn("pm", by_lane)
+        self.assertIn("expert-review-architecture", by_lane)
+        self.assertIn("expert-review-architecture-critic-codex-5-5-xhigh-architecture-critic", by_lane)
+        self.assertIn("model-synthesis", by_lane)
+        self.assertIn("wrap-up-report", by_lane)
+        self.assertIn("dashboard-report", by_lane)
+        self.assertEqual(
+            by_lane["expert-review-architecture"]["metadata"]["selected_executor"]["key"],
+            "openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+        )
+        self.assertEqual(
+            by_lane["expert-review-architecture-critic-codex-5-5-xhigh-architecture-critic"]["metadata"]["executor"],
+            "codex_5_5_xhigh_architecture_critic",
+        )
+        self.assertEqual(
+            by_lane["model-synthesis"]["metadata"]["model_synthesis"]["synthesis_owner"],
+            "openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+        )
+        self.assertIn("docs", by_lane["wrap-up-report"]["depends_on_lanes"])
+        self.assertIn("validation", by_lane["dashboard-report"]["depends_on_lanes"])
+
     def test_high_risk_architect_review_route_adds_architect_adjudication(self) -> None:
         route = classify_work(
             "Architect a high-risk cross-cutting policy migration for route behavior.",
