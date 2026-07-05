@@ -22,6 +22,7 @@ NUMERIC_FIELDS = {
     "total_tokens",
     "active_seconds",
     "elapsed_seconds",
+    "prompt_chars",
 }
 STRING_FIELDS = {
     "dispatch_id",

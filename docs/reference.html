@@ -364,6 +364,7 @@ python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;
 python3 scripts/cleanup_stale_agents.py --json
 python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
 python3 scripts/configure_codex_beads_hooks.py --project-dir . --mode full-context --json
+scripts/launch_chatgpt_cdp_chrome.sh --write-config
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --confirm-only --json
 python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"

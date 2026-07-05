@@ -24,6 +24,7 @@ from chatgpt_browser_review import (  # noqa: E402
     PlaywrightChatGPTRunner,
     build_result,
     config_summary,
+    enforce_prompt_size,
     extract_chatgpt_share_url,
     load_browser_config,
     load_prompt_from_args,
@@ -142,6 +143,11 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         finally:
             path.unlink(missing_ok=True)
 
+    def test_prompt_size_guard_rejects_oversized_browser_prompt(self) -> None:
+        with self.assertRaises(SystemExit) as context:
+            enforce_prompt_size("x" * 51, {"max_prompt_chars": 50})
+        self.assertIn("Build a compact packet", str(context.exception))
+
     def test_dry_run_audit_records_sanitized_browser_telemetry(self) -> None:
         original_audit = audit_lib.AUDIT_LOG
         original_argv = sys.argv[:]
@@ -177,6 +183,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 self.assertEqual(events[0]["telemetry_kind"], "browser_rehearsal")
                 self.assertEqual(events[0]["agent_model_calls"], 0)
                 self.assertEqual(events[0]["model_label"], "ChatGPT Pro 5.5")
+                self.assertEqual(events[0]["prompt_chars"], len("Review this bounded packet."))
                 self.assertNotIn("prompt", events[0])
                 self.assertNotIn("share_url", events[0])
             finally:

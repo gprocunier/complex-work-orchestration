@@ -70,10 +70,35 @@ def count_audit_events(
                 continue
             reserved.add((dispatch_id, packet_sha256 or str(event.get("event_hash") or "")))
             continue
+        if is_pre_submission_browser_failure(event):
+            continue
         consumed_events.add(str(event.get("event_hash") or json.dumps(event, sort_keys=True)))
         if packet_sha256:
             consumed_reserved.add((dispatch_id, packet_sha256))
     return len(consumed_events) + len(reserved - consumed_reserved)
+
+
+def is_pre_submission_browser_failure(event: dict[str, Any]) -> bool:
+    if event.get("event_type") != "chatgpt_browser_dispatch":
+        return False
+    status = str(event.get("telemetry_status") or event.get("status") or "").lower()
+    if status != "failed":
+        return False
+    failure_stage = str(event.get("failure_stage") or "").lower()
+    pre_submit_stages = {
+        "browser-start",
+        "page-load",
+        "prompt-ready",
+        "model-selection",
+        "model-confirmation",
+        "prompt-submit",
+    }
+    if failure_stage not in pre_submit_stages:
+        return False
+    if event.get("share_url_present"):
+        return False
+    response_chars = event.get("response_chars")
+    return response_chars in (None, 0, "0")
 
 
 def enforce_contracting_quota(

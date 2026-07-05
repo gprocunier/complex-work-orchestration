@@ -646,6 +646,10 @@ binding, and expert profile for outside or local review.
   master-plan review with `chatgpt_pro_5_5_extended_reasoning_browser`.
   Configure it with `CWO_CHATGPT_BROWSER_CONFIG`; keep the config outside the
   repository with operator-managed browser authentication and mode `0600`.
+- `scripts/launch_chatgpt_cdp_chrome.sh`: systemd/Wayland launcher for the
+  ChatGPT Pro browser lane. It starts the dedicated Chrome profile with a
+  localhost CDP port and can write the safe local browser config used by
+  `chatgpt_browser_review.py`.
 - `scripts/ingest_chatgpt_share_return.py`: read the resulting ChatGPT share
   link through the local `chatgpt-share-local-reader` skill and render a
   contractor-return template for evaluation.
@@ -1598,6 +1602,8 @@ Chrome profile that can already use ChatGPT. Never put Google credentials,
 browser session material, packet secrets, or private repo content in prompts,
 Beads comments, audit logs, or public docs. The helper logs hashes and status,
 not prompt text, credentials, browser profile paths, or local config paths.
+The durable launch and recovery runbook is
+`references/chatgpt-pro-browser.md`.
 
 ChatGPT Pro master reviews are fail-closed by default. With
 `require_model_confirmation` enabled, the helper refuses to submit the prompt
@@ -1609,6 +1615,10 @@ valid master-review evidence only when the dispatch JSON includes a confirmed
 the model and effort confirmation is fixed.
 Use `--confirm-only` to prove the live browser attestation before submitting the
 packet.
+Keep the rendered browser prompt compact. The browser helper rejects prompts
+above `max_prompt_chars` before opening or touching Chrome; the default limit is
+`50000`. If a packet renders larger than that, build a compact
+`--snippet-file` plan bundle instead of retrying the visible browser.
 
 When the user explicitly asks for ChatGPT Pro 5.5 master review before
 execution, treat it as a blocking ChatGPT Pro gate, not a best-effort opinion.
@@ -1623,13 +1633,15 @@ Minimal local config shape:
 
 ```json
 {
-  "chrome_user_data_dir": "/path/to/operator/chatgpt-profile",
+  "connect_over_cdp_url": "http://127.0.0.1:9222",
   "model_label": "ChatGPT Pro 5.5",
   "reasoning_label": "Extended Reasoning",
   "require_model_confirmation": true,
+  "max_prompt_chars": 50000,
+  "local_clipboard_fallback": true,
   "selectors": {
-    "model_label_confirmation_selector": "<selector for the visible model control>",
-    "reasoning_label_confirmation_selector": "<selector for the visible effort control>"
+    "model_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']",
+    "reasoning_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']"
   }
 }
 ```
@@ -1638,20 +1650,22 @@ The confirmation selectors must match the current ChatGPT UI and expose the
 expected label through visible text, `aria-label`, or `title`. Use `--dry-run`
 to verify that `require_model_confirmation` is true and
 `model_confirmation_configured` is true before spending a Pro query.
-If Cloudflare or account prompts block automation-launched Chrome, start Chrome
-yourself with the same profile and a local debugging port, complete the prompt,
-then set `connect_over_cdp_url` to the local endpoint:
+If Cloudflare or account prompts block automation-launched Chrome, start the
+dedicated profile through the systemd/Wayland launcher, complete the prompt, and
+use the generated localhost CDP config:
 
 ```bash
-google-chrome-stable \
-  --user-data-dir="$HOME/.local/share/cwo/chatgpt-master-reviewer-profile" \
-  --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port=9222 \
-  --new-window https://chatgpt.com/
+scripts/launch_chatgpt_cdp_chrome.sh --write-config
+python3 scripts/chatgpt_browser_review.py \
+  --packet master-plan-review-packet.json \
+  --confirm-only \
+  --json
 ```
 
-The helper accepts only localhost CDP URLs and still rejects credential or
-session material in the config.
+Use `scripts/launch_chatgpt_cdp_chrome.sh --status`, `--replace`, or `--stop`
+for lifecycle control. The helper accepts only localhost CDP URLs and still
+rejects credential or session material in the config. Do not launch visible
+Chrome directly from Codex when a long-lived ChatGPT browser lane is needed.
 Current ChatGPT sharing UI may copy the public link directly to the local OS
 clipboard. The helper may read the local clipboard after pressing Share, but it
 accepts only validated ChatGPT share URLs and does not ask the ChatGPT page for
@@ -1661,7 +1675,7 @@ the helper tries to click a scroll-to-bottom control before opening Share. You
 can override the default bottom-jump selector with
 `selectors.scroll_to_bottom_button` in the local browser config.
 
-Last verified: June 18, 2026. ChatGPT UI labels, selectors, CDP behavior, and
+Last verified: July 5, 2026. ChatGPT UI labels, selectors, CDP behavior, and
 share-link behavior can drift. Re-run `--dry-run` and `--confirm-only` before
 each expensive review and update only the local config when labels change.
 If share-link creation fails, do not treat the browser text as accepted master

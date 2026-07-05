@@ -23,6 +23,7 @@ TELEMETRY_NUMERIC_FIELDS = {
     "local_error_body_chars",
     "raw_response_chars",
     "reasoning_chars",
+    "prompt_chars",
     "included_artifacts_count",
     "selected_snippets_count",
     "selected_snippet_lines",

@@ -38,6 +38,7 @@ DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
     "button[aria-label*='Go to bottom'], "
     "button[aria-label*='Go to latest']"
 )
+DEFAULT_MAX_PROMPT_CHARS = 50000
 LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
 FORBIDDEN_CONFIG_KEYS = {
     "google_email",
@@ -150,6 +151,26 @@ def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
         "model_confirmation_configured": confirmation_configured,
         "headless": bool(config.get("headless", False)),
     }
+
+
+def max_prompt_chars(config: dict[str, Any]) -> int:
+    raw = config.get("max_prompt_chars", DEFAULT_MAX_PROMPT_CHARS)
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise SystemExit("ChatGPT browser config max_prompt_chars must be an integer") from exc
+
+
+def enforce_prompt_size(prompt: str, config: dict[str, Any]) -> None:
+    limit = max_prompt_chars(config)
+    if limit <= 0:
+        return
+    prompt_chars = len(prompt)
+    if prompt_chars > limit:
+        raise SystemExit(
+            f"ChatGPT browser prompt is {prompt_chars} characters, above max_prompt_chars={limit}. "
+            "Build a compact packet or selected-snippet prompt before launching the browser."
+        )
 
 
 def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]]:
@@ -759,6 +780,7 @@ def build_result(
         "share_boundary": metadata.get("share_boundary"),
         "packet_sha256": metadata.get("packet_sha256"),
         "prompt_sha256": artifact_hash(prompt),
+        "prompt_chars": len(prompt),
         "config": config_summary(config, config_path),
         "share_url": (browser_result or {}).get("share_url"),
         "share_link_method": (browser_result or {}).get("share_link_method"),
@@ -804,6 +826,7 @@ def main() -> None:
     config_path = resolve_config_path(args.config)
     config = load_browser_config(config_path)
     prompt, metadata = load_prompt_from_args(args)
+    enforce_prompt_size(prompt, config)
     exit_message = ""
     if args.dry_run and args.confirm_only:
         raise SystemExit("--dry-run and --confirm-only are mutually exclusive")
@@ -906,6 +929,7 @@ def main() -> None:
                     job_description_label=result.get("job_description_label"),
                     expert_profile=result.get("expert_profile"),
                     elapsed_seconds=result.get("elapsed_seconds") if live_submission else None,
+                    prompt_chars=result.get("prompt_chars"),
                     response_chars=result.get("response_chars"),
                     share_url_sha256=safe_text_hash(result.get("share_url")),
                     share_url_chars=len(str(result.get("share_url") or "")) if result.get("share_url") else None,

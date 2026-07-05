@@ -94,6 +94,36 @@ class DispatchQuotaTests(unittest.TestCase):
             finally:
                 lib.AUDIT_LOG = original_audit
 
+    def test_pre_submission_chatgpt_browser_failures_do_not_consume_quota(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            try:
+                for index in range(5):
+                    lib.record_audit_event(
+                        {
+                            "event_type": "chatgpt_browser_dispatch",
+                            "quota_event_type": "external_manual_dispatch",
+                            "quota_stage": "consumed",
+                            "telemetry_status": "failed",
+                            "failure_stage": "prompt-submit",
+                            "dispatch_id": f"dispatch-browser-{index}",
+                            "epic_id": "epic-1",
+                            "executor_external": True,
+                            "packet_sha256": f"packet-{index}",
+                            "response_chars": 0,
+                            "share_url_present": False,
+                        }
+                    )
+                result = lib.enforce_contracting_quota(
+                    "epic-1",
+                    "chatgpt_pro_5_5_extended_reasoning_browser",
+                    "external-contract",
+                )
+                self.assertEqual(result["quota_remaining"], 4)
+            finally:
+                lib.AUDIT_LOG = original_audit
+
     def test_direct_dispatch_uses_stable_dispatch_id_for_quota_and_audit(self) -> None:
         original_audit = lib.AUDIT_LOG
         original_argv = sys.argv[:]

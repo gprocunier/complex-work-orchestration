@@ -279,13 +279,16 @@ claude --model claude-opus-4-6 --effort high \
               <li>Use the prompt coach from Codex and approve the redacted-packet boundary.</li>
               <li>Fill the plan packet with objective, Beads graph, sequence, evidence, validation, risks, and open questions.</li>
               <li>Install Playwright, keep Chrome available, and use <code>jq</code> for dispatch metadata extraction.</li>
+              <li>Use <code>scripts/launch_chatgpt_cdp_chrome.sh --write-config</code> for the systemd/Wayland browser profile and localhost CDP config.</li>
+              <li>Use <code>references/chatgpt-pro-browser.md</code> for the full ChatGPT Pro browser runbook.</li>
               <li>Keep the browser config outside the repo, not group/world accessible, and free of credentials or session material.</li>
+              <li>Keep prompts below <code>max_prompt_chars</code>; build a compact snippet packet instead of retrying a frozen visible browser.</li>
               <li>Run dry-run and confirm-only before submitting any slow or expensive Pro review.</li>
               <li>Accept the return only when the share URL, dispatch ID, packet hash, and model attestation all match.</li>
             </ol>
             <div class="callout">
               <strong>Last verified:</strong>
-              June 18, 2026. ChatGPT UI labels, selectors, CDP behavior, and
+              July 5, 2026. ChatGPT UI labels, selectors, CDP behavior, and
               share-link behavior can drift. Recheck the live browser with
               <code>--dry-run</code> and <code>--confirm-only</code> before each
               expensive review.

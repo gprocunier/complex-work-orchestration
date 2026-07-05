@@ -68,7 +68,9 @@ bodies, `experts/` for discipline calibration, `schemas/` for helper output
 contracts, `examples/` for smoke-test artifacts, `references/external-contracting.md`
 when posting or reviewing outside model contracts,
 `references/incident-response-playbook.md` for quarantine or suspected
-sabotage, `references/prompt-coach.md` when sizing the invocation,
+sabotage, `references/chatgpt-pro-browser.md` for ChatGPT Pro 5.5 Extended
+Reasoning browser launch, packet-size, CDP, and share-return operations,
+`references/prompt-coach.md` when sizing the invocation,
 `references/execution-environments.md` when selecting Codex, OpenCode,
 OpenShift AI vLLM, or manual execution environments,
 `references/zero-trust-consensus.md` when security-sensitive or explicitly
@@ -704,6 +706,12 @@ The browser config comes from `CWO_CHATGPT_BROWSER_CONFIG` or
 `0600` and operator-managed browser authentication. Do not put Google
 credentials, browser session material, or private packet content in prompts,
 Beads comments, audit logs, or public docs.
+For the durable operating recipe, including the Fedora Wayland/systemd launcher,
+read `references/chatgpt-pro-browser.md`. Prefer
+`scripts/launch_chatgpt_cdp_chrome.sh --write-config` over directly executing
+Chrome from Codex; it starts Chrome through `systemd-run --user`, uses the
+dedicated profile, writes a localhost-CDP config, and keeps the visible browser
+outside the launcher process lifetime.
 ChatGPT Pro reviews are expensive and slow, so the browser helper is
 fail-closed by default. With `require_model_confirmation` enabled, it must
 observe configured selectors proving both `model_label` and `reasoning_label`
@@ -713,16 +721,20 @@ evidence only when the dispatch result includes `model_attestation.status` of
 record the invalidation in Beads and do not use it to revise the plan. Use
 `--dry-run` before live Pro work and require
 `model_confirmation_configured: true` in the summary.
+Keep browser prompts compact. The browser helper refuses prompts above
+`max_prompt_chars` before launching or touching the browser; the default limit
+is `50000`. If the rendered prompt is too large, create a compact
+`--snippet-file` plan packet instead of retrying the visible browser.
 When the user explicitly asks for ChatGPT Pro 5.5 master review before
 execution, that review is a blocking gate. If model confirmation, dispatch,
 share-link ingest, return evaluation, or architect adjudication fails, stop
 before implementation and ask the operator to fix the lane or explicitly record
 a waiver/downgrade in Beads. Do not silently substitute Gemini, Opus, Deep
 Research, or a normal internal review for the requested Pro lane.
-When Cloudflare or account prompts require a normal browser session, launch
-Chrome manually with the dedicated profile and a localhost remote-debugging
-port, then set `connect_over_cdp_url` in the local config. CDP attach URLs must
-be unauthenticated localhost URLs; do not expose the debugging port remotely.
+When Cloudflare or account prompts require a normal browser session, launch the
+dedicated profile with `scripts/launch_chatgpt_cdp_chrome.sh` and set
+`connect_over_cdp_url` in the local config. CDP attach URLs must be
+unauthenticated localhost URLs; do not expose the debugging port remotely.
 If the ChatGPT sharing UI copies the public link directly to the OS clipboard,
 the helper may read the local clipboard after pressing Share and accept only a
 validated ChatGPT share URL. Do not grant ChatGPT page-side clipboard-read

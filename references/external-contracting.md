@@ -276,6 +276,11 @@ Google credentials, browser session data, packet secrets, or private repo
 content in Beads, prompts, audit logs, or public docs. Dispatch summaries report
 safe booleans and labels, not local config paths, browser profile paths, or CDP
 URLs.
+Use `references/chatgpt-pro-browser.md` as the durable ChatGPT Pro browser
+runbook. Prefer `scripts/launch_chatgpt_cdp_chrome.sh --write-config` over
+directly executing Chrome from Codex. The launcher uses `systemd-run --user`,
+Wayland/Ozone flags, a dedicated Chrome profile, a localhost CDP port, and a
+safe local config for `chatgpt_browser_review.py`.
 
 When the user explicitly requests ChatGPT Pro 5.5 master review before
 execution, this lane is a blocking ChatGPT Pro gate. If model confirmation,
@@ -296,11 +301,14 @@ Use `--dry-run` first and confirm the summary reports
 `model_confirmation_configured: true`; dry runs do not submit the prompt.
 Then run `--confirm-only` to prove the live browser has a confirmed
 `model_attestation` before spending a Pro query.
+Keep the rendered prompt compact. The browser helper rejects prompts above
+`max_prompt_chars` before opening or touching Chrome; the default limit is
+`50000`. If a packet renders larger than that, build a compact
+`--snippet-file` plan bundle instead of retrying the visible browser.
 If a normal browser session is required for Cloudflare or account prompts,
-start Chrome manually with `--remote-debugging-address=127.0.0.1` and
-`--remote-debugging-port=<port>`, complete the prompts, then set
-`connect_over_cdp_url` to that localhost endpoint. Never expose the debugging
-port remotely.
+start the dedicated profile with `scripts/launch_chatgpt_cdp_chrome.sh`, complete
+the prompts, then use the generated `connect_over_cdp_url` localhost endpoint.
+Never expose the debugging port remotely.
 If ChatGPT copies the public share URL directly to the OS clipboard, the helper
 may read the local clipboard after pressing Share. It accepts only validated
 ChatGPT share URLs and does not ask the ChatGPT page to read clipboard
@@ -308,7 +316,7 @@ contents.
 If a Pro response leaves the page above the final answer, the helper attempts
 to click ChatGPT's scroll-to-bottom control before opening Share. Override the
 default selector with `selectors.scroll_to_bottom_button` when the UI changes.
-Last verified: June 18, 2026. ChatGPT UI labels, selectors, CDP behavior, and
+Last verified: July 5, 2026. ChatGPT UI labels, selectors, CDP behavior, and
 share-link behavior can drift; run `--dry-run` and `--confirm-only` before each
 expensive master-review query and update only the local config when labels
 change.
