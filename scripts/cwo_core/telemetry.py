@@ -43,6 +43,7 @@ TELEMETRY_BOOLEAN_FIELDS = {
     "tls_ca_bundle_configured",
     "reasoning_stripped",
     "reasoning_malformed",
+    "response_truncated",
 }
 TELEMETRY_STRING_FIELDS = {
     "telemetry_kind",
@@ -69,6 +70,7 @@ TELEMETRY_STRING_FIELDS = {
     "failure_stage",
     "failure_reason_sha256",
     "share_url_sha256",
+    "prompt_sha256",
     "local_response_sha256",
     "local_error_body_sha256",
     "raw_response_sha256",
@@ -84,6 +86,82 @@ TELEMETRY_STRING_LIST_FIELDS = {
     "included_artifact_types",
     "selected_snippet_paths",
     "capability_requirements",
+    "finish_reasons",
+}
+
+AUDIT_NUMERIC_FIELDS = {
+    "acceptance_score",
+    "malpractice_score",
+    "quota_remaining",
+    "sabotage_score",
+}
+AUDIT_BOOLEAN_FIELDS = {
+    "executor_external",
+    "human_adjudication_required",
+    "implementation_blocked",
+    "peer_review_required",
+    "provider_external",
+    "quarantine_recommended",
+}
+AUDIT_STRING_FIELDS = {
+    "audit_lock_mode",
+    "bead_id",
+    "dispatch_id",
+    "dispatch_mode",
+    "disclosure_stage",
+    "epic_id",
+    "event_hash",
+    "event_type",
+    "executor",
+    "executor_key",
+    "hold_classification",
+    "local_profile",
+    "opt_in_basis",
+    "packet_sha256",
+    "peer_review_status",
+    "previous_event_hash",
+    "provider_key",
+    "provider_trust_tier",
+    "quota_event_type",
+    "quota_stage",
+    "recommended_disposition",
+    "share_boundary",
+    "timestamp",
+    "verdict",
+}
+AUDIT_STRING_LIST_FIELDS = {
+    "hold_reasons",
+    "provider_conflict_domains",
+}
+AUDIT_OBJECT_FIELDS = {
+    "workspace_mutation",
+}
+WORKSPACE_MUTATION_NUMERIC_FIELDS = {
+    "version",
+}
+WORKSPACE_MUTATION_BOOLEAN_FIELDS = {
+    "include_untracked",
+    "mutation_detected",
+    "require_clean",
+    "reverted",
+    "unexpected_mutation_detected",
+}
+WORKSPACE_MUTATION_STRING_FIELDS = {
+    "status_scope",
+    "workspace_mutation_report_type",
+}
+WORKSPACE_MUTATION_STRING_LIST_FIELDS = {
+    "allowed_paths",
+}
+WORKSPACE_MUTATION_CHANGE_LIST_FIELDS = {
+    "allowed_mutations",
+    "changes",
+    "unexpected_mutations",
+}
+WORKSPACE_MUTATION_CHANGE_FIELDS = {
+    "after",
+    "before",
+    "path",
 }
 
 SENSITIVE_AUDIT_FIELDS = {
@@ -141,13 +219,37 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
             if strings:
                 sanitized[key] = strings
             continue
-        sanitized[key] = value
+        if key in AUDIT_NUMERIC_FIELDS:
+            numeric = normalize_nonnegative_number(value)
+            if numeric is not None:
+                sanitized[key] = numeric
+            continue
+        if key in AUDIT_BOOLEAN_FIELDS:
+            if isinstance(value, bool):
+                sanitized[key] = value
+            continue
+        if key in AUDIT_STRING_FIELDS:
+            text = normalize_short_text(value)
+            if text is not None:
+                sanitized[key] = text
+            continue
+        if key in AUDIT_STRING_LIST_FIELDS:
+            strings = normalize_string_list(value)
+            if strings:
+                sanitized[key] = strings
+            continue
+        if key in AUDIT_OBJECT_FIELDS:
+            if key == "workspace_mutation":
+                workspace_mutation = sanitize_workspace_mutation(value)
+                if workspace_mutation is not None:
+                    sanitized[key] = workspace_mutation
+            continue
 
     if "total_tokens" not in sanitized:
         input_tokens = sanitized.get("input_tokens")
         output_tokens = sanitized.get("output_tokens")
-        if isinstance(input_tokens, (int, float)) or isinstance(output_tokens, (int, float)):
-            sanitized["total_tokens"] = (input_tokens or 0) + (output_tokens or 0)
+        if isinstance(input_tokens, (int, float)) and isinstance(output_tokens, (int, float)):
+            sanitized["total_tokens"] = input_tokens + output_tokens
     return sanitized
 
 
@@ -193,6 +295,54 @@ def normalize_string_list(value: Any, *, limit: int = 50) -> list[str]:
         if text is not None:
             strings.append(text)
     return strings
+
+
+def sanitize_workspace_mutation(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    sanitized: dict[str, Any] = {}
+    for key in WORKSPACE_MUTATION_NUMERIC_FIELDS:
+        numeric = normalize_nonnegative_number(value.get(key))
+        if numeric is not None:
+            sanitized[key] = numeric
+    for key in WORKSPACE_MUTATION_BOOLEAN_FIELDS:
+        candidate = value.get(key)
+        if isinstance(candidate, bool):
+            sanitized[key] = candidate
+    for key in WORKSPACE_MUTATION_STRING_FIELDS:
+        text = normalize_short_text(value.get(key))
+        if text is not None:
+            sanitized[key] = text
+    for key in WORKSPACE_MUTATION_STRING_LIST_FIELDS:
+        strings = normalize_string_list(value.get(key))
+        if strings:
+            sanitized[key] = strings
+    for key in WORKSPACE_MUTATION_CHANGE_LIST_FIELDS:
+        changes = sanitize_workspace_mutation_changes(value.get(key))
+        if changes:
+            sanitized[key] = changes
+    return sanitized or None
+
+
+def sanitize_workspace_mutation_changes(value: Any) -> list[dict[str, str | None]]:
+    if not isinstance(value, list):
+        return []
+    sanitized: list[dict[str, str | None]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        change: dict[str, str | None] = {}
+        for key in WORKSPACE_MUTATION_CHANGE_FIELDS:
+            candidate = item.get(key)
+            if candidate is None:
+                change[key] = None
+                continue
+            text = normalize_short_text(candidate)
+            if text is not None:
+                change[key] = text
+        if change:
+            sanitized.append(change)
+    return sanitized
 
 
 def safe_text_hash(value: Any) -> str | None:

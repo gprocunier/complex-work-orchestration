@@ -348,7 +348,10 @@ def main() -> None:
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
+    parser.add_argument("--rehearsal", action="store_true", help="Allow no-audit packet rehearsals that must not consume audit quota.")
     args = parser.parse_args()
+    if not args.audit and not args.rehearsal:
+        raise SystemExit("--no-audit is allowed only with --rehearsal for packet build tests or rehearsals")
 
     bead_json = json.loads(Path(args.bead_json_file).read_text(encoding="utf-8")) if args.bead_json_file else show_bead_json(args.bead)
     labels = extract_labels(bead_json)
@@ -397,26 +400,6 @@ def main() -> None:
     if packet_errors:
         raise SystemExit("contractor packet validation failed before render: " + "; ".join(packet_errors))
     rendered = json.dumps(packet, indent=2, sort_keys=True) if args.format == "json" else packet_markdown(packet)
-    if args.output:
-        output_path = assert_safe_output_path(Path(args.output))
-        atomic_write_text(output_path, rendered)
-        if args.attest_packet:
-            attestation_path = assert_safe_output_path(output_path.with_suffix(output_path.suffix + ".attestation.json"))
-            attestation = make_attestation(
-                subject_type="contractor-packet",
-                subject_sha256=artifact_hash(rendered),
-                subject_id=packet["dispatch_id"],
-                predicate={
-                    "bead_id": args.bead,
-                    "executor": args.executor,
-                    "share_boundary": args.share_boundary,
-                    "disclosure_stage": packet["disclosure_stage"],
-                    "packet_sha256": packet["packet_sha256"],
-                },
-            )
-            atomic_write_text(attestation_path, json.dumps(attestation, indent=2, sort_keys=True))
-    else:
-        print(rendered)
     if args.audit:
         included_artifacts = packet.get("included_artifacts") if isinstance(packet.get("included_artifacts"), list) else []
         selected_snippets = packet.get("selected_snippets") if isinstance(packet.get("selected_snippets"), list) else []
@@ -458,6 +441,26 @@ def main() -> None:
                 ),
             }
         )
+    if args.output:
+        output_path = assert_safe_output_path(Path(args.output))
+        atomic_write_text(output_path, rendered)
+        if args.attest_packet:
+            attestation_path = assert_safe_output_path(output_path.with_suffix(output_path.suffix + ".attestation.json"))
+            attestation = make_attestation(
+                subject_type="contractor-packet",
+                subject_sha256=artifact_hash(rendered),
+                subject_id=packet["dispatch_id"],
+                predicate={
+                    "bead_id": args.bead,
+                    "executor": args.executor,
+                    "share_boundary": args.share_boundary,
+                    "disclosure_stage": packet["disclosure_stage"],
+                    "packet_sha256": packet["packet_sha256"],
+                },
+            )
+            atomic_write_text(attestation_path, json.dumps(attestation, indent=2, sort_keys=True))
+    else:
+        print(rendered)
 
 
 if __name__ == "__main__":

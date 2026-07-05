@@ -71,12 +71,41 @@ def extract_assistant_text(payload: dict[str, Any]) -> tuple[str, dict[str, Any]
     assistant_messages = [
         item for item in messages if isinstance(item, dict) and str(item.get("role", "")).lower() == "assistant"
     ]
-    selected = assistant_messages[-1] if assistant_messages else messages[-1]
-    text = selected.get("text") if isinstance(selected, dict) else None
+    if assistant_messages:
+        selected = assistant_messages[-1]
+        selected_text = selected.get("text")
+        if not isinstance(selected_text, str) or not selected_text.strip():
+            text = None
+        elif len(assistant_messages) == 1:
+            text = selected_text.strip()
+        else:
+            selected_id = str(selected.get("id") or "n/a")
+            primary = f"## Primary assistant message (id={selected_id})\n\n{selected_text.strip()}"
+            archived: list[str] = []
+            for index, item in enumerate(assistant_messages[:-1], 1):
+                archived_text = item.get("text")
+                if not isinstance(archived_text, str) or not archived_text.strip():
+                    continue
+                message_id = str(item.get("id") or "n/a")
+                archived.append(
+                    f"### Earlier assistant message {index} of {len(assistant_messages) - 1} "
+                    f"(id={message_id}; archival, not primary review)\n\n{archived_text.strip()}"
+                )
+            archive = "\n\n---\n\n".join(archived)
+            text = primary if not archive else primary + "\n\n---\n\n## Earlier Assistant Message Archive\n\n" + archive
+    else:
+        selected = messages[-1]
+        text = selected.get("text") if isinstance(selected, dict) else None
     if not isinstance(text, str) or not text.strip():
         raise SystemExit("ChatGPT share reader did not expose assistant text")
     return text.strip(), {
         "message_id": selected.get("id") if isinstance(selected, dict) else None,
+        "assistant_message_ids": [
+            item.get("id")
+            for item in assistant_messages
+            if isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("id")
+        ],
+        "assistant_message_count": len(assistant_messages),
         "role": selected.get("role") if isinstance(selected, dict) else None,
         "content_type": selected.get("content_type") if isinstance(selected, dict) else None,
         "message_count": len(messages),

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import ipaddress
 import json
 import os
@@ -67,6 +68,68 @@ class NoRedirectHandler(request.HTTPRedirectHandler):
         return None
 
 
+class PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, *args: Any, pinned_address: str, **kwargs: Any) -> None:
+        self._cwo_pinned_address = pinned_address
+        super().__init__(*args, **kwargs)
+
+    def connect(self) -> None:
+        self.sock = self._create_connection(
+            (self._cwo_pinned_address, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        if self._tunnel_host:
+            self._tunnel()
+
+
+class PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args: Any, pinned_address: str, **kwargs: Any) -> None:
+        self._cwo_pinned_address = pinned_address
+        super().__init__(*args, **kwargs)
+
+    def connect(self) -> None:
+        sock = self._create_connection(
+            (self._cwo_pinned_address, self.port),
+            self.timeout,
+            self.source_address,
+        )
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+            sock = self.sock
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class PinnedHTTPHandler(request.HTTPHandler):
+    def __init__(self, pinned_address: str) -> None:
+        self._cwo_pinned_address = pinned_address
+        super().__init__()
+
+    def http_open(self, req: request.Request) -> Any:
+        return self.do_open(
+            lambda host, **kwargs: PinnedHTTPConnection(host, pinned_address=self._cwo_pinned_address, **kwargs),
+            req,
+        )
+
+
+class PinnedHTTPSHandler(request.HTTPSHandler):
+    def __init__(self, pinned_address: str, context: ssl.SSLContext | None = None) -> None:
+        self._cwo_pinned_address = pinned_address
+        super().__init__(context=context)
+
+    def https_open(self, req: request.Request) -> Any:
+        return self.do_open(
+            lambda host, **kwargs: PinnedHTTPSConnection(
+                host,
+                pinned_address=self._cwo_pinned_address,
+                context=self._context,
+                **kwargs,
+            ),
+            req,
+        )
+
+
 def local_executor_fallback(executor_key: str) -> dict[str, Any]:
     executor = load_policy("executor-registry").get("executors", {}).get(executor_key, {})
     return dict(executor) if isinstance(executor, dict) else {}
@@ -108,7 +171,7 @@ def _resolve_local_endpoint_addresses(host: str, port: int | None) -> list[ipadd
     return unique
 
 
-def validate_local_endpoint_base_url(base_url: str, *, allow_private_dns: bool = False) -> None:
+def validate_local_endpoint_base_url(base_url: str, *, allow_private_dns: bool = False) -> list[str]:
     try:
         parsed = urlparse(base_url)
         port = parsed.port
@@ -139,6 +202,21 @@ def validate_local_endpoint_base_url(base_url: str, *, allow_private_dns: bool =
         )
     if parsed.scheme == "http" and not all(ip.is_loopback for ip in addresses):
         raise SystemExit("local endpoint may use http only for loopback addresses; use https for private network endpoints")
+    return [str(ip) for ip in addresses]
+
+
+def pinned_local_endpoint_address(base_url: str, *, allow_private_dns: bool = False) -> str | None:
+    parsed = urlparse(base_url)
+    hostname = (parsed.hostname or "").lower()
+    try:
+        ipaddress.ip_address(hostname)
+        literal_host = True
+    except ValueError:
+        literal_host = False
+    addresses = validate_local_endpoint_base_url(base_url, allow_private_dns=allow_private_dns)
+    if literal_host or hostname == "localhost":
+        return None
+    return addresses[0]
 
 
 def local_tls_settings(transport: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
@@ -274,7 +352,21 @@ def sanitize_local_response_payload(payload: Any, thinking_parser: str | None) -
         "reasoning_malformed": False,
         "reasoning_chars": 0,
         "reasoning_sha256": None,
+        "response_truncated": False,
+        "finish_reasons": [],
     }
+    if isinstance(payload, dict):
+        choices = payload.get("choices")
+        if isinstance(choices, list):
+            for choice in choices:
+                if not isinstance(choice, dict):
+                    continue
+                finish_reason = choice.get("finish_reason")
+                if isinstance(finish_reason, str) and finish_reason.strip():
+                    reason = finish_reason.strip()
+                    metadata["finish_reasons"].append(reason)
+                    if reason == "length":
+                        metadata["response_truncated"] = True
     if thinking_parser != "glm-think-tags" or not isinstance(payload, dict):
         return payload, metadata
 
@@ -384,7 +476,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     model = transport.get("model")
     if not model:
         raise SystemExit(f"--execute-local requires --local-model or ${transport.get('model_env')}")
-    validate_local_endpoint_base_url(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
+    pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
     api_key_env = str(transport.get("api_key_env") or "")
     validate_local_api_key_env_name(api_key_env)
     payload = {
@@ -408,7 +500,12 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     try:
         opener_handlers: list[Any] = [NoRedirectHandler, request.ProxyHandler({})]
         context = local_ssl_context(str(base_url), transport, args)
-        if context is not None:
+        scheme = urlparse(str(base_url)).scheme
+        if pinned_address and scheme == "https":
+            opener_handlers.append(PinnedHTTPSHandler(pinned_address, context=context))
+        elif pinned_address and scheme == "http":
+            opener_handlers.append(PinnedHTTPHandler(pinned_address))
+        elif context is not None:
             opener_handlers.append(request.HTTPSHandler(context=context))
         opener = request.build_opener(*opener_handlers)
         with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
@@ -470,6 +567,8 @@ def local_response_telemetry(local_response: dict[str, Any] | None) -> dict[str,
         reasoning_malformed=local_response.get("reasoning_malformed"),
         reasoning_chars=local_response.get("reasoning_chars"),
         reasoning_sha256=local_response.get("reasoning_sha256"),
+        response_truncated=local_response.get("response_truncated"),
+        finish_reasons=local_response.get("finish_reasons"),
     )
 
 

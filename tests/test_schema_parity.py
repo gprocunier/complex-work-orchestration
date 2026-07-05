@@ -130,6 +130,21 @@ class SchemaParityTests(unittest.TestCase):
             self.assertIn(field, model_synthesis["required"])
             self.assertIn(field, model_synthesis["properties"])
 
+    def test_route_schema_has_blocking_review_contract(self) -> None:
+        schema = load_schema("route-result.schema.json")
+        properties = schema["properties"]
+        for field in [
+            "blocking_review_required",
+            "blocking_review_active",
+            "blocking_review_gate",
+            "blocking_review_executor",
+            "blocking_review_job_description_label",
+            "blocking_review_waiver_required",
+            "blocking_review_failure_behavior",
+            "blocking_review_required_evidence",
+        ]:
+            self.assertIn(field, properties)
+
     def test_opt_in_schema_supports_allowed_providers(self) -> None:
         properties = load_schema("opt-in-record.schema.json")["properties"]
         self.assertIn("allowed_providers", properties)

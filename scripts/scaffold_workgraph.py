@@ -735,8 +735,8 @@ def beads_graph_plan(plan: list[dict[str, Any]]) -> dict[str, list[dict[str, Any
 def try_dep(blocked: str, blocker: str) -> None:
     try:
         add_dependency(blocked, blocker)
-    except SystemExit as exc:
-        print(f"warning: could not add dependency {blocked} -> {blocker}: {exc}")
+    except (SystemExit, Exception) as exc:
+        raise SystemExit(f"could not add dependency {blocked} -> {blocker}: {exc}") from exc
 
 
 def recovery_summary(created: dict[str, str], failed_step: str, error: object) -> str:

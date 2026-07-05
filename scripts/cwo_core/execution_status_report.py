@@ -1116,9 +1116,9 @@ def _total_tokens(record: dict[str, Any]) -> int | float | None:
                 return nested
     input_tokens = _tokens(record, ("input_tokens", "prompt_tokens"), "input")
     output_tokens = _tokens(record, ("output_tokens", "completion_tokens"), "output")
-    if input_tokens is None and output_tokens is None:
+    if input_tokens is None or output_tokens is None:
         return None
-    return (input_tokens or 0) + (output_tokens or 0)
+    return input_tokens + output_tokens
 
 
 def _numeric(record: dict[str, Any], keys: tuple[str, ...]) -> int | float | None:

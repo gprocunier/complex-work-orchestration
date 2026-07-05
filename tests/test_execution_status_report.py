@@ -198,6 +198,28 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertIn("Top gaps:", rendered)
         self.assertIn("?", rendered)
 
+    def test_partial_token_usage_does_not_report_misleading_total(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "partial-token-usage",
+                    "event_type": "dispatch",
+                    "timestamp": "2026-07-03T12:00:00Z",
+                    "bead_id": "cwo-5",
+                    "executor_key": "frontier_architect",
+                    "status": "completed",
+                    "calls": 1,
+                    "input_tokens": 500,
+                }
+            ],
+        )
+
+        summary = report["executive_summary"]
+        self.assertEqual(summary["agent_model_calls"], "1")
+        self.assertEqual(summary["total_tokens"], "?")
+        gaps = report["telemetry_gaps"]
+        self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
+
     def test_expanded_renderer_fans_out_long_values_without_ellipsis(self) -> None:
         long_profile = "contract-jd-operator-calibrated-execution"
         long_agent = "chatgpt_pro_5_5_extended_reasoning_browser"

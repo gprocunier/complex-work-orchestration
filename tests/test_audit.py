@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -44,6 +45,7 @@ class AuditTests(unittest.TestCase):
                     "prompt": "LEAK_PROMPT",
                     "response": {"content": "LEAK_RESPONSE"},
                     "share_url": "https://chatgpt.com/s/t_secret",
+                    "unsafe_new_field": "not in the reporting contract",
                     "input_tokens": 8,
                     "output_tokens": 13,
                 },
@@ -53,7 +55,67 @@ class AuditTests(unittest.TestCase):
             self.assertNotIn("prompt", loaded)
             self.assertNotIn("response", loaded)
             self.assertNotIn("share_url", loaded)
+            self.assertNotIn("unsafe_new_field", loaded)
             self.assertEqual(loaded["total_tokens"], 21)
+
+    def test_audit_event_does_not_infer_total_tokens_from_partial_usage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit = Path(tmp) / "audit.jsonl"
+            record_audit_event(
+                {
+                    "event_type": "dispatch",
+                    "dispatch_id": "dispatch-partial-usage",
+                    "bead_id": "example",
+                    "input_tokens": 8,
+                },
+                audit,
+            )
+            loaded = json.loads(audit.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(loaded["input_tokens"], 8)
+            self.assertNotIn("total_tokens", loaded)
+
+    def test_audit_event_sanitizes_workspace_mutation_object(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit = Path(tmp) / "audit.jsonl"
+            record_audit_event(
+                {
+                    "event_type": "return_evaluated",
+                    "dispatch_id": "dispatch-workspace-mutation",
+                    "bead_id": "example",
+                    "workspace_mutation": {
+                        "workspace_mutation_report_type": "git-status-diff",
+                        "version": 1,
+                        "status_scope": "tracked",
+                        "mutation_detected": True,
+                        "unexpected_mutation_detected": True,
+                        "before": {"tracked_status": ["LEAK_BEFORE"]},
+                        "after": {"tracked_status": ["LEAK_AFTER"]},
+                        "sensitive_file_content": "LEAK_SECRET",
+                        "unexpected_mutations": [
+                            {
+                                "path": "docs/styles.css",
+                                "before": None,
+                                "after": " M docs/styles.css",
+                                "secret": "LEAK_NESTED",
+                            }
+                        ],
+                    },
+                },
+                audit,
+            )
+            loaded = json.loads(audit.read_text(encoding="utf-8").splitlines()[0])
+            mutation = loaded["workspace_mutation"]
+            self.assertEqual(mutation["workspace_mutation_report_type"], "git-status-diff")
+            self.assertEqual(mutation["version"], 1)
+            self.assertTrue(mutation["mutation_detected"])
+            self.assertEqual(
+                mutation["unexpected_mutations"],
+                [{"after": "M docs/styles.css", "before": None, "path": "docs/styles.css"}],
+            )
+            self.assertNotIn("before", mutation)
+            self.assertNotIn("after", mutation)
+            self.assertNotIn("sensitive_file_content", mutation)
+            self.assertNotIn("secret", json.dumps(mutation))
 
     def test_record_audit_event_cli_accepts_telemetry_flags(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -157,9 +219,79 @@ class AuditTests(unittest.TestCase):
                     "--output",
                     str(output),
                     "--no-audit",
+                    "--rehearsal",
                 ]
                 build_contractor_packet.main()
                 self.assertFalse(lib.AUDIT_LOG.exists())
+            finally:
+                lib.AUDIT_LOG = original_audit
+                sys.argv = original_argv
+
+    def test_packet_build_no_audit_requires_rehearsal(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output = Path(tmp) / "packet.json"
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "complex-work-orchestration-example",
+                    "--bead-json-file",
+                    str(ROOT / "examples" / "sample-bead.json"),
+                    "--executor",
+                    "claude_code_manual",
+                    "--share-boundary",
+                    "redacted-packet",
+                    "--external-ok",
+                    "--dispatch-id",
+                    "dispatch-no-audit-blocked",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output),
+                    "--no-audit",
+                ]
+                with self.assertRaises(SystemExit) as context:
+                    build_contractor_packet.main()
+                self.assertIn("--rehearsal", str(context.exception))
+                self.assertFalse(output.exists())
+            finally:
+                lib.AUDIT_LOG = original_audit
+                sys.argv = original_argv
+
+    def test_packet_build_does_not_write_artifacts_when_audit_fails(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output = Path(tmp) / "packet.json"
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "complex-work-orchestration-example",
+                    "--bead-json-file",
+                    str(ROOT / "examples" / "sample-bead.json"),
+                    "--executor",
+                    "claude_code_manual",
+                    "--share-boundary",
+                    "redacted-packet",
+                    "--external-ok",
+                    "--dispatch-id",
+                    "dispatch-audit-fails",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output),
+                    "--attest-packet",
+                ]
+                with patch("build_contractor_packet.record_audit_event", side_effect=RuntimeError("audit unavailable")):
+                    with self.assertRaises(RuntimeError):
+                        build_contractor_packet.main()
+                self.assertFalse(output.exists())
+                self.assertFalse(output.with_suffix(output.suffix + ".attestation.json").exists())
             finally:
                 lib.AUDIT_LOG = original_audit
                 sys.argv = original_argv

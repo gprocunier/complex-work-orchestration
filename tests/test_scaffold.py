@@ -3,13 +3,14 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
-from scaffold_workgraph import planned_graph, recovery_summary  # noqa: E402
+from scaffold_workgraph import planned_graph, recovery_summary, try_dep  # noqa: E402
 
 
 class ScaffoldTests(unittest.TestCase):
@@ -28,6 +29,12 @@ class ScaffoldTests(unittest.TestCase):
         for item in graph:
             with self.subTest(title=item["title"]):
                 self.assert_native_fields(item)
+
+    def test_dependency_creation_fails_closed(self) -> None:
+        with patch("scaffold_workgraph.add_dependency", side_effect=RuntimeError("dependency failure")):
+            with self.assertRaises(SystemExit) as context:
+                try_dep("blocked-bead", "blocker-bead")
+        self.assertIn("could not add dependency blocked-bead -> blocker-bead", str(context.exception))
 
     def test_external_route_adds_evaluation_and_adjudication(self) -> None:
         route = classify_work(
@@ -224,6 +231,14 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("model-synthesis", by_lane)
         self.assertIn("wrap-up-report", by_lane)
         self.assertIn("dashboard-report", by_lane)
+        self.assertEqual(
+            by_lane["expert-review-architecture-critic-codex-5-5-xhigh-architecture-critic"]["metadata"]["codex_pickup"],
+            "forbidden",
+        )
+        self.assertIn(
+            "no-codex-exec",
+            by_lane["expert-review-architecture-critic-codex-5-5-xhigh-architecture-critic"]["labels"],
+        )
         self.assertEqual(
             by_lane["expert-review-architecture"]["metadata"]["selected_executor"]["key"],
             "openshift_ai_vllm_glm_5_2_bf16_primary_architect",

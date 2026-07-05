@@ -1135,10 +1135,13 @@ def expert_review_lane(expert: dict[str, Any]) -> str:
 def expert_review_labels(expert: dict[str, Any], route: dict[str, Any]) -> list[str]:
     stage = str(expert.get("review_stage", "pre-implementation"))
     job_label = str(expert.get("job_description_label", "contract-jd-general-reasoning"))
-    if expert_uses_external_contract(expert, route.get("recommended_executor")):
+    selected = selected_executor_for_expert(expert, route.get("recommended_executor"))
+    if bool(selected.get("external")):
         return [*EXTERNAL_GUARD_LABELS, job_label, stage]
-    if expert_uses_local_worker(expert, route.get("recommended_executor")):
+    if selected.get("dispatch_mode") in LOCAL_DISPATCH_MODES:
         return [*LOCAL_WORKER_GUARD_LABELS, job_label, stage]
+    if selected.get("codex_pickup") == "forbidden":
+        return ["expert-review", "no-codex-exec", job_label, stage]
     return ["expert-review", job_label, stage]
 
 

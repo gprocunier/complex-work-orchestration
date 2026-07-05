@@ -70,7 +70,7 @@ class ChatGPTShareIngestTests(unittest.TestCase):
                     run_reader(reader, "https://chatgpt.com/s/t_abc", 1)
         self.assertIn("timed out", str(exc.exception))
 
-    def test_extract_assistant_text_prefers_last_assistant_message(self) -> None:
+    def test_extract_assistant_text_preserves_all_assistant_messages(self) -> None:
         payload = {
             "title": "Review",
             "meta": {"method": "react-router-stream"},
@@ -81,8 +81,26 @@ class ChatGPTShareIngestTests(unittest.TestCase):
             ],
         }
         text, provenance = extract_assistant_text(payload)
-        self.assertEqual(text, "Final answer.")
+        self.assertIn("## Primary assistant message (id=m2)", text)
+        self.assertLess(text.index("Final answer."), text.index("First answer."))
+        self.assertIn("## Earlier Assistant Message Archive", text)
+        self.assertIn("### Earlier assistant message 1 of 1", text)
+        self.assertIn("First answer.", text)
+        self.assertIn("---", text)
+        self.assertIn("Final answer.", text)
         self.assertEqual(provenance["message_id"], "m2")
+        self.assertEqual(provenance["assistant_message_ids"], ["m2"])
+        self.assertEqual(provenance["assistant_message_count"], 2)
+
+    def test_extract_assistant_text_records_string_message_ids_only(self) -> None:
+        payload = {
+            "messages": [
+                {"role": "assistant", "text": "First answer.", "id": {"unexpected": "object"}},
+                {"role": "assistant", "text": "Final answer.", "id": "m2"},
+            ],
+        }
+        _text, provenance = extract_assistant_text(payload)
+        self.assertEqual(provenance["assistant_message_ids"], ["m2"])
 
     def test_rendered_return_contains_required_sections_and_fenced_evidence(self) -> None:
         rendered = render_contractor_return(

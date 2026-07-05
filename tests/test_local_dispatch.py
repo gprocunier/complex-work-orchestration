@@ -14,7 +14,13 @@ from urllib.error import HTTPError
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from dispatch_work import build_local_envelope, execute_local_envelope, local_response_telemetry, validate_local_endpoint_base_url  # noqa: E402
+from dispatch_work import (  # noqa: E402
+    build_local_envelope,
+    execute_local_envelope,
+    local_response_telemetry,
+    pinned_local_endpoint_address,
+    validate_local_endpoint_base_url,
+)
 from cwo_core.routing import classify_work  # noqa: E402
 
 
@@ -39,6 +45,14 @@ class FakeThinkingResponse(FakeResponse):
         )
 
 
+class FakeTruncatedThinkingResponse(FakeResponse):
+    def read(self) -> bytes:
+        return (
+            b'{"choices":[{"finish_reason":"length","message":{"content":"<think>private reasoning</think>partial"}}],'
+            b'"usage":{"prompt_tokens":13,"completion_tokens":9}}'
+        )
+
+
 class FakeOpener:
     def __init__(self) -> None:
         self.called = False
@@ -55,6 +69,12 @@ class FakePayloadOpener:
     def open(self, req: object, **kwargs: object) -> FakeThinkingResponse:
         self.payload = json.loads(req.data.decode("utf-8"))  # type: ignore[attr-defined]
         return FakeThinkingResponse()
+
+
+class FakeTruncatedPayloadOpener(FakePayloadOpener):
+    def open(self, req: object, **kwargs: object) -> FakeTruncatedThinkingResponse:
+        self.payload = json.loads(req.data.decode("utf-8"))  # type: ignore[attr-defined]
+        return FakeTruncatedThinkingResponse()
 
 
 class FakeHTTPErrorOpener:
@@ -206,7 +226,14 @@ class LocalDispatchTests(unittest.TestCase):
     def test_execute_local_accepts_private_dns_when_profile_allows_it(self) -> None:
         fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.10.190", 443))]
         with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
-            validate_local_endpoint_base_url("https://vllm.internal.example", allow_private_dns=True)
+            addresses = validate_local_endpoint_base_url("https://vllm.internal.example", allow_private_dns=True)
+        self.assertEqual(addresses, ["172.16.10.190"])
+
+    def test_private_dns_endpoint_returns_pinned_address_when_allowed(self) -> None:
+        fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.10.190", 443))]
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            address = pinned_local_endpoint_address("https://vllm.internal.example", allow_private_dns=True)
+        self.assertEqual(address, "172.16.10.190")
 
     def test_execute_local_rejects_public_hostname_resolution(self) -> None:
         fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
@@ -368,6 +395,77 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertEqual(telemetry["reasoning_chars"], len("private reasoning"))
         self.assertIn("raw_response_sha256", telemetry)
         self.assertNotIn("private reasoning", json.dumps(telemetry))
+
+    def test_glm_execute_records_truncated_finish_reason(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeTruncatedPayloadOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            response = execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertTrue(response["response_truncated"])
+        self.assertEqual(response["finish_reasons"], ["length"])
+        telemetry = local_response_telemetry(response)
+        self.assertTrue(telemetry["response_truncated"])
+        self.assertEqual(telemetry["finish_reasons"], ["length"])
+        self.assertNotIn("private reasoning", json.dumps(telemetry))
+
+    def test_glm_private_dns_execution_uses_pinned_https_handler(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="https://vllm.internal.example",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=True,
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-private-dns",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.10.190", 443))]
+        opener = FakePayloadOpener()
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            with patch("dispatch_work.request.build_opener", return_value=opener) as mocked_build_opener:
+                response = execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertEqual(response["status_code"], 200)
+        handler_names = [getattr(arg, "__name__", arg.__class__.__name__) for arg in mocked_build_opener.call_args.args]
+        self.assertIn("PinnedHTTPSHandler", handler_names)
 
 
 if __name__ == "__main__":
