@@ -15,6 +15,7 @@ CODEX_BLOCKING_LABELS = {"contractor-only", "local-worker-only", "no-codex-exec"
 CLOSED_STATUSES = {"closed", "done", "completed", "resolved"}
 VALIDATION_LABELS = {"validation", "test", "testing", "acceptance"}
 FOLLOWUP_LABELS = {"follow-up", "followup", "carry-forward", "carried-forward"}
+NON_BLOCKING_DEPENDENCY_TYPES = {"parent-child"}
 
 
 def bd_json(args: list[str]) -> Any:
@@ -33,6 +34,33 @@ def string_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
     return [str(item).strip() for item in as_list(value) if str(item).strip()]
+
+
+def normalized_dependency_type(value: Any) -> str:
+    return str(value or "").strip().lower().replace("_", "-")
+
+
+def dependency_entry_ids(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if not isinstance(value, dict):
+        return string_list(value)
+    if normalized_dependency_type(value.get("type") or value.get("dependency_type")) in NON_BLOCKING_DEPENDENCY_TYPES:
+        return []
+    for name in ["depends_on_id", "depends_on", "dependency_id", "blocked_by", "blocker_id", "id", "key"]:
+        candidate = value.get(name)
+        if candidate is not None and str(candidate).strip():
+            return [str(candidate).strip()]
+    return []
+
+
+def dependency_list(value: Any) -> list[str]:
+    dependencies: list[str] = []
+    for entry in as_list(value):
+        for dependency in dependency_entry_ids(entry):
+            if dependency not in dependencies:
+                dependencies.append(dependency)
+    return dependencies
 
 
 def field(item: dict[str, Any], *names: str) -> Any:
@@ -89,7 +117,7 @@ def issue_dependencies(item: dict[str, Any]) -> list[str]:
         "blockers",
         "depends_on_lanes",
     ]:
-        for value in string_list(field(item, name) or []):
+        for value in dependency_list(field(item, name) or []):
             if value not in dependencies:
                 dependencies.append(value)
     return dependencies
@@ -113,7 +141,7 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def extract_related_items(payload: Any, epic_id: str) -> list[dict[str, Any]]:
+def extract_related_items(payload: Any) -> list[dict[str, Any]]:
     items = coerce_items(payload)
     if isinstance(payload, dict):
         if payload.get("id") or payload.get("issue_id"):
@@ -137,15 +165,20 @@ def belongs_to_epic(item: dict[str, Any], epic_id: str) -> bool:
 
 
 def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
-    try:
-        payload = bd_json(["show", epic_id, "--json", "--include-dependents"])
-        items = extract_related_items(payload, epic_id)
-        if items:
-            return items
-    except SystemExit:
-        pass
-    payload = bd_json(["list", "--json"])
-    items = [item for item in coerce_items(payload) if issue_id(item) == epic_id or belongs_to_epic(item, epic_id)]
+    payload = bd_json(["list", "--json", "--all", "--limit", "0"])
+    all_items = coerce_items(payload)
+    items = [item for item in all_items if issue_id(item) == epic_id or belongs_to_epic(item, epic_id)]
+    dependency_ids = {
+        dependency
+        for item in items
+        for dependency in issue_dependencies(item)
+    }
+    seen = {issue_id(item) for item in items}
+    items.extend(
+        item
+        for item in all_items
+        if issue_id(item) in dependency_ids and issue_id(item) not in seen
+    )
     if not items:
         raise SystemExit(f"no Beads issues found for epic {epic_id!r}")
     return items
@@ -167,26 +200,30 @@ def load_markdown_items(path: Path, epic_id: str) -> list[dict[str, Any]]:
     return items
 
 
-def dependency_lookup(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    by_id = {item["id"]: item for item in items if item["id"]}
-    by_lane = {
-        str(field(item["raw"], "lane") or item["id"]): item
-        for item in items
-        if str(field(item["raw"], "lane") or item["id"]).strip()
-    }
-    return {**by_lane, **by_id}
+def dependency_lookup(items: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    lookup: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        keys = [item["id"], str(field(item["raw"], "lane") or "")]
+        for key in keys:
+            stripped = key.strip()
+            if not stripped:
+                continue
+            lookup.setdefault(stripped, []).append(item)
+    return lookup
 
 
-def blocker_reasons(item: dict[str, Any], lookup: dict[str, dict[str, Any]]) -> list[str]:
+def blocker_reasons(item: dict[str, Any], lookup: dict[str, list[dict[str, Any]]]) -> list[str]:
     reasons: list[str] = []
     label_set = set(item["labels"])
     for label in sorted(label_set & CODEX_BLOCKING_LABELS):
         reasons.append(f"guard label {label} prevents normal Codex pickup")
     for dependency in item["dependencies"]:
-        blocker = lookup.get(dependency)
-        if blocker and not is_closed(blocker):
-            reasons.append(f"depends on {blocker['id']} ({blocker['status']})")
-        elif not blocker:
+        blockers = lookup.get(dependency, [])
+        open_blockers = [blocker for blocker in blockers if blocker["id"] != item["id"] and not is_closed(blocker)]
+        if open_blockers:
+            for blocker in open_blockers:
+                reasons.append(f"depends on {blocker['id']} ({blocker['status']})")
+        elif not blockers:
             reasons.append(f"depends on unknown work item {dependency}")
     return reasons
 
@@ -311,7 +348,11 @@ def build_continuation_brief(
     items = [normalize_item(item) for item in raw_items if issue_id(item)]
     lookup = dependency_lookup(items)
     epic = next((item for item in items if item["id"] == epic_id or item["type"] == "epic"), None)
-    open_items = [item for item in items if not is_closed(item) and item["id"] != epic_id]
+    open_items = [
+        item
+        for item in items
+        if not is_closed(item) and item["id"] != epic_id and item["type"].strip().lower() != "epic"
+    ]
     blocked_pairs = [(item, blocker_reasons(item, lookup)) for item in open_items]
     blocked = [(item, reasons) for item, reasons in blocked_pairs if reasons]
     ready = [item for item, reasons in blocked_pairs if not reasons]
