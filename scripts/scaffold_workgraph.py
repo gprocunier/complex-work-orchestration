@@ -83,6 +83,8 @@ def route_notes(route: dict[str, Any]) -> str:
         f"Route: {route.get('route')}",
         f"Task class: {route.get('task_class')}",
         f"Risk: {route.get('risk_level')}",
+        f"Data sensitivity: {route.get('data_sensitivity')}",
+        f"Data sensitivity source: {route.get('data_sensitivity_source')}",
         f"Share boundary: {route.get('share_boundary')}",
         f"Execution environment: {route.get('execution_environment')}",
         f"Architecture authority: {route.get('architecture_authority')}",
@@ -91,7 +93,6 @@ def route_notes(route: dict[str, Any]) -> str:
         f"Architecture counter-review executor: {route.get('architecture_counter_review_executor')}",
         f"Scaffold size: {route.get('scaffold_size', 'full')}",
         f"Beads context depth: {route.get('beads_context_depth', 'focused')}",
-        f"Beads briefing depth: {route.get('beads_briefing_depth', route.get('beads_context_depth', 'focused'))}",
         f"Beads context source: {route.get('beads_context_depth_source', 'autosized')}",
         f"Recommended executor: {route.get('recommended_executor')}",
         f"Peer review required: {bool(route.get('peer_review_required'))}",
@@ -838,6 +839,11 @@ def main() -> None:
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument(
+        "--data-sensitivity",
+        choices=["public", "redacted", "internal", "restricted"],
+        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
+    )
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument(
         "--execution-environment",
@@ -866,11 +872,6 @@ def main() -> None:
         choices=["none", "summary", "focused", "heavy", "audit"],
         help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
     )
-    parser.add_argument(
-        "--beads-briefing-depth",
-        choices=["none", "summary", "focused", "heavy", "audit"],
-        help="Compatibility alias for --beads-context-depth; must match if both are provided.",
-    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
         "--format",
@@ -895,11 +896,11 @@ def main() -> None:
         prefer_local=args.prefer_local,
         local_profile=args.local_profile,
         share_boundary=args.share_boundary,
+        data_sensitivity=args.data_sensitivity,
         requested_roles=args.requested_role,
         execution_environment=args.execution_environment,
         model_synthesis=args.model_synthesis,
         beads_context_depth=args.beads_context_depth,
-        beads_briefing_depth=args.beads_briefing_depth,
     )
     plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
     if args.dry_run:

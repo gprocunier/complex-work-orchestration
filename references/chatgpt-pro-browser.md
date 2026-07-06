@@ -9,6 +9,13 @@ The lane is browser-mediated because ChatGPT Pro account state and model
 selection live in the operator's browser session. Do not use OpenAI API calls,
 Deep Research, Gemini, Opus, or an internal review as a silent substitute.
 
+Operator browser automation requires Playwright in the local environment:
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
 ## Contract
 
 - Executor: `chatgpt_pro_browser_master_reviewer`
@@ -63,7 +70,9 @@ session material. It uses:
 ```
 
 The file must be mode `0600` and must live outside the repository. If the
-ChatGPT UI changes, update only this local config.
+ChatGPT UI changes, update only this local config. With
+`require_model_confirmation=true`, `--dry-run --json` fails closed when either
+confirmation selector is missing.
 
 Useful launcher commands:
 
@@ -229,5 +238,9 @@ explicitly approves that loss of browser state.
   boundary.
 - Browser text without a valid share URL and confirmed model attestation is not
   accepted master-review evidence.
+
+Verified against ChatGPT UI on July 5, 2026: model and reasoning confirmation
+selectors used `[data-testid='composer-intelligence-picker-content']` in the
+operator local config.
 
 Last verified on Fedora 43 Wayland: July 5, 2026.

@@ -161,8 +161,7 @@ python3 scripts/coach_prompt.py \
 ```
 
 Expected output includes `beads_context_depth=heavy`,
-`beads_briefing_depth=heavy`, auditable
-`beads_context_depth_provenance`, and a Plan-mode
+auditable `beads_context_depth_provenance`, and a Plan-mode
 `beads_context_depth` choice. That choice is always present and defaults to the
 autosized or explicitly selected depth. Internal agents may use
 `build_beads_brief.py`; outside contractors still use redacted packets.
@@ -211,6 +210,21 @@ Expected routing includes `zero_trust_consensus_required=true`,
 `zero_trust_minimum_independent_domains=2`. Accepted primary synthesis lanes
 should carry explicit `zero_trust_claims`; agreement remains evidence, not
 validation.
+
+## Declared Data Sensitivity
+
+Use `--data-sensitivity` when the operator already knows the input boundary and
+should not rely on advisory keyword matching:
+
+```bash
+python3 scripts/route_work.py \
+  --data-sensitivity restricted \
+  "Review tenant dossier retention before any dispatch."
+```
+
+Expected routing includes `data_sensitivity=restricted`,
+`data_sensitivity_source=operator-declared`, the heuristic estimate in
+`data_sensitivity_heuristic`, and `data_sensitivity_provenance` for audit.
 
 ## External Security Contractor
 

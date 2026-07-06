@@ -200,6 +200,14 @@ python3 scripts/coach_prompt.py --beads-context-depth focused "<task text>"
 python3 scripts/build_beads_brief.py --bead <id> --depth focused --for subagent
 ```
 
+Operator reference: sensitivity detection is advisory text matching. If you know
+the input boundary, declare it so routing does not depend on keyword coverage:
+
+```bash
+python3 scripts/coach_prompt.py --data-sensitivity restricted "<task text>"
+python3 scripts/route_work.py --data-sensitivity redacted "<task text>"
+```
+
 Simple use case:
 
 1. Start with `/plan Use $complex-work-orchestration prompt coach:`.
@@ -1000,13 +1008,18 @@ reference below and in the GitHub Pages Reference page.
    implementation, validation, docs/handoff, required peer/editor/evaluation
    gates, the primary review expert, and explicit architecture-critic
    contracts, while limiting optional secondary expert lanes.
-   `beads_context_depth` and the compatibility alias `beads_briefing_depth`
-   control how much durable Beads history internal Codex agents read. Values
-   are `none`, `summary`, `focused`, `heavy`, and `audit`. Each result carries
+   `beads_context_depth` controls how much durable Beads history internal
+   Codex agents read. Values are `none`, `summary`, `focused`, `heavy`, and
+   `audit`. Each result carries
    `beads_context_depth_provenance` with computed depth, effective depth,
    source, override field, and reason. The coach always includes the
    Beads context-depth choice in `interactive_questions`, with the autosized
    depth as the recommended default.
+   `data_sensitivity` is inferred by an advisory text heuristic unless the
+   operator passes `--data-sensitivity public|redacted|internal|restricted`.
+   Route results carry `data_sensitivity_source`,
+   `data_sensitivity_heuristic`, `data_sensitivity_provenance`, and a
+   disclaimer that keyword heuristics can miss paraphrases or context.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -1130,8 +1143,7 @@ but it is not shared across machines until you add a remote.
 
 Beads comments are one of the best memory sources for spawned agents and for
 sessions after context compaction, but they must be deliberately sized. The
-prompt coach autosizes `beads_context_depth` and mirrors it to
-`beads_briefing_depth` for compatibility:
+prompt coach autosizes `beads_context_depth`:
 
 - `none`: no `bd` lookup; use only the assigned prompt metadata.
 - `summary`: read assigned-Bead JSON without comments.
@@ -1614,7 +1626,9 @@ review snippets locally without publishing them accidentally.
 
 Browser helper prerequisites:
 
-- Playwright must be installed for browser automation.
+- Playwright must be installed for browser automation in the operator
+  environment. Typical setup is `python3 -m pip install playwright` followed by
+  `python3 -m playwright install chromium`.
 - Chrome or Google Chrome must be available for the operator-managed profile.
 - `jq` is used by the examples to extract dispatch identity from JSON.
 - Optional local clipboard tools such as `qdbus`, `wl-paste`, `xclip`, or
@@ -1672,9 +1686,10 @@ Minimal local config shape:
 ```
 
 The confirmation selectors must match the current ChatGPT UI and expose the
-expected label through visible text, `aria-label`, or `title`. Use `--dry-run`
-to verify that `require_model_confirmation` is true and
-`model_confirmation_configured` is true before spending a Pro query.
+expected label through visible text, `aria-label`, or `title`. With
+`require_model_confirmation=true`, `--dry-run --json` now fails closed when
+confirmation selectors are missing; a successful dry run reports
+`model_confirmation_configured=true` before spending a Pro query.
 If Cloudflare or account prompts block automation-launched Chrome, start the
 dedicated profile through the systemd/Wayland launcher, complete the prompt, and
 use the generated localhost CDP config:

@@ -7,13 +7,16 @@
     "task_class",
     "risk_level",
     "data_sensitivity",
+    "data_sensitivity_source",
+    "data_sensitivity_heuristic",
+    "data_sensitivity_provenance",
+    "data_sensitivity_disclaimer",
     "dispatch_sensitivity",
     "share_boundary",
     "ranked_experts",
     "ranked_executors",
     "recommended_executor",
     "beads_context_depth",
-    "beads_briefing_depth",
     "beads_context_depth_provenance",
     "zero_trust_consensus_required",
     "zero_trust_consensus_trigger_reasons",
@@ -25,7 +28,36 @@
     "route": {"type": "string"},
     "task_class": {"type": "string"},
     "risk_level": {"type": "string"},
-    "data_sensitivity": {"type": "string"},
+    "data_sensitivity": {"enum": ["public", "redacted", "internal", "restricted"]},
+    "data_sensitivity_source": {"enum": ["heuristic", "operator-declared"]},
+    "data_sensitivity_heuristic": {"enum": ["public", "redacted", "internal", "restricted"]},
+    "data_sensitivity_disclaimer": {"type": "string"},
+    "data_sensitivity_provenance": {
+      "type": "object",
+      "required": [
+        "source",
+        "declared_sensitivity",
+        "heuristic_sensitivity",
+        "effective_sensitivity",
+        "advisory_heuristic",
+        "disclaimer",
+        "reason"
+      ],
+      "properties": {
+        "source": {"enum": ["heuristic", "operator-declared"]},
+        "declared_sensitivity": {
+          "anyOf": [
+            {"enum": ["public", "redacted", "internal", "restricted"]},
+            {"type": "null"}
+          ]
+        },
+        "heuristic_sensitivity": {"enum": ["public", "redacted", "internal", "restricted"]},
+        "effective_sensitivity": {"enum": ["public", "redacted", "internal", "restricted"]},
+        "advisory_heuristic": {"type": "boolean"},
+        "disclaimer": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    },
     "dispatch_sensitivity": {"type": "string"},
     "share_boundary": {"type": "string"},
     "execution_environment": {"type": "string"},
@@ -36,7 +68,6 @@
     "architecture_authority": {"type": "string"},
     "local_worker_opt_in_source": {"type": ["string", "null"]},
     "beads_context_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
-    "beads_briefing_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
     "beads_context_depth_source": {"enum": ["autosized", "explicit"]},
     "beads_context_depth_rationale": {"type": "array", "items": {"type": "string"}},
     "beads_context_depth_provenance": {
@@ -54,7 +85,7 @@
         "effective_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
         "override_field": {
           "anyOf": [
-            {"enum": ["beads_context_depth", "beads_briefing_depth"]},
+            {"enum": ["beads_context_depth"]},
             {"type": "null"}
           ]
         },

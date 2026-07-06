@@ -52,6 +52,17 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         os.chmod(path, mode)
         return path
 
+    def write_confirmation_config(self, directory: Path, mode: int = 0o600) -> Path:
+        path = self.write_config(directory, mode=mode)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["selectors"] = {
+            "model_label_confirmation_selector": "[data-testid='model-switcher']",
+            "reasoning_label_confirmation_selector": "[data-testid='reasoning-switcher']",
+        }
+        path.write_text(json.dumps(data), encoding="utf-8")
+        os.chmod(path, mode)
+        return path
+
     def test_config_summary_does_not_include_profile_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = self.write_config(Path(tmpdir))
@@ -64,6 +75,10 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertTrue(summary["local_clipboard_fallback"])
         self.assertTrue(summary["require_model_confirmation"])
         self.assertFalse(summary["model_confirmation_configured"])
+        self.assertEqual(
+            summary["model_confirmation_missing_selectors"],
+            ["model_label_confirmation_selector", "reasoning_label_confirmation_selector"],
+        )
         self.assertNotIn(str(path), rendered)
         self.assertNotIn(str(Path(tmpdir)), rendered)
         self.assertNotIn(str(Path(tmpdir) / "profile"), rendered)
@@ -154,7 +169,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         prompt_path = ROOT / "tmp-chatgpt-browser-prompt-test.md"
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
-            config_path = self.write_config(tmp)
+            config_path = self.write_confirmation_config(tmp)
             audit_lib.AUDIT_LOG = tmp / "audit.jsonl"
             prompt_path.write_text("Review this bounded packet.", encoding="utf-8")
             try:
@@ -685,7 +700,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
     def test_failed_live_cli_writes_structured_failure_output(self) -> None:
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             tmp = Path(cfgdir)
-            config = self.write_config(tmp)
+            config = self.write_confirmation_config(tmp)
             packet_path = Path(promptdir) / "packet.json"
             output = tmp / "result.json"
             packet = build_packet(
@@ -756,7 +771,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
     def test_dry_run_cli_validates_config_without_audit(self) -> None:
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             tmp = Path(cfgdir)
-            config = self.write_config(tmp)
+            config = self.write_confirmation_config(tmp)
             prompt = Path(promptdir) / "prompt.md"
             prompt.write_text("Review this final plan.", encoding="utf-8")
             with patch.object(
@@ -790,10 +805,49 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     chatgpt_browser_review.main()
         self.assertTrue(mocked_print.called)
 
-    def test_confirm_only_cli_records_model_attestation_without_submission(self) -> None:
+    def test_dry_run_json_refuses_missing_confirmation_selectors(self) -> None:
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             tmp = Path(cfgdir)
             config = self.write_config(tmp)
+            prompt = Path(promptdir) / "prompt.md"
+            prompt.write_text("Review this final plan.", encoding="utf-8")
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "chatgpt_browser_review.py",
+                    "--prompt-file",
+                    str(prompt),
+                    "--allow-degraded-packet",
+                    "--allow-unlinked-packet",
+                    "--dispatch-id",
+                    "dispatch-chatgpt",
+                    "--bead",
+                    "cwo-1",
+                    "--packet-sha256",
+                    "packet-sha",
+                    "--config",
+                    str(config),
+                    "--dry-run",
+                    "--rehearsal",
+                    "--json",
+                    "--no-audit",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
+                ],
+            ):
+                with self.assertRaises(SystemExit) as context:
+                    import chatgpt_browser_review
+
+                    chatgpt_browser_review.main()
+
+        self.assertIn("missing confirmation selectors", str(context.exception))
+        self.assertIn("model_label_confirmation_selector", str(context.exception))
+
+    def test_confirm_only_cli_records_model_attestation_without_submission(self) -> None:
+        with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
+            tmp = Path(cfgdir)
+            config = self.write_confirmation_config(tmp)
             prompt = Path(promptdir) / "prompt.md"
             prompt.write_text("Review this final plan.", encoding="utf-8")
             with patch.object(

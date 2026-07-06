@@ -14,13 +14,16 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.routing import classify_work  # noqa: E402
 from route_work import print_human  # noqa: E402
 
+RETIRED_FIELD = "beads_" + "briefing_depth"
+RETIRED_FLAG = "--beads-" + "briefing-depth"
+
 
 class RouteWorkTests(unittest.TestCase):
-    def test_route_outputs_beads_context_depth_alias_and_provenance(self) -> None:
+    def test_route_outputs_beads_context_depth_and_provenance(self) -> None:
         result = classify_work("Use subagents for a deep docs second pass with prior Beads comments.")
 
         self.assertEqual(result["beads_context_depth"], "heavy")
-        self.assertEqual(result["beads_briefing_depth"], "heavy")
+        self.assertNotIn(RETIRED_FIELD, result)
         self.assertEqual(result["beads_context_depth_source"], "autosized")
         self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
         self.assertEqual(result["beads_context_depth_provenance"]["effective_depth"], "heavy")
@@ -32,18 +35,84 @@ class RouteWorkTests(unittest.TestCase):
         )
 
         self.assertEqual(result["beads_context_depth"], "summary")
-        self.assertEqual(result["beads_briefing_depth"], "summary")
+        self.assertNotIn(RETIRED_FIELD, result)
         self.assertEqual(result["beads_context_depth_source"], "explicit")
         self.assertEqual(result["beads_context_depth_provenance"]["requested_depth"], "summary")
         self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
 
-    def test_route_context_depth_alias_conflict_fails_closed(self) -> None:
-        with self.assertRaises(SystemExit):
-            classify_work(
+    def test_route_context_depth_alias_flag_is_removed(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "route_work.py"),
+                RETIRED_FLAG,
+                "heavy",
                 "Review Beads comments for docs.",
-                beads_context_depth="summary",
-                beads_briefing_depth="heavy",
-            )
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"unrecognized arguments: {RETIRED_FLAG}", result.stderr)
+
+    def test_data_sensitivity_operator_declaration_overrides_heuristic(self) -> None:
+        result = classify_work(
+            "Publish public docs for the install flow.",
+            data_sensitivity="restricted",
+        )
+
+        self.assertEqual(result["data_sensitivity"], "restricted")
+        self.assertEqual(result["data_sensitivity_source"], "operator-declared")
+        self.assertEqual(result["data_sensitivity_heuristic"], "public")
+        self.assertEqual(result["data_sensitivity_provenance"]["declared_sensitivity"], "restricted")
+        self.assertEqual(result["data_sensitivity_provenance"]["heuristic_sensitivity"], "public")
+        self.assertEqual(result["data_sensitivity_provenance"]["effective_sensitivity"], "restricted")
+        self.assertTrue(result["data_sensitivity_provenance"]["advisory_heuristic"])
+        self.assertIn("can miss paraphrases", result["data_sensitivity_disclaimer"])
+
+    def test_data_sensitivity_override_covers_heuristic_false_negative(self) -> None:
+        result = classify_work(
+            "Review tenant dossier retention for the workflow.",
+            data_sensitivity="restricted",
+        )
+
+        self.assertEqual(result["data_sensitivity"], "restricted")
+        self.assertEqual(result["data_sensitivity_heuristic"], "internal")
+        self.assertEqual(result["data_sensitivity_source"], "operator-declared")
+
+    def test_sensitivity_heuristic_catches_common_paraphrases(self) -> None:
+        restricted = classify_work("Review customer records export and employee data cleanup.")
+        redacted = classify_work("Review authentication flow and private repository boundaries.")
+
+        self.assertEqual(restricted["data_sensitivity"], "restricted")
+        self.assertEqual(restricted["data_sensitivity_source"], "heuristic")
+        self.assertEqual(redacted["data_sensitivity"], "redacted")
+        self.assertEqual(redacted["data_sensitivity_source"], "heuristic")
+
+    def test_route_cli_accepts_data_sensitivity_declaration(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "route_work.py"),
+                "--json",
+                "--data-sensitivity",
+                "restricted",
+                "Publish public docs for the install flow.",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["data_sensitivity"], "restricted")
+        self.assertEqual(payload["data_sensitivity_source"], "operator-declared")
+        self.assertEqual(payload["data_sensitivity_heuristic"], "public")
 
     def test_security_and_web_design_triggers(self) -> None:
         result = classify_work(

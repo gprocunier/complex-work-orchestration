@@ -193,6 +193,11 @@ def main() -> None:
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument(
+        "--data-sensitivity",
+        choices=["public", "redacted", "internal", "restricted"],
+        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
+    )
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--top-n", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
@@ -206,6 +211,7 @@ def main() -> None:
         prefer_local=args.prefer_local,
         local_profile=args.local_profile,
         share_boundary=args.share_boundary,
+        data_sensitivity=args.data_sensitivity,
         requested_roles=args.requested_role,
     )
     reviews = []

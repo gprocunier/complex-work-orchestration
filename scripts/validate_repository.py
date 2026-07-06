@@ -115,6 +115,10 @@ WAIVER_CONVENTION_SCRIPTS = {
         "flags": ["--allow-disclosure-escalation"],
     },
 }
+RETIRED_BEADS_CONTEXT_ALIAS_PATTERNS = [
+    "beads_" + "briefing_depth",
+    "beads-" + "briefing-depth",
+]
 
 
 def load_json(path: Path) -> Any:
@@ -129,9 +133,37 @@ def load_json(path: Path) -> Any:
         raise ValueError(f"{path.relative_to(REPO_ROOT)} is not valid JSON: {exc}") from exc
 
 
+def validate_retired_beads_context_aliases(
+    errors: list[str],
+    *,
+    repo_root: Path = REPO_ROOT,
+) -> None:
+    allowed_names = {"CHANGELOG.md"}
+    skipped_dirs = {".git", "__pycache__"}
+    for path in sorted(repo_root.rglob("*")):
+        if not path.is_file() or path.name in allowed_names:
+            continue
+        try:
+            relative = path.relative_to(repo_root)
+        except ValueError:
+            continue
+        if any(part in skipped_dirs for part in relative.parts):
+            continue
+        if path.suffix not in {".py", ".json", ".md", ".html", ".sh", ".yaml", ".yml"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for pattern in RETIRED_BEADS_CONTEXT_ALIAS_PATTERNS:
+            if pattern in text:
+                errors.append(f"{relative} uses retired Beads context alias {pattern!r}")
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
     validate_cwo_core_contract(errors)
+    validate_retired_beads_context_aliases(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
         try:
@@ -446,8 +478,11 @@ def validate_repository() -> list[str]:
         schema=load_json(REPO_ROOT / "schemas" / "route-result.schema.json"),
         properties=[
             "model_synthesis",
+            "data_sensitivity_source",
+            "data_sensitivity_heuristic",
+            "data_sensitivity_provenance",
+            "data_sensitivity_disclaimer",
             "beads_context_depth",
-            "beads_briefing_depth",
             "zero_trust_consensus_required",
             "zero_trust_consensus_trigger_reasons",
             "zero_trust_minimum_independent_domains",
@@ -530,8 +565,9 @@ def validate_repository() -> list[str]:
             "interactive_questions",
             "workerbee_parallelism",
             "beads_context_depth",
-            "beads_briefing_depth",
             "beads_context_depth_provenance",
+            "--data-sensitivity",
+            "data_sensitivity_provenance",
             "scripts/build_beads_brief.py",
             "Beads context-depth choice",
             "autosized depth as the recommended default",
@@ -856,8 +892,9 @@ def validate_repository() -> list[str]:
             "interactive_questions",
             "scaffold_sizing",
             "beads_context_depth",
-            "beads_briefing_depth",
             "build_beads_brief.py",
+            "--data-sensitivity",
+            "data_sensitivity_provenance",
             "Context option is always present",
             "autosized depth as the recommended default",
             "--scaffold-size tight",
@@ -1038,8 +1075,12 @@ def validate_repository() -> list[str]:
             "Setup Checklist",
             "ChatGPT does not operate Beads directly",
             "Playwright",
+            "python3 -m pip install playwright",
+            "python3 -m playwright install chromium",
             "jq",
             "Last verified:",
+            "--dry-run --json",
+            "fails closed",
             "SHARE_URL",
             "DISPATCH_ID",
             "PACKET_SHA256",
@@ -1301,6 +1342,9 @@ def validate_repository() -> list[str]:
             "local-worker",
             "publish-release",
             "Scaffold Size",
+            "Data Sensitivity Declaration",
+            "--data-sensitivity",
+            "data_sensitivity_provenance",
             "Exact contract labels belong",
         ],
     )
@@ -1380,6 +1424,8 @@ def validate_repository() -> list[str]:
             "editor review before publish sanitization",
             "contract labels belong in",
             "zero_trust_consensus_required",
+            "Declared Data Sensitivity",
+            "data_sensitivity_source=operator-declared",
         ],
     )
     require_doc_terms(
@@ -1436,7 +1482,12 @@ def validate_repository() -> list[str]:
             "max_prompt_chars",
             "50000",
             "scripts/chatgpt_browser_review.py",
+            "python3 -m pip install playwright",
+            "python3 -m playwright install chromium",
             "--dry-run",
+            "--dry-run --json",
+            "fails closed",
+            "Verified against ChatGPT UI on July 5, 2026",
             "--confirm-only",
             "scripts/ingest_chatgpt_share_return.py",
             "pre-submission browser failure",

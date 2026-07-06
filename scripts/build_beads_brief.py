@@ -165,7 +165,6 @@ def build_brief(
         "bead_id": bead_id,
         "depth": normalized_depth,
         "beads_context_depth": normalized_depth,
-        "beads_briefing_depth": normalized_depth,
         "audience": audience,
         "include_comments": include_comments,
         "bd_command": command,

@@ -145,11 +145,8 @@ def load_browser_config(path: Path) -> dict[str, Any]:
 
 
 def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
-    selectors = dict(config.get("selectors") or {})
-    confirmation_configured = all(
-        bool(selectors.get(f"{key}_confirmation_selector") or config.get(f"{key}_confirmation_selector"))
-        for key in ["model_label", "reasoning_label"]
-    )
+    missing_confirmation = missing_confirmation_selectors(config)
+    confirmation_configured = not missing_confirmation
     return {
         "config_present": config_path.is_file(),
         "config_external_to_repo": not is_relative_to(config_path, REPO_ROOT),
@@ -162,8 +159,29 @@ def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
         "local_clipboard_fallback": bool(config.get("local_clipboard_fallback", True)),
         "require_model_confirmation": bool(config.get("require_model_confirmation", True)),
         "model_confirmation_configured": confirmation_configured,
+        "model_confirmation_missing_selectors": missing_confirmation,
         "headless": bool(config.get("headless", False)),
     }
+
+
+def missing_confirmation_selectors(config: dict[str, Any]) -> list[str]:
+    selectors = dict(config.get("selectors") or {})
+    return [
+        f"{key}_confirmation_selector"
+        for key in ["model_label", "reasoning_label"]
+        if not (selectors.get(f"{key}_confirmation_selector") or config.get(f"{key}_confirmation_selector"))
+    ]
+
+
+def require_confirmation_selectors(config: dict[str, Any]) -> None:
+    if not config.get("require_model_confirmation", True):
+        return
+    missing = missing_confirmation_selectors(config)
+    if missing:
+        raise SystemExit(
+            "ChatGPT browser config requires model confirmation but is missing confirmation selectors: "
+            + ", ".join(missing)
+        )
 
 
 def max_prompt_chars(config: dict[str, Any]) -> int:
@@ -842,6 +860,7 @@ def main() -> None:
     config = load_browser_config(config_path)
     prompt, metadata = load_prompt_from_args(args)
     enforce_prompt_size(prompt, config)
+    require_confirmation_selectors(config)
     exit_message = ""
     if args.dry_run and args.confirm_only:
         raise SystemExit("--dry-run and --confirm-only are mutually exclusive")

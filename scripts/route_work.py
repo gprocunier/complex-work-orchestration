@@ -14,6 +14,8 @@ def print_human(route: dict[str, object], top_n: int) -> None:
     print(f"Task class: {route['task_class']}")
     print(f"Risk: {route['risk_level']}")
     print(f"Data sensitivity: {route['data_sensitivity']}")
+    print(f"Data sensitivity source: {route.get('data_sensitivity_source')}")
+    print(f"Data sensitivity heuristic: {route.get('data_sensitivity_heuristic')}")
     print(f"Dispatch sensitivity: {route['dispatch_sensitivity']}")
     print(f"Share boundary: {route['share_boundary']}")
     print(f"Execution environment: {route.get('execution_environment')}")
@@ -41,7 +43,6 @@ def print_human(route: dict[str, object], top_n: int) -> None:
         for reason in route.get("zero_trust_consensus_trigger_reasons", []):  # type: ignore[assignment]
             print(f"- zero-trust trigger: {reason}")
     print(f"Beads context depth: {route.get('beads_context_depth')}")
-    print(f"Beads briefing depth: {route.get('beads_briefing_depth')}")
     print(f"Beads context source: {route.get('beads_context_depth_source')}")
     print(f"External contract allowed: {route['external_contract_allowed']}")
     print(f"Local worker allowed: {route['local_worker_allowed']}")
@@ -127,6 +128,11 @@ def main() -> None:
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument(
+        "--data-sensitivity",
+        choices=["public", "redacted", "internal", "restricted"],
+        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
+    )
     parser.add_argument("--requested-role", action="append", default=[], help="Explicit expert role requested by the user.")
     parser.add_argument("--file-path", action="append", default=[], help="Relevant repository path for path-pattern scoring.")
     parser.add_argument("--stage", help="Review stage such as pre-implementation, implementation-review, or pre-release.")
@@ -145,11 +151,6 @@ def main() -> None:
         choices=["none", "summary", "focused", "heavy", "audit"],
         help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
     )
-    parser.add_argument(
-        "--beads-briefing-depth",
-        choices=["none", "summary", "focused", "heavy", "audit"],
-        help="Compatibility alias for --beads-context-depth; must match if both are provided.",
-    )
     parser.add_argument("--top-n", type=int, default=5)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     add_waiver_reason_argument(parser)
@@ -165,6 +166,7 @@ def main() -> None:
         prefer_local=args.prefer_local,
         local_profile=args.local_profile,
         share_boundary=args.share_boundary,
+        data_sensitivity=args.data_sensitivity,
         requested_roles=args.requested_role,
         file_paths=args.file_path,
         stage=args.stage,
@@ -172,7 +174,6 @@ def main() -> None:
         execution_environment=args.execution_environment,
         model_synthesis=args.model_synthesis,
         beads_context_depth=args.beads_context_depth,
-        beads_briefing_depth=args.beads_briefing_depth,
     )
     if args.json:
         print(json.dumps(route, indent=2, sort_keys=True))

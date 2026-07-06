@@ -53,8 +53,31 @@
     "personal data"
   ],
   "sensitivity_terms": {
-    "restricted": ["secret value", "credential value", "private key", "production access", "personal data"],
-    "redacted": ["token handling", "credential handling", "auth flow", "private repo", "internal design"],
+    "restricted": [
+      "secret value",
+      "credential value",
+      "private key",
+      "production access",
+      "personal data",
+      "customer records",
+      "employee data",
+      "personal identifiers",
+      "api keys",
+      "passwords",
+      "secrets"
+    ],
+    "redacted": [
+      "token handling",
+      "credential handling",
+      "auth flow",
+      "authentication flow",
+      "authorization flow",
+      "private repo",
+      "private repository",
+      "internal design",
+      "internal architecture",
+      "nonpublic design"
+    ],
     "public": ["public repo", "public documentation", "public docs", "open source"]
   },
   "local_worker": {

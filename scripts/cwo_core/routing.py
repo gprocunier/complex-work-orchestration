@@ -40,6 +40,23 @@ from .synthesis import recommend_model_synthesis, zero_trust_route_requirement
 from .util import rank_allows, rank_max, term_hits
 
 
+SENSITIVITY_HEURISTIC_DISCLAIMER = (
+    "Data sensitivity is an advisory text heuristic and can miss paraphrases or context; "
+    "operators should pass --data-sensitivity when sensitivity is known."
+)
+
+
+def normalize_data_sensitivity(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized not in SENSITIVITY_ORDER:
+        raise SystemExit(
+            "data_sensitivity must be one of: " + ", ".join(SENSITIVITY_ORDER)
+        )
+    return normalized
+
+
 def detect_sensitivity(text: str, routing: dict[str, Any]) -> str:
     sensitivity_terms = routing.get("sensitivity_terms", {})
     for level in ["restricted", "redacted", "public"]:
@@ -48,6 +65,39 @@ def detect_sensitivity(text: str, routing: dict[str, Any]) -> str:
     if term_hits(text, routing.get("restricted_terms", [])):
         return "restricted"
     return "internal"
+
+
+def resolve_data_sensitivity(
+    text: str,
+    routing: dict[str, Any],
+    *,
+    data_sensitivity: str | None = None,
+) -> dict[str, Any]:
+    declared = normalize_data_sensitivity(data_sensitivity)
+    heuristic = detect_sensitivity(text, routing)
+    if declared:
+        effective = declared
+        source = "operator-declared"
+        reason = f"Operator declared data sensitivity {declared}; heuristic estimate was {heuristic}."
+    else:
+        effective = heuristic
+        source = "heuristic"
+        reason = f"Text heuristic estimated data sensitivity {heuristic}."
+    return {
+        "data_sensitivity": effective,
+        "data_sensitivity_source": source,
+        "data_sensitivity_heuristic": heuristic,
+        "data_sensitivity_disclaimer": SENSITIVITY_HEURISTIC_DISCLAIMER,
+        "data_sensitivity_provenance": {
+            "source": source,
+            "declared_sensitivity": declared,
+            "heuristic_sensitivity": heuristic,
+            "effective_sensitivity": effective,
+            "advisory_heuristic": True,
+            "disclaimer": SENSITIVITY_HEURISTIC_DISCLAIMER,
+            "reason": reason,
+        },
+    }
 
 
 def dispatch_sensitivity_for_boundary(sensitivity: str, share_boundary: str) -> str:
@@ -257,13 +307,9 @@ def resolve_beads_context_depth(
     model_synthesis_active: bool = False,
     editor_gate_required: bool = False,
     beads_context_depth: str | None = None,
-    beads_briefing_depth: str | None = None,
     actor_context: str = "routing",
 ) -> dict[str, Any]:
     explicit_context = normalize_beads_context_depth(beads_context_depth, field_name="beads_context_depth")
-    explicit_briefing = normalize_beads_context_depth(beads_briefing_depth, field_name="beads_briefing_depth")
-    if explicit_context and explicit_briefing and explicit_context != explicit_briefing:
-        raise SystemExit("beads_context_depth and beads_briefing_depth must match when both are provided")
 
     computed, rationale = autosize_beads_context_depth(
         text,
@@ -274,11 +320,11 @@ def resolve_beads_context_depth(
         model_synthesis_active=model_synthesis_active,
         editor_gate_required=editor_gate_required,
     )
-    requested = explicit_context or explicit_briefing
+    requested = explicit_context
     if requested:
         effective = requested
         source = "explicit"
-        override_field = "beads_context_depth" if explicit_context else "beads_briefing_depth"
+        override_field = "beads_context_depth"
         rationale.append(f"Explicit {override_field} override selected {effective}.")
     else:
         effective = computed
@@ -287,7 +333,6 @@ def resolve_beads_context_depth(
 
     return {
         "beads_context_depth": effective,
-        "beads_briefing_depth": effective,
         "beads_context_depth_source": source,
         "beads_context_depth_rationale": rationale,
         "beads_context_depth_provenance": {
@@ -838,7 +883,7 @@ def classify_work(
     unattended: bool = False,
     model_synthesis: bool = False,
     beads_context_depth: str | None = None,
-    beads_briefing_depth: str | None = None,
+    data_sensitivity: str | None = None,
     execution_environment: str | None = None,
 ) -> dict[str, Any]:
     routing = load_policy("routing-policy")
@@ -912,7 +957,8 @@ def classify_work(
             file_paths=file_paths,
         )
 
-    sensitivity = detect_sensitivity(text, routing)
+    sensitivity_signal = resolve_data_sensitivity(text, routing, data_sensitivity=data_sensitivity)
+    sensitivity = sensitivity_signal["data_sensitivity"]
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
     risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
     if small_docs_change:
@@ -1107,7 +1153,6 @@ def classify_work(
         model_synthesis_active=bool(synthesis_result.get("active")),
         editor_gate_required=editor_gate_required,
         beads_context_depth=beads_context_depth,
-        beads_briefing_depth=beads_briefing_depth,
         actor_context=stage or "routing",
     )
 
@@ -1115,7 +1160,7 @@ def classify_work(
         "route": route,
         "task_class": task_class,
         "risk_level": risk,
-        "data_sensitivity": sensitivity,
+        **sensitivity_signal,
         "dispatch_sensitivity": dispatch_sensitivity,
         "share_boundary": share_boundary,
         "execution_environment": execution_environment_key,
@@ -1214,7 +1259,6 @@ def classify_work(
             model_synthesis_active=True,
             editor_gate_required=editor_gate_required,
             beads_context_depth=beads_context_depth,
-            beads_briefing_depth=beads_briefing_depth,
             actor_context=stage or "routing",
         )
         result.update(refreshed)

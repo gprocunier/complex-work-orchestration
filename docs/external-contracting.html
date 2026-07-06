@@ -278,7 +278,7 @@ claude --model claude-opus-4-6 --effort high \
             <ol class="check-list">
               <li>Use the prompt coach from Codex and approve the redacted-packet boundary.</li>
               <li>Fill the plan packet with objective, Beads graph, sequence, evidence, validation, risks, and open questions.</li>
-              <li>Install Playwright, keep Chrome available, and use <code>jq</code> for dispatch metadata extraction.</li>
+              <li>Install Playwright in the operator environment with <code>python3 -m pip install playwright</code> and <code>python3 -m playwright install chromium</code>, keep Chrome available, and use <code>jq</code> for dispatch metadata extraction.</li>
               <li>Use <code>scripts/launch_chatgpt_cdp_chrome.sh --write-config</code> for the systemd/Wayland browser profile and localhost CDP config.</li>
               <li>Use <code>references/chatgpt-pro-browser.md</code> for the full ChatGPT Pro browser runbook.</li>
               <li>Keep the browser config outside the repo, not group/world accessible, and free of credentials or session material.</li>
@@ -370,7 +370,9 @@ python3 scripts/ingest_chatgpt_share_return.py \
               dispatch JSON includes a confirmed
               <code>model_attestation</code>. Wrong-model or unproven-effort
               responses are invalidated in Beads and rerun only after the
-              confirmation config is fixed. Use a dry run first and confirm
+              confirmation config is fixed. With model confirmation required,
+              <code>--dry-run --json</code> fails closed when confirmation
+              selectors are missing. Use a dry run first and confirm
               <code>model_confirmation_configured</code> is true, then run
               <code>--confirm-only</code> before submitting.
             </div>

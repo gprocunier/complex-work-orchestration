@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 
+RETIRED_FIELD = "beads_" + "briefing_depth"
+RETIRED_FLAG = "--beads-" + "briefing-depth"
+
 
 class PromptCoachTests(unittest.TestCase):
     def test_narrow_work_recommends_in_thread(self) -> None:
@@ -20,7 +23,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["operator_calibration"]["mode"], "none")
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn(result["beads_context_depth"], {"summary", "focused"})
-        self.assertEqual(result["beads_briefing_depth"], result["beads_context_depth"])
+        self.assertNotIn(RETIRED_FIELD, result)
         self.assertEqual(result["beads_context_depth_provenance"]["source"], "autosized")
         self.assertIn("mandatory Beads tracking", result["paste_ready_prompt"])
         self.assertIn("beads-durable-state", result["enabled_levers"])
@@ -166,7 +169,7 @@ class PromptCoachTests(unittest.TestCase):
         )
 
         self.assertEqual(result["beads_context_depth"], "heavy")
-        self.assertEqual(result["beads_briefing_depth"], "heavy")
+        self.assertNotIn(RETIRED_FIELD, result)
         self.assertEqual(result["beads_context_depth_provenance"]["source"], "explicit")
         self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
         self.assertEqual(result["beads_context_depth_provenance"]["effective_depth"], "heavy")
@@ -186,13 +189,55 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("(Recommended)", questions[0]["options"][0]["label"])
         self.assertIn(f"Use {result['beads_context_depth']} context", missing[0]["default"])
 
-    def test_context_depth_alias_must_match_primary_override(self) -> None:
-        with self.assertRaises(SystemExit):
-            coach_orchestration_prompt(
+    def test_context_depth_alias_flag_is_removed(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "coach_prompt.py"),
+                RETIRED_FLAG,
+                "heavy",
                 "Use $complex-work-orchestration coach for docs.",
-                beads_context_depth="summary",
-                beads_briefing_depth="heavy",
-            )
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"unrecognized arguments: {RETIRED_FLAG}", result.stderr)
+
+    def test_data_sensitivity_declaration_is_preserved_in_route(self) -> None:
+        result = coach_orchestration_prompt(
+            "Publish public docs for the install flow.",
+            data_sensitivity="restricted",
+        )
+
+        self.assertEqual(result["route"]["data_sensitivity"], "restricted")
+        self.assertEqual(result["route"]["data_sensitivity_source"], "operator-declared")
+        self.assertEqual(result["route"]["data_sensitivity_heuristic"], "public")
+        self.assertIn("can miss paraphrases", result["route"]["data_sensitivity_disclaimer"])
+
+    def test_coach_cli_accepts_data_sensitivity_declaration(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "coach_prompt.py"),
+                "--json",
+                "--data-sensitivity",
+                "restricted",
+                "Publish public docs for the install flow.",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["route"]["data_sensitivity"], "restricted")
+        self.assertEqual(payload["route"]["data_sensitivity_source"], "operator-declared")
 
     def test_contractor_lane_terms_ask_for_sharing_boundary(self) -> None:
         result = coach_orchestration_prompt(

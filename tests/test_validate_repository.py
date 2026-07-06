@@ -14,6 +14,7 @@ from validate_repository import (  # noqa: E402
     validate_local_inference_peer_review_guidance,
     validate_public_docs_do_not_expose_hardware_categories,
     validate_repository,
+    validate_retired_beads_context_aliases,
     validate_waiver_conventions,
 )
 
@@ -74,6 +75,20 @@ class ValidateRepositoryTests(unittest.TestCase):
             public_doc.write_text("Use Enterprise evaluation targets after a benchmark gate.", encoding="utf-8")
             validate_public_docs_do_not_expose_hardware_categories(errors, [public_doc])
         self.assertEqual(errors, [])
+
+    def test_retired_beads_context_alias_is_rejected(self) -> None:
+        errors: list[str] = []
+        retired_field = "beads_" + "briefing_depth"
+        retired_flag = "--beads-" + "briefing-depth"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script = Path(tmpdir) / "scripts" / "tool.py"
+            script.parent.mkdir()
+            script.write_text(f"print({retired_field!r})\n", encoding="utf-8")
+            doc = Path(tmpdir) / "README.md"
+            doc.write_text(retired_flag + "\n", encoding="utf-8")
+            validate_retired_beads_context_aliases(errors, repo_root=Path(tmpdir))
+        self.assertTrue(any(retired_field in error for error in errors))
+        self.assertTrue(any(retired_flag.lstrip("-") in error for error in errors))
 
     def test_waiver_convention_rejects_missing_reason_and_audit_fields(self) -> None:
         errors: list[str] = []

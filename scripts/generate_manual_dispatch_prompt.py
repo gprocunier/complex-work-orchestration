@@ -222,6 +222,11 @@ def main() -> None:
     parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
     parser.add_argument("--share-boundary", default="redacted-packet")
+    parser.add_argument(
+        "--data-sensitivity",
+        choices=["public", "redacted", "internal", "restricted"],
+        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
+    )
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--json", action="store_true")
     add_waiver_reason_argument(parser)
@@ -246,6 +251,7 @@ def main() -> None:
         local_ok=args.local_ok,
         prefer_local=args.prefer_local,
         share_boundary=args.share_boundary,
+        data_sensitivity=args.data_sensitivity,
         requested_roles=args.requested_role,
     )
     if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:

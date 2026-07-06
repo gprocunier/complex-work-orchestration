@@ -628,6 +628,11 @@ def main() -> None:
     )
     parser.add_argument("--execute-local", action="store_true", help="Actually POST a local-worker envelope to the endpoint.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument(
+        "--data-sensitivity",
+        choices=["public", "redacted", "internal", "restricted"],
+        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
+    )
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--bead")
     parser.add_argument("--epic")
@@ -735,6 +740,7 @@ def main() -> None:
         prefer_local=args.prefer_local,
         local_profile=args.local_profile,
         share_boundary=args.share_boundary,
+        data_sensitivity=args.data_sensitivity,
         requested_roles=args.requested_role,
     )
     if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:

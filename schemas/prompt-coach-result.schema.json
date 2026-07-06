@@ -9,7 +9,6 @@
     "recommended_orchestration_level",
     "scaffold_sizing",
     "beads_context_depth",
-    "beads_briefing_depth",
     "beads_context_depth_provenance",
     "rationale",
     "missing_questions",
@@ -47,7 +46,6 @@
       }
     },
     "beads_context_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
-    "beads_briefing_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
     "beads_context_depth_provenance": {
       "type": "object",
       "required": ["source", "requested_depth", "computed_depth", "effective_depth", "override_field", "reason", "actor_context"],
@@ -63,7 +61,7 @@
         "effective_depth": {"enum": ["none", "summary", "focused", "heavy", "audit"]},
         "override_field": {
           "anyOf": [
-            {"enum": ["beads_context_depth", "beads_briefing_depth"]},
+            {"enum": ["beads_context_depth"]},
             {"type": "null"}
           ]
         },
