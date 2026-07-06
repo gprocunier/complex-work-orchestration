@@ -626,7 +626,9 @@ binding, and expert profile for outside or local review.
   pass `--close` only when the helper should also run `bd close`.
 - `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and workstream
   tasks; use `--dry-run --format beads-graph` to emit a `bd create --graph`
-  compatible JSON plan for validation or advanced automation.
+  compatible JSON plan for validation or advanced automation, or
+  `--dry-run --format markdown-workgraph` for a reduced-durability fallback
+  when `bd` is unavailable.
 - `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
   Beads from routing triggers.
 - `scripts/build_contractor_packet.py`: generate a gated outside-contractor
@@ -688,7 +690,8 @@ binding, and expert profile for outside or local review.
   provider, token, retry, and timing summaries without storing raw prompts,
   transcripts, responses, share URLs, endpoint URLs, or secret values.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
-  graph state.
+  graph state. Pass `--markdown-workgraph <path>` to summarize a temporary
+  Markdown fallback only when Beads state is unavailable.
 - `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
   before worker handoff, including owners, exit conditions, evidence mapping,
   authority rules, typed projections, quarantine handling, boundary negative
@@ -1186,6 +1189,16 @@ Markdown plan and say that durability is reduced. Do not claim contractor-only
 filtering, shared ready-work semantics, or durable external handoff unless
 Beads or an equivalent tracker is actually in use.
 
+```bash
+python3 scripts/scaffold_workgraph.py \
+  --title "<goal>" \
+  --description "<scope>" \
+  --dry-run \
+  --format markdown-workgraph > /tmp/cwo-workgraph.md
+
+python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+```
+
 On Fedora or EPEL-style systems, use your configured Beads package source. If
 you do not have one, the installer suggests the public `greg-at-redhat/beads`
 COPR. Set `BEADS_COPR=owner/project` before running the installer to point the
@@ -1197,8 +1210,18 @@ sudo dnf install beads
 bd version
 ```
 
-For non-RPM systems or source-based installs, use the upstream Beads project:
-<https://github.com/steveyegge/beads>.
+For non-RPM systems, use an upstream-supported Beads install channel such as
+Homebrew on macOS or Linux, or the quick install script for macOS, Linux, or
+FreeBSD:
+
+```bash
+brew install beads
+curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash
+bd version
+```
+
+For the current Beads installation matrix, use the upstream documentation:
+<https://gastownhall.github.io/beads/>.
 
 Normal Codex ready-work discovery should exclude outside and local-worker
 contracts:

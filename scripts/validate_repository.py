@@ -738,7 +738,7 @@ def validate_repository() -> list[str]:
             "scripts/coach_prompt.py",
             "bd ready",
             "greg-at-redhat/beads",
-            "github.com/steveyegge/beads",
+            "github.com/gastownhall/beads",
             "no-codex-exec",
             "./workflows.html",
             "skills",

@@ -305,7 +305,12 @@ check_beads() {
     say "  bd version"
   else
     say "This does not look like a Fedora/RPM host, so the COPR command may not apply."
-    say "Install Beads by the method appropriate for this system, or proceed without Beads durability."
+    say "Use an upstream-supported Beads install channel, then verify bd:"
+    say "  brew install beads"
+    say "  curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash"
+    say "  bd version"
+    say "Upstream install guide: https://gastownhall.github.io/beads/"
+    say "You can proceed without Beads, but CWO will be limited to reduced-durability Markdown handoff state."
   fi
 }
 

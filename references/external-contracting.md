@@ -389,6 +389,16 @@ If Beads is not available, create a temporary Markdown plan with the same
 fields. That fallback is less durable and does not provide automatic ready-work
 filtering, dependency state, or shared comments.
 
+```bash
+python3 scripts/scaffold_workgraph.py \
+  --title "<goal>" \
+  --description "<scope>" \
+  --dry-run \
+  --format markdown-workgraph > /tmp/cwo-workgraph.md
+
+python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+```
+
 ## Required Labels
 
 Guard labels:

@@ -361,6 +361,8 @@ python3 scripts/route_work.py --model-synthesis "&lt;task text&gt;"
 python3 scripts/coach_prompt.py --beads-context-depth focused "&lt;task text&gt;"
 python3 scripts/build_beads_brief.py --bead "&lt;id&gt;" --depth focused --for subagent
 python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --scaffold-size tight --dry-run
+python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --dry-run --format markdown-workgraph
+python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
 python3 scripts/cleanup_stale_agents.py --json
 python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
 python3 scripts/configure_codex_beads_hooks.py --project-dir . --mode full-context --json

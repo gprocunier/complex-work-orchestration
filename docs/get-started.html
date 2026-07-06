@@ -102,8 +102,17 @@ bd version</code></pre>
             <pre><code>sudo dnf copr enable greg-at-redhat/beads
 sudo dnf install beads</code></pre>
             <p>
-              For other platforms, use the upstream Beads project at
-              <a href="https://github.com/steveyegge/beads">github.com/steveyegge/beads</a>.
+              For non-RPM systems, use an upstream-supported Beads install
+              channel such as Homebrew on macOS or Linux, or the quick install
+              script for macOS, Linux, or FreeBSD.
+            </p>
+            <pre><code>brew install beads
+curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash
+bd version</code></pre>
+            <p>
+              For the current Beads installation matrix, use the upstream
+              Beads project at
+              <a href="https://github.com/gastownhall/beads">github.com/gastownhall/beads</a>.
             </p>
           </section>
 
