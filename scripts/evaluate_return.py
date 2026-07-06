@@ -7,7 +7,7 @@ from pathlib import Path
 
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
-from cwo_core.policy import executor_config
+from cwo_core.policy import resolve_executor_key
 from cwo_core.telemetry import telemetry_fields
 
 
@@ -135,7 +135,7 @@ def main() -> None:
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args()
     if args.executor:
-        args.executor = str(executor_config(args.executor).get("key", args.executor))
+        args.executor = resolve_executor_key(args.executor)
 
     workspace_mutation = (
         json.loads(Path(args.workspace_mutation_report).read_text(encoding="utf-8"))

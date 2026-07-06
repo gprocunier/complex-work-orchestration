@@ -505,6 +505,34 @@ Attestation/repro note: reproducible from packet.
         self.assertEqual(payload["provider_key"], "openai_manual")
         self.assertEqual(payload["provenance_class"], "external-contractor")
 
+    def test_evaluate_return_cli_allows_unregistered_executor(self) -> None:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            handle.write(self.sample_return())
+            handle.flush()
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(ROOT / "scripts" / "evaluate_return.py"),
+                    "--file",
+                    handle.name,
+                    "--executor",
+                    "some_unregistered_local_llm",
+                    "--no-audit",
+                    "--json",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["executor"], "some_unregistered_local_llm")
+        self.assertIsNone(payload["provider_key"])
+        self.assertEqual(payload["provenance_class"], "unknown")
+
     def test_normalize_return_cli_canonicalizes_executor_alias(self) -> None:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
             handle.write(self.sample_return())
@@ -530,6 +558,32 @@ Attestation/repro note: reproducible from packet.
         self.assertEqual(payload["executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
         self.assertEqual(payload["provider_key"], "openai_manual")
         self.assertEqual(payload["provenance_class"], "external-contractor")
+
+    def test_normalize_return_cli_allows_unregistered_executor(self) -> None:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            handle.write(self.sample_return())
+            handle.flush()
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(ROOT / "scripts" / "normalize_contractor_return.py"),
+                    "--file",
+                    handle.name,
+                    "--executor",
+                    "some_unregistered_local_llm",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["executor"], "some_unregistered_local_llm")
+        self.assertIsNone(payload["provider_key"])
+        self.assertEqual(payload["provenance_class"], "unknown")
 
     def test_file_and_packet_evidence_remains_primary_quality(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
