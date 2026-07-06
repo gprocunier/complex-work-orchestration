@@ -34,7 +34,7 @@ SOURCE_LINK_PATTERNS = [
     INCIDENT_PLAYBOOK_URL,
     "https://github.com/gprocunier/hello-world-contractor-demo",
     "https://gprocunier.github.io/hello-world-contractor-demo/",
-    "https://github.com/steveyegge/beads",
+    "https://github.com/gastownhall/beads",
     "https://diataxis.fr/",
     "https://www.anthropic.com/news/claude-fable-5-mythos-5",
     "https://www.anthropic.com/system-cards",

@@ -5,9 +5,9 @@ usage() {
   cat <<'EOF'
 Launch a ChatGPT browser profile for CWO ChatGPT Pro master review.
 
-This helper starts Chrome through systemd --user on Wayland with a localhost
-Chrome DevTools Protocol port. It avoids exec-owned visible Chrome processes
-that are reaped when the launcher exits.
+This helper can start Chrome through systemd --user on Wayland or print a
+foreground Chrome command for an operator shell. Both paths use a localhost
+Chrome DevTools Protocol port and a dedicated browser profile.
 
 Usage:
   scripts/launch_chatgpt_cdp_chrome.sh [options]
@@ -24,10 +24,13 @@ Options:
   --stop                stop the named unit and exit
   --status              print unit and CDP port status and exit
   --dry-run             print the systemd-run command without launching
+  --print-chrome-command
+                        print a foreground Chrome/CDP command and exit
   -h, --help            show this help
 
 Typical flow:
   scripts/launch_chatgpt_cdp_chrome.sh --write-config
+  scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command
   python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --confirm-only --json
   python3 scripts/chatgpt_browser_review.py --packet master-plan-review-packet.json --json
 EOF
@@ -121,6 +124,7 @@ REPLACE=0
 STOP=0
 STATUS=0
 DRY_RUN=0
+PRINT_CHROME_COMMAND=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -168,6 +172,10 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=1
       shift
       ;;
+    --print-chrome-command)
+      PRINT_CHROME_COMMAND=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -193,17 +201,34 @@ if [[ "$STATUS" -eq 1 ]]; then
   exit 0
 fi
 
-if ! command -v systemd-run >/dev/null 2>&1; then
-  printf 'ERROR: systemd-run is required for this launcher\n' >&2
-  exit 1
-fi
-
 if [[ -z "$CHROME" ]]; then
   CHROME="$(detect_chrome)"
 fi
 
 if [[ "$WRITE_CONFIG" -eq 1 ]]; then
   write_config "$CONFIG_PATH" "$PORT"
+fi
+
+manual_cmd=(
+  "$CHROME"
+  --remote-debugging-address=127.0.0.1
+  "--remote-debugging-port=${PORT}"
+  "--user-data-dir=${PROFILE}"
+  --no-first-run
+  --new-window
+  "$URL"
+)
+
+if [[ "$PRINT_CHROME_COMMAND" -eq 1 ]]; then
+  printf 'mkdir -p %q\n' "$PROFILE"
+  quote_cmd "${manual_cmd[@]}"
+  printf 'Config path: %s\n' "$CONFIG_PATH"
+  exit 0
+fi
+
+if ! command -v systemd-run >/dev/null 2>&1; then
+  printf 'ERROR: systemd-run is unavailable; use --print-chrome-command for a manual foreground Chrome command.\n' >&2
+  exit 1
 fi
 
 if [[ "$REPLACE" -eq 1 ]]; then

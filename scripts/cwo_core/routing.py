@@ -40,6 +40,23 @@ from .synthesis import recommend_model_synthesis, zero_trust_route_requirement
 from .util import rank_allows, rank_max, term_hits
 
 
+SENSITIVITY_HEURISTIC_DISCLAIMER = (
+    "Data sensitivity is an advisory text heuristic and can miss paraphrases or context; "
+    "operators should pass --data-sensitivity when sensitivity is known."
+)
+
+
+def normalize_data_sensitivity(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized not in SENSITIVITY_ORDER:
+        raise SystemExit(
+            "data_sensitivity must be one of: " + ", ".join(SENSITIVITY_ORDER)
+        )
+    return normalized
+
+
 def detect_sensitivity(text: str, routing: dict[str, Any]) -> str:
     sensitivity_terms = routing.get("sensitivity_terms", {})
     for level in ["restricted", "redacted", "public"]:
@@ -50,6 +67,45 @@ def detect_sensitivity(text: str, routing: dict[str, Any]) -> str:
     return "internal"
 
 
+def resolve_data_sensitivity(
+    text: str,
+    routing: dict[str, Any],
+    *,
+    data_sensitivity: str | None = None,
+) -> dict[str, Any]:
+    declared = normalize_data_sensitivity(data_sensitivity)
+    heuristic = detect_sensitivity(text, routing)
+    if declared:
+        effective = max([declared, heuristic], key=SENSITIVITY_ORDER.index)
+        source = "operator-declared"
+        if effective == declared:
+            reason = f"Operator declared data sensitivity {declared}; heuristic estimate was {heuristic}."
+        else:
+            reason = (
+                f"Operator declared data sensitivity floor {declared}; "
+                f"heuristic estimate {heuristic} raised the effective sensitivity to {effective}."
+            )
+    else:
+        effective = heuristic
+        source = "heuristic"
+        reason = f"Text heuristic estimated data sensitivity {heuristic}."
+    return {
+        "data_sensitivity": effective,
+        "data_sensitivity_source": source,
+        "data_sensitivity_heuristic": heuristic,
+        "data_sensitivity_disclaimer": SENSITIVITY_HEURISTIC_DISCLAIMER,
+        "data_sensitivity_provenance": {
+            "source": source,
+            "declared_sensitivity": declared,
+            "heuristic_sensitivity": heuristic,
+            "effective_sensitivity": effective,
+            "advisory_heuristic": True,
+            "disclaimer": SENSITIVITY_HEURISTIC_DISCLAIMER,
+            "reason": reason,
+        },
+    }
+
+
 def dispatch_sensitivity_for_boundary(sensitivity: str, share_boundary: str) -> str:
     if share_boundary == "redacted-packet" and sensitivity == "internal":
         return "redacted"
@@ -57,7 +113,7 @@ def dispatch_sensitivity_for_boundary(sensitivity: str, share_boundary: str) -> 
 
 
 CHATGPT_MASTER_REVIEW_GATE = "chatgpt-pro-5.5-master-plan-review"
-CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_5_5_extended_reasoning_browser"
+CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
 CHATGPT_MASTER_REVIEW_JOB = "contract-jd-master-plan-review"
 CHATGPT_MASTER_REVIEW_FAILURE_BEHAVIOR = "stop-before-implementation-unless-explicit-operator-waiver"
 CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
@@ -69,9 +125,9 @@ CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
 
 DEFAULT_EXECUTION_ENVIRONMENT = "connected-codex"
 GLM_PRIMARY_EXECUTION_ENVIRONMENT = "connected-codex-glm-primary"
-GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "openshift_ai_vllm_glm_5_2_bf16_architecture_critic"
-GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "openshift_ai_vllm_glm_5_2_bf16_primary_architect"
-CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_5_5_xhigh_architecture_critic"
+GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_architecture_critic"
+GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "rhoai_glm_primary_architect"
+CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_architecture_critic"
 LOCAL_DISPATCH_MODES = {"local_openai_compatible", "local_secure_review"}
 
 
@@ -257,13 +313,9 @@ def resolve_beads_context_depth(
     model_synthesis_active: bool = False,
     editor_gate_required: bool = False,
     beads_context_depth: str | None = None,
-    beads_briefing_depth: str | None = None,
     actor_context: str = "routing",
 ) -> dict[str, Any]:
     explicit_context = normalize_beads_context_depth(beads_context_depth, field_name="beads_context_depth")
-    explicit_briefing = normalize_beads_context_depth(beads_briefing_depth, field_name="beads_briefing_depth")
-    if explicit_context and explicit_briefing and explicit_context != explicit_briefing:
-        raise SystemExit("beads_context_depth and beads_briefing_depth must match when both are provided")
 
     computed, rationale = autosize_beads_context_depth(
         text,
@@ -274,11 +326,11 @@ def resolve_beads_context_depth(
         model_synthesis_active=model_synthesis_active,
         editor_gate_required=editor_gate_required,
     )
-    requested = explicit_context or explicit_briefing
+    requested = explicit_context
     if requested:
         effective = requested
         source = "explicit"
-        override_field = "beads_context_depth" if explicit_context else "beads_briefing_depth"
+        override_field = "beads_context_depth"
         rationale.append(f"Explicit {override_field} override selected {effective}.")
     else:
         effective = computed
@@ -287,7 +339,6 @@ def resolve_beads_context_depth(
 
     return {
         "beads_context_depth": effective,
-        "beads_briefing_depth": effective,
         "beads_context_depth_source": source,
         "beads_context_depth_rationale": rationale,
         "beads_context_depth_provenance": {
@@ -429,7 +480,7 @@ def public_docs_editor_gate_required(text: str, file_paths: list[str] | None = N
     lowered = text.lower()
     if any(term in lowered for term in PUBLIC_DOCS_EDITOR_TEXT_TERMS):
         return True
-    return any(is_public_docs_page_path(path) for path in file_paths or [])
+    return any(is_public_docs_path(path) for path in file_paths or [])
 
 
 def public_docs_page_review_required(text: str, file_paths: list[str] | None = None) -> bool:
@@ -716,16 +767,16 @@ def score_executors(
         if key == CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR:
             score -= 100
             reasons.append("reserved for explicit architecture counter-review lanes")
-        if is_architecture_review_task and key == "gemini_3_1_pro_preview_agy" and explicit_gemini_architect_critique_requested(text):
+        if is_architecture_review_task and key == "gemini_architecture_critic" and explicit_gemini_architect_critique_requested(text):
             score += 30
             reasons.append("explicit Gemini/Agy architect critique request")
-        if is_architecture_review_task and key == "claude_opus_4_6_architecture_critic" and explicit_claude_architect_critique_requested(text):
+        if is_architecture_review_task and key == "claude_architecture_critic" and explicit_claude_architect_critique_requested(text):
             score += 32
             reasons.append("explicit Claude Opus architect critique request")
-        if is_architecture_review_task and key == "openshift_ai_vllm_glm_5_2_bf16_architecture_critic" and explicit_glm_architect_critique_requested(text):
+        if is_architecture_review_task and key == "rhoai_glm_architecture_critic" and explicit_glm_architect_critique_requested(text):
             score += 34
             reasons.append("explicit GLM-5.2 BF16 architect critique request")
-        if key == "chatgpt_pro_5_5_extended_reasoning_browser" and explicit_chatgpt_master_plan_review_requested(text):
+        if key == "chatgpt_pro_browser_master_reviewer" and explicit_chatgpt_master_plan_review_requested(text):
             score += 36
             reasons.append("explicit ChatGPT Pro Extended Reasoning master plan review request")
         if key == "openai_deep_research_manual" and explicit_openai_deep_research_requested(text):
@@ -736,7 +787,7 @@ def score_executors(
             reasons.append("Extended Reasoning master review is distinct from Deep Research")
         if (
             explicit_chatgpt_master_plan_review_requested(text)
-            and key != "chatgpt_pro_5_5_extended_reasoning_browser"
+            and key != "chatgpt_pro_browser_master_reviewer"
             and executor.get("external")
         ):
             score -= 80
@@ -838,7 +889,7 @@ def classify_work(
     unattended: bool = False,
     model_synthesis: bool = False,
     beads_context_depth: str | None = None,
-    beads_briefing_depth: str | None = None,
+    data_sensitivity: str | None = None,
     execution_environment: str | None = None,
 ) -> dict[str, Any]:
     routing = load_policy("routing-policy")
@@ -912,7 +963,8 @@ def classify_work(
             file_paths=file_paths,
         )
 
-    sensitivity = detect_sensitivity(text, routing)
+    sensitivity_signal = resolve_data_sensitivity(text, routing, data_sensitivity=data_sensitivity)
+    sensitivity = sensitivity_signal["data_sensitivity"]
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
     risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
     if small_docs_change:
@@ -1011,12 +1063,12 @@ def classify_work(
         }
         transport = candidate.get("transport") if isinstance(candidate.get("transport"), dict) else {}
         default_command = str(transport.get("default_command", ""))
-        if key == "claude_opus_4_6_architecture_critic":
+        if key == "claude_architecture_critic":
             contract["architecture_complexity"] = architecture_complexity
             contract["claude_effort"] = claude_effort
             if default_command:
                 contract["manual_command"] = command_with_claude_effort(default_command, claude_effort)
-        elif key == "openshift_ai_vllm_glm_5_2_bf16_architecture_critic":
+        elif key == "rhoai_glm_architecture_critic":
             contract["local_profile"] = candidate.get("local_profile")
             contract["model_profile"] = candidate.get("model_profile")
         elif default_command:
@@ -1107,7 +1159,6 @@ def classify_work(
         model_synthesis_active=bool(synthesis_result.get("active")),
         editor_gate_required=editor_gate_required,
         beads_context_depth=beads_context_depth,
-        beads_briefing_depth=beads_briefing_depth,
         actor_context=stage or "routing",
     )
 
@@ -1115,7 +1166,7 @@ def classify_work(
         "route": route,
         "task_class": task_class,
         "risk_level": risk,
-        "data_sensitivity": sensitivity,
+        **sensitivity_signal,
         "dispatch_sensitivity": dispatch_sensitivity,
         "share_boundary": share_boundary,
         "execution_environment": execution_environment_key,
@@ -1214,7 +1265,6 @@ def classify_work(
             model_synthesis_active=True,
             editor_gate_required=editor_gate_required,
             beads_context_depth=beads_context_depth,
-            beads_briefing_depth=beads_briefing_depth,
             actor_context=stage or "routing",
         )
         result.update(refreshed)

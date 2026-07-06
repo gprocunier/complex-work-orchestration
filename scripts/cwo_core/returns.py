@@ -6,7 +6,7 @@ import shlex
 from functools import lru_cache
 from typing import Any
 
-from .policy import load_contracting_controls, load_policy, peer_review_policy, provider_profile
+from .policy import executor_config, load_contracting_controls, load_policy, peer_review_policy, provider_profile
 from .util import artifact_hash
 
 
@@ -1225,24 +1225,25 @@ def return_provenance(
     local_profile: str | None = None,
     model_profile: str | None = None,
 ) -> dict[str, Any]:
-    executor_config = {}
+    executor_info = {}
     if executor:
-        candidate = load_policy("executor-registry").get("executors", {}).get(executor, {})
-        if isinstance(candidate, dict):
-            executor_config = candidate
+        try:
+            executor_info = executor_config(executor)
+        except SystemExit:
+            executor_info = {}
 
-    resolved_provider_key = provider_key or executor_config.get("provider_key")
+    resolved_provider_key = provider_key or executor_info.get("provider_key")
     provider = provider_profile(str(resolved_provider_key) if resolved_provider_key else None)
     registry_trust_tier = provider.get("trust_tier")
     resolved_trust_tier = provider_trust_tier or registry_trust_tier
-    resolved_dispatch_mode = dispatch_mode or executor_config.get("dispatch_mode")
-    resolved_local_profile = local_profile or executor_config.get("local_profile")
-    resolved_model_profile = model_profile or executor_config.get("model_profile")
+    resolved_dispatch_mode = dispatch_mode or executor_info.get("dispatch_mode")
+    resolved_local_profile = local_profile or executor_info.get("local_profile")
+    resolved_model_profile = model_profile or executor_info.get("model_profile")
     provider_external = provider.get("external")
     warnings: list[str] = []
     if provider_key and registry_trust_tier and provider_trust_tier and provider_trust_tier != registry_trust_tier:
         warnings.append("provider_trust_tier does not match provider registry")
-    if executor and not executor_config:
+    if executor and not executor_info:
         warnings.append("executor not found in executor registry")
     if resolved_provider_key and not provider:
         warnings.append("provider_key not found in provider registry")
@@ -1276,10 +1277,11 @@ def return_provenance(
 def executor_default_synthesis_use(executor: str | None) -> str | None:
     if not executor:
         return None
-    executor_config = load_policy("executor-registry").get("executors", {}).get(executor, {})
-    if not isinstance(executor_config, dict):
+    try:
+        config = executor_config(executor)
+    except SystemExit:
         return None
-    value = str(executor_config.get("default_synthesis_use") or "").strip().lower().replace("_", "-")
+    value = str(config.get("default_synthesis_use") or "").strip().lower().replace("_", "-")
     return value or None
 
 

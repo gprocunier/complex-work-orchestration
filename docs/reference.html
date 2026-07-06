@@ -142,8 +142,8 @@
               route results, contractor handoff packets, contractor returns,
               local dispatch envelopes, versioned harness dispatch envelopes,
               execution environment profiles, model-profile registries, run
-              readiness plans, acceptance decisions, audit events, and
-              attestations.
+              readiness plans, sprint continuation briefs, acceptance
+              decisions, audit events, and attestations.
             </p>
             <div class="reference-table compact" role="table" aria-label="Schema files">
               <div role="row"><span role="cell">Contractor return</span><code role="cell">schemas/contractor-return.schema.json</code></div>
@@ -152,6 +152,7 @@
               <div role="row"><span role="cell">Harness dispatch</span><code role="cell">schemas/harness-dispatch-envelope.schema.json</code></div>
               <div role="row"><span role="cell">Execution environment</span><code role="cell">schemas/execution-environment.schema.json</code></div>
               <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
+              <div role="row"><span role="cell">Sprint continuation</span><code role="cell">schemas/sprint-continuation.schema.json</code></div>
               <div role="row"><span role="cell">Execution status report</span><code role="cell">schemas/execution-status-report.schema.json</code></div>
             </div>
             <p>
@@ -231,8 +232,8 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               <strong>Operator terminology:</strong> The exact job-description
               labels, such as <code>contract-jd-security-reasoning</code>, and
               executor IDs, such as
-              <code>claude_opus_4_6_architecture_critic</code> or
-              <code>gemini_3_1_pro_preview_agy</code>,
+              <code>claude_architecture_critic</code> or
+              <code>gemini_architecture_critic</code>,
               are technical reference terms. Narrative pages introduce the
               plain workflow first.
             </p>
@@ -250,8 +251,8 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               explicitly asks for Claude, Gemini, or both as second opinions
               on a Codex architect design, routing can create independent
               contractor-only critique lanes with
-              <code>claude_opus_4_6_architecture_critic</code> and
-              <code>gemini_3_1_pro_preview_agy</code>. Claude uses
+              <code>claude_architecture_critic</code> and
+              <code>gemini_architecture_critic</code>. Claude uses
               <code>claude --model claude-opus-4-6 --effort high -p</code>
               or stronger effort for higher-complexity architecture. The
               returns are evaluated evidence, not replacement architecture
@@ -265,14 +266,14 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
             </p>
             <p>
               <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_3_1_pro_preview_agy</code> executor key.
+              <code>gemini_architecture_critic</code> executor key.
             </p>
             <p>
               The master-plan profile uses
               <code>contract-jd-master-plan-review</code>. When the user
               explicitly asks for ChatGPT Pro 5.5 Extended Reasoning to review
               the final execution plan or total work packet, routing can select
-              <code>chatgpt_pro_5_5_extended_reasoning_browser</code>. The
+              <code>chatgpt_pro_browser_master_reviewer</code>. The
               result is share-link evidence for Codex plan revision, not
               implementation authority and not OpenAI Deep Research. For real
               Pro reviews, the dispatch JSON must include a confirmed
@@ -295,6 +296,18 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               exhausted-lane, or conflicting-review closeout language;
               recommended for autonomous, publish, commit/push, mixed-evidence,
               or multi-target work; and off for ordinary focused tasks.
+            </p>
+            <p>
+              The project-manager sprint steward profile uses
+              <code>contract-jd-project-manager-sprint-steward</code>. Use it
+              when planning the next sprint, translating goals into Beads work,
+              refining blocked or ready issues, continuing a planned sprint, or
+              closing a sprint. The read-only continuation helper is
+              <code>python3 scripts/cwo.py continue --epic &lt;id&gt;</code>.
+              Beads has native epics and issues, not stories or sprints; the steward uses
+              issue metadata, labels, descriptions, dependencies, status, and
+              sprint artifacts to express standard PM workflow without
+              misrepresenting the tool.
             </p>
             <p>
               Red Hat lenses include OpenShift Platform, OpenShift Application
@@ -358,9 +371,14 @@ python3 scripts/coach_prompt.py --scaffold-size tight "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
 python3 scripts/coach_prompt.py --model-synthesis "&lt;task text&gt;"
 python3 scripts/route_work.py --model-synthesis "&lt;task text&gt;"
+python3 scripts/route_work.py --data-sensitivity redacted "&lt;task text&gt;"
 python3 scripts/coach_prompt.py --beads-context-depth focused "&lt;task text&gt;"
 python3 scripts/build_beads_brief.py --bead "&lt;id&gt;" --depth focused --for subagent
 python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --scaffold-size tight --dry-run
+python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --dry-run --format markdown-workgraph
+python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+python3 scripts/cwo.py continue --epic "&lt;id&gt;"
+python3 scripts/cwo.py continue --epic epic --markdown-workgraph /tmp/cwo-workgraph.md
 python3 scripts/cleanup_stale_agents.py --json
 python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
 python3 scripts/configure_codex_beads_hooks.py --project-dir . --mode full-context --json
@@ -375,6 +393,7 @@ python3 scripts/render_execution_status_report.py --format terminal
 python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary
 python3 scripts/check_installed_skill.py --check
+python3 scripts/generate_site.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py
 python3 scripts/validate_site.py</code></pre>
@@ -461,10 +480,8 @@ python3 scripts/validate_site.py</code></pre>
               comments. <code>focused</code> reads assigned-Bead comments as
               internal evidence. <code>heavy</code> adds broader related
               history when prior work or synthesis matters. <code>audit</code>
-              is reserved for incident, quarantine, or forensics work. The
-              compatibility alias is <code>beads_briefing_depth</code>.
-              Outside contractors do not receive raw Beads comments; they get
-              boundary-checked packets.
+              is reserved for incident, quarantine, or forensics work. Outside
+              contractors do not receive raw Beads comments; they get boundary-checked packets.
             </p>
             <pre><code>python3 scripts/close_bead_with_summary.py \
   --bead "&lt;id&gt;" \

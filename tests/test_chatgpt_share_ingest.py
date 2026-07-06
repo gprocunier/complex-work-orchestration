@@ -113,7 +113,7 @@ class ChatGPTShareIngestTests(unittest.TestCase):
             share_boundary="redacted-packet",
             job_description="contract-jd-master-plan-review",
             packet_sha256="packet-sha",
-            executor="chatgpt_pro_5_5_extended_reasoning_browser",
+            executor="chatgpt_pro_browser_master_reviewer",
         )
         self.assertIn("Contractor job description: contract-jd-master-plan-review", rendered)
         self.assertIn("Evidence:\n```text\nPlan looks ready.", rendered)

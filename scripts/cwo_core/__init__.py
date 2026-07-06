@@ -20,5 +20,7 @@ __all__ = [
     "synthesis",
     "telemetry",
     "util",
+    "waivers",
+    "workgraph_markdown",
     "workspace",
 ]

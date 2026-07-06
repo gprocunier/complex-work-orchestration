@@ -24,7 +24,8 @@ from cwo_core.audit import (
     require_packet_build_audit,
 )
 from cwo_core.telemetry import telemetry_fields
-from cwo_core.policy import load_policy
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
+from cwo_core.policy import executor_config
 from cwo_core.util import (
     artifact_hash,
     make_dispatch_id,
@@ -131,8 +132,10 @@ class PinnedHTTPSHandler(request.HTTPSHandler):
 
 
 def local_executor_fallback(executor_key: str) -> dict[str, Any]:
-    executor = load_policy("executor-registry").get("executors", {}).get(executor_key, {})
-    return dict(executor) if isinstance(executor, dict) else {}
+    try:
+        return executor_config(executor_key)
+    except SystemExit:
+        return {}
 
 
 def endpoint_url(base_url: str, endpoint_path: str) -> str:
@@ -627,6 +630,11 @@ def main() -> None:
     )
     parser.add_argument("--execute-local", action="store_true", help="Actually POST a local-worker envelope to the endpoint.")
     parser.add_argument("--share-boundary", default="no-outside-sharing")
+    parser.add_argument(
+        "--data-sensitivity",
+        choices=["public", "redacted", "internal", "restricted"],
+        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
+    )
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--bead")
     parser.add_argument("--epic")
@@ -635,9 +643,22 @@ def main() -> None:
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--json", action="store_true")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for local tests or rehearsals")
+    require_waiver_reason(
+        args,
+        [
+            "allow_degraded_packet",
+            "allow_unlinked_packet",
+            "allow_raw_manual_prompt",
+            "allow_disclosure_escalation",
+            "local_allow_private_dns",
+            "local_insecure_tls",
+            "audit",
+        ],
+    )
 
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
@@ -689,6 +710,7 @@ def main() -> None:
                     "disclosure_stage": artifact["disclosure_stage"],
                     "quota_remaining": quota_info.get("quota_remaining"),
                     "packet_sha256": artifact["packet_sha256"],
+                    **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
                     **telemetry_fields(
                         telemetry_kind="manual_dispatch",
                         telemetry_status="prepared",
@@ -720,6 +742,7 @@ def main() -> None:
         prefer_local=args.prefer_local,
         local_profile=args.local_profile,
         share_boundary=args.share_boundary,
+        data_sensitivity=args.data_sensitivity,
         requested_roles=args.requested_role,
     )
     if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:
@@ -803,6 +826,16 @@ def main() -> None:
                 "quota_stage": "consumed",
                 "dispatch_id": dispatch_id,
                 "bead_id": args.bead,
+                **waiver_audit_fields(
+                    args,
+                    [
+                        "allow_raw_manual_prompt",
+                        "allow_disclosure_escalation",
+                        "local_allow_private_dns",
+                        "local_insecure_tls",
+                        "audit",
+                    ],
+                ),
                 "epic_id": args.epic,
                 "executor_key": route["recommended_executor"],
                 "provider_key": route["selected_executor"].get("provider_key"),

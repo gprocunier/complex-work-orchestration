@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+RETIRED_FIELD = "beads_" + "briefing_depth"
 
 from cwo_core.packets import (  # noqa: E402
     CONTRACTOR_PACKET_REQUIRED_FIELDS,
@@ -120,7 +121,7 @@ class SchemaParityTests(unittest.TestCase):
         self.assertIn("model_synthesis", schema["properties"])
         self.assertIn("scaffold_sizing", schema["properties"])
         self.assertIn("beads_context_depth", schema["properties"])
-        self.assertIn("beads_briefing_depth", schema["properties"])
+        self.assertNotIn(RETIRED_FIELD, schema["properties"])
         self.assertIn("beads_context_depth_provenance", schema["properties"])
         self.assertIn("recommended_mode", schema["properties"]["model_synthesis"]["properties"])
 
@@ -128,10 +129,20 @@ class SchemaParityTests(unittest.TestCase):
         schema = load_schema("route-result.schema.json")
         model_synthesis = schema["properties"]["model_synthesis"]
         self.assertIn("model_synthesis", schema["required"])
+        self.assertIn("data_sensitivity_source", schema["required"])
+        self.assertIn("data_sensitivity_heuristic", schema["required"])
+        self.assertIn("data_sensitivity_provenance", schema["required"])
+        self.assertIn("data_sensitivity_disclaimer", schema["required"])
+        self.assertEqual(schema["properties"]["data_sensitivity_source"]["enum"], ["heuristic", "operator-declared"])
+        provenance = schema["properties"]["data_sensitivity_provenance"]
+        self.assertIn("declared_sensitivity", provenance["required"])
+        self.assertIn("heuristic_sensitivity", provenance["required"])
+        self.assertIn("effective_sensitivity", provenance["required"])
         self.assertIn("beads_context_depth", schema["required"])
-        self.assertIn("beads_briefing_depth", schema["required"])
+        self.assertNotIn(RETIRED_FIELD, schema["required"])
         self.assertIn("beads_context_depth_provenance", schema["required"])
         self.assertIn("beads_context_depth", schema["properties"])
+        self.assertNotIn(RETIRED_FIELD, schema["properties"])
         for field in [
             "activation_state",
             "active",
@@ -219,6 +230,28 @@ class SchemaParityTests(unittest.TestCase):
         self.assertEqual(
             set(patrol_evidence["items"]["enum"]),
             {"ownership", "locking", "history", "failure_containment", "provider_neutral_execution"},
+        )
+
+    def test_sprint_continuation_schema_has_operator_brief_contract(self) -> None:
+        schema = load_schema("sprint-continuation.schema.json")
+        properties = schema["properties"]
+        for field in [
+            "recommended_next_issue",
+            "why_next",
+            "ready_issues",
+            "blocked_issues",
+            "carry_forward",
+            "definition_of_ready",
+            "definition_of_done",
+            "evidence_expectations",
+            "resume_commands",
+            "modeling_note",
+        ]:
+            self.assertIn(field, schema["required"])
+            self.assertIn(field, properties)
+        self.assertEqual(
+            schema["properties"]["continuation_result_type"]["const"],
+            "complex-work-orchestration-sprint-continuation",
         )
 
 

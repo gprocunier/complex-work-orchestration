@@ -32,6 +32,7 @@ from cwo_core.audit import (
     record_audit_event,
 )
 from cwo_core.telemetry import telemetry_fields
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 from cwo_core.packets import (
     fenced_block,
     file_snippet,
@@ -352,9 +353,11 @@ def main() -> None:
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--rehearsal", action="store_true", help="Allow no-audit packet rehearsals that must not consume audit quota.")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for packet build tests or rehearsals")
+    require_waiver_reason(args, ["allow_disclosure_escalation", "audit"])
     executor_info = executor_config(args.executor)
     requested_executor = executor_info.get("requested_key")
     args.executor = str(executor_info.get("key", args.executor))
@@ -427,6 +430,7 @@ def main() -> None:
                 "opt_in_basis": opt_in_basis,
                 "quota_remaining": quota_info.get("quota_remaining"),
                 "packet_sha256": packet["packet_sha256"],
+                **waiver_audit_fields(args, ["allow_disclosure_escalation", "audit"]),
                 **telemetry_fields(
                     telemetry_kind="packet_build",
                     telemetry_status="completed",

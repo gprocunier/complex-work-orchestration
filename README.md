@@ -154,6 +154,26 @@ python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."
 ```
 
+For a compact sanity check, use the consolidated helper:
+
+```bash
+python3 scripts/cwo.py coach --brief \
+  "Clean up installer docs, tests, and handoff notes."
+```
+
+Expected output:
+
+```text
+Recommended orchestration: lightweight-beads
+Route: internal-worker
+Task class: docs-review
+Risk: low
+Sensitivity: internal
+Sensitivity source: heuristic
+Executor: internal_worker
+Beads context depth: focused
+```
+
 Operator reference: when the user has accepted a recommended synthesis lane,
 advanced helpers use the same activation flag at each stage:
 
@@ -198,6 +218,14 @@ Plan-mode choice only when it matters:
 ```bash
 python3 scripts/coach_prompt.py --beads-context-depth focused "<task text>"
 python3 scripts/build_beads_brief.py --bead <id> --depth focused --for subagent
+```
+
+Operator reference: sensitivity detection is advisory text matching. If you know
+the input boundary, declare it so routing does not depend on keyword coverage:
+
+```bash
+python3 scripts/coach_prompt.py --data-sensitivity restricted "<task text>"
+python3 scripts/route_work.py --data-sensitivity redacted "<task text>"
 ```
 
 Simple use case:
@@ -409,7 +437,7 @@ architect replacement.
 The `connected-codex-glm-primary` environment is an experimental bridge toward
 that airgapped model. Codex CLI remains the connected PM/operator shell, GLM-5.2
 BF16 Thinking is the no-write local primary architect, and
-`codex_5_5_xhigh_architecture_critic` becomes the independent counter-review
+`codex_architecture_critic` becomes the independent counter-review
 input for synthesis. Selecting the environment is also the explicit local
 architect opt-in; raw GLM thinking remains stripped from durable artifacts.
 
@@ -604,6 +632,9 @@ A contractor handoff packet is a policy-checked brief that contains the
 approved share boundary, job labels, task context, selected snippets, provider
 binding, and expert profile for outside or local review.
 
+- `scripts/cwo.py`: single stdlib dispatcher for the main helper commands,
+  for example `python3 scripts/cwo.py coach --brief "<task text>"` or
+  `python3 scripts/cwo.py continue --epic <id>`.
 - `scripts/coach_prompt.py`: compile a right-sized invocation prompt before
   launching the full harness, including bounded `interactive_questions` that
   Codex can map to selectable Plan-mode prompts and a
@@ -624,7 +655,9 @@ binding, and expert profile for outside or local review.
   pass `--close` only when the helper should also run `bd close`.
 - `scripts/scaffold_workgraph.py`: create a policy-shaped Beads epic and workstream
   tasks; use `--dry-run --format beads-graph` to emit a `bd create --graph`
-  compatible JSON plan for validation or advanced automation.
+  compatible JSON plan for validation or advanced automation, or
+  `--dry-run --format markdown-workgraph` for a reduced-durability fallback
+  when `bd` is unavailable.
 - `scripts/spawn_expert_reviews.py`: create expert-review or contractor-only
   Beads from routing triggers.
 - `scripts/build_contractor_packet.py`: generate a gated outside-contractor
@@ -643,19 +676,22 @@ binding, and expert profile for outside or local review.
   identity. Packet dispatch requires the matching `packet_built` audit row
   unless the operator explicitly uses `--allow-unlinked-packet`.
 - `scripts/chatgpt_browser_review.py`: opt-in browser dispatch for a redacted
-  master-plan review with `chatgpt_pro_5_5_extended_reasoning_browser`.
+  master-plan review with `chatgpt_pro_browser_master_reviewer`.
   Configure it with `CWO_CHATGPT_BROWSER_CONFIG`; keep the config outside the
   repository with operator-managed browser authentication and mode `0600`.
-- `scripts/launch_chatgpt_cdp_chrome.sh`: systemd/Wayland launcher for the
-  ChatGPT Pro browser lane. It starts the dedicated Chrome profile with a
-  localhost CDP port and can write the safe local browser config used by
-  `chatgpt_browser_review.py`.
+- `scripts/launch_chatgpt_cdp_chrome.sh`: ChatGPT Pro browser lane helper. It
+  can launch the dedicated Chrome profile through systemd/Wayland or print a
+  foreground operator command, uses a localhost CDP port, and can write the safe
+  local browser config used by `chatgpt_browser_review.py`.
 - `scripts/ingest_chatgpt_share_return.py`: read the resulting ChatGPT share
   link through the local `chatgpt-share-local-reader` skill and render a
   contractor-return template for evaluation.
 - `scripts/check_installed_skill.py`: compare this checkout with the installed
   Codex skill using a content manifest; use `--check` to fail on missing or
   drifted installs and rerun `scripts/install.sh` to reload.
+- `scripts/generate_site.py`: regenerate or check the shared GitHub Pages HTML
+  shell while preserving each page body. CI runs `--check` so header, primary
+  navigation, favicon, and footer drift is caught without prose-string tests.
 - `scripts/configure_codex_beads_hooks.py`: render or apply `.codex/hooks.json`
   Beads lifecycle hooks; `full-context` preserves automatic Beads injection,
   while `quiet` requires detected Codex `visibilityHint` support or an explicit
@@ -686,7 +722,13 @@ binding, and expert profile for outside or local review.
   provider, token, retry, and timing summaries without storing raw prompts,
   transcripts, responses, share URLs, endpoint URLs, or secret values.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
-  graph state.
+  graph state. Pass `--markdown-workgraph <path>` to summarize a temporary
+  Markdown fallback only when Beads state is unavailable.
+- `scripts/continue_sprint.py`: recommend the next executable issue for a
+  planned epic or sprint artifact. It reads Beads by default, accepts
+  `--markdown-workgraph <path>` as a reduced-durability fallback, and reports
+  ready work, blocked work, evidence expectations, and resume commands without
+  mutating Beads.
 - `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
   before worker handoff, including owners, exit conditions, evidence mapping,
   authority rules, typed projections, quarantine handling, boundary negative
@@ -708,8 +750,8 @@ binding, and expert profile for outside or local review.
 
 Schemas in `schemas/` describe prompt-coach results, route results, contractor
 packets, contractor return bundles, local dispatch envelopes, attestations,
-acceptance decisions, run readiness plans, execution status reports, Beads
-metadata, and audit events.
+acceptance decisions, run readiness plans, sprint continuation briefs,
+execution status reports, Beads metadata, and audit events.
 `examples/` contains small sample artifacts that can be used as smoke-test
 inputs.
 
@@ -995,13 +1037,18 @@ reference below and in the GitHub Pages Reference page.
    implementation, validation, docs/handoff, required peer/editor/evaluation
    gates, the primary review expert, and explicit architecture-critic
    contracts, while limiting optional secondary expert lanes.
-   `beads_context_depth` and the compatibility alias `beads_briefing_depth`
-   control how much durable Beads history internal Codex agents read. Values
-   are `none`, `summary`, `focused`, `heavy`, and `audit`. Each result carries
+   `beads_context_depth` controls how much durable Beads history internal
+   Codex agents read. Values are `none`, `summary`, `focused`, `heavy`, and
+   `audit`. Each result carries
    `beads_context_depth_provenance` with computed depth, effective depth,
    source, override field, and reason. The coach always includes the
    Beads context-depth choice in `interactive_questions`, with the autosized
    depth as the recommended default.
+   `data_sensitivity` is inferred by an advisory text heuristic unless the
+   operator passes `--data-sensitivity public|redacted|internal|restricted`.
+   Route results carry `data_sensitivity_source`,
+   `data_sensitivity_heuristic`, `data_sensitivity_provenance`, and a
+   disclaimer that keyword heuristics can miss paraphrases or context.
 2. Classify non-trivial work against the policy:
 
    ```bash
@@ -1125,8 +1172,7 @@ but it is not shared across machines until you add a remote.
 
 Beads comments are one of the best memory sources for spawned agents and for
 sessions after context compaction, but they must be deliberately sized. The
-prompt coach autosizes `beads_context_depth` and mirrors it to
-`beads_briefing_depth` for compatibility:
+prompt coach autosizes `beads_context_depth`:
 
 - `none`: no `bd` lookup; use only the assigned prompt metadata.
 - `summary`: read assigned-Bead JSON without comments.
@@ -1184,10 +1230,29 @@ Markdown plan and say that durability is reduced. Do not claim contractor-only
 filtering, shared ready-work semantics, or durable external handoff unless
 Beads or an equivalent tracker is actually in use.
 
+```bash
+python3 scripts/scaffold_workgraph.py \
+  --title "<goal>" \
+  --description "<scope>" \
+  --dry-run \
+  --format markdown-workgraph > /tmp/cwo-workgraph.md
+
+python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+python3 scripts/cwo.py continue --epic epic --markdown-workgraph /tmp/cwo-workgraph.md
+```
+
+Use `continue` when the work is already planned and the user needs the next
+execution step. It returns one recommended next issue, why that issue is next,
+blocked work and unblock reasons, evidence expectations, and resume commands.
+It does not create Beads comments or issues. Beads has native epics and issues,
+not native stories or sprints; sprint state is represented through issue
+metadata, labels, dependencies, descriptions, closure notes, and process
+artifacts.
+
 On Fedora or EPEL-style systems, use your configured Beads package source. If
-you do not have one, the installer suggests the public `greg-at-redhat/beads`
-COPR. Set `BEADS_COPR=owner/project` before running the installer to point the
-hint at a different COPR. The default Fedora/RHEL path is:
+you need a public example, the installer prints the `greg-at-redhat/beads` COPR
+as a copy-paste hint. Set `BEADS_COPR=owner/project` before running the
+installer to point the hint at a different COPR:
 
 ```bash
 sudo dnf copr enable greg-at-redhat/beads
@@ -1195,8 +1260,18 @@ sudo dnf install beads
 bd version
 ```
 
-For non-RPM systems or source-based installs, use the upstream Beads project:
-<https://github.com/steveyegge/beads>.
+For non-RPM systems, use an upstream-supported Beads install channel such as
+Homebrew on macOS or Linux, or the quick install script for macOS, Linux, or
+FreeBSD:
+
+```bash
+brew install beads
+curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash
+bd version
+```
+
+For the current Beads installation matrix, use the upstream documentation:
+<https://gastownhall.github.io/beads/>.
 
 Normal Codex ready-work discovery should exclude outside and local-worker
 contracts:
@@ -1248,8 +1323,8 @@ through `gemini -p`; environments that expose Gemini through Google
 Antigravity can use `agy -p` as the local command surface after the same packet
 and opt-in gates.
 For architect-design critique, use the dedicated
-`claude_opus_4_6_architecture_critic` and
-`gemini_3_1_pro_preview_agy` executors. Claude uses
+`claude_architecture_critic` and
+`gemini_architecture_critic` executors. Claude uses
 `claude --model claude-opus-4-6 --effort high -p` by default, with `xhigh` or
 `max` effort reserved for broader architecture complexity. Gemini uses
 `agy --model gemini-3.1-pro-preview -p`. Either or both lanes are
@@ -1263,7 +1338,7 @@ specific evaluated finding. The acceptance decision may report advisory
 camp policy, boundary-taint handling, zero-trust consensus when required, and
 readiness.
 The ChatGPT Pro 5.5 Extended Reasoning browser lane is different from OpenAI
-Deep Research. Use `chatgpt_pro_5_5_extended_reasoning_browser` only when the
+Deep Research. Use `chatgpt_pro_browser_master_reviewer` only when the
 user explicitly wants ChatGPT Pro to review the final architect plan or total
 work packet before execution. It starts from a redacted packet by default,
 uses browser authentication controlled by the operator, requires a share link
@@ -1321,6 +1396,9 @@ up the work.
 - `contract-jd-operator-calibrated-execution`: execution discipline, evidence
   classification, scope control, safety-deferred residual risk, false-closure
   checks, and requested closeout.
+- `contract-jd-project-manager-sprint-steward`: next-sprint planning,
+  Beads epic/issue mapping, issue typing, dependencies, ready/done criteria,
+  carry-forward work, and sprint closeout.
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery,
   observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost,
@@ -1441,7 +1519,7 @@ For repo-readonly or patch-branch disclosure, include an explicit escalation:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor gemini_3_1_pro_manual \
+  --executor gemini_manual_reviewer \
   --share-boundary patch-branch \
   --allow-disclosure-escalation \
   --external-ok \
@@ -1465,7 +1543,7 @@ python3 scripts/route_work.py \
 
 python3 scripts/build_contractor_packet.py \
   --bead <claude-critic-bead> \
-  --executor claude_opus_4_6_architecture_critic \
+  --executor claude_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -1488,7 +1566,7 @@ For a matching Gemini/Agy critique:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <gemini-critic-bead> \
-  --executor gemini_3_1_pro_preview_agy \
+  --executor gemini_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -1541,7 +1619,7 @@ cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
 
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
@@ -1577,7 +1655,7 @@ python3 scripts/evaluate_return.py \
   --dispatch-id "$DISPATCH_ID" \
   --share-boundary redacted-packet \
   --job-description contract-jd-master-plan-review \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --file master-plan-review-return.md
 ```
 
@@ -1589,11 +1667,13 @@ review snippets locally without publishing them accidentally.
 
 Browser helper prerequisites:
 
-- Playwright must be installed for browser automation.
+- Playwright must be installed for browser automation in the operator
+  environment. Typical setup is `python3 -m pip install playwright` followed by
+  `python3 -m playwright install chromium`.
 - Chrome or Google Chrome must be available for the operator-managed profile.
 - `jq` is used by the examples to extract dispatch identity from JSON.
-- Optional local clipboard tools such as `qdbus`, `wl-paste`, `xclip`, or
-  `xsel` may help the helper capture a share URL after ChatGPT's Share action.
+- Optional local clipboard tools such as `wl-paste`, `xclip`, `xsel`, or
+  `qdbus` may help the helper capture a share URL after ChatGPT's Share action.
 
 Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
 `$HOME/.config/cwo/chatgpt-browser.json`. The file must live outside the repo,
@@ -1647,15 +1727,18 @@ Minimal local config shape:
 ```
 
 The confirmation selectors must match the current ChatGPT UI and expose the
-expected label through visible text, `aria-label`, or `title`. Use `--dry-run`
-to verify that `require_model_confirmation` is true and
-`model_confirmation_configured` is true before spending a Pro query.
+expected label through visible text, `aria-label`, or `title`. With
+`require_model_confirmation=true`, `--dry-run --json` now fails closed when
+confirmation selectors are missing; a successful dry run reports
+`model_confirmation_configured=true` before spending a Pro query.
 If Cloudflare or account prompts block automation-launched Chrome, start the
-dedicated profile through the systemd/Wayland launcher, complete the prompt, and
-use the generated localhost CDP config:
+dedicated profile through the systemd/Wayland helper or the printed foreground
+Chrome command, complete the prompt, and use the generated localhost CDP
+config:
 
 ```bash
 scripts/launch_chatgpt_cdp_chrome.sh --write-config
+scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command
 python3 scripts/chatgpt_browser_review.py \
   --packet master-plan-review-packet.json \
   --confirm-only \
@@ -1663,9 +1746,10 @@ python3 scripts/chatgpt_browser_review.py \
 ```
 
 Use `scripts/launch_chatgpt_cdp_chrome.sh --status`, `--replace`, or `--stop`
-for lifecycle control. The helper accepts only localhost CDP URLs and still
-rejects credential or session material in the config. Do not launch visible
-Chrome directly from Codex when a long-lived ChatGPT browser lane is needed.
+for systemd lifecycle control. The helper accepts only localhost CDP URLs and
+still rejects credential or session material in the config. For a long-lived
+visible ChatGPT browser lane, launch Chrome from an operator shell through the
+helper or the printed command instead of leaving it as a foreground Codex child.
 Current ChatGPT sharing UI may copy the public link directly to the local OS
 clipboard. The helper may read the local clipboard after pressing Share, but it
 accepts only validated ChatGPT share URLs and does not ask the ChatGPT page for
@@ -1825,7 +1909,7 @@ The generated `local_envelope` follows
 implicit.
 
 GLM-5.2 BF16 thinking review is available through the named executor
-`openshift_ai_vllm_glm_5_2_bf16_architecture_critic`. It uses the
+`rhoai_glm_architecture_critic`. It uses the
 `rhoai-architect-glm-5-2-bf16-thinking` model profile, sends
 `chat_template_kwargs.enable_thinking=true`, and strips raw thinking text from
 usable local-worker responses before evaluator scoring or model synthesis.

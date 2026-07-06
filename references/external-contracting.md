@@ -193,7 +193,7 @@ python3 scripts/route_work.py \
 
 python3 scripts/build_contractor_packet.py \
   --bead <claude-critic-bead> \
-  --executor claude_opus_4_6_architecture_critic \
+  --executor claude_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -212,7 +212,7 @@ claude --model claude-opus-4-6 --effort high \
 
 python3 scripts/build_contractor_packet.py \
   --bead <gemini-critic-bead> \
-  --executor gemini_3_1_pro_preview_agy \
+  --executor gemini_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -264,7 +264,7 @@ cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
 
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
@@ -288,8 +288,8 @@ Browser helper prerequisites:
 - Playwright must be installed for browser automation.
 - Chrome or Google Chrome must be available for the operator-managed profile.
 - `jq` is used below to carry the exact dispatch identity into ingest.
-- Optional local clipboard tools such as `qdbus`, `wl-paste`, `xclip`, or
-  `xsel` may help capture the share URL after ChatGPT's Share action.
+- Optional local clipboard tools such as `wl-paste`, `xclip`, `xsel`, or
+  `qdbus` may help capture the share URL after ChatGPT's Share action.
 
 Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
 `$HOME/.config/cwo/chatgpt-browser.json`. The config must live outside the
@@ -300,10 +300,11 @@ content in Beads, prompts, audit logs, or public docs. Dispatch summaries report
 safe booleans and labels, not local config paths, browser profile paths, or CDP
 URLs.
 Use `references/chatgpt-pro-browser.md` as the durable ChatGPT Pro browser
-runbook. Prefer `scripts/launch_chatgpt_cdp_chrome.sh --write-config` over
-directly executing Chrome from Codex. The launcher uses `systemd-run --user`,
-Wayland/Ozone flags, a dedicated Chrome profile, a localhost CDP port, and a
-safe local config for `chatgpt_browser_review.py`.
+runbook. Use the systemd/Wayland helper or
+`scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command` from an operator
+shell instead of leaving visible Chrome as a foreground Codex child. The helper
+uses a dedicated Chrome profile, a localhost CDP port, and a safe local config
+for `chatgpt_browser_review.py`.
 
 When the user explicitly requests ChatGPT Pro 5.5 master review before
 execution, this lane is a blocking ChatGPT Pro gate. If model confirmation,
@@ -389,6 +390,16 @@ If Beads is not available, create a temporary Markdown plan with the same
 fields. That fallback is less durable and does not provide automatic ready-work
 filtering, dependency state, or shared comments.
 
+```bash
+python3 scripts/scaffold_workgraph.py \
+  --title "<goal>" \
+  --description "<scope>" \
+  --dry-run \
+  --format markdown-workgraph > /tmp/cwo-workgraph.md
+
+python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+```
+
 ## Required Labels
 
 Guard labels:
@@ -416,6 +427,7 @@ contract-jd-performance-reasoning
 contract-jd-docs-reasoning
 contract-jd-editorial-reasoning
 contract-jd-operator-calibrated-execution
+contract-jd-project-manager-sprint-steward
 contract-jd-peer-review
 contract-jd-sabotage-review
 contract-jd-domain-<name>
@@ -584,7 +596,7 @@ python3 scripts/build_contractor_packet.py \
    bd show <id> --json
    python3 scripts/build_contractor_packet.py \
      --bead <id> \
-     --executor gemini_3_1_pro_manual \
+     --executor gemini_manual_reviewer \
      --share-boundary <mode> \
      --external-ok \
      --epic <epic-id> \

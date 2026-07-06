@@ -52,6 +52,17 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         os.chmod(path, mode)
         return path
 
+    def write_confirmation_config(self, directory: Path, mode: int = 0o600) -> Path:
+        path = self.write_config(directory, mode=mode)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["selectors"] = {
+            "model_label_confirmation_selector": "[data-testid='model-switcher']",
+            "reasoning_label_confirmation_selector": "[data-testid='reasoning-switcher']",
+        }
+        path.write_text(json.dumps(data), encoding="utf-8")
+        os.chmod(path, mode)
+        return path
+
     def test_config_summary_does_not_include_profile_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = self.write_config(Path(tmpdir))
@@ -64,6 +75,10 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertTrue(summary["local_clipboard_fallback"])
         self.assertTrue(summary["require_model_confirmation"])
         self.assertFalse(summary["model_confirmation_configured"])
+        self.assertEqual(
+            summary["model_confirmation_missing_selectors"],
+            ["model_label_confirmation_selector", "reasoning_label_confirmation_selector"],
+        )
         self.assertNotIn(str(path), rendered)
         self.assertNotIn(str(Path(tmpdir)), rendered)
         self.assertNotIn(str(Path(tmpdir) / "profile"), rendered)
@@ -154,7 +169,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         prompt_path = ROOT / "tmp-chatgpt-browser-prompt-test.md"
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
-            config_path = self.write_config(tmp)
+            config_path = self.write_confirmation_config(tmp)
             audit_lib.AUDIT_LOG = tmp / "audit.jsonl"
             prompt_path.write_text("Review this bounded packet.", encoding="utf-8")
             try:
@@ -172,6 +187,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "abc123",
                     "--allow-degraded-packet",
                     "--allow-unlinked-packet",
+                    "--waiver-reason",
+                    "test browser rehearsal",
                     "--rehearsal",
                     "--dry-run",
                     "--json",
@@ -183,6 +200,12 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 self.assertEqual(events[0]["telemetry_kind"], "browser_rehearsal")
                 self.assertEqual(events[0]["agent_model_calls"], 0)
                 self.assertEqual(events[0]["model_label"], "ChatGPT Pro 5.5")
+                self.assertTrue(events[0]["waiver_required"])
+                self.assertEqual(
+                    events[0]["waiver_flags"],
+                    ["--allow-degraded-packet", "--allow-unlinked-packet"],
+                )
+                self.assertEqual(events[0]["waiver_reason"], "test browser rehearsal")
                 self.assertEqual(events[0]["prompt_chars"], len("Review this bounded packet."))
                 self.assertNotIn("prompt", events[0])
                 self.assertNotIn("share_url", events[0])
@@ -485,10 +508,23 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             seen.append(command)
             return completed
 
-        with patch("shutil.which", return_value="/usr/bin/qdbus"):
+        with patch("shutil.which", side_effect=lambda name: "/usr/bin/qdbus" if name == "qdbus" else None):
             with patch("subprocess.run", side_effect=fake_run):
                 self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/s/t_abc")
         self.assertEqual(seen[0][0], "qdbus")
+
+    def test_read_local_clipboard_prefers_generic_clipboard_tools(self) -> None:
+        completed = type("Completed", (), {"stdout": "https://chatgpt.com/share/generic\n"})()
+        seen: list[list[str]] = []
+
+        def fake_run(command: list[str], **_: object) -> object:
+            seen.append(command)
+            return completed
+
+        with patch("shutil.which", side_effect=lambda name: f"/usr/bin/{name}"):
+            with patch("subprocess.run", side_effect=fake_run):
+                self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/share/generic")
+        self.assertEqual(seen[0][0], "wl-paste")
 
     def test_read_local_clipboard_falls_back_after_timeout(self) -> None:
         completed = type("Completed", (), {"stdout": "share https://chatgpt.com/s/t_fallback"})()
@@ -497,7 +533,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         def fake_run(command: list[str], **_: object) -> object:
             nonlocal calls
             calls += 1
-            if command[0] == "qdbus":
+            if command[0] == "wl-paste":
                 raise subprocess.TimeoutExpired(command, timeout=2)
             return completed
 
@@ -587,7 +623,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
                 },
                 executor=EXECUTOR_KEY,
-                requested_executor="chatgpt_pro_browser_master_reviewer",
+                requested_executor="chatgpt_pro_5_5_extended_reasoning_browser",
                 share_boundary="redacted-packet",
                 job_description_label="contract-jd-master-plan-review",
                 allowed_files=[],
@@ -613,7 +649,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             prompt, metadata = load_prompt_from_args(args)
 
         self.assertIn("Review this final plan.", prompt)
-        self.assertEqual(packet["requested_executor"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(packet["requested_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(packet["canonical_executor"], EXECUTOR_KEY)
         self.assertEqual(metadata["executor"], EXECUTOR_KEY)
 
     def test_prompt_file_requires_explicit_degraded_operator_flag(self) -> None:
@@ -676,7 +713,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
     def test_failed_live_cli_writes_structured_failure_output(self) -> None:
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             tmp = Path(cfgdir)
-            config = self.write_config(tmp)
+            config = self.write_confirmation_config(tmp)
             packet_path = Path(promptdir) / "packet.json"
             output = tmp / "result.json"
             packet = build_packet(
@@ -719,6 +756,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     str(output),
                     "--no-audit",
                     "--rehearsal",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
                 ],
             ):
                 import chatgpt_browser_review
@@ -745,6 +784,43 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
     def test_dry_run_cli_validates_config_without_audit(self) -> None:
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             tmp = Path(cfgdir)
+            config = self.write_confirmation_config(tmp)
+            prompt = Path(promptdir) / "prompt.md"
+            prompt.write_text("Review this final plan.", encoding="utf-8")
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "chatgpt_browser_review.py",
+                    "--prompt-file",
+                    str(prompt),
+                    "--allow-degraded-packet",
+                    "--allow-unlinked-packet",
+                    "--dispatch-id",
+                    "dispatch-chatgpt",
+                    "--bead",
+                    "cwo-1",
+                    "--packet-sha256",
+                    "packet-sha",
+                    "--config",
+                    str(config),
+                    "--dry-run",
+                    "--rehearsal",
+                    "--json",
+                    "--no-audit",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
+                ],
+            ):
+                with patch("builtins.print") as mocked_print:
+                    import chatgpt_browser_review
+
+                    chatgpt_browser_review.main()
+        self.assertTrue(mocked_print.called)
+
+    def test_dry_run_json_refuses_missing_confirmation_selectors(self) -> None:
+        with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
+            tmp = Path(cfgdir)
             config = self.write_config(tmp)
             prompt = Path(promptdir) / "prompt.md"
             prompt.write_text("Review this final plan.", encoding="utf-8")
@@ -769,18 +845,22 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--rehearsal",
                     "--json",
                     "--no-audit",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
                 ],
             ):
-                with patch("builtins.print") as mocked_print:
+                with self.assertRaises(SystemExit) as context:
                     import chatgpt_browser_review
 
                     chatgpt_browser_review.main()
-        self.assertTrue(mocked_print.called)
+
+        self.assertIn("missing confirmation selectors", str(context.exception))
+        self.assertIn("model_label_confirmation_selector", str(context.exception))
 
     def test_confirm_only_cli_records_model_attestation_without_submission(self) -> None:
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             tmp = Path(cfgdir)
-            config = self.write_config(tmp)
+            config = self.write_confirmation_config(tmp)
             prompt = Path(promptdir) / "prompt.md"
             prompt.write_text("Review this final plan.", encoding="utf-8")
             with patch.object(
@@ -804,6 +884,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--rehearsal",
                     "--json",
                     "--no-audit",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
                 ],
             ):
                 with patch.object(

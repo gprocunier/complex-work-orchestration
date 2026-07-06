@@ -213,7 +213,7 @@ class PacketGateTests(unittest.TestCase):
                 {
                     "allowed": True,
                     "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["gemini_3_1_pro_preview_agy"],
+                    "allowed_external_executors": ["gemini_architecture_critic"],
                     "allowed_providers": ["google_gemini_manual"],
                     "decision_source": "test",
                     "recorded_at": "2026-06-09T00:00:00Z",
@@ -223,7 +223,7 @@ class PacketGateTests(unittest.TestCase):
             )
             handle.flush()
             basis = validate_gate(
-                "gemini_3_1_pro_preview_agy",
+                "gemini_architecture_critic",
                 "redacted-packet",
                 labels,
                 "contract-jd-architecture-reasoning",
@@ -239,7 +239,7 @@ class PacketGateTests(unittest.TestCase):
                 {
                     "allowed": True,
                     "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["claude_opus_4_6_architecture_critic"],
+                    "allowed_external_executors": ["claude_architecture_critic"],
                     "allowed_providers": ["anthropic_manual"],
                     "decision_source": "test",
                     "recorded_at": "2026-06-09T00:00:00Z",
@@ -249,7 +249,7 @@ class PacketGateTests(unittest.TestCase):
             )
             handle.flush()
             basis = validate_gate(
-                "claude_opus_4_6_architecture_critic",
+                "claude_architecture_critic",
                 "redacted-packet",
                 labels,
                 "contract-jd-architecture-reasoning",
@@ -265,7 +265,7 @@ class PacketGateTests(unittest.TestCase):
                 {
                     "allowed": True,
                     "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["chatgpt_pro_5_5_extended_reasoning_browser"],
+                    "allowed_external_executors": ["chatgpt_pro_browser_master_reviewer"],
                     "allowed_providers": ["openai_manual"],
                     "decision_source": "test",
                     "recorded_at": "2026-06-09T00:00:00Z",
@@ -275,7 +275,7 @@ class PacketGateTests(unittest.TestCase):
             )
             handle.flush()
             basis = validate_gate(
-                "chatgpt_pro_5_5_extended_reasoning_browser",
+                "chatgpt_pro_browser_master_reviewer",
                 "redacted-packet",
                 labels,
                 "contract-jd-master-plan-review",
@@ -312,6 +312,8 @@ class PacketGateTests(unittest.TestCase):
                 "redacted-packet",
                 "--no-audit",
                 "--rehearsal",
+                "--waiver-reason",
+                "test packet builder rehearsal",
                 "--no-include-expert-profile",
                 "--degraded-context-justification",
                 "test degraded packet",
@@ -330,24 +332,24 @@ class PacketGateTests(unittest.TestCase):
             return result
 
     def test_packet_build_cli_canonicalizes_executor_alias(self) -> None:
-        result = self.run_packet_builder(executor="chatgpt_pro_browser_master_reviewer")
+        result = self.run_packet_builder(executor="chatgpt_pro_5_5_extended_reasoning_browser")
 
         self.assertEqual(result.returncode, 0, result.stderr)
         packet = json.loads(result.stdout)
-        self.assertEqual(packet["executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
-        self.assertEqual(packet["requested_executor"], "chatgpt_pro_browser_master_reviewer")
-        self.assertEqual(packet["canonical_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(packet["executor"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(packet["requested_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(packet["canonical_executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertEqual(validate_contractor_packet(packet, allow_degraded_packet=True), [])
 
     def test_packet_validation_rejects_alias_executor_artifact(self) -> None:
         result = self.run_packet_builder(executor="chatgpt_pro_browser_master_reviewer")
         self.assertEqual(result.returncode, 0, result.stderr)
         packet = json.loads(result.stdout)
-        packet["executor"] = "chatgpt_pro_browser_master_reviewer"
+        packet["executor"] = "chatgpt_pro_5_5_extended_reasoning_browser"
 
         errors = validate_contractor_packet(packet, allow_degraded_packet=True)
 
-        self.assertIn("packet executor 'chatgpt_pro_browser_master_reviewer' is unknown", errors)
+        self.assertIn("packet executor 'chatgpt_pro_5_5_extended_reasoning_browser' is unknown", errors)
 
     def test_packet_build_cli_rejects_unknown_executor_alias(self) -> None:
         result = self.run_packet_builder(executor="totally_bogus_reviewer")
@@ -361,7 +363,7 @@ class PacketGateTests(unittest.TestCase):
                 {
                     "allowed": True,
                     "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["chatgpt_pro_browser_master_reviewer"],
+                    "allowed_external_executors": ["chatgpt_pro_5_5_extended_reasoning_browser"],
                     "allowed_providers": ["openai_manual"],
                     "decision_source": "test",
                     "recorded_at": "2026-06-09T00:00:00Z",
@@ -371,7 +373,7 @@ class PacketGateTests(unittest.TestCase):
             )
             handle.flush()
             result = self.run_packet_builder(
-                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                executor="chatgpt_pro_browser_master_reviewer",
                 external_ok=False,
                 opt_in_record=handle.name,
             )
@@ -393,13 +395,13 @@ class PacketGateTests(unittest.TestCase):
             )
             handle.flush()
             result = self.run_packet_builder(
-                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                executor="chatgpt_pro_browser_master_reviewer",
                 external_ok=False,
                 opt_in_record=handle.name,
             )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("does not allow executor 'chatgpt_pro_5_5_extended_reasoning_browser'", result.stderr)
+        self.assertIn("does not allow executor 'chatgpt_pro_browser_master_reviewer'", result.stderr)
 
     def test_opt_in_record_rejects_expired_or_timezone_free_records(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]

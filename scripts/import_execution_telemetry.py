@@ -11,6 +11,7 @@ from typing import Any
 from cwo_core.audit import iter_audit_events, record_audit_event
 from cwo_core.paths import AUDIT_LOG
 from cwo_core.telemetry import SENSITIVE_AUDIT_FIELDS, telemetry_fields
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
 NUMERIC_FIELDS = {
@@ -63,7 +64,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-unmatched", action="store_true", help="Record imports without a matching dispatch audit event.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and render events without appending to the audit log.")
     parser.add_argument("--json", action="store_true", help="Print JSON summary.")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args(argv)
+    require_waiver_reason(args, ["allow_unmatched"])
 
     audit_file = Path(args.audit_file) if args.audit_file else AUDIT_LOG
     try:
@@ -75,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
                 existing_events,
                 source_label=source_label,
                 allow_unmatched=args.allow_unmatched,
+                waiver_reason=args.waiver_reason,
             )
             for record in records
         ]
@@ -165,6 +169,7 @@ def build_import_event(
     *,
     source_label: str,
     allow_unmatched: bool,
+    waiver_reason: str = "",
 ) -> dict[str, Any]:
     target = resolve_target(record, existing_events)
     if target is None and not allow_unmatched:
@@ -181,6 +186,9 @@ def build_import_event(
         "provider_key": record.get("provider_key") or record.get("provider") or (target or {}).get("provider_key") or (target or {}).get("provider"),
         "dispatch_mode": (target or {}).get("dispatch_mode"),
         "telemetry_target_event_hash": (target or {}).get("event_hash"),
+        "waiver_required": bool(allow_unmatched and target is None),
+        "waiver_flags": ["--allow-unmatched"] if allow_unmatched and target is None else [],
+        "waiver_reason": waiver_reason if allow_unmatched and target is None else None,
         **telemetry_fields(
             telemetry_kind="usage_import",
             telemetry_status="imported",

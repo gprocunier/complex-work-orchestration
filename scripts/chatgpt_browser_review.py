@@ -23,13 +23,26 @@ from cwo_core.util import (
 )
 from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
 from cwo_core.packets import find_residual_private_context, require_valid_contractor_packet
+from cwo_core.policy import load_policy
 from cwo_core.telemetry import safe_text_hash, telemetry_fields
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 
-EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
+EXECUTOR_KEY = "chatgpt_pro_browser_master_reviewer"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
 DEFAULT_CONFIG_PATH = "~/.config/cwo/chatgpt-browser.json"
-DEFAULT_MODEL_LABEL = "ChatGPT Pro 5.5"
-DEFAULT_REASONING_LABEL = "Extended Reasoning"
+
+
+def browser_attestation_default(field: str) -> str:
+    defaults = load_policy("model-profiles").get("browser_attestation_defaults", {})
+    profile = defaults.get(EXECUTOR_KEY, {}) if isinstance(defaults, dict) else {}
+    value = profile.get(field) if isinstance(profile, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        raise SystemExit(f"policy/model-profiles.yaml browser_attestation_defaults.{EXECUTOR_KEY}.{field} is required")
+    return value
+
+
+DEFAULT_MODEL_LABEL = browser_attestation_default("model_label")
+DEFAULT_REASONING_LABEL = browser_attestation_default("reasoning_label")
 DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
     "[data-testid='scroll-to-bottom-button'], "
     "button[aria-label*='Scroll to bottom'], "
@@ -132,11 +145,8 @@ def load_browser_config(path: Path) -> dict[str, Any]:
 
 
 def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
-    selectors = dict(config.get("selectors") or {})
-    confirmation_configured = all(
-        bool(selectors.get(f"{key}_confirmation_selector") or config.get(f"{key}_confirmation_selector"))
-        for key in ["model_label", "reasoning_label"]
-    )
+    missing_confirmation = missing_confirmation_selectors(config)
+    confirmation_configured = not missing_confirmation
     return {
         "config_present": config_path.is_file(),
         "config_external_to_repo": not is_relative_to(config_path, REPO_ROOT),
@@ -149,8 +159,29 @@ def config_summary(config: dict[str, Any], config_path: Path) -> dict[str, Any]:
         "local_clipboard_fallback": bool(config.get("local_clipboard_fallback", True)),
         "require_model_confirmation": bool(config.get("require_model_confirmation", True)),
         "model_confirmation_configured": confirmation_configured,
+        "model_confirmation_missing_selectors": missing_confirmation,
         "headless": bool(config.get("headless", False)),
     }
+
+
+def missing_confirmation_selectors(config: dict[str, Any]) -> list[str]:
+    selectors = dict(config.get("selectors") or {})
+    return [
+        f"{key}_confirmation_selector"
+        for key in ["model_label", "reasoning_label"]
+        if not (selectors.get(f"{key}_confirmation_selector") or config.get(f"{key}_confirmation_selector"))
+    ]
+
+
+def require_confirmation_selectors(config: dict[str, Any]) -> None:
+    if not config.get("require_model_confirmation", True):
+        return
+    missing = missing_confirmation_selectors(config)
+    if missing:
+        raise SystemExit(
+            "ChatGPT browser config requires model confirmation but is missing confirmation selectors: "
+            + ", ".join(missing)
+        )
 
 
 def max_prompt_chars(config: dict[str, Any]) -> int:
@@ -260,10 +291,10 @@ def extract_chatgpt_share_url(value: str) -> str:
 
 def read_local_clipboard_share_url() -> str:
     commands = [
-        ["qdbus", "org.kde.klipper", "/klipper", "org.kde.klipper.klipper.getClipboardContents"],
         ["wl-paste", "--no-newline"],
         ["xclip", "-selection", "clipboard", "-o"],
         ["xsel", "--clipboard", "--output"],
+        ["qdbus", "org.kde.klipper", "/klipper", "org.kde.klipper.klipper.getClipboardContents"],
     ]
     for command in commands:
         if not shutil.which(command[0]):
@@ -817,9 +848,11 @@ def main() -> None:
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
     if not args.audit and not (args.dry_run or args.confirm_only or args.rehearsal):
         raise SystemExit("--no-audit is allowed only for --dry-run, --confirm-only, or --rehearsal")
+    require_waiver_reason(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"])
     if args.prompt_file and args.rehearsal and not (args.dry_run or args.confirm_only):
         raise SystemExit("prompt-file rehearsal cannot submit a live ChatGPT review; use --packet for live dispatch")
 
@@ -827,6 +860,7 @@ def main() -> None:
     config = load_browser_config(config_path)
     prompt, metadata = load_prompt_from_args(args)
     enforce_prompt_size(prompt, config)
+    require_confirmation_selectors(config)
     exit_message = ""
     if args.dry_run and args.confirm_only:
         raise SystemExit("--dry-run and --confirm-only are mutually exclusive")
@@ -903,6 +937,7 @@ def main() -> None:
                 "bead_id": result["bead_id"],
                 "epic_id": result["epic_id"],
                 "executor_key": result["executor"],
+                **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
                 "provider_key": result["provider_key"],
                 "executor_external": True,
                 "dispatch_mode": "browser_automation",

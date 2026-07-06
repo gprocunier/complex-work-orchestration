@@ -44,7 +44,7 @@ Registered local profiles live in `policy/executor-registry.yaml`.
 
 GLM-5.2 BF16 thinking review is a named OpenShift AI vLLM lane, not a
 separate endpoint class. The executor
-`openshift_ai_vllm_glm_5_2_bf16_architecture_critic` uses the same local
+`rhoai_glm_architecture_critic` uses the same local
 profile but reads the GLM route and model from
 `CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL` and
 `CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL`, defaulting the model name to
@@ -52,7 +52,7 @@ profile but reads the GLM route and model from
 `rhoai-architect-glm-5-2-bf16-thinking`.
 
 The same endpoint can be selected as an experimental primary architect through
-`openshift_ai_vllm_glm_5_2_bf16_primary_architect` by choosing the
+`rhoai_glm_primary_architect` by choosing the
 `connected-codex-glm-primary` execution environment. That path keeps the Codex
 shell as project manager, moves Codex 5.5 x-high to an internal counter-review
 lane, and still treats GLM as local read-only evidence until evaluator,

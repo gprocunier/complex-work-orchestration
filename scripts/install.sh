@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SKILL_NAME="complex-work-orchestration"
-DEFAULT_BEADS_COPR="greg-at-redhat/beads"
-BEADS_COPR="${BEADS_COPR:-$DEFAULT_BEADS_COPR}"
+PUBLIC_BEADS_COPR="greg-at-redhat/beads"
+BEADS_COPR="${BEADS_COPR:-}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
@@ -11,8 +11,10 @@ OS_RELEASE_FILE="${OS_RELEASE_FILE:-/etc/os-release}"
 
 ASSUME_YES=0
 DRY_RUN=0
+UNINSTALL=0
 CODEX_HOME_OVERRIDE="${CODEX_HOME:-}"
 SKILLS_DIR_OVERRIDE="${CODEX_SKILLS_DIR:-}"
+INSTALL_STAGE_DIR=""
 
 say() {
   printf '%s\n' "$*"
@@ -59,12 +61,13 @@ Options:
   --codex-home PATH   Use PATH as CODEX_HOME and install into PATH/skills.
   -y, --yes           Accept detected/default paths without prompting.
   --dry-run           Print what would happen without copying files.
+  --uninstall         Move the installed skill to .prev and leave no active install.
   -h, --help          Show this help.
 
 Environment:
   CODEX_SKILLS_DIR    Preferred skills directory override.
   CODEX_HOME          Codex home directory; defaults to $HOME/.codex.
-  BEADS_COPR          COPR owner/project to show when bd is missing on RPM hosts.
+  BEADS_COPR          Optional COPR owner/project to show when bd is missing on RPM hosts.
 USAGE
 }
 
@@ -95,6 +98,10 @@ parse_args() {
         ;;
       --dry-run)
         DRY_RUN=1
+        shift
+        ;;
+      --uninstall)
+        UNINSTALL=1
         shift
         ;;
       -h|--help)
@@ -190,13 +197,20 @@ copy_item() {
     return 0
   fi
 
-  rm -rf -- "${target_dir:?}/$item"
   cp -R -- "$SOURCE_DIR/$item" "$target_dir/$item"
+}
+
+cleanup_install_stage() {
+  if [ -n "$INSTALL_STAGE_DIR" ] && [ -e "$INSTALL_STAGE_DIR" ]; then
+    rm -rf -- "$INSTALL_STAGE_DIR"
+  fi
 }
 
 install_skill() {
   local skills_dir="$1"
   local target_dir="$skills_dir/$SKILL_NAME"
+  local prev_dir="$target_dir.prev"
+  local backed_up=0
   local items="README.md LICENSE SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts"
 
   say ""
@@ -216,22 +230,79 @@ install_skill() {
     confirm "Proceed with installation?" || die "installation cancelled"
   fi
 
-  if [ "$DRY_RUN" -eq 0 ]; then
-    rm -rf -- "$target_dir"
-    mkdir -p -- "$target_dir"
-  else
+  if [ "$DRY_RUN" -eq 1 ]; then
     say "Dry run: no files will be copied."
+    say "Would create staging install under: $skills_dir"
+    if [ -e "$target_dir" ]; then
+      say "Would move existing install to backup: $prev_dir"
+    fi
+    say "Would activate staged install at: $target_dir"
+    for item in $items; do
+      copy_item "$skills_dir/.${SKILL_NAME}.stage.XXXXXX" "$item"
+    done
+    say "Dry run complete. Skill would be installed at: $target_dir"
+    return 0
   fi
+
+  mkdir -p -- "$skills_dir"
+  INSTALL_STAGE_DIR="$(mktemp -d "${skills_dir}/.${SKILL_NAME}.stage.XXXXXX")"
+  trap cleanup_install_stage EXIT
 
   for item in $items; do
-    copy_item "$target_dir" "$item"
+    copy_item "$INSTALL_STAGE_DIR" "$item"
   done
 
-  if [ "$DRY_RUN" -eq 1 ]; then
-    say "Dry run complete. Skill would be installed at: $target_dir"
-  else
-    say "Installed skill: $target_dir"
+  if [ -e "$target_dir" ]; then
+    rm -rf -- "$prev_dir"
+    mv -- "$target_dir" "$prev_dir"
+    backed_up=1
   fi
+
+  if ! mv -- "$INSTALL_STAGE_DIR" "$target_dir"; then
+    if [ "$backed_up" -eq 1 ] && [ ! -e "$target_dir" ]; then
+      mv -- "$prev_dir" "$target_dir" || die "activation failed and rollback from $prev_dir failed"
+    fi
+    die "could not activate staged install at $target_dir"
+  fi
+  INSTALL_STAGE_DIR=""
+
+  if [ "$backed_up" -eq 1 ]; then
+    say "Previous install moved to backup: $prev_dir"
+  fi
+  say "Installed skill: $target_dir"
+}
+
+uninstall_skill() {
+  local skills_dir="$1"
+  local target_dir="$skills_dir/$SKILL_NAME"
+  local prev_dir="$target_dir.prev"
+
+  say ""
+  say "Uninstall plan:"
+  say "  Target: $target_dir"
+  say "  Backup: $prev_dir"
+
+  if [ -d "$target_dir" ] && [ "$(cd -- "$target_dir" && pwd -P)" = "$SOURCE_DIR" ]; then
+    die "refusing to uninstall the source checkout in place: $target_dir"
+  fi
+
+  if [ ! -e "$target_dir" ]; then
+    say "Skill is not installed at: $target_dir"
+    return 0
+  fi
+
+  confirm "Move installed skill to .prev backup and leave no active install?" || die "uninstall cancelled"
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    say "Dry run: no files will be moved."
+    say "Would remove existing backup if present: $prev_dir"
+    say "Would move: $target_dir -> $prev_dir"
+    return 0
+  fi
+
+  rm -rf -- "$prev_dir"
+  mv -- "$target_dir" "$prev_dir"
+  say "Uninstalled skill; backup kept at: $prev_dir"
 }
 
 validate_skill() {
@@ -293,19 +364,24 @@ check_beads() {
 
   if is_rpm_host; then
     say "For Fedora or EPEL systems, install Beads from your configured package source."
-    if [ "$BEADS_COPR" = "$DEFAULT_BEADS_COPR" ]; then
-      say "If you do not have your own Beads package, you can use the public COPR:"
-      print_copr_command "$BEADS_COPR"
-    elif [ -n "$BEADS_COPR" ]; then
+    if [ -n "$BEADS_COPR" ]; then
       say "To use your configured COPR:"
       print_copr_command "$BEADS_COPR"
+    else
+      say "If you need a public example COPR, verify it fits your environment first:"
+      print_copr_command "$PUBLIC_BEADS_COPR"
     fi
     say "  sudo dnf install beads"
     say "Then verify:"
     say "  bd version"
   else
     say "This does not look like a Fedora/RPM host, so the COPR command may not apply."
-    say "Install Beads by the method appropriate for this system, or proceed without Beads durability."
+    say "Use an upstream-supported Beads install channel, then verify bd:"
+    say "  brew install beads"
+    say "  curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash"
+    say "  bd version"
+    say "Upstream install guide: https://gastownhall.github.io/beads/"
+    say "You can proceed without Beads, but CWO will be limited to reduced-durability Markdown handoff state."
   fi
 }
 
@@ -337,6 +413,11 @@ main() {
 
   say "Autodetected Codex home: $codex_home"
   skills_dir="$(prompt_path "$detected_skills_dir")"
+
+  if [ "$UNINSTALL" -eq 1 ]; then
+    uninstall_skill "$skills_dir"
+    return 0
+  fi
 
   install_skill "$skills_dir"
   validate_skill "$skills_dir"

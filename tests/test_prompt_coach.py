@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 
+RETIRED_FIELD = "beads_" + "briefing_depth"
+RETIRED_FLAG = "--beads-" + "briefing-depth"
+
 
 class PromptCoachTests(unittest.TestCase):
     def test_narrow_work_recommends_in_thread(self) -> None:
@@ -20,7 +23,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["operator_calibration"]["mode"], "none")
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn(result["beads_context_depth"], {"summary", "focused"})
-        self.assertEqual(result["beads_briefing_depth"], result["beads_context_depth"])
+        self.assertNotIn(RETIRED_FIELD, result)
         self.assertEqual(result["beads_context_depth_provenance"]["source"], "autosized")
         self.assertIn("mandatory Beads tracking", result["paste_ready_prompt"])
         self.assertIn("beads-durable-state", result["enabled_levers"])
@@ -70,6 +73,26 @@ class PromptCoachTests(unittest.TestCase):
         self.assertNotIn("operator-calibrated-execution=required", result["enabled_levers"])
         self.assertNotIn("operator-calibrated-execution=recommended", result["enabled_levers"])
         self.assertNotIn("contract-jd-operator-calibrated-execution", result["paste_ready_prompt"])
+
+    def test_coach_cli_brief_mode_omits_launch_prompt(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "coach_prompt.py"),
+                "--brief",
+                "Fix typo in README.md",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Recommended orchestration: in-thread", result.stdout)
+        self.assertIn("Route:", result.stdout)
+        self.assertIn("Executor:", result.stdout)
+        self.assertNotIn("Recommended launch prompt:", result.stdout)
 
     def test_multi_session_work_recommends_lightweight_beads(self) -> None:
         result = coach_orchestration_prompt("Plan a multi-session cleanup of installer docs, tests, and handoff notes.")
@@ -146,7 +169,7 @@ class PromptCoachTests(unittest.TestCase):
         )
 
         self.assertEqual(result["beads_context_depth"], "heavy")
-        self.assertEqual(result["beads_briefing_depth"], "heavy")
+        self.assertNotIn(RETIRED_FIELD, result)
         self.assertEqual(result["beads_context_depth_provenance"]["source"], "explicit")
         self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
         self.assertEqual(result["beads_context_depth_provenance"]["effective_depth"], "heavy")
@@ -166,13 +189,55 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("(Recommended)", questions[0]["options"][0]["label"])
         self.assertIn(f"Use {result['beads_context_depth']} context", missing[0]["default"])
 
-    def test_context_depth_alias_must_match_primary_override(self) -> None:
-        with self.assertRaises(SystemExit):
-            coach_orchestration_prompt(
+    def test_context_depth_alias_flag_is_removed(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "coach_prompt.py"),
+                RETIRED_FLAG,
+                "heavy",
                 "Use $complex-work-orchestration coach for docs.",
-                beads_context_depth="summary",
-                beads_briefing_depth="heavy",
-            )
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"unrecognized arguments: {RETIRED_FLAG}", result.stderr)
+
+    def test_data_sensitivity_declaration_is_preserved_in_route(self) -> None:
+        result = coach_orchestration_prompt(
+            "Publish public docs for the install flow.",
+            data_sensitivity="restricted",
+        )
+
+        self.assertEqual(result["route"]["data_sensitivity"], "restricted")
+        self.assertEqual(result["route"]["data_sensitivity_source"], "operator-declared")
+        self.assertEqual(result["route"]["data_sensitivity_heuristic"], "public")
+        self.assertIn("can miss paraphrases", result["route"]["data_sensitivity_disclaimer"])
+
+    def test_coach_cli_accepts_data_sensitivity_declaration(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "coach_prompt.py"),
+                "--json",
+                "--data-sensitivity",
+                "restricted",
+                "Publish public docs for the install flow.",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["route"]["data_sensitivity"], "restricted")
+        self.assertEqual(payload["route"]["data_sensitivity_source"], "operator-declared")
 
     def test_contractor_lane_terms_ask_for_sharing_boundary(self) -> None:
         result = coach_orchestration_prompt(
@@ -223,7 +288,7 @@ class PromptCoachTests(unittest.TestCase):
             requested_roles=["architecture"],
         )
         self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "gemini_3_1_pro_preview_agy")
+        self.assertEqual(result["route"]["recommended_executor"], "gemini_architecture_critic")
         self.assertIn("contractor-only-bead", result["enabled_levers"])
         self.assertIn("contract-jd-architecture-reasoning", result["paste_ready_prompt"])
 
@@ -236,10 +301,10 @@ class PromptCoachTests(unittest.TestCase):
             requested_roles=["architecture"],
         )
         self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "claude_opus_4_6_architecture_critic")
+        self.assertEqual(result["route"]["recommended_executor"], "claude_architecture_critic")
         self.assertIn("parallel-architecture-critic-contracts", result["enabled_levers"])
-        self.assertIn("architecture-critic=claude_opus_4_6_architecture_critic", result["enabled_levers"])
-        self.assertIn("architecture-critic=gemini_3_1_pro_preview_agy", result["enabled_levers"])
+        self.assertIn("architecture-critic=claude_architecture_critic", result["enabled_levers"])
+        self.assertIn("architecture-critic=gemini_architecture_critic", result["enabled_levers"])
         self.assertIn("claude-effort=xhigh", result["enabled_levers"])
         self.assertIn("one contractor-only/no-codex-exec Bead per selected architecture critic", result["paste_ready_prompt"])
         self.assertIn("claude --model claude-opus-4-6 --effort xhigh -p", result["paste_ready_prompt"])
@@ -254,8 +319,8 @@ class PromptCoachTests(unittest.TestCase):
             requested_roles=["architecture"],
         )
         self.assertIn("parallel-architecture-critic-contracts", result["enabled_levers"])
-        self.assertIn("architecture-critic=claude_opus_4_6_architecture_critic", result["enabled_levers"])
-        self.assertIn("architecture-critic=gemini_3_1_pro_preview_agy", result["enabled_levers"])
+        self.assertIn("architecture-critic=claude_architecture_critic", result["enabled_levers"])
+        self.assertIn("architecture-critic=gemini_architecture_critic", result["enabled_levers"])
 
     def test_chatgpt_pro_master_plan_without_opt_in_asks_for_boundary(self) -> None:
         result = coach_orchestration_prompt(
@@ -274,7 +339,7 @@ class PromptCoachTests(unittest.TestCase):
             share_boundary="redacted-packet",
         )
         self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertIn("contractor-only-bead", result["enabled_levers"])
         self.assertIn("chatgpt-pro-master-review-blocking-gate", result["enabled_levers"])
         self.assertIn("operator-waiver-required-for-chatgpt-pro-skip", result["enabled_levers"])
@@ -291,7 +356,7 @@ class PromptCoachTests(unittest.TestCase):
             share_boundary="redacted-packet",
         )
         self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
 
     def test_explicit_model_synthesis_request_is_enabled(self) -> None:
@@ -312,9 +377,9 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("CWO-native model synthesis", result["paste_ready_prompt"])
         self.assertIn("architect adjudication", " ".join(result["model_synthesis"]["rationale"]).lower())
         executors = [item["executor"] for item in result["model_synthesis"]["recommended_panel"]]
-        self.assertIn("claude_opus_4_6_architecture_critic", executors)
-        self.assertIn("gemini_3_1_pro_preview_agy", executors)
-        self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", executors)
+        self.assertIn("claude_architecture_critic", executors)
+        self.assertIn("gemini_architecture_critic", executors)
+        self.assertIn("chatgpt_pro_browser_master_reviewer", executors)
         self.assertFalse(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
 
     def test_model_synthesis_flag_marks_coach_opt_in_accepted(self) -> None:
@@ -343,14 +408,14 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["route"]["execution_environment"], "connected-codex-glm-primary")
         self.assertIn("execution-environment=connected-codex-glm-primary", result["enabled_levers"])
         self.assertIn(
-            "primary-architect=openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+            "primary-architect=rhoai_glm_primary_architect",
             result["enabled_levers"],
         )
         self.assertIn("project-manager=codex_project_manager", result["enabled_levers"])
-        self.assertIn("Primary architect: openshift_ai_vllm_glm_5_2_bf16_primary_architect", result["paste_ready_prompt"])
+        self.assertIn("Primary architect: rhoai_glm_primary_architect", result["paste_ready_prompt"])
         self.assertEqual(
             result["model_synthesis"]["synthesis_owner"],
-            "openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+            "rhoai_glm_primary_architect",
         )
 
     def test_generic_weigh_in_does_not_coach_chatgpt_master_review(self) -> None:
@@ -359,7 +424,7 @@ class PromptCoachTests(unittest.TestCase):
             external_ok=True,
             share_boundary="redacted-packet",
         )
-        self.assertNotEqual(result["route"]["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertNotEqual(result["route"]["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
 
     def test_local_worker_profile_recommends_local_worker(self) -> None:
         result = coach_orchestration_prompt(
@@ -522,6 +587,22 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("route", result)
         self.assertIn("beads_context_depth", result)
         self.assertIn("beads_context_depth_provenance", result)
+
+    def test_cwo_entrypoint_runs_coach_brief(self) -> None:
+        output = subprocess.check_output(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "cwo.py"),
+                "coach",
+                "--brief",
+                "Fix typo in README.md",
+            ],
+            text=True,
+            cwd=ROOT,
+        )
+        self.assertIn("Recommended orchestration:", output)
+        self.assertIn("Route:", output)
+        self.assertNotIn("Recommended launch prompt:", output)
 
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
         output = subprocess.check_output(

@@ -117,7 +117,7 @@ class DispatchQuotaTests(unittest.TestCase):
                     )
                 result = lib.enforce_contracting_quota(
                     "epic-1",
-                    "chatgpt_pro_5_5_extended_reasoning_browser",
+                    "chatgpt_pro_browser_master_reviewer",
                     "external-contract",
                 )
                 self.assertEqual(result["quota_remaining"], 4)

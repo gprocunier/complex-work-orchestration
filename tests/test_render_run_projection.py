@@ -51,7 +51,7 @@ class RenderRunProjectionTests(unittest.TestCase):
         self.assertIn("CWO Wrap-Up/Status Projection", rendered)
         self.assertIn("run sheet and wrap-up/status views are useful as projections", rendered)
         self.assertIn("Gemini mutation claim", rendered)
-        self.assertIn("gemini_3_1_pro_preview_agy", rendered)
+        self.assertIn("gemini_architecture_critic", rendered)
         self.assertIn("## Adjudication Evidence Refs", rendered)
         self.assertIn("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", rendered)
 

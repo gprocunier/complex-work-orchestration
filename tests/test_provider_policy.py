@@ -15,6 +15,7 @@ from cwo_core.policy import (  # noqa: E402
     resolve_executor_key,
     validate_peer_review_controls,
 )
+from cwo_core.returns import executor_default_synthesis_use, return_provenance  # noqa: E402
 
 
 class ProviderPolicyTests(unittest.TestCase):
@@ -109,7 +110,7 @@ class ProviderPolicyTests(unittest.TestCase):
         controls = load_policy("contracting-controls")
 
         provider = providers["google_gemini_manual"]
-        executor = executors["gemini_3_1_pro_manual"]
+        executor = executors["gemini_manual_reviewer"]
         self.assertTrue(provider["external"])
         self.assertEqual(provider["family"], "google")
         self.assertEqual(executor["provider_key"], "google_gemini_manual")
@@ -117,7 +118,7 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertEqual(executor["codex_pickup"], "forbidden")
         self.assertTrue(executor["supports_repo_read"])
         self.assertFalse(executor["supports_repo_write"])
-        self.assertIn("gemini_3_1_pro_manual", controls["allowed_external_executors"])
+        self.assertIn("gemini_manual_reviewer", controls["allowed_external_executors"])
 
     def test_gemini_agy_architecture_critic_is_registered_as_external_contractor(self) -> None:
         providers = load_policy("provider-registry")["providers"]
@@ -125,7 +126,7 @@ class ProviderPolicyTests(unittest.TestCase):
         controls = load_policy("contracting-controls")
 
         provider = providers["google_gemini_manual"]
-        executor = executors["gemini_3_1_pro_preview_agy"]
+        executor = executors["gemini_architecture_critic"]
         self.assertTrue(provider["external"])
         self.assertEqual(executor["provider_key"], "google_gemini_manual")
         self.assertTrue(executor["external"])
@@ -134,7 +135,7 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertTrue(executor["supports_repo_read"])
         self.assertFalse(executor["supports_repo_write"])
         self.assertIn("architecture-review", executor["allowed_task_classes"])
-        self.assertIn("gemini_3_1_pro_preview_agy", controls["allowed_external_executors"])
+        self.assertIn("gemini_architecture_critic", controls["allowed_external_executors"])
 
     def test_claude_opus_architecture_critic_is_registered_as_external_contractor(self) -> None:
         providers = load_policy("provider-registry")["providers"]
@@ -142,7 +143,7 @@ class ProviderPolicyTests(unittest.TestCase):
         controls = load_policy("contracting-controls")
 
         provider = providers["anthropic_manual"]
-        executor = executors["claude_opus_4_6_architecture_critic"]
+        executor = executors["claude_architecture_critic"]
         self.assertTrue(provider["external"])
         self.assertEqual(provider["family"], "anthropic")
         self.assertEqual(executor["provider_key"], "anthropic_manual")
@@ -155,7 +156,7 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertEqual(executor["transport"]["model"], "claude-opus-4-6")
         self.assertEqual(executor["transport"]["minimum_effort"], "high")
         self.assertIn("--effort high", executor["transport"]["default_command"])
-        self.assertIn("claude_opus_4_6_architecture_critic", controls["allowed_external_executors"])
+        self.assertIn("claude_architecture_critic", controls["allowed_external_executors"])
 
     def test_chatgpt_pro_browser_reviewer_is_registered_as_external_contractor(self) -> None:
         providers = load_policy("provider-registry")["providers"]
@@ -163,7 +164,7 @@ class ProviderPolicyTests(unittest.TestCase):
         controls = load_policy("contracting-controls")
 
         provider = providers["openai_manual"]
-        executor = executors["chatgpt_pro_5_5_extended_reasoning_browser"]
+        executor = executors["chatgpt_pro_browser_master_reviewer"]
         self.assertTrue(provider["external"])
         self.assertEqual(provider["family"], "openai")
         self.assertEqual(executor["provider_key"], "openai_manual")
@@ -174,18 +175,18 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertFalse(executor["supports_repo_read"])
         self.assertFalse(executor["supports_repo_write"])
         self.assertIn("master-plan-review", executor["allowed_task_classes"])
-        self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", controls["allowed_external_executors"])
+        self.assertIn("chatgpt_pro_browser_master_reviewer", controls["allowed_external_executors"])
 
-    def test_executor_aliases_resolve_to_versioned_compatibility_keys(self) -> None:
+    def test_executor_aliases_resolve_historical_keys_to_role_keys(self) -> None:
         registry = load_policy("executor-registry")
 
         self.assertEqual(
-            resolve_executor_key("chatgpt_pro_browser_master_reviewer", registry),
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            resolve_executor_key("chatgpt_pro_5_5_extended_reasoning_browser", registry),
+            "chatgpt_pro_browser_master_reviewer",
         )
-        executor = executor_config("chatgpt_pro_browser_master_reviewer", registry)
-        self.assertEqual(executor["canonical_key"], "chatgpt_pro_5_5_extended_reasoning_browser")
-        self.assertEqual(executor["requested_key"], "chatgpt_pro_browser_master_reviewer")
+        executor = executor_config("chatgpt_pro_5_5_extended_reasoning_browser", registry)
+        self.assertEqual(executor["canonical_key"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(executor["requested_key"], "chatgpt_pro_5_5_extended_reasoning_browser")
         self.assertEqual(executor["dispatch_mode"], "browser_automation")
 
     def test_executor_alias_matching_accepts_alias_or_canonical_key(self) -> None:
@@ -193,22 +194,36 @@ class ProviderPolicyTests(unittest.TestCase):
 
         self.assertTrue(
             executor_key_allowed(
-                "chatgpt_pro_browser_master_reviewer",
-                ["chatgpt_pro_5_5_extended_reasoning_browser"],
-                registry,
-            )
-        )
-        self.assertTrue(
-            executor_key_allowed(
                 "chatgpt_pro_5_5_extended_reasoning_browser",
                 ["chatgpt_pro_browser_master_reviewer"],
                 registry,
             )
         )
+        self.assertTrue(
+            executor_key_allowed(
+                "chatgpt_pro_browser_master_reviewer",
+                ["chatgpt_pro_5_5_extended_reasoning_browser"],
+                registry,
+            )
+        )
+
+    def test_return_provenance_resolves_historical_executor_alias(self) -> None:
+        provenance = return_provenance(executor="chatgpt_pro_5_5_extended_reasoning_browser")
+
+        self.assertEqual(provenance["provider_key"], "openai_manual")
+        self.assertEqual(provenance["dispatch_mode"], "browser_automation")
+        self.assertEqual(provenance["provenance_class"], "external-contractor")
+        self.assertEqual(provenance["provenance_warnings"], [])
+
+    def test_default_synthesis_use_resolves_historical_executor_alias(self) -> None:
+        self.assertEqual(
+            executor_default_synthesis_use("gemini_3_1_pro_preview_agy"),
+            "salvage-only",
+        )
 
     def test_glm_bf16_architecture_critic_is_registered_as_local_reviewer(self) -> None:
         executors = load_policy("executor-registry")["executors"]
-        executor = executors["openshift_ai_vllm_glm_5_2_bf16_architecture_critic"]
+        executor = executors["rhoai_glm_architecture_critic"]
 
         self.assertFalse(executor["external"])
         self.assertEqual(executor["provider_key"], "openshift_ai_vllm")
@@ -227,7 +242,7 @@ class ProviderPolicyTests(unittest.TestCase):
 
     def test_glm_bf16_primary_architect_is_read_only_local_architect(self) -> None:
         executors = load_policy("executor-registry")["executors"]
-        executor = executors["openshift_ai_vllm_glm_5_2_bf16_primary_architect"]
+        executor = executors["rhoai_glm_primary_architect"]
 
         self.assertFalse(executor["external"])
         self.assertEqual(executor["provider_key"], "openshift_ai_vllm")
@@ -244,7 +259,7 @@ class ProviderPolicyTests(unittest.TestCase):
 
     def test_codex_xhigh_counter_review_is_internal_read_only_review_lane(self) -> None:
         executors = load_policy("executor-registry")["executors"]
-        executor = executors["codex_5_5_xhigh_architecture_critic"]
+        executor = executors["codex_architecture_critic"]
 
         self.assertFalse(executor["external"])
         self.assertEqual(executor["provider_key"], "internal_codex")
@@ -266,10 +281,10 @@ class ProviderPolicyTests(unittest.TestCase):
         )
 
         self.assertEqual(route["route"], "local-worker")
-        self.assertEqual(route["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_architecture_critic")
+        self.assertEqual(route["recommended_executor"], "rhoai_glm_architecture_critic")
         self.assertEqual(route["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
         self.assertIn(
-            "openshift_ai_vllm_glm_5_2_bf16_architecture_critic",
+            "rhoai_glm_architecture_critic",
             route["requested_architecture_critic_executors"],
         )
 

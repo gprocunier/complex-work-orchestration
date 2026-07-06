@@ -323,7 +323,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_profile="openshift-ai-vllm",
             requested_roles=["architecture"],
         )
-        self.assertEqual(route["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_architecture_critic")
+        self.assertEqual(route["recommended_executor"], "rhoai_glm_architecture_critic")
         args = Namespace(
             local_api_key_env=None,
             local_timeout=None,

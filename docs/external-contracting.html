@@ -127,7 +127,7 @@ contract-jd-security-reasoning</code></pre>
             </p>
             <p>
               <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_3_1_pro_preview_agy</code> executor key. For a
+              <code>gemini_architecture_critic</code> executor key. For a
               redacted-packet review, run CLIs from a neutral directory unless
               the tool is proven unable to inspect the current repository. If a
               return uses unapproved repo context, treat that evidence as
@@ -173,7 +173,7 @@ contract-jd-security-reasoning</code></pre>
               </p>
               <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;claude-critic-bead&gt; \
-  --executor claude_opus_4_6_architecture_critic \
+  --executor claude_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -191,7 +191,7 @@ claude --model claude-opus-4-6 --effort high \
   &gt; claude-architect-critique-return.md</code></pre>
               <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;gemini-critic-bead&gt; \
-  --executor gemini_3_1_pro_preview_agy \
+  --executor gemini_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -206,7 +206,7 @@ claude --model claude-opus-4-6 --effort high \
               </p>
               <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
-  --executor gemini_3_1_pro_manual \
+  --executor gemini_manual_reviewer \
   --share-boundary patch-branch \
   --allow-disclosure-escalation \
   --external-ok \
@@ -278,8 +278,8 @@ claude --model claude-opus-4-6 --effort high \
             <ol class="check-list">
               <li>Use the prompt coach from Codex and approve the redacted-packet boundary.</li>
               <li>Fill the plan packet with objective, Beads graph, sequence, evidence, validation, risks, and open questions.</li>
-              <li>Install Playwright, keep Chrome available, and use <code>jq</code> for dispatch metadata extraction.</li>
-              <li>Use <code>scripts/launch_chatgpt_cdp_chrome.sh --write-config</code> for the systemd/Wayland browser profile and localhost CDP config.</li>
+              <li>Install Playwright in the operator environment with <code>python3 -m pip install playwright</code> and <code>python3 -m playwright install chromium</code>, keep Chrome available, and use <code>jq</code> for dispatch metadata extraction.</li>
+              <li>Use <code>scripts/launch_chatgpt_cdp_chrome.sh --write-config</code> with the systemd/Wayland helper, or <code>--print-chrome-command</code> from an operator shell, for a dedicated browser profile and localhost CDP config.</li>
               <li>Use <code>references/chatgpt-pro-browser.md</code> for the full ChatGPT Pro browser runbook.</li>
               <li>Keep the browser config outside the repo, not group/world accessible, and free of credentials or session material.</li>
               <li>Keep prompts below <code>max_prompt_chars</code>; build a compact snippet packet instead of retrying a frozen visible browser.</li>
@@ -311,7 +311,7 @@ cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
 
 python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
@@ -370,7 +370,9 @@ python3 scripts/ingest_chatgpt_share_return.py \
               dispatch JSON includes a confirmed
               <code>model_attestation</code>. Wrong-model or unproven-effort
               responses are invalidated in Beads and rerun only after the
-              confirmation config is fixed. Use a dry run first and confirm
+              confirmation config is fixed. With model confirmation required,
+              <code>--dry-run --json</code> fails closed when confirmation
+              selectors are missing. Use a dry run first and confirm
               <code>model_confirmation_configured</code> is true, then run
               <code>--confirm-only</code> before submitting.
             </div>

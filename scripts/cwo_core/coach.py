@@ -19,7 +19,6 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "recommended_orchestration_level",
     "scaffold_sizing",
     "beads_context_depth",
-    "beads_briefing_depth",
     "beads_context_depth_provenance",
     "rationale",
     "missing_questions",
@@ -457,7 +456,6 @@ def prompt_coach_beads_context_depth_signal(
     workerbee_parallelism: dict[str, Any] | None = None,
     *,
     beads_context_depth: str | None = None,
-    beads_briefing_depth: str | None = None,
 ) -> dict[str, Any]:
     workerbee_mode = str((workerbee_parallelism or {}).get("recommended_mode") or "none")
     model_synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else {}
@@ -470,7 +468,6 @@ def prompt_coach_beads_context_depth_signal(
         model_synthesis_active=bool(model_synthesis.get("active")),
         editor_gate_required=bool(route.get("editor_gate_required")),
         beads_context_depth=beads_context_depth,
-        beads_briefing_depth=beads_briefing_depth,
         actor_context="prompt-coach",
     )
     signal["prompt_user_in_plan_mode"] = True
@@ -969,7 +966,6 @@ def prompt_coach_enabled_levers(
     if beads_context_depth_signal:
         depth = beads_context_depth_signal.get("beads_context_depth", "focused")
         levers.append(f"beads-context-depth={depth}")
-        levers.append(f"beads-briefing-depth={beads_context_depth_signal.get('beads_briefing_depth', depth)}")
         levers.append(f"beads-context-source={beads_context_depth_signal.get('beads_context_depth_source', 'autosized')}")
     if level in {"full-harness", "external-contract", "local-worker", "publish-release"}:
         levers.extend(["architect-review", "validation-lane"])
@@ -1235,7 +1231,7 @@ def beads_context_prompt_line(beads_context_depth_signal: dict[str, Any] | None)
 def blocking_review_prompt_line(route: dict[str, Any]) -> str:
     if not route.get("blocking_review_required"):
         return ""
-    executor = route.get("blocking_review_executor") or "chatgpt_pro_5_5_extended_reasoning_browser"
+    executor = route.get("blocking_review_executor") or "chatgpt_pro_browser_master_reviewer"
     job = route.get("blocking_review_job_description_label") or "contract-jd-master-plan-review"
     return (
         "Treat the explicit ChatGPT Pro 5.5 master review as a blocking gate before implementation. "
@@ -1445,7 +1441,7 @@ def coach_orchestration_prompt(
     model_synthesis: bool = False,
     scaffold_size: str | None = None,
     beads_context_depth: str | None = None,
-    beads_briefing_depth: str | None = None,
+    data_sensitivity: str | None = None,
     execution_environment: str | None = None,
 ) -> dict[str, Any]:
     route = classify_work(
@@ -1463,7 +1459,7 @@ def coach_orchestration_prompt(
         execution_environment=execution_environment,
         model_synthesis=model_synthesis,
         beads_context_depth=beads_context_depth,
-        beads_briefing_depth=beads_briefing_depth,
+        data_sensitivity=data_sensitivity,
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
@@ -1478,11 +1474,9 @@ def coach_orchestration_prompt(
         route,
         workerbee_parallelism,
         beads_context_depth=beads_context_depth,
-        beads_briefing_depth=beads_briefing_depth,
     )
     route = {**route, **{key: beads_context_depth_signal[key] for key in [
         "beads_context_depth",
-        "beads_briefing_depth",
         "beads_context_depth_source",
         "beads_context_depth_rationale",
         "beads_context_depth_provenance",
@@ -1513,7 +1507,6 @@ def coach_orchestration_prompt(
         "recommended_orchestration_level": level,
         "scaffold_sizing": scaffold_sizing,
         "beads_context_depth": beads_context_depth_signal["beads_context_depth"],
-        "beads_briefing_depth": beads_context_depth_signal["beads_briefing_depth"],
         "beads_context_depth_provenance": beads_context_depth_signal["beads_context_depth_provenance"],
         "rationale": prompt_coach_rationale(
             level,

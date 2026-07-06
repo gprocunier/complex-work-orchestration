@@ -163,8 +163,8 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         bindings = environment["role_bindings"]
 
         self.assertEqual(bindings["project_manager"]["executor"], "codex_project_manager")
-        self.assertEqual(bindings["architect"]["executor"], "openshift_ai_vllm_glm_5_2_bf16_primary_architect")
-        self.assertEqual(bindings["architecture_counter_review"]["executor"], "codex_5_5_xhigh_architecture_critic")
+        self.assertEqual(bindings["architect"]["executor"], "rhoai_glm_primary_architect")
+        self.assertEqual(bindings["architecture_counter_review"]["executor"], "codex_architecture_critic")
 
         architect = build_harness_dispatch(
             task="Review a GLM-primary architecture plan.",

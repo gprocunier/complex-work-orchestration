@@ -9,6 +9,7 @@ from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
 from cwo_core.policy import resolve_executor_key
 from cwo_core.telemetry import telemetry_fields
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 
 
 def print_human(result: dict[str, object]) -> None:
@@ -133,7 +134,9 @@ def main() -> None:
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--audit-file", help="Audit JSONL path; defaults to .orchestration-audit/audit.jsonl.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
+    require_waiver_reason(args, ["audit"])
     if args.executor:
         args.executor = resolve_executor_key(args.executor)
 
@@ -197,6 +200,7 @@ def main() -> None:
                 "provider_conflict_domains": result.get("provider_conflict_domains"),
                 "quarantine_recommended": result.get("quarantine_recommended"),
                 "workspace_mutation": result.get("workspace_mutation"),
+                **waiver_audit_fields(args, ["audit"]),
                 **telemetry_fields(
                     telemetry_kind="evaluation",
                     telemetry_status=result["verdict"],

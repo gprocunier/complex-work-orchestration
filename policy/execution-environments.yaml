@@ -13,7 +13,7 @@
         "project_manager": {"harness": "codex_cli", "executor": "frontier_architect"},
         "worker": {"harness": "codex_cli", "executor": "internal_worker"},
         "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
-        "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_5_5_extended_reasoning_browser"}
+        "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_browser_master_reviewer"}
       },
       "constraints": {
         "network": "available",
@@ -34,13 +34,13 @@
       "allowed_providers": ["internal_codex", "openshift_ai_vllm", "local_inference", "anthropic_manual", "google_gemini_manual", "openai_manual"],
       "role_bindings": {
         "project_manager": {"harness": "codex_cli", "executor": "codex_project_manager"},
-        "architect": {"harness": "manual_operator", "executor": "openshift_ai_vllm_glm_5_2_bf16_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
-        "architecture_counter_review": {"harness": "codex_cli", "executor": "codex_5_5_xhigh_architecture_critic"},
+        "architect": {"harness": "manual_operator", "executor": "rhoai_glm_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
+        "architecture_counter_review": {"harness": "codex_cli", "executor": "codex_architecture_critic"},
         "worker": {"harness": "codex_cli", "executor": "internal_worker"},
         "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
         "local_secure_reviewer": {"harness": "manual_operator", "executor": "openshift_ai_vllm_secure_reviewer", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
-        "synthesis_input": {"harness": "manual_operator", "executor": "openshift_ai_vllm_glm_5_2_bf16_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
-        "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_5_5_extended_reasoning_browser"}
+        "synthesis_input": {"harness": "manual_operator", "executor": "rhoai_glm_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
+        "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_browser_master_reviewer"}
       },
       "constraints": {
         "network": "available",

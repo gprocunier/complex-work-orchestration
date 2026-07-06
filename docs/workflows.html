@@ -163,7 +163,10 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               in a temporary Markdown plan file and note that durability is
               reduced. Do not claim contractor-only filtering, shared ready-work
               semantics, or durable external handoff unless Beads or an
-              equivalent tracker is actually in use.
+              equivalent tracker is actually in use. Use
+              <code>--dry-run --format markdown-workgraph</code> for that
+              temporary fallback, then resume with
+              <code>scripts/summarize_resume_state.py --markdown-workgraph</code>.
             </div>
             <div class="callout">
               <strong>Agent memory:</strong>
@@ -185,8 +188,7 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               <strong>Depth choices:</strong>
               The coach may choose <code>none</code>, <code>summary</code>,
               <code>focused</code>, <code>heavy</code>, or
-              <code>audit</code>. The compatibility alias is
-              <code>beads_briefing_depth</code>. Use <code>none</code> for no
+              <code>audit</code>. Use <code>none</code> for no
               Beads lookup, <code>summary</code> for assigned-Bead JSON without
               comments, and comment-bearing depths only for internal agents.
               The exact lookup rules live in <a href="./reference.html#durable-memory">Reference</a>.
@@ -224,6 +226,12 @@ python3 scripts/scaffold_workgraph.py \
   --title "Focused review" \
   --description "Tight-chain review of the selected scope." \
   --scaffold-size tight
+
+python3 scripts/scaffold_workgraph.py \
+  --title "Fallback workgraph" \
+  --description "Temporary workgraph when bd is unavailable." \
+  --dry-run \
+  --format markdown-workgraph
 
 python3 scripts/spawn_expert_reviews.py \
   --parent "$EPIC_ID" \

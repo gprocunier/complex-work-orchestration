@@ -14,7 +14,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
-from scaffold_workgraph import beads_graph_plan, planned_graph  # noqa: E402
+from scaffold_workgraph import beads_graph_plan, markdown_workgraph_plan, planned_graph  # noqa: E402
+from summarize_resume_state import parse_markdown_workgraph  # noqa: E402
 
 BD_PATH = shutil.which("bd")
 
@@ -55,6 +56,37 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertTrue(cwo["cwo_acceptance"])
         self.assertTrue(cwo["cwo_design"])
         self.assertTrue(cwo["cwo_notes"])
+
+    def test_markdown_workgraph_plan_preserves_lane_fields(self) -> None:
+        route = classify_work("Document Markdown fallback workgraph behavior.")
+        cwo_graph = planned_graph("Markdown Example", route)
+
+        rendered = markdown_workgraph_plan("Markdown Example", cwo_graph)
+
+        self.assertIn("Reduced durability fallback", rendered)
+        self.assertIn("### epic: Markdown Example", rendered)
+        self.assertIn("### implementation: Implement: Markdown Example", rendered)
+        self.assertIn("- Depends on lanes:", rendered)
+        self.assertIn("- Skills:", rendered)
+        self.assertIn("#### Acceptance", rendered)
+        self.assertIn("#### Design", rendered)
+        self.assertIn("#### Notes", rendered)
+
+    def test_markdown_workgraph_generator_output_round_trips_through_parser(self) -> None:
+        route = classify_work("Document Markdown fallback workgraph behavior.")
+        cwo_graph = planned_graph("Markdown Round Trip", route)
+        rendered = markdown_workgraph_plan("Markdown Round Trip", cwo_graph)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(rendered, encoding="utf-8")
+            parsed = parse_markdown_workgraph(path)
+
+        by_id = {item["id"]: item for item in parsed}
+        self.assertEqual(by_id["epic"]["type"], "epic")
+        self.assertEqual(by_id["implementation"]["lane"], "implementation")
+        self.assertIn("workerbee", by_id["implementation"]["labels"])
+        self.assertIn("architect", by_id["implementation"]["depends_on_lanes"])
 
     def test_beads_graph_plan_exports_model_synthesis_lane(self) -> None:
         text = "Use model synthesis for architecture routing and schema policy."
@@ -168,7 +200,7 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("--format beads-graph requires --dry-run", result.stderr)
+        self.assertIn("requires --dry-run", result.stderr)
 
     def test_cli_dry_run_beads_graph_does_not_require_bd_on_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_path:
@@ -195,6 +227,32 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         graph = json.loads(result.stdout)
         self.assertIn("nodes", graph)
         self.assertIn("edges", graph)
+
+    def test_cli_dry_run_markdown_workgraph_does_not_require_bd_on_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_path:
+            env = {**os.environ, "PATH": temp_path}
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "scaffold_workgraph.py"),
+                    "--title",
+                    "Markdown Without Beads",
+                    "--description",
+                    "Render fallback graph without calling the Beads CLI.",
+                    "--dry-run",
+                    "--format",
+                    "markdown-workgraph",
+                ],
+                cwd=ROOT,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertIn("# Markdown Without Beads", result.stdout)
+        self.assertIn("Reduced durability fallback", result.stdout)
+        self.assertIn("### implementation: Implement: Markdown Without Beads", result.stdout)
 
     def test_cli_real_scaffold_fails_clearly_when_bd_missing_from_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_path:

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt  # noqa: E402
+from dispatch_work import local_executor_fallback  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.packets import (  # noqa: E402
@@ -18,6 +19,13 @@ from cwo_core.packets import (  # noqa: E402
 
 
 class DispatchTests(unittest.TestCase):
+    def test_local_executor_fallback_resolves_historical_executor_aliases(self) -> None:
+        fallback = local_executor_fallback("chatgpt_pro_5_5_extended_reasoning_browser")
+
+        self.assertEqual(fallback["key"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(fallback["requested_key"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(fallback["dispatch_mode"], "browser_automation")
+
     def test_manual_prompt_contains_no_blind_acceptance_rule(self) -> None:
         task = "Security review the contractor redaction flow."
         route = classify_work(task, external_ok=True, share_boundary="redacted-packet", requested_roles=["security"])
@@ -61,6 +69,8 @@ class DispatchTests(unittest.TestCase):
                 "--requested-role",
                 "security",
                 "--allow-raw-manual-prompt",
+                "--waiver-reason",
+                "test degraded manual prompt",
             ],
             cwd=ROOT,
             capture_output=True,
@@ -159,7 +169,7 @@ class DispatchTests(unittest.TestCase):
                 "title": "Gemini architect critique",
                 "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
             },
-            executor="gemini_3_1_pro_preview_agy",
+            executor="gemini_architecture_critic",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-architecture-reasoning",
             allowed_files=[],
@@ -174,7 +184,7 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(packet["expert_profile_included"])
         self.assertEqual(packet["expert_profile"]["path"], "experts/architecture.md")
         prompt = render_packet_prompt(packet)
-        self.assertIn("gemini_3_1_pro_preview_agy", prompt)
+        self.assertIn("gemini_architecture_critic", prompt)
         self.assertIn("contract-jd-architecture-reasoning", prompt)
         self.assertIn("Do not mutate the active checkout", prompt)
         self.assertIn("Output only the contractor return", prompt)
@@ -197,7 +207,7 @@ class DispatchTests(unittest.TestCase):
                 "title": "Claude architect critique",
                 "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
             },
-            executor="claude_opus_4_6_architecture_critic",
+            executor="claude_architecture_critic",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-architecture-reasoning",
             allowed_files=[],
@@ -210,7 +220,7 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(packet["provider_key"], "anthropic_manual")
         self.assertEqual(packet["manual_command"], "claude --model claude-opus-4-6 --effort high -p")
         packet_prompt = render_packet_prompt(packet)
-        self.assertIn("claude_opus_4_6_architecture_critic", packet_prompt)
+        self.assertIn("claude_architecture_critic", packet_prompt)
         self.assertIn("Manual dispatch command: claude --model claude-opus-4-6 --effort high -p", packet_prompt)
         self.assertIn("contract-jd-architecture-reasoning", packet_prompt)
 
@@ -222,7 +232,7 @@ class DispatchTests(unittest.TestCase):
                 "title": "ChatGPT Pro master plan review",
                 "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
             },
-            executor="chatgpt_pro_5_5_extended_reasoning_browser",
+            executor="chatgpt_pro_browser_master_reviewer",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-master-plan-review",
             allowed_files=[],
@@ -237,7 +247,7 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(packet["expert_profile_included"])
         self.assertEqual(packet["expert_profile"]["path"], "experts/master-plan-review.md")
         prompt = render_packet_prompt(packet)
-        self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", prompt)
+        self.assertIn("chatgpt_pro_browser_master_reviewer", prompt)
         self.assertIn("contract-jd-master-plan-review", prompt)
         self.assertIn("Output only the contractor return", prompt)
 

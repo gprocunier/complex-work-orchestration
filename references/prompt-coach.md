@@ -7,8 +7,8 @@ The prompt coach is a compiler, not a second router. It calls the same policy
 router as `scripts/route_work.py`, then emits a right-sized launch prompt,
 missing high-value questions, bounded interactive questions, enabled levers,
 disabled levers, warnings, `beads_tracking_required=true`,
-`workerbee_parallelism`, `model_synthesis`, `beads_context_depth`,
-`beads_briefing_depth`, and the underlying route result.
+`workerbee_parallelism`, `model_synthesis`, `beads_context_depth`, and the
+underlying route result.
 
 ## Basic Use
 
@@ -26,6 +26,12 @@ for automation, CI, troubleshooting, or an operator shell outside Codex:
 ```bash
 python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."
+```
+
+The same path is available through the consolidated helper entry point:
+
+```bash
+python3 scripts/cwo.py coach --brief "<task text>"
 ```
 
 Automation can consume JSON directly:
@@ -80,8 +86,7 @@ Bead instead of a scaffold.
 ## Beads Context Depth
 
 `beads_context_depth` controls how much durable Beads history internal Codex
-agents read. `beads_briefing_depth` is a compatibility alias and should match
-the same value in current helper output.
+agents read.
 
 - `none`: perform no `bd` lookup; use only the assigned prompt metadata.
 - `summary`: read assigned-Bead JSON without comments.
@@ -111,6 +116,25 @@ quarantined entries stay visible as dispositions. External contractors must not
 receive comment-bearing briefs; use `scripts/build_contractor_packet.py` for
 outside models.
 
+## Data Sensitivity Declaration
+
+Route and coach helpers infer `data_sensitivity` with an advisory text
+heuristic. The result records `data_sensitivity_source`,
+`data_sensitivity_heuristic`, `data_sensitivity_provenance`, and a disclaimer
+because keyword matching can miss paraphrases or context.
+
+When the operator already knows the boundary, declare it explicitly:
+
+```bash
+python3 scripts/coach_prompt.py --data-sensitivity restricted "<task text>"
+python3 scripts/route_work.py --data-sensitivity redacted "<task text>"
+python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --data-sensitivity internal
+```
+
+Allowed values are `public`, `redacted`, `internal`, and `restricted`. An
+operator declaration overrides the heuristic estimate, but the heuristic value
+is still recorded for auditability.
+
 ChatGPT Pro 5.5 Extended Reasoning language paired with "master plan",
 "final execution plan", or "total work packet" asks for the outside-sharing
 boundary and routes to the browser-mediated master-plan review lane after
@@ -136,6 +160,23 @@ After explicit opt-in, the helper equivalent uses `--local-ok`; add
 Publish, release, GitHub, tag, and upstream-push language recommends
 `publish-release`; the generated prompt must include validation evidence and
 publish-sanitization before any formal push, release, or tag.
+
+## Sprint Continuation
+
+Use `project-manager-sprint-steward` when the user asks to continue a sprint,
+resume an epic, choose what is next, or review ready and blocked work. The
+operator helper is:
+
+```bash
+python3 scripts/cwo.py continue --epic <epic-id>
+```
+
+Pass `--markdown-workgraph <path>` only when Beads state is unavailable. The
+result is a read-only continuation brief: one recommended next issue, why it is
+next, blockers and unblock steps, Definition of Ready and Done checks,
+evidence expectations, and resume commands. Beads has native epics and issues,
+not native stories or sprints; sprint state remains issue metadata, labels,
+dependencies, descriptions, closure notes, and process artifacts.
 
 ## Operator-Calibrated Execution
 

@@ -13,6 +13,7 @@ python3 scripts/route_work.py \
   --json \
   --external-ok \
   --allow-disclosure-escalation \
+  --waiver-reason "sample patch-branch route for public docs review" \
   --share-boundary patch-branch \
   --requested-role web-design \
   --file-path docs/index.html \

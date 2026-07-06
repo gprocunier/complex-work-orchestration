@@ -150,7 +150,7 @@ Publish-ready docs with validation and editorial review.</code></pre>
               automatically when explicit external-model or contractor cues
               exist; otherwise the user can request external review directly.
               <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_3_1_pro_preview_agy</code> executor key.
+              <code>gemini_architecture_critic</code> executor key.
             </div>
             <div class="callout">
               <strong>Master review:</strong>
@@ -239,10 +239,8 @@ Publish-ready docs with validation and editorial review.</code></pre>
               comments, <code>focused</code> includes assigned-Bead comments,
               <code>heavy</code> adds broader related history, and
               <code>audit</code> is for incidents, sabotage, forensics, or
-              quarantine review. The compatibility alias
-              <code>beads_briefing_depth</code> matches the same value. The
-              coach records provenance for computed, requested, and effective
-              depth. The Context option is always present in
+              quarantine review. The coach records provenance for computed,
+              requested, and effective depth. The Context option is always present in
               <code>interactive_questions</code>, with the autosized depth as
               the recommended default.
               <pre><code>python3 scripts/build_beads_brief.py \
@@ -251,6 +249,17 @@ Publish-ready docs with validation and editorial review.</code></pre>
   --for subagent</code></pre>
               Comment-bearing briefs are internal only. Outside contractors use
               <code>build_contractor_packet.py</code>.
+            </details>
+            <details>
+              <summary><strong>Operator Reference: Data Sensitivity</strong></summary>
+              Routing infers <code>data_sensitivity</code> with an advisory text
+              heuristic and records <code>data_sensitivity_source</code>,
+              <code>data_sensitivity_heuristic</code>, and
+              <code>data_sensitivity_provenance</code>. Keyword matching can
+              miss paraphrases or context, so operators should declare known
+              boundaries explicitly.
+              <pre><code>python3 scripts/coach_prompt.py --data-sensitivity restricted "&lt;task text&gt;"
+python3 scripts/route_work.py --data-sensitivity redacted "&lt;task text&gt;"</code></pre>
             </details>
             <div class="callout">
               <strong>Subagents:</strong>

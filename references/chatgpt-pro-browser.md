@@ -9,9 +9,16 @@ The lane is browser-mediated because ChatGPT Pro account state and model
 selection live in the operator's browser session. Do not use OpenAI API calls,
 Deep Research, Gemini, Opus, or an internal review as a silent substitute.
 
+Operator browser automation requires Playwright in the local environment:
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
 ## Contract
 
-- Executor: `chatgpt_pro_5_5_extended_reasoning_browser`
+- Executor: `chatgpt_pro_browser_master_reviewer`
 - Job label: `contract-jd-master-plan-review`
 - Default share boundary: `redacted-packet`
 - Evidence requirement: dispatch JSON with confirmed `model_attestation`, a
@@ -23,13 +30,16 @@ Deep Research, Gemini, Opus, or an internal review as a silent substitute.
 
 ## Safe Browser Launch
 
-Prefer the CWO launcher instead of executing Chrome directly from Codex. The
-launcher starts Chrome through `systemd-run --user`, keeps the visible browser
-outside the lifetime of the shell command, uses Wayland/Ozone flags, opens a
-dedicated Chrome profile, and exposes only a localhost CDP port.
+Use either the CWO systemd/Wayland helper or a foreground Chrome command printed
+for an operator shell. Both paths keep the visible browser outside the lifetime
+of a Codex foreground child, open a dedicated Chrome profile, and expose only a
+localhost CDP port.
+The systemd helper uses `systemd-run --user` with Wayland/Ozone flags. The
+manual path prints the Chrome/CDP command without requiring systemd.
 
 ```bash
 scripts/launch_chatgpt_cdp_chrome.sh --write-config
+scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command
 ```
 
 The default profile is:
@@ -63,13 +73,16 @@ session material. It uses:
 ```
 
 The file must be mode `0600` and must live outside the repository. If the
-ChatGPT UI changes, update only this local config.
+ChatGPT UI changes, update only this local config. With
+`require_model_confirmation=true`, `--dry-run --json` fails closed when either
+confirmation selector is missing.
 
 Useful launcher commands:
 
 ```bash
 scripts/launch_chatgpt_cdp_chrome.sh --status
 scripts/launch_chatgpt_cdp_chrome.sh --replace --write-config
+scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command
 scripts/launch_chatgpt_cdp_chrome.sh --stop
 ```
 
@@ -114,7 +127,7 @@ Build the packet from the compact plan bundle:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
@@ -229,5 +242,9 @@ explicitly approves that loss of browser state.
   boundary.
 - Browser text without a valid share URL and confirmed model attestation is not
   accepted master-review evidence.
+
+Verified against ChatGPT UI on July 5, 2026: model and reasoning confirmation
+selectors used `[data-testid='composer-intelligence-picker-content']` in the
+operator local config.
 
 Last verified on Fedora 43 Wayland: July 5, 2026.

@@ -33,6 +33,7 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
 CI_REQUIRED_COMMANDS = [
     "python scripts/validate_repository.py",
     "python scripts/validate_site.py",
+    "python scripts/generate_site.py --check",
     "python -m unittest discover -s tests",
     "bash examples/sample-prompt-coach-command.sh",
     "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",
@@ -54,13 +55,75 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "packets": {"paths", "policy", "util"},
     "returns": {"policy", "util"},
     "workspace": {"paths", "util"},
+    "workgraph_markdown": set(),
     "telemetry": {"util"},
     "audit": {"paths", "policy", "telemetry", "util"},
+    "waivers": set(),
     "beads": {"paths", "util"},
     "harness": {"policy", "util"},
     "execution_status_report": {"audit", "paths"},
 }
 PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS = ["H200", "CerIO", "airgapped-rhoai-h200"]
+WAIVER_CONVENTION_SCRIPTS = {
+    "scripts/build_contractor_packet.py": {
+        "flags": ["--allow-disclosure-escalation", "--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/chatgpt_browser_review.py": {
+        "flags": ["--allow-degraded-packet", "--allow-unlinked-packet", "--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/dispatch_work.py": {
+        "flags": [
+            "--allow-degraded-packet",
+            "--allow-unlinked-packet",
+            "--allow-raw-manual-prompt",
+            "--allow-disclosure-escalation",
+            "--local-allow-private-dns",
+            "--local-insecure-tls",
+            "--no-audit",
+        ],
+        "audit_fields": True,
+    },
+    "scripts/evaluate_return.py": {
+        "flags": ["--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/render_harness_dispatch.py": {
+        "flags": ["--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/import_execution_telemetry.py": {
+        "flags": ["--allow-unmatched"],
+        "audit_terms": ["waiver_required", "waiver_flags", "waiver_reason"],
+    },
+    "scripts/generate_manual_dispatch_prompt.py": {
+        "flags": [
+            "--allow-degraded-packet",
+            "--allow-raw-manual-prompt",
+            "--allow-disclosure-escalation",
+        ],
+    },
+    "scripts/configure_codex_beads_hooks.py": {
+        "flags": ["--force-visibility-hint", "--allow-degraded-context"],
+    },
+    "scripts/coach_prompt.py": {
+        "flags": ["--allow-disclosure-escalation"],
+    },
+    "scripts/route_work.py": {
+        "flags": ["--allow-disclosure-escalation"],
+    },
+    "scripts/scaffold_workgraph.py": {
+        "flags": ["--allow-disclosure-escalation"],
+    },
+}
+WAIVER_FLAG_DISCOVERY_EXCEPTIONS = {
+    "scripts/workspace_mutation_guard.py": {"--allow-path"},
+}
+RETIRED_BEADS_CONTEXT_ALIAS_PATTERNS = [
+    "beads_" + "briefing_depth",
+    "beads-" + "briefing-depth",
+]
 
 
 def load_json(path: Path) -> Any:
@@ -75,9 +138,37 @@ def load_json(path: Path) -> Any:
         raise ValueError(f"{path.relative_to(REPO_ROOT)} is not valid JSON: {exc}") from exc
 
 
+def validate_retired_beads_context_aliases(
+    errors: list[str],
+    *,
+    repo_root: Path = REPO_ROOT,
+) -> None:
+    allowed_names = {"CHANGELOG.md"}
+    skipped_dirs = {".git", "__pycache__"}
+    for path in sorted(repo_root.rglob("*")):
+        if not path.is_file() or path.name in allowed_names:
+            continue
+        try:
+            relative = path.relative_to(repo_root)
+        except ValueError:
+            continue
+        if any(part in skipped_dirs for part in relative.parts):
+            continue
+        if path.suffix not in {".py", ".json", ".md", ".html", ".sh", ".yaml", ".yml"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for pattern in RETIRED_BEADS_CONTEXT_ALIAS_PATTERNS:
+            if pattern in text:
+                errors.append(f"{relative} uses retired Beads context alias {pattern!r}")
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
     validate_cwo_core_contract(errors)
+    validate_retired_beads_context_aliases(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
         try:
@@ -128,6 +219,8 @@ def validate_repository() -> list[str]:
             errors.append(f"executor alias {alias!r} targets unknown executor {target!r}")
 
     for key, executor in executors.items():
+        if any(char.isdigit() for char in key):
+            errors.append(f"executor key {key!r} must be role-like and must not contain version digits")
         alias_for = executor.get("alias_for")
         if alias_for and alias_for not in executors:
             errors.append(f"executor {key!r} aliases unknown executor {alias_for!r}")
@@ -390,8 +483,11 @@ def validate_repository() -> list[str]:
         schema=load_json(REPO_ROOT / "schemas" / "route-result.schema.json"),
         properties=[
             "model_synthesis",
+            "data_sensitivity_source",
+            "data_sensitivity_heuristic",
+            "data_sensitivity_provenance",
+            "data_sensitivity_disclaimer",
             "beads_context_depth",
-            "beads_briefing_depth",
             "zero_trust_consensus_required",
             "zero_trust_consensus_trigger_reasons",
             "zero_trust_minimum_independent_domains",
@@ -448,6 +544,21 @@ def validate_repository() -> list[str]:
             "adjudication_record",
         ],
     )
+    require_schema_properties(
+        errors,
+        schema_name="sprint-continuation.schema.json",
+        schema=load_json(REPO_ROOT / "schemas" / "sprint-continuation.schema.json"),
+        properties=[
+            "recommended_next_issue",
+            "why_next",
+            "ready_issues",
+            "blocked_issues",
+            "definition_of_ready",
+            "definition_of_done",
+            "resume_commands",
+            "modeling_note",
+        ],
+    )
     for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
         errors.append(f"sample-run-readiness-plan.json: {error}")
 
@@ -464,6 +575,7 @@ def validate_repository() -> list[str]:
             "scripts/coach_prompt.py",
             "scripts/cleanup_stale_agents.py",
             "scripts/close_bead_with_summary.py",
+            "scripts/continue_sprint.py",
             "scripts/configure_codex_beads_hooks.py",
             "scripts/workspace_mutation_guard.py",
             "--terminate-unowned-codex",
@@ -474,8 +586,9 @@ def validate_repository() -> list[str]:
             "interactive_questions",
             "workerbee_parallelism",
             "beads_context_depth",
-            "beads_briefing_depth",
             "beads_context_depth_provenance",
+            "--data-sensitivity",
+            "data_sensitivity_provenance",
             "scripts/build_beads_brief.py",
             "Beads context-depth choice",
             "autosized depth as the recommended default",
@@ -523,7 +636,7 @@ def validate_repository() -> list[str]:
             "additional editorial review",
             "reader-facing acceptance check",
             "contract-jd-editorial-reasoning",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/chatgpt_browser_review.py",
             "scripts/ingest_chatgpt_share_return.py",
@@ -682,7 +795,7 @@ def validate_repository() -> list[str]:
             "scripts/coach_prompt.py",
             "bd ready",
             "greg-at-redhat/beads",
-            "github.com/steveyegge/beads",
+            "github.com/gastownhall/beads",
             "no-codex-exec",
             "./workflows.html",
             "skills",
@@ -800,8 +913,9 @@ def validate_repository() -> list[str]:
             "interactive_questions",
             "scaffold_sizing",
             "beads_context_depth",
-            "beads_briefing_depth",
             "build_beads_brief.py",
+            "--data-sensitivity",
+            "data_sensitivity_provenance",
             "Context option is always present",
             "autosized depth as the recommended default",
             "--scaffold-size tight",
@@ -977,13 +1091,17 @@ def validate_repository() -> list[str]:
             "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "./use-cases.html#complex-use-cases",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "CWO_CHATGPT_BROWSER_CONFIG",
             "Setup Checklist",
             "ChatGPT does not operate Beads directly",
             "Playwright",
+            "python3 -m pip install playwright",
+            "python3 -m playwright install chromium",
             "jq",
             "Last verified:",
+            "--dry-run --json",
+            "fails closed",
             "SHARE_URL",
             "DISPATCH_ID",
             "PACKET_SHA256",
@@ -1060,7 +1178,9 @@ def validate_repository() -> list[str]:
             "Add <code>--peer-review-required</code> only when route policy",
             "reference label for public docs",
             "draft-like wording",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "schemas/sprint-continuation.schema.json",
+            "python3 scripts/cwo.py continue --epic",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/chatgpt_browser_review.py",
             "scripts/ingest_chatgpt_share_return.py",
@@ -1245,6 +1365,10 @@ def validate_repository() -> list[str]:
             "local-worker",
             "publish-release",
             "Scaffold Size",
+            "Sprint Continuation",
+            "Data Sensitivity Declaration",
+            "--data-sensitivity",
+            "data_sensitivity_provenance",
             "Exact contract labels belong",
         ],
     )
@@ -1324,6 +1448,8 @@ def validate_repository() -> list[str]:
             "editor review before publish sanitization",
             "contract labels belong in",
             "zero_trust_consensus_required",
+            "Declared Data Sensitivity",
+            "data_sensitivity_source=operator-declared",
         ],
     )
     require_doc_terms(
@@ -1351,7 +1477,7 @@ def validate_repository() -> list[str]:
             "claude -p",
             "dispatch prompt",
             "file://",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/chatgpt_browser_review.py",
             "scripts/ingest_chatgpt_share_return.py",
@@ -1371,7 +1497,7 @@ def validate_repository() -> list[str]:
         "references/chatgpt-pro-browser.md",
         [
             "ChatGPT Pro Browser Master Review",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/launch_chatgpt_cdp_chrome.sh --write-config",
             "systemd-run --user",
@@ -1380,7 +1506,12 @@ def validate_repository() -> list[str]:
             "max_prompt_chars",
             "50000",
             "scripts/chatgpt_browser_review.py",
+            "python3 -m pip install playwright",
+            "python3 -m playwright install chromium",
             "--dry-run",
+            "--dry-run --json",
+            "fails closed",
+            "Verified against ChatGPT UI on July 5, 2026",
             "--confirm-only",
             "scripts/ingest_chatgpt_share_return.py",
             "pre-submission browser failure",
@@ -1469,6 +1600,7 @@ def validate_repository() -> list[str]:
     )
     validate_local_inference_peer_review_guidance(errors)
     validate_public_docs_do_not_expose_hardware_categories(errors)
+    validate_waiver_conventions(errors)
 
     validate_ci_workflow(errors)
 
@@ -1611,6 +1743,145 @@ def validate_local_inference_peer_review_guidance(
     missing = [term for term in required_terms if term not in content]
     if missing:
         errors.append(f"{relative_path} is missing route-derived peer-review guidance: {', '.join(missing)}")
+
+
+def waiver_flag_dest(flag: str) -> str:
+    if flag == "--no-audit":
+        return "audit"
+    return flag.removeprefix("--").replace("-", "_")
+
+
+def literal_string_list(node: ast.AST) -> set[str]:
+    if not isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return set()
+    values: set[str] = set()
+    for item in node.elts:
+        if isinstance(item, ast.Constant) and isinstance(item.value, str):
+            values.add(item.value)
+    return values
+
+
+def literal_call_flags(node: ast.Call) -> set[str]:
+    flags: set[str] = set()
+    for arg in node.args:
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value.startswith("--"):
+            flags.add(arg.value)
+    return flags
+
+
+def called_function_name(node: ast.Call) -> str | None:
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return None
+
+
+def extract_flag_destinations(tree: ast.AST, function_name: str) -> set[str]:
+    destinations: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or called_function_name(node) != function_name:
+            continue
+        if len(node.args) >= 2:
+            destinations.update(literal_string_list(node.args[1]))
+        for keyword in node.keywords:
+            if keyword.arg == "flag_dests":
+                destinations.update(literal_string_list(keyword.value))
+    return destinations
+
+
+def extract_argparse_flags(tree: ast.AST) -> set[str]:
+    flags: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and called_function_name(node) == "add_argument":
+            flags.update(literal_call_flags(node))
+    return flags
+
+
+def is_waiver_shaped_flag(flag: str) -> bool:
+    return flag == "--no-audit" or flag.startswith("--allow-") or "-allow-" in flag
+
+
+def validate_no_uncovered_waiver_flags(
+    errors: list[str],
+    *,
+    parsed_scripts: dict[str, ast.AST],
+    scripts: dict[str, dict[str, Any]],
+) -> None:
+    covered_by_path = {
+        relative_path: set(spec.get("flags", []))
+        for relative_path, spec in scripts.items()
+    }
+    for relative_path, tree in parsed_scripts.items():
+        discovered = {
+            flag
+            for flag in extract_argparse_flags(tree)
+            if is_waiver_shaped_flag(flag)
+        }
+        exceptions = WAIVER_FLAG_DISCOVERY_EXCEPTIONS.get(relative_path, set())
+        uncovered = sorted(discovered - covered_by_path.get(relative_path, set()) - exceptions)
+        if uncovered:
+            errors.append(
+                f"{relative_path} defines bypass-shaped flags not covered by WAIVER_CONVENTION_SCRIPTS: "
+                + ", ".join(uncovered)
+            )
+
+
+def validate_waiver_conventions(
+    errors: list[str],
+    scripts: dict[str, dict[str, Any]] | None = None,
+    repo_root: Path = REPO_ROOT,
+) -> None:
+    script_specs = scripts or WAIVER_CONVENTION_SCRIPTS
+    parsed_scripts: dict[str, ast.AST] = {}
+    for relative_path, spec in script_specs.items():
+        path = repo_root / relative_path
+        if not path.is_file():
+            errors.append(f"waiver convention script is missing: {relative_path}")
+            continue
+        content = path.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(content)
+        except SyntaxError as exc:
+            errors.append(f"{relative_path} has invalid Python syntax: {exc}")
+            continue
+        parsed_scripts[relative_path] = tree
+        flags = list(spec.get("flags", []))
+        missing_flags = [flag for flag in flags if flag not in content]
+        if missing_flags:
+            errors.append(f"{relative_path} is missing controlled waiver flags: {', '.join(missing_flags)}")
+            continue
+        required_destinations = {waiver_flag_dest(flag) for flag in flags}
+        reason_destinations = extract_flag_destinations(tree, "require_waiver_reason")
+        missing_reason = sorted(required_destinations - reason_destinations)
+        if "add_waiver_reason_argument" not in content:
+            errors.append(f"{relative_path} must define --waiver-reason with add_waiver_reason_argument")
+        if missing_reason:
+            errors.append(
+                f"{relative_path} must require --waiver-reason for: {', '.join(missing_reason)}"
+            )
+        if spec.get("audit_fields"):
+            audit_destinations = extract_flag_destinations(tree, "waiver_audit_fields")
+            missing_audit = sorted(required_destinations - audit_destinations)
+            if missing_audit:
+                errors.append(
+                    f"{relative_path} must add waiver audit fields for: {', '.join(missing_audit)}"
+                )
+        for term in spec.get("audit_terms", []):
+            if term not in content:
+                errors.append(f"{relative_path} is missing waiver audit term: {term}")
+    if scripts is None:
+        for path in sorted((repo_root / "scripts").glob("*.py")):
+            relative_path = str(path.relative_to(repo_root))
+            if relative_path in parsed_scripts:
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except SyntaxError as exc:
+                errors.append(f"{relative_path} has invalid Python syntax: {exc}")
+                continue
+            parsed_scripts[relative_path] = tree
+    validate_no_uncovered_waiver_flags(errors, parsed_scripts=parsed_scripts, scripts=script_specs)
 
 
 def main() -> None:

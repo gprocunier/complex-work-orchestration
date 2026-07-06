@@ -85,7 +85,7 @@
       "disposition": "primary"
     },
     {
-      "provider_key": "gemini_3_1_pro_preview_agy",
+      "provider_key": "gemini_architecture_critic",
       "provider_family": "google",
       "provenance_class": "external-contractor",
       "disposition": "quarantined"
