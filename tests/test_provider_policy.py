@@ -15,6 +15,7 @@ from cwo_core.policy import (  # noqa: E402
     resolve_executor_key,
     validate_peer_review_controls,
 )
+from cwo_core.returns import executor_default_synthesis_use, return_provenance  # noqa: E402
 
 
 class ProviderPolicyTests(unittest.TestCase):
@@ -204,6 +205,20 @@ class ProviderPolicyTests(unittest.TestCase):
                 ["chatgpt_pro_5_5_extended_reasoning_browser"],
                 registry,
             )
+        )
+
+    def test_return_provenance_resolves_historical_executor_alias(self) -> None:
+        provenance = return_provenance(executor="chatgpt_pro_5_5_extended_reasoning_browser")
+
+        self.assertEqual(provenance["provider_key"], "openai_manual")
+        self.assertEqual(provenance["dispatch_mode"], "browser_automation")
+        self.assertEqual(provenance["provenance_class"], "external-contractor")
+        self.assertEqual(provenance["provenance_warnings"], [])
+
+    def test_default_synthesis_use_resolves_historical_executor_alias(self) -> None:
+        self.assertEqual(
+            executor_default_synthesis_use("gemini_3_1_pro_preview_agy"),
+            "salvage-only",
         )
 
     def test_glm_bf16_architecture_critic_is_registered_as_local_reviewer(self) -> None:

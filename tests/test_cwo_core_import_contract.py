@@ -22,6 +22,7 @@ ALLOWED_IMPORTS = {
     "packets": {"paths", "policy", "util"},
     "returns": {"policy", "util"},
     "workspace": {"paths", "util"},
+    "workgraph_markdown": set(),
     "telemetry": {"util"},
     "audit": {"paths", "policy", "telemetry", "util"},
     "waivers": set(),

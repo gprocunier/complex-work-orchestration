@@ -154,6 +154,26 @@ python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."
 ```
 
+For a compact sanity check, use the consolidated helper:
+
+```bash
+python3 scripts/cwo.py coach --brief \
+  "Clean up installer docs, tests, and handoff notes."
+```
+
+Expected output:
+
+```text
+Recommended orchestration: lightweight-beads
+Route: internal-worker
+Task class: docs-review
+Risk: low
+Sensitivity: internal
+Sensitivity source: heuristic
+Executor: internal_worker
+Beads context depth: focused
+```
+
 Operator reference: when the user has accepted a recommended synthesis lane,
 advanced helpers use the same activation flag at each stage:
 

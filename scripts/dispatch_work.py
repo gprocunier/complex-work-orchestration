@@ -25,7 +25,7 @@ from cwo_core.audit import (
 )
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
-from cwo_core.policy import load_policy
+from cwo_core.policy import executor_config
 from cwo_core.util import (
     artifact_hash,
     make_dispatch_id,
@@ -132,8 +132,10 @@ class PinnedHTTPSHandler(request.HTTPSHandler):
 
 
 def local_executor_fallback(executor_key: str) -> dict[str, Any]:
-    executor = load_policy("executor-registry").get("executors", {}).get(executor_key, {})
-    return dict(executor) if isinstance(executor, dict) else {}
+    try:
+        return executor_config(executor_key)
+    except SystemExit:
+        return {}
 
 
 def endpoint_url(base_url: str, endpoint_path: str) -> str:

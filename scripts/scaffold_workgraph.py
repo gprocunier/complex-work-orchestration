@@ -21,6 +21,14 @@ from cwo_core.routing import (
 from cwo_core.synthesis import synthesis_lane_enabled
 from cwo_core.util import read_text_arg
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
+from cwo_core.workgraph_markdown import (
+    FIELD_DEPENDS_ON_LANES,
+    FIELD_LABELS,
+    FIELD_LANE,
+    FIELD_SKILLS,
+    FIELD_TYPE,
+    WORKGRAPH_FALLBACK_MARKER,
+)
 
 
 def body(purpose: str, expected: str) -> str:
@@ -750,7 +758,7 @@ def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
     lines = [
         f"# {title}",
         "",
-        "> Reduced durability fallback: Beads is unavailable or not in use. This "
+        f"> {WORKGRAPH_FALLBACK_MARKER}: Beads is unavailable or not in use. This "
         "Markdown workgraph preserves the task shape for operator resume, but "
         "it does not provide ready-work filtering, shared comments, "
         "contractor-only semantics, dependency enforcement, or durable "
@@ -774,11 +782,11 @@ def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
             [
                 f"### {key}: {title_text}",
                 "",
-                f"- Type: `{item.get('type', 'task')}`",
-                f"- Lane: `{item.get('lane', 'epic')}`",
-                f"- Labels: {markdown_inline_list(list(item.get('labels', [])))}",
-                f"- Depends on lanes: {markdown_inline_list(list(item.get('depends_on_lanes', [])))}",
-                f"- Skills: {markdown_inline_list(list(item.get('skills', [])))}",
+                f"- {FIELD_TYPE}: `{item.get('type', 'task')}`",
+                f"- {FIELD_LANE}: `{item.get('lane', 'epic')}`",
+                f"- {FIELD_LABELS}: {markdown_inline_list(list(item.get('labels', [])))}",
+                f"- {FIELD_DEPENDS_ON_LANES}: {markdown_inline_list(list(item.get('depends_on_lanes', [])))}",
+                f"- {FIELD_SKILLS}: {markdown_inline_list(list(item.get('skills', [])))}",
                 "",
                 "#### Acceptance",
                 "",

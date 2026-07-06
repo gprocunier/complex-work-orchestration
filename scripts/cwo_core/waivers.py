@@ -21,7 +21,9 @@ def _flag_name(dest: str) -> str:
 def active_waiver_flags(args: argparse.Namespace, flag_dests: list[str]) -> list[str]:
     flags: list[str] = []
     for dest in flag_dests:
-        value = getattr(args, dest, None)
+        if not hasattr(args, dest):
+            raise SystemExit(f"waiver-controlled flag destination {dest!r} is not defined on parsed args")
+        value = getattr(args, dest)
         active = value is False if dest == "audit" else bool(value)
         if active:
             flags.append(_flag_name(dest))

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt  # noqa: E402
+from dispatch_work import local_executor_fallback  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.packets import (  # noqa: E402
@@ -18,6 +19,13 @@ from cwo_core.packets import (  # noqa: E402
 
 
 class DispatchTests(unittest.TestCase):
+    def test_local_executor_fallback_resolves_historical_executor_aliases(self) -> None:
+        fallback = local_executor_fallback("chatgpt_pro_5_5_extended_reasoning_browser")
+
+        self.assertEqual(fallback["key"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(fallback["requested_key"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(fallback["dispatch_mode"], "browser_automation")
+
     def test_manual_prompt_contains_no_blind_acceptance_rule(self) -> None:
         task = "Security review the contractor redaction flow."
         route = classify_work(task, external_ok=True, share_boundary="redacted-packet", requested_roles=["security"])

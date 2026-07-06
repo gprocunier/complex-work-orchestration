@@ -55,6 +55,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "packets": {"paths", "policy", "util"},
     "returns": {"policy", "util"},
     "workspace": {"paths", "util"},
+    "workgraph_markdown": set(),
     "telemetry": {"util"},
     "audit": {"paths", "policy", "telemetry", "util"},
     "waivers": set(),
@@ -115,6 +116,9 @@ WAIVER_CONVENTION_SCRIPTS = {
     "scripts/scaffold_workgraph.py": {
         "flags": ["--allow-disclosure-escalation"],
     },
+}
+WAIVER_FLAG_DISCOVERY_EXCEPTIONS = {
+    "scripts/workspace_mutation_guard.py": {"--allow-path"},
 }
 RETIRED_BEADS_CONTEXT_ALIAS_PATTERNS = [
     "beads_" + "briefing_depth",
@@ -1757,6 +1761,14 @@ def literal_string_list(node: ast.AST) -> set[str]:
     return values
 
 
+def literal_call_flags(node: ast.Call) -> set[str]:
+    flags: set[str] = set()
+    for arg in node.args:
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value.startswith("--"):
+            flags.add(arg.value)
+    return flags
+
+
 def called_function_name(node: ast.Call) -> str | None:
     if isinstance(node.func, ast.Name):
         return node.func.id
@@ -1778,12 +1790,51 @@ def extract_flag_destinations(tree: ast.AST, function_name: str) -> set[str]:
     return destinations
 
 
+def extract_argparse_flags(tree: ast.AST) -> set[str]:
+    flags: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and called_function_name(node) == "add_argument":
+            flags.update(literal_call_flags(node))
+    return flags
+
+
+def is_waiver_shaped_flag(flag: str) -> bool:
+    return flag == "--no-audit" or flag.startswith("--allow-") or "-allow-" in flag
+
+
+def validate_no_uncovered_waiver_flags(
+    errors: list[str],
+    *,
+    parsed_scripts: dict[str, ast.AST],
+    scripts: dict[str, dict[str, Any]],
+) -> None:
+    covered_by_path = {
+        relative_path: set(spec.get("flags", []))
+        for relative_path, spec in scripts.items()
+    }
+    for relative_path, tree in parsed_scripts.items():
+        discovered = {
+            flag
+            for flag in extract_argparse_flags(tree)
+            if is_waiver_shaped_flag(flag)
+        }
+        exceptions = WAIVER_FLAG_DISCOVERY_EXCEPTIONS.get(relative_path, set())
+        uncovered = sorted(discovered - covered_by_path.get(relative_path, set()) - exceptions)
+        if uncovered:
+            errors.append(
+                f"{relative_path} defines bypass-shaped flags not covered by WAIVER_CONVENTION_SCRIPTS: "
+                + ", ".join(uncovered)
+            )
+
+
 def validate_waiver_conventions(
     errors: list[str],
     scripts: dict[str, dict[str, Any]] | None = None,
     repo_root: Path = REPO_ROOT,
 ) -> None:
-    for relative_path, spec in (scripts or WAIVER_CONVENTION_SCRIPTS).items():
+    script_specs = scripts or WAIVER_CONVENTION_SCRIPTS
+    parsed_scripts: dict[str, ast.AST] = {}
+    for relative_path, spec in script_specs.items():
         path = repo_root / relative_path
         if not path.is_file():
             errors.append(f"waiver convention script is missing: {relative_path}")
@@ -1794,6 +1845,7 @@ def validate_waiver_conventions(
         except SyntaxError as exc:
             errors.append(f"{relative_path} has invalid Python syntax: {exc}")
             continue
+        parsed_scripts[relative_path] = tree
         flags = list(spec.get("flags", []))
         missing_flags = [flag for flag in flags if flag not in content]
         if missing_flags:
@@ -1818,6 +1870,18 @@ def validate_waiver_conventions(
         for term in spec.get("audit_terms", []):
             if term not in content:
                 errors.append(f"{relative_path} is missing waiver audit term: {term}")
+    if scripts is None:
+        for path in sorted((repo_root / "scripts").glob("*.py")):
+            relative_path = str(path.relative_to(repo_root))
+            if relative_path in parsed_scripts:
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except SyntaxError as exc:
+                errors.append(f"{relative_path} has invalid Python syntax: {exc}")
+                continue
+            parsed_scripts[relative_path] = tree
+    validate_no_uncovered_waiver_flags(errors, parsed_scripts=parsed_scripts, scripts=script_specs)
 
 
 def main() -> None:

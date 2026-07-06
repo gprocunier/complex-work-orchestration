@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
 from scaffold_workgraph import beads_graph_plan, markdown_workgraph_plan, planned_graph  # noqa: E402
+from summarize_resume_state import parse_markdown_workgraph  # noqa: E402
 
 BD_PATH = shutil.which("bd")
 
@@ -70,6 +71,22 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertIn("#### Acceptance", rendered)
         self.assertIn("#### Design", rendered)
         self.assertIn("#### Notes", rendered)
+
+    def test_markdown_workgraph_generator_output_round_trips_through_parser(self) -> None:
+        route = classify_work("Document Markdown fallback workgraph behavior.")
+        cwo_graph = planned_graph("Markdown Round Trip", route)
+        rendered = markdown_workgraph_plan("Markdown Round Trip", cwo_graph)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(rendered, encoding="utf-8")
+            parsed = parse_markdown_workgraph(path)
+
+        by_id = {item["id"]: item for item in parsed}
+        self.assertEqual(by_id["epic"]["type"], "epic")
+        self.assertEqual(by_id["implementation"]["lane"], "implementation")
+        self.assertIn("workerbee", by_id["implementation"]["labels"])
+        self.assertIn("architect", by_id["implementation"]["depends_on_lanes"])
 
     def test_beads_graph_plan_exports_model_synthesis_lane(self) -> None:
         text = "Use model synthesis for architecture routing and schema policy."

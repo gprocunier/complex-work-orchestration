@@ -8,6 +8,15 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.beads import run_bd
+from cwo_core.workgraph_markdown import (
+    FIELD_DEPENDS_ON_LANES,
+    FIELD_LABELS,
+    FIELD_LANE,
+    FIELD_TYPE,
+    WORKGRAPH_FALLBACK_MARKER,
+    WORKGRAPH_ITEMS_HEADING,
+    normalize_field_label,
+)
 
 WORKGRAPH_HEADING_RE = re.compile(r"^###\s+([^:\n]+):\s*(.+?)\s*$")
 WORKGRAPH_FIELD_RE = re.compile(r"^-\s+([^:]+):\s*(.+?)\s*$")
@@ -61,7 +70,7 @@ def parse_markdown_workgraph(path: Path) -> list[dict[str, Any]]:
     except OSError as exc:
         raise SystemExit(f"could not read Markdown workgraph {path}: {exc}") from exc
 
-    if "Reduced durability fallback" not in text or "## Work Items" not in text:
+    if WORKGRAPH_FALLBACK_MARKER not in text or WORKGRAPH_ITEMS_HEADING not in text:
         raise SystemExit(f"{path} is not a CWO Markdown workgraph fallback")
 
     items: list[dict[str, Any]] = []
@@ -83,15 +92,15 @@ def parse_markdown_workgraph(path: Path) -> list[dict[str, Any]]:
         field_match = WORKGRAPH_FIELD_RE.match(line)
         if not field_match:
             continue
-        name = field_match.group(1).strip().lower()
+        name = normalize_field_label(field_match.group(1))
         value = field_match.group(2).strip()
-        if name == "labels":
+        if name == normalize_field_label(FIELD_LABELS):
             current["labels"] = markdown_values(value)
-        elif name == "type":
+        elif name == normalize_field_label(FIELD_TYPE):
             current["type"] = ", ".join(markdown_values(value)) or value
-        elif name == "lane":
+        elif name == normalize_field_label(FIELD_LANE):
             current["lane"] = ", ".join(markdown_values(value)) or value
-        elif name == "depends on lanes":
+        elif name == normalize_field_label(FIELD_DEPENDS_ON_LANES):
             current["depends_on_lanes"] = markdown_values(value)
 
     if not items:

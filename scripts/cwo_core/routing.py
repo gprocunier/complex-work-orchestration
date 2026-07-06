@@ -76,9 +76,15 @@ def resolve_data_sensitivity(
     declared = normalize_data_sensitivity(data_sensitivity)
     heuristic = detect_sensitivity(text, routing)
     if declared:
-        effective = declared
+        effective = max([declared, heuristic], key=SENSITIVITY_ORDER.index)
         source = "operator-declared"
-        reason = f"Operator declared data sensitivity {declared}; heuristic estimate was {heuristic}."
+        if effective == declared:
+            reason = f"Operator declared data sensitivity {declared}; heuristic estimate was {heuristic}."
+        else:
+            reason = (
+                f"Operator declared data sensitivity floor {declared}; "
+                f"heuristic estimate {heuristic} raised the effective sensitivity to {effective}."
+            )
     else:
         effective = heuristic
         source = "heuristic"

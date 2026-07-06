@@ -83,6 +83,18 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(result["data_sensitivity_heuristic"], "internal")
         self.assertEqual(result["data_sensitivity_source"], "operator-declared")
 
+    def test_data_sensitivity_declaration_is_floor_not_ceiling(self) -> None:
+        result = classify_work(
+            "Review customer records export and employee data cleanup.",
+            data_sensitivity="public",
+        )
+
+        self.assertEqual(result["data_sensitivity"], "restricted")
+        self.assertEqual(result["data_sensitivity_heuristic"], "restricted")
+        self.assertEqual(result["data_sensitivity_source"], "operator-declared")
+        self.assertEqual(result["data_sensitivity_provenance"]["declared_sensitivity"], "public")
+        self.assertIn("raised the effective sensitivity", result["data_sensitivity_provenance"]["reason"])
+
     def test_sensitivity_heuristic_catches_common_paraphrases(self) -> None:
         restricted = classify_work("Review customer records export and employee data cleanup.")
         redacted = classify_work("Review authentication flow and private repository boundaries.")
