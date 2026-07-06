@@ -58,6 +58,23 @@
       "acceptance_checks": ["latest instruction is honored", "closure language matches evidence strength", "safety-deferred work remains residual risk", "recommendations are narrow and actionable"],
       "escalation_rules": ["safety policy may hide impact", "required evidence needs unavailable authority", "scope ambiguity changes execution or publication behavior", "claimed validation lacks reproducible evidence"]
     },
+    "project_manager_sprint_steward": {
+      "display_name": "Project Manager Sprint Steward Distinguished Engineer",
+      "discipline": "project-manager-sprint-steward",
+      "persona_file": "experts/project-manager-sprint-steward.md",
+      "job_description_label": "contract-jd-project-manager-sprint-steward",
+      "aliases": ["project-manager-sprint-steward", "project manager sprint steward", "pm sprint steward", "sprint steward", "project-manager", "project manager", "pm", "sprint planning", "backlog refinement"],
+      "task_class": "project-management",
+      "review_stage": "pre-implementation",
+      "default_risk": "medium",
+      "preferred_executors": ["codex_project_manager", "frontier_architect", "internal_worker"],
+      "file_path_patterns": ["README.md", "SKILL.md", "references/prompt-coach.md", "templates/epic.md", "templates/sprint-plan.md", "templates/sprint-continuation.md", "scripts/scaffold_workgraph.py", "scripts/continue_sprint.py", "scripts/coach_prompt.py", "scripts/cwo_core/coach.py", "scripts/cwo_core/beads.py"],
+      "trigger_terms": ["next sprint", "sprint plan", "sprint planning", "sprint goal", "sprint closeout", "close a sprint", "select the next sprint", "continue sprint", "sprint continuation", "resume sprint", "resume epic", "what next", "next issue", "next executable issue", "backlog refinement", "backlog sprawl", "blocked work", "ready work", "beads epic", "beads issue", "beads issues", "beads work", "epic planning", "story mapping", "definition of ready", "definition of done", "project-management workflow", "pm framing"],
+      "required_inputs": ["broad goal or epic", "current Beads issues and dependencies", "desired sprint horizon", "blockers and non-goals", "validation and evidence expectations", "handoff or commit/push expectations"],
+      "output_contract": ["epic/objective recommendation", "sprint goal and expected value", "issue graph with issue types", "dependencies and blockers", "Definition of Ready", "Definition of Done", "follow-up issues and carry-forward work"],
+      "acceptance_checks": ["native Beads epics and issues are described accurately", "stories and sprints are treated as planning language", "issue graph is small and executable", "issue types and dependencies are explicit", "closeout evidence and follow-up work are defined"],
+      "escalation_rules": ["objective is too broad for one sprint", "blockers require maintainer decision", "issue graph is too vague or large", "validation expectations are unknown", "plan would misrepresent Beads story or sprint support"]
+    },
     "peer_review": {
       "display_name": "Peer Review Gate",
       "discipline": "peer-review",

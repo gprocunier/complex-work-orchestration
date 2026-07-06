@@ -161,6 +161,23 @@ Publish, release, GitHub, tag, and upstream-push language recommends
 `publish-release`; the generated prompt must include validation evidence and
 publish-sanitization before any formal push, release, or tag.
 
+## Sprint Continuation
+
+Use `project-manager-sprint-steward` when the user asks to continue a sprint,
+resume an epic, choose what is next, or review ready and blocked work. The
+operator helper is:
+
+```bash
+python3 scripts/cwo.py continue --epic <epic-id>
+```
+
+Pass `--markdown-workgraph <path>` only when Beads state is unavailable. The
+result is a read-only continuation brief: one recommended next issue, why it is
+next, blockers and unblock steps, Definition of Ready and Done checks,
+evidence expectations, and resume commands. Beads has native epics and issues,
+not native stories or sprints; sprint state remains issue metadata, labels,
+dependencies, descriptions, closure notes, and process artifacts.
+
 ## Operator-Calibrated Execution
 
 `operator_calibration` tells the coach when to add the

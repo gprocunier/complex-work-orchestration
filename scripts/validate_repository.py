@@ -540,6 +540,21 @@ def validate_repository() -> list[str]:
             "adjudication_record",
         ],
     )
+    require_schema_properties(
+        errors,
+        schema_name="sprint-continuation.schema.json",
+        schema=load_json(REPO_ROOT / "schemas" / "sprint-continuation.schema.json"),
+        properties=[
+            "recommended_next_issue",
+            "why_next",
+            "ready_issues",
+            "blocked_issues",
+            "definition_of_ready",
+            "definition_of_done",
+            "resume_commands",
+            "modeling_note",
+        ],
+    )
     for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
         errors.append(f"sample-run-readiness-plan.json: {error}")
 
@@ -556,6 +571,7 @@ def validate_repository() -> list[str]:
             "scripts/coach_prompt.py",
             "scripts/cleanup_stale_agents.py",
             "scripts/close_bead_with_summary.py",
+            "scripts/continue_sprint.py",
             "scripts/configure_codex_beads_hooks.py",
             "scripts/workspace_mutation_guard.py",
             "--terminate-unowned-codex",
@@ -1158,6 +1174,8 @@ def validate_repository() -> list[str]:
             "Add <code>--peer-review-required</code> only when route policy",
             "reference label for public docs",
             "draft-like wording",
+            "schemas/sprint-continuation.schema.json",
+            "python3 scripts/cwo.py continue --epic",
             "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/chatgpt_browser_review.py",
@@ -1343,6 +1361,7 @@ def validate_repository() -> list[str]:
             "local-worker",
             "publish-release",
             "Scaffold Size",
+            "Sprint Continuation",
             "Data Sensitivity Declaration",
             "--data-sensitivity",
             "data_sensitivity_provenance",

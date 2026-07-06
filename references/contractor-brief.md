@@ -77,6 +77,9 @@ other discipline-specific contract into a generic project review.
 - `contract-jd-operator-calibrated-execution`: execution discipline, evidence
   classification, scope control, safety-deferred residual risk, false-closure
   checks, and requested closeout.
+- `contract-jd-project-manager-sprint-steward`: next-sprint planning, Beads
+  epic and issue mapping, issue types, dependencies, ready/done criteria, and
+  carry-forward work.
 - `contract-jd-peer-review`: independent gate for contractor or local-worker
   returns before implementation use.
 - `contract-jd-sabotage-review`: integrity review for suspected sabotage,

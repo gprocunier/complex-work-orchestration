@@ -613,7 +613,8 @@ approved share boundary, job labels, task context, selected snippets, provider
 binding, and expert profile for outside or local review.
 
 - `scripts/cwo.py`: single stdlib dispatcher for the main helper commands,
-  for example `python3 scripts/cwo.py coach --brief "<task text>"`.
+  for example `python3 scripts/cwo.py coach --brief "<task text>"` or
+  `python3 scripts/cwo.py continue --epic <id>`.
 - `scripts/coach_prompt.py`: compile a right-sized invocation prompt before
   launching the full harness, including bounded `interactive_questions` that
   Codex can map to selectable Plan-mode prompts and a
@@ -703,6 +704,11 @@ binding, and expert profile for outside or local review.
 - `scripts/summarize_resume_state.py`: print Beads resume commands and current
   graph state. Pass `--markdown-workgraph <path>` to summarize a temporary
   Markdown fallback only when Beads state is unavailable.
+- `scripts/continue_sprint.py`: recommend the next executable issue for a
+  planned epic or sprint artifact. It reads Beads by default, accepts
+  `--markdown-workgraph <path>` as a reduced-durability fallback, and reports
+  ready work, blocked work, evidence expectations, and resume commands without
+  mutating Beads.
 - `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
   before worker handoff, including owners, exit conditions, evidence mapping,
   authority rules, typed projections, quarantine handling, boundary negative
@@ -724,8 +730,8 @@ binding, and expert profile for outside or local review.
 
 Schemas in `schemas/` describe prompt-coach results, route results, contractor
 packets, contractor return bundles, local dispatch envelopes, attestations,
-acceptance decisions, run readiness plans, execution status reports, Beads
-metadata, and audit events.
+acceptance decisions, run readiness plans, sprint continuation briefs,
+execution status reports, Beads metadata, and audit events.
 `examples/` contains small sample artifacts that can be used as smoke-test
 inputs.
 
@@ -1212,7 +1218,16 @@ python3 scripts/scaffold_workgraph.py \
   --format markdown-workgraph > /tmp/cwo-workgraph.md
 
 python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+python3 scripts/cwo.py continue --epic epic --markdown-workgraph /tmp/cwo-workgraph.md
 ```
+
+Use `continue` when the work is already planned and the user needs the next
+execution step. It returns one recommended next issue, why that issue is next,
+blocked work and unblock reasons, evidence expectations, and resume commands.
+It does not create Beads comments or issues. Beads has native epics and issues,
+not native stories or sprints; sprint state is represented through issue
+metadata, labels, dependencies, descriptions, closure notes, and process
+artifacts.
 
 On Fedora or EPEL-style systems, use your configured Beads package source. If
 you need a public example, the installer prints the `greg-at-redhat/beads` COPR
@@ -1361,6 +1376,9 @@ up the work.
 - `contract-jd-operator-calibrated-execution`: execution discipline, evidence
   classification, scope control, safety-deferred residual risk, false-closure
   checks, and requested closeout.
+- `contract-jd-project-manager-sprint-steward`: next-sprint planning,
+  Beads epic/issue mapping, issue typing, dependencies, ready/done criteria,
+  carry-forward work, and sprint closeout.
 - `contract-jd-reliability-reasoning`: operational failure modes, recovery,
   observability, rollout, concurrency, state, and incident risk.
 - `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost,

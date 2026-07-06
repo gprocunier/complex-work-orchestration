@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sprint Continuation Result",
+  "type": "object",
+  "required": [
+    "continuation_result_type",
+    "version",
+    "source",
+    "durability",
+    "epic_id",
+    "sprint_id",
+    "sprint_goal",
+    "modeling_note",
+    "recommended_next_issue",
+    "why_next",
+    "ready_issues",
+    "blocked_issues",
+    "carry_forward",
+    "definition_of_ready",
+    "definition_of_done",
+    "evidence_expectations",
+    "resume_commands",
+    "warnings"
+  ],
+  "properties": {
+    "continuation_result_type": {"const": "complex-work-orchestration-sprint-continuation"},
+    "version": {"type": "integer"},
+    "source": {"enum": ["beads", "markdown-workgraph"]},
+    "durability": {"enum": ["durable", "reduced"]},
+    "epic_id": {"type": "string"},
+    "sprint_id": {
+      "anyOf": [
+        {"type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "sprint_goal": {"type": "string"},
+    "modeling_note": {"type": "string"},
+    "recommended_next_issue": {
+      "anyOf": [
+        {"$ref": "#/$defs/issue"},
+        {"type": "null"}
+      ]
+    },
+    "why_next": {"type": "string"},
+    "ready_issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "blocked_issues": {"type": "array", "items": {"$ref": "#/$defs/blocked_issue"}},
+    "carry_forward": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "definition_of_ready": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+    "definition_of_done": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+    "evidence_expectations": {"type": "array", "items": {"type": "string"}},
+    "resume_commands": {"type": "array", "items": {"type": "string"}},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "required": ["id", "title", "type", "status", "labels", "priority", "dependencies"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "type": {"type": "string"},
+        "status": {"type": "string"},
+        "labels": {"type": "array", "items": {"type": "string"}},
+        "priority": {"type": "integer"},
+        "dependencies": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "blocked_issue": {
+      "type": "object",
+      "required": ["id", "title", "type", "status", "labels", "priority", "dependencies", "blockers"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "type": {"type": "string"},
+        "status": {"type": "string"},
+        "labels": {"type": "array", "items": {"type": "string"}},
+        "priority": {"type": "integer"},
+        "dependencies": {"type": "array", "items": {"type": "string"}},
+        "blockers": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "check": {
+      "type": "object",
+      "required": ["criterion", "status", "evidence"],
+      "properties": {
+        "criterion": {"type": "string"},
+        "status": {"enum": ["met", "missing", "review", "pending"]},
+        "evidence": {"type": "string"}
+      }
+    }
+  }
+}

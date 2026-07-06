@@ -645,6 +645,11 @@ class RouteWorkTests(unittest.TestCase):
                 "Review RHEL systemd SELinux DNF IdM Satellite lifecycle behavior.",
                 "contract-jd-redhat-rhel",
             ),
+            (
+                "project_manager_sprint_steward",
+                "Plan the next sprint with Beads epic and issue dependencies.",
+                "contract-jd-project-manager-sprint-steward",
+            ),
         ]
         for expert_name, text, job_label in cases:
             with self.subTest(expert_name=expert_name):
@@ -652,6 +657,28 @@ class RouteWorkTests(unittest.TestCase):
                 primary = result["ranked_experts"][0]
                 self.assertEqual(primary["name"], expert_name)
                 self.assertEqual(primary["job_description_label"], job_label)
+
+    def test_project_manager_sprint_steward_routes_by_planning_terms(self) -> None:
+        result = classify_work(
+            "Use CWO and Beads for next sprint planning: define the sprint goal, "
+            "map stories into Beads issues, set Definition of Ready and Definition of Done, "
+            "and avoid backlog sprawl."
+        )
+
+        primary = result["ranked_experts"][0]
+        self.assertEqual(primary["name"], "project_manager_sprint_steward")
+        self.assertEqual(primary["job_description_label"], "contract-jd-project-manager-sprint-steward")
+        self.assertIn("Definition of Ready", primary["output_contract"])
+        self.assertIn("stories and sprints are treated as planning language", primary["acceptance_checks"])
+
+    def test_project_manager_sprint_steward_routes_continuation_terms(self) -> None:
+        result = classify_work(
+            "Resume epic cwo-123 and tell me what next issue is ready or blocked for sprint continuation."
+        )
+
+        primary = result["ranked_experts"][0]
+        self.assertEqual(primary["name"], "project_manager_sprint_steward")
+        self.assertEqual(primary["task_class"], "project-management")
 
     def test_red_hat_product_experts_route_by_trigger_terms(self) -> None:
         cases = [

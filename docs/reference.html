@@ -142,8 +142,8 @@
               route results, contractor handoff packets, contractor returns,
               local dispatch envelopes, versioned harness dispatch envelopes,
               execution environment profiles, model-profile registries, run
-              readiness plans, acceptance decisions, audit events, and
-              attestations.
+              readiness plans, sprint continuation briefs, acceptance
+              decisions, audit events, and attestations.
             </p>
             <div class="reference-table compact" role="table" aria-label="Schema files">
               <div role="row"><span role="cell">Contractor return</span><code role="cell">schemas/contractor-return.schema.json</code></div>
@@ -152,6 +152,7 @@
               <div role="row"><span role="cell">Harness dispatch</span><code role="cell">schemas/harness-dispatch-envelope.schema.json</code></div>
               <div role="row"><span role="cell">Execution environment</span><code role="cell">schemas/execution-environment.schema.json</code></div>
               <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
+              <div role="row"><span role="cell">Sprint continuation</span><code role="cell">schemas/sprint-continuation.schema.json</code></div>
               <div role="row"><span role="cell">Execution status report</span><code role="cell">schemas/execution-status-report.schema.json</code></div>
             </div>
             <p>
@@ -297,6 +298,18 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               or multi-target work; and off for ordinary focused tasks.
             </p>
             <p>
+              The project-manager sprint steward profile uses
+              <code>contract-jd-project-manager-sprint-steward</code>. Use it
+              when planning the next sprint, translating goals into Beads work,
+              refining blocked or ready issues, continuing a planned sprint, or
+              closing a sprint. The read-only continuation helper is
+              <code>python3 scripts/cwo.py continue --epic &lt;id&gt;</code>.
+              Beads has native epics and issues, not stories or sprints; the steward uses
+              issue metadata, labels, descriptions, dependencies, status, and
+              sprint artifacts to express standard PM workflow without
+              misrepresenting the tool.
+            </p>
+            <p>
               Red Hat lenses include OpenShift Platform, OpenShift Application
               Developer, OpenShift AI, Red Hat OpenStack Services on OpenShift,
               Advanced Cluster Management, Advanced Cluster Security, and Red
@@ -364,6 +377,8 @@ python3 scripts/build_beads_brief.py --bead "&lt;id&gt;" --depth focused --for s
 python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --scaffold-size tight --dry-run
 python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --dry-run --format markdown-workgraph
 python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+python3 scripts/cwo.py continue --epic "&lt;id&gt;"
+python3 scripts/cwo.py continue --epic epic --markdown-workgraph /tmp/cwo-workgraph.md
 python3 scripts/cleanup_stale_agents.py --json
 python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
 python3 scripts/configure_codex_beads_hooks.py --project-dir . --mode full-context --json

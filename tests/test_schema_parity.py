@@ -232,6 +232,28 @@ class SchemaParityTests(unittest.TestCase):
             {"ownership", "locking", "history", "failure_containment", "provider_neutral_execution"},
         )
 
+    def test_sprint_continuation_schema_has_operator_brief_contract(self) -> None:
+        schema = load_schema("sprint-continuation.schema.json")
+        properties = schema["properties"]
+        for field in [
+            "recommended_next_issue",
+            "why_next",
+            "ready_issues",
+            "blocked_issues",
+            "carry_forward",
+            "definition_of_ready",
+            "definition_of_done",
+            "evidence_expectations",
+            "resume_commands",
+            "modeling_note",
+        ]:
+            self.assertIn(field, schema["required"])
+            self.assertIn(field, properties)
+        self.assertEqual(
+            schema["properties"]["continuation_result_type"]["const"],
+            "complex-work-orchestration-sprint-continuation",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
