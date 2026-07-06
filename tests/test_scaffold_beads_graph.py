@@ -121,11 +121,21 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertIn("edges", graph)
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            init = subprocess.run(
+                [BD_PATH or "bd", "init", "--non-interactive", "--skip-agents", "--skip-hooks"],
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(init.returncode, 0, init.stderr or init.stdout)
+
             graph_path = Path(temp_dir) / "graph.json"
             graph_path.write_text(json.dumps(graph), encoding="utf-8")
+            env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
             dry_run = subprocess.run(
                 [BD_PATH or "bd", "create", "--graph", str(graph_path), "--dry-run", "--json"],
-                cwd=ROOT,
+                cwd=temp_dir,
+                env=env,
                 capture_output=True,
                 text=True,
             )
@@ -133,8 +143,12 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertEqual(dry_run.returncode, 0, dry_run.stderr or dry_run.stdout)
         self.assertNotIn("unknown field", dry_run.stderr)
         payload = json.loads(dry_run.stdout)
-        self.assertEqual(payload["node_count"], len(graph["nodes"]))
-        self.assertEqual(payload["edge_count"], len(graph["edges"]))
+        if "node_count" in payload:
+            self.assertEqual(payload["node_count"], len(graph["nodes"]))
+            self.assertEqual(payload["edge_count"], len(graph["edges"]))
+        else:
+            self.assertEqual(len(payload["ids"]), len(graph["nodes"]))
+            self.assertEqual(payload["schema_version"], 1)
 
     def test_cli_beads_graph_format_requires_dry_run(self) -> None:
         result = subprocess.run(

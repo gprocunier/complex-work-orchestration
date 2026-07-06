@@ -21,6 +21,19 @@ def load_schema(name: str) -> dict[str, object]:
 
 
 class SchemaParityTests(unittest.TestCase):
+    def test_schema_files_are_not_title_only_duplicates(self) -> None:
+        seen: dict[str, str] = {}
+        for path in sorted((ROOT / "schemas").glob("*.schema.json")):
+            schema = json.loads(path.read_text(encoding="utf-8"))
+            schema.pop("title", None)
+            normalized = json.dumps(schema, sort_keys=True, separators=(",", ":"))
+            self.assertNotIn(
+                normalized,
+                seen,
+                f"{path.name} duplicates {seen.get(normalized)} except for title",
+            )
+            seen[normalized] = path.name
+
     def test_contractor_packet_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("contractor-packet.schema.json")
         self.assertTrue(set(CONTRACTOR_PACKET_REQUIRED_FIELDS).issubset(set(schema["required"])))

@@ -9,7 +9,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.policy import (  # noqa: E402
+    executor_config,
     load_policy,
+    resolve_executor_key,
     validate_peer_review_controls,
 )
 
@@ -172,6 +174,18 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertFalse(executor["supports_repo_write"])
         self.assertIn("master-plan-review", executor["allowed_task_classes"])
         self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", controls["allowed_external_executors"])
+
+    def test_executor_aliases_resolve_to_versioned_compatibility_keys(self) -> None:
+        registry = load_policy("executor-registry")
+
+        self.assertEqual(
+            resolve_executor_key("chatgpt_pro_browser_master_reviewer", registry),
+            "chatgpt_pro_5_5_extended_reasoning_browser",
+        )
+        executor = executor_config("chatgpt_pro_browser_master_reviewer", registry)
+        self.assertEqual(executor["canonical_key"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(executor["requested_key"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(executor["dispatch_mode"], "browser_automation")
 
     def test_glm_bf16_architecture_critic_is_registered_as_local_reviewer(self) -> None:
         executors = load_policy("executor-registry")["executors"]

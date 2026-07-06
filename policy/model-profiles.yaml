@@ -7,7 +7,8 @@
     "primary_catalog": "https://huggingface.co/RedHatAI",
     "fallback_policy": "Use non-RedHatAI public Hugging Face models only when RedHatAI artifacts do not cover the role.",
     "confidence_policy": "Confidence describes CWO role fit under airgapped RHOAI/vLLM operation, not parity with proprietary frontier models.",
-    "deployment_policy": "Endpoint URLs, tokens, kubeconfigs, and cluster credentials remain operator-managed and must not appear in CWO artifacts."
+    "deployment_policy": "Endpoint URLs, tokens, kubeconfigs, and cluster credentials remain operator-managed and must not appear in CWO artifacts.",
+    "executor_alias_policy": "Prefer role-like executor aliases from policy/executor-registry.yaml in new documentation; versioned executor keys remain compatibility targets for existing packets, tests, and audit history."
   },
   "role_substitution_matrix": [
     {
