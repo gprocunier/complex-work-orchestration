@@ -24,6 +24,7 @@ from cwo_core.audit import (
     require_packet_build_audit,
 )
 from cwo_core.telemetry import telemetry_fields
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 from cwo_core.policy import load_policy
 from cwo_core.util import (
     artifact_hash,
@@ -635,9 +636,22 @@ def main() -> None:
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--json", action="store_true")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for local tests or rehearsals")
+    require_waiver_reason(
+        args,
+        [
+            "allow_degraded_packet",
+            "allow_unlinked_packet",
+            "allow_raw_manual_prompt",
+            "allow_disclosure_escalation",
+            "local_allow_private_dns",
+            "local_insecure_tls",
+            "audit",
+        ],
+    )
 
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
@@ -689,6 +703,7 @@ def main() -> None:
                     "disclosure_stage": artifact["disclosure_stage"],
                     "quota_remaining": quota_info.get("quota_remaining"),
                     "packet_sha256": artifact["packet_sha256"],
+                    **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
                     **telemetry_fields(
                         telemetry_kind="manual_dispatch",
                         telemetry_status="prepared",
@@ -803,6 +818,16 @@ def main() -> None:
                 "quota_stage": "consumed",
                 "dispatch_id": dispatch_id,
                 "bead_id": args.bead,
+                **waiver_audit_fields(
+                    args,
+                    [
+                        "allow_raw_manual_prompt",
+                        "allow_disclosure_escalation",
+                        "local_allow_private_dns",
+                        "local_insecure_tls",
+                        "audit",
+                    ],
+                ),
                 "epic_id": args.epic,
                 "executor_key": route["recommended_executor"],
                 "provider_key": route["selected_executor"].get("provider_key"),

@@ -127,7 +127,7 @@ contract-jd-security-reasoning</code></pre>
             </p>
             <p>
               <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_3_1_pro_preview_agy</code> executor key. For a
+              <code>gemini_architecture_critic</code> executor key. For a
               redacted-packet review, run CLIs from a neutral directory unless
               the tool is proven unable to inspect the current repository. If a
               return uses unapproved repo context, treat that evidence as
@@ -173,7 +173,7 @@ contract-jd-security-reasoning</code></pre>
               </p>
               <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;claude-critic-bead&gt; \
-  --executor claude_opus_4_6_architecture_critic \
+  --executor claude_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -191,7 +191,7 @@ claude --model claude-opus-4-6 --effort high \
   &gt; claude-architect-critique-return.md</code></pre>
               <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;gemini-critic-bead&gt; \
-  --executor gemini_3_1_pro_preview_agy \
+  --executor gemini_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -206,7 +206,7 @@ claude --model claude-opus-4-6 --effort high \
               </p>
               <pre><code>python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
-  --executor gemini_3_1_pro_manual \
+  --executor gemini_manual_reviewer \
   --share-boundary patch-branch \
   --allow-disclosure-escalation \
   --external-ok \
@@ -311,7 +311,7 @@ cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
 
 python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \

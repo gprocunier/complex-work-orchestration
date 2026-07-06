@@ -222,7 +222,7 @@ class ExecutionStatusReportTests(unittest.TestCase):
 
     def test_expanded_renderer_fans_out_long_values_without_ellipsis(self) -> None:
         long_profile = "contract-jd-operator-calibrated-execution"
-        long_agent = "chatgpt_pro_5_5_extended_reasoning_browser"
+        long_agent = "chatgpt_pro_browser_master_reviewer"
         report = build_execution_status_report(
             audit_events=[
                 {

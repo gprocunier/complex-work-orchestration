@@ -94,9 +94,9 @@ provenance, and architect adjudication.
 `connected-codex-glm-primary` is the first-pass bridge for testing an
 airgap-ready hierarchy without leaving the Codex shell. The main Codex thread is
 the project manager and operator surface. GLM-5.2 BF16 Thinking is bound as the
-primary architect through `openshift_ai_vllm_glm_5_2_bf16_primary_architect`.
+primary architect through `rhoai_glm_primary_architect`.
 Codex 5.5 x-high is represented by
-`codex_5_5_xhigh_architecture_critic` as the internal counter-review lane.
+`codex_architecture_critic` as the internal counter-review lane.
 
 Select it explicitly:
 

@@ -6,6 +6,7 @@ import json
 
 from cwo_core.coach import coach_orchestration_prompt
 from cwo_core.util import read_text_arg
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
 def print_human(result: dict[str, object]) -> None:
@@ -48,6 +49,24 @@ def print_human(result: dict[str, object]) -> None:
 
     print("\nRecommended launch prompt:")
     print(result["paste_ready_prompt"])
+
+
+def print_brief(result: dict[str, object]) -> None:
+    route = result.get("route") if isinstance(result.get("route"), dict) else {}
+    selected = route.get("selected_executor") if isinstance(route, dict) else {}
+    executor = selected.get("key") if isinstance(selected, dict) else route.get("recommended_executor")
+    print(f"Recommended orchestration: {result['recommended_orchestration_level']}")
+    print(f"Route: {route.get('route')}")
+    print(f"Task class: {route.get('task_class')}")
+    print(f"Risk: {route.get('risk_level')}")
+    print(f"Sensitivity: {route.get('data_sensitivity')}")
+    print(f"Executor: {executor}")
+    print(f"Beads context depth: {result.get('beads_context_depth')}")
+    warnings = result.get("warnings") or []
+    if warnings:
+        print("Warnings:")
+        for item in warnings:  # type: ignore[assignment]
+            print(f"- {item}")
 
 
 def main() -> None:
@@ -95,7 +114,10 @@ def main() -> None:
         help="Compatibility alias for --beads-context-depth; must match if both are provided.",
     )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    parser.add_argument("--brief", action="store_true", help="Print a compact human summary instead of the launch prompt.")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
+    require_waiver_reason(args, ["allow_disclosure_escalation"])
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
     result = coach_orchestration_prompt(
@@ -118,6 +140,8 @@ def main() -> None:
     )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.brief:
+        print_brief(result)
     else:
         print_human(result)
 

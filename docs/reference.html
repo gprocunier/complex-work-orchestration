@@ -231,8 +231,8 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               <strong>Operator terminology:</strong> The exact job-description
               labels, such as <code>contract-jd-security-reasoning</code>, and
               executor IDs, such as
-              <code>claude_opus_4_6_architecture_critic</code> or
-              <code>gemini_3_1_pro_preview_agy</code>,
+              <code>claude_architecture_critic</code> or
+              <code>gemini_architecture_critic</code>,
               are technical reference terms. Narrative pages introduce the
               plain workflow first.
             </p>
@@ -250,8 +250,8 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               explicitly asks for Claude, Gemini, or both as second opinions
               on a Codex architect design, routing can create independent
               contractor-only critique lanes with
-              <code>claude_opus_4_6_architecture_critic</code> and
-              <code>gemini_3_1_pro_preview_agy</code>. Claude uses
+              <code>claude_architecture_critic</code> and
+              <code>gemini_architecture_critic</code>. Claude uses
               <code>claude --model claude-opus-4-6 --effort high -p</code>
               or stronger effort for higher-complexity architecture. The
               returns are evaluated evidence, not replacement architecture
@@ -265,14 +265,14 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
             </p>
             <p>
               <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_3_1_pro_preview_agy</code> executor key.
+              <code>gemini_architecture_critic</code> executor key.
             </p>
             <p>
               The master-plan profile uses
               <code>contract-jd-master-plan-review</code>. When the user
               explicitly asks for ChatGPT Pro 5.5 Extended Reasoning to review
               the final execution plan or total work packet, routing can select
-              <code>chatgpt_pro_5_5_extended_reasoning_browser</code>. The
+              <code>chatgpt_pro_browser_master_reviewer</code>. The
               result is share-link evidence for Codex plan revision, not
               implementation authority and not OpenAI Deep Research. For real
               Pro reviews, the dispatch JSON must include a confirmed

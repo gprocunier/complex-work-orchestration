@@ -172,6 +172,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "abc123",
                     "--allow-degraded-packet",
                     "--allow-unlinked-packet",
+                    "--waiver-reason",
+                    "test browser rehearsal",
                     "--rehearsal",
                     "--dry-run",
                     "--json",
@@ -183,6 +185,12 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 self.assertEqual(events[0]["telemetry_kind"], "browser_rehearsal")
                 self.assertEqual(events[0]["agent_model_calls"], 0)
                 self.assertEqual(events[0]["model_label"], "ChatGPT Pro 5.5")
+                self.assertTrue(events[0]["waiver_required"])
+                self.assertEqual(
+                    events[0]["waiver_flags"],
+                    ["--allow-degraded-packet", "--allow-unlinked-packet"],
+                )
+                self.assertEqual(events[0]["waiver_reason"], "test browser rehearsal")
                 self.assertEqual(events[0]["prompt_chars"], len("Review this bounded packet."))
                 self.assertNotIn("prompt", events[0])
                 self.assertNotIn("share_url", events[0])
@@ -587,7 +595,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
                 },
                 executor=EXECUTOR_KEY,
-                requested_executor="chatgpt_pro_browser_master_reviewer",
+                requested_executor="chatgpt_pro_5_5_extended_reasoning_browser",
                 share_boundary="redacted-packet",
                 job_description_label="contract-jd-master-plan-review",
                 allowed_files=[],
@@ -613,7 +621,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             prompt, metadata = load_prompt_from_args(args)
 
         self.assertIn("Review this final plan.", prompt)
-        self.assertEqual(packet["requested_executor"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(packet["requested_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(packet["canonical_executor"], EXECUTOR_KEY)
         self.assertEqual(metadata["executor"], EXECUTOR_KEY)
 
     def test_prompt_file_requires_explicit_degraded_operator_flag(self) -> None:
@@ -719,6 +728,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     str(output),
                     "--no-audit",
                     "--rehearsal",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
                 ],
             ):
                 import chatgpt_browser_review
@@ -769,6 +780,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--rehearsal",
                     "--json",
                     "--no-audit",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
                 ],
             ):
                 with patch("builtins.print") as mocked_print:
@@ -804,6 +817,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     "--rehearsal",
                     "--json",
                     "--no-audit",
+                    "--waiver-reason",
+                    "test browser no-audit rehearsal",
                 ],
             ):
                 with patch.object(

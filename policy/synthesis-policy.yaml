@@ -90,19 +90,19 @@
     },
     "openai": {
       "terms": ["chatgpt", "openai", "chatgpt pro", "extended reasoning"],
-      "executor": "chatgpt_pro_5_5_extended_reasoning_browser"
+      "executor": "chatgpt_pro_browser_master_reviewer"
     },
     "anthropic": {
       "terms": ["claude", "opus", "anthropic"],
-      "executor": "claude_opus_4_6_architecture_critic"
+      "executor": "claude_architecture_critic"
     },
     "google": {
       "terms": ["gemini", "agy", "antigravity", "google"],
-      "executor": "gemini_3_1_pro_preview_agy"
+      "executor": "gemini_architecture_critic"
     },
     "local": {
       "terms": ["local worker", "local inference", "vllm", "openshift ai", "rhoai", "glm", "glm-5.2", "glm 5.2", "glm52"],
-      "executor": "openshift_ai_vllm_glm_5_2_bf16_architecture_critic"
+      "executor": "rhoai_glm_architecture_critic"
     }
   },
   "default_panel": [
@@ -121,21 +121,21 @@
       "external": false
     },
     {
-      "executor": "claude_opus_4_6_architecture_critic",
+      "executor": "claude_architecture_critic",
       "role": "architecture-critic",
       "provider_camp": "anthropic",
       "effort": "high-or-stronger",
       "external": true
     },
     {
-      "executor": "openshift_ai_vllm_glm_5_2_bf16_architecture_critic",
+      "executor": "rhoai_glm_architecture_critic",
       "role": "architecture-critic",
       "provider_camp": "local",
       "effort": "thinking-enabled",
       "external": false
     },
     {
-      "executor": "gemini_3_1_pro_preview_agy",
+      "executor": "gemini_architecture_critic",
       "role": "architecture-critic",
       "provider_camp": "google",
       "effort": "pro-preview",
@@ -143,7 +143,7 @@
       "synthesis_use": "salvage-only"
     },
     {
-      "executor": "chatgpt_pro_5_5_extended_reasoning_browser",
+      "executor": "chatgpt_pro_browser_master_reviewer",
       "role": "master-plan-review",
       "provider_camp": "openai",
       "effort": "extended-reasoning",

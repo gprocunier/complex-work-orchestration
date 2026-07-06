@@ -220,6 +220,8 @@ class AuditTests(unittest.TestCase):
                     str(output),
                     "--no-audit",
                     "--rehearsal",
+                    "--waiver-reason",
+                    "test packet build without audit",
                 ]
                 build_contractor_packet.main()
                 self.assertFalse(lib.AUDIT_LOG.exists())

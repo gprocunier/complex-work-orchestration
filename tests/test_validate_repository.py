@@ -14,6 +14,7 @@ from validate_repository import (  # noqa: E402
     validate_local_inference_peer_review_guidance,
     validate_public_docs_do_not_expose_hardware_categories,
     validate_repository,
+    validate_waiver_conventions,
 )
 
 
@@ -73,6 +74,26 @@ class ValidateRepositoryTests(unittest.TestCase):
             public_doc.write_text("Use Enterprise evaluation targets after a benchmark gate.", encoding="utf-8")
             validate_public_docs_do_not_expose_hardware_categories(errors, [public_doc])
         self.assertEqual(errors, [])
+
+    def test_waiver_convention_rejects_missing_reason_and_audit_fields(self) -> None:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script = Path(tmpdir) / "scripts" / "tool.py"
+            script.parent.mkdir()
+            script.write_text(
+                "import argparse\n"
+                "parser = argparse.ArgumentParser()\n"
+                "parser.add_argument('--no-audit', action='store_true')\n",
+                encoding="utf-8",
+            )
+            validate_waiver_conventions(
+                errors,
+                scripts={"scripts/tool.py": {"flags": ["--no-audit"], "audit_fields": True}},
+                repo_root=Path(tmpdir),
+            )
+        self.assertTrue(any("add_waiver_reason_argument" in error for error in errors))
+        self.assertTrue(any("must require --waiver-reason for: audit" in error for error in errors))
+        self.assertTrue(any("must add waiver audit fields for: audit" in error for error in errors))
 
 
 if __name__ == "__main__":

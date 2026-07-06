@@ -442,7 +442,7 @@ Attestation/repro note: reproducible from packet.
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
         result = make_acceptance_decision(
             text,
-            executor="openshift_ai_vllm_glm_5_2_bf16_architecture_critic",
+            executor="rhoai_glm_architecture_critic",
         )
 
         self.assertEqual(result["verdict"], "accept")
@@ -461,7 +461,7 @@ Attestation/repro note: reproducible from packet.
             "Evidence provenance: reviewer judgment.",
         )
 
-        result = make_acceptance_decision(text, executor="gemini_3_1_pro_preview_agy")
+        result = make_acceptance_decision(text, executor="gemini_architecture_critic")
 
         self.assertNotEqual(result["verdict"], "accept")
         self.assertLess(result["evidence_quality_score"], 85)
@@ -471,7 +471,7 @@ Attestation/repro note: reproducible from packet.
 
     def test_gemini_high_quality_return_defaults_to_salvage_only(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
-        result = make_acceptance_decision(text, executor="gemini_3_1_pro_preview_agy")
+        result = make_acceptance_decision(text, executor="gemini_architecture_critic")
 
         self.assertEqual(result["verdict"], "accept")
         self.assertEqual(result["evidence_quality_score"], 100)
@@ -491,6 +491,8 @@ Attestation/repro note: reproducible from packet.
                     "--executor",
                     "chatgpt_pro_browser_master_reviewer",
                     "--no-audit",
+                    "--waiver-reason",
+                    "test evaluation without audit",
                     "--json",
                 ],
                 cwd=ROOT,
@@ -501,7 +503,7 @@ Attestation/repro note: reproducible from packet.
 
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(payload["executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertEqual(payload["provider_key"], "openai_manual")
         self.assertEqual(payload["provenance_class"], "external-contractor")
 
@@ -519,6 +521,8 @@ Attestation/repro note: reproducible from packet.
                     "--executor",
                     "some_unregistered_local_llm",
                     "--no-audit",
+                    "--waiver-reason",
+                    "test evaluation without audit",
                     "--json",
                 ],
                 cwd=ROOT,
@@ -555,7 +559,7 @@ Attestation/repro note: reproducible from packet.
 
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(payload["executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertEqual(payload["provider_key"], "openai_manual")
         self.assertEqual(payload["provenance_class"], "external-contractor")
 
@@ -587,7 +591,7 @@ Attestation/repro note: reproducible from packet.
 
     def test_file_and_packet_evidence_remains_primary_quality(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
-        result = make_acceptance_decision(text, executor="claude_opus_4_6_architecture_critic")
+        result = make_acceptance_decision(text, executor="claude_architecture_critic")
 
         self.assertEqual(result["evidence_quality_score"], 100)
         self.assertEqual(result["evidence_quality_signal_categories"], [])

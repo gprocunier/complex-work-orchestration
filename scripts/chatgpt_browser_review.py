@@ -23,13 +23,26 @@ from cwo_core.util import (
 )
 from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
 from cwo_core.packets import find_residual_private_context, require_valid_contractor_packet
+from cwo_core.policy import load_policy
 from cwo_core.telemetry import safe_text_hash, telemetry_fields
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 
-EXECUTOR_KEY = "chatgpt_pro_5_5_extended_reasoning_browser"
+EXECUTOR_KEY = "chatgpt_pro_browser_master_reviewer"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
 DEFAULT_CONFIG_PATH = "~/.config/cwo/chatgpt-browser.json"
-DEFAULT_MODEL_LABEL = "ChatGPT Pro 5.5"
-DEFAULT_REASONING_LABEL = "Extended Reasoning"
+
+
+def browser_attestation_default(field: str) -> str:
+    defaults = load_policy("model-profiles").get("browser_attestation_defaults", {})
+    profile = defaults.get(EXECUTOR_KEY, {}) if isinstance(defaults, dict) else {}
+    value = profile.get(field) if isinstance(profile, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        raise SystemExit(f"policy/model-profiles.yaml browser_attestation_defaults.{EXECUTOR_KEY}.{field} is required")
+    return value
+
+
+DEFAULT_MODEL_LABEL = browser_attestation_default("model_label")
+DEFAULT_REASONING_LABEL = browser_attestation_default("reasoning_label")
 DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
     "[data-testid='scroll-to-bottom-button'], "
     "button[aria-label*='Scroll to bottom'], "
@@ -817,9 +830,11 @@ def main() -> None:
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
     if not args.audit and not (args.dry_run or args.confirm_only or args.rehearsal):
         raise SystemExit("--no-audit is allowed only for --dry-run, --confirm-only, or --rehearsal")
+    require_waiver_reason(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"])
     if args.prompt_file and args.rehearsal and not (args.dry_run or args.confirm_only):
         raise SystemExit("prompt-file rehearsal cannot submit a live ChatGPT review; use --packet for live dispatch")
 
@@ -903,6 +918,7 @@ def main() -> None:
                 "bead_id": result["bead_id"],
                 "epic_id": result["epic_id"],
                 "executor_key": result["executor"],
+                **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
                 "provider_key": result["provider_key"],
                 "executor_external": True,
                 "dispatch_mode": "browser_automation",

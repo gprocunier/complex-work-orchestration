@@ -20,6 +20,7 @@ from cwo_core.routing import (
 )
 from cwo_core.synthesis import synthesis_lane_enabled
 from cwo_core.util import read_text_arg
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
 def body(purpose: str, expected: str) -> str:
@@ -814,7 +815,9 @@ def main() -> None:
         default="cwo",
         help="Dry-run output format. 'cwo' is the internal scaffold; 'beads-graph' can be used with bd create --graph.",
     )
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
+    require_waiver_reason(args, ["allow_disclosure_escalation"])
 
     context = read_text_arg(f"{args.title}\n\n{args.description}".strip(), args.file)
     route = classify_work(

@@ -28,6 +28,12 @@ python3 scripts/coach_prompt.py \
   "Clean up installer docs, tests, and handoff notes."
 ```
 
+The same path is available through the consolidated helper entry point:
+
+```bash
+python3 scripts/cwo.py coach --brief "<task text>"
+```
+
 Automation can consume JSON directly:
 
 ```bash

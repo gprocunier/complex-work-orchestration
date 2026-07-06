@@ -9,6 +9,7 @@ from cwo_core.harness import build_harness_dispatch
 from cwo_core.policy import provider_profile
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.util import make_dispatch_id, read_text_arg
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 
 
 def main() -> None:
@@ -33,7 +34,9 @@ def main() -> None:
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--json", action="store_true")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
+    require_waiver_reason(args, ["audit"])
 
     task = read_text_arg(" ".join(args.text).strip() or None, args.file)
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "harness")
@@ -76,6 +79,7 @@ def main() -> None:
                 "dispatch_mode": "harness_render",
                 "prompt_sha256": envelope.get("prompt_sha256"),
                 "local_profile": profile_details.get("local_profile"),
+                **waiver_audit_fields(args, ["audit"]),
                 **telemetry_fields(
                     telemetry_kind="harness_render",
                     telemetry_status="rendered",

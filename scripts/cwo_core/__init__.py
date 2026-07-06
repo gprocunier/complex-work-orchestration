@@ -20,5 +20,6 @@ __all__ = [
     "synthesis",
     "telemetry",
     "util",
+    "waivers",
     "workspace",
 ]

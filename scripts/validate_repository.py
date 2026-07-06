@@ -56,11 +56,65 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "workspace": {"paths", "util"},
     "telemetry": {"util"},
     "audit": {"paths", "policy", "telemetry", "util"},
+    "waivers": set(),
     "beads": {"paths", "util"},
     "harness": {"policy", "util"},
     "execution_status_report": {"audit", "paths"},
 }
 PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS = ["H200", "CerIO", "airgapped-rhoai-h200"]
+WAIVER_CONVENTION_SCRIPTS = {
+    "scripts/build_contractor_packet.py": {
+        "flags": ["--allow-disclosure-escalation", "--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/chatgpt_browser_review.py": {
+        "flags": ["--allow-degraded-packet", "--allow-unlinked-packet", "--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/dispatch_work.py": {
+        "flags": [
+            "--allow-degraded-packet",
+            "--allow-unlinked-packet",
+            "--allow-raw-manual-prompt",
+            "--allow-disclosure-escalation",
+            "--local-allow-private-dns",
+            "--local-insecure-tls",
+            "--no-audit",
+        ],
+        "audit_fields": True,
+    },
+    "scripts/evaluate_return.py": {
+        "flags": ["--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/render_harness_dispatch.py": {
+        "flags": ["--no-audit"],
+        "audit_fields": True,
+    },
+    "scripts/import_execution_telemetry.py": {
+        "flags": ["--allow-unmatched"],
+        "audit_terms": ["waiver_required", "waiver_flags", "waiver_reason"],
+    },
+    "scripts/generate_manual_dispatch_prompt.py": {
+        "flags": [
+            "--allow-degraded-packet",
+            "--allow-raw-manual-prompt",
+            "--allow-disclosure-escalation",
+        ],
+    },
+    "scripts/configure_codex_beads_hooks.py": {
+        "flags": ["--force-visibility-hint", "--allow-degraded-context"],
+    },
+    "scripts/coach_prompt.py": {
+        "flags": ["--allow-disclosure-escalation"],
+    },
+    "scripts/route_work.py": {
+        "flags": ["--allow-disclosure-escalation"],
+    },
+    "scripts/scaffold_workgraph.py": {
+        "flags": ["--allow-disclosure-escalation"],
+    },
+}
 
 
 def load_json(path: Path) -> Any:
@@ -128,6 +182,8 @@ def validate_repository() -> list[str]:
             errors.append(f"executor alias {alias!r} targets unknown executor {target!r}")
 
     for key, executor in executors.items():
+        if any(char.isdigit() for char in key):
+            errors.append(f"executor key {key!r} must be role-like and must not contain version digits")
         alias_for = executor.get("alias_for")
         if alias_for and alias_for not in executors:
             errors.append(f"executor {key!r} aliases unknown executor {alias_for!r}")
@@ -523,7 +579,7 @@ def validate_repository() -> list[str]:
             "additional editorial review",
             "reader-facing acceptance check",
             "contract-jd-editorial-reasoning",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/chatgpt_browser_review.py",
             "scripts/ingest_chatgpt_share_return.py",
@@ -977,7 +1033,7 @@ def validate_repository() -> list[str]:
             "./zero-trust-consensus.html",
             "./malpractice-sabotage.html",
             "./use-cases.html#complex-use-cases",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "CWO_CHATGPT_BROWSER_CONFIG",
             "Setup Checklist",
             "ChatGPT does not operate Beads directly",
@@ -1060,7 +1116,7 @@ def validate_repository() -> list[str]:
             "Add <code>--peer-review-required</code> only when route policy",
             "reference label for public docs",
             "draft-like wording",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/chatgpt_browser_review.py",
             "scripts/ingest_chatgpt_share_return.py",
@@ -1351,7 +1407,7 @@ def validate_repository() -> list[str]:
             "claude -p",
             "dispatch prompt",
             "file://",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/chatgpt_browser_review.py",
             "scripts/ingest_chatgpt_share_return.py",
@@ -1371,7 +1427,7 @@ def validate_repository() -> list[str]:
         "references/chatgpt-pro-browser.md",
         [
             "ChatGPT Pro Browser Master Review",
-            "chatgpt_pro_5_5_extended_reasoning_browser",
+            "chatgpt_pro_browser_master_reviewer",
             "contract-jd-master-plan-review",
             "scripts/launch_chatgpt_cdp_chrome.sh --write-config",
             "systemd-run --user",
@@ -1469,6 +1525,7 @@ def validate_repository() -> list[str]:
     )
     validate_local_inference_peer_review_guidance(errors)
     validate_public_docs_do_not_expose_hardware_categories(errors)
+    validate_waiver_conventions(errors)
 
     validate_ci_workflow(errors)
 
@@ -1611,6 +1668,85 @@ def validate_local_inference_peer_review_guidance(
     missing = [term for term in required_terms if term not in content]
     if missing:
         errors.append(f"{relative_path} is missing route-derived peer-review guidance: {', '.join(missing)}")
+
+
+def waiver_flag_dest(flag: str) -> str:
+    if flag == "--no-audit":
+        return "audit"
+    return flag.removeprefix("--").replace("-", "_")
+
+
+def literal_string_list(node: ast.AST) -> set[str]:
+    if not isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return set()
+    values: set[str] = set()
+    for item in node.elts:
+        if isinstance(item, ast.Constant) and isinstance(item.value, str):
+            values.add(item.value)
+    return values
+
+
+def called_function_name(node: ast.Call) -> str | None:
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return None
+
+
+def extract_flag_destinations(tree: ast.AST, function_name: str) -> set[str]:
+    destinations: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or called_function_name(node) != function_name:
+            continue
+        if len(node.args) >= 2:
+            destinations.update(literal_string_list(node.args[1]))
+        for keyword in node.keywords:
+            if keyword.arg == "flag_dests":
+                destinations.update(literal_string_list(keyword.value))
+    return destinations
+
+
+def validate_waiver_conventions(
+    errors: list[str],
+    scripts: dict[str, dict[str, Any]] | None = None,
+    repo_root: Path = REPO_ROOT,
+) -> None:
+    for relative_path, spec in (scripts or WAIVER_CONVENTION_SCRIPTS).items():
+        path = repo_root / relative_path
+        if not path.is_file():
+            errors.append(f"waiver convention script is missing: {relative_path}")
+            continue
+        content = path.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(content)
+        except SyntaxError as exc:
+            errors.append(f"{relative_path} has invalid Python syntax: {exc}")
+            continue
+        flags = list(spec.get("flags", []))
+        missing_flags = [flag for flag in flags if flag not in content]
+        if missing_flags:
+            errors.append(f"{relative_path} is missing controlled waiver flags: {', '.join(missing_flags)}")
+            continue
+        required_destinations = {waiver_flag_dest(flag) for flag in flags}
+        reason_destinations = extract_flag_destinations(tree, "require_waiver_reason")
+        missing_reason = sorted(required_destinations - reason_destinations)
+        if "add_waiver_reason_argument" not in content:
+            errors.append(f"{relative_path} must define --waiver-reason with add_waiver_reason_argument")
+        if missing_reason:
+            errors.append(
+                f"{relative_path} must require --waiver-reason for: {', '.join(missing_reason)}"
+            )
+        if spec.get("audit_fields"):
+            audit_destinations = extract_flag_destinations(tree, "waiver_audit_fields")
+            missing_audit = sorted(required_destinations - audit_destinations)
+            if missing_audit:
+                errors.append(
+                    f"{relative_path} must add waiver audit fields for: {', '.join(missing_audit)}"
+                )
+        for term in spec.get("audit_terms", []):
+            if term not in content:
+                errors.append(f"{relative_path} is missing waiver audit term: {term}")
 
 
 def main() -> None:

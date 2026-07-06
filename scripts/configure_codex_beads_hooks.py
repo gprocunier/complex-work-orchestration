@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.util import atomic_write_text
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
 MANAGED_EVENTS = {
@@ -325,7 +326,10 @@ def parse_args() -> argparse.Namespace:
         help="Permit the compact-degraded fallback that intentionally reduces Beads context.",
     )
     parser.add_argument("--json", action="store_true", help="Emit a JSON result.")
-    return parser.parse_args()
+    add_waiver_reason_argument(parser)
+    args = parser.parse_args()
+    require_waiver_reason(args, ["force_visibility_hint", "allow_degraded_context"])
+    return args
 
 
 def main() -> int:

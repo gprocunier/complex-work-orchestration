@@ -1235,7 +1235,7 @@ def beads_context_prompt_line(beads_context_depth_signal: dict[str, Any] | None)
 def blocking_review_prompt_line(route: dict[str, Any]) -> str:
     if not route.get("blocking_review_required"):
         return ""
-    executor = route.get("blocking_review_executor") or "chatgpt_pro_5_5_extended_reasoning_browser"
+    executor = route.get("blocking_review_executor") or "chatgpt_pro_browser_master_reviewer"
     job = route.get("blocking_review_job_description_label") or "contract-jd-master-plan-review"
     return (
         "Treat the explicit ChatGPT Pro 5.5 master review as a blocking gate before implementation. "

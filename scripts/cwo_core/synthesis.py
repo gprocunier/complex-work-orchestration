@@ -98,11 +98,11 @@ def synthesis_panel_for_route(policy: dict[str, Any], route: dict[str, Any]) -> 
     if route.get("architecture_authority") == "glm-5.2-primary-architect":
         primary_architect = str(
             route.get("primary_architect_executor")
-            or "openshift_ai_vllm_glm_5_2_bf16_primary_architect"
+            or "rhoai_glm_primary_architect"
         )
         counter_review = str(
             route.get("architecture_counter_review_executor")
-            or "codex_5_5_xhigh_architecture_critic"
+            or "codex_architecture_critic"
         )
         return [
             {

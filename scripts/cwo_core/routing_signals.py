@@ -100,11 +100,11 @@ def explicit_glm_architect_critique_requested(text: str) -> bool:
 def requested_architecture_critic_executor_keys(text: str) -> list[str]:
     keys: list[str] = []
     if explicit_claude_architect_critique_requested(text):
-        keys.append("claude_opus_4_6_architecture_critic")
+        keys.append("claude_architecture_critic")
     if explicit_gemini_architect_critique_requested(text):
-        keys.append("gemini_3_1_pro_preview_agy")
+        keys.append("gemini_architecture_critic")
     if explicit_glm_architect_critique_requested(text):
-        keys.append("openshift_ai_vllm_glm_5_2_bf16_architecture_critic")
+        keys.append("rhoai_glm_architecture_critic")
     return keys
 
 

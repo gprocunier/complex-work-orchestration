@@ -6,6 +6,7 @@ import json
 
 from cwo_core.routing import classify_work
 from cwo_core.util import read_text_arg
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
 def print_human(route: dict[str, object], top_n: int) -> None:
@@ -151,7 +152,9 @@ def main() -> None:
     )
     parser.add_argument("--top-n", type=int, default=5)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
+    require_waiver_reason(args, ["allow_disclosure_escalation"])
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
     route = classify_work(

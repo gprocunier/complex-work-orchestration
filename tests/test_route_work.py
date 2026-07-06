@@ -124,17 +124,17 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(result["execution_environment"], "connected-codex-glm-primary")
         self.assertEqual(result["architecture_authority"], "glm-5.2-primary-architect")
         self.assertEqual(result["project_manager_executor"], "codex_project_manager")
-        self.assertEqual(result["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_primary_architect")
+        self.assertEqual(result["recommended_executor"], "rhoai_glm_primary_architect")
         self.assertEqual(result["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
         self.assertEqual(result["local_worker_opt_in_source"], "execution-environment")
-        self.assertIn("codex_5_5_xhigh_architecture_critic", result["requested_architecture_critic_executors"])
+        self.assertIn("codex_architecture_critic", result["requested_architecture_critic_executors"])
         self.assertEqual(
             result["model_synthesis"]["synthesis_owner"],
-            "openshift_ai_vllm_glm_5_2_bf16_primary_architect",
+            "rhoai_glm_primary_architect",
         )
         panel = {item["executor"]: item for item in result["model_synthesis"]["recommended_panel"]}
-        self.assertEqual(panel["codex_5_5_xhigh_architecture_critic"]["role"], "architecture-counter-review")
-        self.assertEqual(panel["openshift_ai_vllm_glm_5_2_bf16_primary_architect"]["role"], "primary-architect")
+        self.assertEqual(panel["codex_architecture_critic"]["role"], "architecture-counter-review")
+        self.assertEqual(panel["rhoai_glm_primary_architect"]["role"], "primary-architect")
 
     def test_default_environment_keeps_codex_as_architect(self) -> None:
         result = classify_work(
@@ -145,7 +145,7 @@ class RouteWorkTests(unittest.TestCase):
 
         self.assertEqual(result["execution_environment"], "connected-codex")
         self.assertEqual(result["architecture_authority"], "codex-frontier-architect")
-        self.assertNotEqual(result["recommended_executor"], "openshift_ai_vllm_glm_5_2_bf16_primary_architect")
+        self.assertNotEqual(result["recommended_executor"], "rhoai_glm_primary_architect")
 
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
         output = subprocess.check_output(
@@ -228,6 +228,17 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(result["editor_gate_required"])
         self.assertIn("editor", names)
 
+    def test_substantive_readme_change_requires_editor_gate_by_path(self) -> None:
+        result = classify_work(
+            "Rewrite the README architecture overview and operator flow.",
+            file_paths=["README.md"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+
+        self.assertTrue(result["editor_gate_required"])
+        self.assertIn("documentation", names)
+        self.assertIn("editor", names)
+
     def test_patch_branch_gemini_contract_requires_disclosure_escalation(self) -> None:
         text = (
             "Contract Gemini 3.1 Pro for a public GitHub Pages web design refresh. "
@@ -243,7 +254,7 @@ class RouteWorkTests(unittest.TestCase):
         self.assertNotEqual(blocked["route"], "external-contract")
         web_design = next(expert for expert in blocked["ranked_experts"] if expert["name"] == "web_design")
         gemini_candidate = next(
-            item for item in web_design["executor_candidates"] if item["key"] == "gemini_3_1_pro_manual"
+            item for item in web_design["executor_candidates"] if item["key"] == "gemini_manual_reviewer"
         )
         self.assertIn(
             "share boundary patch-branch requires disclosure escalation approval",
@@ -259,7 +270,7 @@ class RouteWorkTests(unittest.TestCase):
             file_paths=["docs/index.html", "docs/styles.css"],
         )
         self.assertEqual(allowed["route"], "external-contract")
-        self.assertEqual(allowed["recommended_executor"], "gemini_3_1_pro_manual")
+        self.assertEqual(allowed["recommended_executor"], "gemini_manual_reviewer")
         self.assertIn("contract-jd-domain-web-design", allowed["guard_labels"])
         editor = next(expert for expert in allowed["ranked_experts"] if expert["name"] == "editor")
         self.assertFalse(editor["selected_executor"]["external"])
@@ -274,7 +285,7 @@ class RouteWorkTests(unittest.TestCase):
         )
         self.assertNotEqual(blocked["route"], "external-contract")
         candidate = next(
-            item for item in blocked["ranked_executors"] if item["key"] == "gemini_3_1_pro_preview_agy"
+            item for item in blocked["ranked_executors"] if item["key"] == "gemini_architecture_critic"
         )
         self.assertIn("external dispatch requires user opt-in", candidate["policy_violations"])
 
@@ -285,7 +296,7 @@ class RouteWorkTests(unittest.TestCase):
             share_boundary="redacted-packet",
         )
         self.assertEqual(allowed["route"], "external-contract")
-        self.assertEqual(allowed["recommended_executor"], "gemini_3_1_pro_preview_agy")
+        self.assertEqual(allowed["recommended_executor"], "gemini_architecture_critic")
         self.assertEqual(allowed["guard_labels"], [
             "contractor-only",
             "no-codex-exec",
@@ -304,7 +315,7 @@ class RouteWorkTests(unittest.TestCase):
         )
         self.assertNotEqual(blocked["route"], "external-contract")
         candidate = next(
-            item for item in blocked["ranked_executors"] if item["key"] == "claude_opus_4_6_architecture_critic"
+            item for item in blocked["ranked_executors"] if item["key"] == "claude_architecture_critic"
         )
         self.assertIn("external dispatch requires user opt-in", candidate["policy_violations"])
 
@@ -315,8 +326,8 @@ class RouteWorkTests(unittest.TestCase):
             share_boundary="redacted-packet",
         )
         self.assertEqual(allowed["route"], "external-contract")
-        self.assertEqual(allowed["recommended_executor"], "claude_opus_4_6_architecture_critic")
-        self.assertEqual(allowed["requested_architecture_critic_executors"], ["claude_opus_4_6_architecture_critic"])
+        self.assertEqual(allowed["recommended_executor"], "claude_architecture_critic")
+        self.assertEqual(allowed["requested_architecture_critic_executors"], ["claude_architecture_critic"])
         self.assertEqual(len(allowed["architecture_critic_contracts"]), 1)
         self.assertEqual(allowed["architecture_critic_contracts"][0]["manual_command"], "claude --model claude-opus-4-6 --effort high -p")
         self.assertEqual(allowed["architecture_critic_contracts"][0]["claude_effort"], "high")
@@ -337,14 +348,14 @@ class RouteWorkTests(unittest.TestCase):
             external_ok=True,
             share_boundary="redacted-packet",
         )
-        self.assertEqual(result["recommended_executor"], "claude_opus_4_6_architecture_critic")
+        self.assertEqual(result["recommended_executor"], "claude_architecture_critic")
         self.assertEqual(
             result["requested_architecture_critic_executors"],
-            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+            ["claude_architecture_critic", "gemini_architecture_critic"],
         )
         self.assertEqual(
             [contract["executor"] for contract in result["architecture_critic_contracts"]],
-            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+            ["claude_architecture_critic", "gemini_architecture_critic"],
         )
         self.assertEqual(result["architecture_review_complexity"], "high")
         self.assertEqual(result["claude_architecture_effort"], "xhigh")
@@ -358,7 +369,7 @@ class RouteWorkTests(unittest.TestCase):
         )
         self.assertEqual(
             result["requested_architecture_critic_executors"],
-            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+            ["claude_architecture_critic", "gemini_architecture_critic"],
         )
 
     def test_dual_architecture_critics_accept_hyphenated_plural_wording(self) -> None:
@@ -370,7 +381,7 @@ class RouteWorkTests(unittest.TestCase):
         )
         self.assertEqual(
             result["requested_architecture_critic_executors"],
-            ["claude_opus_4_6_architecture_critic", "gemini_3_1_pro_preview_agy"],
+            ["claude_architecture_critic", "gemini_architecture_critic"],
         )
 
     def test_routing_public_imports_remain_available(self) -> None:
@@ -387,8 +398,8 @@ class RouteWorkTests(unittest.TestCase):
             external_ok=True,
             share_boundary="redacted-packet",
         )
-        self.assertNotIn("claude_opus_4_6_architecture_critic", result["requested_architecture_critic_executors"])
-        self.assertNotIn("gemini_3_1_pro_preview_agy", result["requested_architecture_critic_executors"])
+        self.assertNotIn("claude_architecture_critic", result["requested_architecture_critic_executors"])
+        self.assertNotIn("gemini_architecture_critic", result["requested_architecture_critic_executors"])
 
     def test_chatgpt_pro_master_plan_review_requires_external_opt_in(self) -> None:
         text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
@@ -399,18 +410,18 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(blocked["blocking_review_waiver_required"])
         self.assertEqual(blocked["blocking_review_gate"], "chatgpt-pro-5.5-master-plan-review")
         candidate = next(
-            item for item in blocked["ranked_executors"] if item["key"] == "chatgpt_pro_5_5_extended_reasoning_browser"
+            item for item in blocked["ranked_executors"] if item["key"] == "chatgpt_pro_browser_master_reviewer"
         )
         self.assertIn("external dispatch requires user opt-in", candidate["policy_violations"])
 
         allowed = classify_work(text, external_ok=True, share_boundary="redacted-packet")
         self.assertEqual(allowed["route"], "external-contract")
         self.assertEqual(allowed["task_class"], "master-plan-review")
-        self.assertEqual(allowed["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(allowed["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertTrue(allowed["blocking_review_required"])
         self.assertTrue(allowed["blocking_review_active"])
         self.assertTrue(allowed["blocking_review_waiver_required"])
-        self.assertEqual(allowed["blocking_review_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(allowed["blocking_review_executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertEqual(allowed["blocking_review_job_description_label"], "contract-jd-master-plan-review")
         self.assertIn("share-link return ingested", " ".join(allowed["blocking_review_required_evidence"]))
         self.assertEqual(allowed["guard_labels"], [
@@ -429,7 +440,7 @@ class RouteWorkTests(unittest.TestCase):
             share_boundary="redacted-packet",
         )
         self.assertEqual(result["task_class"], "master-plan-review")
-        self.assertEqual(result["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(result["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
 
     def test_generic_weigh_in_does_not_route_to_chatgpt_master_review(self) -> None:
         result = classify_work(
@@ -437,7 +448,7 @@ class RouteWorkTests(unittest.TestCase):
             external_ok=True,
             share_boundary="redacted-packet",
         )
-        self.assertNotEqual(result["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertNotEqual(result["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
 
     def test_chatgpt_pro_master_plan_review_keeps_deep_research_separate(self) -> None:
         master_review = classify_work(
@@ -445,7 +456,7 @@ class RouteWorkTests(unittest.TestCase):
             external_ok=True,
             share_boundary="redacted-packet",
         )
-        self.assertEqual(master_review["recommended_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(master_review["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
 
         deep_research = classify_work(
             "Use OpenAI Deep Research for external standards research before planning.",
@@ -458,7 +469,7 @@ class RouteWorkTests(unittest.TestCase):
         text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan."
         blocked = classify_work(text, external_ok=True, share_boundary="patch-branch")
         candidate = next(
-            item for item in blocked["ranked_executors"] if item["key"] == "chatgpt_pro_5_5_extended_reasoning_browser"
+            item for item in blocked["ranked_executors"] if item["key"] == "chatgpt_pro_browser_master_reviewer"
         )
         self.assertIn(
             "share boundary patch-branch requires disclosure escalation approval",
@@ -472,13 +483,13 @@ class RouteWorkTests(unittest.TestCase):
             share_boundary="patch-branch",
         )
         escalated_candidate = next(
-            item for item in escalated["ranked_executors"] if item["key"] == "chatgpt_pro_5_5_extended_reasoning_browser"
+            item for item in escalated["ranked_executors"] if item["key"] == "chatgpt_pro_browser_master_reviewer"
         )
         self.assertIn(
             "sensitivity internal exceeds executor max_data_sensitivity redacted",
             escalated_candidate["policy_violations"],
         )
-        self.assertNotEqual(escalated["recommended_executor"], "gemini_3_1_pro_preview_agy")
+        self.assertNotEqual(escalated["recommended_executor"], "gemini_architecture_critic")
         self.assertNotEqual(escalated["route"], "external-contract")
 
     def test_public_docs_page_path_alone_requires_editor_gate(self) -> None:

@@ -24,6 +24,7 @@ ALLOWED_IMPORTS = {
     "workspace": {"paths", "util"},
     "telemetry": {"util"},
     "audit": {"paths", "policy", "telemetry", "util"},
+    "waivers": set(),
     "beads": {"paths", "util"},
     "harness": {"policy", "util"},
     "execution_status_report": {"audit", "paths"},

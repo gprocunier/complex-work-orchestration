@@ -9,6 +9,7 @@ from typing import Any
 from cwo_core.packets import fenced_block, redact_text, require_valid_contractor_packet
 from cwo_core.routing import classify_work
 from cwo_core.util import read_text_arg
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
 RETURN_TEMPLATE_SECTIONS = [
@@ -52,7 +53,7 @@ def manual_command_for_route(route: dict[str, object]) -> str:
     if not isinstance(transport, dict):
         return ""
     command = str(transport.get("default_command", "")).strip()
-    if selected.get("key") == "claude_opus_4_6_architecture_critic":
+    if selected.get("key") == "claude_architecture_critic":
         effort = str(route.get("claude_architecture_effort") or transport.get("minimum_effort") or "high")
         command = command.replace("--effort high", f"--effort {effort}")
     return command
@@ -223,7 +224,9 @@ def main() -> None:
     parser.add_argument("--share-boundary", default="redacted-packet")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--json", action="store_true")
+    add_waiver_reason_argument(parser)
     args = parser.parse_args()
+    require_waiver_reason(args, ["allow_degraded_packet", "allow_raw_manual_prompt", "allow_disclosure_escalation"])
 
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))

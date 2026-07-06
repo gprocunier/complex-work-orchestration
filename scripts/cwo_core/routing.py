@@ -57,7 +57,7 @@ def dispatch_sensitivity_for_boundary(sensitivity: str, share_boundary: str) -> 
 
 
 CHATGPT_MASTER_REVIEW_GATE = "chatgpt-pro-5.5-master-plan-review"
-CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_5_5_extended_reasoning_browser"
+CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
 CHATGPT_MASTER_REVIEW_JOB = "contract-jd-master-plan-review"
 CHATGPT_MASTER_REVIEW_FAILURE_BEHAVIOR = "stop-before-implementation-unless-explicit-operator-waiver"
 CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
@@ -69,9 +69,9 @@ CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
 
 DEFAULT_EXECUTION_ENVIRONMENT = "connected-codex"
 GLM_PRIMARY_EXECUTION_ENVIRONMENT = "connected-codex-glm-primary"
-GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "openshift_ai_vllm_glm_5_2_bf16_architecture_critic"
-GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "openshift_ai_vllm_glm_5_2_bf16_primary_architect"
-CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_5_5_xhigh_architecture_critic"
+GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_architecture_critic"
+GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "rhoai_glm_primary_architect"
+CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_architecture_critic"
 LOCAL_DISPATCH_MODES = {"local_openai_compatible", "local_secure_review"}
 
 
@@ -429,7 +429,7 @@ def public_docs_editor_gate_required(text: str, file_paths: list[str] | None = N
     lowered = text.lower()
     if any(term in lowered for term in PUBLIC_DOCS_EDITOR_TEXT_TERMS):
         return True
-    return any(is_public_docs_page_path(path) for path in file_paths or [])
+    return any(is_public_docs_path(path) for path in file_paths or [])
 
 
 def public_docs_page_review_required(text: str, file_paths: list[str] | None = None) -> bool:
@@ -716,16 +716,16 @@ def score_executors(
         if key == CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR:
             score -= 100
             reasons.append("reserved for explicit architecture counter-review lanes")
-        if is_architecture_review_task and key == "gemini_3_1_pro_preview_agy" and explicit_gemini_architect_critique_requested(text):
+        if is_architecture_review_task and key == "gemini_architecture_critic" and explicit_gemini_architect_critique_requested(text):
             score += 30
             reasons.append("explicit Gemini/Agy architect critique request")
-        if is_architecture_review_task and key == "claude_opus_4_6_architecture_critic" and explicit_claude_architect_critique_requested(text):
+        if is_architecture_review_task and key == "claude_architecture_critic" and explicit_claude_architect_critique_requested(text):
             score += 32
             reasons.append("explicit Claude Opus architect critique request")
-        if is_architecture_review_task and key == "openshift_ai_vllm_glm_5_2_bf16_architecture_critic" and explicit_glm_architect_critique_requested(text):
+        if is_architecture_review_task and key == "rhoai_glm_architecture_critic" and explicit_glm_architect_critique_requested(text):
             score += 34
             reasons.append("explicit GLM-5.2 BF16 architect critique request")
-        if key == "chatgpt_pro_5_5_extended_reasoning_browser" and explicit_chatgpt_master_plan_review_requested(text):
+        if key == "chatgpt_pro_browser_master_reviewer" and explicit_chatgpt_master_plan_review_requested(text):
             score += 36
             reasons.append("explicit ChatGPT Pro Extended Reasoning master plan review request")
         if key == "openai_deep_research_manual" and explicit_openai_deep_research_requested(text):
@@ -736,7 +736,7 @@ def score_executors(
             reasons.append("Extended Reasoning master review is distinct from Deep Research")
         if (
             explicit_chatgpt_master_plan_review_requested(text)
-            and key != "chatgpt_pro_5_5_extended_reasoning_browser"
+            and key != "chatgpt_pro_browser_master_reviewer"
             and executor.get("external")
         ):
             score -= 80
@@ -1011,12 +1011,12 @@ def classify_work(
         }
         transport = candidate.get("transport") if isinstance(candidate.get("transport"), dict) else {}
         default_command = str(transport.get("default_command", ""))
-        if key == "claude_opus_4_6_architecture_critic":
+        if key == "claude_architecture_critic":
             contract["architecture_complexity"] = architecture_complexity
             contract["claude_effort"] = claude_effort
             if default_command:
                 contract["manual_command"] = command_with_claude_effort(default_command, claude_effort)
-        elif key == "openshift_ai_vllm_glm_5_2_bf16_architecture_critic":
+        elif key == "rhoai_glm_architecture_critic":
             contract["local_profile"] = candidate.get("local_profile")
             contract["model_profile"] = candidate.get("model_profile")
         elif default_command:

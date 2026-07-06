@@ -193,7 +193,7 @@ python3 scripts/route_work.py \
 
 python3 scripts/build_contractor_packet.py \
   --bead <claude-critic-bead> \
-  --executor claude_opus_4_6_architecture_critic \
+  --executor claude_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -212,7 +212,7 @@ claude --model claude-opus-4-6 --effort high \
 
 python3 scripts/build_contractor_packet.py \
   --bead <gemini-critic-bead> \
-  --executor gemini_3_1_pro_preview_agy \
+  --executor gemini_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -264,7 +264,7 @@ cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
 
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
@@ -584,7 +584,7 @@ python3 scripts/build_contractor_packet.py \
    bd show <id> --json
    python3 scripts/build_contractor_packet.py \
      --bead <id> \
-     --executor gemini_3_1_pro_manual \
+     --executor gemini_manual_reviewer \
      --share-boundary <mode> \
      --external-ok \
      --epic <epic-id> \

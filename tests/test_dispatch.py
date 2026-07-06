@@ -61,6 +61,8 @@ class DispatchTests(unittest.TestCase):
                 "--requested-role",
                 "security",
                 "--allow-raw-manual-prompt",
+                "--waiver-reason",
+                "test degraded manual prompt",
             ],
             cwd=ROOT,
             capture_output=True,
@@ -159,7 +161,7 @@ class DispatchTests(unittest.TestCase):
                 "title": "Gemini architect critique",
                 "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
             },
-            executor="gemini_3_1_pro_preview_agy",
+            executor="gemini_architecture_critic",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-architecture-reasoning",
             allowed_files=[],
@@ -174,7 +176,7 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(packet["expert_profile_included"])
         self.assertEqual(packet["expert_profile"]["path"], "experts/architecture.md")
         prompt = render_packet_prompt(packet)
-        self.assertIn("gemini_3_1_pro_preview_agy", prompt)
+        self.assertIn("gemini_architecture_critic", prompt)
         self.assertIn("contract-jd-architecture-reasoning", prompt)
         self.assertIn("Do not mutate the active checkout", prompt)
         self.assertIn("Output only the contractor return", prompt)
@@ -197,7 +199,7 @@ class DispatchTests(unittest.TestCase):
                 "title": "Claude architect critique",
                 "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
             },
-            executor="claude_opus_4_6_architecture_critic",
+            executor="claude_architecture_critic",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-architecture-reasoning",
             allowed_files=[],
@@ -210,7 +212,7 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(packet["provider_key"], "anthropic_manual")
         self.assertEqual(packet["manual_command"], "claude --model claude-opus-4-6 --effort high -p")
         packet_prompt = render_packet_prompt(packet)
-        self.assertIn("claude_opus_4_6_architecture_critic", packet_prompt)
+        self.assertIn("claude_architecture_critic", packet_prompt)
         self.assertIn("Manual dispatch command: claude --model claude-opus-4-6 --effort high -p", packet_prompt)
         self.assertIn("contract-jd-architecture-reasoning", packet_prompt)
 
@@ -222,7 +224,7 @@ class DispatchTests(unittest.TestCase):
                 "title": "ChatGPT Pro master plan review",
                 "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
             },
-            executor="chatgpt_pro_5_5_extended_reasoning_browser",
+            executor="chatgpt_pro_browser_master_reviewer",
             share_boundary="redacted-packet",
             job_description_label="contract-jd-master-plan-review",
             allowed_files=[],
@@ -237,7 +239,7 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(packet["expert_profile_included"])
         self.assertEqual(packet["expert_profile"]["path"], "experts/master-plan-review.md")
         prompt = render_packet_prompt(packet)
-        self.assertIn("chatgpt_pro_5_5_extended_reasoning_browser", prompt)
+        self.assertIn("chatgpt_pro_browser_master_reviewer", prompt)
         self.assertIn("contract-jd-master-plan-review", prompt)
         self.assertIn("Output only the contractor return", prompt)
 

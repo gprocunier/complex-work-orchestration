@@ -103,6 +103,7 @@ AUDIT_BOOLEAN_FIELDS = {
     "peer_review_required",
     "provider_external",
     "quarantine_recommended",
+    "waiver_required",
 }
 AUDIT_STRING_FIELDS = {
     "audit_lock_mode",
@@ -129,10 +130,12 @@ AUDIT_STRING_FIELDS = {
     "share_boundary",
     "timestamp",
     "verdict",
+    "waiver_reason",
 }
 AUDIT_STRING_LIST_FIELDS = {
     "hold_reasons",
     "provider_conflict_domains",
+    "waiver_flags",
 }
 AUDIT_OBJECT_FIELDS = {
     "workspace_mutation",

@@ -11,7 +11,7 @@ Deep Research, Gemini, Opus, or an internal review as a silent substitute.
 
 ## Contract
 
-- Executor: `chatgpt_pro_5_5_extended_reasoning_browser`
+- Executor: `chatgpt_pro_browser_master_reviewer`
 - Job label: `contract-jd-master-plan-review`
 - Default share boundary: `redacted-packet`
 - Evidence requirement: dispatch JSON with confirmed `model_attestation`, a
@@ -114,7 +114,7 @@ Build the packet from the compact plan bundle:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \

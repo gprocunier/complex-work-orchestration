@@ -409,7 +409,7 @@ architect replacement.
 The `connected-codex-glm-primary` environment is an experimental bridge toward
 that airgapped model. Codex CLI remains the connected PM/operator shell, GLM-5.2
 BF16 Thinking is the no-write local primary architect, and
-`codex_5_5_xhigh_architecture_critic` becomes the independent counter-review
+`codex_architecture_critic` becomes the independent counter-review
 input for synthesis. Selecting the environment is also the explicit local
 architect opt-in; raw GLM thinking remains stripped from durable artifacts.
 
@@ -604,6 +604,8 @@ A contractor handoff packet is a policy-checked brief that contains the
 approved share boundary, job labels, task context, selected snippets, provider
 binding, and expert profile for outside or local review.
 
+- `scripts/cwo.py`: single stdlib dispatcher for the main helper commands,
+  for example `python3 scripts/cwo.py coach --brief "<task text>"`.
 - `scripts/coach_prompt.py`: compile a right-sized invocation prompt before
   launching the full harness, including bounded `interactive_questions` that
   Codex can map to selectable Plan-mode prompts and a
@@ -643,7 +645,7 @@ binding, and expert profile for outside or local review.
   identity. Packet dispatch requires the matching `packet_built` audit row
   unless the operator explicitly uses `--allow-unlinked-packet`.
 - `scripts/chatgpt_browser_review.py`: opt-in browser dispatch for a redacted
-  master-plan review with `chatgpt_pro_5_5_extended_reasoning_browser`.
+  master-plan review with `chatgpt_pro_browser_master_reviewer`.
   Configure it with `CWO_CHATGPT_BROWSER_CONFIG`; keep the config outside the
   repository with operator-managed browser authentication and mode `0600`.
 - `scripts/launch_chatgpt_cdp_chrome.sh`: systemd/Wayland launcher for the
@@ -1248,8 +1250,8 @@ through `gemini -p`; environments that expose Gemini through Google
 Antigravity can use `agy -p` as the local command surface after the same packet
 and opt-in gates.
 For architect-design critique, use the dedicated
-`claude_opus_4_6_architecture_critic` and
-`gemini_3_1_pro_preview_agy` executors. Claude uses
+`claude_architecture_critic` and
+`gemini_architecture_critic` executors. Claude uses
 `claude --model claude-opus-4-6 --effort high -p` by default, with `xhigh` or
 `max` effort reserved for broader architecture complexity. Gemini uses
 `agy --model gemini-3.1-pro-preview -p`. Either or both lanes are
@@ -1263,7 +1265,7 @@ specific evaluated finding. The acceptance decision may report advisory
 camp policy, boundary-taint handling, zero-trust consensus when required, and
 readiness.
 The ChatGPT Pro 5.5 Extended Reasoning browser lane is different from OpenAI
-Deep Research. Use `chatgpt_pro_5_5_extended_reasoning_browser` only when the
+Deep Research. Use `chatgpt_pro_browser_master_reviewer` only when the
 user explicitly wants ChatGPT Pro to review the final architect plan or total
 work packet before execution. It starts from a redacted packet by default,
 uses browser authentication controlled by the operator, requires a share link
@@ -1441,7 +1443,7 @@ For repo-readonly or patch-branch disclosure, include an explicit escalation:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor gemini_3_1_pro_manual \
+  --executor gemini_manual_reviewer \
   --share-boundary patch-branch \
   --allow-disclosure-escalation \
   --external-ok \
@@ -1465,7 +1467,7 @@ python3 scripts/route_work.py \
 
 python3 scripts/build_contractor_packet.py \
   --bead <claude-critic-bead> \
-  --executor claude_opus_4_6_architecture_critic \
+  --executor claude_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -1488,7 +1490,7 @@ For a matching Gemini/Agy critique:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <gemini-critic-bead> \
-  --executor gemini_3_1_pro_preview_agy \
+  --executor gemini_architecture_critic \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-architecture-reasoning \
@@ -1541,7 +1543,7 @@ cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
 
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
@@ -1577,7 +1579,7 @@ python3 scripts/evaluate_return.py \
   --dispatch-id "$DISPATCH_ID" \
   --share-boundary redacted-packet \
   --job-description contract-jd-master-plan-review \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
+  --executor chatgpt_pro_browser_master_reviewer \
   --file master-plan-review-return.md
 ```
 
@@ -1825,7 +1827,7 @@ The generated `local_envelope` follows
 implicit.
 
 GLM-5.2 BF16 thinking review is available through the named executor
-`openshift_ai_vllm_glm_5_2_bf16_architecture_critic`. It uses the
+`rhoai_glm_architecture_critic`. It uses the
 `rhoai-architect-glm-5-2-bf16-thinking` model profile, sends
 `chat_template_kwargs.enable_thinking=true`, and strips raw thinking text from
 usable local-worker responses before evaluator scoring or model synthesis.

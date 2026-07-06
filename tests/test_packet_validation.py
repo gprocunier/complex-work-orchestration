@@ -207,7 +207,7 @@ class PacketValidationTests(unittest.TestCase):
                     "title": "Master plan review",
                     "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
                 },
-                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                executor="chatgpt_pro_browser_master_reviewer",
                 share_boundary="redacted-packet",
                 job_description_label="contract-jd-master-plan-review",
                 allowed_files=[],
@@ -235,7 +235,7 @@ class PacketValidationTests(unittest.TestCase):
                     "title": "Master plan review",
                     "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
                 },
-                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                executor="chatgpt_pro_browser_master_reviewer",
                 share_boundary="redacted-packet",
                 job_description_label="contract-jd-master-plan-review",
                 allowed_files=[],
@@ -255,7 +255,7 @@ class PacketValidationTests(unittest.TestCase):
                 build_packet(
                     bead_id="cwo-1",
                     bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    executor="chatgpt_pro_browser_master_reviewer",
                     share_boundary="redacted-packet",
                     job_description_label="contract-jd-master-plan-review",
                     allowed_files=[],
@@ -275,7 +275,7 @@ class PacketValidationTests(unittest.TestCase):
                 build_packet(
                     bead_id="cwo-1",
                     bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    executor="chatgpt_pro_browser_master_reviewer",
                     share_boundary="redacted-packet",
                     job_description_label="contract-jd-master-plan-review",
                     allowed_files=[],
@@ -295,7 +295,7 @@ class PacketValidationTests(unittest.TestCase):
                 build_packet(
                     bead_id="cwo-1",
                     bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    executor="chatgpt_pro_browser_master_reviewer",
                     share_boundary="redacted-packet",
                     job_description_label="contract-jd-master-plan-review",
                     allowed_files=[],
@@ -315,7 +315,7 @@ class PacketValidationTests(unittest.TestCase):
                 build_packet(
                     bead_id="cwo-1",
                     bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                    executor="chatgpt_pro_browser_master_reviewer",
                     share_boundary="redacted-packet",
                     job_description_label="contract-jd-master-plan-review",
                     allowed_files=[],
@@ -341,7 +341,7 @@ class PacketValidationTests(unittest.TestCase):
                     build_packet(
                         bead_id="cwo-1",
                         bead_json={"id": "cwo-1", "title": "Master plan review"},
-                        executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                        executor="chatgpt_pro_browser_master_reviewer",
                         share_boundary="redacted-packet",
                         job_description_label="contract-jd-master-plan-review",
                         allowed_files=[],
@@ -358,7 +358,7 @@ class PacketValidationTests(unittest.TestCase):
             build_packet(
                 bead_id="cwo-1",
                 bead_json={"id": "cwo-1", "title": "Master plan review"},
-                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                executor="chatgpt_pro_browser_master_reviewer",
                 share_boundary="redacted-packet",
                 job_description_label="contract-jd-master-plan-review",
                 allowed_files=[],

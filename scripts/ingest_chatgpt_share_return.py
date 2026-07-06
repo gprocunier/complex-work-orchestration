@@ -14,7 +14,7 @@ from cwo_core.paths import assert_safe_output_path
 from cwo_core.packets import fenced_block
 from cwo_core.util import atomic_write_text, artifact_hash
 
-DEFAULT_EXECUTOR = "chatgpt_pro_5_5_extended_reasoning_browser"
+DEFAULT_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
 
 
 def is_chatgpt_share_source(source: str) -> bool:
