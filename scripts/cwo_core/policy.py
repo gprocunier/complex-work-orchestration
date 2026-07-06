@@ -121,6 +121,35 @@ def executor_config(executor_key: str, registry: dict[str, Any] | None = None) -
     return value
 
 
+def _canonical_executor_or_self(executor_key: str, registry: dict[str, Any]) -> str:
+    try:
+        return str(executor_config(executor_key, registry).get("key", executor_key))
+    except SystemExit:
+        return str(executor_key)
+
+
+def executor_key_matches(candidate_key: str, executor_key: str, registry: dict[str, Any] | None = None) -> bool:
+    candidate = str(candidate_key)
+    requested = str(executor_key)
+    if candidate == "*":
+        return True
+    if candidate == requested:
+        return True
+    data = registry or load_policy("executor-registry")
+    return _canonical_executor_or_self(candidate, data) == _canonical_executor_or_self(requested, data)
+
+
+def executor_key_allowed(executor_key: str, allowed_values: Any, registry: dict[str, Any] | None = None) -> bool:
+    if isinstance(allowed_values, str):
+        values = [allowed_values]
+    elif isinstance(allowed_values, list):
+        values = [str(value) for value in allowed_values]
+    else:
+        return False
+    data = registry or load_policy("executor-registry")
+    return any(executor_key_matches(value, executor_key, data) for value in values)
+
+
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     value: dict[str, Any] = {}
     for key, item in pairs:

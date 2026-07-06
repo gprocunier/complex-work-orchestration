@@ -576,6 +576,46 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertEqual(result["share_url"], "https://chatgpt.com/s/t_abc")
         self.assertNotIn("Review this final plan.", json.dumps(result))
 
+    def test_packet_built_from_alias_is_accepted_by_prompt_loader(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            packet_path = Path(tmpdir) / "packet.json"
+            packet = build_packet(
+                bead_id="cwo-1",
+                bead_json={
+                    "id": "cwo-1",
+                    "title": "ChatGPT Pro master plan review",
+                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
+                },
+                executor=EXECUTOR_KEY,
+                requested_executor="chatgpt_pro_browser_master_reviewer",
+                share_boundary="redacted-packet",
+                job_description_label="contract-jd-master-plan-review",
+                allowed_files=[],
+                inline_snippets=["Review this final plan."],
+                dispatch_id="dispatch-chatgpt",
+                external_opt_in=True,
+                opt_in_basis="cli-flag",
+            )
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            args = Namespace(
+                packet=str(packet_path),
+                prompt_file=None,
+                allow_degraded_packet=False,
+                allow_unlinked_packet=True,
+                rehearsal=True,
+                dispatch_id=None,
+                bead=None,
+                epic=None,
+                packet_sha256=None,
+                share_boundary=None,
+            )
+
+            prompt, metadata = load_prompt_from_args(args)
+
+        self.assertIn("Review this final plan.", prompt)
+        self.assertEqual(packet["requested_executor"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(metadata["executor"], EXECUTOR_KEY)
+
     def test_prompt_file_requires_explicit_degraded_operator_flag(self) -> None:
         with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
             prompt_path = Path(tmpdir) / "prompt.md"

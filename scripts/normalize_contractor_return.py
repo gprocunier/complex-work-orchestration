@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from cwo_core.paths import assert_safe_output_path
+from cwo_core.policy import executor_config
 from cwo_core.returns import normalize_contractor_return
 from cwo_core.util import atomic_write_text
 
@@ -30,6 +31,8 @@ def main() -> None:
     )
     parser.add_argument("--output", help="Optional JSON output path.")
     args = parser.parse_args()
+    if args.executor:
+        args.executor = str(executor_config(args.executor).get("key", args.executor))
     workspace_mutation = (
         json.loads(Path(args.workspace_mutation_report).read_text(encoding="utf-8"))
         if args.workspace_mutation_report

@@ -21,6 +21,7 @@ from cwo_core.util import (
 from cwo_core.policy import (
     boundary_allows_external,
     boundary_config,
+    executor_config,
     load_policy,
     provider_metadata_for_executor,
     share_boundary_disclosure_stage,
@@ -83,10 +84,8 @@ def validate_gate(
     epic_id: str | None = None,
     allow_disclosure_escalation: bool = False,
 ) -> str:
-    executors = load_policy("executor-registry").get("executors", {})
-    if executor not in executors:
-        raise SystemExit(f"unknown executor {executor!r}; see policy/executor-registry.yaml")
-    if not executors[executor].get("external"):
+    executor_info = executor_config(executor)
+    if not executor_info.get("external"):
         raise SystemExit(f"executor {executor!r} is not an outside contractor executor")
     if not external_ok and not opt_in_record:
         raise SystemExit("external packet build requires --external-ok or an opt-in record")
@@ -157,11 +156,12 @@ def build_packet(
     epic_id: str | None = None,
     quota_info: dict[str, Any] | None = None,
     disclosure_escalation_approved: bool = False,
+    requested_executor: str | None = None,
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
-    executor_config = load_policy("executor-registry").get("executors", {}).get(executor, {})
-    provider_metadata = provider_metadata_for_executor(executor_config)
-    transport = executor_config.get("transport") if isinstance(executor_config.get("transport"), dict) else {}
+    executor_info = load_policy("executor-registry").get("executors", {}).get(executor, {})
+    provider_metadata = provider_metadata_for_executor(executor_info)
+    transport = executor_info.get("transport") if isinstance(executor_info.get("transport"), dict) else {}
     manual_command = str(transport.get("default_command", "")).strip()
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     dispatch_id = dispatch_id or make_dispatch_id(bead_id, now.replace("-", "").replace(":", ""))
@@ -242,6 +242,9 @@ def build_packet(
         "required_return_sections": load_policy("acceptance-policy").get("contractor_return_required_sections", []),
         "acceptance_rule": "Evaluator scoring and architect adjudication are required before implementation.",
     }
+    if requested_executor and requested_executor != executor:
+        packet["requested_executor"] = requested_executor
+        packet["canonical_executor"] = executor
     packet.update(quota_info or {"quota_checked": False, "quota_remaining": None})
     packet["packet_sha256"] = packet_payload_hash(packet)
     return packet
@@ -352,6 +355,9 @@ def main() -> None:
     args = parser.parse_args()
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for packet build tests or rehearsals")
+    executor_info = executor_config(args.executor)
+    requested_executor = executor_info.get("requested_key")
+    args.executor = str(executor_info.get("key", args.executor))
 
     bead_json = json.loads(Path(args.bead_json_file).read_text(encoding="utf-8")) if args.bead_json_file else show_bead_json(args.bead)
     labels = extract_labels(bead_json)
@@ -392,6 +398,7 @@ def main() -> None:
         epic_id=args.epic,
         quota_info=quota_info,
         disclosure_escalation_approved=args.allow_disclosure_escalation,
+        requested_executor=requested_executor,
     )
     packet_errors = validate_contractor_packet(
         packet,
@@ -412,7 +419,8 @@ def main() -> None:
                 "dispatch_id": packet["dispatch_id"],
                 "bead_id": args.bead,
                 "epic_id": args.epic,
-                "executor_key": args.executor,
+                "executor_key": packet["executor"],
+                "requested_executor_key": packet.get("requested_executor"),
                 "executor_external": quota_info.get("executor_external"),
                 "share_boundary": args.share_boundary,
                 "disclosure_stage": packet.get("disclosure_stage"),
@@ -452,7 +460,8 @@ def main() -> None:
                 subject_id=packet["dispatch_id"],
                 predicate={
                     "bead_id": args.bead,
-                    "executor": args.executor,
+                    "executor": packet["executor"],
+                    "requested_executor": packet.get("requested_executor"),
                     "share_boundary": args.share_boundary,
                     "disclosure_stage": packet["disclosure_stage"],
                     "packet_sha256": packet["packet_sha256"],

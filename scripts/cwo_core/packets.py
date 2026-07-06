@@ -9,7 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from .paths import REPO_ROOT, assert_repo_safe_path, repo_relative_path
-from .policy import boundary_config, load_contracting_controls, load_policy, provider_profile
+from .policy import (
+    boundary_config,
+    executor_key_allowed,
+    load_contracting_controls,
+    load_policy,
+    provider_profile,
+)
 from .util import artifact_hash, packet_payload_hash, parse_iso_datetime
 
 
@@ -205,18 +211,12 @@ def validate_opt_in_record(
         "allowed_external_executors",
         record.get("allowed_executors", record.get("executors", record.get("executor"))),
     )
-    if isinstance(executors, str):
-        executor_allowed = executors in [executor, "*"]
-    elif isinstance(executors, list):
-        executor_allowed = executor in executors or "*" in executors
-    else:
-        executor_allowed = False
-    if not executor_allowed:
+    if not executor_key_allowed(executor, executors):
         raise SystemExit(f"opt-in record does not allow executor {executor!r}")
     allowed_providers = record.get("allowed_providers")
     if allowed_providers is not None:
-        executor_config = load_policy("executor-registry").get("executors", {}).get(executor, {})
-        provider_key = executor_config.get("provider_key")
+        executor_info = load_policy("executor-registry").get("executors", {}).get(executor, {})
+        provider_key = executor_info.get("provider_key")
         if isinstance(allowed_providers, str):
             provider_allowed = allowed_providers in [provider_key, "*"]
         elif isinstance(allowed_providers, list):
@@ -286,8 +286,8 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
         errors.append(f"packet provider_trust_tier {packet.get('provider_trust_tier')!r} does not match provider registry")
 
     controls = load_contracting_controls()
-    allowed_external = set(controls.get("allowed_external_executors", []))
-    if allowed_external and executor_key not in allowed_external:
+    allowed_external = controls.get("allowed_external_executors", [])
+    if allowed_external and not executor_key_allowed(executor_key, allowed_external):
         errors.append(f"packet executor {executor_key!r} is not allowed by contracting controls")
 
     share_boundary = str(packet.get("share_boundary", ""))

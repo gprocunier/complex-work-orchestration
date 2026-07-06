@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import sys
+import subprocess
 import unittest
 import json
 from pathlib import Path
@@ -10,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_contractor_packet import validate_gate  # noqa: E402
+from cwo_core.packets import validate_contractor_packet  # noqa: E402
 
 
 class PacketGateTests(unittest.TestCase):
@@ -281,6 +283,123 @@ class PacketGateTests(unittest.TestCase):
                 opt_in_record=handle.name,
             )
         self.assertEqual(basis, "audit-record")
+
+    def run_packet_builder(
+        self,
+        *,
+        executor: str,
+        external_ok: bool = True,
+        opt_in_record: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        labels = ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"]
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as bead, tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+        ) as packet:
+            json.dump({"id": "epic-1.1", "title": "Alias packet", "labels": labels}, bead)
+            bead.flush()
+            args = [
+                sys.executable,
+                "-B",
+                str(ROOT / "scripts" / "build_contractor_packet.py"),
+                "--bead",
+                "epic-1.1",
+                "--bead-json-file",
+                bead.name,
+                "--executor",
+                executor,
+                "--share-boundary",
+                "redacted-packet",
+                "--no-audit",
+                "--rehearsal",
+                "--no-include-expert-profile",
+                "--degraded-context-justification",
+                "test degraded packet",
+                "--format",
+                "json",
+                "--output",
+                packet.name,
+            ]
+            if external_ok:
+                args.append("--external-ok")
+            if opt_in_record:
+                args.extend(["--opt-in-record", opt_in_record])
+            result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, check=False)
+            if result.returncode == 0:
+                result.stdout = Path(packet.name).read_text(encoding="utf-8")
+            return result
+
+    def test_packet_build_cli_canonicalizes_executor_alias(self) -> None:
+        result = self.run_packet_builder(executor="chatgpt_pro_browser_master_reviewer")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        packet = json.loads(result.stdout)
+        self.assertEqual(packet["executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(packet["requested_executor"], "chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(packet["canonical_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
+        self.assertEqual(validate_contractor_packet(packet, allow_degraded_packet=True), [])
+
+    def test_packet_validation_rejects_alias_executor_artifact(self) -> None:
+        result = self.run_packet_builder(executor="chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        packet = json.loads(result.stdout)
+        packet["executor"] = "chatgpt_pro_browser_master_reviewer"
+
+        errors = validate_contractor_packet(packet, allow_degraded_packet=True)
+
+        self.assertIn("packet executor 'chatgpt_pro_browser_master_reviewer' is unknown", errors)
+
+    def test_packet_build_cli_rejects_unknown_executor_alias(self) -> None:
+        result = self.run_packet_builder(executor="totally_bogus_reviewer")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unknown executor 'totally_bogus_reviewer'", result.stderr)
+
+    def test_opt_in_record_alias_authorizes_canonical_executor_cli(self) -> None:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "allowed": True,
+                    "share_boundary": "redacted-packet",
+                    "allowed_external_executors": ["chatgpt_pro_browser_master_reviewer"],
+                    "allowed_providers": ["openai_manual"],
+                    "decision_source": "test",
+                    "recorded_at": "2026-06-09T00:00:00Z",
+                    "scope": "ChatGPT Pro master plan review",
+                },
+                handle,
+            )
+            handle.flush()
+            result = self.run_packet_builder(
+                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                external_ok=False,
+                opt_in_record=handle.name,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_opt_in_record_wrong_alias_rejects_canonical_executor_cli(self) -> None:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "allowed": True,
+                    "share_boundary": "redacted-packet",
+                    "allowed_external_executors": ["gemini_manual_reviewer"],
+                    "decision_source": "test",
+                    "recorded_at": "2026-06-09T00:00:00Z",
+                    "scope": "wrong executor alias",
+                },
+                handle,
+            )
+            handle.flush()
+            result = self.run_packet_builder(
+                executor="chatgpt_pro_5_5_extended_reasoning_browser",
+                external_ok=False,
+                opt_in_record=handle.name,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not allow executor 'chatgpt_pro_5_5_extended_reasoning_browser'", result.stderr)
 
     def test_opt_in_record_rejects_expired_or_timezone_free_records(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]

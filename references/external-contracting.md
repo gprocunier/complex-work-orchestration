@@ -49,6 +49,10 @@ The helpers are gates, not authority. If a helper recommends an external
 contract but the user has not opted in or the share boundary is unclear, do not
 export context.
 
+Executor aliases from `policy/executor-registry.yaml` are accepted by helper
+CLIs and opt-in records. Generated packets, audit events, quota accounting, and
+return provenance store the canonical versioned executor key.
+
 ## Trust Model And Enforcement Boundary
 
 CWO enforces the path that goes through its helpers: route classification,
