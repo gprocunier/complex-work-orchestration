@@ -141,24 +141,6 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def extract_related_items(payload: Any) -> list[dict[str, Any]]:
-    items = coerce_items(payload)
-    if isinstance(payload, dict):
-        if payload.get("id") or payload.get("issue_id"):
-            items.append(payload)
-        for key in ["children", "dependents", "related", "issues", "items", "data"]:
-            items.extend(coerce_items(payload.get(key)))
-    seen: set[str] = set()
-    result: list[dict[str, Any]] = []
-    for item in items:
-        item_id = issue_id(item)
-        if not item_id or item_id in seen:
-            continue
-        result.append(item)
-        seen.add(item_id)
-    return result
-
-
 def belongs_to_epic(item: dict[str, Any], epic_id: str) -> bool:
     candidates = string_list(field(item, "parent", "parent_id", "epic", "epic_id") or [])
     return epic_id in candidates
