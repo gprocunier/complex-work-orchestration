@@ -83,6 +83,73 @@ PUBLIC_DOCS_PATHS = {"README.md", "SKILL.md"}
 PUBLIC_DOCS_PAGE_SUFFIXES = {".html", ".css", ".js"}
 
 
+def executor_aliases(registry: dict[str, Any] | None = None) -> dict[str, str]:
+    data = registry or load_policy("executor-registry")
+    aliases = data.get("aliases", {})
+    if not isinstance(aliases, dict):
+        return {}
+    return {str(alias): str(target) for alias, target in aliases.items()}
+
+
+def resolve_executor_key(executor_key: str, registry: dict[str, Any] | None = None) -> str:
+    data = registry or load_policy("executor-registry")
+    aliases = executor_aliases(data)
+    executors = data.get("executors", {})
+    current = str(executor_key)
+    seen: set[str] = set()
+    while current in aliases:
+        if current in seen:
+            raise SystemExit(f"executor alias cycle includes {current!r}")
+        seen.add(current)
+        current = aliases[current]
+    if current not in executors:
+        return str(executor_key)
+    return current
+
+
+def executor_config(executor_key: str, registry: dict[str, Any] | None = None) -> dict[str, Any]:
+    data = registry or load_policy("executor-registry")
+    canonical = resolve_executor_key(executor_key, data)
+    executor = data.get("executors", {}).get(canonical)
+    if not isinstance(executor, dict):
+        raise SystemExit(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
+    value = dict(executor)
+    value.setdefault("key", canonical)
+    if canonical != executor_key:
+        value["requested_key"] = executor_key
+        value["canonical_key"] = canonical
+    return value
+
+
+def _canonical_executor_or_self(executor_key: str, registry: dict[str, Any]) -> str:
+    try:
+        return str(executor_config(executor_key, registry).get("key", executor_key))
+    except SystemExit:
+        return str(executor_key)
+
+
+def executor_key_matches(candidate_key: str, executor_key: str, registry: dict[str, Any] | None = None) -> bool:
+    candidate = str(candidate_key)
+    requested = str(executor_key)
+    if candidate == "*":
+        return True
+    if candidate == requested:
+        return True
+    data = registry or load_policy("executor-registry")
+    return _canonical_executor_or_self(candidate, data) == _canonical_executor_or_self(requested, data)
+
+
+def executor_key_allowed(executor_key: str, allowed_values: Any, registry: dict[str, Any] | None = None) -> bool:
+    if isinstance(allowed_values, str):
+        values = [allowed_values]
+    elif isinstance(allowed_values, list):
+        values = [str(value) for value in allowed_values]
+    else:
+        return False
+    data = registry or load_policy("executor-registry")
+    return any(executor_key_matches(value, executor_key, data) for value in values)
+
+
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     value: dict[str, Any] = {}
     for key, item in pairs:
@@ -247,14 +314,10 @@ def load_contracting_controls() -> dict[str, Any]:
 
 
 def executor_external(executor_key: str) -> bool:
-    executor = load_policy("executor-registry").get("executors", {}).get(executor_key)
-    if not isinstance(executor, dict):
-        raise SystemExit(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
+    executor = executor_config(executor_key)
     return bool(executor.get("external"))
 
 
 def executor_dispatch_mode(executor_key: str) -> str:
-    executor = load_policy("executor-registry").get("executors", {}).get(executor_key)
-    if not isinstance(executor, dict):
-        raise SystemExit(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
+    executor = executor_config(executor_key)
     return str(executor.get("dispatch_mode", ""))

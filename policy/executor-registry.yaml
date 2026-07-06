@@ -1,6 +1,15 @@
 {
   "version": 2,
   "schema": "json-compatible-yaml",
+  "aliases": {
+    "codex_architecture_critic": "codex_5_5_xhigh_architecture_critic",
+    "chatgpt_pro_browser_master_reviewer": "chatgpt_pro_5_5_extended_reasoning_browser",
+    "claude_architecture_critic": "claude_opus_4_6_architecture_critic",
+    "gemini_manual_reviewer": "gemini_3_1_pro_manual",
+    "gemini_architecture_critic": "gemini_3_1_pro_preview_agy",
+    "rhoai_glm_architecture_critic": "openshift_ai_vllm_glm_5_2_bf16_architecture_critic",
+    "rhoai_glm_primary_architect": "openshift_ai_vllm_glm_5_2_bf16_primary_architect"
+  },
   "executors": {
     "frontier_architect": {
       "display_name": "Main Codex architect",

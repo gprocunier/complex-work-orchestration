@@ -180,6 +180,54 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(editor["validation_gate_required"])
         self.assertEqual(editor["job_description_label"], "contract-jd-editorial-reasoning")
 
+    def test_typo_class_readme_change_stays_low_risk_without_editor_gate(self) -> None:
+        result = classify_work(
+            "Fix a typo in the README.",
+            file_paths=["README.md"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+
+        self.assertEqual(result["risk_level"], "low")
+        self.assertFalse(result["editor_gate_required"])
+        self.assertNotIn("editor", names)
+
+    def test_mixed_security_wording_change_is_not_demoted_to_low_risk(self) -> None:
+        result = classify_work("fix wording in error messages and harden auth token validation")
+        names = [expert["name"] for expert in result["ranked_experts"]]
+
+        self.assertEqual(result["risk_level"], "high")
+        self.assertEqual(result["task_class"], "security-review")
+        self.assertIn("security", names)
+
+    def test_mixed_security_wording_change_with_code_path_is_not_demoted(self) -> None:
+        result = classify_work(
+            "fix wording in error messages and harden auth token validation",
+            file_paths=["scripts/auth.py"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+
+        self.assertEqual(result["risk_level"], "high")
+        self.assertIn("security", names)
+
+    def test_docs_only_wording_change_stays_low_risk_when_docs_scoped(self) -> None:
+        result = classify_work(
+            "Fix wording in docs/usage.md.",
+            file_paths=["docs/usage.md"],
+        )
+
+        self.assertEqual(result["risk_level"], "low")
+        self.assertIn(result["task_class"], {"docs-review", "general-review"})
+
+    def test_publish_readme_change_still_requires_editor_gate(self) -> None:
+        result = classify_work(
+            "Publish README install docs for external operators.",
+            file_paths=["README.md"],
+        )
+        names = [expert["name"] for expert in result["ranked_experts"]]
+
+        self.assertTrue(result["editor_gate_required"])
+        self.assertIn("editor", names)
+
     def test_patch_branch_gemini_contract_requires_disclosure_escalation(self) -> None:
         text = (
             "Contract Gemini 3.1 Pro for a public GitHub Pages web design refresh. "

@@ -85,14 +85,28 @@ def validate_repository() -> list[str]:
         except ValueError as exc:
             errors.append(str(exc))
 
+    normalized_schemas: dict[str, str] = {}
     for path in sorted((REPO_ROOT / "schemas").glob("*.json")):
         try:
-            load_json(path)
+            schema = load_json(path)
         except ValueError as exc:
             errors.append(str(exc))
+            continue
+        if path.name.endswith(".schema.json") and isinstance(schema, dict):
+            normalized = dict(schema)
+            normalized.pop("title", None)
+            fingerprint = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+            previous = normalized_schemas.get(fingerprint)
+            if previous:
+                errors.append(
+                    f"schemas {previous!r} and {path.name!r} are duplicates except for title"
+                )
+            else:
+                normalized_schemas[fingerprint] = path.name
 
     try:
         executors = load_policy("executor-registry").get("executors", {})
+        executor_aliases = load_policy("executor-registry").get("aliases", {})
         experts = load_policy("expert-registry").get("experts", {})
         controls = load_policy("contracting-controls")
         boundaries = load_policy("share-boundaries").get("boundaries", {})
@@ -103,6 +117,15 @@ def validate_repository() -> list[str]:
         return [str(exc)]
 
     errors.extend(validate_execution_environment_registry())
+
+    if executor_aliases and not isinstance(executor_aliases, dict):
+        errors.append("executor-registry aliases must be an object")
+        executor_aliases = {}
+    for alias, target in executor_aliases.items():
+        if alias in executors:
+            errors.append(f"executor alias {alias!r} must not shadow an executor key")
+        if target not in executors:
+            errors.append(f"executor alias {alias!r} targets unknown executor {target!r}")
 
     for key, executor in executors.items():
         alias_for = executor.get("alias_for")
@@ -1156,50 +1179,39 @@ def validate_repository() -> list[str]:
         errors,
         "SKILL.md",
         [
+            "When To Use",
+            "Operating Defaults",
+            "First Moves",
+            "Scaffold Choices",
+            "Reference Map",
+            "Contractor And Local Worker Gates",
+            "Run Readiness And Closeout",
             "scripts/coach_prompt.py",
             "scripts/cleanup_stale_agents.py",
             "scripts/workspace_mutation_guard.py",
-            "scripts/configure_codex_beads_hooks.py",
-            "--terminate-unowned-codex",
-            "--workspace-root",
-            "direct script execution only for advanced automation",
             "references/prompt-coach.md",
-            "interactive_questions",
+            "references/external-contracting.md",
             "Beads tracking is mandatory",
-            "beads_tracking_required",
-            "scaffold_sizing",
             "--scaffold-size tight",
-            "workerbee_parallelism",
-            "Codex 5.3 Spark when available",
-            "smallest available capable review model",
             "bd dolt remote list",
-            "--skills",
-            "--acceptance",
-            "--design",
-            "--notes",
-            "--what",
-            "--how",
-            "--when",
-            "--where",
             "docs/workflows.html",
             "docs/local-workers.html",
-            "explicit reference/operator",
-            "/plan",
-            "claude -p",
-            "agy -p",
-            "OpenShift AI vLLM",
-            "local-profile",
-            "peer_review_required",
-            "malpractice_score",
-            "CONTRACTOR RETURN TEMPLATE - COPY EXACTLY",
-            "references/redhat-expert-catalog.md",
             "references/run-readiness.md",
             "references/codex-beads-hooks.md",
+            "references/redhat-expert-catalog.md",
+            "policy/executor-registry.yaml",
             "scripts/close_bead_with_summary.py",
-            "full-context",
-            "visibilityHint",
         ],
     )
+    skill_path = REPO_ROOT / "SKILL.md"
+    if skill_path.is_file():
+        skill_content = skill_path.read_text(encoding="utf-8")
+        skill_lines = skill_content.splitlines()
+        skill_words = skill_content.split()
+        if len(skill_lines) > 220:
+            errors.append(f"SKILL.md should stay router-sized: {len(skill_lines)} lines > 220")
+        if len(skill_words) > 1600:
+            errors.append(f"SKILL.md should stay router-sized: {len(skill_words)} words > 1600")
     require_doc_terms(
         errors,
         "references/redhat-expert-catalog.md",
@@ -1350,6 +1362,8 @@ def validate_repository() -> list[str]:
             "closure-memory comment",
             "policy/zero-trust-consensus-policy.yaml",
             "zero_trust_claims",
+            "Trust Model And Enforcement Boundary",
+            "outside the audit guarantee",
         ],
     )
     require_doc_terms(

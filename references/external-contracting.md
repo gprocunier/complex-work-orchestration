@@ -49,6 +49,29 @@ The helpers are gates, not authority. If a helper recommends an external
 contract but the user has not opted in or the share boundary is unclear, do not
 export context.
 
+Executor aliases from `policy/executor-registry.yaml` are accepted by helper
+CLIs and opt-in records. Generated packets, audit events, quota accounting, and
+return provenance store the canonical versioned executor key.
+
+## Trust Model And Enforcement Boundary
+
+CWO enforces the path that goes through its helpers: route classification,
+packet build, packet validation, dispatch rendering, return normalization,
+evaluation, audit logging, and architect adjudication. Those controls can prove
+what the scripted path accepted, rejected, rendered, or recorded.
+
+CWO cannot prevent an operator or an agent from copying repository context into
+another model, pasting a hand-written prompt into a browser, skipping helper
+scripts, or mutating a checkout outside the recorded workflow. Those actions are
+outside the audit guarantee unless the operator records them separately in
+Beads or another durable project log.
+
+Treat bypasses as waivers, not normal operation. `--no-audit`, rehearsal modes,
+raw prompts, degraded packets, and unlinked packets are for tests, dry runs, or
+explicitly recorded operator exceptions. A successful audit chain means the
+helper-managed workflow was followed; it does not certify that no unrecorded
+manual sharing or local mutation happened elsewhere.
+
 Generated contractor packets include the matched Distinguished Engineer profile
 by default. That profile is part of the contract artifact and gives the outside
 model the operating lens for the assigned discipline. A packet generated without

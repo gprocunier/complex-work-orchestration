@@ -7,825 +7,172 @@ metadata:
 
 # Complex Work Orchestration
 
-Use this skill to turn complex work into a durable operating model: architect
-judgment, project-manager coordination, bounded workerbees, optional outside
-contractors, and a Beads-backed work graph.
+Use this skill to decide how much orchestration a task needs, then keep the
+work durable through Beads, evidence, validation, and handoff.
 
 ## When To Use
 
-Use this skill when any of these are true:
+Use CWO when any of these are true:
 
 - the work spans multiple sessions, repos, environments, or agents
-- the user asks for a Mixture of Experts, PM, workerbee, contractor, Claude, or handoff setup
-- the task needs durable state beyond chat history
-- multiple independent investigations or implementation lanes can run in parallel
-- release, lab, production, or publication risk means final judgment must stay with a senior architect
+- the user asks for a coach, PM, architect, workerbee, contractor, model
+  synthesis, prompt review, or handoff setup
+- the work needs durable state beyond chat history
+- multiple independent investigations can run in parallel
+- release, lab, production, publication, or security risk needs final architect
+  judgment
 
 Do not use the full harness for a narrow single-thread fix. Use normal local
-implementation flow for execution, but still create or update one Beads task so
-the work story, evidence, validation, and handoff are durable.
+implementation flow for coherent execution, but keep one Beads task when the
+project uses Beads. Beads tracking is mandatory for non-trivial work stories.
 
-## Installation
+## Operating Defaults
 
-This skill is meant to be installed from a cloned or copied repository. From the
-repository root, run:
+- The main Codex thread is the final decision owner.
+- External and local-worker outputs are evidence, not authority.
+- Default share boundary is `no-outside-sharing`.
+- Ask for outside sharing only when a contractor lane is materially useful.
+- Use review-only workerbees before implementation workerbees unless ownership
+  boundaries are disjoint.
+- In Default mode, apply conservative defaults instead of asking non-blocking
+  sizing questions.
+- In Plan mode, surface coach questions whose answers change execution behavior,
+  including subagent parallelism and Beads context depth.
+- Keep model names and provider versions in policy. Prefer role-like executor
+  aliases from `policy/executor-registry.yaml` when writing new docs or plans.
 
-```bash
-./scripts/install.sh
-```
+## First Moves
 
-The installer autodetects the Codex skills directory from `CODEX_SKILLS_DIR`,
-`CODEX_HOME`, or `$HOME/.codex/skills`, then prompts for confirmation or a path
-override when running interactively. For unattended installs, pass an explicit
-target:
-
-```bash
-./scripts/install.sh --skills-dir /path/to/codex/skills --yes
-```
-
-The installer does not build a tarball. It copies `README.md`, `LICENSE`,
-`SKILL.md`, `AGENTS.md`, `VERSION`, `CHANGELOG.md`, `agents/`, `policy`,
-`templates/`, `experts/`, `references/`, `schemas/`, `examples/`, `docs/`, and
-`scripts/` into the selected skills directory. After copying, it runs
-`scripts/check_installed_skill.py` to compare a source-vs-installed content
-manifest and writes `.cwo-install-manifest.json` into the installed skill. To
-check an existing install without modifying it, run
-`python3 scripts/check_installed_skill.py --check`; if it reports `missing` or
-`drift`, rerun `./scripts/install.sh --skills-dir <codex-skills-dir> --yes`.
-The installer checks for the Beads CLI (`bd`) and never treats
-a missing Beads install as fatal. On Fedora/RPM-style hosts it prints package-install guidance,
-including the public `greg-at-redhat/beads` COPR as a fallback when the user
-does not have their own Beads package source. Set `BEADS_COPR` to print a
-different COPR enable command. On other systems it prints a warning and leaves
-the skill installed.
-
-## Documentation
-
-Use `README.md` as the human-facing operating guide for invocation, flow,
-external contracting, job-description labels, and Beads requirements. Use
-`policy/` as the machine-readable control plane, `templates/` for reusable Beads
-bodies, `experts/` for discipline calibration, `schemas/` for helper output
-contracts, `examples/` for smoke-test artifacts, `references/external-contracting.md`
-when posting or reviewing outside model contracts,
-`references/incident-response-playbook.md` for quarantine or suspected
-sabotage, `references/chatgpt-pro-browser.md` for ChatGPT Pro 5.5 Extended
-Reasoning browser launch, packet-size, CDP, and share-return operations,
-`references/prompt-coach.md` when sizing the invocation,
-`references/execution-environments.md` when selecting Codex, OpenCode,
-OpenShift AI vLLM, or manual execution environments,
-`references/zero-trust-consensus.md` when security-sensitive or explicitly
-requested synthesis work needs cross-domain claim comparison without treating
-agreement as validation,
-`references/codex-beads-hooks.md` when Codex lifecycle hook output becomes
-noisy and the operator needs to preserve Beads context injection while changing
-only display behavior,
-`policy/model-profiles.yaml` and `schemas/model-profile.schema.json` when
-binding CWO roles to RedHatAI-first Hugging Face models served through RHOAI
-vLLM in restricted or airgapped OpenCode paths,
-`references/run-readiness.md` before worker handoff when broad implementation,
-contractor evidence, synthesis, or publish/release risk requires owners, exit
-criteria, validation evidence, projection rules, quarantine semantics, and
-handoff evidence,
-`scripts/render_execution_status_report.py` when the operator needs an
-end-of-plan terminal or JSON accounting of explicit audit, readiness,
-evaluator, and return-bundle telemetry without estimating missing values,
-`references/redhat-expert-catalog.md` when selecting Red Hat product-focused
-Distinguished Engineer lenses, and `references/contractor-brief.md` as the
-briefing artifact given to an outside contractor with a specific Beads
-assignment. Use `scripts/build_beads_brief.py` for internal main-thread or
-subagent Beads context briefs; it must not be used to send raw Beads comments
-to outside contractors. Use `scripts/close_bead_with_summary.py` when closing meaningful
-Beads so the final comment preserves compact agent-memory context before the
-short close reason is recorded. Use `docs/workflows.html` for the publishable walkthrough of
-Codex-native `/plan` invocation, prompt-coach sizing, Beads work-graph
-creation, optional contractor or local-worker lanes, validation, and manual
-`claude -p`, `gemini -p`, `agy -p`, or ChatGPT Pro browser contractor handoff
-when external sharing is approved.
-Use `docs/local-workers.html` for the first-class in-Codex local-worker flow,
-including coach opt-in, OpenShift AI vLLM profile selection, dispatch envelope
-generation, explicit `--execute-local`, return evaluation, and architect
-adjudication. For public documentation, README/install docs, GitHub Pages,
-site structure, or Diataxis work, route through documentation plus web-design when a
-site/page is involved, then require the internal editor expert as the final
-validation gate before publish sanitization. Public narrative pages must not
-expose internal planning labels, contract labels, framework bookkeeping, or
-editor-gate mechanics as reader-facing product copy; translate those details
-into plain reader value unless the page is an explicit reference/operator
-lookup.
-
-The policy files intentionally use JSON-compatible YAML so helper scripts can
-run with the Python standard library only.
-
-## Role Model
-
-Default roles:
-
-- **Architect**: Codex 5.5 x-high if available. Owns decomposition, architecture, final integration, acceptance, release judgment, and escalation decisions.
-- **Project Manager**: simpler model. Owns Beads task-graph hygiene, status, dependencies, assignments, stale-work detection, and handoff completeness. Coordinates; does not decide architecture.
-- **Workerbee**: Codex 5.3-spark when available, otherwise the
-  smallest available capable review model. Owns bounded investigation, focused
-  patches, test triage, file search, evidence gathering, and narrow validation
-  tasks.
-- **Outside Contractor**: Claude or another external LLM. Receives one explicit bead/contract at a time, calibrated by a job-description label, and reports findings through Beads or a patch branch.
-- **Architecture Critic Contractors**: opt-in outside-contractor lanes for
-  second-opinion critique of a Codex architect design. Claude Opus 4.6 uses
-  `claude --model claude-opus-4-6 --effort high -p` or stronger effort when
-  architecture complexity warrants it. Gemini 3.1 Pro Preview uses
-  `agy --model gemini-3.1-pro-preview -p`. Either or both can run as
-  independent contractor-only Beads from the same proposal. They use
-  `contract-jd-architecture-reasoning`, start with a redacted packet by
-  default, and produce evidence for evaluation and architect adjudication, not
-  implementation authority.
-- **ChatGPT Pro Master Reviewer**: opt-in browser-mediated outside-contractor
-  lane for ChatGPT Pro 5.5 Extended Reasoning review of the final architect
-  plan or total work packet. It uses `contract-jd-master-plan-review`, starts
-  with a redacted packet by default, requires a share-link return, and remains
-  evidence for Codex plan revision. It is separate from Deep Research.
-- **Model Synthesis Lane**: opt-in coordination lane that combines independent
-  Codex, local, and outside-model evidence only after the individual returns
-  exist. It records consensus, material disagreements, unsupported claims,
-  risk deltas, evidence provenance, and recommended plan revisions. It is
-  CWO-native evidence collation, not direct OpenRouter Fusion API dispatch, and
-  architect adjudication remains the final authority. When zero-trust consensus
-  is required, synthesis also compares explicit structured claims across
-  independent trust domains and blocks implementation conversion on unresolved
-  material divergence.
-- **Local Worker**: local OpenAI-compatible inference. Receives only low-risk
-  local-worker review contracts after explicit `--local-ok`; output is evidence
-  and still needs evaluator scoring plus architect adjudication.
-- **OpenShift AI vLLM Worker**: named local profile selected with
-  `--local-profile openshift-ai-vllm`. It uses an OpenAI-compatible endpoint
-  configured by environment variables. `--execute-local` validates that the
-  endpoint is loopback or private, rejects URL credentials, disables proxies
-  and redirects, and reads API keys only from allowlisted local environment
-  variable names. Output is still bounded local-worker evidence, not
-  implementation authority.
-- **GLM-5.2 BF16 Thinking Critic**: named OpenShift AI vLLM local secure-review
-  executor `openshift_ai_vllm_glm_5_2_bf16_architecture_critic`. It is an
-  independent architecture-plan second opinion and primary-eligible synthesis
-  input when evaluator scoring and architect adjudication accept it. It sends
-  thinking-enabled request options but strips raw thinking from usable returns,
-  Beads, audit events, public docs, and synthesis artifacts.
-- **GLM-5.2 BF16 Primary Architect Bridge**: opt-in execution environment
-  `connected-codex-glm-primary`. The Codex shell acts as project manager,
-  `openshift_ai_vllm_glm_5_2_bf16_primary_architect` owns the architecture
-  plan as local read-only evidence, and
-  `codex_5_5_xhigh_architecture_critic` becomes the Codex 5.5 x-high
-  counter-review lane. GLM still has no shell, web, or repo-write authority;
-  Codex applies changes only after evaluator, synthesis, and adjudication gates
-  accept the work.
-- **Execution Environment**: v2 policy profile that names the harness,
-  provider boundary, role bindings, and constraints for a deployment zone.
-  Codex CLI is the connected default. OpenCode is the first open-source
-  exemplar. Airgapped profiles use local Beads plus OpenCode or manual operator
-  execution with OpenShift AI vLLM or another local OpenAI-compatible endpoint.
-- **Model Profile**: role-specific RHOAI/vLLM model binding for open-harness or
-  airgapped execution. The model-profile registry compares connected CWO
-  defaults, such as Codex 5.5 x-high architect, Codex PM coordination, and
-  Codex 5.3 Spark workerbees, with public Hugging Face models that can be
-  served locally. Profile output is still evidence and remains subject to
-  evaluator plus architect adjudication.
-- **Local Secure Reviewer**: local read-only reviewer for security, peer-review,
-  sabotage-review, or repo-review contracts. It can inspect approved repo
-  context locally, but has no web, shell, or repo-write authority and is still
-  forbidden from normal Codex pickup.
-
-The main thread remains the final decision owner. Escalate architecture changes,
-scope changes, release decisions, destructive actions, secret handling, and
-conflicting findings back to the architect.
-
-## Startup Protocol
-
-1. State whether the work is coherent in-thread or needs the harness. Beads tracking is mandatory either way; narrow in-thread work gets one Beads task.
-2. If the right amount of harness is unclear, use the prompt coach before
-   scaffolding. In Codex, this is normally triggered by a terse `/plan` request
-   that asks for `$complex-work-orchestration` prompt coaching:
-
-```text
-/plan Use $complex-work-orchestration prompt coach:
-<task text>
-```
-
-   Codex may run the helper behind the scenes to compile the launch prompt. Use
-   direct script execution only for advanced automation, CI, troubleshooting, or
-   an operator shell outside Codex:
+1. Decide the execution shape: in-thread, PM-only, tight-chain scaffold, or full
+   harness.
+2. If sizing is unclear, use the prompt coach:
 
 ```bash
 python3 scripts/coach_prompt.py "<task text>"
 ```
 
-   To test the GLM-primary architecture hierarchy while keeping Codex as the
-   project-manager shell, select the experimental environment explicitly:
-
-```bash
-python3 scripts/route_work.py \
-  --execution-environment connected-codex-glm-primary \
-  --model-synthesis \
-  --requested-role architecture \
-  "<task text>"
-```
-
-   Use the coach output to avoid under- or over-leveraging Beads, contractors,
-   local inference, peer review, workerbee parallelism, model synthesis, or
-   publish-sanitization. The coach also returns `operator_calibration`: require
-   `contract-jd-operator-calibrated-execution` for false-closure,
-   safety-deferred, not-run, exhausted-lane, or conflicting-review closeout
-   language; recommend it for autonomous loops, commit/push, publish,
-   mixed-evidence, and multi-target work. Do not treat that expert as a global
-   default for ordinary focused tasks. The coach always includes a subagent
-   parallelization choice in `interactive_questions`; surface it in Plan mode
-   even when the recommended default is no subagents. If
-   `workerbee_parallelism.recommended_mode` is `review-only` or `heavy-review`,
-   use Codex 5.3 Spark when available, or the smallest available capable review
-   model, for bounded parallel review or investigation lanes before automatic
-   workerbee handling exists.
-   Use implementation workerbees only when file ownership or workstream
-   boundaries are disjoint.
-   `model_synthesis` is separate from workerbee parallelism. Explicit fusion,
-   synthesis, ensemble, model-camp, or "more eyes" language sets
-   `recommended_mode=requested` and `active=true`. High-risk architecture,
-   provider-conflict, or creative design signals set
-   `recommended_mode=recommended` and require opt-in before the lane is active.
-   Accepted opt-in uses `recommended_mode=accepted`; in advanced helper usage,
-   pass `--model-synthesis` to `coach_prompt.py`, `route_work.py`, or
-   `scaffold_workgraph.py` to record that accepted state consistently. Outside
-   synthesis panel members still require explicit share-boundary opt-in, and the
-   synthesis artifact must carry evaluator dispositions for rejected,
-   quarantined, missing, timed-out, or boundary-tainted inputs.
-   If route output sets `zero_trust_consensus_required=true`, keep
-   `zero_trust_claims` as explicit structured input for accepted primary lanes.
-   Zero-trust consensus counts independent trust domains, reports excluded
-   inputs, scores comparable claim divergence, and uses only
-   `informational`, `blocked`, or `divergent` states. Agreement is never a
-   validation status; unresolved divergence remains architect-adjudicated
-   evidence.
-   Gemini/Agy architecture critique is salvage-only by default. It can inform
-   risk notes, alternate framing, and follow-up questions, but it does not count
-   toward `minimum_usable_inputs` unless the architect explicitly upgrades a
-   specific evaluated finding. Use `evidence_quality_score`,
-   evidence-quality signal categories, and the acceptance decision's advisory
-   `recommended_synthesis_use` to keep generic contractor advice out of primary
-   consensus. Synthesis remains authoritative for primary, salvage-only,
-   open-risk, rejected, quarantined, and readiness classification.
-   The coach also emits `scaffold_sizing`. Full graph remains the default, but
-   tight-chain language should be surfaced as a graph-size choice and executed
-   with `scaffold_workgraph.py --scaffold-size tight` when selected. Tight-chain
-   scaffolds preserve required gates while limiting optional expert fan-out.
-   The coach emits `beads_context_depth` and compatibility alias
-   `beads_briefing_depth` for internal Codex/subagent briefing. Values are
-   `none`, `summary`, `focused`, `heavy`, and `audit`. `none` performs no
-   `bd` lookup; `summary` reads assigned-Bead JSON without comments;
-   `focused`, `heavy`, and `audit` may include comments for internal agents
-   only. The coach always includes a Beads context-depth choice in
-   `interactive_questions`, defaulting to the autosized recommended value.
-   Outside contractors must still use `build_contractor_packet.py`.
-   If the result includes `interactive_questions` and Codex is in Plan mode,
-   present those as selectable prompts because the answer changes execution
-   behavior. In Default mode, ask only the concise blocking question or apply the
-   conservative default.
-3. If the work is non-trivial, risky, or may use outside contractors, classify
-   it against the policy. Read provider-conflict and peer-review fields as part
-   of the result:
+3. If routing matters, classify the work:
 
 ```bash
 python3 scripts/route_work.py "<task text>"
 ```
 
-4. If outside contracting may help, ask the third-party collaboration question
-   unless the user already opted in. Default to `no-outside-sharing`; if the user
-   permits sharing, re-run the route with `--external-ok --share-boundary <mode>`.
-   Repo-readonly and patch-branch packet builds require
-   `--allow-disclosure-escalation`, not just `--external-ok`.
-   For local inference, use `--local-ok` and only add `--prefer-local` when
-   low-risk local worker dispatch is the intended route. Use
-   `--local-profile openshift-ai-vllm` to require the OpenShift AI vLLM
-   executor profile.
-5. Before launching agents, automatically clean stale harness-owned agent
-   sessions and local state:
+4. Clean stale harness-owned local agent state before launching agents:
 
 ```bash
 python3 scripts/cleanup_stale_agents.py --json
 ```
 
-   The helper protects the current Codex process tree. It terminates only
-   harness-owned stale sessions by default. Run it from the target workspace, or
-   pass `--workspace-root <path>` when Codex was launched from a broader parent
-   directory. Use `--terminate-unowned-codex` only when the operator explicitly
-   wants to clean stale unowned Codex, Claude, or Agy processes in that
-   workspace.
-6. Check for Beads:
+Use `--workspace-root <path>` when the shell is above the target repo. Use
+`--terminate-unowned-codex` only when explicitly authorized.
+
+5. Check Beads and sync only when a Dolt remote exists:
 
 ```bash
 command -v bd
 test -d .beads && bd ready --json || true
-```
-
-7. If Beads is available, initialize it when needed and check whether a Dolt
-   remote is configured:
-
-```bash
-bd init    # only if this repo should own the work story and .beads is absent
 bd dolt remote list
-bd dolt pull    # only when a Dolt remote exists
 ```
 
-8. If Beads has no Dolt remote, keep the graph local and do not claim it is
-   synced. If Beads is unavailable, create the same task or graph structure in a
-   temporary Markdown plan and say that durability is reduced.
-9. If Codex displays the SessionStart Beads hook context in the shell, treat it
-   as a presentation issue. Use `scripts/configure_codex_beads_hooks.py` and
-   `references/codex-beads-hooks.md`; keep `full-context` unless the installed
-   Codex binary supports `visibilityHint`. Do not disable hooks, redirect hook
-   output, or switch to memories-only context as a default noise fix.
+If Beads is unavailable, use a temporary Markdown plan and say durability is
+reduced. Do not claim local Beads state is synced without a Dolt remote.
 
-## Scaffold Shape
+## Scaffold Choices
 
-Create one epic for the project goal, then create role/lane tasks under it.
-Use dependencies to represent real ordering, not decorative hierarchy.
-
-When helper scripts are available, prefer:
+Use one manual Bead for narrow work. Use tight-chain scaffolds when the task
+needs architecture, implementation, validation, and wrap-up without optional
+fan-out:
 
 ```bash
-python3 scripts/scaffold_workgraph.py --title "<project goal>" --description "<scope>"
-python3 scripts/scaffold_workgraph.py --title "<focused review>" --description "<scope>" --scaffold-size tight
-python3 scripts/spawn_expert_reviews.py --parent <epic-or-task-id> "<review scope>"
+python3 scripts/scaffold_workgraph.py \
+  --title "<goal>" \
+  --description "<scope>" \
+  --scaffold-size tight
 ```
 
-For validation or advanced automation, `scaffold_workgraph.py --dry-run
---format beads-graph` emits a JSON plan accepted by `bd create --graph`; normal
-execution still creates Beads directly so native `skills`, `acceptance`,
-`design`, and `notes` fields are populated. `--scaffold-size tight` keeps a
-focused chain by retaining required gates, the primary expert lane, and explicit
-architecture-critic contracts while dropping optional secondary expert fan-out.
-If even that is too much, create one manual Bead instead of scaffolding.
-
-Recommended lanes:
-
-- Architect framing
-- Project manager coordination
-- Implementation workerbee lane
-- Test/validation workerbee lane
-- Review-only workerbee lane for parallel docs, policy, routing, validation, or publish-sanitization sidecar work
-- Outside contractor lane with job-description contracts
-- ChatGPT Pro master-plan review lane when explicitly requested before
-  implementation handoff
-- Peer-review lane when route output sets `peer_review_required=true`
-- Release or publish sanitization lane, when relevant
-- Docs/handoff lane, when relevant
-
-Before implementation handoff on broad, contractor-reviewed, synthesized, or
-publish/release-sensitive work, require a run readiness gate. Use
-`templates/run-readiness-plan.md` or a JSON artifact shaped by
-`schemas/run-readiness-plan.schema.json`, then validate it with
-`scripts/validate_run_readiness_plan.py`. The plan must keep Beads canonical,
-declare `run-sheet`, `wrap-up-status`, and `next-version` as typed Beads
-projections, map rubric-owned criterion IDs to evidence, record provider
-provenance and quarantine semantics, require boundary negative tests, type
-next-version deferrals, keep patrol work research-only until accepted, and
-name handoff evidence for workers. For run-sheet or wrap-up/status requests,
-render Beads-derived projections with `scripts/render_run_projection.py` from a
-validated readiness plan. For end-of-plan resource, expert, agent/model, and
-review-lane accounting, use `scripts/render_execution_status_report.py` with
-explicit audit, readiness, evaluator, and return-bundle inputs; missing tokens,
-timings, calls, and retries must render as unavailable instead of inferred.
-The terminal report defaults to a compact dashboard for constrained terminals;
-pass `--layout expanded` for long expert, role, and agent/model identifiers, or
-`--layout summary` for the grouped view.
-For next-version requests, require an allowed `reason_type` and follow-up Bead.
-For patrol or recurring-work requests, create research Beads only until
-ownership, locking, history, failure containment, and provider-neutral
-execution are accepted.
-
-Useful Beads patterns:
+Use the full graph for broad, risky, multi-lane, contractor-reviewed,
+synthesized, or release-sensitive work:
 
 ```bash
-bd create "<project goal>" --type epic
-bd create "<bounded task>" --type task
-bd dep add <blocked-id> <blocker-id>
-bd ready --json
-bd show <id> --json
-bd comment <id> "<evidence, findings, validation, risk>"
-bd close <id>
-bd dolt commit
-bd dolt push    # only when a Dolt remote exists
+python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 ```
 
-Before closing a non-trivial Bead, add a final closure-memory comment. This is
-required for epics, contractor or local-worker lanes, evaluation and architect
-adjudication lanes, validation and publish-sanitization lanes, abandoned or
-superseded work, and any task with a non-obvious technical decision. The close
-reason should stay terse; the final comment should preserve who was involved,
-what changed, why it closed, how it was validated, when it closed, where it
-ran, key decisions, evidence, residual risk, and follow-up. Tiny mechanical leaf
-tasks may rely on the close reason only when it fully explains the outcome.
+`--dry-run --format beads-graph` renders a graph accepted by
+`bd create --graph`; normal execution creates Beads directly.
 
-Preferred helper:
+## Reference Map
+
+- Human operating guide: `README.md`
+- Prompt coach: `references/prompt-coach.md`
+- External contracting and trust boundary: `references/external-contracting.md`
+- Contractor briefing: `references/contractor-brief.md`
+- ChatGPT Pro browser lane: `references/chatgpt-pro-browser.md`
+- Execution environments and local inference: `references/execution-environments.md`,
+  `references/local-inference.md`
+- Zero-trust consensus: `references/zero-trust-consensus.md`
+- Run readiness: `references/run-readiness.md`
+- Beads hook display: `references/codex-beads-hooks.md`
+- Incident response and quarantine: `references/incident-response-playbook.md`
+- Red Hat expert catalog: `references/redhat-expert-catalog.md`
+- Publishable workflow pages: `docs/workflows.html`, `docs/local-workers.html`
+
+Use `policy/` as the machine-readable control plane, `templates/` for reusable
+Beads bodies, `experts/` for discipline calibration, `schemas/` for helper
+output contracts, and `examples/` for smoke-test artifacts.
+
+## Contractor And Local Worker Gates
+
+Outside contractor packets require explicit opt-in, one primary
+`contract-jd-*` label, guard labels, share boundary, provider metadata, packet
+validation, audit, return normalization, evaluation, and architect
+adjudication. Build and dispatch through helpers:
 
 ```bash
-python3 scripts/close_bead_with_summary.py \
-  --bead <id> \
-  --disposition completed \
-  --why "accepted change validated" \
-  --who "Codex main thread; reviewer lane or operator if applicable" \
-  --what "files, behavior, or workstream result" \
-  --how "validation commands, review evidence, CI, or install smoke" \
-  --when "branch, commit, run ID, or date" \
-  --where "repo path, branch, environment, and Beads local-only or Dolt-backed mode" \
-  --decision "kept close_reason terse and stored reusable context in the final comment" \
-  --evidence "python scripts/validate_repository.py" \
-  --residual-risk "none known" \
-  --follow-up "none" \
-  --meaningful \
-  --close
-```
-
-Each task should include:
-
-```text
-Purpose:
-Scope:
-Inputs:
-Allowed changes:
-Do not touch:
-Expected output:
-Validation required:
-Escalation triggers:
-Handoff format:
-```
-
-Generated Beads should also populate native `bd create` fields:
-
-```text
---skills      Required skills or expert lens
---acceptance  Concrete done criteria
---design      Approach, boundaries, and control model
---notes       Route summary, assumptions, and handoff context
-```
-
-When creating Beads manually, do not type literal `\n` into text fields. Use
-real newlines through a heredoc, `--body-file`, `--design-file`, or shell
-command substitution.
-
-For outside-contractor tasks, also include:
-
-```text
-Contractor job description:
-Contract labels:
-Share boundary:
-Output rule: Output-only by default; use the exact contractor return template.
-Patch rule: patch-branch means diff/proposal unless direct mutation is explicitly authorized.
-Codex handling rule:
-```
-
-## Contractor Job Descriptions
-
-Treat outside-contractor work as posted contracts. A contract has a narrow job
-description that calibrates the outside model's reasoning lens. The label is not
-decorative: it tells the contractor what kind of review to perform and tells
-Codex agents not to pick up the bead as normal ready work.
-
-Ask one explicit collaboration question before creating outside contracts unless
-the user has already opted in:
-
-```text
-Should this project use a third-party model contractor for deep reasoning? If
-yes, what may be shared: redacted packet only, repo read-only, patch branch, or
-no outside sharing?
-```
-
-Default to no outside sharing. If the user asks for Claude, Opus, Mythos, or
-another outside model, treat that as model opt-in, but still confirm the sharing
-boundary before exporting private context, secrets, unreleased content, or repo
-state. Packet generation must still record explicit opt-in with `--external-ok`
-or `--opt-in-record`; model preference alone is not enough to export context.
-Structured opt-in records may also include `allowed_providers` to constrain
-which provider profile is approved.
-
-Provider identity is part of contractor control. Executors are bound to provider
-profiles in `policy/provider-registry.yaml`; route output can set
-`provider_conflict_detected` and list domains such as frontier model work or
-model-provider competition. Provider conflict forces peer review and architect
-adjudication before findings can become implementation direction.
-
-Every outside contract should have these guard labels:
-
-- `contractor-only`
-- `no-codex-exec`
-
-Every local-worker review contract should have these guard labels:
-
-- `local-worker-only`
-- `no-codex-exec`
-
-Add exactly one primary job-description label:
-
-The `contract-jd-*` labels calibrate the reasoning lens for any contract-style
-review lane. They are used by outside contractors, local-worker review beads,
-peer-review gates, and editor gates; guard labels such as `contractor-only` or
-`local-worker-only` still determine who may pick up the work.
-
-- `contract-jd-general-reasoning`: independent second opinion, assumptions, tradeoffs, failure modes, and alternative approaches.
-- `contract-jd-security-reasoning`: security-focused glance, threat model, privilege boundaries, input handling, authn/authz, secret exposure, dependency and supply-chain risk.
-- `contract-jd-architecture-reasoning`: system design, boundaries, coupling, migration paths, data flow, long-term maintainability, and reversibility.
-- `contract-jd-master-plan-review`: independent master review of the final
-  execution plan or total work packet before implementation handoff.
-- `contract-jd-operator-calibrated-execution`: execution discipline, evidence
-  classification, scope control, safety-deferred residual risk, false-closure
-  checks, and requested closeout.
-- `contract-jd-reliability-reasoning`: operational failure modes, recovery, observability, rollout, concurrency, state, and incident risk.
-- `contract-jd-performance-reasoning`: scaling behavior, algorithmic cost, resource pressure, hot paths, caching, and benchmark gaps.
-- `contract-jd-docs-reasoning`: correctness, clarity, audience fit, missing warnings, examples, and publishability.
-- `contract-jd-editorial-reasoning`: final public docs/pages editorial review for flow, documentation-architecture fit, redundancy, circular content, draft-like wording, and publishable narrative.
-- `contract-jd-peer-review`: independent gate for contractor or local-worker
-  returns when route output sets `peer_review_required=true`.
-- `contract-jd-sabotage-review`: integrity review for suspected sabotage,
-  malpractice, fabricated evidence, provider conflict, or boundary-breaking
-  output.
-- `contract-jd-domain-<name>`: any other discipline-specific contract, such as `contract-jd-domain-selinux` or `contract-jd-domain-api-compat`.
-
-Use metadata to make the contract machine-readable:
-
-```bash
-body=$(cat <<'EOF'
-Purpose:
-Scope:
-Inputs:
-Allowed changes:
-Do not touch:
-Expected output:
-Validation required:
-Escalation triggers:
-Handoff format:
-Contractor job description:
-Contract labels:
-Share boundary:
-Codex handling rule: Codex agents may coordinate, brief, and review this bead, but must not execute or close it as contractor work.
-EOF
-)
-
-bd create "Claude Opus review: security-focused reasoning for <scope>" \
-  --type task \
-  --labels contractor-only,no-codex-exec,contract-jd-security-reasoning \
-  --assignee external-claude-opus \
-  --skills security,contractor-control,beads \
-  --acceptance "Security findings cite evidence, mitigations are testable, and architect review remains required." \
-  --design "Apply the security job-description lens within the approved share boundary; do not perform implementation work." \
-  --notes "Share boundary: redacted-packet. Codex pickup: forbidden. Return channel: bd-comment." \
-  --metadata '{"executor":"external-llm","codex_pickup":"forbidden","job_description":"security-focused reasoning","discipline":"security","share_boundary":"redacted-packet","return_channel":"bd-comment","architect_review_required":true}' \
-  --description "$body"
-```
-
-Codex agents should use ready-work filters that exclude contractor and
-local-worker contract work:
-
-```bash
-bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json
-```
-
-Project-manager or architect dispatch may inspect contract work explicitly:
-
-```bash
-bd ready --label contractor-only --json
-bd ready --label local-worker-only --json
-bd show <id> --json
-```
-
-Do not ask outside models for raw chain-of-thought. Ask for conclusions,
-assumptions, evidence, alternatives considered, risks, confidence, and
-recommended next actions. The rendered contractor prompt must require output
-only: no preamble, no internal action narration, and no hidden reasoning text.
-
-Before giving a Bead to an outside model, build a packet through the gate:
-
-```bash
-python3 scripts/build_contractor_packet.py \
-  --bead <id> \
-  --executor external_security_reviewer \
-  --share-boundary redacted-packet \
-  --external-ok \
-  --attest-packet \
-  --format json \
-  --output contractor-packet.json
-```
-
-For repo-readonly or patch-branch packets:
-
-```bash
-python3 scripts/build_contractor_packet.py \
-  --bead <id> \
-  --executor external_security_reviewer \
-  --share-boundary repo-readonly \
-  --allow-disclosure-escalation \
-  --external-ok \
-  --format json \
-  --output contractor-packet.json
-```
-
-Treat `patch-branch` as a patch proposal boundary by default: the contractor may
-return a diff, patch artifact, or branch reference for architect review. Direct
-mutation of the active checkout requires an explicit Bead/operator
-authorization and must be checked with a tracked-workspace mutation report.
-
-The packet includes the matched Distinguished Engineer profile by default. A
-packet without that profile is degraded and must be built with
-`--degraded-context-justification`; dispatch still requires
-`--allow-degraded-packet`. Multi-discipline reviews require multiple contractor
-Beads, each with exactly one primary job-description label and one matching
-profile. Pass `--epic <id>` when an epic exists so dispatch quotas are scoped
-correctly. Use `--opt-in-record <path>` instead of `--external-ok` when opt-in
-is recorded in a structured local JSON audit note. Preferred opt-in records use
-`allowed_external_executors`, a timezone-aware `recorded_at`, optional
-`expires_at`, optional `allowed_providers`, and project/epic/bead scope fields;
-legacy `allowed_executors` records remain accepted. Packet build audits by
-default; use `--no-audit` only for tests or dry rehearsals that must not
-consume quota.
-
-Generate the manual dispatch prompt from an approved packet. Do not claim that
-this helper called the outside model automatically. Dispatch revalidates the
-packet hash, executor, provider binding, opt-in basis, boundary, disclosure
-stage, expert profile, mandatory exclusions, selected snippets, and artifact
-whitelist before rendering. It also audits by default:
-
-```bash
+python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --external-ok --format json --output contractor-packet.json
 python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
+python3 scripts/normalize_contractor_return.py --bead <id> --dispatch-id <id> --packet-sha256 <sha> --file contractor-return.md --output contractor-return-bundle.json
+python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
-The prompt includes `CONTRACTOR RETURN TEMPLATE - COPY EXACTLY` and tells the
-contractor not to include a preamble, internal action narration, or direct
-checkout mutation claims unless explicitly authorized.
+For ChatGPT Pro browser review, use `scripts/chatgpt_browser_review.py` and
+require confirmed model attestation plus a share-link return before using the
+result. For local inference, require `--local-ok`; use `--prefer-local` only for
+low-risk work where a local review lane is intended.
 
-For ChatGPT Pro 5.5 Extended Reasoning master-plan review, use the dedicated
-browser helper instead of `dispatch_work.py`. First assemble the final plan
-bundle from `templates/master-review-plan-packet.md`; the packet must include
-the execution plan, Beads graph summary, validation plan, repository evidence,
-route/coach outputs, known risks, and open questions:
+Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a
+checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, or
+boundary-tainted returns until peer review and architect adjudication complete.
+
+## Run Readiness And Closeout
+
+Before broad implementation handoff, validate a run-readiness plan:
 
 ```bash
-mkdir -p work-packets
-cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
-# Fill work-packets/master-review-plan.md with the actual plan and evidence.
-
-python3 scripts/build_contractor_packet.py \
-  --bead <id> \
-  --executor chatgpt_pro_5_5_extended_reasoning_browser \
-  --share-boundary redacted-packet \
-  --external-ok \
-  --job-description contract-jd-master-plan-review \
-  --snippet-file work-packets/master-review-plan.md \
-  --attest-packet \
-  --format json \
-  --output master-plan-review-packet.json
-
-python3 scripts/chatgpt_browser_review.py \
-  --packet master-plan-review-packet.json \
-  --confirm-only \
-  --json \
-  > master-plan-review-confirmation.json
-
-python3 scripts/chatgpt_browser_review.py \
-  --packet master-plan-review-packet.json \
-  --json \
-  > master-plan-review-dispatch.json
-
-python3 scripts/ingest_chatgpt_share_return.py \
-  "$(jq -r '.share_url' master-plan-review-dispatch.json)" \
-  --bead <id> \
-  --dispatch-id <dispatch-id> \
-  --packet-sha256 <packet-sha256> \
-  --output master-plan-review-return.md
+python3 scripts/validate_run_readiness_plan.py <plan.json>
+python3 scripts/render_run_projection.py <plan.json> --projection run-sheet
+python3 scripts/render_execution_status_report.py <inputs>
 ```
 
-`--snippet-file` accepts only repository-safe text files. Absolute paths are
-allowed only when they resolve inside the repository; outside-repository paths,
-secret-looking names, blocked control directories, binary files, and private-key
-suffixes are rejected. Use an ignored repo-local path such as `work-packets/`
-for operator work packets.
-
-The browser config comes from `CWO_CHATGPT_BROWSER_CONFIG` or
-`$HOME/.config/cwo/chatgpt-browser.json`; keep it outside the repo with mode
-`0600` and operator-managed browser authentication. Do not put Google
-credentials, browser session material, or private packet content in prompts,
-Beads comments, audit logs, or public docs.
-For the durable operating recipe, including the Fedora Wayland/systemd launcher,
-read `references/chatgpt-pro-browser.md`. Prefer
-`scripts/launch_chatgpt_cdp_chrome.sh --write-config` over directly executing
-Chrome from Codex; it starts Chrome through `systemd-run --user`, uses the
-dedicated profile, writes a localhost-CDP config, and keeps the visible browser
-outside the launcher process lifetime.
-ChatGPT Pro reviews are expensive and slow, so the browser helper is
-fail-closed by default. With `require_model_confirmation` enabled, it must
-observe configured selectors proving both `model_label` and `reasoning_label`
-before submitting the prompt. Treat a share link as valid master-review
-evidence only when the dispatch result includes `model_attestation.status` of
-`confirmed`. If the visible answer came from the wrong model or unproven effort,
-record the invalidation in Beads and do not use it to revise the plan. Use
-`--dry-run` before live Pro work and require
-`model_confirmation_configured: true` in the summary.
-Keep browser prompts compact. The browser helper refuses prompts above
-`max_prompt_chars` before launching or touching the browser; the default limit
-is `50000`. If the rendered prompt is too large, create a compact
-`--snippet-file` plan packet instead of retrying the visible browser.
-When the user explicitly asks for ChatGPT Pro 5.5 master review before
-execution, that review is a blocking gate. If model confirmation, dispatch,
-share-link ingest, return evaluation, or architect adjudication fails, stop
-before implementation and ask the operator to fix the lane or explicitly record
-a waiver/downgrade in Beads. Do not silently substitute Gemini, Opus, Deep
-Research, or a normal internal review for the requested Pro lane.
-When Cloudflare or account prompts require a normal browser session, launch the
-dedicated profile with `scripts/launch_chatgpt_cdp_chrome.sh` and set
-`connect_over_cdp_url` in the local config. CDP attach URLs must be
-unauthenticated localhost URLs; do not expose the debugging port remotely.
-If the ChatGPT sharing UI copies the public link directly to the OS clipboard,
-the helper may read the local clipboard after pressing Share and accept only a
-validated ChatGPT share URL. Do not grant ChatGPT page-side clipboard-read
-permission for this workflow.
-If a Pro response leaves the page above the final answer, the helper attempts
-to click ChatGPT's scroll-to-bottom control before opening Share. Override the
-default selector with `selectors.scroll_to_bottom_button` when the UI changes.
-
-For direct route dispatch without a packet, pass `--dispatch-id` when the
-operator needs quota checks, output, and audit entries to share a stable
-identity.
-
-After the contractor returns, evaluate the handoff before converting findings to
-implementation work:
+Before closing meaningful Beads, add a compact closure-memory comment. Prefer:
 
 ```bash
-python3 scripts/normalize_contractor_return.py \
-  --bead <id> \
-  --dispatch-id <dispatch-id> \
-  --packet-sha256 <packet-sha256> \
-  --file contractor-return.md \
-  --workspace-mutation-report mutation-report.json \
-  --output contractor-return-bundle.json
-
-python3 scripts/evaluate_return.py \
-  --bead <id> \
-  --file contractor-return.md \
-  --workspace-mutation-report mutation-report.json
+python3 scripts/close_bead_with_summary.py --bead <id> --disposition completed --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful --close
 ```
 
-Evaluation emits `evidence_quality_score`, `recommended_synthesis_use`,
-`sabotage_score`, `malpractice_score`,
-`peer_review_required`, `peer_review_status`,
-`human_adjudication_required`, `provider_key`, `provider_trust_tier`,
-`provenance_class`, and `recommended_disposition`. Research-style returns may
-also emit `research_evidence_score`, `research_evidence_items`,
-`research_contradictions`, `research_reflection`, unresolved contradiction
-counts, and replan signals; treat those as source-grounding evidence for
-adjudication, not as direct implementation authority. For local-worker returns,
-pass `--executor openshift_ai_vllm_worker` or the equivalent provider and local
-profile fields from the dispatch envelope so architect adjudication can
-distinguish local OpenShift AI vLLM evidence from external frontier contractor
-evidence. If evaluation
-returns `quarantine`, a high sabotage score, or a high malpractice score,
-isolate the return, run peer review or local secure review as appropriate, and
-require architect adjudication before any implementation dependency is created.
-When an external CLI can see a checkout, use `scripts/workspace_mutation_guard.py`
-to snapshot before the run and compare after it. If route policy requires peer
-review or provider conflict is present, a contractor cannot dismiss that gate.
-
-## Contractor Interaction
-
-For Claude or another outside agent, use
-`references/contractor-brief.md` as the reusable briefing artifact. Provide the
-contractor with the file plus a specific bead assignment. The assignment packet
-must name the job-description label and the discipline-specific review lens.
-
-Contractor rules:
-
-- start with `bd dolt pull` only when a Dolt remote exists, then
-  `bd show <id> --json`
-- work only the assigned bead unless a blocker is discovered
-- honor the assigned job description; do not convert a security contract into a generic review
-- do not re-plan the whole project
-- do not close parent epics
-- do not publish, release, tag, rotate secrets, or run destructive commands
-- leave evidence in `bd comment`
-- close or block the assigned bead with a clear reason
-- sync before handoff when Beads sync is configured
+Tiny mechanical leaf tasks can rely on the close reason when it fully explains
+the outcome.
 
 ## Required Output
 
-When this skill is used, produce a concise orchestration packet:
+When CWO is used, return only the useful orchestration packet:
 
-- harness decision: in-thread with Beads task, PM-only, or full architect/PM/workerbee/contractor setup
-- prompt coach result when sizing was unclear: recommended level, missing
-  questions, `beads_tracking_required`, enabled/disabled levers, warnings, and
-  paste-ready prompt
-- policy route: route class, task class, risk, data sensitivity, dispatch
-  sensitivity, share boundary, provider conflict domains, peer-review status,
-  selected experts, and recommended executor
-- role roster with model/effort choices
-- Beads task or epic/task list, with IDs when created
-- dependency graph summary
-- contractor-ready assignments
-- dispatch, evaluation, and architect-adjudication requirements
-- return normalization, sabotage/quarantine handling, and attestation/audit
-  verification requirements when external or local contracts are used
-- validation matrix
-- escalation rules
-- resume instructions using `bd ready --json`
+- harness decision and why
+- coach result, if used
+- route class, risk, sensitivity, selected experts, and executor
+- Beads tasks or graph summary
+- contractor, local-worker, evaluation, and adjudication gates, if any
+- validation matrix and escalation rules
+- resume command, usually `bd ready --json`
 
 For broad or risky work, do not begin worker execution until the user has seen
 the scaffold unless they explicitly asked you to proceed end to end.

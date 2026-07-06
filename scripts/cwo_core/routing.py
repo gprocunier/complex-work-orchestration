@@ -17,6 +17,7 @@ from .policy import (
     SENSITIVITY_ORDER,
     boundary_config,
     detect_provider_conflicts,
+    executor_config,
     load_policy,
     peer_review_policy,
     provider_metadata_for_executor,
@@ -110,8 +111,10 @@ def execution_environment_role_executor(environment: dict[str, Any], role: str) 
 def executor_registry_entry(executor_key: str | None) -> dict[str, Any]:
     if not executor_key:
         return {}
-    executor = load_policy("executor-registry").get("executors", {}).get(executor_key)
-    return dict(executor) if isinstance(executor, dict) else {}
+    try:
+        return executor_config(executor_key)
+    except SystemExit:
+        return {}
 
 
 def execution_environment_summary(environment_key: str, environment: dict[str, Any]) -> dict[str, Any]:
@@ -407,11 +410,26 @@ def is_public_docs_page_path(path: str) -> bool:
     return Path(clean).suffix in PUBLIC_DOCS_PAGE_SUFFIXES
 
 
+DOC_SAFE_EXPERTS_FOR_TRIVIAL_CHANGE = {"documentation", "general_reasoning"}
+DOC_FILE_SUFFIXES = {".adoc", ".md", ".mdx", ".rst", ".txt"}
+DOC_PATH_PREFIXES = ("docs/", "references/", "templates/", "examples/")
+
+
+def is_documentation_file_path(path: str) -> bool:
+    clean = path.strip().lstrip("./")
+    name = Path(clean).name
+    if clean in PUBLIC_DOCS_PATHS or name in {"README.md", "SKILL.md", "CHANGELOG.md"}:
+        return True
+    return clean.startswith(DOC_PATH_PREFIXES) and Path(clean).suffix in DOC_FILE_SUFFIXES
+
+
 def public_docs_editor_gate_required(text: str, file_paths: list[str] | None = None) -> bool:
+    if trivial_single_file_docs_change(text, file_paths):
+        return False
     lowered = text.lower()
     if any(term in lowered for term in PUBLIC_DOCS_EDITOR_TEXT_TERMS):
         return True
-    return any(is_public_docs_path(path) for path in file_paths or [])
+    return any(is_public_docs_page_path(path) for path in file_paths or [])
 
 
 def public_docs_page_review_required(text: str, file_paths: list[str] | None = None) -> bool:
@@ -419,6 +437,97 @@ def public_docs_page_review_required(text: str, file_paths: list[str] | None = N
     if any(term in lowered for term in PUBLIC_DOCS_PAGE_TEXT_TERMS):
         return True
     return any(is_public_docs_page_path(path) for path in file_paths or [])
+
+
+def trivial_single_file_docs_change(text: str, file_paths: list[str] | None = None) -> bool:
+    lowered = text.lower()
+    trivial_terms = [
+        "typo",
+        "spelling",
+        "grammar",
+        "punctuation",
+        "copy edit",
+        "copy-edit",
+        "wording",
+        "single-file",
+        "single file",
+        "one-file",
+        "one file",
+    ]
+    public_or_publish_terms = [
+        "publish",
+        "release",
+        "public docs",
+        "public documentation",
+        "public guide",
+        "operator docs",
+        "install docs",
+        "installation docs",
+        "install section",
+        "github pages",
+        "github page",
+        "docs site",
+        "documentation site",
+        "site flow",
+        "docs flow",
+        "pages flow",
+        "documentation architecture",
+        "diataxis",
+        "diátaxis",
+    ]
+    mixed_intent_terms = [
+        "auth",
+        "authn",
+        "authz",
+        "credential",
+        "harden",
+        "secret",
+        "security",
+        "token",
+    ]
+    docs_scope_terms = [
+        "readme",
+        "skill.md",
+        "docs",
+        "documentation",
+        "markdown",
+    ]
+    if not any(term in lowered for term in trivial_terms):
+        return False
+    if any(term in lowered for term in public_or_publish_terms):
+        return False
+    if term_hits(lowered, mixed_intent_terms):
+        return False
+    paths = [path.strip().lstrip("./") for path in (file_paths or []) if str(path).strip()]
+    if paths:
+        if len(paths) > 1:
+            return False
+        if is_public_docs_page_path(paths[0]):
+            return False
+        return is_documentation_file_path(paths[0])
+    return bool(term_hits(lowered, docs_scope_terms))
+
+
+def expert_has_non_path_reason(expert: dict[str, Any]) -> bool:
+    return any(
+        not str(reason).startswith("path patterns:")
+        for reason in expert.get("reasons", [])
+    )
+
+
+def trivial_docs_only_change(
+    text: str,
+    file_paths: list[str] | None,
+    experts: list[dict[str, Any]],
+) -> bool:
+    if not trivial_single_file_docs_change(text, file_paths):
+        return False
+    for expert in experts:
+        if expert.get("name") in DOC_SAFE_EXPERTS_FOR_TRIVIAL_CHANGE:
+            continue
+        if expert_has_non_path_reason(expert):
+            return False
+    return True
 
 
 def ensure_public_docs_gate_experts(
@@ -758,6 +867,13 @@ def classify_work(
         file_paths=file_paths,
         stage=stage,
     )
+    small_docs_change = trivial_docs_only_change(text, file_paths, experts)
+    if small_docs_change:
+        experts = [
+            expert
+            for expert in experts
+            if expert.get("name") in {"documentation", "general_reasoning"}
+        ]
     if not experts:
         experts = score_experts_v2(text + " independent review", expert_registry)
     requested = {role.lower() for role in (requested_roles or [])}
@@ -799,6 +915,8 @@ def classify_work(
     sensitivity = detect_sensitivity(text, routing)
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
     risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
+    if small_docs_change:
+        risk = "low"
     provider_conflict_domains = detect_provider_conflicts(text)
     enriched_experts: list[dict[str, Any]] = []
     for expert in experts:
