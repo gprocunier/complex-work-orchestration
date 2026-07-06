@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SKILL_NAME="complex-work-orchestration"
-DEFAULT_BEADS_COPR="greg-at-redhat/beads"
-BEADS_COPR="${BEADS_COPR:-$DEFAULT_BEADS_COPR}"
+PUBLIC_BEADS_COPR="greg-at-redhat/beads"
+BEADS_COPR="${BEADS_COPR:-}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
@@ -67,7 +67,7 @@ Options:
 Environment:
   CODEX_SKILLS_DIR    Preferred skills directory override.
   CODEX_HOME          Codex home directory; defaults to $HOME/.codex.
-  BEADS_COPR          COPR owner/project to show when bd is missing on RPM hosts.
+  BEADS_COPR          Optional COPR owner/project to show when bd is missing on RPM hosts.
 USAGE
 }
 
@@ -364,12 +364,12 @@ check_beads() {
 
   if is_rpm_host; then
     say "For Fedora or EPEL systems, install Beads from your configured package source."
-    if [ "$BEADS_COPR" = "$DEFAULT_BEADS_COPR" ]; then
-      say "If you do not have your own Beads package, you can use the public COPR:"
-      print_copr_command "$BEADS_COPR"
-    elif [ -n "$BEADS_COPR" ]; then
+    if [ -n "$BEADS_COPR" ]; then
       say "To use your configured COPR:"
       print_copr_command "$BEADS_COPR"
+    else
+      say "If you need a public example COPR, verify it fits your environment first:"
+      print_copr_command "$PUBLIC_BEADS_COPR"
     fi
     say "  sudo dnf install beads"
     say "Then verify:"

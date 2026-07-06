@@ -658,16 +658,19 @@ binding, and expert profile for outside or local review.
   master-plan review with `chatgpt_pro_browser_master_reviewer`.
   Configure it with `CWO_CHATGPT_BROWSER_CONFIG`; keep the config outside the
   repository with operator-managed browser authentication and mode `0600`.
-- `scripts/launch_chatgpt_cdp_chrome.sh`: systemd/Wayland launcher for the
-  ChatGPT Pro browser lane. It starts the dedicated Chrome profile with a
-  localhost CDP port and can write the safe local browser config used by
-  `chatgpt_browser_review.py`.
+- `scripts/launch_chatgpt_cdp_chrome.sh`: ChatGPT Pro browser lane helper. It
+  can launch the dedicated Chrome profile through systemd/Wayland or print a
+  foreground operator command, uses a localhost CDP port, and can write the safe
+  local browser config used by `chatgpt_browser_review.py`.
 - `scripts/ingest_chatgpt_share_return.py`: read the resulting ChatGPT share
   link through the local `chatgpt-share-local-reader` skill and render a
   contractor-return template for evaluation.
 - `scripts/check_installed_skill.py`: compare this checkout with the installed
   Codex skill using a content manifest; use `--check` to fail on missing or
   drifted installs and rerun `scripts/install.sh` to reload.
+- `scripts/generate_site.py`: regenerate or check the shared GitHub Pages HTML
+  shell while preserving each page body. CI runs `--check` so header, primary
+  navigation, favicon, and footer drift is caught without prose-string tests.
 - `scripts/configure_codex_beads_hooks.py`: render or apply `.codex/hooks.json`
   Beads lifecycle hooks; `full-context` preserves automatic Beads injection,
   while `quiet` requires detected Codex `visibilityHint` support or an explicit
@@ -1212,9 +1215,9 @@ python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgrap
 ```
 
 On Fedora or EPEL-style systems, use your configured Beads package source. If
-you do not have one, the installer suggests the public `greg-at-redhat/beads`
-COPR. Set `BEADS_COPR=owner/project` before running the installer to point the
-hint at a different COPR. The default Fedora/RHEL path is:
+you need a public example, the installer prints the `greg-at-redhat/beads` COPR
+as a copy-paste hint. Set `BEADS_COPR=owner/project` before running the
+installer to point the hint at a different COPR:
 
 ```bash
 sudo dnf copr enable greg-at-redhat/beads
@@ -1631,8 +1634,8 @@ Browser helper prerequisites:
   `python3 -m playwright install chromium`.
 - Chrome or Google Chrome must be available for the operator-managed profile.
 - `jq` is used by the examples to extract dispatch identity from JSON.
-- Optional local clipboard tools such as `qdbus`, `wl-paste`, `xclip`, or
-  `xsel` may help the helper capture a share URL after ChatGPT's Share action.
+- Optional local clipboard tools such as `wl-paste`, `xclip`, `xsel`, or
+  `qdbus` may help the helper capture a share URL after ChatGPT's Share action.
 
 Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
 `$HOME/.config/cwo/chatgpt-browser.json`. The file must live outside the repo,
@@ -1691,11 +1694,13 @@ expected label through visible text, `aria-label`, or `title`. With
 confirmation selectors are missing; a successful dry run reports
 `model_confirmation_configured=true` before spending a Pro query.
 If Cloudflare or account prompts block automation-launched Chrome, start the
-dedicated profile through the systemd/Wayland launcher, complete the prompt, and
-use the generated localhost CDP config:
+dedicated profile through the systemd/Wayland helper or the printed foreground
+Chrome command, complete the prompt, and use the generated localhost CDP
+config:
 
 ```bash
 scripts/launch_chatgpt_cdp_chrome.sh --write-config
+scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command
 python3 scripts/chatgpt_browser_review.py \
   --packet master-plan-review-packet.json \
   --confirm-only \
@@ -1703,9 +1708,10 @@ python3 scripts/chatgpt_browser_review.py \
 ```
 
 Use `scripts/launch_chatgpt_cdp_chrome.sh --status`, `--replace`, or `--stop`
-for lifecycle control. The helper accepts only localhost CDP URLs and still
-rejects credential or session material in the config. Do not launch visible
-Chrome directly from Codex when a long-lived ChatGPT browser lane is needed.
+for systemd lifecycle control. The helper accepts only localhost CDP URLs and
+still rejects credential or session material in the config. For a long-lived
+visible ChatGPT browser lane, launch Chrome from an operator shell through the
+helper or the printed command instead of leaving it as a foreground Codex child.
 Current ChatGPT sharing UI may copy the public link directly to the local OS
 clipboard. The helper may read the local clipboard after pressing Share, but it
 accepts only validated ChatGPT share URLs and does not ask the ChatGPT page for

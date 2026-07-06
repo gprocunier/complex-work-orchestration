@@ -30,13 +30,16 @@ python3 -m playwright install chromium
 
 ## Safe Browser Launch
 
-Prefer the CWO launcher instead of executing Chrome directly from Codex. The
-launcher starts Chrome through `systemd-run --user`, keeps the visible browser
-outside the lifetime of the shell command, uses Wayland/Ozone flags, opens a
-dedicated Chrome profile, and exposes only a localhost CDP port.
+Use either the CWO systemd/Wayland helper or a foreground Chrome command printed
+for an operator shell. Both paths keep the visible browser outside the lifetime
+of a Codex foreground child, open a dedicated Chrome profile, and expose only a
+localhost CDP port.
+The systemd helper uses `systemd-run --user` with Wayland/Ozone flags. The
+manual path prints the Chrome/CDP command without requiring systemd.
 
 ```bash
 scripts/launch_chatgpt_cdp_chrome.sh --write-config
+scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command
 ```
 
 The default profile is:
@@ -79,6 +82,7 @@ Useful launcher commands:
 ```bash
 scripts/launch_chatgpt_cdp_chrome.sh --status
 scripts/launch_chatgpt_cdp_chrome.sh --replace --write-config
+scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command
 scripts/launch_chatgpt_cdp_chrome.sh --stop
 ```
 

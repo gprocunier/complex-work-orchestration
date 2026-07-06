@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cleanup_stale_agents import cleanup, is_agent_process, parse_process_line, ProcessInfo  # noqa: E402
+from cleanup_stale_agents import agent_process_match, cleanup, is_agent_process, parse_process_line, ProcessInfo  # noqa: E402
 
 
 class CleanupStaleAgentsTests(unittest.TestCase):
@@ -23,6 +23,46 @@ class CleanupStaleAgentsTests(unittest.TestCase):
         self.assertEqual(process.command, "node")
         self.assertEqual(process.args, "node /home/user/.local/bin/codex --yolo")
         self.assertTrue(is_agent_process(process))
+        self.assertEqual(agent_process_match(process), "command:codex")
+
+    def test_agent_process_matching_uses_tokens_not_substrings(self) -> None:
+        false_positives = [
+            ProcessInfo(1, 1, 3600, "S", "python", "python strategy.py", cwd=str(ROOT)),
+            ProcessInfo(2, 1, 3600, "S", "my-codex-wrapper", "my-codex-wrapper", cwd=str(ROOT)),
+            ProcessInfo(3, 1, 3600, "S", "node", "node /tmp/my-codex-wrapper --flag", cwd=str(ROOT)),
+        ]
+        for process in false_positives:
+            with self.subTest(command=process.command_line):
+                self.assertIsNone(agent_process_match(process))
+
+        self.assertEqual(
+            agent_process_match(ProcessInfo(4, 1, 3600, "S", "npx", "npx @openai/codex --help", cwd=str(ROOT))),
+            "package:@openai/codex",
+        )
+        self.assertEqual(
+            agent_process_match(
+                ProcessInfo(5, 1, 3600, "S", "node", "node /home/user/.local/bin/codex --yolo", cwd=str(ROOT))
+            ),
+            "command:codex",
+        )
+        self.assertEqual(
+            agent_process_match(ProcessInfo(6, 1, 3600, "S", "npx", "npx @openai/codex@latest", cwd=str(ROOT))),
+            "package:@openai/codex",
+        )
+        self.assertEqual(
+            agent_process_match(
+                ProcessInfo(
+                    7,
+                    1,
+                    3600,
+                    "S",
+                    "node",
+                    "node /usr/lib/node_modules/@openai/codex/bin/codex.js",
+                    cwd=str(ROOT),
+                )
+            ),
+            "package:@openai/codex",
+        )
 
     def test_owned_stale_process_is_terminated_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -124,8 +164,10 @@ class CleanupStaleAgentsTests(unittest.TestCase):
                 grace_seconds=0,
             )
         self.assertEqual(detected["actions"][0]["action"], "stale-unowned-detected")
+        self.assertEqual(detected["actions"][0]["agent_match"], "command:codex")
         self.assertEqual(terminated["actions"][0]["action"], "would-terminate")
         self.assertEqual(terminated["actions"][0]["scope"], "unowned")
+        self.assertEqual(terminated["actions"][0]["agent_match"], "command:codex")
 
     def test_dead_records_are_pruned(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

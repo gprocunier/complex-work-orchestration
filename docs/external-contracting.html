@@ -279,7 +279,7 @@ claude --model claude-opus-4-6 --effort high \
               <li>Use the prompt coach from Codex and approve the redacted-packet boundary.</li>
               <li>Fill the plan packet with objective, Beads graph, sequence, evidence, validation, risks, and open questions.</li>
               <li>Install Playwright in the operator environment with <code>python3 -m pip install playwright</code> and <code>python3 -m playwright install chromium</code>, keep Chrome available, and use <code>jq</code> for dispatch metadata extraction.</li>
-              <li>Use <code>scripts/launch_chatgpt_cdp_chrome.sh --write-config</code> for the systemd/Wayland browser profile and localhost CDP config.</li>
+              <li>Use <code>scripts/launch_chatgpt_cdp_chrome.sh --write-config</code> with the systemd/Wayland helper, or <code>--print-chrome-command</code> from an operator shell, for a dedicated browser profile and localhost CDP config.</li>
               <li>Use <code>references/chatgpt-pro-browser.md</code> for the full ChatGPT Pro browser runbook.</li>
               <li>Keep the browser config outside the repo, not group/world accessible, and free of credentials or session material.</li>
               <li>Keep prompts below <code>max_prompt_chars</code>; build a compact snippet packet instead of retrying a frozen visible browser.</li>

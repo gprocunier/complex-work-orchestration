@@ -29,6 +29,8 @@ class InstallScriptTests(unittest.TestCase):
 
         self.assertIn("valid_copr_ref()", text)
         self.assertIn("print_copr_command", text)
+        self.assertIn('PUBLIC_BEADS_COPR="greg-at-redhat/beads"', text)
+        self.assertIn('BEADS_COPR="${BEADS_COPR:-}"', text)
         self.assertNotIn("sudo dnf copr enable $BEADS_COPR", text)
         self.assertIn("sudo dnf copr enable '$copr_ref'", text)
         self.assertIn("brew install beads", text)

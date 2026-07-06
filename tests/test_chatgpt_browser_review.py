@@ -508,10 +508,23 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             seen.append(command)
             return completed
 
-        with patch("shutil.which", return_value="/usr/bin/qdbus"):
+        with patch("shutil.which", side_effect=lambda name: "/usr/bin/qdbus" if name == "qdbus" else None):
             with patch("subprocess.run", side_effect=fake_run):
                 self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/s/t_abc")
         self.assertEqual(seen[0][0], "qdbus")
+
+    def test_read_local_clipboard_prefers_generic_clipboard_tools(self) -> None:
+        completed = type("Completed", (), {"stdout": "https://chatgpt.com/share/generic\n"})()
+        seen: list[list[str]] = []
+
+        def fake_run(command: list[str], **_: object) -> object:
+            seen.append(command)
+            return completed
+
+        with patch("shutil.which", side_effect=lambda name: f"/usr/bin/{name}"):
+            with patch("subprocess.run", side_effect=fake_run):
+                self.assertEqual(read_local_clipboard_share_url(), "https://chatgpt.com/share/generic")
+        self.assertEqual(seen[0][0], "wl-paste")
 
     def test_read_local_clipboard_falls_back_after_timeout(self) -> None:
         completed = type("Completed", (), {"stdout": "share https://chatgpt.com/s/t_fallback"})()
@@ -520,7 +533,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         def fake_run(command: list[str], **_: object) -> object:
             nonlocal calls
             calls += 1
-            if command[0] == "qdbus":
+            if command[0] == "wl-paste":
                 raise subprocess.TimeoutExpired(command, timeout=2)
             return completed
 

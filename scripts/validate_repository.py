@@ -33,6 +33,7 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
 CI_REQUIRED_COMMANDS = [
     "python scripts/validate_repository.py",
     "python scripts/validate_site.py",
+    "python scripts/generate_site.py --check",
     "python -m unittest discover -s tests",
     "bash examples/sample-prompt-coach-command.sh",
     "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",

@@ -288,8 +288,8 @@ Browser helper prerequisites:
 - Playwright must be installed for browser automation.
 - Chrome or Google Chrome must be available for the operator-managed profile.
 - `jq` is used below to carry the exact dispatch identity into ingest.
-- Optional local clipboard tools such as `qdbus`, `wl-paste`, `xclip`, or
-  `xsel` may help capture the share URL after ChatGPT's Share action.
+- Optional local clipboard tools such as `wl-paste`, `xclip`, `xsel`, or
+  `qdbus` may help capture the share URL after ChatGPT's Share action.
 
 Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
 `$HOME/.config/cwo/chatgpt-browser.json`. The config must live outside the
@@ -300,10 +300,11 @@ content in Beads, prompts, audit logs, or public docs. Dispatch summaries report
 safe booleans and labels, not local config paths, browser profile paths, or CDP
 URLs.
 Use `references/chatgpt-pro-browser.md` as the durable ChatGPT Pro browser
-runbook. Prefer `scripts/launch_chatgpt_cdp_chrome.sh --write-config` over
-directly executing Chrome from Codex. The launcher uses `systemd-run --user`,
-Wayland/Ozone flags, a dedicated Chrome profile, a localhost CDP port, and a
-safe local config for `chatgpt_browser_review.py`.
+runbook. Use the systemd/Wayland helper or
+`scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command` from an operator
+shell instead of leaving visible Chrome as a foreground Codex child. The helper
+uses a dedicated Chrome profile, a localhost CDP port, and a safe local config
+for `chatgpt_browser_review.py`.
 
 When the user explicitly requests ChatGPT Pro 5.5 master review before
 execution, this lane is a blocking ChatGPT Pro gate. If model confirmation,

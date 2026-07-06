@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -19,15 +20,8 @@ DEFAULT_WORKSPACE_ROOT = Path.cwd()
 DEFAULT_STATE_DIR = DEFAULT_WORKSPACE_ROOT / ".orchestration-agents"
 SESSION_FILE = "sessions.jsonl"
 DEFAULT_STALE_AFTER_MINUTES = 60
-AGENT_COMMAND_MARKERS = [
-    "/codex",
-    " codex ",
-    "@openai/codex",
-    "claude -p",
-    "claude-code",
-    " agy ",
-    "agy -p",
-]
+AGENT_COMMAND_NAMES = {"agy", "claude", "claude-code", "codex"}
+AGENT_PACKAGE_SEGMENTS = (("@openai", "codex"),)
 
 
 @dataclass(frozen=True)
@@ -119,9 +113,41 @@ def discover_processes() -> list[ProcessInfo]:
     return processes
 
 
+def process_command_tokens(process: ProcessInfo) -> list[str]:
+    tokens: list[str] = []
+    if process.command:
+        tokens.append(process.command)
+    try:
+        tokens.extend(shlex.split(process.command_line))
+    except ValueError:
+        tokens.extend(process.command_line.split())
+    return tokens
+
+
+def token_contains_package(token: str, package_segments: tuple[str, str]) -> bool:
+    parts = [part for part in token.replace("\\", "/").lower().split("/") if part]
+    owner, package = package_segments
+    for index, part in enumerate(parts[:-1]):
+        next_part = parts[index + 1]
+        if part == owner and (next_part == package or next_part.startswith(f"{package}@")):
+            return True
+    return False
+
+
+def agent_process_match(process: ProcessInfo) -> str | None:
+    for token in process_command_tokens(process):
+        lowered = token.lower()
+        for package_segments in AGENT_PACKAGE_SEGMENTS:
+            if token_contains_package(lowered, package_segments):
+                return f"package:{'/'.join(package_segments)}"
+        basename = Path(lowered).name
+        if basename in AGENT_COMMAND_NAMES:
+            return f"command:{basename}"
+    return None
+
+
 def is_agent_process(process: ProcessInfo) -> bool:
-    haystack = f" {process.command_line.lower()} "
-    return any(marker in haystack for marker in AGENT_COMMAND_MARKERS)
+    return agent_process_match(process) is not None
 
 
 def is_within_workspace(process: ProcessInfo, workspace_root: Path) -> bool:
@@ -246,7 +272,8 @@ def cleanup(
     for process in processes:
         if process.pid in owned_pids or process.pid in protected_pids:
             continue
-        if not is_agent_process(process):
+        agent_match = agent_process_match(process)
+        if not agent_match:
             continue
         if not is_within_workspace(process, workspace_root):
             continue
@@ -254,9 +281,24 @@ def cleanup(
             continue
         if terminate_unowned_codex:
             result = terminate_process(process.pid, dry_run=dry_run, grace_seconds=grace_seconds)
-            actions.append({"action": result, "scope": "unowned", "pid": process.pid, "command": process.command_line})
+            actions.append(
+                {
+                    "action": result,
+                    "scope": "unowned",
+                    "pid": process.pid,
+                    "command": process.command_line,
+                    "agent_match": agent_match,
+                }
+            )
         else:
-            actions.append({"action": "stale-unowned-detected", "pid": process.pid, "command": process.command_line})
+            actions.append(
+                {
+                    "action": "stale-unowned-detected",
+                    "pid": process.pid,
+                    "command": process.command_line,
+                    "agent_match": agent_match,
+                }
+            )
 
     if prune_state and not dry_run:
         write_records(state_dir, kept_records)

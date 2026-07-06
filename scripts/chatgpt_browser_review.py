@@ -291,10 +291,10 @@ def extract_chatgpt_share_url(value: str) -> str:
 
 def read_local_clipboard_share_url() -> str:
     commands = [
-        ["qdbus", "org.kde.klipper", "/klipper", "org.kde.klipper.klipper.getClipboardContents"],
         ["wl-paste", "--no-newline"],
         ["xclip", "-selection", "clipboard", "-o"],
         ["xsel", "--clipboard", "--output"],
+        ["qdbus", "org.kde.klipper", "/klipper", "org.kde.klipper.klipper.getClipboardContents"],
     ]
     for command in commands:
         if not shutil.which(command[0]):
