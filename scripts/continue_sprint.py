@@ -326,6 +326,7 @@ def build_continuation_brief(
     epic_id: str,
     sprint_id: str | None = None,
     source: str = "beads",
+    markdown_workgraph_path: str | None = None,
 ) -> dict[str, Any]:
     items = [normalize_item(item) for item in raw_items if issue_id(item)]
     lookup = dependency_lookup(items)
@@ -355,16 +356,17 @@ def build_continuation_brief(
         f"python3 scripts/cwo.py continue --epic {epic_id}",
     ]
     if source == "markdown-workgraph":
+        workgraph_path = markdown_workgraph_path or "<path>"
         resume_commands = [
+            f"python3 scripts/cwo.py continue --epic {epic_id} --markdown-workgraph {workgraph_path}",
             "move this reduced-durability workgraph into Beads before shared handoff",
-            f"python3 scripts/cwo.py continue --epic {epic_id} --markdown-workgraph <path>",
         ]
     warnings = [MODELING_NOTE]
     if source == "markdown-workgraph":
         warnings.append("Markdown fallback has no durable ready filtering, comments, or shared Beads handoff.")
     if not recommended and blocked:
         warnings.append("No ready issue is available; resolve the first blocker before implementation.")
-    return {
+    result = {
         "continuation_result_type": RESULT_TYPE,
         "version": 1,
         "source": source,
@@ -388,6 +390,40 @@ def build_continuation_brief(
         ],
         "resume_commands": resume_commands,
         "warnings": warnings,
+    }
+    result["operator_handoff_packet"] = operator_handoff_packet(result)
+    return result
+
+
+def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
+    recommended = result.get("recommended_next_issue")
+    resume_commands = result.get("resume_commands") or []
+    resume = resume_commands[0] if resume_commands else "bd ready --json"
+    if recommended:
+        next_bead = f"{recommended['id']} {recommended['title']}".strip()
+        execution_prompt = (
+            "Use $complex-work-orchestration to continue "
+            f"{recommended['id']} under epic {result['epic_id']}; start with "
+            f"`{resume}` and execute only that bounded lane."
+        )
+    else:
+        next_bead = "none - stop condition met" if not result.get("blocked_issues") else "none - blocked"
+        execution_prompt = (
+            f"Use $complex-work-orchestration to continue epic {result['epic_id']}; "
+            "resolve the first blocker before implementation."
+        )
+    return {
+        "next_executable_bead": next_bead,
+        "why_it_is_next": result.get("why_next") or "No ready work item is available.",
+        "exact_command_resume": resume,
+        "execution_prompt": execution_prompt,
+        "what_must_not_run_yet": (
+            "Do not run blocked, contractor-only, local-worker-only, no-codex-exec, "
+            "unsafe, or unapproved lanes until their guard clears."
+        ),
+        "commit_push_status": "not evaluated by continuation helper; report current repo closeout status in the final response",
+        "validation_status": "pending for the next lane; use the Definition of Done and evidence expectations above",
+        "escalation_rule": "stop and ask the operator if no ready issue exists, a guard label blocks pickup, or validation cannot run",
     }
 
 
@@ -446,6 +482,16 @@ def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None
     print("\n## Resume Commands")
     for item in result.get("resume_commands", []):
         print(f"- `{item}`")
+    packet = result.get("operator_handoff_packet") or {}
+    print("\n## Operator Handoff Packet")
+    print(f"- Next executable Bead: {packet.get('next_executable_bead', '')}")
+    print(f"- Why it is next: {packet.get('why_it_is_next', '')}")
+    print(f"- Exact command/resume: {packet.get('exact_command_resume', '')}")
+    print(f"- Execution prompt: {packet.get('execution_prompt', '')}")
+    print(f"- What must NOT run yet: {packet.get('what_must_not_run_yet', '')}")
+    print(f"- Commit/push status: {packet.get('commit_push_status', '')}")
+    print(f"- Validation status: {packet.get('validation_status', '')}")
+    print(f"- Escalation rule: {packet.get('escalation_rule', '')}")
     warnings = result.get("warnings") or []
     if warnings:
         print("\n## Warnings")
@@ -472,7 +518,13 @@ def main() -> None:
     else:
         raw_items = load_beads_items(args.epic)
         source = "beads"
-    result = build_continuation_brief(raw_items, epic_id=args.epic, sprint_id=args.sprint, source=source)
+    result = build_continuation_brief(
+        raw_items,
+        epic_id=args.epic,
+        sprint_id=args.sprint,
+        source=source,
+        markdown_workgraph_path=str(args.markdown_workgraph) if args.markdown_workgraph else None,
+    )
     if args.format == "json":
         print(json.dumps(result, indent=2, sort_keys=True))
     else:

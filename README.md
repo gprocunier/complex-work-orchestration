@@ -727,8 +727,12 @@ binding, and expert profile for outside or local review.
 - `scripts/continue_sprint.py`: recommend the next executable issue for a
   planned epic or sprint artifact. It reads Beads by default, accepts
   `--markdown-workgraph <path>` as a reduced-durability fallback, and reports
-  ready work, blocked work, evidence expectations, and resume commands without
-  mutating Beads.
+  ready work, blocked work, evidence expectations, resume commands, and an
+  operator handoff packet without mutating Beads.
+- `scripts/validate_operator_handoff.py`: validate that a final-response
+  operator handoff packet has meaningful next-Bead, resume, execution,
+  validation, commit/push, and escalation fields instead of blanks or
+  placeholders.
 - `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
   before worker handoff, including owners, exit conditions, evidence mapping,
   authority rules, typed projections, quarantine handling, boundary negative
@@ -1137,9 +1141,11 @@ reference below and in the GitHub Pages Reference page.
    closure-memory comment with who was involved, what changed, why it closed,
    how it was validated, when it closed, where it ran, decisions, evidence,
    residual risk, and follow-up, then records a terse close reason.
-20. Final CWO answers include a CWO closeout packet with the next step,
-   remaining gates, resume command, execution prompt, and residual risk even
-   after implementation, commit, push, PR update, or publication work.
+20. Final CWO answers include an operator handoff packet even after
+   implementation, commit, push, PR update, or publication work. The packet must
+   name the next executable Bead, why it is next, exact command/resume,
+   execution prompt, what must not run yet, commit/push status, validation
+   status, and escalation rule.
 
 ## Beads Requirement
 
@@ -1249,11 +1255,11 @@ python3 scripts/cwo.py continue --epic epic --markdown-workgraph /tmp/cwo-workgr
 
 Use `continue` when the work is already planned and the user needs the next
 execution step. It returns one recommended next issue, why that issue is next,
-blocked work and unblock reasons, evidence expectations, and resume commands.
-It does not create Beads comments or issues. Beads has native epics and issues,
-not native stories or sprints; sprint state is represented through issue
-metadata, labels, dependencies, descriptions, closure notes, and process
-artifacts.
+blocked work and unblock reasons, evidence expectations, resume commands, and
+an operator handoff packet. It does not create Beads comments or issues. Beads
+has native epics and issues, not native stories or sprints; sprint state is
+represented through issue metadata, labels, dependencies, descriptions, closure
+notes, and process artifacts.
 
 On Fedora or EPEL-style systems, use your configured Beads package source. If
 you need a public example, the installer prints the `greg-at-redhat/beads` COPR

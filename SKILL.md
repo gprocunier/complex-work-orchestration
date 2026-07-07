@@ -160,6 +160,16 @@ python3 scripts/close_bead_with_summary.py --bead <id> --disposition completed -
 Tiny mechanical leaf tasks can rely on the close reason when it fully explains
 the outcome.
 
+Before the final user-visible response for any CWO closeout, pushed commit,
+parked sprint, blocked sprint, or carry-forward handoff, produce an operator
+continuation packet. Artifacts and Beads comments do not satisfy this by
+themselves; the final TUI response must include the packet. Use
+`templates/operator-handoff-packet.md` and, when drafting to a file, validate it:
+
+```bash
+python3 scripts/validate_operator_handoff.py <handoff.md>
+```
+
 ## Required Output
 
 When CWO is used, return only the useful orchestration packet:
@@ -171,7 +181,21 @@ When CWO is used, return only the useful orchestration packet:
 - contractor, local-worker, evaluation, and adjudication gates, if any
 - validation matrix and escalation rules
 - resume command, usually `bd ready --json`
-- CWO closeout packet: next step, remaining gates, resume command, execution prompt, and residual risk
+
+For closeout or handoff responses, include these exact continuation fields:
+
+- Next executable Bead
+- Why it is next
+- Exact command/resume
+- Execution prompt
+- What must NOT run yet
+- Commit/push status
+- Validation status
+- Escalation rule
+
+If no next work exists, write `none - stop condition met` and explain the
+stop condition. Do not let commit/push/remote verification replace the
+continuation packet.
 
 For broad or risky work, do not begin worker execution until the user has seen
 the scaffold unless they explicitly asked you to proceed end to end.

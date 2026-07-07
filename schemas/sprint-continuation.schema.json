@@ -20,6 +20,7 @@
     "definition_of_done",
     "evidence_expectations",
     "resume_commands",
+    "operator_handoff_packet",
     "warnings"
   ],
   "properties": {
@@ -50,6 +51,29 @@
     "definition_of_done": {"type": "array", "items": {"$ref": "#/$defs/check"}},
     "evidence_expectations": {"type": "array", "items": {"type": "string"}},
     "resume_commands": {"type": "array", "items": {"type": "string"}},
+    "operator_handoff_packet": {
+      "type": "object",
+      "required": [
+        "next_executable_bead",
+        "why_it_is_next",
+        "exact_command_resume",
+        "execution_prompt",
+        "what_must_not_run_yet",
+        "commit_push_status",
+        "validation_status",
+        "escalation_rule"
+      ],
+      "properties": {
+        "next_executable_bead": {"type": "string", "minLength": 1},
+        "why_it_is_next": {"type": "string", "minLength": 1},
+        "exact_command_resume": {"type": "string", "minLength": 1},
+        "execution_prompt": {"type": "string", "minLength": 1},
+        "what_must_not_run_yet": {"type": "string", "minLength": 1},
+        "commit_push_status": {"type": "string", "minLength": 1},
+        "validation_status": {"type": "string", "minLength": 1},
+        "escalation_rule": {"type": "string", "minLength": 1}
+      }
+    },
     "warnings": {"type": "array", "items": {"type": "string"}}
   },
   "$defs": {

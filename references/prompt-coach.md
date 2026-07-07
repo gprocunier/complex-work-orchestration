@@ -340,13 +340,14 @@ In Default mode, do not simulate a multi-choice UI unless
 that blocks safe execution, or apply the conservative default from the coach
 output when the user did not explicitly ask for coach options.
 
-## CWO Closeout Packet
+## CWO Operator Handoff Packet
 
-When CWO was used, the final answer must include a compact closeout packet even
-after implementation, commit, push, PR update, or publication work. Include the
-next step, remaining gates, resume command, execution prompt, and residual risk.
-This is separate from Beads closure-memory comments; the final answer still
-needs to tell the operator how to continue.
+When CWO was used, the final answer must include a compact operator handoff
+packet even after implementation, commit, push, PR update, or publication work.
+Include the next executable Bead, why it is next, exact command/resume,
+execution prompt, what must not run yet, commit/push status, validation status,
+and escalation rule. This is separate from Beads closure-memory comments; the
+final answer still needs to tell the operator how to continue.
 
 ## Examples
 
