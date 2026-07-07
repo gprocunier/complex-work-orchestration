@@ -312,7 +312,11 @@ the user does not answer.
 ## Interactive Questions
 
 The JSON result includes `interactive_questions` for decisions that change
-execution behavior. The subagent parallelization question is always present.
+execution behavior. It also includes `requires_user_selection_before_plan`,
+`selection_before_plan_reason`, and `selection_before_plan_question_ids`.
+When the user explicitly asks for the coach and has not already requested
+execution, Codex must present those coach options before creating a
+decision-complete plan. The subagent parallelization question is always present.
 Each item is shaped for Codex Plan-mode selectable prompts: a short `header`,
 stable `id`, question text, and two or three options. The recommended option is
 first and its label ends with `(Recommended)`.
@@ -331,9 +335,18 @@ Use these questions for decisions such as:
 - whether a local inference worker is allowed
 - what validation bar to apply
 
-In Default mode, do not simulate a multi-choice UI. Ask only the one concise
-question that blocks safe execution, or apply the conservative default from the
-coach output.
+In Default mode, do not simulate a multi-choice UI unless
+`requires_user_selection_before_plan=true`. Ask only the one concise question
+that blocks safe execution, or apply the conservative default from the coach
+output when the user did not explicitly ask for coach options.
+
+## CWO Closeout Packet
+
+When CWO was used, the final answer must include a compact closeout packet even
+after implementation, commit, push, PR update, or publication work. Include the
+next step, remaining gates, resume command, execution prompt, and residual risk.
+This is separate from Beads closure-memory comments; the final answer still
+needs to tell the operator how to continue.
 
 ## Examples
 

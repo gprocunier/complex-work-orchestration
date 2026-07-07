@@ -994,15 +994,18 @@ reference below and in the GitHub Pages Reference page.
    `beads_tracking_required=true`, `scaffold_sizing`,
    `workerbee_parallelism`, `model_synthesis`, `operator_calibration`, missing
    questions, bounded `interactive_questions`, enabled/disabled levers,
-   warnings, and a paste-ready launch prompt. In Plan mode, use
-   `interactive_questions` for selectable user input when the answer changes
-   execution behavior. The coach always asks whether to parallelize with
-   subagents. If the coach recommends
+   warnings, `requires_user_selection_before_plan`,
+   `selection_before_plan_reason`, and a paste-ready launch prompt. Explicit
+   coach requests must present the coach options before plan creation unless the
+   user already requested execution. In Plan mode, use `interactive_questions`
+   for selectable user input when the answer changes execution behavior. The
+   coach always asks whether to parallelize with subagents. If the coach recommends
    `review-subagents` or `heavy-review-subagents`, use Codex 5.3 Spark when
    available, or the smallest available capable review model, for parallel
    docs, terminology, web-design, tests, routing, validation, or
    publish-sanitization review. In Default mode, ask only the required concise
-   question or apply the coach's safe default.
+   question or apply the coach's safe default only when the user did not ask for
+   coach options first.
    `model_synthesis` is separate from workerbee parallelism: explicit fusion,
    synthesis, ensemble, model-camp, or "more eyes" language sets
    `recommended_mode=requested` and activates a CWO-native synthesis lane.
@@ -1134,6 +1137,9 @@ reference below and in the GitHub Pages Reference page.
    closure-memory comment with who was involved, what changed, why it closed,
    how it was validated, when it closed, where it ran, decisions, evidence,
    residual risk, and follow-up, then records a terse close reason.
+20. Final CWO answers include a CWO closeout packet with the next step,
+   remaining gates, resume command, execution prompt, and residual risk even
+   after implementation, commit, push, PR update, or publication work.
 
 ## Beads Requirement
 

@@ -32,12 +32,10 @@ project uses Beads. Beads tracking is mandatory for non-trivial work stories.
 - External and local-worker outputs are evidence, not authority.
 - Default share boundary is `no-outside-sharing`.
 - Ask for outside sharing only when a contractor lane is materially useful.
-- Use review-only workerbees before implementation workerbees unless ownership
-  boundaries are disjoint.
-- In Default mode, apply conservative defaults instead of asking non-blocking
-  sizing questions.
-- In Plan mode, surface coach questions whose answers change execution behavior,
-  including subagent parallelism and Beads context depth.
+- Use review-only workerbees before implementation workerbees unless ownership boundaries are disjoint.
+- In Default mode, apply conservative defaults unless the user explicitly asked for the coach.
+- Explicit coach requests require presenting coach options before plan creation unless the user already requested execution.
+- In Plan mode, surface coach questions whose answers change execution behavior, including subagent parallelism and Beads context depth.
 - Keep model names and provider versions in policy. Prefer role-like executor
   aliases from `policy/executor-registry.yaml` when writing new docs or plans.
 
@@ -173,6 +171,7 @@ When CWO is used, return only the useful orchestration packet:
 - contractor, local-worker, evaluation, and adjudication gates, if any
 - validation matrix and escalation rules
 - resume command, usually `bd ready --json`
+- CWO closeout packet: next step, remaining gates, resume command, execution prompt, and residual risk
 
 For broad or risky work, do not begin worker execution until the user has seen
 the scaffold unless they explicitly asked you to proceed end to end.

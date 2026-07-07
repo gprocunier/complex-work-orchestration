@@ -13,6 +13,9 @@
     "rationale",
     "missing_questions",
     "interactive_questions",
+    "requires_user_selection_before_plan",
+    "selection_before_plan_reason",
+    "selection_before_plan_question_ids",
     "enabled_levers",
     "disabled_levers",
     "workerbee_parallelism",
@@ -110,6 +113,9 @@
         }
       }
     },
+    "requires_user_selection_before_plan": {"type": "boolean"},
+    "selection_before_plan_reason": {"type": "string"},
+    "selection_before_plan_question_ids": {"type": "array", "items": {"type": "string"}},
     "enabled_levers": {"type": "array", "items": {"type": "string"}},
     "disabled_levers": {"type": "array", "items": {"type": "string"}},
     "workerbee_parallelism": {

@@ -92,6 +92,9 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("Recommended orchestration: in-thread", result.stdout)
         self.assertIn("Route:", result.stdout)
         self.assertIn("Executor:", result.stdout)
+        self.assertIn("Execution gate:", result.stdout)
+        self.assertIn("Coach options:", result.stdout)
+        self.assertIn("Should Codex parallelize this work with subagents?", result.stdout)
         self.assertNotIn("Recommended launch prompt:", result.stdout)
 
     def test_multi_session_work_recommends_lightweight_beads(self) -> None:
@@ -577,10 +580,13 @@ class PromptCoachTests(unittest.TestCase):
         )
         result = json.loads(output)
         self.assertEqual(result["coach_result_type"], "complex-work-orchestration-prompt-coach")
-        self.assertEqual(result["version"], 7)
+        self.assertEqual(result["version"], 8)
         self.assertTrue(result["beads_tracking_required"])
         self.assertIn("paste_ready_prompt", result)
         self.assertIn("interactive_questions", result)
+        self.assertIn("requires_user_selection_before_plan", result)
+        self.assertIn("selection_before_plan_reason", result)
+        self.assertIn("selection_before_plan_question_ids", result)
         self.assertIn("workerbee_parallelism", result)
         self.assertIn("model_synthesis", result)
         self.assertIn("operator_calibration", result)
@@ -602,7 +608,27 @@ class PromptCoachTests(unittest.TestCase):
         )
         self.assertIn("Recommended orchestration:", output)
         self.assertIn("Route:", output)
+        self.assertIn("Execution gate:", output)
+        self.assertIn("Coach options:", output)
         self.assertNotIn("Recommended launch prompt:", output)
+
+    def test_explicit_coach_request_requires_selection_before_plan(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use $complex-work-orchestration coach to determine the best path forward for docs and validation."
+        )
+
+        self.assertTrue(result["requires_user_selection_before_plan"])
+        self.assertIn("explicitly asked for the CWO coach", result["selection_before_plan_reason"])
+        self.assertIn("workerbee_parallelism", result["selection_before_plan_question_ids"])
+        self.assertIn("beads_context_depth", result["selection_before_plan_question_ids"])
+
+    def test_execution_request_clears_selection_before_plan_gate(self) -> None:
+        result = coach_orchestration_prompt(
+            "Implement the CWO coach UX guardrail plan after using the CWO coach."
+        )
+
+        self.assertFalse(result["requires_user_selection_before_plan"])
+        self.assertIn("already requested execution", result["selection_before_plan_reason"])
 
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
         output = subprocess.check_output(

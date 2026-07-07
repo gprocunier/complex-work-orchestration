@@ -72,6 +72,13 @@ Publish-ready docs with validation and editorial review.</code></pre>
               summary, missing questions, enabled levers, disabled levers, and
               a launch prompt that can be pasted back into Codex.
             </p>
+            <p>
+              Explicit coach requests also carry
+              <code>requires_user_selection_before_plan</code> and
+              <code>selection_before_plan_reason</code>. When that gate is true,
+              present the coach options before creating a decision-complete
+              plan.
+            </p>
           </section>
 
           <section id="levels">
@@ -128,7 +135,8 @@ Publish-ready docs with validation and editorial review.</code></pre>
               In Plan mode, Codex can turn the coach's
               <code>interactive_questions</code> into selectable prompts. In
               Default mode, Codex should ask only a blocking concise question
-              or apply the conservative default.
+              or apply the conservative default unless the user explicitly asked
+              for coach options.
             </p>
             <p>
               For a complete main-thread helper flow, see the
@@ -139,6 +147,12 @@ Publish-ready docs with validation and editorial review.</code></pre>
               harness size, subagent parallelism, outside-sharing boundary,
               model synthesis, local-worker opt-in, and validation bar. These
               change execution behavior and should be captured before dispatch.
+            </div>
+            <div class="callout">
+              <strong>Selection gate:</strong>
+              If <code>requires_user_selection_before_plan=true</code>, wait for
+              the user choice before producing the implementation plan unless
+              the user already asked Codex to proceed.
             </div>
             <div class="callout">
               <strong>Architect critique:</strong>
