@@ -63,6 +63,23 @@ def print_brief(result: dict[str, object]) -> None:
     print(f"Sensitivity source: {route.get('data_sensitivity_source')}")
     print(f"Executor: {executor}")
     print(f"Beads context depth: {result.get('beads_context_depth')}")
+    print(
+        "Execution gate: "
+        + (
+            "present coach options and wait before plan creation"
+            if result.get("requires_user_selection_before_plan")
+            else "conservative defaults allowed unless the user explicitly asked for coach options"
+        )
+    )
+    if result.get("selection_before_plan_reason"):
+        print(f"Gate reason: {result.get('selection_before_plan_reason')}")
+    interactive_questions = result.get("interactive_questions") or []
+    if interactive_questions:
+        print("Coach options:")
+        for item in interactive_questions:  # type: ignore[assignment]
+            print(f"- {item.get('question')}")
+            for option in item.get("options", []):
+                print(f"  - {option.get('label')}: {option.get('description')}")
     warnings = result.get("warnings") or []
     if warnings:
         print("Warnings:")

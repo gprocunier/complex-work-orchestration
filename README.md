@@ -727,8 +727,12 @@ binding, and expert profile for outside or local review.
 - `scripts/continue_sprint.py`: recommend the next executable issue for a
   planned epic or sprint artifact. It reads Beads by default, accepts
   `--markdown-workgraph <path>` as a reduced-durability fallback, and reports
-  ready work, blocked work, evidence expectations, and resume commands without
-  mutating Beads.
+  ready work, blocked work, evidence expectations, resume commands, and an
+  operator handoff packet without mutating Beads.
+- `scripts/validate_operator_handoff.py`: validate that a final-response
+  operator handoff packet has meaningful next-Bead, resume, execution,
+  validation, commit/push, and escalation fields instead of blanks or
+  placeholders.
 - `scripts/validate_run_readiness_plan.py`: validate the run readiness plan
   before worker handoff, including owners, exit conditions, evidence mapping,
   authority rules, typed projections, quarantine handling, boundary negative
@@ -994,15 +998,18 @@ reference below and in the GitHub Pages Reference page.
    `beads_tracking_required=true`, `scaffold_sizing`,
    `workerbee_parallelism`, `model_synthesis`, `operator_calibration`, missing
    questions, bounded `interactive_questions`, enabled/disabled levers,
-   warnings, and a paste-ready launch prompt. In Plan mode, use
-   `interactive_questions` for selectable user input when the answer changes
-   execution behavior. The coach always asks whether to parallelize with
-   subagents. If the coach recommends
+   warnings, `requires_user_selection_before_plan`,
+   `selection_before_plan_reason`, and a paste-ready launch prompt. Explicit
+   coach requests must present the coach options before plan creation unless the
+   user already requested execution. In Plan mode, use `interactive_questions`
+   for selectable user input when the answer changes execution behavior. The
+   coach always asks whether to parallelize with subagents. If the coach recommends
    `review-subagents` or `heavy-review-subagents`, use Codex 5.3 Spark when
    available, or the smallest available capable review model, for parallel
    docs, terminology, web-design, tests, routing, validation, or
    publish-sanitization review. In Default mode, ask only the required concise
-   question or apply the coach's safe default.
+   question or apply the coach's safe default only when the user did not ask for
+   coach options first.
    `model_synthesis` is separate from workerbee parallelism: explicit fusion,
    synthesis, ensemble, model-camp, or "more eyes" language sets
    `recommended_mode=requested` and activates a CWO-native synthesis lane.
@@ -1134,6 +1141,11 @@ reference below and in the GitHub Pages Reference page.
    closure-memory comment with who was involved, what changed, why it closed,
    how it was validated, when it closed, where it ran, decisions, evidence,
    residual risk, and follow-up, then records a terse close reason.
+20. Final CWO answers include an operator handoff packet even after
+   implementation, commit, push, PR update, or publication work. The packet must
+   name the next executable Bead, why it is next, exact command/resume,
+   execution prompt, what must not run yet, commit/push status, validation
+   status, and escalation rule.
 
 ## Beads Requirement
 
@@ -1243,11 +1255,11 @@ python3 scripts/cwo.py continue --epic epic --markdown-workgraph /tmp/cwo-workgr
 
 Use `continue` when the work is already planned and the user needs the next
 execution step. It returns one recommended next issue, why that issue is next,
-blocked work and unblock reasons, evidence expectations, and resume commands.
-It does not create Beads comments or issues. Beads has native epics and issues,
-not native stories or sprints; sprint state is represented through issue
-metadata, labels, dependencies, descriptions, closure notes, and process
-artifacts.
+blocked work and unblock reasons, evidence expectations, resume commands, and
+an operator handoff packet. It does not create Beads comments or issues. Beads
+has native epics and issues, not native stories or sprints; sprint state is
+represented through issue metadata, labels, dependencies, descriptions, closure
+notes, and process artifacts.
 
 On Fedora or EPEL-style systems, use your configured Beads package source. If
 you need a public example, the installer prints the `greg-at-redhat/beads` COPR

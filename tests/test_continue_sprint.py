@@ -178,6 +178,14 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIn(MODELING_NOTE, result["warnings"])
         self.assertEqual(result["recommended_next_issue"]["id"], "architect")
         self.assertEqual(result["blocked_issues"][0]["id"], "implementation")
+        self.assertEqual(
+            result["operator_handoff_packet"]["next_executable_bead"],
+            "architect Architect Frame",
+        )
+        self.assertEqual(
+            result["operator_handoff_packet"]["exact_command_resume"],
+            "python3 scripts/cwo.py continue --epic epic --markdown-workgraph <path>",
+        )
 
     def test_cli_json_uses_markdown_workgraph_without_bd(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -226,6 +234,11 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual(result["continuation_result_type"], "complex-work-orchestration-sprint-continuation")
         self.assertEqual(result["recommended_next_issue"]["id"], "pm")
         self.assertEqual(result["durability"], "reduced")
+        self.assertIn("operator_handoff_packet", result)
+        self.assertEqual(
+            result["operator_handoff_packet"]["exact_command_resume"],
+            f"python3 scripts/cwo.py continue --epic epic --markdown-workgraph {path}",
+        )
 
     def test_cwo_entrypoint_runs_continue_text_mode(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -269,6 +282,8 @@ class ContinueSprintTests(unittest.TestCase):
 
         self.assertIn("Sprint Continuation Brief", output)
         self.assertIn("validation Validate Example", output)
+        self.assertIn("Operator Handoff Packet", output)
+        self.assertIn(f"Exact command/resume: python3 scripts/cwo.py continue --epic epic --markdown-workgraph {path}", output)
         self.assertIn(MODELING_NOTE, output)
 
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
@@ -354,6 +369,7 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual(result["durability"], "durable")
         self.assertEqual(result["recommended_next_issue"]["id"], architect)
         self.assertEqual(blockers[implementation], [f"depends on {architect} (open)"])
+        self.assertIn("operator_handoff_packet", result)
 
 
 if __name__ == "__main__":

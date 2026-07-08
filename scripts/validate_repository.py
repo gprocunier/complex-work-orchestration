@@ -475,7 +475,12 @@ def validate_repository() -> list[str]:
         errors,
         schema_name="prompt-coach-result.schema.json",
         schema=prompt_coach_schema,
-        properties=["scaffold_sizing"],
+        properties=[
+            "scaffold_sizing",
+            "requires_user_selection_before_plan",
+            "selection_before_plan_reason",
+            "selection_before_plan_question_ids",
+        ],
     )
     require_schema_properties(
         errors,
@@ -556,9 +561,26 @@ def validate_repository() -> list[str]:
             "definition_of_ready",
             "definition_of_done",
             "resume_commands",
+            "operator_handoff_packet",
             "modeling_note",
         ],
     )
+    sprint_continuation_schema = load_json(REPO_ROOT / "schemas" / "sprint-continuation.schema.json")
+    operator_packet_schema = sprint_continuation_schema.get("properties", {}).get("operator_handoff_packet", {})
+    for field in [
+        "next_executable_bead",
+        "why_it_is_next",
+        "exact_command_resume",
+        "execution_prompt",
+        "what_must_not_run_yet",
+        "commit_push_status",
+        "validation_status",
+        "escalation_rule",
+    ]:
+        if field not in operator_packet_schema.get("required", []):
+            errors.append(f"sprint-continuation.schema.json operator_handoff_packet is missing required field {field!r}")
+        if field not in operator_packet_schema.get("properties", {}):
+            errors.append(f"sprint-continuation.schema.json operator_handoff_packet is missing property {field!r}")
     for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
         errors.append(f"sample-run-readiness-plan.json: {error}")
 
@@ -576,6 +598,7 @@ def validate_repository() -> list[str]:
             "scripts/cleanup_stale_agents.py",
             "scripts/close_bead_with_summary.py",
             "scripts/continue_sprint.py",
+            "scripts/validate_operator_handoff.py",
             "scripts/configure_codex_beads_hooks.py",
             "scripts/workspace_mutation_guard.py",
             "--terminate-unowned-codex",
@@ -597,7 +620,13 @@ def validate_repository() -> list[str]:
             "Codex 5.3 Spark",
             "smallest available capable review model",
             "beads_tracking_required",
+            "requires_user_selection_before_plan",
+            "selection_before_plan_reason",
             "Beads tracking is mandatory",
+            "operator handoff packet",
+            "next executable Bead",
+            "commit/push status",
+            "execution prompt",
             "closure-memory comment",
             "What changed",
             "How validated",
@@ -932,6 +961,8 @@ def validate_repository() -> list[str]:
             "local-worker opt-in",
             "Master review",
             "ChatGPT Pro 5.5 Extended Reasoning",
+            "requires_user_selection_before_plan",
+            "selection_before_plan_reason",
             "./workflows.html",
         ],
     )
@@ -998,6 +1029,10 @@ def validate_repository() -> list[str]:
             "beads_context_depth",
             "Contractor Demo",
             "closure-memory comment",
+            "operator handoff packet",
+            "next executable Bead",
+            "commit/push status",
+            "execution prompt",
             "./contractor-demo.html",
             "./explanation.html",
             "incident-response playbook",
@@ -1306,6 +1341,12 @@ def validate_repository() -> list[str]:
             "Reference Map",
             "Contractor And Local Worker Gates",
             "Run Readiness And Closeout",
+            "Explicit coach requests",
+            "coach options before plan creation",
+            "operator continuation packet",
+            "Next executable Bead",
+            "Commit/push status",
+            "Execution prompt",
             "scripts/coach_prompt.py",
             "scripts/cleanup_stale_agents.py",
             "scripts/workspace_mutation_guard.py",
@@ -1352,6 +1393,12 @@ def validate_repository() -> list[str]:
         "references/prompt-coach.md",
         [
             "interactive_questions",
+            "requires_user_selection_before_plan",
+            "selection_before_plan_reason",
+            "selection_before_plan_question_ids",
+            "CWO Operator Handoff Packet",
+            "exact command/resume",
+            "execution prompt",
             "Use direct script execution only",
             "beads_tracking_required",
             "workerbee_parallelism",

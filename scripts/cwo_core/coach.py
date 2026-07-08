@@ -23,6 +23,9 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "rationale",
     "missing_questions",
     "interactive_questions",
+    "requires_user_selection_before_plan",
+    "selection_before_plan_reason",
+    "selection_before_plan_question_ids",
     "enabled_levers",
     "disabled_levers",
     "workerbee_parallelism",
@@ -177,6 +180,70 @@ def prompt_coach_has_contractor_sharing_signal(text: str) -> bool:
             "external review",
         ],
     )
+
+
+def prompt_coach_has_explicit_coach_request(text: str) -> bool:
+    return bool(
+        re.search(r"(?:\bcwo|\bcomplex-work-orchestration|\$complex-work-orchestration)\s+(?:prompt\s+)?coach\b", text)
+        or re.search(r"\bprompt\s+coach\b", text)
+        or re.search(r"\buse\s+(?:the\s+)?(?:cwo\s+)?coach\b", text)
+        or re.search(r"\brun\s+(?:the\s+)?(?:cwo\s+)?coach\b", text)
+        or re.search(r"\bask\s+(?:the\s+)?(?:cwo\s+)?coach\b", text)
+    )
+
+
+def prompt_coach_has_execution_approval(text: str) -> bool:
+    if re.search(r"^\s*(?:implement|proceed|execute|update|submit|commit|push|publish)\b", text):
+        return True
+    return text_has_any(
+        text,
+        [
+            "implement the plan",
+            "implement this plan",
+            "implement end to end",
+            "proceed",
+            "execute the plan",
+            "do the work",
+            "make the changes",
+            "update the existing pr",
+            "update the pr",
+            "submit a pr",
+            "commit and push",
+            "publish",
+            "ship it",
+        ],
+    )
+
+
+def selection_before_plan_gate(text: str, interactive_questions: list[dict[str, Any]]) -> dict[str, Any]:
+    explicit_coach = prompt_coach_has_explicit_coach_request(text.lower())
+    execution_approved = prompt_coach_has_execution_approval(text.lower())
+    question_ids = [str(question.get("id")) for question in interactive_questions if question.get("id")]
+    requires_selection = bool(explicit_coach and question_ids and not execution_approved)
+    if requires_selection:
+        reason = (
+            "The user explicitly asked for the CWO coach; present interactive_questions and wait for the "
+            "user's selection before creating a decision-complete plan."
+        )
+    elif execution_approved:
+        reason = (
+            "The user already requested execution; apply conservative defaults or accepted flags, then include "
+            "the operator handoff packet with next steps and resume commands."
+        )
+    elif question_ids:
+        reason = (
+            "Coach options are available; in Plan mode present them before plan creation, while Default mode may "
+            "apply conservative defaults unless the user explicitly requested the coach."
+        )
+    else:
+        reason = "No interactive coach choices are required before plan creation."
+    return {
+        "requires_user_selection_before_plan": requires_selection,
+        "reason": reason,
+        "question_ids": question_ids,
+        "explicit_coach_request": explicit_coach,
+        "execution_already_requested": execution_approved,
+    }
 
 
 def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[str, Any]) -> dict[str, Any]:
@@ -1500,9 +1567,10 @@ def coach_orchestration_prompt(
         scaffold_sizing,
         beads_context_depth_signal,
     )
+    selection_gate = selection_before_plan_gate(text, interactive_questions)
     return {
         "coach_result_type": "complex-work-orchestration-prompt-coach",
-        "version": 7,
+        "version": 8,
         "beads_tracking_required": True,
         "recommended_orchestration_level": level,
         "scaffold_sizing": scaffold_sizing,
@@ -1520,6 +1588,9 @@ def coach_orchestration_prompt(
         ),
         "missing_questions": questions,
         "interactive_questions": interactive_questions,
+        "requires_user_selection_before_plan": selection_gate["requires_user_selection_before_plan"],
+        "selection_before_plan_reason": selection_gate["reason"],
+        "selection_before_plan_question_ids": selection_gate["question_ids"],
         "enabled_levers": prompt_coach_enabled_levers(
             level,
             route,

@@ -32,12 +32,10 @@ project uses Beads. Beads tracking is mandatory for non-trivial work stories.
 - External and local-worker outputs are evidence, not authority.
 - Default share boundary is `no-outside-sharing`.
 - Ask for outside sharing only when a contractor lane is materially useful.
-- Use review-only workerbees before implementation workerbees unless ownership
-  boundaries are disjoint.
-- In Default mode, apply conservative defaults instead of asking non-blocking
-  sizing questions.
-- In Plan mode, surface coach questions whose answers change execution behavior,
-  including subagent parallelism and Beads context depth.
+- Use review-only workerbees before implementation workerbees unless ownership boundaries are disjoint.
+- In Default mode, apply conservative defaults unless the user explicitly asked for the coach.
+- Explicit coach requests require presenting coach options before plan creation unless the user already requested execution.
+- In Plan mode, surface coach questions whose answers change execution behavior, including subagent parallelism and Beads context depth.
 - Keep model names and provider versions in policy. Prefer role-like executor
   aliases from `policy/executor-registry.yaml` when writing new docs or plans.
 
@@ -162,6 +160,16 @@ python3 scripts/close_bead_with_summary.py --bead <id> --disposition completed -
 Tiny mechanical leaf tasks can rely on the close reason when it fully explains
 the outcome.
 
+Before the final user-visible response for any CWO closeout, pushed commit,
+parked sprint, blocked sprint, or carry-forward handoff, produce an operator
+continuation packet. Artifacts and Beads comments do not satisfy this by
+themselves; the final TUI response must include the packet. Use
+`templates/operator-handoff-packet.md` and, when drafting to a file, validate it:
+
+```bash
+python3 scripts/validate_operator_handoff.py <handoff.md>
+```
+
 ## Required Output
 
 When CWO is used, return only the useful orchestration packet:
@@ -173,6 +181,21 @@ When CWO is used, return only the useful orchestration packet:
 - contractor, local-worker, evaluation, and adjudication gates, if any
 - validation matrix and escalation rules
 - resume command, usually `bd ready --json`
+
+For closeout or handoff responses, include these exact continuation fields:
+
+- Next executable Bead
+- Why it is next
+- Exact command/resume
+- Execution prompt
+- What must NOT run yet
+- Commit/push status
+- Validation status
+- Escalation rule
+
+If no next work exists, write `none - stop condition met` and explain the
+stop condition. Do not let commit/push/remote verification replace the
+continuation packet.
 
 For broad or risky work, do not begin worker execution until the user has seen
 the scaffold unless they explicitly asked you to proceed end to end.

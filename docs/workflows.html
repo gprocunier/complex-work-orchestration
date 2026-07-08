@@ -647,6 +647,13 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               is missing or fuzzy.
             </p>
             <p>
+              The final CWO answer also needs an operator handoff packet: next
+              executable Bead, why it is next, exact command/resume, execution
+              prompt, what must not run yet, commit/push status, validation
+              status, and escalation rule. Include it even after implementation,
+              commit, push, PR update, or publication work.
+            </p>
+            <p>
               The exact closure helper syntax lives in
               <a href="./reference.html#durable-memory">Reference</a>. Keep this
               page focused on the lifecycle: validate, record evidence, close
