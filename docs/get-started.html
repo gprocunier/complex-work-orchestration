@@ -118,68 +118,40 @@ bd version</code></pre>
           </section>
 
           <section id="profile">
-            <h2>Choose Your Profile</h2>
+            <h2>Choose Your Starting Path</h2>
             <p>
-              Start by naming where the work will run. CWO is the governance
-              layer; the execution environment is the shell, provider boundary,
-              and model profile that can actually do the work.
+              Start with the connected single-operator path unless you already
+              know the work is restricted, airgapped, or needs outside review.
+              The coach can recommend a larger graph later.
             </p>
             <div class="tile-grid">
               <article>
-                <h3>Connected Single Operator</h3>
+                <h3>Connected Codex</h3>
                 <p>
-                  Use the in-Codex coach, one local Beads graph, focused tests,
-                  and normal validation. This is the fastest first run.
-                </p>
-                <p>
-                  Choose this when you have Codex, repository access, and a
-                  normal network connection. Do not choose it for airgapped or
-                  shared-operator environments.
+                  Use Codex, one local Beads record, focused validation, and a
+                  closure-memory note. This is the first path to learn.
                 </p>
               </article>
               <article>
-                <h3>Connected With Contractors</h3>
+                <h3>Review Needed</h3>
                 <p>
-                  Add Claude, Gemini, ChatGPT Pro, or another approved reviewer
-                  only after the sharing boundary and packet are explicit.
-                </p>
-                <p>
-                  Choose this when a second opinion is worth the disclosure and
-                  review overhead. Do not choose it for private context that
-                  cannot leave the machine.
+                  Add outside reviewers or local workers only after the sharing
+                  or local-inference boundary is explicit. Their returns are
+                  evidence until evaluated.
                 </p>
               </article>
               <article>
-                <h3>Restricted OpenCode</h3>
+                <h3>Restricted Or Airgapped</h3>
                 <p>
-                  Render bounded dispatch envelopes for OpenCode or a manual
-                  operator shell while keeping Beads, evaluator scoring, and
-                  architect adjudication.
-                </p>
-                <p>
-                  Choose this when Codex is not the right execution shell but
-                  the workflow can still use local project state. Do not choose
-                  it if no approved shell can run the assignment.
-                </p>
-              </article>
-              <article>
-                <h3>Airgapped Or RHOAI</h3>
-                <p>
-                  Assume no public frontier calls. Use local Beads plus approved
-                  OpenAI-compatible RHOAI/vLLM model profiles or manual
-                  operators.
-                </p>
-                <p>
-                  Choose this when public services are unavailable or forbidden.
-                  Do not choose it until local model endpoints and operator
-                  handoff rules are known.
+                  Keep CWO as the Beads, policy, and validation layer while
+                  OpenCode, a manual operator shell, or an approved local
+                  endpoint performs bounded work.
                 </p>
               </article>
             </div>
             <p>
-              If you are unsure, use the connected single-operator path first
-              and let the coach recommend whether a broader work graph, model
-              synthesis, local worker, or contractor handoff is justified.
+              Use <a href="./workflows.html#execution-environments">Workflows</a>
+              when you need the full execution-profile comparison.
             </p>
           </section>
 
@@ -196,8 +168,8 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
             <p>
               The simple path is five steps: ask for the coach, answer any
               execution-changing choices, create or update one Beads task,
-              validate the work, and close the task with a recovery-quality
-              closure-memory comment. The
+              validate the work, and close the task with enough context for a
+              later session to pick up where you left off. The
               <a href="./use-cases.html#simple-use-cases">simple use case</a>
               shows that sequence without the full contractor workflow.
             </p>
@@ -222,14 +194,10 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
           <section id="core-terms">
             <h2>Core Terms</h2>
             <p>
-              These terms appear in the first run. Learn only these first, then
-              use the workflow and reference pages when you need exact controls.
+              Learn these terms for the first run. The expert vocabulary lives
+              in <a href="./reference.html">Reference</a>.
             </p>
             <div class="tile-grid">
-              <article>
-                <h3>Codex</h3>
-                <p>The coding-agent shell where you invoke the skill and where the main thread keeps final judgment.</p>
-              </article>
               <article>
                 <h3>CWO</h3>
                 <p>Complex Work Orchestration: the workflow that sizes, records, reviews, validates, and hands off complex agent work.</p>
@@ -243,36 +211,12 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
                 <p>The durable task graph for scope, dependencies, evidence, validation, closure memory, and handoff.</p>
               </article>
               <article>
-                <h3>Epic</h3>
-                <p>A parent Bead for a larger goal. Small first runs usually need only one task, not a full epic.</p>
-              </article>
-              <article>
-                <h3>Dolt Remote</h3>
-                <p>An optional sync target for Beads. Without one, the work graph is durable on this machine but not shared elsewhere.</p>
-              </article>
-              <article>
                 <h3>Validation</h3>
                 <p>The checks that prove the work is ready, such as tests, docs validation, install smoke, or Pages deployment.</p>
               </article>
               <article>
                 <h3>Closure Memory</h3>
                 <p>The final Beads comment that explains what happened, how it was checked, and what a future agent should know.</p>
-              </article>
-              <article>
-                <h3>Review Worker</h3>
-                <p>A bounded helper that gathers evidence while the main Codex thread keeps final judgment.</p>
-              </article>
-              <article>
-                <h3>Contractor Packet</h3>
-                <p>A policy-checked brief for an outside or local model reviewer, built only after the sharing boundary is approved.</p>
-              </article>
-              <article>
-                <h3>Evidence Lane</h3>
-                <p>A contractor, local worker, or peer review return that must be evaluated before it can affect implementation.</p>
-              </article>
-              <article>
-                <h3>Run Readiness</h3>
-                <p>A pre-handoff gate for broad runs that proves owners, exit conditions, evidence, and validation are in place.</p>
               </article>
             </div>
           </section>

@@ -75,8 +75,12 @@ session material. It uses:
   "max_prompt_chars": 50000,
   "local_clipboard_fallback": true,
   "selectors": {
+    "model_label_confirmation_open_selector": "button.__composer-pill:has-text('Pro Extended')",
     "model_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']",
-    "reasoning_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']"
+    "model_label_confirmation_text": "GPT-5.5",
+    "reasoning_label_confirmation_open_selector": "button.__composer-pill:has-text('Pro Extended')",
+    "reasoning_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']",
+    "reasoning_label_confirmation_text": "Pro Extended"
   }
 }
 ```
@@ -258,8 +262,8 @@ explicitly approves that loss of browser state.
 - Browser text without a valid share URL and confirmed model attestation is not
   accepted master-review evidence.
 
-Verified against ChatGPT UI on July 5, 2026: model and reasoning confirmation
-selectors used `[data-testid='composer-intelligence-picker-content']` in the
-operator local config.
+Verified against ChatGPT UI on July 8, 2026: the current composer pill displays
+`Pro Extended`; opening that pill exposes `[data-testid='composer-intelligence-picker-content']`
+with `GPT-5.5` and `Pro Extended` confirmation text.
 
-Last verified on Fedora 43 Wayland: July 5, 2026.
+Last verified on Fedora 43 Wayland: July 8, 2026.

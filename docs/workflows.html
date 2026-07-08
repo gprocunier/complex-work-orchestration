@@ -161,38 +161,14 @@ python3 scripts/cleanup_stale_agents.py --json</code></pre>
               <strong>Durability fallback:</strong>
               If Beads is unavailable, record the same task or graph structure
               in a temporary Markdown plan file and note that durability is
-              reduced. Do not claim contractor-only filtering, shared ready-work
-              semantics, or durable external handoff unless Beads or an
-              equivalent tracker is actually in use. Use
-              <code>--dry-run --format markdown-workgraph</code> for that
-              temporary fallback, then resume with
-              <code>scripts/summarize_resume_state.py --markdown-workgraph</code>.
-            </div>
-            <div class="callout">
-              <strong>Agent memory:</strong>
-              Spawned agents and compacted sessions should use the coach's
-              <code>beads_context_depth</code> value to decide how much Beads
-              history to read. <code>focused</code> gives assigned-Bead comments
-              as evidence, <code>heavy</code> adds broader related history, and
-              <code>audit</code> is reserved for incident or quarantine review.
-              Outside contractors do not receive raw comments; they get
-              redacted packets. Internal agents can use
-              <code>scripts/build_beads_brief.py</code> when they need the
-              generated brief.
+              reduced. Do not claim shared ready-work semantics or durable
+              external handoff unless Beads or an equivalent tracker is
+              actually in use.
             </div>
             <p>
-              For the reader-facing rationale behind this memory model, see
+              For the reader-facing rationale and exact context-depth controls, see
               <a href="./beads-memory.html">Beads Memory</a>.
             </p>
-            <div class="callout">
-              <strong>Depth choices:</strong>
-              The coach may choose <code>none</code>, <code>summary</code>,
-              <code>focused</code>, <code>heavy</code>, or
-              <code>audit</code>. Use <code>none</code> for no
-              Beads lookup, <code>summary</code> for assigned-Bead JSON without
-              comments, and comment-bearing depths only for internal agents.
-              The exact lookup rules live in <a href="./reference.html#durable-memory">Reference</a>.
-            </div>
             <p>
               The diagram below is the implementation view of that reader path:
               coach result, task graph, bounded workstreams, and evidence.
@@ -429,35 +405,16 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
           <section id="execution-environments">
             <h2>Execution Environments</h2>
             <p>
-              Codex is the default connected execution environment, but CWO
-              should not depend on one shell forever. The v2 model keeps CWO as
-              the governance layer and lets an approved harness perform bounded
-              work after CWO renders the assignment.
+              Codex is the default connected execution environment. CWO keeps
+              the durable memory, route policy, review gates, validation, and
+              handoff shape separate from the shell that performs the work.
             </p>
             <p>
-              OpenCode is the first open-source exemplar because it is
-              terminal-first, scriptable, supports non-interactive runs, and can
-              work with local OpenAI-compatible providers. OpenShift AI vLLM is
-              the preferred local serving exemplar for restricted and airgapped
-              environments; other compatible local endpoints can use the same
-              pattern.
-            </p>
-            <p>
-              The connected profile keeps Codex as the best-tested architect
-              and integration shell. Restricted profiles can bind work to
-              OpenCode plus approved local or provider-backed endpoints.
-              Airgapped profiles do not assume Codex is available and do not
-              use external contractors; CWO still contributes Beads memory,
-              rendered dispatch envelopes, validation, and architect
-              adjudication.
-            </p>
-            <h3>Model Profile Substitution</h3>
-            <p>
-              In OpenCode-based restricted or airgapped profiles, CWO can bind
-              each role to an approved OpenShift AI vLLM model profile. That is
-              how the open-harness path replaces public frontier calls with
-              local RHOAI endpoints while keeping the same Beads, review, and
-              acceptance discipline.
+              That separation is what makes the disconnected path credible.
+              OpenCode is the first open-source harness exemplar. OpenShift AI
+              vLLM is the local serving exemplar. Other approved shells or
+              OpenAI-compatible endpoints can use the same envelope, evaluator,
+              and architect-adjudication pattern.
             </p>
             <table class="data-table">
               <caption>Execution Profile Comparison</caption>
@@ -466,7 +423,7 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
                   <th scope="col">Profile</th>
                   <th scope="col">Execution Shell</th>
                   <th scope="col">Model Boundary</th>
-                  <th scope="col">Beads Mode</th>
+                  <th scope="col">When To Use It</th>
                 </tr>
               </thead>
               <tbody>
@@ -474,103 +431,30 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
                   <th scope="row">Connected Codex</th>
                   <td>Codex CLI is the primary architect and integration shell.</td>
                   <td>Outside contractors are opt-in evidence lanes.</td>
-                  <td>Local or Dolt-backed, depending on the repo.</td>
+                  <td>Default path for normal repository work.</td>
                 </tr>
                 <tr>
                   <th scope="row">Restricted OpenCode</th>
                   <td>OpenCode or manual shell executes bounded envelopes.</td>
                   <td>Only approved providers or local endpoints are used.</td>
-                  <td>Use the configured repo graph and record policy limits.</td>
+                  <td>Use when Codex is not the execution shell but local project state is available.</td>
                 </tr>
                 <tr>
                   <th scope="row">Airgapped RHOAI</th>
                   <td>Codex CLI is not assumed; OpenCode or manual operators run locally.</td>
                   <td>External contractors are disabled; local serving is the evidence lane.</td>
-                  <td>Durable local state unless an approved internal sync exists.</td>
-                </tr>
-              </tbody>
-            </table>
-            <table class="data-table">
-              <caption>Airgapped Model Matrix</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Role</th>
-                  <th scope="col">Connected default</th>
-                  <th scope="col">Practical RHOAI profile</th>
-                  <th scope="col">Enterprise evaluation targets</th>
-                  <th scope="col">Fit</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">Architect</th>
-                  <td>Codex 5.5 x-high</td>
-                  <td><code>rhoai-architect-mistral-small-4-119b-nvfp4</code></td>
-                  <td>
-                    <ul class="matrix-list">
-                      <li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li>
-                      <li><code>rhoai-architect-glm-5-2-fp8</code></li>
-                    </ul>
-                  </td>
-                  <td>Enterprise planning; promote Nemotron 3 Ultra or GLM-5.2 only after a benchmark gate.</td>
-                </tr>
-                <tr>
-                  <th scope="row">PM</th>
-                  <td>Codex PM or smaller coordination model</td>
-                  <td><code>rhoai-project-manager-qwen3-6-35b-a3b-nvfp4</code></td>
-                  <td>
-                    <ul class="matrix-list">
-                      <li><code>rhoai-architect-glm-5-2-fp8</code> for summarization-heavy workloads</li>
-                    </ul>
-                  </td>
-                  <td>Beads summaries, dependencies, status, and handoff.</td>
-                </tr>
-                <tr>
-                  <th scope="row">Workerbee</th>
-                  <td>Codex 5.3 Spark</td>
-                  <td><code>rhoai-worker-qwen2-5-coder-32b-fp8</code></td>
-                  <td>
-                    <ul class="matrix-list">
-                      <li><code>rhoai-architect-glm-5-2-fp8</code> for large reasoning packets</li>
-                    </ul>
-                  </td>
-                  <td>Bounded code review, test triage, and patch proposals.</td>
-                </tr>
-                <tr>
-                  <th scope="row">Review</th>
-                  <td>Codex 5.3 Spark review-only subagent</td>
-                  <td><code>rhoai-reviewer-nemotron-3-nano-30b-fp8</code></td>
-                  <td>
-                    <ul class="matrix-list">
-                      <li><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code></li>
-                      <li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li>
-                    </ul>
-                  </td>
-                  <td>Llama 4 Maverick is useful for multimodal/general review; use larger lanes for high-stakes checks.</td>
-                </tr>
-                <tr>
-                  <th scope="row">Synthesis input</th>
-                  <td>CWO synthesis plus architect adjudication</td>
-                  <td><code>rhoai-synthesis-qwen3-5-122b-a10b-nvfp4</code></td>
-                  <td>
-                    <ul class="matrix-list">
-                      <li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li>
-                      <li><code>rhoai-architect-glm-5-2-fp8</code></li>
-                    </ul>
-                  </td>
-                  <td>Independent local counter-review; not final authority.</td>
+                  <td>Use when public services are unavailable or forbidden.</td>
                 </tr>
               </tbody>
             </table>
             <div class="callout">
               <p>
-                The practical profiles are the default recommendation for
-                disconnected deployments. Enterprise evaluation targets are
-                benchmark targets: record GPU topology, P2P/NCCL behavior,
-                vLLM startup flags, <code>/v1/models</code> and
-                <code>/v1/chat/completions</code> smoke tests, representative
-                CWO packets, evaluator scoring, and architect adjudication
-                before promotion.
+                Local model substitution changes where evidence comes from; it
+                does not remove CWO's review and acceptance discipline. Role
+                profiles and benchmark gates live in
+                <a href="./reference.html#policies">Reference</a>; the
+                operator source file is
+                <code>references/execution-environments.md</code>.
               </p>
             </div>
             <div class="workflow-diagram linear" role="img" aria-label="CWO governs the work graph, renders a harness dispatch, OpenCode or local worker executes, and CWO evaluates the return.">

@@ -52,7 +52,7 @@
           <a href="#execute-local">Execute Explicitly</a>
           <a href="#evaluate">Evaluate Returns</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
-      </nav>
+        </nav>
         <div class="doc-body">
           <section id="invoke-codex">
             <h2>Invoke From Codex</h2>
@@ -130,10 +130,10 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
           <section id="openshift-ai">
             <h2>OpenShift AI vLLM Profile</h2>
             <p>
-              OpenShift AI is the exemplar platform for this kind of controlled
-              local or private model serving: platform integration, operational
+              OpenShift AI is the documented exemplar for controlled local or
+              private model serving. Platform integration, operational
               boundaries, identity, auditability, and vLLM-backed inference can
-              all live close to the environment where the work is being done.
+              live close to the environment where the work is being done.
             </p>
             <p>
               The skill does not require OpenShift AI. Any compatible local or
@@ -142,11 +142,11 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               reference-quality path, not a portability limit.
             </p>
             <p>
-              For v2 execution environments, OpenShift AI vLLM is also the
-              local serving exemplar behind restricted and airgapped profiles.
-              Codex may be unavailable in those zones; CWO can still render work
-              to OpenCode or a manual operator shell while keeping Beads and
-              architect adjudication in the workflow.
+              For restricted and airgapped execution environments, OpenShift AI
+              vLLM is the local serving exemplar. Codex may be unavailable in
+              those zones; CWO can still render work to OpenCode or a manual
+              operator shell while keeping Beads and architect adjudication in
+              the workflow.
             </p>
             <p>
               Registered local profiles live in the executor registry. Use
@@ -155,7 +155,7 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               serving stacks.
             </p>
             <p>
-              v2 execution profiles add role-specific model profiles on top of
+              Execution profiles add role-specific model profiles on top of
               endpoint profiles. The executor profile says where the local API
               lives; the model profile says which approved RHOAI/vLLM model
               alias should handle a CWO role. In airgapped OpenCode flows, CWO
@@ -310,7 +310,7 @@ python3 scripts/dispatch_work.py \
   --snapshot \
   --output before.json
 
-# (Run local model dispatch or CLI redirect to local-return.md)
+# Run the approved local dispatch or capture the local return in local-return.md.
 
 python3 scripts/workspace_mutation_guard.py \
   --compare before.json \

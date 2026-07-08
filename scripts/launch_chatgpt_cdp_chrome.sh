@@ -102,8 +102,12 @@ write_config() {
   "max_prompt_chars": 50000,
   "local_clipboard_fallback": true,
   "selectors": {
+    "model_label_confirmation_open_selector": "button.__composer-pill:has-text('Pro Extended')",
     "model_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']",
-    "reasoning_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']"
+    "model_label_confirmation_text": "GPT-5.5",
+    "reasoning_label_confirmation_open_selector": "button.__composer-pill:has-text('Pro Extended')",
+    "reasoning_label_confirmation_selector": "[data-testid='composer-intelligence-picker-content']",
+    "reasoning_label_confirmation_text": "Pro Extended"
   }
 }
 EOF
