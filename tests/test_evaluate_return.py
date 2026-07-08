@@ -14,6 +14,8 @@ from cwo_core.returns import (  # noqa: E402
     SectionReader,
     classify_patch_authorization,
     evidence_items_from_sections,
+    is_merge_readiness_go_claim,
+    is_packet_only_declared,
     make_acceptance_decision,
     normalize_contractor_return,
     parse_return_sections,
@@ -209,6 +211,72 @@ Escalation needed: no
         self.assertIn("Attestation or reproducibility note", sections)
         self.assertIn("Risks or gaps", sections)
         self.assertIn("Recommended next bead", sections)
+
+    def test_master_review_declared_review_surface_and_source_inspection(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Summary: The redacted packet design blocks full Bead JSON and only includes selected snippets.",
+            "Summary: Plan is ready for merge and safe to ship in readiness review.",
+        ) + "\nReview surface: packet-only\nSource inspection: packet-only"
+        result = make_acceptance_decision(text, executor="chatgpt_pro_browser_master_reviewer")
+        self.assertEqual(result["review_surface"], "packet-only")
+        self.assertEqual(result["source_inspection"], "packet-only")
+        self.assertTrue(result["review_surface_packet_only"])
+        self.assertTrue(result["source_inspection_packet_only"])
+        self.assertTrue(result["go_for_pr_merge_readiness_claimed"])
+        self.assertTrue(result["review_surface_mismatch"])
+        self.assertTrue(result["review_surface_required_evidence_missing"])
+        self.assertIn(
+            "packet-only master review cannot provide unconditional PR/merge/readiness GO",
+            result["review_surface_mismatch_reasons"],
+        )
+        self.assertTrue(result["master_review_packet_only_go_hold"])
+        self.assertTrue(result["implementation_blocked"])
+        self.assertIn(
+            "reviewer packet-only GO claim for merge/readiness requires architect adjudication",
+            result["hold_reasons"],
+        )
+        self.assertEqual(result["recommended_disposition"], "architect-adjudication")
+
+    def test_master_review_non_packet_scope_go_claim_is_not_packet_only_held(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        text = text.replace(
+            "Summary: The redacted packet design blocks full Bead JSON and only includes selected snippets.",
+            "Summary: The PR is ready for merge after source review confirms behavior.",
+        ) + "\nReview surface: repo-readonly\nSource inspection: repo-readonly"
+        result = make_acceptance_decision(text, executor="chatgpt_pro_browser_master_reviewer")
+        self.assertFalse(result["master_review_packet_only_go_hold"])
+        self.assertFalse(result["review_surface_mismatch"])
+        self.assertFalse(result["implementation_blocked"])
+        self.assertNotIn(
+            "reviewer packet-only GO claim for merge/readiness requires architect adjudication",
+            result["hold_reasons"],
+        )
+
+    def test_packet_only_declaration_allows_explanatory_source_limits(self) -> None:
+        self.assertTrue(is_packet_only_declared("packet-only (no repo source access)"))
+        self.assertTrue(is_packet_only_declared("redacted packet; repository was not inspected"))
+
+    def test_source_first_uninspected_phrase_blocks_packet_go_claim(self) -> None:
+        text = self.sample_return().replace(
+            "Summary: The redacted packet design blocks full Bead JSON and only includes selected snippets.",
+            "Summary: GO for PR merge readiness.",
+        ) + "\nReview surface: packet-only\nSource inspection: PR was not inspected"
+
+        result = make_acceptance_decision(text, executor="chatgpt_pro_browser_master_reviewer")
+
+        self.assertTrue(result["review_surface_required_evidence_missing"])
+        self.assertIn(
+            "return says required PR/diff/repo/source evidence was not inspected",
+            result["review_surface_mismatch_reasons"],
+        )
+
+    def test_merge_readiness_go_claim_detection_direct_cases(self) -> None:
+        self.assertTrue(is_merge_readiness_go_claim("- GO for merge after packet review"))
+        self.assertTrue(is_merge_readiness_go_claim("PR is now ready."))
+        self.assertTrue(is_merge_readiness_go_claim("Looks good to go."))
+        self.assertFalse(is_merge_readiness_go_claim("This is not ready for merge."))
+        self.assertFalse(is_merge_readiness_go_claim("No GO for release until peer review completes."))
 
     def test_section_reader_matches_section_value_compatibility_wrapper(self) -> None:
         sections = parse_return_sections(
@@ -450,6 +518,35 @@ Attestation/repro note: reproducible from packet.
         self.assertEqual(result["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
         self.assertEqual(result["recommended_synthesis_use"], "primary")
 
+    def test_local_truncation_metadata_forces_salvage_and_clarification(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(
+            text,
+            executor="rhoai_glm_architecture_critic",
+            local_response_truncated=True,
+            local_finish_reasons=["length", "max_tokens"],
+        )
+        self.assertEqual(result["verdict"], "accept")
+        self.assertIn(result["recommended_disposition"], ["request-clarification", "architect-adjudication"])
+        self.assertEqual(result["recommended_synthesis_use"], "salvage-only")
+        self.assertTrue(result["human_adjudication_required"])
+        self.assertTrue(any("truncation" in str(reason).lower() for reason in result["penalty_reasons"]))
+
+    def test_local_reasoning_malformed_metadata_reduces_synthesis_use(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(
+            text,
+            executor="rhoai_glm_architecture_critic",
+            local_reasoning_malformed=True,
+        )
+        self.assertIn(
+            result["recommended_disposition"],
+            ["request-clarification", "architect-adjudication"],
+        )
+        self.assertEqual(result["recommended_synthesis_use"], "salvage-only")
+        self.assertTrue(result["human_adjudication_required"])
+        self.assertTrue(any("reasoning content malformed" in str(reason).lower() for reason in result["penalty_reasons"]))
+
     def test_structurally_complete_generic_return_is_not_accepted(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
         text = text.replace(
@@ -536,6 +633,125 @@ Attestation/repro note: reproducible from packet.
         self.assertEqual(payload["executor"], "some_unregistered_local_llm")
         self.assertIsNone(payload["provider_key"])
         self.assertEqual(payload["provenance_class"], "unknown")
+
+    def test_evaluate_return_cli_loads_local_dispatch_result_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            artifact = {
+                "dispatch_id": "dispatch-local-test",
+                "bead_id": "bead-local-test",
+                "route": {
+                    "share_boundary": "redacted-packet",
+                    "selected_executor": {
+                        "key": "rhoai_glm_architecture_critic",
+                        "provider_key": "openshift_ai_vllm",
+                        "provider_trust_tier": "local-platform",
+                        "dispatch_mode": "local_openai_compatible",
+                        "local_profile": "openshift-ai-vllm",
+                        "model_profile": "rhoai-architect-glm-5-2-bf16-thinking",
+                    },
+                    "recommended_executor": "rhoai_glm_architecture_critic",
+                },
+                "local_response": {
+                    "response_truncated": True,
+                    "finish_reasons": ["length"],
+                    "reasoning_malformed": False,
+                },
+            }
+            artifact_path = Path(workdir) / "dispatch-result.json"
+            artifact_path.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
+            return_file = Path(workdir) / "return.txt"
+            return_file.write_text(self.sample_return(), encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(ROOT / "scripts" / "evaluate_return.py"),
+                    "--file",
+                    str(return_file),
+                    "--local-dispatch-result",
+                    str(artifact_path),
+                    "--no-audit",
+                    "--waiver-reason",
+                    "test local dispatch metadata",
+                    "--json",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["dispatch_id"], "dispatch-local-test")
+        self.assertEqual(payload["bead_id"], "bead-local-test")
+        self.assertEqual(payload["provider_key"], "openshift_ai_vllm")
+        self.assertEqual(payload["provider_trust_tier"], "local-platform")
+        self.assertEqual(payload["dispatch_mode"], "local_openai_compatible")
+        self.assertEqual(payload["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(payload["recommended_synthesis_use"], "salvage-only")
+        self.assertTrue(payload["human_adjudication_required"])
+        self.assertTrue(any("truncation" in str(reason).lower() for reason in payload["penalty_reasons"]))
+
+    def test_evaluate_return_cli_uses_ranked_expert_job_description_label(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            artifact = {
+                "dispatch_id": "dispatch-local-test",
+                "bead_id": "bead-local-test",
+                "route": {
+                    "share_boundary": "redacted-packet",
+                    "selected_executor": {
+                        "key": "rhoai_glm_architecture_critic",
+                        "provider_key": "openshift_ai_vllm",
+                        "provider_trust_tier": "local-platform",
+                        "dispatch_mode": "local_openai_compatible",
+                        "local_profile": "openshift-ai-vllm",
+                        "model_profile": "rhoai-architect-glm-5-2-bf16-thinking",
+                    },
+                    "ranked_experts": [
+                        {
+                            "name": "architecture",
+                            "job_description_label": "contract-jd-security-reasoning",
+                        }
+                    ],
+                },
+            }
+            artifact_path = Path(workdir) / "dispatch-result.json"
+            artifact_path.write_text(json.dumps(artifact, indent=2), encoding="utf-8")
+            return_file = Path(workdir) / "return.txt"
+            return_file.write_text(
+                self.sample_return().replace(
+                    "Contractor job description: contract-jd-security-reasoning",
+                    "Contractor job description: contract-jd-architecture-reasoning",
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(ROOT / "scripts" / "evaluate_return.py"),
+                    "--file",
+                    str(return_file),
+                    "--local-dispatch-result",
+                    str(artifact_path),
+                    "--no-audit",
+                    "--waiver-reason",
+                    "test ranked expert job label",
+                    "--json",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["verdict"], "reject")
+        self.assertIn("missing assigned job-description alignment", payload["hard_disqualifiers"])
 
     def test_normalize_return_cli_canonicalizes_executor_alias(self) -> None:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:

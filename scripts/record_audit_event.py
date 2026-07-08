@@ -26,6 +26,7 @@ def main() -> None:
     parser.add_argument("--telemetry-kind")
     parser.add_argument("--telemetry-status")
     parser.add_argument("--telemetry-missing-reason")
+    parser.add_argument("--telemetry-source")
     parser.add_argument("--model")
     parser.add_argument("--model-label")
     parser.add_argument("--provider-family")
@@ -39,6 +40,15 @@ def main() -> None:
     parser.add_argument("--total-tokens", type=int)
     parser.add_argument("--active-seconds", type=float)
     parser.add_argument("--elapsed-seconds", type=float)
+    parser.add_argument("--workerbee-planned-mode")
+    parser.add_argument("--workerbee-planned-model")
+    parser.add_argument("--workerbee-planned-lane", action="append", default=[])
+    parser.add_argument("--workerbee-actual-mode")
+    parser.add_argument("--workerbee-actual-model")
+    parser.add_argument("--workerbee-actual-lane", action="append", default=[])
+    parser.add_argument("--workerbee-delegation-status")
+    parser.add_argument("--workerbee-delegation-source")
+    parser.add_argument("--workerbee-delegation-gap-reason", action="append", default=[])
     parser.add_argument("--audit-file")
     args = parser.parse_args()
 
@@ -60,6 +70,7 @@ def main() -> None:
                 telemetry_kind=args.telemetry_kind,
                 telemetry_status=args.telemetry_status,
                 telemetry_missing_reason=args.telemetry_missing_reason,
+                telemetry_source=args.telemetry_source,
                 model=args.model,
                 model_label=args.model_label,
                 provider_family=args.provider_family,
@@ -73,6 +84,15 @@ def main() -> None:
                 total_tokens=args.total_tokens,
                 active_seconds=args.active_seconds,
                 elapsed_seconds=args.elapsed_seconds,
+                workerbee_planned_mode=args.workerbee_planned_mode,
+                workerbee_planned_model=args.workerbee_planned_model,
+                workerbee_planned_lanes=args.workerbee_planned_lane,
+                workerbee_actual_mode=args.workerbee_actual_mode,
+                workerbee_actual_model=args.workerbee_actual_model,
+                workerbee_actual_lanes=args.workerbee_actual_lane,
+                workerbee_delegation_status=args.workerbee_delegation_status,
+                workerbee_delegation_source=args.workerbee_delegation_source,
+                workerbee_delegation_gap_reasons=args.workerbee_delegation_gap_reason,
             ),
         },
         Path(args.audit_file) if args.audit_file else None,

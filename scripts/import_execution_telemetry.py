@@ -41,9 +41,32 @@ STRING_FIELDS = {
     "expert_profile_path",
     "telemetry_missing_reason",
     "telemetry_source",
+    "workerbee_planned_mode",
+    "workerbee_planned_model",
+    "workerbee_actual_mode",
+    "workerbee_actual_model",
+    "workerbee_delegation_status",
+    "workerbee_delegation_source",
 }
-LIST_FIELDS = {"telemetry_missing_reasons"}
-ALLOWED_FIELDS = NUMERIC_FIELDS | STRING_FIELDS | LIST_FIELDS | {"usage"}
+LIST_FIELDS = {
+    "telemetry_missing_reasons",
+    "workerbee_planned_lanes",
+    "workerbee_actual_lanes",
+    "workerbee_delegation_gap_reasons",
+}
+OBJECT_FIELDS = {"workerbee_planned_delegation"}
+WORKERBEE_FIELDS = {
+    "workerbee_planned_mode",
+    "workerbee_planned_model",
+    "workerbee_planned_lanes",
+    "workerbee_actual_mode",
+    "workerbee_actual_model",
+    "workerbee_actual_lanes",
+    "workerbee_delegation_status",
+    "workerbee_delegation_source",
+    "workerbee_delegation_gap_reasons",
+}
+ALLOWED_FIELDS = NUMERIC_FIELDS | STRING_FIELDS | LIST_FIELDS | OBJECT_FIELDS | {"usage"}
 DISPATCH_EVENT_TYPES = {
     "chatgpt_browser_dispatch",
     "dispatch",
@@ -147,6 +170,11 @@ def normalize_import_record(record: dict[str, Any], *, path: Path, index: int) -
                 raise ValueError(f"{path}: record {index} field {field} must be an array")
             values = [_short_text(item) for item in record[field]]
             normalized[field] = [item for item in values if item]
+    if "workerbee_planned_delegation" in record:
+        planned = record["workerbee_planned_delegation"]
+        if not isinstance(planned, dict):
+            raise ValueError(f"{path}: record {index} field workerbee_planned_delegation must be an object")
+        _copy_workerbee_plan(planned, normalized)
 
     usage = record.get("usage")
     if usage is not None:
@@ -158,7 +186,10 @@ def normalize_import_record(record: dict[str, Any], *, path: Path, index: int) -
 
     if not normalized.get("dispatch_id") and not normalized.get("bead_id"):
         raise ValueError(f"{path}: record {index} must include dispatch_id or bead_id")
-    if not any(field in normalized for field in NUMERIC_FIELDS | {"telemetry_missing_reason", "telemetry_missing_reasons"}):
+    if not any(
+        field in normalized
+        for field in NUMERIC_FIELDS | {"telemetry_missing_reason", "telemetry_missing_reasons"} | WORKERBEE_FIELDS
+    ):
         raise ValueError(f"{path}: record {index} must include telemetry values or missing reasons")
     return normalized
 
@@ -210,6 +241,15 @@ def build_import_event(
             job_description_label=record.get("job_description_label") or (target or {}).get("job_description_label"),
             expert_profile=record.get("expert_profile") or (target or {}).get("expert_profile"),
             expert_profile_path=record.get("expert_profile_path") or (target or {}).get("expert_profile_path"),
+            workerbee_planned_mode=record.get("workerbee_planned_mode"),
+            workerbee_planned_model=record.get("workerbee_planned_model"),
+            workerbee_planned_lanes=record.get("workerbee_planned_lanes"),
+            workerbee_actual_mode=record.get("workerbee_actual_mode"),
+            workerbee_actual_model=record.get("workerbee_actual_model"),
+            workerbee_actual_lanes=record.get("workerbee_actual_lanes"),
+            workerbee_delegation_status=record.get("workerbee_delegation_status"),
+            workerbee_delegation_source=record.get("workerbee_delegation_source"),
+            workerbee_delegation_gap_reasons=record.get("workerbee_delegation_gap_reasons"),
         ),
     }
     return {key: value for key, value in event.items() if value not in [None, "", []]}
@@ -247,6 +287,24 @@ def _copy_usage_number(usage: dict[str, Any], normalized: dict[str, Any], target
         if key in usage:
             normalized[target] = _nonnegative_number(usage[key], path=Path("<usage>"), index=0, field=key)
             return
+
+
+def _copy_workerbee_plan(planned: dict[str, Any], normalized: dict[str, Any]) -> None:
+    if "workerbee_planned_mode" not in normalized:
+        mode = _short_text(planned.get("mode") or planned.get("recommended_mode"))
+        if mode is not None:
+            normalized["workerbee_planned_mode"] = mode
+    if "workerbee_planned_model" not in normalized:
+        model = _short_text(planned.get("model") or planned.get("recommended_model"))
+        if model is not None:
+            normalized["workerbee_planned_model"] = model
+    if "workerbee_planned_lanes" not in normalized:
+        lanes = planned.get("lanes")
+        if lanes is None:
+            lanes = planned.get("suggested_lanes")
+        if isinstance(lanes, list):
+            values = [_short_text(item) for item in lanes]
+            normalized["workerbee_planned_lanes"] = [item for item in values if item]
 
 
 def _nonnegative_number(value: Any, *, path: Path, index: int, field: str) -> int | float:

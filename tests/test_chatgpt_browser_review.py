@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from chatgpt_browser_review import (  # noqa: E402
     ChatGPTBrowserReviewError,
+    DEFAULT_SCROLL_TO_BOTTOM_SELECTOR,
     DEFAULT_MODEL_LABEL,
     DEFAULT_REASONING_LABEL,
     EXECUTOR_KEY,
@@ -308,6 +309,204 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertEqual(runner._create_share_link(page, 1, TimeoutError), "")
         self.assertEqual(page.clicks[:2], ["button[aria-label='Jump to latest']", "button[aria-label='Jump to latest']"])
         self.assertIn("button[aria-label='Share']", page.clicks)
+
+    def test_default_scroll_selector_includes_unlabeled_floating_button(self) -> None:
+        self.assertIn(
+            "button[aria-hidden='true'][tabindex='-1'].btn-secondary",
+            DEFAULT_SCROLL_TO_BOTTOM_SELECTOR,
+        )
+
+    def test_click_share_button_prefers_visible_response_share_control(self) -> None:
+        class FakeShareButton:
+            def __init__(
+                self, page: "FakePage", name: str, *, aria_label: str = "", data_testid: str = "", rect: tuple[int, int, int, int] = (0, 0, 10, 10)
+            ) -> None:
+                self.page = page
+                self.name = name
+                self.aria_label = aria_label
+                self.data_testid = data_testid
+                self.rect = rect
+
+            def is_visible(self) -> bool:
+                return True
+
+            def click(self, timeout: int, force: bool = False) -> None:
+                self.page.clicked.append(self.name)
+
+            def get_attribute(self, name: str, timeout: int = 0) -> str | None:
+                if name == "aria-label":
+                    return self.aria_label
+                if name == "data-testid":
+                    return self.data_testid
+                return ""
+
+            def evaluate(self, script: str) -> bool:
+                x, y, w, h = self.rect
+                return w > 0 and h > 0 and x < 1000 and x + w > 0 and y < 600 and y + h > 0
+
+        class FakeShareLocator:
+            def __init__(self, buttons: list[FakeShareButton]) -> None:
+                self.buttons = buttons
+
+            @property
+            def first(self) -> "FakeShareButton":
+                return self.buttons[0]
+
+            def count(self) -> int:
+                return len(self.buttons)
+
+            def nth(self, index: int) -> FakeShareButton:
+                return self.buttons[index]
+
+        class FakePage:
+            def __init__(self) -> None:
+                self.clicked: list[str] = []
+                self.locator_buttons = [
+                    FakeShareButton(self, "conversation", data_testid="share-chat-button"),
+                    FakeShareButton(self, "response", aria_label="Share"),
+                ]
+
+            def locator(self, selector: str) -> FakeShareLocator:
+                return FakeShareLocator(self.locator_buttons)
+
+        page = FakePage()
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
+        runner._click_share_button(page, 1, TimeoutError)
+        self.assertEqual(page.clicked, ["response"])
+
+    def test_click_share_button_falls_back_to_conversation_share_when_response_share_not_visible(self) -> None:
+        class FakeShareButton:
+            def __init__(
+                self,
+                page: "FakePage",
+                name: str,
+                *,
+                aria_label: str = "",
+                data_testid: str = "",
+                rect: tuple[int, int, int, int] = (0, 0, 10, 10),
+            ) -> None:
+                self.page = page
+                self.name = name
+                self.aria_label = aria_label
+                self.data_testid = data_testid
+                self.rect = rect
+
+            def is_visible(self) -> bool:
+                return True
+
+            def click(self, timeout: int, force: bool = False) -> None:
+                self.page.clicked.append(self.name)
+
+            def get_attribute(self, name: str, timeout: int = 0) -> str | None:
+                if name == "aria-label":
+                    return self.aria_label
+                if name == "data-testid":
+                    return self.data_testid
+                return ""
+
+            def evaluate(self, script: str) -> bool:
+                x, y, w, h = self.rect
+                return w > 0 and h > 0 and x < 1000 and x + w > 0 and y < 600 and y + h > 0
+
+        class FakeShareLocator:
+            def __init__(self, buttons: list[FakeShareButton]) -> None:
+                self.buttons = buttons
+
+            @property
+            def first(self) -> FakeShareButton:
+                return self.buttons[0]
+
+            def count(self) -> int:
+                return len(self.buttons)
+
+            def nth(self, index: int) -> FakeShareButton:
+                return self.buttons[index]
+
+        class FakePage:
+            def __init__(self) -> None:
+                self.clicked: list[str] = []
+                self.locator_buttons = [
+                    FakeShareButton(self, "conversation", data_testid="share-chat-button", rect=(0, 0, 10, 10)),
+                    FakeShareButton(self, "response", aria_label="Share", rect=(0, 2000, 10, 10)),
+                ]
+
+            def locator(self, selector: str) -> FakeShareLocator:
+                return FakeShareLocator(self.locator_buttons)
+
+        page = FakePage()
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
+        runner._click_share_button(page, 1, TimeoutError)
+        self.assertEqual(page.clicked, ["conversation"])
+
+    def test_click_share_button_prefers_viewport_response_share_over_offscreen_response_share(self) -> None:
+        class FakeShareButton:
+            def __init__(
+                self,
+                page: "FakePage",
+                name: str,
+                *,
+                aria_label: str = "",
+                data_testid: str = "",
+                rect: tuple[int, int, int, int] = (0, 0, 10, 10),
+            ) -> None:
+                self.page = page
+                self.name = name
+                self.aria_label = aria_label
+                self.data_testid = data_testid
+                self.rect = rect
+
+            def is_visible(self) -> bool:
+                return True
+
+            def click(self, timeout: int, force: bool = False) -> None:
+                self.page.clicked.append(self.name)
+
+            def get_attribute(self, name: str, timeout: int = 0) -> str | None:
+                if name == "aria-label":
+                    return self.aria_label
+                if name == "data-testid":
+                    return self.data_testid
+                return ""
+
+            def evaluate(self, script: str) -> bool:
+                x, y, w, h = self.rect
+                return w > 0 and h > 0 and x < 1000 and x + w > 0 and y < 600 and y + h > 0
+
+        class FakeShareLocator:
+            def __init__(self, buttons: list[FakeShareButton]) -> None:
+                self.buttons = buttons
+
+            @property
+            def first(self) -> FakeShareButton:
+                return self.buttons[0]
+
+            def count(self) -> int:
+                return len(self.buttons)
+
+            def nth(self, index: int) -> FakeShareButton:
+                return self.buttons[index]
+
+        class FakePage:
+            def __init__(self) -> None:
+                self.clicked: list[str] = []
+                self.locator_buttons = [
+                    FakeShareButton(self, "conversation", data_testid="share-chat-button", rect=(0, 0, 10, 10)),
+                    FakeShareButton(
+                        self,
+                        "response-offscreen",
+                        aria_label="Share",
+                        rect=(0, 2000, 10, 10),
+                    ),
+                    FakeShareButton(self, "response-viewport", aria_label="Share", rect=(0, 120, 10, 10)),
+                ]
+
+            def locator(self, selector: str) -> FakeShareLocator:
+                return FakeShareLocator(self.locator_buttons)
+
+        page = FakePage()
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
+        runner._click_share_button(page, 1, TimeoutError)
+        self.assertEqual(page.clicked, ["response-viewport"])
 
     def test_model_confirmation_requires_explicit_selectors(self) -> None:
         runner = PlaywrightChatGPTRunner(

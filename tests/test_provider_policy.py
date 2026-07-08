@@ -237,7 +237,10 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertIn("architecture-review", executor["allowed_task_classes"])
         self.assertEqual(executor["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
         self.assertEqual(executor["transport"]["default_model"], "glm-5.2-bf16-128k")
-        self.assertEqual(executor["transport"]["request_options"], {"chat_template_kwargs": {"enable_thinking": True}})
+        self.assertEqual(
+            executor["transport"]["request_options"],
+            {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 4096},
+        )
         self.assertEqual(executor["transport"]["thinking_parser"], "glm-think-tags")
 
     def test_glm_bf16_primary_architect_is_read_only_local_architect(self) -> None:
@@ -255,7 +258,10 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertFalse(executor["supports_shell"])
         self.assertFalse(executor["supports_web"])
         self.assertEqual(executor["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
-        self.assertEqual(executor["transport"]["request_options"], {"chat_template_kwargs": {"enable_thinking": True}})
+        self.assertEqual(
+            executor["transport"]["request_options"],
+            {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 4096},
+        )
 
     def test_codex_xhigh_counter_review_is_internal_read_only_review_lane(self) -> None:
         executors = load_policy("executor-registry")["executors"]

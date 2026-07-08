@@ -132,6 +132,8 @@ class AuditTests(unittest.TestCase):
                     "example",
                     "--telemetry-kind",
                     "manual_dispatch",
+                    "--telemetry-source",
+                    "operator-sidecar",
                     "--model",
                     "claude-opus-4-6",
                     "--provider-family",
@@ -152,6 +154,7 @@ class AuditTests(unittest.TestCase):
             )
             payload = json.loads(result.stdout)
             self.assertEqual(payload["telemetry_kind"], "manual_dispatch")
+            self.assertEqual(payload["telemetry_source"], "operator-sidecar")
             self.assertEqual(payload["provider_family"], "anthropic")
             self.assertEqual(payload["total_tokens"], 25)
 

@@ -349,9 +349,51 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertFalse(envelope["tls_verify"])
         self.assertEqual(envelope["tls_verify_source"], "--local-insecure-tls")
         self.assertTrue(envelope["allow_insecure_tls"])
-        self.assertEqual(envelope["request_options"], {"chat_template_kwargs": {"enable_thinking": True}})
+        self.assertEqual(
+            envelope["request_options"],
+            {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 4096},
+        )
         self.assertEqual(envelope["thinking_parser"], "glm-think-tags")
         self.assertEqual(envelope["response_sanitization"], "strip-raw-thinking")
+
+    def test_glm_envelope_and_payload_preserve_default_request_options(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            local_max_tokens=None,
+            local_thinking="default",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        self.assertEqual(
+            envelope["request_options"],
+            {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 4096},
+        )
+
+        opener = FakePayloadOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            response = execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertEqual(opener.payload["chat_template_kwargs"], {"enable_thinking": True})
+        self.assertEqual(opener.payload.get("max_tokens"), 4096)
+        self.assertEqual(response["status_code"], 200)
 
     def test_glm_execute_posts_thinking_options_and_strips_reasoning(self) -> None:
         route = classify_work(
@@ -431,6 +473,172 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertTrue(telemetry["response_truncated"])
         self.assertEqual(telemetry["finish_reasons"], ["length"])
         self.assertNotIn("private reasoning", json.dumps(telemetry))
+
+    def test_local_dispatch_respects_local_max_tokens_override(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            local_max_tokens=1234,
+            local_thinking="default",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        self.assertEqual(
+            envelope["request_options"],
+            {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 1234},
+        )
+        opener = FakePayloadOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertEqual(opener.payload["max_tokens"], 1234)
+        self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], True)
+
+    def test_local_dispatch_respects_local_thinking_on_and_off_overrides(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        with self.subTest("off"):
+            args = Namespace(
+                local_api_key_env=None,
+                local_timeout=None,
+                local_base_url="http://127.0.0.1:8000",
+                local_model=None,
+                local_allow_private_dns=False,
+                local_ca_bundle=None,
+                local_insecure_tls=False,
+                local_max_tokens=None,
+                local_thinking="off",
+                execute_local=True,
+            )
+            envelope = build_local_envelope(
+                task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+                route=route,
+                dispatch_id="dispatch-glm-test",
+                bead_id="cwo-glm",
+                epic_id=None,
+                args=args,
+            )
+            self.assertEqual(envelope["request_options"]["chat_template_kwargs"]["enable_thinking"], False)
+
+            opener = FakePayloadOpener()
+            with patch("dispatch_work.request.build_opener", return_value=opener):
+                execute_local_envelope(envelope, route["selected_executor"], args)
+            self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], False)
+
+        with self.subTest("on"):
+            args = Namespace(
+                local_api_key_env=None,
+                local_timeout=None,
+                local_base_url="http://127.0.0.1:8000",
+                local_model=None,
+                local_allow_private_dns=False,
+                local_ca_bundle=None,
+                local_insecure_tls=False,
+                local_max_tokens=None,
+                local_thinking="on",
+                execute_local=True,
+            )
+            envelope = build_local_envelope(
+                task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+                route=route,
+                dispatch_id="dispatch-glm-test-on",
+                bead_id="cwo-glm",
+                epic_id=None,
+                args=args,
+            )
+            self.assertEqual(envelope["request_options"]["chat_template_kwargs"]["enable_thinking"], True)
+
+            opener = FakePayloadOpener()
+            with patch("dispatch_work.request.build_opener", return_value=opener):
+                execute_local_envelope(envelope, route["selected_executor"], args)
+            self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], True)
+
+    def test_local_dispatch_combined_max_tokens_and_thinking_override(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            local_max_tokens=4096,
+            local_thinking="off",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        self.assertEqual(
+            envelope["request_options"],
+            {"chat_template_kwargs": {"enable_thinking": False}, "max_tokens": 4096},
+        )
+        opener = FakePayloadOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertEqual(opener.payload["max_tokens"], 4096)
+        self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], False)
+
+    def test_local_dispatch_rejects_non_positive_max_tokens(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            local_max_tokens=0,
+            local_thinking="default",
+            execute_local=True,
+        )
+        with self.assertRaises(SystemExit):
+            build_local_envelope(
+                task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+                route=route,
+                dispatch_id="dispatch-glm-test",
+                bead_id="cwo-glm",
+                epic_id=None,
+                args=args,
+            )
 
     def test_glm_private_dns_execution_uses_pinned_https_handler(self) -> None:
         route = classify_work(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -90,6 +91,27 @@ class ValidateRepositoryTests(unittest.TestCase):
             validate_retired_beads_context_aliases(errors, repo_root=Path(tmpdir))
         self.assertTrue(any(retired_field in error for error in errors))
         self.assertTrue(any(retired_flag.lstrip("-") in error for error in errors))
+
+    def test_retired_beads_context_alias_is_ignored_in_gitignored_artifacts(self) -> None:
+        errors: list[str] = []
+        retired_field = "beads_" + "briefing_depth"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = Path(tmpdir)
+            if subprocess.call(["git", "-C", str(repo), "init", "-q"]) != 0:
+                self.skipTest("git unavailable for validate_retired_beads_context_aliases gitignore path")
+
+            (repo / ".gitignore").write_text("work-packets/\n", encoding="utf-8")
+            ignored = repo / "work-packets"
+            ignored.mkdir()
+            (ignored / "artifact.py").write_text(f"print('{retired_field}')\n", encoding="utf-8")
+
+            tracked = repo / "tracked.py"
+            tracked.write_text(f"print('{retired_field}')\n", encoding="utf-8")
+
+            validate_retired_beads_context_aliases(errors, repo_root=repo)
+
+        self.assertTrue(any("tracked.py" in error for error in errors))
+        self.assertFalse(any("work-packets/artifact.py" in error for error in errors))
 
     def test_waiver_convention_rejects_missing_reason_and_audit_fields(self) -> None:
         errors: list[str] = []

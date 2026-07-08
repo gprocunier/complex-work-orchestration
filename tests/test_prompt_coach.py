@@ -483,6 +483,17 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")
         self.assertIn("heavy-review-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
+    def test_workerbee_planned_delegation_is_recorded_on_prompt_result(self) -> None:
+        result = coach_orchestration_prompt(
+            "Heavily parallelize docs, terminology, web design, validation, and publish review lanes."
+        )
+        planned = result["workerbee_planned_delegation"]
+        self.assertIsInstance(planned, dict)
+        self.assertEqual(planned["mode"], "heavy-review")
+        self.assertEqual(planned["model"], result["workerbee_parallelism"]["recommended_model"])
+        self.assertEqual(planned["lanes"], result["workerbee_parallelism"]["suggested_lanes"])
+        self.assertEqual(result["route"]["workerbee_planned_delegation"], planned)
+
     def test_explicit_workerbee_request_still_prompts_for_parallelism(self) -> None:
         result = coach_orchestration_prompt(
             "Use $complex-work-orchestration to scaffold this project with PM coordination and workerbee validation."
@@ -588,6 +599,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("selection_before_plan_reason", result)
         self.assertIn("selection_before_plan_question_ids", result)
         self.assertIn("workerbee_parallelism", result)
+        self.assertIn("workerbee_planned_delegation", result)
         self.assertIn("model_synthesis", result)
         self.assertIn("operator_calibration", result)
         self.assertIn("route", result)

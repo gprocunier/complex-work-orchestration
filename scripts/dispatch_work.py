@@ -62,6 +62,16 @@ def _falsey(value: Any) -> bool:
     return str(value or "").strip().lower() in {"0", "false", "no", "off"}
 
 
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a valid integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"{value!r} must be a positive integer")
+    return parsed
+
+
 class NoRedirectHandler(request.HTTPRedirectHandler):
     """Reject redirects so a validated local endpoint cannot shift targets."""
 
@@ -318,6 +328,27 @@ def local_request_options(transport: dict[str, Any]) -> dict[str, Any]:
     return json.loads(json.dumps(options))
 
 
+def local_request_options_override(transport: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    request_options = local_request_options(transport)
+    local_max_tokens = getattr(args, "local_max_tokens", None)
+    if local_max_tokens is not None:
+        if not isinstance(local_max_tokens, int) or local_max_tokens <= 0:
+            raise SystemExit("--local-max-tokens must be a positive integer")
+        request_options["max_tokens"] = local_max_tokens
+    local_thinking = str(getattr(args, "local_thinking", "default")).strip().lower()
+    if local_thinking in {"on", "off"}:
+        existing = request_options.get("chat_template_kwargs")
+        if existing is None:
+            chat_template_kwargs = {}
+        elif isinstance(existing, dict):
+            chat_template_kwargs = dict(existing)
+        else:
+            raise SystemExit("--local-thinking requires chat_template_kwargs to be an object in request options")
+        chat_template_kwargs["enable_thinking"] = local_thinking == "on"
+        request_options["chat_template_kwargs"] = chat_template_kwargs
+    return request_options
+
+
 def _split_thinking_content(content: str) -> dict[str, Any]:
     if "</think>" in content.lower():
         parts = re.split(r"(?is)</think>", content, maxsplit=1)
@@ -460,7 +491,7 @@ def build_local_envelope(
         "tls_ca_bundle_env": tls["tls_ca_bundle_env"],
         "tls_ca_bundle_configured": bool(tls["tls_ca_bundle_configured"]),
         "allow_insecure_tls": bool(tls["allow_insecure_tls"]),
-        "request_options": local_request_options(transport),
+        "request_options": local_request_options_override(transport, args),
         "thinking_parser": transport.get("thinking_parser"),
         "response_sanitization": transport.get("response_sanitization"),
         "constraints": constraints,
@@ -487,7 +518,11 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         "messages": envelope["messages"],
         "temperature": 0,
     }
-    payload.update(local_request_options(transport))
+    request_options = envelope.get("request_options")
+    if isinstance(request_options, dict):
+        payload.update(request_options)
+    else:
+        payload.update(local_request_options_override(transport, args))
     body = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     api_key = os.environ.get(api_key_env)
@@ -617,6 +652,17 @@ def main() -> None:
     parser.add_argument("--local-model", help="Model name for local OpenAI-compatible dispatch.")
     parser.add_argument("--local-api-key-env", help="Environment variable containing the local endpoint API key.")
     parser.add_argument("--local-timeout", type=int, help="Timeout in seconds for --execute-local.")
+    parser.add_argument(
+        "--local-max-tokens",
+        type=_positive_int,
+        help="Override the OpenAI max_tokens request option for local dispatch.",
+    )
+    parser.add_argument(
+        "--local-thinking",
+        choices=["default", "on", "off"],
+        default="default",
+        help="Override local request chat_template_kwargs.enable_thinking.",
+    )
     parser.add_argument(
         "--local-allow-private-dns",
         action="store_true",

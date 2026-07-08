@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import textwrap
 from pathlib import Path
@@ -15,7 +16,16 @@ NOT_APPLICABLE = "n/a"
 REPORT_TYPE = "cwo-execution-status-report"
 REPORT_VERSION = 4
 
-STATUS_KEYS = ("completed", "failed", "skipped", "blocked", "deferred")
+STATUS_KEYS = (
+    "completed",
+    "failed",
+    "skipped",
+    "blocked",
+    "deferred",
+    "started",
+    "unavailable",
+)
+WORKERBEE_ACCOUNTABILITY_STATUS_KEYS = ("started", "completed", "skipped", "deferred", "unavailable")
 METRIC_KEYS = (
     "agent_model_calls",
     "retries",
@@ -84,6 +94,15 @@ USAGE_IMPORT_MERGE_KEYS = (
     "telemetry_missing_reasons",
     "telemetry_source",
     "telemetry_target_event_hash",
+    "workerbee_planned_mode",
+    "workerbee_planned_model",
+    "workerbee_planned_lanes",
+    "workerbee_actual_mode",
+    "workerbee_actual_model",
+    "workerbee_actual_lanes",
+    "workerbee_delegation_status",
+    "workerbee_delegation_source",
+    "workerbee_delegation_gap_reasons",
 )
 
 
@@ -199,11 +218,14 @@ def build_execution_status_report(
         "source_files": source_files or {},
         "warnings": _report_warnings(source_counts),
         "executive_summary": _executive_summary(records),
+        "workerbee_delegation_accountability": _workerbee_accountability(records),
         "expert_profile_utilization": _expert_profile_rows(records),
         "expert_profile_utilization_details": _expert_profile_detail_rows(records),
         "agent_model_utilization": _agent_model_rows(records),
         "agent_model_utilization_details": _agent_model_detail_rows(records),
         "main_thread_architect_productivity": _main_thread_summary(records),
+        "workerbee_delegation_summary": _workerbee_delegation_summary(records),
+        "workerbee_delegation_details": _workerbee_delegation_detail_rows(records),
         "second_opinion_review_lane_productivity": _second_opinion_rows(records),
         "second_opinion_review_lane_productivity_details": _second_opinion_detail_rows(records),
         "telemetry_gaps": _telemetry_gaps(records, source_counts),
@@ -309,6 +331,24 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
             )
         )
     lines.extend(_key_value_box("Main Thread / Architect Productivity", report.get("main_thread_architect_productivity", {}), term_width))
+    lines.extend(_key_value_box("Workerbee Delegation Summary", report.get("workerbee_delegation_summary", {}), term_width))
+    if expanded:
+        lines.extend(
+            _detail_rows(
+                "Workerbee Delegation Details",
+                [
+                    ("Dispatch", "dispatch_id"),
+                    ("Bead", "bead_id"),
+                    ("Lane", "lane"),
+                    ("Planned", "planned"),
+                    ("Actual", "actual"),
+                    ("Status", "status"),
+                    ("Gaps", "gap_reasons"),
+                ],
+                report.get("workerbee_delegation_details", []),
+                term_width,
+            )
+        )
     if expanded:
         lines.extend(
             _detail_rows(
@@ -352,6 +392,12 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
     lines.extend(_telemetry_gap_lines(report.get("telemetry_gaps", {}), term_width))
     quality = report.get("quality_malpractice_sabotage_summary", {})
     lines.extend(_key_value_box("Quality / Malpractice / Sabotage Summary", quality.get("totals", {}), term_width))
+    lines.extend(
+        _workerbee_accountability_lines(
+            report.get("workerbee_delegation_accountability", {}),
+            term_width,
+        )
+    )
     if expanded:
         lines.extend(
             _detail_rows(
@@ -392,6 +438,39 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
     return "\n".join(lines) + "\n"
 
 
+def _workerbee_accountability_lines(accountability: Any, width: int) -> list[str]:
+    if not isinstance(accountability, dict):
+        return []
+    planned = accountability.get("planned")
+    if not isinstance(planned, dict):
+        return []
+    plan = {
+        "Planned mode": _clean(planned.get("mode")) or UNAVAILABLE,
+        "Planned model": _clean(planned.get("model")) or UNAVAILABLE,
+        "Planned lanes": ", ".join(_unique_items(planned.get("lanes") or [])) or UNAVAILABLE,
+    }
+    lines: list[str] = _key_value_box("Workerbee Delegation Plan", plan, width)
+    rows = accountability.get("planned_vs_actual")
+    if not isinstance(rows, list) or not rows:
+        return lines
+    lines.extend(
+        _detail_rows(
+            "Workerbee Delegation Accountability (Planned vs Actual)",
+            [
+                ("Lane", "lane"),
+                ("Started", "started"),
+                ("Completed", "completed"),
+                ("Skipped", "skipped"),
+                ("Deferred", "deferred"),
+                ("Unavailable", "unavailable"),
+            ],
+            rows,
+            width,
+        )
+    )
+    return lines
+
+
 def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
     provider_external = record.get("provider_external")
     if provider_external is None:
@@ -428,12 +507,18 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
     for field, value in list(metrics.items()):
         if value is None and not _telemetry_metric_expected(record, source_kind, telemetry_kind, field):
             metrics[field] = NOT_APPLICABLE
+    workerbee_planned = _workerbee_planned_from_record(record)
+    workerbee_actual = _workerbee_actual_from_record(record)
     view = {
         "source_kind": source_kind,
         "telemetry_kind": telemetry_kind,
         "bead_id": _clean(record.get("bead_id") or record.get("work_unit_id")),
         "dispatch_id": _clean(record.get("dispatch_id")),
         "event_type": _clean(record.get("event_type")),
+        "workerbee_planned_delegation": record.get("workerbee_planned_delegation")
+        if isinstance(record.get("workerbee_planned_delegation"), dict)
+        else None,
+        "route": record.get("route") if isinstance(record.get("route"), dict) else None,
         "work_unit_status": _status_from_record(record),
         "executor": executor,
         "model": model,
@@ -471,8 +556,142 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         else None,
         "recommended_disposition": _clean(record.get("recommended_disposition") or record.get("disposition")),
         "recommended_synthesis_use": _synthesis_use(record),
+        "workerbee_planned_mode": workerbee_planned["mode"],
+        "workerbee_planned_model": workerbee_planned["model"],
+        "workerbee_planned_lanes": workerbee_planned["lanes"],
+        "workerbee_actual_mode": workerbee_actual["mode"],
+        "workerbee_actual_model": workerbee_actual["model"],
+        "workerbee_actual_lanes": workerbee_actual["lanes"],
+        "workerbee_delegation_status": _clean(record.get("workerbee_delegation_status")),
+        "workerbee_delegation_source": _clean(record.get("workerbee_delegation_source")),
+        "workerbee_delegation_gap_reasons": _strings(record.get("workerbee_delegation_gap_reasons")),
     }
     return view
+
+
+def _workerbee_accountability(records: list[dict[str, Any]]) -> dict[str, Any]:
+    planned = {}
+    for record in records:
+        candidate = _normalize_workerbee_plan(record)
+        if (
+            candidate
+            and (
+                candidate.get("mode") != "none"
+                or candidate.get("model") is not None
+                or bool(candidate.get("lanes"))
+            )
+        ):
+            planned = candidate
+    planned_lanes = _unique_items(planned.get("lanes") or [])
+    planned_lanes = [lane for lane in planned_lanes if lane]
+    actual_by_lane = {lane: _new_workerbee_status_counter() for lane in planned_lanes}
+    unmatched: dict[str, dict[str, int]] = {}
+    for record in records:
+        status = _status_from_record(record) or _clean(record.get("workerbee_delegation_status"))
+        if status not in WORKERBEE_ACCOUNTABILITY_STATUS_KEYS:
+            continue
+        actual_lanes = _workerbee_actual_accountability_lanes(record)
+        if not actual_lanes:
+            continue
+        for lane in actual_lanes:
+            matched = False
+            for planned_lane in planned_lanes:
+                if _lane_matches_workerbee_plan(lane, planned_lane):
+                    actual_by_lane.setdefault(planned_lane, _new_workerbee_status_counter())
+                    actual_by_lane[planned_lane][status] += 1
+                    matched = True
+                    break
+            if matched:
+                continue
+            unmatched.setdefault(
+                lane,
+                _new_workerbee_status_counter(),
+            )[status] += 1
+    for lane in planned_lanes:
+        if all(actual_by_lane[lane][key] == 0 for key in WORKERBEE_ACCOUNTABILITY_STATUS_KEYS):
+            actual_by_lane[lane]["unavailable"] += 1
+    planned_rows = [
+        {
+            "lane": lane,
+            **actual_by_lane.get(lane, _new_workerbee_status_counter()),
+        }
+        for lane in planned_lanes
+    ]
+    return {
+        "planned": {
+            "mode": planned.get("mode") or "none",
+            "model": planned.get("model"),
+            "lanes": planned_lanes,
+        },
+        "planned_vs_actual": planned_rows,
+        "unplanned_activity": unmatched,
+    }
+
+
+def _workerbee_actual_accountability_lanes(record: dict[str, Any]) -> list[str]:
+    explicit = [
+        lane
+        for lane in _unique_items(record.get("workerbee_actual_lanes") or [])
+        if lane and lane != UNAVAILABLE and lane.lower() != "n/a"
+    ]
+    if explicit:
+        return explicit
+    lane = _clean(record.get("lane"))
+    if not lane or lane == UNAVAILABLE or lane.lower() == "n/a":
+        return []
+    return [lane]
+
+
+def _lane_matches_workerbee_plan(actual_lane: str, planned_lane: str) -> bool:
+    if not actual_lane or not planned_lane:
+        return False
+    actual = actual_lane.lower().strip()
+    planned = planned_lane.lower().strip()
+    if actual == planned:
+        return True
+    if actual.startswith(f"expert-review-{planned}"):
+        return True
+    if f" {planned} " in f" {actual} ":
+        return True
+    actual_tokens = [token for token in re.split(r"[^a-z0-9]+", actual) if token]
+    planned_tokens = [token for token in re.split(r"[^a-z0-9]+", planned) if token]
+    if len(planned_tokens) < 2:
+        return False
+    width = len(planned_tokens)
+    return any(actual_tokens[index : index + width] == planned_tokens for index in range(len(actual_tokens) - width + 1))
+
+
+def _normalize_workerbee_plan(record: dict[str, Any]) -> dict[str, Any]:
+    planned = record.get("workerbee_planned_delegation")
+    if not isinstance(planned, dict):
+        route = record.get("route")
+        if isinstance(route, dict):
+            planned = route.get("workerbee_planned_delegation")
+        if not isinstance(planned, dict):
+            planned = {
+                "mode": _clean(record.get("workerbee_planned_mode")),
+                "model": _clean(record.get("workerbee_planned_model")),
+                "lanes": record.get("workerbee_planned_lanes"),
+            }
+    mode = str(planned.get("mode") or planned.get("recommended_mode") or "none") if isinstance(planned, dict) else "none"
+    model = planned.get("model") if isinstance(planned, dict) else None
+    if model is None and isinstance(planned, dict):
+        model = planned.get("recommended_model")
+    if isinstance(model, str) and not model.strip():
+        model = None
+    raw_lanes = planned.get("lanes") if isinstance(planned, dict) else None
+    if not isinstance(raw_lanes, list):
+        raw_lanes = []
+    lanes = _unique_items(raw_lanes)
+    return {
+        "mode": mode,
+        "model": model,
+        "lanes": [str(lane) for lane in lanes if str(lane).strip()],
+    }
+
+
+def _new_workerbee_status_counter() -> dict[str, int]:
+    return {key: 0 for key in WORKERBEE_ACCOUNTABILITY_STATUS_KEYS}
 
 
 def _telemetry_kind(record: dict[str, Any], source_kind: str) -> str:
@@ -792,6 +1011,161 @@ def _second_opinion_detail_rows(records: list[dict[str, Any]]) -> list[dict[str,
     return rows
 
 
+def _workerbee_delegation_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    details = _workerbee_delegation_detail_rows(records, include_internal=True)
+    planned_lanes: set[str] = set()
+    actual_lanes: set[str] = set()
+    planned_models: set[str] = set()
+    actual_models: set[str] = set()
+    status_counts: dict[str, int] = {}
+    gap_counts: dict[str, int] = {}
+    planned_records = 0
+    actual_records = 0
+    for row in details:
+        planned = row.get("_planned") if isinstance(row.get("_planned"), dict) else {}
+        actual = row.get("_actual") if isinstance(row.get("_actual"), dict) else {}
+        if _workerbee_plan_present(planned):
+            planned_records += 1
+        row_status = _clean(row.get("status"))
+        if row_status != "planned-no-actual-telemetry" and (
+            _workerbee_actual_present(actual)
+            or (isinstance(row_status, str) and row_status in WORKERBEE_ACCOUNTABILITY_STATUS_KEYS)
+        ):
+            actual_records += 1
+        planned_lanes.update(_strings(planned.get("lanes")))
+        actual_lanes.update(_strings(actual.get("lanes")))
+        planned_model = _clean(planned.get("model"))
+        actual_model = _clean(actual.get("model"))
+        if planned_model:
+            planned_models.add(planned_model)
+        if actual_model:
+            actual_models.add(actual_model)
+        status = _clean(row.get("status")) or "unknown"
+        status_counts[status] = status_counts.get(status, 0) + 1
+        for reason in _strings(row.get("_gap_reasons")):
+            gap_counts[reason] = gap_counts.get(reason, 0) + 1
+
+    unfulfilled = sorted(planned_lanes - actual_lanes)
+    return {
+        "records_considered": len(details),
+        "planned_records": planned_records,
+        "actual_records": actual_records,
+        "planned_lanes": _joined_values(planned_lanes),
+        "actual_lanes": _joined_values(actual_lanes),
+        "planned_models": _joined_values(planned_models),
+        "actual_models": _joined_values(actual_models),
+        "unfulfilled_lane_count": len(unfulfilled),
+        "unfulfilled_lanes": _joined_values(unfulfilled),
+        "status_summary": _count_summary(status_counts),
+        "gap_reasons": _count_summary(gap_counts),
+    }
+
+
+def _workerbee_delegation_detail_rows(records: list[dict[str, Any]], *, include_internal: bool = False) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for record in records:
+        planned = {
+            "mode": record.get("workerbee_planned_mode"),
+            "model": record.get("workerbee_planned_model"),
+            "lanes": record.get("workerbee_planned_lanes"),
+        }
+        actual = {
+            "mode": record.get("workerbee_actual_mode"),
+            "model": record.get("workerbee_actual_model"),
+            "lanes": record.get("workerbee_actual_lanes"),
+        }
+        status = _clean(record.get("workerbee_delegation_status"))
+        gap_reasons = _strings(record.get("workerbee_delegation_gap_reasons"))
+        if _workerbee_plan_present(planned) and not _workerbee_actual_present(actual, status):
+            gap_reasons = [*gap_reasons, "planned-workerbee-not-accounted"]
+            status = status or "planned-no-actual-telemetry"
+        elif _workerbee_actual_present(actual, status):
+            status = status or "actual-recorded"
+        if not (_workerbee_plan_present(planned) or _workerbee_actual_present(actual, status) or gap_reasons):
+            continue
+        row = {
+            "dispatch_id": record.get("dispatch_id") or UNAVAILABLE,
+            "bead_id": record.get("bead_id") or UNAVAILABLE,
+            "lane": record.get("lane") or UNAVAILABLE,
+            "planned": _workerbee_format(planned),
+            "actual": _workerbee_format(actual),
+            "status": status or UNAVAILABLE,
+            "source": record.get("workerbee_delegation_source") or UNAVAILABLE,
+            "gap_reasons": _joined_values(gap_reasons),
+            "_planned": planned,
+            "_actual": actual,
+            "_gap_reasons": gap_reasons,
+        }
+        rows.append(row)
+    rows.sort(key=lambda row: (str(row.get("bead_id")), str(row.get("dispatch_id")), str(row.get("lane"))))
+    if include_internal:
+        return rows
+    rows = [{key: value for key, value in row.items() if not key.startswith("_")} for row in rows]
+    return rows
+
+
+def _workerbee_planned_from_record(record: dict[str, Any]) -> dict[str, Any]:
+    nested = record.get("workerbee_planned_delegation")
+    mode = _clean(record.get("workerbee_planned_mode"))
+    model = _clean(record.get("workerbee_planned_model"))
+    lanes = _strings(record.get("workerbee_planned_lanes"))
+    if isinstance(nested, dict):
+        mode = mode or _clean(nested.get("mode") or nested.get("recommended_mode"))
+        model = model or _clean(nested.get("model") or nested.get("recommended_model"))
+        lanes = lanes or _strings(nested.get("lanes") or nested.get("suggested_lanes"))
+    return {"mode": mode, "model": model, "lanes": lanes}
+
+
+def _workerbee_actual_from_record(record: dict[str, Any]) -> dict[str, Any]:
+    nested = record.get("workerbee_actual_delegation")
+    mode = _clean(record.get("workerbee_actual_mode"))
+    model = _clean(record.get("workerbee_actual_model"))
+    lanes = _strings(record.get("workerbee_actual_lanes"))
+    if isinstance(nested, dict):
+        mode = mode or _clean(nested.get("mode"))
+        model = model or _clean(nested.get("model"))
+        lanes = lanes or _strings(nested.get("lanes"))
+    return {"mode": mode, "model": model, "lanes": lanes}
+
+
+def _workerbee_plan_present(value: dict[str, Any]) -> bool:
+    mode = _clean(value.get("mode"))
+    return bool((mode and mode != "none") or _strings(value.get("lanes")) or _clean(value.get("model")))
+
+
+def _workerbee_actual_present(value: dict[str, Any], status: Any = None) -> bool:
+    mode = _clean(value.get("mode"))
+    return bool(
+        (mode and mode != "none")
+        or _strings(value.get("lanes"))
+        or _clean(value.get("model"))
+        or _clean(status)
+    )
+
+
+def _workerbee_format(value: dict[str, Any]) -> str:
+    mode = _clean(value.get("mode")) or NOT_APPLICABLE
+    model = _clean(value.get("model")) or NOT_APPLICABLE
+    lanes = _joined_values(_strings(value.get("lanes")))
+    return f"mode={mode}; model={model}; lanes={lanes}"
+
+
+def _joined_values(values: Any) -> str:
+    if isinstance(values, set):
+        items = sorted(str(item) for item in values if str(item).strip())
+    elif isinstance(values, list):
+        items = sorted({str(item) for item in values if str(item).strip()})
+    else:
+        items = []
+    return ", ".join(items) if items else NOT_APPLICABLE
+
+
+def _count_summary(counts: dict[str, int]) -> str:
+    if not counts:
+        return NOT_APPLICABLE
+    return ", ".join(f"{key}:{counts[key]}" for key in sorted(counts))
+
+
 def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]) -> dict[str, Any]:
     fields: dict[str, dict[str, Any]] = {}
     for field in TELEMETRY_GAP_KEYS:
@@ -1041,10 +1415,13 @@ def _record_quality_signals(record: dict[str, Any]) -> list[str]:
 
 
 def _status_from_record(record: dict[str, Any]) -> str | None:
-    for key in ["work_unit_status", "status"]:
+    for key in ["work_unit_status", "status", "telemetry_status"]:
         status = _normalize_status(record.get(key))
         if status:
             return status
+    event_type = str(record.get("event_type") or "").strip().lower()
+    if event_type == "dispatch_prepared":
+        return "started"
     verdict = str(record.get("verdict") or "").strip().lower()
     if verdict in {"accept", "partial-accept"}:
         return "completed"
@@ -1058,6 +1435,8 @@ def _status_from_record(record: dict[str, Any]) -> str | None:
 
 def _normalize_status(value: Any) -> str | None:
     normalized = str(value or "").strip().lower().replace("_", "-")
+    if normalized in {"prepared", "prepare", "preparing", "started", "start", "in-progress", "inprogress", "running"}:
+        return "started"
     if normalized in {"complete", "completed", "success", "succeeded", "accepted", "accept", "done", "passed"}:
         return "completed"
     if normalized in {"fail", "failed", "failure", "error", "errored", "rejected", "reject"}:
@@ -1066,6 +1445,8 @@ def _normalize_status(value: Any) -> str | None:
         return "skipped"
     if normalized in {"block", "blocked", "quarantine", "quarantined", "clarify", "escalate"}:
         return "blocked"
+    if normalized in {"unavailable", "not-available", "not_available", "na", "n/a", "notapplicable", "not-applicable"}:
+        return "unavailable"
     if normalized in {"defer", "deferred"}:
         return "deferred"
     return None
@@ -1151,6 +1532,12 @@ def _strings(value: Any) -> list[str]:
     return [str(item) for item in value if str(item).strip()]
 
 
+def _unique_items(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return list(dict.fromkeys([str(item).strip() for item in values if str(item).strip()]))
+
+
 def _clean(value: Any) -> str | None:
     if value in [None, ""]:
         return None
@@ -1231,6 +1618,8 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     quality_totals = quality.get("totals", {}) if isinstance(quality, dict) and isinstance(quality.get("totals"), dict) else {}
     evidence = report.get("evidence_disposition_summary", {})
     evidence = evidence if isinstance(evidence, dict) else {}
+    workerbees = report.get("workerbee_delegation_summary", {})
+    workerbees = workerbees if isinstance(workerbees, dict) else {}
     gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
 
     status_line = "  ".join(
@@ -1276,10 +1665,18 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
             f"unavailable {_cell(evidence.get('unavailable'))}",
         ]
     )
+    workerbee_line = "Workerbees: " + "  ".join(
+        [
+            f"planned {_cell(workerbees.get('planned_records'))}",
+            f"actual {_cell(workerbees.get('actual_records'))}",
+            f"unfulfilled {_cell(workerbees.get('unfulfilled_lane_count'))}",
+            f"status {_cell(workerbees.get('status_summary'))}",
+        ]
+    )
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
     lines = [_section_top("Dashboard", width)]
-    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, next_line]:
+    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, next_line]:
         lines.extend(_wrapped_box_lines(line, width))
     lines.append(_section_bottom(width))
     return lines

@@ -45,6 +45,9 @@ TELEMETRY_BOOLEAN_FIELDS = {
     "reasoning_stripped",
     "reasoning_malformed",
     "response_truncated",
+    "review_surface_mismatch",
+    "review_surface_required_evidence_missing",
+    "master_review_packet_only_go_hold",
 }
 TELEMETRY_STRING_FIELDS = {
     "telemetry_kind",
@@ -57,6 +60,18 @@ TELEMETRY_STRING_FIELDS = {
     "provider_family",
     "provider_retention_class",
     "job_description_label",
+    "review_surface",
+    "source_inspection",
+    "sources_inspected",
+    "sources_not_inspected",
+    "independent_verification",
+    "packet_reported_claims",
+    "workerbee_planned_mode",
+    "workerbee_planned_model",
+    "workerbee_actual_mode",
+    "workerbee_actual_model",
+    "workerbee_delegation_status",
+    "workerbee_delegation_source",
     "expert_profile",
     "expert_profile_path",
     "model_profile",
@@ -88,6 +103,10 @@ TELEMETRY_STRING_LIST_FIELDS = {
     "selected_snippet_paths",
     "capability_requirements",
     "finish_reasons",
+    "review_surface_mismatch_reasons",
+    "workerbee_planned_lanes",
+    "workerbee_actual_lanes",
+    "workerbee_delegation_gap_reasons",
 }
 
 AUDIT_NUMERIC_FIELDS = {

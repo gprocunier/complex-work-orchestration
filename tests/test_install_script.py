@@ -38,39 +38,45 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("https://gastownhall.github.io/beads/", text)
         self.assertIn("reduced-durability Markdown handoff state", text)
 
-    def test_install_and_reinstall_preserves_previous_install_as_prev(self) -> None:
+    def test_install_and_reinstall_preserves_previous_install_outside_skills_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             skills_dir = Path(tmpdir) / "skills"
             first = self.run_installer("--skills-dir", str(skills_dir), "--yes")
             self.assertEqual(first.returncode, 0, first.stderr or first.stdout)
 
             target = skills_dir / "complex-work-orchestration"
-            previous = skills_dir / "complex-work-orchestration.prev"
             marker = target / "LOCAL_MARKER"
             marker.write_text("previous install marker\n", encoding="utf-8")
 
             second = self.run_installer("--skills-dir", str(skills_dir), "--yes")
             self.assertEqual(second.returncode, 0, second.stderr or second.stdout)
 
+            backups = sorted((Path(tmpdir) / "skill-backups").glob("complex-work-orchestration.prev.*"))
             self.assertTrue(target.is_dir())
+            self.assertEqual(len(backups), 1)
+            previous = backups[0]
             self.assertTrue(previous.is_dir())
+            self.assertFalse((skills_dir / "complex-work-orchestration.prev").exists())
             self.assertFalse(marker.exists())
             self.assertEqual((previous / "LOCAL_MARKER").read_text(encoding="utf-8"), "previous install marker\n")
             self.assertIn("Previous install moved to backup", second.stdout)
 
-    def test_uninstall_moves_active_install_to_prev(self) -> None:
+    def test_uninstall_moves_active_install_outside_skills_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             skills_dir = Path(tmpdir) / "skills"
             install = self.run_installer("--skills-dir", str(skills_dir), "--yes")
             self.assertEqual(install.returncode, 0, install.stderr or install.stdout)
 
             target = skills_dir / "complex-work-orchestration"
-            previous = skills_dir / "complex-work-orchestration.prev"
             uninstall = self.run_installer("--skills-dir", str(skills_dir), "--yes", "--uninstall")
             self.assertEqual(uninstall.returncode, 0, uninstall.stderr or uninstall.stdout)
 
+            backups = sorted((Path(tmpdir) / "skill-backups").glob("complex-work-orchestration.prev.*"))
             self.assertFalse(target.exists())
+            self.assertEqual(len(backups), 1)
+            previous = backups[0]
             self.assertTrue(previous.is_dir())
+            self.assertFalse((skills_dir / "complex-work-orchestration.prev").exists())
             self.assertIn("Uninstalled skill; backup kept", uninstall.stdout)
 
     def test_install_dry_run_does_not_create_target(self) -> None:

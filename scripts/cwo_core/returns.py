@@ -28,7 +28,16 @@ RETURN_CONTROL_SECTIONS = [
     "Research evidence",
     "Research contradictions",
     "Research reflection",
+    "Review surface",
+    "Source inspection",
+    "Sources inspected",
+    "Sources not inspected",
+    "Independent verification",
+    "Packet-reported claims",
 ]
+
+CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
+CHATGPT_MASTER_REVIEW_JOB_LABEL = "contract-jd-master-plan-review"
 
 
 RETURN_SECTION_ALIASES = {
@@ -54,6 +63,17 @@ RETURN_SECTION_ALIASES = {
     "contradictions": "Research contradictions",
     "research reflection": "Research reflection",
     "research replan": "Research reflection",
+    "evidence surface": "Review surface",
+    "review source surface": "Review surface",
+    "source surface": "Review surface",
+    "sources reviewed": "Sources inspected",
+    "inspected sources": "Sources inspected",
+    "sources not reviewed": "Sources not inspected",
+    "uninspected sources": "Sources not inspected",
+    "independently verified": "Independent verification",
+    "independent verification status": "Independent verification",
+    "packet reported claims": "Packet-reported claims",
+    "packet only claims": "Packet-reported claims",
 }
 
 
@@ -315,6 +335,162 @@ def redacted_packet_validation_claim_unsupported(value: str) -> bool:
         re.search(r"\b(passed|verified|validated|compiled|completed|ran|executed)\b", normalized)
         and re.search(r"\b(unit tests?|tests?|repository validation|validate_repository|install(?:ation)? dry-run|compileall)\b", normalized)
     )
+
+
+def _normalized_declaration_value(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9_ \-]", " ", value.strip().lower())).strip()
+
+
+def normalize_review_surface(value: str, *, share_boundary: str | None = None) -> str:
+    normalized = _normalized_declaration_value(value).replace("_", "-").replace(" ", "-")
+    aliases = {
+        "packet": "packet-only",
+        "packetonly": "packet-only",
+        "redacted-packet": "packet-only",
+        "packet-level": "packet-only",
+        "packet-based": "packet-only",
+        "public-pr": "public-pr-readonly",
+        "public-pr-read-only": "public-pr-readonly",
+        "public-pull-request": "public-pr-readonly",
+        "public-pull-request-readonly": "public-pr-readonly",
+        "pr-readonly": "public-pr-readonly",
+        "pr-read-only": "public-pr-readonly",
+        "repo-read-only": "repo-readonly",
+        "repository-readonly": "repo-readonly",
+        "repository-read-only": "repo-readonly",
+        "patch": "patch-branch",
+        "patchbranch": "patch-branch",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized in {"packet-only", "public-pr-readonly", "repo-readonly", "patch-branch"}:
+        return normalized
+    boundary = (share_boundary or "").strip().lower()
+    if boundary == "redacted-packet":
+        return "packet-only"
+    if boundary in {"repo-readonly", "patch-branch"}:
+        return boundary
+    return normalized or "unknown"
+
+
+def is_packet_only_declared(value: str) -> bool:
+    normalized = _normalized_declaration_value(value)
+    if not normalized:
+        return False
+    return bool(
+        re.search(r"\b(packet[- ]?only|redacted[- ]?packet|packet\s+only|packet-level|packet based|redacted[- ]packet)\b", normalized)
+    ) or bool(re.search(r"\bpacket manifest only\b", normalized))
+
+
+def is_merge_readiness_go_claim(text: str) -> bool:
+    if not text.strip():
+        return False
+    positive_patterns = [
+        r"\b(?:go for|going for)\b.{0,120}\b(?:pr|pull request|merge request|merge|readiness|release|deploy|publish|ship)\b",
+        r"\bready for\b.{0,120}\b(?:pr|pull request|merge request|merge|readiness|release|deploy|publish|ship)\b",
+        r"\b(?:approve|approved|approving)\b.{0,120}\b(?:pr|pull request|merge request|merge|readiness|release|deploy|publish|ship)\b",
+        r"\bpr\b.{0,120}\b(?:is|looks|appears|seems|will be|would be)\b.{0,40}\b(?:ready|approved)\b",
+        r"\b(?:good to go|g2g|good-to-go|go/no-go)\b",
+        r"\bready\b.{0,120}\b(?:to|for)\b.{0,30}\b(?:merge|ship|release|deploy)\b",
+    ]
+    negative_nearby = re.compile(
+        r"\b(not|no|never|can't|cannot|won't|do not|don't|not yet|not now|blocked|blocked on|blocked by)\b.{0,80}(?:go|ready|approve|approval|approved|approval)\b",
+        re.I,
+    )
+    for sentence in re.split(r"[.!?]\s+|\n+", text.lower()):
+        normalized = sentence.strip()
+        if not normalized:
+            continue
+        for pattern in positive_patterns:
+            match = re.search(pattern, normalized, re.I)
+            if not match:
+                continue
+            if negative_nearby.search(normalized):
+                continue
+            return True
+    return False
+
+
+def parse_master_review_surface_controls(
+    sections: dict[str, str],
+    reader: "SectionReader | None" = None,
+    *,
+    share_boundary: str | None = None,
+) -> dict[str, object]:
+    reader = reader or SectionReader(sections)
+    review_surface = reader.value("Review surface")
+    source_inspection = reader.value("Source inspection")
+    sources_inspected = reader.value("Sources inspected")
+    sources_not_inspected = reader.value("Sources not inspected")
+    independent_verification = reader.value("Independent verification")
+    packet_reported_claims = reader.value("Packet-reported claims")
+    status_text = reader.value("Status")
+    summary_text = reader.value("Summary")
+    next_bead_text = reader.value("Recommended next bead")
+    readiness_text = " ".join(
+        part
+        for part in [status_text, summary_text, next_bead_text]
+        if part.strip()
+    )
+
+    review_surface_normalized = normalize_review_surface(review_surface, share_boundary=share_boundary)
+    source_inspection_normalized = _normalized_declaration_value(source_inspection)
+    review_surface_packet_only = is_packet_only_declared(review_surface)
+    source_inspection_packet_only = is_packet_only_declared(source_inspection)
+    uninspected_text = "\n".join([source_inspection, sources_not_inspected, independent_verification])
+    uninspected_pattern = (
+        r"\b(not inspected|did not inspect|not reviewed|did not review|not read|did not read|not accessed|did not access|no direct)\b"
+        r".{0,120}\b(pr|pull request|diff|repo|repository|source|code)\b"
+    )
+    source_first_uninspected_pattern = (
+        r"\b(pr|pull request|diff|repo|repository|source|code)\b"
+        r".{0,120}\b(was not|were not|is not|are not|not inspected|not reviewed|not read|not accessed|uninspected|unreviewed|unread|inaccessible)\b"
+    )
+    explicit_uninspected_required_source = bool(
+        re.search(uninspected_pattern, uninspected_text, re.I)
+        or re.search(source_first_uninspected_pattern, uninspected_text, re.I)
+    )
+    independently_inspected_required_source = bool(
+        review_surface_normalized in {"public-pr-readonly", "repo-readonly", "patch-branch"}
+        and re.search(
+            r"\b(pr|pull request|diff|repo|repository|source|code)\b",
+            "\n".join([source_inspection, sources_inspected, independent_verification]),
+            re.I,
+        )
+    )
+    go_claimed = bool(
+        is_merge_readiness_go_claim(readiness_text)
+        or is_merge_readiness_go_claim(reader.value("Attestation or reproducibility note", "Attestation/repro note"))
+    )
+    packet_only_go_hold = bool(
+        (review_surface_packet_only or source_inspection_packet_only or review_surface_normalized == "packet-only")
+        and go_claimed
+        and not independently_inspected_required_source
+    )
+    source_mismatch_hold = bool(
+        explicit_uninspected_required_source
+        and go_claimed
+        and not independently_inspected_required_source
+    )
+    mismatch_reasons: list[str] = []
+    if packet_only_go_hold:
+        mismatch_reasons.append("packet-only master review cannot provide unconditional PR/merge/readiness GO")
+    if source_mismatch_hold:
+        mismatch_reasons.append("return says required PR/diff/repo/source evidence was not inspected")
+    return {
+        "review_surface": review_surface_normalized,
+        "source_inspection": source_inspection_normalized,
+        "sources_inspected": sources_inspected,
+        "sources_not_inspected": sources_not_inspected,
+        "independent_verification": independent_verification,
+        "packet_reported_claims": packet_reported_claims,
+        "review_surface_packet_only": review_surface_packet_only,
+        "source_inspection_packet_only": source_inspection_packet_only,
+        "go_for_pr_merge_readiness_claimed": go_claimed,
+        "review_surface_mismatch": bool(packet_only_go_hold or source_mismatch_hold),
+        "review_surface_required_evidence_missing": bool(packet_only_go_hold or source_mismatch_hold),
+        "review_surface_mismatch_reasons": mismatch_reasons,
+        "packet_only_go_hold": packet_only_go_hold,
+    }
 
 
 def redacted_boundary_taint_findings(text: str, sections: dict[str, str], *, share_boundary: str | None) -> list[str]:
@@ -1294,6 +1470,7 @@ def recommend_synthesis_use(
     executor: str | None,
     provider_family: str | None,
     hard_disqualifiers: list[str],
+    local_dispatch_incomplete: bool = False,
 ) -> str:
     thresholds = evidence_quality_thresholds()
     default_use = executor_default_synthesis_use(executor)
@@ -1301,6 +1478,8 @@ def recommend_synthesis_use(
         return "quarantine"
     if hard_disqualifiers or verdict == "reject" or recommended_disposition == "reject":
         return "reject"
+    if local_dispatch_incomplete and verdict in {"accept", "clarify", "partial-accept"}:
+        return "salvage-only"
     if default_use in {"salvage-only", "open-risk", "partial-only"}:
         return default_use
     if provider_family == "google" and verdict in {"accept", "partial-accept"}:
@@ -1360,6 +1539,11 @@ def normalize_contractor_return(
         research_quality=research_evidence,
         evidence_quality=evidence_quality,
     )
+    master_review_controls = parse_master_review_surface_controls(
+        sections,
+        reader=reader,
+        share_boundary=share_boundary,
+    )
     boundary_taint_findings = redacted_boundary_taint_findings(text, sections, share_boundary=share_boundary)
     provenance = return_provenance(
         executor=executor,
@@ -1384,6 +1568,7 @@ def normalize_contractor_return(
         "required_sections_missing": missing,
         "required_sections_present": [section for section in required if section in sections and section not in missing],
         "evidence_items": evidence_items_from_sections(sections, reader=reader),
+        **master_review_controls,
         **evidence_quality,
         **research_evidence,
         "workspace_mutation": workspace_mutation,
@@ -1703,6 +1888,9 @@ def make_acceptance_decision(
     malpractice_reject_threshold: int | None = None,
     workspace_mutation: dict[str, Any] | None = None,
     mutation_strategy: str = "reject",
+    local_response_truncated: bool = False,
+    local_finish_reasons: list[str] | None = None,
+    local_reasoning_malformed: bool = False,
 ) -> dict[str, Any]:
     policy = load_policy("acceptance-policy")
     provenance = return_provenance(
@@ -1722,8 +1910,40 @@ def make_acceptance_decision(
     penalty_reasons: list[str] = []
     hard_disqualifiers: list[str] = []
     research_evidence = score_research_evidence(sections, reader=reader)
+    master_review_controls = parse_master_review_surface_controls(
+        sections,
+        reader=reader,
+        share_boundary=share_boundary,
+    )
+    master_review_packet_only_go_hold = bool(
+        (
+            executor == CHATGPT_MASTER_REVIEW_EXECUTOR
+            or (job_description_label or "").strip().lower() == CHATGPT_MASTER_REVIEW_JOB_LABEL
+        )
+        and master_review_controls["packet_only_go_hold"]
+    )
     evidence_quality = score_evidence_quality(sections, research_quality=research_evidence, reader=reader)
     evidence_thresholds = evidence_quality_thresholds()
+
+    local_finish_reasons = [
+        str(reason)
+        for reason in (local_finish_reasons or [])
+        if isinstance(reason, str) and reason.strip()
+    ]
+    local_completion_reason_lengths = {
+        reason.strip().lower() for reason in local_finish_reasons
+    }
+    local_reasoning_malformed = bool(local_reasoning_malformed)
+    local_response_truncated_by_length = bool(
+        local_response_truncated
+        or "length" in local_completion_reason_lengths
+    )
+    local_completion_incomplete = bool(local_response_truncated_by_length or local_reasoning_malformed)
+
+    if local_response_truncated_by_length:
+        penalty_reasons.append("local response truncation detected; requires confirmation of completeness")
+    if local_reasoning_malformed:
+        penalty_reasons.append("local reasoning content malformed; extracted reasoning should be manually reviewed")
 
     if missing:
         score -= penalties.get("missing_required_section", 20) * len(missing)
@@ -1845,6 +2065,11 @@ def make_acceptance_decision(
         sabotage_review_recommended=bool(sabotage["sabotage_review_recommended"]),
         malpractice_review_recommended=bool(malpractice["malpractice_review_recommended"]),
     )
+    if master_review_packet_only_go_hold:
+        hold["implementation_blocked"] = True
+        reason = "reviewer packet-only GO claim for merge/readiness requires architect adjudication"
+        if reason not in hold["hold_reasons"]:
+            hold["hold_reasons"].append(reason)
     implementation_blocked = bool(hold["implementation_blocked"])
     peer_disposition = reader.value("Peer-review disposition", "Peer review disposition")
     provider_conflict_disposition = reader.value("Provider conflict disposition")
@@ -1881,11 +2106,15 @@ def make_acceptance_decision(
         or implementation_blocked
         or peer_review_status in {"failed", "disagreement", "blocked"}
         or workspace_quarantine
+        or local_completion_incomplete
     )
     if verdict == "quarantine":
         recommended_disposition = "quarantine-and-adjudicate"
     elif implementation_blocked and not hard_disqualifiers:
-        recommended_disposition = "run-peer-review"
+        if master_review_packet_only_go_hold:
+            recommended_disposition = "architect-adjudication"
+        else:
+            recommended_disposition = "run-peer-review"
     elif hard_disqualifiers:
         recommended_disposition = "reject"
     elif human_adjudication_required:
@@ -1904,6 +2133,8 @@ def make_acceptance_decision(
         | set(malpractice.get("malpractice_signal_categories", []))
     )
     resolved_boundary_status = boundary_taint_status(boundary_taint_findings, share_boundary=share_boundary)
+    if local_completion_incomplete and recommended_disposition not in {"reject", "quarantine", "architect-adjudication"}:
+        recommended_disposition = "request-clarification"
     recommended_synthesis_use = recommend_synthesis_use(
         verdict=verdict,
         recommended_disposition=recommended_disposition,
@@ -1912,6 +2143,7 @@ def make_acceptance_decision(
         executor=executor,
         provider_family=provenance.get("provider_family"),
         hard_disqualifiers=hard_disqualifiers,
+        local_dispatch_incomplete=local_completion_incomplete,
     )
     if implementation_blocked and recommended_synthesis_use == "primary":
         recommended_synthesis_use = "open-risk"
@@ -1951,6 +2183,24 @@ def make_acceptance_decision(
         "signal_categories": signal_categories,
         "peer_review_required": peer_required,
         "peer_review_status": peer_review_status,
+        **{
+            key: master_review_controls[key]
+            for key in [
+                "review_surface",
+                "source_inspection",
+                "sources_inspected",
+                "sources_not_inspected",
+                "independent_verification",
+                "packet_reported_claims",
+            ]
+        },
+        "review_surface_packet_only": bool(master_review_controls["review_surface_packet_only"]),
+        "source_inspection_packet_only": bool(master_review_controls["source_inspection_packet_only"]),
+        "go_for_pr_merge_readiness_claimed": bool(master_review_controls["go_for_pr_merge_readiness_claimed"]),
+        "review_surface_mismatch": bool(master_review_controls["review_surface_mismatch"]),
+        "review_surface_required_evidence_missing": bool(master_review_controls["review_surface_required_evidence_missing"]),
+        "review_surface_mismatch_reasons": list(master_review_controls["review_surface_mismatch_reasons"]),
+        "master_review_packet_only_go_hold": bool(master_review_controls["packet_only_go_hold"]),
         "implementation_blocked": implementation_blocked,
         "hold_reasons": hold["hold_reasons"],
         "hold_classification": hold["hold_classification"],

@@ -29,12 +29,33 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "enabled_levers",
     "disabled_levers",
     "workerbee_parallelism",
+    "workerbee_planned_delegation",
     "model_synthesis",
     "operator_calibration",
     "route",
     "paste_ready_prompt",
     "warnings",
 ]
+
+
+def _normalize_workerbee_planned_delegation(workerbee_parallelism: dict[str, Any] | None) -> dict[str, Any]:
+    mode = str((workerbee_parallelism or {}).get("recommended_mode") or "none")
+    model = (workerbee_parallelism or {}).get("recommended_model")
+    if model is not None and not str(model).strip():
+        model = None
+    raw_lanes = (workerbee_parallelism or {}).get("suggested_lanes")
+    if not isinstance(raw_lanes, list):
+        raw_lanes = []
+    lanes: list[str] = []
+    for lane in raw_lanes:
+        text = str(lane or "").strip()
+        if text and text not in lanes:
+            lanes.append(text)
+    return {
+        "mode": mode,
+        "model": model,
+        "lanes": lanes,
+    }
 
 
 def text_has_any(text: str, terms: list[str]) -> bool:
@@ -1530,6 +1551,7 @@ def coach_orchestration_prompt(
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
+    workerbee_planned_delegation = _normalize_workerbee_planned_delegation(workerbee_parallelism)
     scaffold_sizing = prompt_coach_scaffold_sizing_signal(text, level, route, force_size=scaffold_size)
     model_synthesis_config = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
     if model_synthesis_config is None:
@@ -1548,6 +1570,7 @@ def coach_orchestration_prompt(
         "beads_context_depth_rationale",
         "beads_context_depth_provenance",
     ]}}
+    route = {**route, "workerbee_planned_delegation": workerbee_planned_delegation}
     operator_calibration = prompt_coach_operator_calibration_signal(text, route)
     questions = prompt_coach_missing_questions(
         route,
@@ -1609,6 +1632,7 @@ def coach_orchestration_prompt(
             beads_context_depth_signal,
         ),
         "workerbee_parallelism": workerbee_parallelism,
+        "workerbee_planned_delegation": workerbee_planned_delegation,
         "model_synthesis": model_synthesis_config,
         "operator_calibration": operator_calibration,
         "route": route,

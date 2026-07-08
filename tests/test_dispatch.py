@@ -108,6 +108,14 @@ class DispatchTests(unittest.TestCase):
             "bead_summary": {"id": "cwo-1", "title": "Security review"},
             "included_artifacts": [{"type": "assignment_summary", "sha256": "abc"}],
             "selected_snippets": [{"path": "policy/share-boundaries.yaml", "content": "token=[REDACTED]"}],
+            "review_surface_contract": {
+                "review_surface": "packet-only",
+                "source_inspection": "packet-only",
+                "allowed_actions": ["read this packet"],
+                "forbidden_actions": ["shell execution"],
+                "go_rule": "Do not return unconditional GO when source inspection is required but absent.",
+                "required_disclosures": ["Review surface", "Source inspection"],
+            },
             "required_return_sections": ["Status", "Evidence", "Recommended next bead"],
             "packet_sha256": "def",
         }
@@ -117,6 +125,9 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("Recommended next bead", prompt)
         self.assertIn("CONTRACTOR RETURN TEMPLATE - COPY EXACTLY", prompt)
         self.assertIn("Patch authorization:", prompt)
+        self.assertIn("Review surface contract:", prompt)
+        self.assertIn("packet-only", prompt)
+        self.assertIn("do not return an unconditional GO", prompt)
         self.assertIn("Do not mutate the active checkout", prompt)
         self.assertIn("do not claim peer review is unnecessary", prompt)
         self.assertIn("token=[REDACTED]", prompt)
@@ -160,6 +171,8 @@ class DispatchTests(unittest.TestCase):
             opt_in_basis="cli-flag",
         )
         require_valid_contractor_packet(packet)
+        self.assertEqual(packet["review_surface_contract"]["review_surface"], "packet-only")
+        self.assertIn("Review surface", packet["required_return_sections"])
 
     def test_gemini_agy_architecture_critic_packet_is_provider_bound(self) -> None:
         packet = build_packet(

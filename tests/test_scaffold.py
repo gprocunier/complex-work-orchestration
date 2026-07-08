@@ -29,6 +29,37 @@ class ScaffoldTests(unittest.TestCase):
         for item in graph:
             with self.subTest(title=item["title"]):
                 self.assert_native_fields(item)
+                if item.get("type") != "epic":
+                    metadata = item.get("metadata")
+                    self.assertIsInstance(metadata, dict)
+                    planned = metadata.get("workerbee_planned_delegation")
+                    self.assertIsInstance(planned, dict)
+                    self.assertIn("mode", planned)
+                    self.assertIn("model", planned)
+                    self.assertIn("lanes", planned)
+
+    def test_workerbee_planned_metadata_from_route_is_preserved_and_deduped_in_lanes(self) -> None:
+        route = classify_work(
+            "Policy routing and terminology review for public docs and tests.",
+            requested_roles=["documentation"],
+        )
+        route["workerbee_planned_delegation"] = {
+            "mode": "review-only",
+            "model": "gpt-5.3-codex-spark",
+            "lanes": ["policy-routing-review", "policy-routing-review", "", "publish-sanitization-review"],
+        }
+        graph = planned_graph("Field Example", route)
+        expected_lanes = ["policy-routing-review", "publish-sanitization-review"]
+        for item in graph:
+            if item.get("type") == "epic":
+                continue
+            planned = item.get("metadata", {}).get("workerbee_planned_delegation")
+            self.assertEqual(planned.get("mode"), "review-only")
+            self.assertEqual(planned.get("model"), "gpt-5.3-codex-spark")
+            self.assertEqual(planned.get("lanes"), expected_lanes)
+            self.assertEqual(item.get("metadata", {}).get("workerbee_planned_mode"), "review-only")
+            self.assertEqual(item.get("metadata", {}).get("workerbee_planned_model"), "gpt-5.3-codex-spark")
+            self.assertEqual(item.get("metadata", {}).get("workerbee_planned_lanes"), expected_lanes)
 
     def test_dependency_creation_fails_closed(self) -> None:
         with patch("scaffold_workgraph.add_dependency", side_effect=RuntimeError("dependency failure")):

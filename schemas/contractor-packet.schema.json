@@ -77,6 +77,17 @@
         }
       }
     },
+    "review_surface_contract": {
+      "type": "object",
+      "properties": {
+        "review_surface": {"type": "string"},
+        "source_inspection": {"type": "string"},
+        "allowed_actions": {"type": "array", "items": {"type": "string"}},
+        "forbidden_actions": {"type": "array", "items": {"type": "string"}},
+        "go_rule": {"type": "string"},
+        "required_disclosures": {"type": "array", "items": {"type": "string"}}
+      }
+    },
     "required_return_sections": {"type": "array", "items": {"type": "string"}},
     "acceptance_rule": {"type": "string"},
     "quota_checked": {"type": "boolean"},

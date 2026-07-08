@@ -305,9 +305,9 @@
       "promotion_status": "candidate",
       "context_window": "deployed endpoint target is 128k; /v1/models max_model_len remains the operator-controlled truth",
       "default_variant": "reasoning-thinking",
-      "serving_notes": ["Keep endpoint URL, tokens, route CA bundles, and cluster credentials operator-managed.", "Thinking is enabled for model quality, but raw reasoning text must be stripped from Beads, audit events, and synthesis artifacts."],
+      "serving_notes": ["Keep endpoint URL, tokens, route CA bundles, and cluster credentials operator-managed.", "Thinking is enabled for model quality, but raw reasoning text must be stripped from Beads, audit events, and synthesis artifacts.", "Request-side defaults are bounded: `enable_thinking` remains true and `max_tokens=4096` for deep thinking and evidence-focused runs; operators can lower `max_tokens` explicitly for concise modes."],
       "strengths": ["thinking-enabled reasoning", "long-context architecture review", "codebase review", "counter-review", "local-cluster retention", "primary-eligible synthesis input"],
-      "limits": ["candidate until local BF16 endpoint benchmarks pass", "large serving footprint", "raw thinking text is not durable evidence", "still evidence until CWO adjudication"]
+      "limits": ["candidate until local BF16 endpoint benchmarks pass", "large serving footprint", "raw thinking text is not durable evidence", "still evidence until CWO adjudication", "single-pass full-patch review can stop at length; treat as evidence-only/salvage unless final verdict is present"]
     },
     "rhoai-reviewer-llama-4-maverick-17b-128e-fp8": {
       "display_name": "RHOAI Multimodal Review Candidate - Llama 4 Maverick 17B 128E FP8",

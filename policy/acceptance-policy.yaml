@@ -38,7 +38,18 @@
     "research evidence items": "Research evidence",
     "research sources": "Research evidence",
     "contradictions": "Research contradictions",
-    "research replan": "Research reflection"
+    "research replan": "Research reflection",
+    "evidence surface": "Review surface",
+    "review source surface": "Review surface",
+    "source surface": "Review surface",
+    "sources reviewed": "Sources inspected",
+    "inspected sources": "Sources inspected",
+    "sources not reviewed": "Sources not inspected",
+    "uninspected sources": "Sources not inspected",
+    "independently verified": "Independent verification",
+    "independent verification status": "Independent verification",
+    "packet reported claims": "Packet-reported claims",
+    "packet only claims": "Packet-reported claims"
   },
   "hard_disqualifiers": [
     "boundary violation",

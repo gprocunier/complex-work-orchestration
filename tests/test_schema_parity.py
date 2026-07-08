@@ -42,6 +42,19 @@ class SchemaParityTests(unittest.TestCase):
     def test_acceptance_schema_has_review_and_malpractice_fields(self) -> None:
         properties = load_schema("acceptance-decision.schema.json")["properties"]
         for field in [
+            "review_surface",
+            "source_inspection",
+            "sources_inspected",
+            "sources_not_inspected",
+            "independent_verification",
+            "packet_reported_claims",
+            "review_surface_packet_only",
+            "source_inspection_packet_only",
+            "go_for_pr_merge_readiness_claimed",
+            "review_surface_mismatch",
+            "review_surface_required_evidence_missing",
+            "review_surface_mismatch_reasons",
+            "master_review_packet_only_go_hold",
             "malpractice_score",
             "malpractice_signals",
             "evidence_quality_score",
@@ -75,6 +88,22 @@ class SchemaParityTests(unittest.TestCase):
 
     def test_contractor_return_bundle_schema_supports_workspace_mutation(self) -> None:
         properties = load_schema("contractor-return-bundle.schema.json")["properties"]
+        for field in [
+            "review_surface",
+            "source_inspection",
+            "sources_inspected",
+            "sources_not_inspected",
+            "independent_verification",
+            "packet_reported_claims",
+            "review_surface_packet_only",
+            "source_inspection_packet_only",
+            "go_for_pr_merge_readiness_claimed",
+            "review_surface_mismatch",
+            "review_surface_required_evidence_missing",
+            "review_surface_mismatch_reasons",
+            "master_review_packet_only_go_hold",
+        ]:
+            self.assertIn(field, properties)
         self.assertIn("workspace_mutation", properties)
         self.assertIn("boundary_taint_status", properties)
         self.assertIn("boundary_taint_findings", properties)
@@ -123,6 +152,7 @@ class SchemaParityTests(unittest.TestCase):
         self.assertIn("beads_context_depth", schema["properties"])
         self.assertNotIn(RETIRED_FIELD, schema["properties"])
         self.assertIn("beads_context_depth_provenance", schema["properties"])
+        self.assertIn("workerbee_planned_delegation", schema["properties"])
         self.assertIn("recommended_mode", schema["properties"]["model_synthesis"]["properties"])
 
     def test_route_schema_has_model_synthesis_contract(self) -> None:

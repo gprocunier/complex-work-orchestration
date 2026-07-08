@@ -19,6 +19,7 @@
     "enabled_levers",
     "disabled_levers",
     "workerbee_parallelism",
+    "workerbee_planned_delegation",
     "model_synthesis",
     "operator_calibration",
     "route",
@@ -140,6 +141,28 @@
         "prompt_user_in_plan_mode": {"type": "boolean"},
         "suggested_lanes": {"type": "array", "items": {"type": "string"}},
         "rationale": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "workerbee_planned_delegation": {
+      "type": "object",
+      "required": ["mode", "model", "lanes"],
+      "properties": {
+        "mode": {"type": "string"},
+        "model": {
+          "anyOf": [
+            {"type": "string"},
+            {"type": "null"}
+          ]
+        },
+        "lanes": {"type": "array", "items": {"type": "string"}},
+        "recommended_mode": {"type": "string"},
+        "recommended_model": {
+          "anyOf": [
+            {"type": "string"},
+            {"type": "null"}
+          ]
+        },
+        "suggested_lanes": {"type": "array", "items": {"type": "string"}}
       }
     },
     "model_synthesis": {

@@ -121,6 +121,118 @@ class ImportExecutionTelemetryTests(unittest.TestCase):
             self.assertIn("sensitive field", result.stderr)
             self.assertEqual(len(audit.read_text(encoding="utf-8").splitlines()), 1)
 
+    def test_cli_imports_workerbee_delegation_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp = Path(tmp)
+            audit = temp / "audit.jsonl"
+            audit.write_text(
+                json.dumps(
+                    {
+                        "event_type": "dispatch",
+                        "dispatch_id": "dispatch-workerbee",
+                        "bead_id": "cwo-workerbee",
+                        "executor_key": "frontier_architect",
+                        "event_hash": "target-hash",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            sidecar = temp / "workerbee.json"
+            sidecar.write_text(
+                json.dumps(
+                    {
+                        "dispatch_id": "dispatch-workerbee",
+                        "workerbee_planned_mode": "implementation-capable",
+                        "workerbee_planned_model": "gpt-5.3-codex-spark",
+                        "workerbee_planned_lanes": ["packet-surface", "delegation-reporting"],
+                        "workerbee_actual_mode": "implementation-capable",
+                        "workerbee_actual_model": "gpt-5.3-codex-spark",
+                        "workerbee_actual_lanes": ["delegation-reporting"],
+                        "workerbee_delegation_status": "partial",
+                        "workerbee_delegation_gap_reasons": ["packet-surface-not-launched"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "import_execution_telemetry.py"),
+                    "--file",
+                    str(sidecar),
+                    "--audit-file",
+                    str(audit),
+                    "--json",
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["imported"], 1)
+            events = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()]
+            imported = events[1]
+            self.assertEqual(imported["workerbee_delegation_status"], "partial")
+            self.assertEqual(imported["workerbee_actual_lanes"], ["delegation-reporting"])
+            self.assertEqual(imported["workerbee_planned_lanes"], ["packet-surface", "delegation-reporting"])
+
+    def test_cli_imports_nested_workerbee_planned_delegation_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp = Path(tmp)
+            audit = temp / "audit.jsonl"
+            audit.write_text(
+                json.dumps(
+                    {
+                        "event_type": "dispatch",
+                        "dispatch_id": "dispatch-workerbee-nested",
+                        "bead_id": "cwo-workerbee-nested",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            sidecar = temp / "workerbee-nested.json"
+            sidecar.write_text(
+                json.dumps(
+                    {
+                        "dispatch_id": "dispatch-workerbee-nested",
+                        "workerbee_planned_delegation": {
+                            "mode": "review-only",
+                            "model": "gpt-5.3-codex-spark",
+                            "lanes": ["policy-routing-review"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "import_execution_telemetry.py"),
+                    "--file",
+                    str(sidecar),
+                    "--audit-file",
+                    str(audit),
+                    "--json",
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["imported"], 1)
+            imported = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()][1]
+            self.assertEqual(imported["workerbee_planned_mode"], "review-only")
+            self.assertEqual(imported["workerbee_planned_model"], "gpt-5.3-codex-spark")
+            self.assertEqual(imported["workerbee_planned_lanes"], ["policy-routing-review"])
+
 
 if __name__ == "__main__":
     unittest.main()

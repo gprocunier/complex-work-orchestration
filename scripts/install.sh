@@ -61,7 +61,7 @@ Options:
   --codex-home PATH   Use PATH as CODEX_HOME and install into PATH/skills.
   -y, --yes           Accept detected/default paths without prompting.
   --dry-run           Print what would happen without copying files.
-  --uninstall         Move the installed skill to .prev and leave no active install.
+  --uninstall         Move the installed skill to a backup outside skills/ and leave no active install.
   -h, --help          Show this help.
 
 Environment:
@@ -206,18 +206,39 @@ cleanup_install_stage() {
   fi
 }
 
+backup_root_for_skills_dir() {
+  local skills_dir="$1"
+  local parent_dir
+
+  parent_dir="$(cd -- "$(dirname -- "$skills_dir")" 2>/dev/null && pwd -P || dirname -- "$skills_dir")"
+  printf '%s\n' "$parent_dir/skill-backups"
+}
+
+backup_path_for_skill() {
+  local skills_dir="$1"
+  local backup_root
+
+  backup_root="$(backup_root_for_skills_dir "$skills_dir")"
+  printf '%s/%s.prev.%s.%s\n' "$backup_root" "$SKILL_NAME" "$(date +%Y%m%d-%H%M%S)" "$$"
+}
+
 install_skill() {
   local skills_dir="$1"
   local target_dir="$skills_dir/$SKILL_NAME"
-  local prev_dir="$target_dir.prev"
+  local backup_root
+  local prev_dir
   local backed_up=0
   local items="README.md LICENSE SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts"
+
+  backup_root="$(backup_root_for_skills_dir "$skills_dir")"
+  prev_dir="$(backup_path_for_skill "$skills_dir")"
 
   say ""
   say "Install plan:"
   say "  Source: $SOURCE_DIR"
   say "  Skills directory: $skills_dir"
   say "  Target: $target_dir"
+  say "  Backup directory: $backup_root"
 
   if [ -d "$target_dir" ] && [ "$(cd -- "$target_dir" && pwd -P)" = "$SOURCE_DIR" ]; then
     say "Skill is already installed in place: $target_dir"
@@ -245,6 +266,7 @@ install_skill() {
   fi
 
   mkdir -p -- "$skills_dir"
+  mkdir -p -- "$backup_root"
   INSTALL_STAGE_DIR="$(mktemp -d "${skills_dir}/.${SKILL_NAME}.stage.XXXXXX")"
   trap cleanup_install_stage EXIT
 
@@ -253,7 +275,6 @@ install_skill() {
   done
 
   if [ -e "$target_dir" ]; then
-    rm -rf -- "$prev_dir"
     mv -- "$target_dir" "$prev_dir"
     backed_up=1
   fi
@@ -275,7 +296,11 @@ install_skill() {
 uninstall_skill() {
   local skills_dir="$1"
   local target_dir="$skills_dir/$SKILL_NAME"
-  local prev_dir="$target_dir.prev"
+  local backup_root
+  local prev_dir
+
+  backup_root="$(backup_root_for_skills_dir "$skills_dir")"
+  prev_dir="$(backup_path_for_skill "$skills_dir")"
 
   say ""
   say "Uninstall plan:"
@@ -291,7 +316,7 @@ uninstall_skill() {
     return 0
   fi
 
-  confirm "Move installed skill to .prev backup and leave no active install?" || die "uninstall cancelled"
+  confirm "Move installed skill to backup and leave no active install?" || die "uninstall cancelled"
 
   if [ "$DRY_RUN" -eq 1 ]; then
     say "Dry run: no files will be moved."
@@ -300,7 +325,7 @@ uninstall_skill() {
     return 0
   fi
 
-  rm -rf -- "$prev_dir"
+  mkdir -p -- "$backup_root"
   mv -- "$target_dir" "$prev_dir"
   say "Uninstalled skill; backup kept at: $prev_dir"
 }

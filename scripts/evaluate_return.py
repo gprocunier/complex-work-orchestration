@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
@@ -15,6 +16,9 @@ from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, 
 def print_human(result: dict[str, object]) -> None:
     print(f"Verdict: {result['verdict']}")
     print(f"Score: {result['score']}")
+    print(f"Review surface: {result.get('review_surface') or 'n/a'}")
+    print(f"Source inspection: {result.get('source_inspection') or 'n/a'}")
+    print(f"Packet-only go hold: {result.get('master_review_packet_only_go_hold', False)}")
     print(f"Architect review required: {result['architect_review_required']}")
     print(f"Escalation flagged: {result['escalation_flagged']}")
     print(f"Sabotage score: {result.get('sabotage_score', 0)}")
@@ -86,6 +90,99 @@ def print_human(result: dict[str, object]) -> None:
         print("- none")
 
 
+def _as_str(value: Any) -> str | None:
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return None
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
+    try:
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Failed to parse --local-dispatch-result JSON: {exc}") from exc
+    if not isinstance(artifact, dict):
+        raise SystemExit("--local-dispatch-result must contain a JSON object")
+
+    route = _as_dict(artifact.get("route"))
+    selected_executor = _as_dict(route.get("selected_executor"))
+    ranked_experts = route.get("ranked_experts")
+    primary_expert = ranked_experts[0] if isinstance(ranked_experts, list) and ranked_experts else {}
+    primary_expert_label = _as_str(_as_dict(primary_expert).get("job_description_label"))
+    local_envelope = _as_dict(artifact.get("local_envelope"))
+    local_response = _as_dict(artifact.get("local_response"))
+    raw_finish_reasons = local_response.get("finish_reasons")
+    if isinstance(raw_finish_reasons, list):
+        finish_reasons = [str(item) for item in raw_finish_reasons if isinstance(item, (str, int, float, bool))]
+    elif raw_finish_reasons is None:
+        finish_reasons = []
+    else:
+        finish_reasons = [str(raw_finish_reasons)]
+
+    return {
+        "dispatch_id": _as_str(artifact.get("dispatch_id")),
+        "bead_id": _as_str(artifact.get("bead_id")),
+        "bead": _as_str(artifact.get("bead_id")),
+        "share_boundary": _as_str(route.get("share_boundary")),
+        "executor": (
+            _as_str(selected_executor.get("key"))
+            or _as_str(selected_executor.get("executor_key"))
+            or _as_str(route.get("recommended_executor"))
+            or _as_str(route.get("executor"))
+            or _as_str(artifact.get("executor"))
+            or _as_str(artifact.get("executor_key"))
+        ),
+        "provider_key": (
+            _as_str(selected_executor.get("provider_key"))
+            or _as_str(route.get("provider_key"))
+            or _as_str(local_envelope.get("provider_key"))
+            or _as_str(artifact.get("provider_key"))
+        ),
+        "provider_trust_tier": (
+            _as_str(selected_executor.get("provider_trust_tier"))
+            or _as_str(route.get("provider_trust_tier"))
+            or _as_str(local_envelope.get("provider_trust_tier"))
+            or _as_str(artifact.get("provider_trust_tier"))
+        ),
+        "dispatch_mode": (
+            _as_str(route.get("dispatch_mode"))
+            or _as_str(artifact.get("dispatch_mode"))
+            or _as_str(selected_executor.get("dispatch_mode"))
+            or _as_str(local_envelope.get("dispatch_mode"))
+        ),
+        "job_description": (
+            primary_expert_label
+            or _as_str(selected_executor.get("job_description_label"))
+            or _as_str(route.get("job_description_label"))
+            or _as_str(route.get("job_description"))
+        ),
+        "local_profile": (
+            _as_str(selected_executor.get("local_profile"))
+            or _as_str(local_envelope.get("local_profile"))
+        ),
+        "model_profile": (
+            _as_str(selected_executor.get("model_profile"))
+            or _as_str(local_envelope.get("model_profile"))
+        ),
+        "local_response_truncated": (
+            bool(local_response.get("response_truncated"))
+            if isinstance(local_response.get("response_truncated"), bool)
+            else False
+        ),
+        "local_finish_reasons": finish_reasons,
+        "local_reasoning_malformed": (
+            bool(local_response.get("reasoning_malformed"))
+            if isinstance(local_response.get("reasoning_malformed"), bool)
+            else False
+        ),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score a contractor/local-worker return against acceptance policy.")
     parser.add_argument("--file", required=True, help="Contractor return text file.")
@@ -115,6 +212,10 @@ def main() -> None:
         default=[],
         help="Provider conflict domain attached to the dispatch route.",
     )
+    parser.add_argument(
+        "--local-dispatch-result",
+        help="Path to dispatch_work artifact containing local_response and route metadata.",
+    )
     parser.add_argument("--sabotage-review-threshold", type=int, help="Override sabotage peer-review threshold.")
     parser.add_argument("--sabotage-quarantine-threshold", type=int, help="Override sabotage quarantine threshold.")
     parser.add_argument("--malpractice-review-threshold", type=int, help="Override malpractice peer-review threshold.")
@@ -137,27 +238,53 @@ def main() -> None:
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
     require_waiver_reason(args, ["audit"])
-    if args.executor:
-        args.executor = resolve_executor_key(args.executor)
+    local_dispatch_metadata = (
+        _load_local_dispatch_metadata(Path(args.local_dispatch_result))
+        if args.local_dispatch_result
+        else {}
+    )
+
+    def _cli_or_metadata(name: str) -> str | None:
+        explicit = getattr(args, name, None)
+        if explicit is not None and explicit != "":
+            return explicit
+        metadata_value = local_dispatch_metadata.get(name)
+        return metadata_value if isinstance(metadata_value, str) else None
+
+    dispatch_id = _cli_or_metadata("dispatch_id")
+    bead_id = _cli_or_metadata("bead")
+    share_boundary = _cli_or_metadata("share_boundary")
+    job_description_label = _cli_or_metadata("job_description")
+    executor = _cli_or_metadata("executor")
+    provider_key = _cli_or_metadata("provider_key")
+    provider_trust_tier = _cli_or_metadata("provider_trust_tier")
+    dispatch_mode = _cli_or_metadata("dispatch_mode")
+    local_profile = _cli_or_metadata("local_profile")
+    model_profile = _cli_or_metadata("model_profile")
+    if executor:
+        executor = resolve_executor_key(executor)
 
     workspace_mutation = (
         json.loads(Path(args.workspace_mutation_report).read_text(encoding="utf-8"))
         if args.workspace_mutation_report
         else None
     )
+    local_response_truncated = bool(local_dispatch_metadata.get("local_response_truncated", False))
+    local_finish_reasons = local_dispatch_metadata.get("local_finish_reasons")
+    local_reasoning_malformed = bool(local_dispatch_metadata.get("local_reasoning_malformed", False))
 
     result = make_acceptance_decision(
         Path(args.file).read_text(encoding="utf-8"),
-        bead_id=args.bead,
-        dispatch_id=args.dispatch_id,
-        share_boundary=args.share_boundary,
-        job_description_label=args.job_description,
-        executor=args.executor,
-        provider_key=args.provider_key,
-        provider_trust_tier=args.provider_trust_tier,
-        dispatch_mode=args.dispatch_mode,
-        local_profile=args.local_profile,
-        model_profile=args.model_profile,
+        bead_id=bead_id,
+        dispatch_id=dispatch_id,
+        share_boundary=share_boundary,
+        job_description_label=job_description_label,
+        executor=executor,
+        provider_key=provider_key,
+        provider_trust_tier=provider_trust_tier,
+        dispatch_mode=dispatch_mode,
+        local_profile=local_profile,
+        model_profile=model_profile,
         peer_review_required=args.peer_review_required,
         peer_review_status=args.peer_review_status,
         provider_conflict_domains=args.provider_conflict_domain,
@@ -167,15 +294,18 @@ def main() -> None:
         malpractice_reject_threshold=args.malpractice_reject_threshold,
         workspace_mutation=workspace_mutation,
         mutation_strategy=args.mutation_strategy,
+        local_response_truncated=local_response_truncated,
+        local_finish_reasons=local_finish_reasons if isinstance(local_finish_reasons, list) else None,
+        local_reasoning_malformed=local_reasoning_malformed,
     )
     if args.audit:
         audit_path = Path(args.audit_file) if args.audit_file else None
         record_audit_event(
             {
                 "event_type": "return_evaluated",
-                "dispatch_id": args.dispatch_id,
-                "bead_id": args.bead,
-                "share_boundary": args.share_boundary,
+                "dispatch_id": dispatch_id,
+                "bead_id": bead_id,
+                "share_boundary": share_boundary,
                 "executor_key": result.get("executor"),
                 "executor": result.get("executor"),
                 "provider_key": result.get("provider_key"),
@@ -204,7 +334,17 @@ def main() -> None:
                 **telemetry_fields(
                     telemetry_kind="evaluation",
                     telemetry_status=result["verdict"],
-                    job_description_label=args.job_description,
+                    job_description_label=job_description_label,
+                    review_surface=result.get("review_surface"),
+                    source_inspection=result.get("source_inspection"),
+                    sources_inspected=result.get("sources_inspected"),
+                    sources_not_inspected=result.get("sources_not_inspected"),
+                    independent_verification=result.get("independent_verification"),
+                    packet_reported_claims=result.get("packet_reported_claims"),
+                    review_surface_mismatch=result.get("review_surface_mismatch"),
+                    review_surface_required_evidence_missing=result.get("review_surface_required_evidence_missing"),
+                    review_surface_mismatch_reasons=result.get("review_surface_mismatch_reasons"),
+                    master_review_packet_only_go_hold=result.get("master_review_packet_only_go_hold"),
                     provider_family=result.get("provider_family"),
                     provider_retention_class=result.get("provider_retention_class"),
                 ),

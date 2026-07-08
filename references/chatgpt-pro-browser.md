@@ -24,6 +24,15 @@ python3 -m playwright install chromium
 - Evidence requirement: dispatch JSON with confirmed `model_attestation`, a
   ChatGPT share URL, ingested return markdown, return evaluation, and architect
   adjudication
+- Required return contract for master-review lanes:
+  - Add `Review surface:`, `Source inspection:`, `Sources inspected:`,
+    `Sources not inspected:`, `Independent verification:`, and
+    `Packet-reported claims:` sections to the return.
+  - Acceptable review surfaces are `packet-only`, `public-pr-readonly`,
+    `repo-readonly`, and `patch-branch`.
+  - If a master-review return declares packet-only inspection and also makes a
+    merge/readiness/PR go claim, the evaluator must treat the return as advisory.
+    Keep implementation blocked until an architect adjudicates the go claim.
 - Blocking behavior: if the user explicitly requested this lane before
   implementation, stop before implementation unless the Pro lane succeeds or
   the operator records a waiver/downgrade in Beads
@@ -127,6 +136,7 @@ Build the packet from the compact plan bundle:
 ```bash
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
+  --epic <epic-id> \
   --executor chatgpt_pro_browser_master_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
@@ -136,6 +146,11 @@ python3 scripts/build_contractor_packet.py \
   --format json \
   --output work-packets/master-plan-review-packet.json
 ```
+
+`--epic` is recommended for operator clarity and quota accounting. If it is
+omitted, the packet builder uses the assigned Bead parent as the epic scope
+when present and fails closed if an explicit `--epic` conflicts with that
+parent.
 
 Dry run first. This verifies the prompt/config and reports `prompt_chars`
 without submitting:

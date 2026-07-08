@@ -7,11 +7,13 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import dispatch_work  # noqa: E402
+import build_contractor_packet  # noqa: E402
 import cwo_core.audit as lib  # noqa: E402
 
 
@@ -159,6 +161,229 @@ class DispatchQuotaTests(unittest.TestCase):
             finally:
                 sys.argv = original_argv
                 lib.AUDIT_LOG = original_audit
+
+    def test_packet_build_infers_epic_scope_from_bead_parent(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output_path = Path(tmp) / "packet.json"
+            bead_json = [
+                {
+                    "id": "cwo-review-1",
+                    "parent": "cwo-epic-1",
+                    "title": "ChatGPT Pro review",
+                    "labels": [
+                        "contractor-only",
+                        "no-codex-exec",
+                        "contract-jd-master-plan-review",
+                    ],
+                }
+            ]
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "cwo-review-1",
+                    "--executor",
+                    "chatgpt_pro_browser_master_reviewer",
+                    "--share-boundary",
+                    "redacted-packet",
+                    "--external-ok",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output_path),
+                ]
+                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                    build_contractor_packet.main()
+
+                packet = json.loads(output_path.read_text(encoding="utf-8"))
+                self.assertEqual(packet["epic_id"], "cwo-epic-1")
+                self.assertEqual(packet["quota_remaining"], 4)
+                events = lib.iter_audit_events(lib.AUDIT_LOG)
+                self.assertEqual(events[-1]["epic_id"], "cwo-epic-1")
+                self.assertEqual(events[-1]["quota_event_type"], "external_manual_dispatch")
+                self.assertEqual(events[-1]["quota_stage"], "reserved")
+            finally:
+                sys.argv = original_argv
+                lib.AUDIT_LOG = original_audit
+
+    def test_packet_build_accepts_matching_explicit_epic_scope(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output_path = Path(tmp) / "packet.json"
+            bead_json = [
+                {
+                    "id": "cwo-review-1",
+                    "parent": "cwo-epic-1",
+                    "title": "ChatGPT Pro review",
+                    "labels": [
+                        "contractor-only",
+                        "no-codex-exec",
+                        "contract-jd-master-plan-review",
+                    ],
+                }
+            ]
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "cwo-review-1",
+                    "--epic",
+                    "cwo-epic-1",
+                    "--executor",
+                    "chatgpt_pro_browser_master_reviewer",
+                    "--share-boundary",
+                    "redacted-packet",
+                    "--external-ok",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output_path),
+                ]
+                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                    build_contractor_packet.main()
+
+                packet = json.loads(output_path.read_text(encoding="utf-8"))
+                self.assertEqual(packet["epic_id"], "cwo-epic-1")
+                events = lib.iter_audit_events(lib.AUDIT_LOG)
+                self.assertEqual(events[-1]["epic_id"], "cwo-epic-1")
+            finally:
+                sys.argv = original_argv
+                lib.AUDIT_LOG = original_audit
+
+    def test_packet_build_preserves_global_scope_for_parentless_bead_without_epic(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output_path = Path(tmp) / "packet.json"
+            bead_json = [
+                {
+                    "id": "cwo-review-1",
+                    "title": "ChatGPT Pro review",
+                    "labels": [
+                        "contractor-only",
+                        "no-codex-exec",
+                        "contract-jd-master-plan-review",
+                    ],
+                }
+            ]
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "cwo-review-1",
+                    "--executor",
+                    "chatgpt_pro_browser_master_reviewer",
+                    "--share-boundary",
+                    "redacted-packet",
+                    "--external-ok",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output_path),
+                ]
+                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                    build_contractor_packet.main()
+
+                packet = json.loads(output_path.read_text(encoding="utf-8"))
+                self.assertIsNone(packet["epic_id"])
+                self.assertEqual(packet["quota_remaining"], 4)
+                events = lib.iter_audit_events(lib.AUDIT_LOG)
+                self.assertIsNone(events[-1].get("epic_id"))
+            finally:
+                sys.argv = original_argv
+                lib.AUDIT_LOG = original_audit
+
+    def test_packet_build_rejects_conflicting_explicit_epic_scope(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output_path = Path(tmp) / "packet.json"
+            bead_json = [
+                {
+                    "id": "cwo-review-1",
+                    "parent": "cwo-epic-1",
+                    "title": "ChatGPT Pro review",
+                    "labels": [
+                        "contractor-only",
+                        "no-codex-exec",
+                        "contract-jd-master-plan-review",
+                    ],
+                }
+            ]
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "cwo-review-1",
+                    "--epic",
+                    "wrong-epic",
+                    "--executor",
+                    "chatgpt_pro_browser_master_reviewer",
+                    "--share-boundary",
+                    "redacted-packet",
+                    "--external-ok",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output_path),
+                ]
+                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                    with self.assertRaises(SystemExit) as raised:
+                        build_contractor_packet.main()
+
+                self.assertIn("does not match assigned Bead parent", str(raised.exception))
+                self.assertFalse(output_path.exists())
+                self.assertEqual(lib.iter_audit_events(lib.AUDIT_LOG), [])
+            finally:
+                sys.argv = original_argv
+                lib.AUDIT_LOG = original_audit
+
+    def test_epic_inference_supports_nested_parent_and_dependency_parent(self) -> None:
+        self.assertEqual(
+            build_contractor_packet.infer_epic_id_from_bead(
+                [{"id": "cwo-review-1", "parent": {"id": "cwo-epic-1"}}]
+            ),
+            "cwo-epic-1",
+        )
+        self.assertEqual(
+            build_contractor_packet.infer_epic_id_from_bead(
+                [
+                    {
+                        "id": "cwo-review-1",
+                        "dependencies": [
+                            {
+                                "type": "parent-child",
+                                "issue_id": "cwo-review-1",
+                                "depends_on_id": "cwo-epic-1",
+                            }
+                        ],
+                    }
+                ]
+            ),
+            "cwo-epic-1",
+        )
+        self.assertIsNone(
+            build_contractor_packet.infer_epic_id_from_bead(
+                [
+                    {
+                        "id": "cwo-review-1",
+                        "dependencies": [
+                            {
+                                "type": "parent-child",
+                                "issue_id": "cwo-review-1",
+                            }
+                        ],
+                    }
+                ]
+            )
+        )
 
 
 if __name__ == "__main__":

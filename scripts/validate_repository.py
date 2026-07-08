@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sys
 import ast
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +144,27 @@ def validate_retired_beads_context_aliases(
     *,
     repo_root: Path = REPO_ROOT,
 ) -> None:
+    def _is_git_ignored(path: Path) -> bool:
+        if not (repo_root / ".git").is_dir():
+            return False
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo_root),
+                    "check-ignore",
+                    "-q",
+                    "--",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return result.returncode == 0
+
     allowed_names = {"CHANGELOG.md"}
     skipped_dirs = {".git", "__pycache__"}
     for path in sorted(repo_root.rglob("*")):
@@ -151,6 +173,8 @@ def validate_retired_beads_context_aliases(
         try:
             relative = path.relative_to(repo_root)
         except ValueError:
+            continue
+        if _is_git_ignored(relative):
             continue
         if any(part in skipped_dirs for part in relative.parts):
             continue

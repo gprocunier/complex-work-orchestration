@@ -143,6 +143,15 @@ Degraded-context justification:
 {justification}"""
     manual_command = packet.get("manual_command")
     command_line = f"Manual dispatch command: {manual_command}\n" if manual_command else ""
+    review_surface_contract = packet.get("review_surface_contract") if isinstance(packet.get("review_surface_contract"), dict) else {}
+    if review_surface_contract:
+        review_surface_text = f"""Review surface contract:
+{fenced_block(json.dumps(review_surface_contract, indent=2, sort_keys=True), 'json')}
+"""
+    else:
+        review_surface_text = """Review surface contract:
+No explicit review-surface contract was included. Treat the packet as packet-only unless the assignment says otherwise.
+"""
     return f"""You are an outside model contractor for one bounded Beads assignment.
 
 Dispatch ID: {packet['dispatch_id']}
@@ -157,6 +166,8 @@ Packet SHA-256: {packet.get('packet_sha256', 'not-recorded')}
 
 Boundary:
 {packet.get('boundary_description', 'No boundary description provided.')}
+
+{review_surface_text}
 
 Bead summary:
 {fenced_block(json.dumps(packet.get('bead_summary', {}), indent=2, sort_keys=True), 'json')}
@@ -184,6 +195,7 @@ Rules:
 - Do not ask for or expose secrets, credentials, production access, or private data.
 - Do not request broader disclosure than the assigned share boundary.
 - Do not re-plan the whole project.
+- If PR, merge, readiness, source, or diff inspection is required but not included in this packet, do not return an unconditional GO. Return conditional GO based on packet evidence, open-risk, request broader review surface, or NO-GO.
 - Do not publish, release, tag, or run destructive commands.
 - If the share boundary is patch-branch, return a diff, patch proposal, or branch reference by default. Do not mutate the active checkout unless direct workspace mutation is explicitly authorized in the assignment.
 - If peer review is required or provider conflict domains are listed, do not claim peer review is unnecessary.

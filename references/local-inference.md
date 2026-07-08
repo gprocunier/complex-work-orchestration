@@ -177,6 +177,21 @@ python3 scripts/dispatch_work.py \
   "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion."
 ```
 
+### GLM-5.2 BF16 thinking modes
+
+Use request-side controls from the selected GLM executor:
+
+- Concise verdict mode: keep `--local-thinking off` with `--local-max-tokens 512` to
+  `1024`.
+- Deep evidence mode: keep `--local-thinking on` with `--local-max-tokens 2048` to
+  `4096` and `--local-timeout 600`.
+- Full-patch review should be split into chunked passes (or review + finalizer) in the
+  next sprint rather than a single unconstrained pass.
+
+The executor defaults remain bounded request-side at `chat_template_kwargs.enable_thinking=true`
+and `max_tokens=4096` so local endpoint defaults do not control safety-critical
+token cap behavior.
+
 For a render-only harness envelope under the GLM-primary bridge:
 
 ```bash

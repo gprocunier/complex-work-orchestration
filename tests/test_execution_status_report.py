@@ -10,7 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cwo_core.execution_status_report import build_execution_status_report, render_terminal  # noqa: E402
+from cwo_core.execution_status_report import (  # noqa: E402
+    _lane_matches_workerbee_plan,
+    build_execution_status_report,
+    render_terminal,
+)
 
 
 def sample_audit_events() -> list[dict[str, object]]:
@@ -106,6 +110,130 @@ def sample_return_bundles() -> list[dict[str, object]]:
 
 
 class ExecutionStatusReportTests(unittest.TestCase):
+    def test_status_prepared_from_dispatch_events_counts_as_started(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "started-1",
+                    "event_type": "dispatch_prepared",
+                    "timestamp": "2026-07-03T12:00:00Z",
+                    "bead_id": "cwo-started-1",
+                    "executor_key": "frontier_architect",
+                    "provider_key": "openai_internal",
+                    "provider_family": "openai",
+                    "executor_external": False,
+                    "lane": "architect",
+                    "expert_profile": "architecture",
+                    "model": "codex-5.5-x-high",
+                },
+                {
+                    "dispatch_id": "skip-1",
+                    "event_type": "dispatch",
+                    "timestamp": "2026-07-03T12:01:00Z",
+                    "bead_id": "cwo-started-2",
+                    "executor_key": "claude_opus",
+                    "status": "deferred",
+                    "lane": "second-opinion",
+                    "expert_profile": "operator-calibrated",
+                    "model": "claude-opus-4-6",
+                },
+            ]
+        )
+
+        self.assertEqual(report["executive_summary"]["started"], 1)
+        self.assertEqual(report["executive_summary"]["deferred"], 1)
+
+    def test_workerbee_accountability_tracks_planned_vs_actual_lanes(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "delegation-plan",
+                    "event_type": "dispatch_prepared",
+                    "timestamp": "2026-07-03T12:00:00Z",
+                    "bead_id": "cwo-account-1",
+                    "lane": "policy-routing-review",
+                    "executor_key": "frontier_architect",
+                    "workerbee_planned_delegation": {
+                        "mode": "review-only",
+                        "model": "gpt-5.3-codex-spark",
+                        "lanes": ["policy-routing-review", "docs-flow-review", "publish-sanitization-review"],
+                    },
+                },
+                {
+                    "dispatch_id": "delegation-complete",
+                    "event_type": "dispatch",
+                    "timestamp": "2026-07-03T12:05:00Z",
+                    "bead_id": "cwo-account-1",
+                    "lane": "policy-routing-review",
+                    "executor_key": "frontier_architect",
+                    "status": "completed",
+                    "workerbee_planned_delegation": {
+                        "mode": "review-only",
+                        "model": "gpt-5.3-codex-spark",
+                        "lanes": ["policy-routing-review", "docs-flow-review", "publish-sanitization-review"],
+                    },
+                },
+                {
+                    "dispatch_id": "delegation-other",
+                    "event_type": "dispatch",
+                    "timestamp": "2026-07-03T12:10:00Z",
+                    "bead_id": "cwo-account-2",
+                    "lane": "other-lane",
+                    "executor_key": "frontier_architect",
+                    "telemetry_status": "started",
+                },
+            ],
+        )
+
+        accountability = report["workerbee_delegation_accountability"]
+        planned = accountability["planned"]
+        self.assertEqual(planned["mode"], "review-only")
+        self.assertEqual(planned["model"], "gpt-5.3-codex-spark")
+        self.assertEqual(planned["lanes"], ["policy-routing-review", "docs-flow-review", "publish-sanitization-review"])
+        planned_rows = accountability["planned_vs_actual"]
+        self.assertTrue(any(row["lane"] == "policy-routing-review" for row in planned_rows))
+        for row in planned_rows:
+            if row["lane"] == "policy-routing-review":
+                self.assertEqual(row["started"], 1)
+                self.assertEqual(row["completed"], 1)
+            elif row["lane"] != "docs-flow-review" and row["lane"] != "publish-sanitization-review":
+                self.fail(f"Unexpected planned lane row: {row['lane']}")
+
+    def test_workerbee_accountability_uses_actual_lane_lists(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "delegation-list-complete",
+                    "event_type": "execution_telemetry_import",
+                    "timestamp": "2026-07-03T12:05:00Z",
+                    "bead_id": "cwo-account-1",
+                    "workerbee_planned_mode": "implementation-capable",
+                    "workerbee_planned_model": "gpt-5.3-codex-spark",
+                    "workerbee_planned_lanes": ["packet-surface", "delegation-reporting"],
+                    "workerbee_actual_mode": "implementation-capable",
+                    "workerbee_actual_model": "gpt-5.3-codex-spark",
+                    "workerbee_actual_lanes": ["packet-surface", "delegation-reporting"],
+                    "workerbee_delegation_status": "completed",
+                }
+            ],
+        )
+
+        rows = {
+            row["lane"]: row
+            for row in report["workerbee_delegation_accountability"]["planned_vs_actual"]
+        }
+        self.assertEqual(rows["packet-surface"]["completed"], 1)
+        self.assertEqual(rows["packet-surface"]["unavailable"], 0)
+        self.assertEqual(rows["delegation-reporting"]["completed"], 1)
+        self.assertEqual(rows["delegation-reporting"]["unavailable"], 0)
+        self.assertEqual(report["workerbee_delegation_summary"]["unfulfilled_lane_count"], 0)
+
+    def test_workerbee_lane_matching_uses_token_boundaries(self) -> None:
+        self.assertTrue(_lane_matches_workerbee_plan("expert-review-policy-routing-review", "policy-routing-review"))
+        self.assertTrue(_lane_matches_workerbee_plan("policy-routing-review", "policy-routing-review"))
+        self.assertFalse(_lane_matches_workerbee_plan("implementation", "pm"))
+        self.assertFalse(_lane_matches_workerbee_plan("approval", "pr"))
+
     def test_aggregates_complete_telemetry_from_explicit_records(self) -> None:
         report = build_execution_status_report(
             audit_events=sample_audit_events(),
@@ -296,6 +424,51 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(report["telemetry_gaps"]["records_considered"], 1)
         self.assertEqual(report["telemetry_gaps"]["fields"]["total_tokens"]["missing_records"], 0)
 
+    def test_workerbee_delegation_summary_reports_planned_actual_and_gaps(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "architect-plan",
+                    "event_type": "dispatch",
+                    "bead_id": "cwo-workerbee-plan",
+                    "lane": "architect",
+                    "executor_key": "frontier_architect",
+                    "status": "completed",
+                    "workerbee_planned_mode": "implementation-capable",
+                    "workerbee_planned_model": "gpt-5.3-codex-spark",
+                    "workerbee_planned_lanes": ["part-1-packet-surface", "part-2-delegation-reporting"],
+                },
+                {
+                    "dispatch_id": "spark-part-2",
+                    "event_type": "dispatch",
+                    "bead_id": "cwo-workerbee-actual",
+                    "lane": "implementation",
+                    "executor_key": "codex_workerbee",
+                    "model": "gpt-5.3-codex-spark",
+                    "status": "completed",
+                    "workerbee_actual_mode": "implementation-capable",
+                    "workerbee_actual_model": "gpt-5.3-codex-spark",
+                    "workerbee_actual_lanes": ["part-2-delegation-reporting"],
+                    "workerbee_delegation_status": "completed",
+                    "workerbee_delegation_source": "subagent-log",
+                },
+            ],
+        )
+
+        summary = report["workerbee_delegation_summary"]
+        self.assertEqual(summary["planned_records"], 1)
+        self.assertEqual(summary["actual_records"], 1)
+        self.assertEqual(summary["unfulfilled_lane_count"], 1)
+        self.assertIn("part-1-packet-surface", summary["unfulfilled_lanes"])
+        self.assertIn("completed:1", summary["status_summary"])
+        self.assertIn("planned-no-actual-telemetry:1", summary["status_summary"])
+        details = report["workerbee_delegation_details"]
+        self.assertTrue(all("_planned" not in row for row in details))
+
+        rendered = render_terminal(report, width=100)
+        self.assertIn("Workerbees:", rendered)
+        self.assertIn("unfulfilled 1", rendered)
+
     def test_telemetry_gaps_report_missing_fields_by_source_kind(self) -> None:
         report = build_execution_status_report(
             audit_events=[
@@ -432,6 +605,9 @@ class ExecutionStatusReportTests(unittest.TestCase):
             "agent_model_utilization",
             "agent_model_utilization_details",
             "main_thread_architect_productivity",
+            "workerbee_delegation_accountability",
+            "workerbee_delegation_summary",
+            "workerbee_delegation_details",
             "second_opinion_review_lane_productivity",
             "second_opinion_review_lane_productivity_details",
             "telemetry_gaps",

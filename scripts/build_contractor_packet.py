@@ -57,6 +57,49 @@ def extract_labels(bead: Any) -> list[str]:
     return []
 
 
+def _single_bead_object(bead: Any) -> dict[str, Any]:
+    if isinstance(bead, list) and len(bead) == 1:
+        bead = bead[0]
+    if isinstance(bead, dict):
+        source = bead.get("issue") if isinstance(bead.get("issue"), dict) else bead
+        return source if isinstance(source, dict) else bead
+    return {}
+
+
+def infer_epic_id_from_bead(bead: Any) -> str | None:
+    source = _single_bead_object(bead)
+    parent = source.get("parent")
+    if isinstance(parent, str) and parent.strip():
+        return parent.strip()
+    if isinstance(parent, dict):
+        parent_id = parent.get("id") or parent.get("issue_id")
+        if isinstance(parent_id, str) and parent_id.strip():
+            return parent_id.strip()
+    dependencies = source.get("dependencies")
+    if isinstance(dependencies, list):
+        for item in dependencies:
+            if not isinstance(item, dict):
+                continue
+            dependency_type = str(item.get("type") or item.get("dependency_type") or "").strip()
+            if dependency_type != "parent-child":
+                continue
+            candidate = item.get("depends_on_id") or item.get("id")
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+    return None
+
+
+def resolve_effective_epic_id(explicit_epic_id: str | None, bead: Any) -> str | None:
+    explicit = explicit_epic_id.strip() if isinstance(explicit_epic_id, str) and explicit_epic_id.strip() else None
+    inferred = infer_epic_id_from_bead(bead)
+    if explicit and inferred and explicit != inferred:
+        raise SystemExit(
+            f"--epic {explicit!r} does not match assigned Bead parent {inferred!r}; "
+            "use the parent epic or move the Bead before building a contractor packet"
+        )
+    return explicit or inferred
+
+
 def find_job_label(labels: list[str]) -> str:
     job_labels = [label for label in labels if label.startswith("contract-jd-")]
     if len(job_labels) > 1:
@@ -214,6 +257,39 @@ def build_packet(
         {"type": "secrets", "reason": "never-share category"},
         {"type": "production_access", "reason": "never-share category"},
     ]
+    review_surface = "packet-only" if share_boundary == "redacted-packet" else share_boundary
+    review_surface_contract = {
+        "review_surface": review_surface,
+        "source_inspection": review_surface,
+        "allowed_actions": [
+            "read this packet",
+            "read included snippets and summaries",
+        ],
+        "forbidden_actions": [
+            "shell execution",
+            "local checkout access",
+            "repo mutation",
+            "merge or release action",
+            "credential or production access",
+        ],
+        "go_rule": (
+            "If PR, merge, readiness, source, or diff inspection is required but not included in this packet, "
+            "do not return an unconditional GO. Return conditional GO based on packet evidence, open-risk, "
+            "request broader review surface, or NO-GO."
+        ),
+        "required_disclosures": [
+            "Review surface",
+            "Source inspection",
+            "Sources inspected",
+            "Sources not inspected",
+            "Independent verification",
+            "Packet-reported claims",
+        ],
+    }
+    required_return_sections = list(load_policy("acceptance-policy").get("contractor_return_required_sections", []))
+    for section in review_surface_contract["required_disclosures"]:
+        if section not in required_return_sections:
+            required_return_sections.append(section)
     packet: dict[str, Any] = {
         "dispatch_id": dispatch_id,
         "generated_at": now,
@@ -240,7 +316,8 @@ def build_packet(
         "selected_snippets": selected_snippets,
         "included_artifacts": included,
         "excluded_artifacts": excluded,
-        "required_return_sections": load_policy("acceptance-policy").get("contractor_return_required_sections", []),
+        "review_surface_contract": review_surface_contract,
+        "required_return_sections": required_return_sections,
         "acceptance_rule": "Evaluator scoring and architect adjudication are required before implementation.",
     }
     if requested_executor and requested_executor != executor:
@@ -302,6 +379,10 @@ Packet SHA-256: {packet['packet_sha256']}
 
 {fenced_block(json.dumps(packet['excluded_artifacts'], indent=2, sort_keys=True), 'json')}
 
+## Review Surface Contract
+
+{fenced_block(json.dumps(packet.get('review_surface_contract') or {}, indent=2, sort_keys=True), 'json')}
+
 ## Selected Snippets
 
 {chr(10).join(snippets) if snippets else 'No file snippets included.'}
@@ -332,7 +413,7 @@ def main() -> None:
     parser.add_argument("--bead-json-file")
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument("--opt-in-record")
-    parser.add_argument("--epic")
+    parser.add_argument("--epic", help="Epic quota scope. Defaults to the assigned Bead parent when present.")
     parser.add_argument("--expert-profile")
     profile_group = parser.add_mutually_exclusive_group()
     profile_group.add_argument("--include-expert-profile", dest="include_expert_profile", action="store_true", default=True)
@@ -363,6 +444,7 @@ def main() -> None:
     args.executor = str(executor_info.get("key", args.executor))
 
     bead_json = json.loads(Path(args.bead_json_file).read_text(encoding="utf-8")) if args.bead_json_file else show_bead_json(args.bead)
+    effective_epic_id = resolve_effective_epic_id(args.epic, bead_json)
     labels = extract_labels(bead_json)
     job_label = args.job_description or find_job_label(labels)
     opt_in_basis = validate_gate(
@@ -373,12 +455,12 @@ def main() -> None:
         external_ok=args.external_ok,
         opt_in_record=args.opt_in_record,
         bead_id=args.bead,
-        epic_id=args.epic,
+        epic_id=effective_epic_id,
         allow_disclosure_escalation=args.allow_disclosure_escalation,
     )
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead)
     quota_info = enforce_contracting_quota(
-        args.epic,
+        effective_epic_id,
         args.executor,
         "external-contract",
         dispatch_id=dispatch_id,
@@ -398,7 +480,7 @@ def main() -> None:
         degraded_context_justification=args.degraded_context_justification,
         external_opt_in=True,
         opt_in_basis=opt_in_basis,
-        epic_id=args.epic,
+        epic_id=effective_epic_id,
         quota_info=quota_info,
         disclosure_escalation_approved=args.allow_disclosure_escalation,
         requested_executor=requested_executor,
@@ -421,7 +503,7 @@ def main() -> None:
                 "quota_stage": "reserved",
                 "dispatch_id": packet["dispatch_id"],
                 "bead_id": args.bead,
-                "epic_id": args.epic,
+                "epic_id": effective_epic_id,
                 "executor_key": packet["executor"],
                 "requested_executor_key": packet.get("requested_executor"),
                 "executor_external": quota_info.get("executor_external"),

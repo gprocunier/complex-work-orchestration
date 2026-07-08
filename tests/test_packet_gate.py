@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import sys
 import subprocess
@@ -326,7 +327,17 @@ class PacketGateTests(unittest.TestCase):
                 args.append("--external-ok")
             if opt_in_record:
                 args.extend(["--opt-in-record", opt_in_record])
-            result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, check=False)
+            with tempfile.TemporaryDirectory() as temp_audit_dir:
+                env = os.environ.copy()
+                env["CWO_AUDIT_FILE"] = str(Path(temp_audit_dir) / "audit.jsonl")
+                result = subprocess.run(
+                    args,
+                    cwd=ROOT,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
             if result.returncode == 0:
                 result.stdout = Path(packet.name).read_text(encoding="utf-8")
             return result

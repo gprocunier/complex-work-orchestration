@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import tempfile
 
@@ -14,7 +15,7 @@ def _find_repo_root(start: Path) -> Path:
 REPO_ROOT = _find_repo_root(Path(__file__).resolve())
 POLICY_DIR = REPO_ROOT / "policy"
 AUDIT_DIR = REPO_ROOT / ".orchestration-audit"
-AUDIT_LOG = AUDIT_DIR / "audit.jsonl"
+AUDIT_LOG = Path(os.environ.get("CWO_AUDIT_FILE", AUDIT_DIR / "audit.jsonl")).expanduser()
 BLOCKED_PACKET_PATH_PARTS = {".git", ".beads", ".orchestration-audit"}
 BLOCKED_OUTPUT_PATH_PARTS = BLOCKED_PACKET_PATH_PARTS | {".orchestration-agents"}
 BLOCKED_PACKET_FILE_NAMES = {

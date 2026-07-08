@@ -49,8 +49,10 @@ DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
     "button[aria-label*='Jump to bottom'], "
     "button[aria-label*='Jump to latest'], "
     "button[aria-label*='Go to bottom'], "
-    "button[aria-label*='Go to latest']"
+    "button[aria-label*='Go to latest'], "
+    "button[aria-hidden='true'][tabindex='-1'].btn-secondary"
 )
+DEFAULT_SHARE_BUTTON_SELECTOR = "[data-testid='share-chat-button'], button[aria-label*='Share']"
 DEFAULT_MAX_PROMPT_CHARS = 50000
 LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
 FORBIDDEN_CONFIG_KEYS = {
@@ -611,15 +613,13 @@ class PlaywrightChatGPTRunner:
             return False
 
     def _wait_for_share_ready(self, page: Any, timeout_ms: int) -> None:
-        selector = self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")
         deadline = time.monotonic() + timeout_ms / 1000
         while time.monotonic() < deadline:
             self._click_scroll_to_bottom_if_present(page)
             try:
-                ready = page.locator(selector).first.evaluate(
-                    "(el) => !(el.disabled || el.hasAttribute('disabled') || el.hasAttribute('data-disabled') || el.hasAttribute('data-visually-disabled'))"
-                )
-                if ready:
+                for candidate in self._share_button_candidates(page):
+                    if self._locator_disabled(candidate):
+                        continue
                     return
             except Exception:
                 pass
@@ -629,7 +629,14 @@ class PlaywrightChatGPTRunner:
     def _click_scroll_to_bottom_if_present(self, page: Any) -> None:
         selector = self.selector("scroll_to_bottom_button", DEFAULT_SCROLL_TO_BOTTOM_SELECTOR)
         try:
-            page.locator(selector).first.click(timeout=750)
+            locator = page.locator(selector)
+            for candidate in self._visible_candidates(locator):
+                try:
+                    candidate.click(timeout=750)
+                    time.sleep(0.5)
+                    return
+                except Exception:
+                    continue
             time.sleep(0.5)
         except Exception:
             pass
@@ -677,27 +684,8 @@ class PlaywrightChatGPTRunner:
         return ""
 
     def _click_share_button(self, page: Any, timeout_ms: int, timeout_type: type[Exception]) -> None:
-        selector = self.selector("share_button", "[data-testid='share-chat-button'], button[aria-label*='Share']")
-        locator = page.locator(selector)
-        candidates: list[Any] = []
-        try:
-            count = int(locator.count())
-            if count > 1:
-                candidates.append(locator.nth(count - 1))
-        except Exception:
-            pass
-        for attribute in ["last", "first"]:
-            try:
-                candidates.append(getattr(locator, attribute))
-            except Exception:
-                pass
-        candidates.append(locator)
-        seen: set[int] = set()
+        candidates = self._share_button_candidates(page)
         for candidate in candidates:
-            marker = id(candidate)
-            if marker in seen:
-                continue
-            seen.add(marker)
             try:
                 candidate.click(timeout=timeout_ms)
                 return
@@ -710,6 +698,132 @@ class PlaywrightChatGPTRunner:
             except Exception:
                 continue
         raise ChatGPTBrowserReviewError("share-link", "ChatGPT share button could not be clicked")
+
+    def _share_button_candidates(self, page: Any) -> list[Any]:
+        selector = self.selector("share_button", DEFAULT_SHARE_BUTTON_SELECTOR)
+        locator = page.locator(selector)
+        candidates = self._locator_candidates(locator)
+        ranked: list[tuple[int, int, Any]] = []
+        seen: set[int] = set()
+        for index, candidate in enumerate(candidates):
+            marker = id(candidate)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            if self._locator_disabled(candidate) or not self._locator_visible(candidate):
+                continue
+            aria_label = (self._locator_attribute(candidate, "aria-label") or "").lower()
+            data_testid = (self._locator_attribute(candidate, "data-testid") or "").lower()
+            in_viewport = self._locator_in_viewport(candidate)
+            is_response_share = "share" in aria_label and data_testid != "share-chat-button"
+            if is_response_share and in_viewport:
+                rank = 0
+            elif data_testid == "share-chat-button":
+                rank = 1
+            elif is_response_share:
+                rank = 2
+            else:
+                rank = 3
+            ranked.append((rank, index, candidate))
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        return [candidate for _, _, candidate in ranked]
+
+    def _locator_candidates(self, locator: Any) -> list[Any]:
+        candidates: list[Any] = []
+        try:
+            count = int(locator.count())
+            if count > 0:
+                for index in range(count):
+                    candidates.append(locator.nth(index))
+                return candidates
+        except Exception:
+            pass
+        try:
+            candidates.append(locator.first)
+        except Exception:
+            pass
+        if candidates:
+            return candidates
+        return [locator]
+
+    def _locator_attribute(self, locator: Any, name: str) -> str:
+        try:
+            return str(locator.get_attribute(name, timeout=250) or "")
+        except Exception:
+            return ""
+
+    def _locator_visible(self, locator: Any) -> bool:
+        try:
+            return bool(locator.is_visible())
+        except Exception:
+            pass
+        try:
+            box = locator.bounding_box()
+            if not box:
+                return False
+            width = float(box.get("width", 0))
+            height = float(box.get("height", 0))
+            if width <= 0 or height <= 0:
+                return False
+            return True
+        except Exception:
+            pass
+        return True
+
+    def _locator_in_viewport(self, locator: Any) -> bool:
+        try:
+            return bool(
+                locator.evaluate(
+                    """el => {
+  const rect = el.getBoundingClientRect();
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return false;
+  }
+  const viewport = {
+    width: window.innerWidth || document.documentElement.clientWidth,
+    height: window.innerHeight || document.documentElement.clientHeight,
+  };
+  return rect.right >= 0 && rect.bottom >= 0 && rect.left <= viewport.width && rect.top <= viewport.height;
+}"""
+                )
+            )
+        except Exception:
+            pass
+        try:
+            box = locator.bounding_box()
+            if not box:
+                return True
+            width = float(box.get("width", 0))
+            height = float(box.get("height", 0))
+            if width <= 0 or height <= 0:
+                return False
+            return True
+        except Exception:
+            pass
+        return True
+
+    def _locator_disabled(self, locator: Any) -> bool:
+        try:
+            if locator.is_disabled():
+                return True
+        except Exception:
+            pass
+        if self._locator_attribute(locator, "disabled").lower() in {"true", "disabled"}:
+            return True
+        if self._locator_attribute(locator, "aria-disabled").lower() in {"true", "disabled"}:
+            return True
+        if self._locator_attribute(locator, "data-disabled").lower() in {"true", "disabled"}:
+            return True
+        if self._locator_attribute(locator, "data-visually-disabled").lower() in {"true", "disabled"}:
+            return True
+        return False
+
+    def _visible_candidates(self, locator: Any) -> list[Any]:
+        return [
+            candidate
+            for candidate in self._locator_candidates(locator)
+            if self._locator_visible(candidate) and not self._locator_disabled(candidate)
+        ]
 
     def _extract_share_url_from_page(self, page: Any) -> str:
         for selector, method in [

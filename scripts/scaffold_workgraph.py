@@ -11,6 +11,11 @@ from cwo_core.beads import (
     add_dependency,
     create_bead,
 )
+from cwo_core.coach import (
+    _normalize_workerbee_planned_delegation,
+    prompt_coach_level,
+    prompt_coach_parallel_workerbee_signal,
+)
 from cwo_core.routing import (
     classify_work,
     expert_review_labels,
@@ -130,7 +135,46 @@ def route_notes(route: dict[str, Any]) -> str:
                 f"Blocking review failure behavior: {route.get('blocking_review_failure_behavior')}",
             ]
         )
+    if isinstance(route.get("workerbee_planned_delegation"), dict):
+        planned = route["workerbee_planned_delegation"]
+        mode = str(planned.get("mode") or "none")
+        model = str(planned.get("model") or "unassigned")
+        lanes = ", ".join(unique_strings([item for item in planned.get("lanes", [])])) or "none"
+        lines.append(f"Planned workerbee delegation: mode={mode}, model={model}, lanes=[{lanes}]")
     return "\n".join(lines)
+
+
+def _planned_workerbee_metadata(route: dict[str, Any]) -> dict[str, Any]:
+    planned = route.get("workerbee_planned_delegation")
+    if not isinstance(planned, dict):
+        lanes: list[str] = []
+        return {
+            "workerbee_planned_delegation": {
+                "mode": "none",
+                "model": None,
+                "lanes": lanes,
+            },
+            "workerbee_planned_mode": "none",
+            "workerbee_planned_model": "",
+            "workerbee_planned_lanes": lanes,
+        }
+    lanes = unique_strings([item for item in planned.get("lanes", [])])
+    return {
+        "workerbee_planned_delegation": {
+            "mode": str(planned.get("mode") or "none"),
+            "model": planned.get("model"),
+            "lanes": lanes,
+        },
+        "workerbee_planned_mode": str(planned.get("mode") or "none"),
+        "workerbee_planned_model": str(planned.get("model") or "") if planned.get("model") is not None else "",
+        "workerbee_planned_lanes": lanes,
+    }
+
+
+def _lane_metadata(route: dict[str, Any], metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    merged = dict(metadata or {})
+    merged.update(_planned_workerbee_metadata(route))
+    return merged
 
 
 LANE_FIELDS: dict[str, dict[str, object]] = {
@@ -202,7 +246,9 @@ LANE_FIELDS: dict[str, dict[str, object]] = {
 }
 
 
-def lane_fields(lane: str, route: dict[str, Any]) -> dict[str, object]:
+def lane_fields(
+    lane: str, route: dict[str, Any], metadata: dict[str, Any] | None = None
+) -> dict[str, object]:
     defaults = {
         "skills": ["complex-work-orchestration", "beads"],
         "acceptance": f"The {lane} lane is complete, evidenced, validated as applicable, and ready for handoff.",
@@ -214,6 +260,7 @@ def lane_fields(lane: str, route: dict[str, Any]) -> dict[str, object]:
         "acceptance": str(fields["acceptance"]),
         "design": str(fields["design"]),
         "notes": route_notes(route),
+        "metadata": _lane_metadata(route, metadata),
     }
 
 
@@ -373,8 +420,8 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                 "type": "task",
                 "lane": lane,
                 "labels": expert_review_labels(expert, route),
-                "metadata": metadata,
                 "depends_on_lanes": depends_on,
+                **lane_fields(lane, route, metadata=metadata),
                 **expert_fields(expert, route),
             }
         )
@@ -489,9 +536,8 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                 "type": "task",
                 "lane": "external-dispatch",
                 "labels": unique_strings(["dispatch", route["route"], *dispatch_guard_labels]),
-                "metadata": dispatch_metadata,
                 "depends_on_lanes": ["pm"],
-                **lane_fields("external-dispatch", route),
+                **lane_fields("external-dispatch", route, metadata=dispatch_metadata),
             },
             *(
                 [
@@ -504,17 +550,20 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                               or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
                             "contract-jd-peer-review",
                         ],
-                        "metadata": {
-                            "job_description_label": "contract-jd-peer-review",
-                            "peer_review_count": route.get("peer_review_count", 1),
-                            "provider_diversity_required": route.get("provider_diversity_required", True),
-                            "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                            "local_secure_review_executor": route.get("local_secure_review_executor"),
-                            "codex_pickup": "forbidden",
-                            "architect_review_required": True,
-                        },
                         "depends_on_lanes": ["external-dispatch"],
-                        **lane_fields("peer-review", route),
+                        **lane_fields(
+                            "peer-review",
+                            route,
+                            metadata={
+                                "job_description_label": "contract-jd-peer-review",
+                                "peer_review_count": route.get("peer_review_count", 1),
+                                "provider_diversity_required": route.get("provider_diversity_required", True),
+                                "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                                "local_secure_review_executor": route.get("local_secure_review_executor"),
+                                "codex_pickup": "forbidden",
+                                "architect_review_required": True,
+                            },
+                        ),
                     }
                 ]
                 if peer_review_required
@@ -537,9 +586,12 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                     "type": "task",
                     "lane": "model-synthesis",
                     "labels": ["synthesis", "adjudication-support"],
-                    "metadata": {"model_synthesis": route.get("model_synthesis")},
                     "depends_on_lanes": ["evaluation"],
-                    **lane_fields("model-synthesis", route),
+                    **lane_fields(
+                        "model-synthesis",
+                        route,
+                        metadata={"model_synthesis": route.get("model_synthesis")},
+                    ),
                 }
             )
             adjudication_dependencies = ["model-synthesis"]
@@ -572,17 +624,20 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                               or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
                             "contract-jd-peer-review",
                         ],
-                        "metadata": {
-                            "job_description_label": "contract-jd-peer-review",
-                            "peer_review_count": route.get("peer_review_count", 1),
-                            "provider_diversity_required": route.get("provider_diversity_required", True),
-                            "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                            "local_secure_review_executor": route.get("local_secure_review_executor"),
-                            "codex_pickup": "forbidden",
-                            "architect_review_required": True,
-                        },
                         "depends_on_lanes": ["architect"],
-                        **lane_fields("peer-review", route),
+                        **lane_fields(
+                            "peer-review",
+                            route,
+                            metadata={
+                                "job_description_label": "contract-jd-peer-review",
+                                "peer_review_count": route.get("peer_review_count", 1),
+                                "provider_diversity_required": route.get("provider_diversity_required", True),
+                                "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                                "local_secure_review_executor": route.get("local_secure_review_executor"),
+                                "codex_pickup": "forbidden",
+                                "architect_review_required": True,
+                            },
+                        ),
                     },
                     {
                         "title": f"Evaluate return: {title}",
@@ -602,9 +657,12 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                     "type": "task",
                     "lane": "model-synthesis",
                     "labels": ["synthesis", "adjudication-support"],
-                    "metadata": {"model_synthesis": route.get("model_synthesis")},
                     "depends_on_lanes": adjudication_dependencies,
-                    **lane_fields("model-synthesis", route),
+                    **lane_fields(
+                        "model-synthesis",
+                        route,
+                        metadata={"model_synthesis": route.get("model_synthesis")},
+                    ),
                 }
             )
             adjudication_dependencies = ["model-synthesis"]
@@ -630,9 +688,12 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                     "type": "task",
                     "lane": "model-synthesis",
                     "labels": ["synthesis", "adjudication-support"],
-                    "metadata": {"model_synthesis": route.get("model_synthesis")},
                     "depends_on_lanes": ["architect", *implementation_blocker_lanes],
-                    **lane_fields("model-synthesis", route),
+                    **lane_fields(
+                        "model-synthesis",
+                        route,
+                        metadata={"model_synthesis": route.get("model_synthesis")},
+                    ),
                 },
                 {
                     "title": f"Architect adjudication: {title}",
@@ -910,6 +971,12 @@ def main() -> None:
         model_synthesis=args.model_synthesis,
         beads_context_depth=args.beads_context_depth,
     )
+    workerbee_parallelism = prompt_coach_parallel_workerbee_signal(context, prompt_coach_level(route, context), route)
+    route = {
+        **route,
+        "workerbee_parallelism": workerbee_parallelism,
+        "workerbee_planned_delegation": _normalize_workerbee_planned_delegation(workerbee_parallelism),
+    }
     plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
     if args.dry_run:
         if args.format == "markdown-workgraph":
