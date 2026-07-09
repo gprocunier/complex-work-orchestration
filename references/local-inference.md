@@ -81,6 +81,67 @@ such as `CWO_OPENSHIFT_AI_VLLM_BASE_URL`,
 `CWO_CHATGPT_BROWSER_CONFIG` so packets and status reports can show the access
 path without printing values.
 
+## Endpoint Configuration
+
+Keep endpoint values in an operator-owned shell file outside the repository.
+The access profile registry is policy only; it should contain environment
+variable names, not URLs, API keys, tokens, or route-specific secrets.
+
+```bash
+mkdir -p ~/.config/cwo
+chmod 700 ~/.config/cwo
+$EDITOR ~/.config/cwo/vllm-endpoints.env
+chmod 600 ~/.config/cwo/vllm-endpoints.env
+```
+
+Use stable model aliases where possible so CWO routing does not change when the
+serving backend changes:
+
+```bash
+export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
+export CWO_OPENSHIFT_AI_VLLM_MODEL="rhoai/workerbee"
+export CWO_OPENSHIFT_AI_VLLM_API_KEY="..."
+
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL="https://glm-route.example.internal"
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
+
+# Optional for private route trust.
+export CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE="$HOME/.config/cwo/rhoai-ca.pem"
+
+# Lab-only escape hatch when the endpoint route cannot be validated normally.
+# export CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false
+```
+
+Source the file before starting Codex or running CWO helpers:
+
+```bash
+source ~/.config/cwo/vllm-endpoints.env
+```
+
+Smoke-test the configuration in layers:
+
+```bash
+python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
+python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16 --require-configured
+
+curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
+  -H "Authorization: Bearer $CWO_OPENSHIFT_AI_VLLM_API_KEY"
+
+python3 scripts/dispatch_work.py \
+  --local-ok \
+  --prefer-local \
+  --local-profile openshift-ai-vllm \
+  --execute-local \
+  "Return one sentence confirming the local endpoint is reachable."
+```
+
+`rhoai-glm-bf16` is intentionally marked `offline` when the GLM route is not
+available. After the operator confirms the route is restored, update
+`policy/access-profiles.yaml` to set that profile to `available`, reinstall the
+skill, and rerun the access-profile readiness check. While it is marked
+`offline`, CWO fails closed for GLM execution unless the operator passes the
+explicit offline waiver with a waiver reason.
+
 For example, `airgapped-rhoai` binds its worker role to
 `rhoai-worker-qwen2-5-coder-32b-fp8`. Rendering a harness envelope resolves that
 profile to the operator-owned model alias `rhoai/workerbee` and includes the

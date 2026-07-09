@@ -47,6 +47,7 @@
           <a href="#invoke-codex">Invoke From Codex</a>
           <a href="#coach-opt-in">Coach Local Opt-In</a>
           <a href="#openshift-ai">OpenShift AI vLLM</a>
+          <a href="#endpoint-config">Endpoint Config</a>
           <a href="#dispatch-envelope">Dispatch Envelope</a>
           <a href="#endpoint-safety">Endpoint Safety</a>
           <a href="#execute-local">Execute Explicitly</a>
@@ -233,6 +234,52 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
   --local-profile openshift-ai-vllm \
   --requested-role documentation \
   "Documentation review for the public README examples."</code></pre>
+          </section>
+
+          <section id="endpoint-config">
+            <h2>Endpoint Configuration</h2>
+            <p>
+              Keep endpoint values in an operator-owned shell file outside the
+              repository. The access profile registry is policy only; it should
+              contain environment variable names, not URLs, API keys, tokens,
+              or route-specific secrets.
+            </p>
+            <pre><code>mkdir -p ~/.config/cwo
+chmod 700 ~/.config/cwo
+$EDITOR ~/.config/cwo/vllm-endpoints.env
+chmod 600 ~/.config/cwo/vllm-endpoints.env</code></pre>
+            <p>
+              Use stable model aliases where possible so routing does not
+              change when the serving backend changes.
+            </p>
+            <pre><code>export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
+export CWO_OPENSHIFT_AI_VLLM_MODEL="rhoai/workerbee"
+export CWO_OPENSHIFT_AI_VLLM_API_KEY="..."
+
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL="https://glm-route.example.internal"
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
+
+# Optional for private route trust.
+export CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE="$HOME/.config/cwo/rhoai-ca.pem"</code></pre>
+            <pre><code>source ~/.config/cwo/vllm-endpoints.env
+
+python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
+python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16 --require-configured
+
+curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
+  -H "Authorization: Bearer $CWO_OPENSHIFT_AI_VLLM_API_KEY"</code></pre>
+            <p>
+              The source access registry lives at
+              <code>policy/access-profiles.yaml</code>. The installed skill copy
+              lives under the Codex skills directory. After changing an access
+              profile, reinstall the skill and rerun the readiness check.
+            </p>
+            <p>
+              Keep <code>rhoai-glm-bf16</code> marked
+              <code>offline</code> while the GLM route is unavailable. CWO will
+              fail closed for GLM execution unless an operator passes the
+              explicit offline waiver with a waiver reason.
+            </p>
           </section>
 
           <section id="dispatch-envelope">
