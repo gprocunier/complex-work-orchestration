@@ -7,6 +7,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
 
+from cwo_core.public_copy import find_public_copy_issues
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 REPO_URL = "https://github.com/gprocunier/complex-work-orchestration"
@@ -69,20 +71,6 @@ PRIVATE_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"(?i)\b(password|api[_ -]?key|token)\s*[:=]\s*[^\\s<]+"),
 ]
-INTERNAL_LABEL_PATTERN = re.compile(r"\bcontract-jd-[A-Za-z0-9-]+\b")
-PUBLIC_COPY_FORBIDDEN_PATTERNS = [
-    re.compile(r"\bEditor gate:", re.IGNORECASE),
-    re.compile(r"\bAI-slop wording\b", re.IGNORECASE),
-    re.compile(r"\bdocs/pages flow\b", re.IGNORECASE),
-    re.compile(r"\bsite-flow\b", re.IGNORECASE),
-    re.compile(r"\bRed Hat UX reference\b", re.IGNORECASE),
-    re.compile(r"\bRed Hat UX design corpus\b", re.IGNORECASE),
-    re.compile(r"\bdesign corpus\b", re.IGNORECASE),
-    re.compile(r"\b(?:contractors?|outside models?)\s+(?:can|may|will|should)\s+(?:approve|merge|publish|implement)\b", re.IGNORECASE),
-    re.compile(r"\bCWO\s+requires\s+Codex(?:\s+CLI)?\b", re.IGNORECASE),
-    re.compile(r"\bsend\s+raw\s+Beads\s+comments\b", re.IGNORECASE),
-    re.compile(r"\bGemini\b.{0,80}\baccepted\s+authority\b", re.IGNORECASE),
-]
 INTERNAL_LABEL_REFERENCE_PAGES = {"reference.html"}
 INDEX_FIRST_SCREEN_FORBIDDEN_TERMS = [
     "Beads",
@@ -128,6 +116,7 @@ class SiteParser(HTMLParser):
         self._in_title = False
         self._pre_depth = 0
         self._code_depth = 0
+        self._public_copy_allow = False
         self._section_stack: list[str] = []
         self._current_heading: str | None = None
         self._heading_text: list[str] = []
@@ -166,6 +155,17 @@ class SiteParser(HTMLParser):
             self._current_heading = None
             self._heading_text = []
 
+    def handle_comment(self, data: str) -> None:
+        normalized = data.strip().lower()
+        if normalized.startswith("cwo-public-copy: allow-start"):
+            if 'reason="' not in data:
+                self.internal_copy_errors.append(
+                    "public-copy allow-start is missing reason (section=document)"
+                )
+            self._public_copy_allow = True
+        elif normalized.startswith("cwo-public-copy: allow-end"):
+            self._public_copy_allow = False
+
     def handle_data(self, data: str) -> None:
         if self._in_title:
             self.title += data
@@ -174,23 +174,16 @@ class SiteParser(HTMLParser):
         self._record_internal_copy_errors(data)
 
     def _record_internal_copy_errors(self, data: str) -> None:
-        if self._pre_depth:
+        if self._pre_depth or self._public_copy_allow:
             return
         section = self._section_stack[-1] if self._section_stack else "document"
-        if not self.allow_internal_labels:
-            for match in INTERNAL_LABEL_PATTERN.finditer(data):
-                context = "inline-code" if self._code_depth else "text"
-                self.internal_copy_errors.append(
-                    f'internal label "{match.group(0)}" in public narrative (section={section}, context={context})'
-                )
-        if self._code_depth:
-            return
-        for pattern in PUBLIC_COPY_FORBIDDEN_PATTERNS:
-            match = pattern.search(data)
-            if match:
-                self.internal_copy_errors.append(
-                    f'internal editorial wording "{match.group(0)}" in public narrative (section={section})'
-                )
+        for issue in find_public_copy_issues(
+            data,
+            allow_internal_labels=self.allow_internal_labels,
+            check_editorial_patterns=not self._code_depth,
+            section=section,
+        ):
+            self.internal_copy_errors.append(issue.render())
 
 
 def validate_html(path: Path) -> list[str]:
@@ -269,6 +262,8 @@ def validate_html(path: Path) -> list[str]:
             errors.append(f"{path.relative_to(ROOT)} contains private or secret-looking content: {pattern.pattern}")
     for error in parser.internal_copy_errors:
         errors.append(f"{path.relative_to(ROOT)} contains {error}")
+    if parser._public_copy_allow:
+        errors.append(f"{path.relative_to(ROOT)} contains unclosed public-copy allow block")
     return errors
 
 

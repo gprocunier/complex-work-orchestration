@@ -191,6 +191,7 @@ Before handoff, run the repository checks:
 ```bash
 python -m compileall .
 python scripts/validate_repository.py
+python scripts/validate_public_copy.py
 python -m unittest discover -s tests -v
 ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
 ```
@@ -199,6 +200,7 @@ For documentation changes, also run:
 
 ```bash
 python scripts/generate_site.py --check
+python scripts/validate_public_copy.py
 python scripts/validate_site.py
 ```
 

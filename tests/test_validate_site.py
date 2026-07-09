@@ -54,6 +54,15 @@ class ValidateSiteTests(unittest.TestCase):
         self.assertIn("Editor gate:", rendered)
         self.assertIn("AI-slop wording", rendered)
 
+    def test_rejects_publication_gate_monologue_in_public_narrative(self) -> None:
+        phrase = "Publication" + " gate"
+        errors = self.validate_snippet(
+            "workflows.html",
+            f"<section id='flow'><p><strong>{phrase}:</strong> run the first-reader walkthrough.</p></section>",
+        )
+        rendered = "\n".join(internal_copy_errors(errors))
+        self.assertIn(phrase, rendered)
+
     def test_rejects_design_source_as_public_reference_copy(self) -> None:
         errors = self.validate_snippet(
             "index.html",

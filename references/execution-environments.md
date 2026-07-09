@@ -173,7 +173,7 @@ OpenCode or the vLLM endpoint.
 | OpenCode | Non-interactive CLI, JSON output, agents, provider flexibility, local OpenAI-compatible support, permission controls. | First v2 open-source exemplar. |
 | Hermes Agent | Persistent/self-hosted agent with provider routing and vLLM support. | Later candidate after memory-loop governance review. |
 | Goose | CLI, desktop, API, MCP, ACP, recipes, many providers, local model support. | Strong second-wave candidate. |
-| OpenHands | Powerful CLI/headless/containerized agent with LiteLLM and JSONL. | Later controlled-runtime candidate due runtime weight and approval risk. |
+| OpenHands | CLI, headless, and containerized agent with LiteLLM and JSONL. | Later controlled-runtime candidate due runtime weight and approval risk. |
 | Aider | Mature terminal pair-programming and OpenAI-compatible support. | Narrow coding helper adapter. |
 | Cline | Strong IDE-local workflow and OpenAI-compatible configuration. | Human IDE workflow, not first scripted harness. |
 | Pi | Minimal customizable harness with print/JSON/RPC/SDK modes. | Experimental; needs external sandbox and permission story. |

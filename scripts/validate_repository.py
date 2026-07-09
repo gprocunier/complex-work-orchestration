@@ -23,6 +23,10 @@ from cwo_core.harness import (
     validate_execution_environment_registry,
 )
 from cwo_core.policy import load_policy
+from cwo_core.public_copy import (
+    validate_markdown_public_copy,
+    validate_required_doc_terms,
+)
 from validate_run_readiness_plan import validate_plan as validate_run_readiness_plan
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
@@ -33,6 +37,7 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
 }
 CI_REQUIRED_COMMANDS = [
     "python scripts/validate_repository.py",
+    "python scripts/validate_public_copy.py",
     "python scripts/validate_site.py",
     "python scripts/generate_site.py --check",
     "python -m unittest discover -s tests",
@@ -63,8 +68,28 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "beads": {"paths", "util"},
     "harness": {"policy", "util"},
     "execution_status_report": {"audit", "paths"},
+    "public_copy": set(),
 }
 PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS = ["H200", "CerIO", "airgapped-rhoai-h200"]
+PUBLIC_COPY_DOC_PATHS = [
+    "README.md",
+    "SKILL.md",
+    "AGENTS.md",
+]
+PUBLIC_COPY_DOC_GLOBS = [
+    "references/*.md",
+    "templates/*.md",
+    "examples/*.md",
+]
+PUBLIC_COPY_INTERNAL_LABEL_ALLOWED_PREFIXES = (
+    "references/",
+    "templates/",
+    "examples/",
+)
+PUBLIC_COPY_INTERNAL_LABEL_ALLOWED_FILES = {
+    "SKILL.md",
+    "AGENTS.md",
+}
 WAIVER_CONVENTION_SCRIPTS = {
     "scripts/build_contractor_packet.py": {
         "flags": ["--allow-disclosure-escalation", "--no-audit"],
@@ -193,6 +218,7 @@ def validate_repository() -> list[str]:
     errors: list[str] = []
     validate_cwo_core_contract(errors)
     validate_retired_beads_context_aliases(errors)
+    validate_public_copy_docs(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
         try:
@@ -1527,6 +1553,7 @@ def validate_repository() -> list[str]:
             "Design-source or design-corpus",
             "private vocabulary",
             "reference/operator lookup",
+            "public-copy validator evidence",
             "Required prerequisites",
             "Acceptance criteria",
         ],
@@ -1635,6 +1662,8 @@ def require_schema_properties(
 
 
 def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -> None:
+    if public_copy_validated_path(relative_path):
+        errors.extend(validate_required_doc_terms(relative_path, terms))
     path = REPO_ROOT / relative_path
     if not path.is_file():
         errors.append(f"required documentation file is missing: {relative_path}")
@@ -1648,6 +1677,45 @@ def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -
     ]
     if missing:
         errors.append(f"{relative_path} is missing required terms: {', '.join(missing)}")
+
+
+def public_copy_validated_path(relative_path: str) -> bool:
+    if relative_path in PUBLIC_COPY_DOC_PATHS:
+        return True
+    return any(Path(relative_path).match(pattern) for pattern in PUBLIC_COPY_DOC_GLOBS)
+
+
+def public_copy_allows_internal_labels(relative_path: str) -> bool:
+    return (
+        relative_path in PUBLIC_COPY_INTERNAL_LABEL_ALLOWED_FILES
+        or relative_path.startswith(PUBLIC_COPY_INTERNAL_LABEL_ALLOWED_PREFIXES)
+    )
+
+
+def iter_public_copy_markdown_docs(repo_root: Path = REPO_ROOT) -> list[Path]:
+    paths: list[Path] = []
+    for relative_path in PUBLIC_COPY_DOC_PATHS:
+        path = repo_root / relative_path
+        if path.is_file():
+            paths.append(path)
+    for pattern in PUBLIC_COPY_DOC_GLOBS:
+        paths.extend(path for path in sorted(repo_root.glob(pattern)) if path.is_file())
+    return sorted(set(paths))
+
+
+def validate_public_copy_docs(errors: list[str], repo_root: Path = REPO_ROOT) -> None:
+    for path in iter_public_copy_markdown_docs(repo_root):
+        try:
+            relative = path.relative_to(repo_root).as_posix()
+        except ValueError:
+            relative = path.as_posix()
+        errors.extend(
+            validate_markdown_public_copy(
+                path,
+                source_name=relative,
+                allow_internal_labels=public_copy_allows_internal_labels(relative),
+            )
+        )
 
 
 def validate_public_docs_do_not_expose_hardware_categories(

@@ -48,7 +48,8 @@ phrasing.
 4. Replace vague model prose with concrete reader-facing wording.
 5. Check that install and get-started paths name prerequisites before examples.
 6. Check that the reader journey appears before control-plane detail.
-7. Decide whether the docs are publishable or require follow-up Beads.
+7. Check public-copy validator evidence before accepting public docs.
+8. Decide whether the docs are publishable or require follow-up Beads.
 
 ## Domain-specific checklist
 - Does docs/pages flow guide the reader through the same operating model
@@ -135,6 +136,8 @@ ready to apply.
 - Required prerequisites, setup, rationale, and fallback paths are present
   before command examples depend on them.
 - Public narrative is coherent enough to publish.
+- Public-copy validator evidence is clean, or any exception is explicit,
+  reasoned, and scoped to an operator/reference section.
 
 ## Escalation triggers
 - Conflicting documentation architecture.

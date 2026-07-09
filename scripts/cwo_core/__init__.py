@@ -14,6 +14,7 @@ __all__ = [
     "packets",
     "paths",
     "policy",
+    "public_copy",
     "returns",
     "routing",
     "routing_signals",

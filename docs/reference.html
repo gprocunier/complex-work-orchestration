@@ -404,6 +404,7 @@ python3 scripts/check_installed_skill.py --check
 python3 scripts/generate_site.py --check
 python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
 python3 scripts/validate_repository.py
+python3 scripts/validate_public_copy.py
 python3 scripts/validate_site.py</code></pre>
             <p>
               <code>build_beads_brief.py</code> is for internal Codex and
@@ -497,7 +498,7 @@ python3 scripts/validate_site.py</code></pre>
   --why "accepted change validated" \
   --who "Codex main thread; reviewer lane or operator if applicable" \
   --what "docs/use-cases.html added" \
-  --how "python3 scripts/validate_repository.py and python3 scripts/validate_site.py" \
+  --how "python3 scripts/validate_repository.py, python3 scripts/validate_public_copy.py, and python3 scripts/validate_site.py" \
   --when "main at &lt;commit-sha&gt;; CI run &lt;id&gt;" \
   --where "repo path; branch main; Beads local-only or Dolt-backed" \
   --decision "kept exact contract labels in reference pages" \
