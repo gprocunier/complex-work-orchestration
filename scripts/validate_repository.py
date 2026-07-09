@@ -59,7 +59,11 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "util"},
     "packets": {"paths", "policy", "util"},
-    "returns": {"policy", "util"},
+    "return_common": {"policy"},
+    "return_sections": {"policy"},
+    "return_boundary": {"return_common", "return_sections"},
+    "return_evidence": {"return_common", "return_sections", "types"},
+    "returns": {"policy", "return_boundary", "return_common", "return_evidence", "return_sections", "types", "util"},
     "workspace": {"paths", "util"},
     "workgraph_markdown": set(),
     "telemetry": {"util"},
@@ -69,6 +73,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "harness": {"policy", "util"},
     "execution_status_report": {"audit", "paths"},
     "public_copy": set(),
+    "errors": set(),
+    "types": set(),
 }
 PUBLIC_DOC_FORBIDDEN_HARDWARE_TERMS = ["H200", "CerIO", "airgapped-rhoai-h200"]
 PUBLIC_COPY_DOC_PATHS = [

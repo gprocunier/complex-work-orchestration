@@ -2,95 +2,135 @@ from __future__ import annotations
 
 import json
 import re
-import shlex
-from functools import lru_cache
 from typing import Any
 
 from .policy import executor_config, load_contracting_controls, load_policy, peer_review_policy, provider_profile
+from .return_boundary import (
+    is_merge_readiness_go_claim,
+    is_packet_only_declared,
+    negates_direct_access_claim,
+    normalize_review_surface,
+    parse_master_review_surface_controls,
+    redacted_boundary_taint_findings,
+    redacted_packet_command_allowed,
+    redacted_packet_direct_access_findings,
+    redacted_packet_validation_claim_unsupported,
+)
+from .return_common import (
+    add_signal,
+    affirmative_field,
+    malpractice_signal_weights,
+    negative_field,
+    nonempty_work_field,
+    strip_fenced_blocks,
+)
+from .return_evidence import (
+    RESEARCH_ACCESS_STATUSES,
+    RESEARCH_SOURCE_TYPES,
+    RESEARCH_SUPPORT_TYPES,
+    as_research_list,
+    as_research_reflection,
+    booleanish,
+    evidence_items_from_sections,
+    research_evidence_from_sections,
+    research_score_value,
+    research_sections_present,
+    score_evidence_quality,
+    score_research_evidence,
+    structured_json_values,
+)
+from .return_sections import (
+    RETURN_CONTROL_SECTIONS,
+    RETURN_SECTION_ALIASES,
+    SectionReader,
+    canonical_return_section,
+    parse_return_header,
+    parse_return_sections,
+    return_section_aliases,
+    section_lookup_key,
+    section_value,
+)
+from .types import AcceptanceDecision, ContractorReturnBundle
 from .util import artifact_hash
 
-
-RETURN_CONTROL_SECTIONS = [
-    "Files changed",
-    "Commands run",
-    "Boundary violation",
-    "Patch authorization",
-    "Secret or personal-data spill",
-    "Secret spill",
-    "Personal-data spill",
-    "Scope compliance",
-    "Provider policy limitations",
-    "Policy limitations",
-    "Patch artifact",
-    "Patch proposal",
-    "Provider conflict disposition",
-    "Direct workspace mutation",
-    "Research evidence",
-    "Research contradictions",
-    "Research reflection",
-    "Review surface",
-    "Source inspection",
-    "Sources inspected",
-    "Sources not inspected",
-    "Independent verification",
-    "Packet-reported claims",
-]
 
 CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
 CHATGPT_MASTER_REVIEW_JOB_LABEL = "contract-jd-master-plan-review"
 
 
-RETURN_SECTION_ALIASES = {
-    "share boundary conformance": "Share-boundary conformance",
-    "peer review disposition": "Peer-review disposition",
-    "attestation repro note": "Attestation or reproducibility note",
-    "attestation reproducibility note": "Attestation or reproducibility note",
-    "attestation or reproduction note": "Attestation or reproducibility note",
-    "risks gaps": "Risks or gaps",
-    "risks and gaps": "Risks or gaps",
-    "recommended next bead": "Recommended next bead",
-    "recommended next action": "Recommended next bead",
-    "secret spill": "Secret or personal-data spill",
-    "personal data spill": "Secret or personal-data spill",
-    "secret or personal data spill": "Secret or personal-data spill",
-    "provider limitations": "Provider policy limitations",
-    "policy limitations": "Provider policy limitations",
-    "patch branch": "Patch proposal",
-    "patch diff": "Patch proposal",
-    "research evidence items": "Research evidence",
-    "research sources": "Research evidence",
-    "research contradictions": "Research contradictions",
-    "contradictions": "Research contradictions",
-    "research reflection": "Research reflection",
-    "research replan": "Research reflection",
-    "evidence surface": "Review surface",
-    "review source surface": "Review surface",
-    "source surface": "Review surface",
-    "sources reviewed": "Sources inspected",
-    "inspected sources": "Sources inspected",
-    "sources not reviewed": "Sources not inspected",
-    "uninspected sources": "Sources not inspected",
-    "independently verified": "Independent verification",
-    "independent verification status": "Independent verification",
-    "packet reported claims": "Packet-reported claims",
-    "packet only claims": "Packet-reported claims",
-}
-
-
-RESEARCH_SOURCE_TYPES = {
-    "academic-paper",
-    "primary-doc",
-    "official-doc",
-    "reputable-news",
-    "blog-forum",
-    "internal-rag",
-    "packet",
-    "repo",
-    "unknown",
-}
-
-RESEARCH_SUPPORT_TYPES = {"supports", "refutes", "contradicts", "background"}
-RESEARCH_ACCESS_STATUSES = {"full", "abstract-only", "paywalled", "restricted", "inaccessible", "unknown"}
+__all__ = [
+    "AcceptanceDecision",
+    "CHATGPT_MASTER_REVIEW_EXECUTOR",
+    "CHATGPT_MASTER_REVIEW_JOB_LABEL",
+    "ContractorReturnBundle",
+    "RESEARCH_ACCESS_STATUSES",
+    "RESEARCH_SOURCE_TYPES",
+    "RESEARCH_SUPPORT_TYPES",
+    "RETURN_CONTROL_SECTIONS",
+    "RETURN_SECTION_ALIASES",
+    "SECRET_ASSIGNMENT_RE",
+    "SectionReader",
+    "add_signal",
+    "affirmative_field",
+    "as_research_list",
+    "as_research_reflection",
+    "booleanish",
+    "boundary_taint_status",
+    "canonical_return_section",
+    "classify_patch_authorization",
+    "critical_deferral_present",
+    "direct_mutation_authorized",
+    "evidence_items_from_sections",
+    "evidence_quality_thresholds",
+    "executor_default_synthesis_use",
+    "explicit_assigned_delivery_language",
+    "fabricated_evidence_admission_present",
+    "internal_narration_present",
+    "is_merge_readiness_go_claim",
+    "is_packet_only_declared",
+    "job_description_matches",
+    "make_acceptance_decision",
+    "malpractice_signal_weights",
+    "malpractice_thresholds",
+    "negates_direct_access_claim",
+    "negative_field",
+    "non_implementation_review_job",
+    "nonempty_work_field",
+    "normalize_contractor_return",
+    "normalize_review_surface",
+    "opaque_provider_policy_intervention_present",
+    "parse_master_review_surface_controls",
+    "parse_return_header",
+    "parse_return_sections",
+    "patch_proposal_evidence",
+    "procedural_hold_metadata",
+    "provider_conflict_disposition_inadequate",
+    "provider_policy_misrepresentation_present",
+    "recommend_synthesis_use",
+    "redacted_boundary_taint_findings",
+    "redacted_packet_command_allowed",
+    "redacted_packet_direct_access_findings",
+    "redacted_packet_validation_claim_unsupported",
+    "research_evidence_from_sections",
+    "research_score_value",
+    "research_sections_present",
+    "return_provenance",
+    "return_section_aliases",
+    "sabotage_signal_weights",
+    "sabotage_thresholds",
+    "score_evidence_quality",
+    "score_malpractice_signals",
+    "score_research_evidence",
+    "score_sabotage_signals",
+    "section_lookup_key",
+    "section_value",
+    "strip_fenced_blocks",
+    "structured_json_values",
+    "typed_deferral_allowed_for_work",
+    "typed_follow_up_deferral_present",
+    "work_rerouting_or_subversion_reasons",
+    "workspace_unexpected_mutations",
+]
 
 
 def sabotage_thresholds(
@@ -157,43 +197,6 @@ def malpractice_thresholds(
     }
 
 
-def malpractice_signal_weights() -> dict[str, int]:
-    configured = load_contracting_controls().get("malpractice_policy", {}).get("signal_weights", {})
-    defaults = {
-        "missing_evidence": 20,
-        "thin_evidence": 20,
-        "claim_only_evidence": 25,
-        "vague_evidence": 15,
-        "weak_evidence_provenance": 10,
-        "non_reproducible_validation": 15,
-        "vague_recommendation": 15,
-        "missing_confidence": 10,
-        "unclear_scope": 10,
-        "missing_evidence_provenance": 10,
-        "missing_attestation_or_repro_note": 10,
-        "missing_share_boundary_conformance": 10,
-        "missing_peer_review_disposition": 10,
-        "provider_policy_misrepresentation": 25,
-        "provider_conflict_disposition_noncompliant": 20,
-        "internal_narration_or_preamble": 15,
-        "missing_research_evidence": 25,
-        "missing_research_claim": 10,
-        "missing_research_source_locator": 20,
-        "missing_research_grounding": 20,
-        "weak_research_source_type": 10,
-        "weak_research_support_type": 10,
-        "weak_research_access_status": 10,
-        "weak_research_reliability": 10,
-        "weak_research_relevance": 10,
-        "inaccessible_research_support": 15,
-        "unresolved_research_contradiction": 20,
-        "missing_research_reflection": 15,
-        "research_replan_recommended": 10,
-        "research_reflection_gaps": 10,
-    }
-    defaults.update({key: int(value) for key, value in configured.items()})
-    return defaults
-
 
 def evidence_quality_thresholds() -> dict[str, int]:
     configured = load_policy("acceptance-policy").get("evidence_quality", {}).get("thresholds", {})
@@ -204,14 +207,6 @@ def evidence_quality_thresholds() -> dict[str, int]:
     }
 
 
-def add_signal(signals: list[dict[str, Any]], *, category: str, reason: str, weight: int) -> None:
-    if any(signal.get("category") == category and signal.get("reason") == reason for signal in signals):
-        return
-    signals.append({"category": category, "reason": reason, "weight": int(weight)})
-
-
-def strip_fenced_blocks(text: str) -> str:
-    return re.sub(r"(?ms)^\s*(```|~~~)[^\n]*\n.*?^\s*\1\s*$", "", text)
 
 
 SECRET_ASSIGNMENT_RE = re.compile(
@@ -219,296 +214,14 @@ SECRET_ASSIGNMENT_RE = re.compile(
 )
 
 
-def redacted_packet_command_allowed(value: str) -> bool:
-    if not nonempty_work_field(value):
-        return True
-    normalized = value.strip().lower()
-    safe_reader_commands = {
-        "chatgpt-share-local-reader",
-        "read_chatgpt_share.py",
-        "ingest_chatgpt_share_return.py",
-    }
-    prohibited_command_patterns = [
-        r"\bpython(?:3)?\s+scripts/",
-        r"\bpython(?:3)?\s+-m\s+(unittest|pytest|compileall|mypy|ruff)\b",
-        r"\b(pytest|tox|make|npm|pnpm|yarn|go test|cargo test)\b",
-        r"(^|\s)(git|bd)\s+",
-        r"(^|\s)\./scripts/",
-    ]
-    shell_control_patterns = [
-        r"[;&|<>`$]",
-        r"\$\(",
-        r"\n",
-        r"\r",
-    ]
-    if any(re.search(pattern, normalized, re.I) for pattern in prohibited_command_patterns + shell_control_patterns):
-        return False
-    try:
-        tokens = shlex.split(value, posix=True)
-    except ValueError:
-        return False
-    if not tokens:
-        return True
-    command = tokens[0].strip().lower().rstrip(".")
-    command_basename = re.split(r"[\\/]", command)[-1]
-    if command in safe_reader_commands or command_basename in safe_reader_commands:
-        return True
-    return False
 
 
-def negates_direct_access_claim(line: str) -> bool:
-    normalized = line.strip().lower()
-    if not normalized:
-        return False
-    return bool(
-        re.search(
-            r"\b(no|not|never|without|cannot|can't|did not|does not|do not|has no|have no)\b.{0,80}"
-            r"\b(repo|repository|checkout|workspace|local file|file inspection|command execution|test execution|"
-            r"inspection|inspect|read|ran|run|executed|mutation)\b",
-            normalized,
-        )
-        or re.search(
-            r"\b(no|not|never|without|cannot|can't|did not|does not|do not|has no|have no)\b.{0,80}"
-            r"\b(access|execute|executed|inspect|inspected|inspection|read|run|ran|mutation)\b",
-            normalized,
-        )
-    )
 
 
-def redacted_packet_direct_access_findings(text: str) -> list[str]:
-    findings: list[str] = []
-    patterns = [
-        (
-            r"\b(i|we)\s+(?:am|are|was|were)?\s*(?:analyz(?:e|ing|ed)|analys(?:e|ing|ed)|inspect(?:ing|ed)?|"
-            r"read(?:ing)?|view(?:ing|ed)?|open(?:ing|ed)?|check(?:ing|ed)?)\s+"
-            r"(?:the\s+)?(?:repo|repository|directory structure|workspace|checkout)\b",
-            "redacted packet return claims direct repository or workspace inspection",
-        ),
-        (
-            r"\b(i|we)\s+(?:will|did|have)?\s*(?:view|inspect|read|open|analyz(?:e|ed)|analys(?:e|ed)|check(?:ed)?)\s+"
-            r"`?(?:scripts|docs|policy|tests|schemas|examples|/home/)[^`\n]*",
-            "redacted packet return claims direct local file inspection",
-        ),
-        (
-            r"\bfile:///",
-            "redacted packet return cites local file URL evidence",
-        ),
-        (
-            r"\b(all\s+)?(?:code paths|files|policy schemas|tests?)\b.{0,80}\b(analyzed|analysed|inspected|read|viewed)\b"
-            r".{0,80}\b(local workspace|active checkout|repository)\b",
-            "redacted packet return claims local workspace analysis",
-        ),
-    ]
-    for line in strip_fenced_blocks(text).splitlines():
-        if negates_direct_access_claim(line):
-            continue
-        for pattern, reason in patterns:
-            if re.search(pattern, line, re.I) and reason not in findings:
-                findings.append(reason)
-    return findings
 
 
-def redacted_packet_validation_claim_unsupported(value: str) -> bool:
-    if not nonempty_work_field(value):
-        return False
-    normalized = value.strip().lower()
-    packet_qualifiers = [
-        "based on packet",
-        "packet validation evidence",
-        "reported validation",
-        "reported in packet",
-        "packet's reported",
-        "provided evidence",
-        "supplied evidence",
-        "reviewed provided",
-        "reviewed supplied",
-        "cannot independently",
-        "not independently",
-        "share page parsed",
-        "local chatgpt share reader",
-        "local share reader",
-        "direct-to-chatgpt/local parser",
-    ]
-    if any(qualifier in normalized for qualifier in packet_qualifiers):
-        return False
-    return bool(
-        re.search(r"\b(passed|verified|validated|compiled|completed|ran|executed)\b", normalized)
-        and re.search(r"\b(unit tests?|tests?|repository validation|validate_repository|install(?:ation)? dry-run|compileall)\b", normalized)
-    )
 
 
-def _normalized_declaration_value(value: str) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9_ \-]", " ", value.strip().lower())).strip()
-
-
-def normalize_review_surface(value: str, *, share_boundary: str | None = None) -> str:
-    normalized = _normalized_declaration_value(value).replace("_", "-").replace(" ", "-")
-    aliases = {
-        "packet": "packet-only",
-        "packetonly": "packet-only",
-        "redacted-packet": "packet-only",
-        "packet-level": "packet-only",
-        "packet-based": "packet-only",
-        "public-pr": "public-pr-readonly",
-        "public-pr-read-only": "public-pr-readonly",
-        "public-pull-request": "public-pr-readonly",
-        "public-pull-request-readonly": "public-pr-readonly",
-        "pr-readonly": "public-pr-readonly",
-        "pr-read-only": "public-pr-readonly",
-        "repo-read-only": "repo-readonly",
-        "repository-readonly": "repo-readonly",
-        "repository-read-only": "repo-readonly",
-        "patch": "patch-branch",
-        "patchbranch": "patch-branch",
-    }
-    normalized = aliases.get(normalized, normalized)
-    if normalized in {"packet-only", "public-pr-readonly", "repo-readonly", "patch-branch"}:
-        return normalized
-    boundary = (share_boundary or "").strip().lower()
-    if boundary == "redacted-packet":
-        return "packet-only"
-    if boundary in {"repo-readonly", "patch-branch"}:
-        return boundary
-    return normalized or "unknown"
-
-
-def is_packet_only_declared(value: str) -> bool:
-    normalized = _normalized_declaration_value(value)
-    if not normalized:
-        return False
-    return bool(
-        re.search(r"\b(packet[- ]?only|redacted[- ]?packet|packet\s+only|packet-level|packet based|redacted[- ]packet)\b", normalized)
-    ) or bool(re.search(r"\bpacket manifest only\b", normalized))
-
-
-def is_merge_readiness_go_claim(text: str) -> bool:
-    if not text.strip():
-        return False
-    positive_patterns = [
-        r"\b(?:go for|going for)\b.{0,120}\b(?:pr|pull request|merge request|merge|readiness|release|deploy|publish|ship)\b",
-        r"\bready for\b.{0,120}\b(?:pr|pull request|merge request|merge|readiness|release|deploy|publish|ship)\b",
-        r"\b(?:approve|approved|approving)\b.{0,120}\b(?:pr|pull request|merge request|merge|readiness|release|deploy|publish|ship)\b",
-        r"\bpr\b.{0,120}\b(?:is|looks|appears|seems|will be|would be)\b.{0,40}\b(?:ready|approved)\b",
-        r"\b(?:good to go|g2g|good-to-go|go/no-go)\b",
-        r"\bready\b.{0,120}\b(?:to|for)\b.{0,30}\b(?:merge|ship|release|deploy)\b",
-    ]
-    negative_nearby = re.compile(
-        r"\b(not|no|never|can't|cannot|won't|do not|don't|not yet|not now|blocked|blocked on|blocked by)\b.{0,80}(?:go|ready|approve|approval|approved|approval)\b",
-        re.I,
-    )
-    for sentence in re.split(r"[.!?]\s+|\n+", text.lower()):
-        normalized = sentence.strip()
-        if not normalized:
-            continue
-        for pattern in positive_patterns:
-            match = re.search(pattern, normalized, re.I)
-            if not match:
-                continue
-            if negative_nearby.search(normalized):
-                continue
-            return True
-    return False
-
-
-def parse_master_review_surface_controls(
-    sections: dict[str, str],
-    reader: "SectionReader | None" = None,
-    *,
-    share_boundary: str | None = None,
-) -> dict[str, object]:
-    reader = reader or SectionReader(sections)
-    review_surface = reader.value("Review surface")
-    source_inspection = reader.value("Source inspection")
-    sources_inspected = reader.value("Sources inspected")
-    sources_not_inspected = reader.value("Sources not inspected")
-    independent_verification = reader.value("Independent verification")
-    packet_reported_claims = reader.value("Packet-reported claims")
-    status_text = reader.value("Status")
-    summary_text = reader.value("Summary")
-    next_bead_text = reader.value("Recommended next bead")
-    readiness_text = " ".join(
-        part
-        for part in [status_text, summary_text, next_bead_text]
-        if part.strip()
-    )
-
-    review_surface_normalized = normalize_review_surface(review_surface, share_boundary=share_boundary)
-    source_inspection_normalized = _normalized_declaration_value(source_inspection)
-    review_surface_packet_only = is_packet_only_declared(review_surface)
-    source_inspection_packet_only = is_packet_only_declared(source_inspection)
-    uninspected_text = "\n".join([source_inspection, sources_not_inspected, independent_verification])
-    uninspected_pattern = (
-        r"\b(not inspected|did not inspect|not reviewed|did not review|not read|did not read|not accessed|did not access|no direct)\b"
-        r".{0,120}\b(pr|pull request|diff|repo|repository|source|code)\b"
-    )
-    source_first_uninspected_pattern = (
-        r"\b(pr|pull request|diff|repo|repository|source|code)\b"
-        r".{0,120}\b(was not|were not|is not|are not|not inspected|not reviewed|not read|not accessed|uninspected|unreviewed|unread|inaccessible)\b"
-    )
-    explicit_uninspected_required_source = bool(
-        re.search(uninspected_pattern, uninspected_text, re.I)
-        or re.search(source_first_uninspected_pattern, uninspected_text, re.I)
-    )
-    independently_inspected_required_source = bool(
-        review_surface_normalized in {"public-pr-readonly", "repo-readonly", "patch-branch"}
-        and re.search(
-            r"\b(pr|pull request|diff|repo|repository|source|code)\b",
-            "\n".join([source_inspection, sources_inspected, independent_verification]),
-            re.I,
-        )
-    )
-    go_claimed = bool(
-        is_merge_readiness_go_claim(readiness_text)
-        or is_merge_readiness_go_claim(reader.value("Attestation or reproducibility note", "Attestation/repro note"))
-    )
-    packet_only_go_hold = bool(
-        (review_surface_packet_only or source_inspection_packet_only or review_surface_normalized == "packet-only")
-        and go_claimed
-        and not independently_inspected_required_source
-    )
-    source_mismatch_hold = bool(
-        explicit_uninspected_required_source
-        and go_claimed
-        and not independently_inspected_required_source
-    )
-    mismatch_reasons: list[str] = []
-    if packet_only_go_hold:
-        mismatch_reasons.append("packet-only master review cannot provide unconditional PR/merge/readiness GO")
-    if source_mismatch_hold:
-        mismatch_reasons.append("return says required PR/diff/repo/source evidence was not inspected")
-    return {
-        "review_surface": review_surface_normalized,
-        "source_inspection": source_inspection_normalized,
-        "sources_inspected": sources_inspected,
-        "sources_not_inspected": sources_not_inspected,
-        "independent_verification": independent_verification,
-        "packet_reported_claims": packet_reported_claims,
-        "review_surface_packet_only": review_surface_packet_only,
-        "source_inspection_packet_only": source_inspection_packet_only,
-        "go_for_pr_merge_readiness_claimed": go_claimed,
-        "review_surface_mismatch": bool(packet_only_go_hold or source_mismatch_hold),
-        "review_surface_required_evidence_missing": bool(packet_only_go_hold or source_mismatch_hold),
-        "review_surface_mismatch_reasons": mismatch_reasons,
-        "packet_only_go_hold": packet_only_go_hold,
-    }
-
-
-def redacted_boundary_taint_findings(text: str, sections: dict[str, str], *, share_boundary: str | None) -> list[str]:
-    if share_boundary != "redacted-packet":
-        return []
-    findings: list[str] = []
-    commands_run = section_value(sections, "Commands run")
-    validation = section_value(sections, "Validation result")
-    if not redacted_packet_command_allowed(commands_run):
-        findings.append("redacted packet return claims command or test execution")
-    if redacted_packet_validation_claim_unsupported(validation):
-        findings.append("redacted packet return claims unsupported validation")
-    findings.extend(redacted_packet_direct_access_findings(text))
-    deduped: list[str] = []
-    for finding in findings:
-        if finding not in deduped:
-            deduped.append(finding)
-    return deduped
 
 
 def boundary_taint_status(findings: list[str], *, share_boundary: str | None) -> str:
@@ -990,406 +703,14 @@ def score_malpractice_signals(
     }
 
 
-def structured_json_values(value: str) -> list[Any]:
-    """Parse whole-value or fenced JSON blocks from a return section."""
-
-    values: list[Any] = []
-    stripped = value.strip()
-    if stripped and stripped[0] in "[{":
-        try:
-            values.append(json.loads(stripped))
-        except json.JSONDecodeError:
-            pass
-
-    fence_pattern = re.compile(r"(?ms)^\s*```([A-Za-z0-9_-]*)\s*\n(.*?)^\s*```\s*$")
-    for match in fence_pattern.finditer(value):
-        language = match.group(1).strip().lower()
-        if language and language != "json":
-            continue
-        candidate = match.group(2).strip()
-        if not candidate or candidate[0] not in "[{":
-            continue
-        try:
-            values.append(json.loads(candidate))
-        except json.JSONDecodeError:
-            continue
-    return values
 
 
-def as_research_list(value: Any) -> list[dict[str, Any]]:
-    if isinstance(value, list):
-        normalized: list[dict[str, Any]] = []
-        for item in value:
-            if isinstance(item, dict):
-                normalized.append(dict(item))
-            elif str(item).strip():
-                normalized.append({"claim": str(item).strip()})
-        return normalized
-    if isinstance(value, dict):
-        return [dict(value)]
-    if str(value).strip():
-        return [{"claim": str(value).strip()}]
-    return []
 
 
-def as_research_reflection(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, dict) else {}
 
 
-def research_score_value(value: Any) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        score = int(value)
-    except (TypeError, ValueError):
-        return None
-    return max(0, min(100, score))
 
 
-def booleanish(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    return str(value or "").strip().lower() in {"1", "true", "yes", "required", "recommended"}
-
-
-def research_sections_present(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> bool:
-    reader = reader or SectionReader(sections)
-    return bool(
-        reader.value("Research evidence")
-        or reader.value("Research contradictions")
-        or reader.value("Research reflection")
-        or re.search(r"\bresearch_evidence_items\b", reader.value("Evidence"), re.I)
-    )
-
-
-def research_evidence_from_sections(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> dict[str, Any]:
-    reader = reader or SectionReader(sections)
-    evidence_section = reader.value("Research evidence")
-    contradiction_section = reader.value("Research contradictions")
-    reflection_section = reader.value("Research reflection")
-    legacy_evidence = reader.value("Evidence")
-
-    items: list[dict[str, Any]] = []
-    contradictions: list[dict[str, Any]] = []
-    reflection: dict[str, Any] = {}
-
-    def merge_document(document: Any, *, source: str) -> None:
-        nonlocal reflection
-        if isinstance(document, dict):
-            if isinstance(document.get("research_evidence_items"), list):
-                items.extend(as_research_list(document["research_evidence_items"]))
-            elif isinstance(document.get("evidence_items"), list) and source == "research-evidence":
-                items.extend(as_research_list(document["evidence_items"]))
-            elif source == "research-evidence" and any(
-                key in document
-                for key in ["claim", "source_locator", "citation_span", "quoted_excerpt", "support_type"]
-            ):
-                items.extend(as_research_list(document))
-
-            if isinstance(document.get("research_contradictions"), list):
-                contradictions.extend(as_research_list(document["research_contradictions"]))
-            elif isinstance(document.get("contradictions"), list):
-                contradictions.extend(as_research_list(document["contradictions"]))
-            elif source == "research-contradictions" and document:
-                contradictions.extend(as_research_list(document))
-
-            if isinstance(document.get("research_reflection"), dict):
-                reflection.update(as_research_reflection(document["research_reflection"]))
-            elif isinstance(document.get("reflection"), dict):
-                reflection.update(as_research_reflection(document["reflection"]))
-            elif source == "research-reflection" and document:
-                reflection.update(as_research_reflection(document))
-        elif isinstance(document, list):
-            if source == "research-contradictions":
-                contradictions.extend(as_research_list(document))
-            else:
-                items.extend(as_research_list(document))
-
-    for document in structured_json_values(evidence_section):
-        merge_document(document, source="research-evidence")
-    for document in structured_json_values(contradiction_section):
-        merge_document(document, source="research-contradictions")
-    for document in structured_json_values(reflection_section):
-        merge_document(document, source="research-reflection")
-    for document in structured_json_values(legacy_evidence):
-        merge_document(document, source="legacy-evidence")
-
-    unresolved = [
-        item
-        for item in contradictions
-        if str(item.get("resolution_status") or item.get("status") or "").strip().lower()
-        not in {"resolved", "handled", "accepted-risk", "open-risk", "not-applicable", "none", "n/a"}
-    ]
-    return {
-        "research_evidence_present": bool(items or contradictions or reflection or research_sections_present(sections, reader=reader)),
-        "research_evidence_items": items,
-        "research_contradictions": contradictions,
-        "research_reflection": reflection,
-        "research_unresolved_contradiction_count": len(unresolved),
-        "research_replan_recommended": booleanish(reflection.get("replan_recommended")),
-    }
-
-
-def score_research_evidence(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> dict[str, Any]:
-    weights = malpractice_signal_weights()
-    reader = reader or SectionReader(sections)
-    research = research_evidence_from_sections(sections, reader=reader)
-    signals: list[dict[str, Any]] = []
-    if not research["research_evidence_present"]:
-        return {
-            **research,
-            "research_evidence_score": 100,
-            "research_evidence_signals": [],
-            "research_evidence_signal_categories": [],
-        }
-
-    items: list[dict[str, Any]] = list(research["research_evidence_items"])
-    if not items:
-        add_signal(
-            signals,
-            category="missing_research_evidence",
-            reason="research return has no structured research evidence items",
-            weight=weights["missing_research_evidence"],
-        )
-
-    for index, item in enumerate(items, start=1):
-        label = str(item.get("claim_id") or item.get("source_id") or f"item-{index}")
-        claim = str(item.get("claim") or "").strip()
-        source_locator = str(item.get("source_locator") or item.get("locator") or "").strip()
-        citation_span = str(item.get("citation_span") or "").strip()
-        quoted_excerpt = str(item.get("quoted_excerpt") or item.get("excerpt") or "").strip()
-        source_type = str(item.get("source_type") or "unknown").strip().lower().replace("_", "-")
-        support_type = str(item.get("support_type") or "").strip().lower().replace("_", "-")
-        access_status = str(item.get("access_status") or "unknown").strip().lower().replace("_", "-")
-        reliability = research_score_value(item.get("source_reliability_score") or item.get("reliability_score"))
-        relevance = research_score_value(item.get("relevance_score"))
-
-        if not claim:
-            add_signal(
-                signals,
-                category="missing_research_claim",
-                reason=f"{label} is missing a claim",
-                weight=weights["missing_research_claim"],
-            )
-        if not source_locator:
-            add_signal(
-                signals,
-                category="missing_research_source_locator",
-                reason=f"{label} is missing a reusable source locator",
-                weight=weights["missing_research_source_locator"],
-            )
-        if not citation_span and not quoted_excerpt:
-            add_signal(
-                signals,
-                category="missing_research_grounding",
-                reason=f"{label} is missing citation span or quoted excerpt",
-                weight=weights["missing_research_grounding"],
-            )
-        if source_type not in RESEARCH_SOURCE_TYPES:
-            add_signal(
-                signals,
-                category="weak_research_source_type",
-                reason=f"{label} has unknown source type {source_type or 'empty'}",
-                weight=weights["weak_research_source_type"],
-            )
-        if support_type not in RESEARCH_SUPPORT_TYPES:
-            add_signal(
-                signals,
-                category="weak_research_support_type",
-                reason=f"{label} has missing or unsupported support type",
-                weight=weights["weak_research_support_type"],
-            )
-        if access_status not in RESEARCH_ACCESS_STATUSES:
-            add_signal(
-                signals,
-                category="weak_research_access_status",
-                reason=f"{label} has unknown access status {access_status or 'empty'}",
-                weight=weights["weak_research_access_status"],
-            )
-        if reliability is None or reliability < 60:
-            add_signal(
-                signals,
-                category="weak_research_reliability",
-                reason=f"{label} has missing or low source reliability score",
-                weight=weights["weak_research_reliability"],
-            )
-        if relevance is None or relevance < 60:
-            add_signal(
-                signals,
-                category="weak_research_relevance",
-                reason=f"{label} has missing or low relevance score",
-                weight=weights["weak_research_relevance"],
-            )
-        if (
-            support_type in {"supports", "refutes"}
-            and access_status in {"abstract-only", "paywalled", "restricted", "inaccessible"}
-            and (not quoted_excerpt or re.search(r"\babstract[- ]only|abstract\b", quoted_excerpt, re.I))
-        ):
-            add_signal(
-                signals,
-                category="inaccessible_research_support",
-                reason=f"{label} treats limited-access evidence as full support",
-                weight=weights["inaccessible_research_support"],
-            )
-
-    if research["research_unresolved_contradiction_count"]:
-        add_signal(
-            signals,
-            category="unresolved_research_contradiction",
-            reason="research contradictions are unresolved or missing a handled status",
-            weight=weights["unresolved_research_contradiction"],
-        )
-
-    reflection = dict(research["research_reflection"])
-    if not reflection:
-        add_signal(
-            signals,
-            category="missing_research_reflection",
-            reason="research return is missing coverage/factual-support reflection",
-            weight=weights["missing_research_reflection"],
-        )
-    else:
-        if research["research_replan_recommended"]:
-            add_signal(
-                signals,
-                category="research_replan_recommended",
-                reason="research reflection recommends replanning or follow-up queries",
-                weight=weights["research_replan_recommended"],
-            )
-        gaps = reflection.get("gaps") or reflection.get("followup_queries") or reflection.get("follow_up_queries")
-        if gaps and not research["research_replan_recommended"]:
-            add_signal(
-                signals,
-                category="research_reflection_gaps",
-                reason="research reflection names gaps without a replan recommendation",
-                weight=weights["research_reflection_gaps"],
-            )
-
-    score = max(0, 100 - min(100, sum(int(signal["weight"]) for signal in signals)))
-    return {
-        **research,
-        "research_evidence_score": score,
-        "research_evidence_signals": signals,
-        "research_evidence_signal_categories": sorted({str(signal["category"]) for signal in signals}),
-    }
-
-
-def evidence_items_from_sections(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> list[dict[str, str]]:
-    reader = reader or SectionReader(sections)
-    evidence = strip_fenced_blocks(reader.value("Evidence"))
-    items: list[dict[str, str]] = []
-    for line in evidence.splitlines():
-        normalized = line.strip().lstrip("-* ").strip()
-        if not normalized:
-            continue
-        kind = "claim"
-        if re.search(r"\b(test|pytest|compile|validate|command|bd |git )\b", normalized, re.I):
-            kind = "command-or-test"
-        elif re.search(
-            r"\b(files?|paths?|lines?|schemas?|polic(?:y|ies)|packets?|manifests?|snippets?|artifacts?|"
-            r"sha-?256|hash(?:es)?|sections?|docs?|readmes?|scripts?)\b",
-            normalized,
-            re.I,
-        ):
-            kind = "file-or-policy"
-        items.append({"kind": kind, "text": normalized})
-    return items
-
-
-def score_evidence_quality(
-    sections: dict[str, str],
-    *,
-    research_quality: dict[str, Any] | None = None,
-    reader: "SectionReader | None" = None,
-) -> dict[str, Any]:
-    reader = reader or SectionReader(sections)
-    weights = malpractice_signal_weights()
-    signals: list[dict[str, Any]] = []
-    evidence = strip_fenced_blocks(reader.value("Evidence"))
-    provenance = reader.value("Evidence provenance")
-    items = evidence_items_from_sections(sections, reader=reader)
-    research_quality = research_quality or score_research_evidence(sections, reader=reader)
-    has_research_evidence = bool(research_quality["research_evidence_present"])
-    supported_items = [item for item in items if item.get("kind") in {"command-or-test", "file-or-policy"}]
-    claim_items = [item for item in items if item.get("kind") == "claim"]
-    evidence_words = evidence.split()
-
-    if not evidence and not has_research_evidence:
-        add_signal(
-            signals,
-            category="missing_evidence",
-            reason="evidence is missing or too thin",
-            weight=weights["missing_evidence"],
-        )
-    elif not has_research_evidence and (len(evidence_words) < 8 or not items):
-        add_signal(
-            signals,
-            category="thin_evidence",
-            reason="evidence has too little detail for independent reuse",
-            weight=weights["thin_evidence"],
-        )
-
-    if items and claim_items and not supported_items and not has_research_evidence:
-        add_signal(
-            signals,
-            category="claim_only_evidence",
-            reason="evidence contains only unsupported claim-style items",
-            weight=weights["claim_only_evidence"],
-        )
-
-    generic_patterns = [
-        r"\bappears?\s+(?:fine|good|reasonable|solid)\b",
-        r"\blooks?\s+(?:fine|good|reasonable|solid)\b",
-        r"\b(no\s+issues?|nothing\s+concerning)\b",
-        r"\b(best\s+practice|robust|comprehensive|well[- ]structured)\b",
-        r"\b(consider|ensure|should|could|might)\b.{0,80}\b(best|robust|clear|proper|appropriate)\b",
-        r"\b(no\s+actionable\s+findings?)\b",
-    ]
-    generic_hits = [
-        item
-        for item in items
-        if item.get("kind") == "claim"
-        and any(re.search(pattern, str(item.get("text", "")), re.I) for pattern in generic_patterns)
-    ]
-    if generic_hits:
-        add_signal(
-            signals,
-            category="vague_evidence",
-            reason="evidence relies on generic or non-actionable wording",
-            weight=weights["vague_evidence"],
-        )
-
-    if provenance and not has_research_evidence:
-        provenance_supported = bool(
-            re.search(
-                r"\b(packet|manifest|snippet|artifact|file|path|line|schema|policy|command|test|log|diff|patch|section)\b",
-                provenance,
-                re.I,
-            )
-        )
-        if not provenance_supported:
-            add_signal(
-                signals,
-                category="weak_evidence_provenance",
-                reason="evidence provenance does not identify a reusable source",
-                weight=weights["weak_evidence_provenance"],
-            )
-
-    for signal in research_quality["research_evidence_signals"]:
-        add_signal(
-            signals,
-            category=str(signal["category"]),
-            reason=str(signal["reason"]),
-            weight=int(signal["weight"]),
-        )
-
-    legacy_score = max(0, 100 - min(100, sum(int(signal["weight"]) for signal in signals)))
-    score = min(legacy_score, int(research_quality["research_evidence_score"])) if has_research_evidence else legacy_score
-    return {
-        "evidence_quality_score": score,
-        "evidence_quality_signals": signals,
-        "evidence_quality_signal_categories": sorted({str(signal["category"]) for signal in signals}),
-    }
 
 
 def return_provenance(
@@ -1524,7 +845,7 @@ def normalize_contractor_return(
     local_profile: str | None = None,
     model_profile: str | None = None,
     workspace_mutation: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> ContractorReturnBundle:
     sections = parse_return_sections(text)
     reader = SectionReader(sections)
     required = load_policy("acceptance-policy").get("contractor_return_required_sections", [])
@@ -1581,145 +902,6 @@ def normalize_contractor_return(
     bundle["bundle_sha256"] = artifact_hash(json.dumps(bundle, sort_keys=True))
     return bundle
 
-
-def section_lookup_key(label: str) -> str:
-    cleaned = label.strip()
-    cleaned = re.sub(r"^\s{0,3}#{1,6}\s*", "", cleaned)
-    cleaned = re.sub(r"^\s*[-*]\s+", "", cleaned)
-    cleaned = re.sub(r"^(\*\*|__)(.*?)(\1)$", r"\2", cleaned)
-    cleaned = cleaned.strip("`*_ :")
-    cleaned = cleaned.replace("&", " and ")
-    cleaned = re.sub(r"[^a-zA-Z0-9]+", " ", cleaned)
-    return re.sub(r"\s+", " ", cleaned).strip().lower()
-
-
-@lru_cache(maxsize=1)
-def return_section_aliases() -> dict[str, str]:
-    policy = load_policy("acceptance-policy")
-    canonical: dict[str, str] = {}
-    canonical_sections = list(policy.get("contractor_return_required_sections", [])) + list(RETURN_CONTROL_SECTIONS)
-    for section in policy.get("contractor_return_required_sections", []):
-        canonical[section_lookup_key(section)] = section
-    for section in RETURN_CONTROL_SECTIONS:
-        canonical[section_lookup_key(section)] = section
-    alias_source = str(policy.get("return_section_alias_source", "")).strip().lower()
-    if alias_source == "legacy":
-        configured_aliases = RETURN_SECTION_ALIASES
-    elif alias_source == "policy":
-        configured_aliases = policy.get("return_section_aliases")
-        if not isinstance(configured_aliases, dict):
-            raise SystemExit("acceptance-policy.yaml return_section_alias_source=policy requires return_section_aliases")
-    else:
-        raise SystemExit("acceptance-policy.yaml must set return_section_alias_source to 'policy' or 'legacy'")
-    valid_targets = {section_lookup_key(section) for section in canonical_sections}
-    for alias, target in configured_aliases.items():
-        if section_lookup_key(str(target)) not in valid_targets:
-            raise SystemExit(f"acceptance-policy.yaml alias {alias!r} points at unknown return section {target!r}")
-        canonical[section_lookup_key(alias)] = target
-    return canonical
-
-
-def canonical_return_section(label: str) -> str | None:
-    return return_section_aliases().get(section_lookup_key(label))
-
-
-def parse_return_header(line: str) -> tuple[str, str] | None:
-    match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)(?:\s*:\s*(.*))?\s*$", line)
-    if match:
-        label = match.group(1).strip()
-        value = (match.group(2) or "").strip()
-        canonical = canonical_return_section(label)
-        if canonical:
-            return canonical, value
-
-    match = re.match(r"^\s*(?:[-*]\s+)?(?:\*\*|__)([^*_]+?)(?::)?(?:\*\*|__)\s*:?\s*(.*)$", line)
-    if match:
-        label = match.group(1).strip()
-        value = match.group(2).strip()
-        canonical = canonical_return_section(label)
-        if canonical:
-            return canonical, value
-
-    match = re.match(r"^\s*([A-Za-z][A-Za-z /-]+)\s*:\s*(.*)$", line)
-    if match:
-        canonical = canonical_return_section(match.group(1))
-        if canonical:
-            return canonical, match.group(2).strip()
-    return None
-
-
-def parse_return_sections(text: str) -> dict[str, str]:
-    sections: dict[str, str] = {}
-    current: str | None = None
-    buffer: list[str] = []
-    in_fence = False
-    for line in text.splitlines():
-        if re.match(r"^\s*(```|~~~)", line):
-            if current:
-                buffer.append(line)
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            if current:
-                buffer.append(line)
-            continue
-        parsed = parse_return_header(line)
-        if parsed:
-            if current:
-                sections[current] = "\n".join(buffer).strip()
-            current, value = parsed
-            buffer = [value] if value else []
-        elif current:
-            buffer.append(line)
-    if current:
-        sections[current] = "\n".join(buffer).strip()
-    return sections
-
-
-class SectionReader:
-    """Cached normalized lookup for parsed contractor-return sections."""
-
-    def __init__(self, sections: dict[str, str]) -> None:
-        self.sections = sections
-        self.normalized = {section_lookup_key(key): value for key, value in sections.items()}
-
-    def value(self, *names: str) -> str:
-        for name in names:
-            canonical = canonical_return_section(name) or name
-            value = self.normalized.get(section_lookup_key(canonical))
-            if value is not None:
-                return value.strip()
-        return ""
-
-
-def section_value(sections: dict[str, str], *names: str) -> str:
-    return SectionReader(sections).value(*names)
-
-
-def negative_field(value: str) -> bool:
-    normalized = value.strip().lower()
-    if not normalized:
-        return False
-    if re.match(r"^(compliant|approved|authorized|within scope|in scope)\b", normalized):
-        return False
-    return bool(
-        re.match(r"^(no|false|none|not observed|not present|not applicable|n/a|na)\b", normalized)
-        or re.search(r"\b(no|not observed|not present|none)\s+(boundary violation|secret|personal-data spill|scope creep|patch)\b", normalized)
-    )
-
-
-def affirmative_field(value: str) -> bool:
-    normalized = value.strip().lower()
-    if not normalized or negative_field(value):
-        return False
-    return bool(
-        re.match(r"^(yes|true|required|present|observed|found|confirmed|compliant|approved|authorized|unauthorized|unapproved)\b", normalized)
-        or re.search(r"\b(violation observed|secret spill|personal-data spill|outside assigned scope|broadened scope|without approval)\b", normalized)
-    )
-
-
-def nonempty_work_field(value: str) -> bool:
-    return bool(value.strip()) and not negative_field(value)
 
 
 def opaque_provider_policy_intervention_present(value: str) -> bool:
@@ -1891,7 +1073,7 @@ def make_acceptance_decision(
     local_response_truncated: bool = False,
     local_finish_reasons: list[str] | None = None,
     local_reasoning_malformed: bool = False,
-) -> dict[str, Any]:
+) -> AcceptanceDecision:
     policy = load_policy("acceptance-policy")
     provenance = return_provenance(
         executor=executor,
