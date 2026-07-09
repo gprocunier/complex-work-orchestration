@@ -10,12 +10,37 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
+from cwo_core.errors import CWOPolicyError  # noqa: E402
 
 RETIRED_FIELD = "beads_" + "briefing_depth"
 RETIRED_FLAG = "--beads-" + "briefing-depth"
 
 
 class PromptCoachTests(unittest.TestCase):
+    def test_unknown_execution_environment_raises_typed_policy_error(self) -> None:
+        with self.assertRaisesRegex(CWOPolicyError, "unknown execution environment: missing-env"):
+            coach_orchestration_prompt("Review the architecture plan.", execution_environment="missing-env")
+
+    def test_coach_cli_translates_typed_error_without_traceback(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "coach_prompt.py"),
+                "--brief",
+                "--execution-environment",
+                "missing-env",
+                "Review the architecture plan.",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unknown execution environment: missing-env", result.stderr)
+        self.assertNotIn("Traceback", result.stderr + result.stdout)
+
     def test_narrow_work_recommends_in_thread(self) -> None:
         result = coach_orchestration_prompt("Fix typo in README.md")
         self.assertEqual(result["recommended_orchestration_level"], "in-thread")

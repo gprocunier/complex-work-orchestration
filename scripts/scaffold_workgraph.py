@@ -16,6 +16,7 @@ from cwo_core.coach import (
     prompt_coach_level,
     prompt_coach_parallel_workerbee_signal,
 )
+from cwo_core.errors import CWOError
 from cwo_core.routing import (
     classify_work,
     expert_review_labels,
@@ -957,20 +958,23 @@ def main() -> None:
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
     context = read_text_arg(f"{args.title}\n\n{args.description}".strip(), args.file)
-    route = classify_work(
-        context,
-        external_ok=args.external_ok,
-        allow_disclosure_escalation=args.allow_disclosure_escalation,
-        local_ok=args.local_ok,
-        prefer_local=args.prefer_local,
-        local_profile=args.local_profile,
-        share_boundary=args.share_boundary,
-        data_sensitivity=args.data_sensitivity,
-        requested_roles=args.requested_role,
-        execution_environment=args.execution_environment,
-        model_synthesis=args.model_synthesis,
-        beads_context_depth=args.beads_context_depth,
-    )
+    try:
+        route = classify_work(
+            context,
+            external_ok=args.external_ok,
+            allow_disclosure_escalation=args.allow_disclosure_escalation,
+            local_ok=args.local_ok,
+            prefer_local=args.prefer_local,
+            local_profile=args.local_profile,
+            share_boundary=args.share_boundary,
+            data_sensitivity=args.data_sensitivity,
+            requested_roles=args.requested_role,
+            execution_environment=args.execution_environment,
+            model_synthesis=args.model_synthesis,
+            beads_context_depth=args.beads_context_depth,
+        )
+    except CWOError as exc:
+        raise SystemExit(str(exc))
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(context, prompt_coach_level(route, context), route)
     route = {
         **route,

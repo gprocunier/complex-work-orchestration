@@ -7,11 +7,33 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cwo_core.routing import classify_work  # noqa: E402
+from cwo_core.errors import CWOPolicyError, CWOValidationError  # noqa: E402
+from cwo_core.routing import (  # noqa: E402
+    classify_work,
+    normalize_beads_context_depth,
+    normalize_data_sensitivity,
+    resolve_execution_environment,
+)
 from cwo_core.routing_signals import explicit_openai_deep_research_requested  # noqa: E402
 
 
 class RoutingTests(unittest.TestCase):
+    def test_invalid_data_sensitivity_raises_typed_validation_error(self) -> None:
+        with self.assertRaisesRegex(CWOValidationError, "data_sensitivity must be one of"):
+            normalize_data_sensitivity("customer-secret")
+
+    def test_invalid_beads_context_depth_raises_typed_validation_error(self) -> None:
+        with self.assertRaisesRegex(CWOValidationError, "beads_context_depth must be one of"):
+            normalize_beads_context_depth("deepest")
+
+    def test_unknown_execution_environment_raises_typed_policy_error(self) -> None:
+        with self.assertRaisesRegex(CWOPolicyError, "unknown execution environment: missing-env"):
+            resolve_execution_environment("missing-env")
+
+    def test_classify_work_propagates_typed_execution_environment_error(self) -> None:
+        with self.assertRaisesRegex(CWOPolicyError, "unknown execution environment: missing-env"):
+            classify_work("Review the architecture plan.", execution_environment="missing-env")
+
     def test_ranks_security_and_architecture_experts(self) -> None:
         result = classify_work(
             "Security and architecture review for token handling, redaction boundary, and API compatibility.",

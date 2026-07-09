@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -12,6 +13,29 @@ from scaffold_workgraph import planned_graph  # noqa: E402
 
 
 class ScaffoldDryRunTests(unittest.TestCase):
+    def test_scaffold_cli_translates_typed_error_without_traceback(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "scaffold_workgraph.py"),
+                "--dry-run",
+                "--title",
+                "Typed error check",
+                "--description",
+                "Review the architecture plan.",
+                "--execution-environment",
+                "missing-env",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unknown execution environment: missing-env", result.stderr)
+        self.assertNotIn("Traceback", result.stderr + result.stdout)
+
     def test_external_scaffold_has_eval_adjudication_and_per_expert_executor(self) -> None:
         route = classify_work(
             "Security and web design review for contractor packet behavior.",

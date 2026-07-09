@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from cwo_core.errors import CWOError
 from cwo_core.routing import (
     classify_work,
     expert_review_labels,
@@ -204,16 +205,19 @@ def main() -> None:
     args = parser.parse_args()
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    route = classify_work(
-        text,
-        external_ok=args.external_ok,
-        local_ok=args.local_ok,
-        prefer_local=args.prefer_local,
-        local_profile=args.local_profile,
-        share_boundary=args.share_boundary,
-        data_sensitivity=args.data_sensitivity,
-        requested_roles=args.requested_role,
-    )
+    try:
+        route = classify_work(
+            text,
+            external_ok=args.external_ok,
+            local_ok=args.local_ok,
+            prefer_local=args.prefer_local,
+            local_profile=args.local_profile,
+            share_boundary=args.share_boundary,
+            data_sensitivity=args.data_sensitivity,
+            requested_roles=args.requested_role,
+        )
+    except CWOError as exc:
+        raise SystemExit(str(exc))
     reviews = []
     for expert in route.get("ranked_experts", [])[: args.top_n]:
         reviews.append(

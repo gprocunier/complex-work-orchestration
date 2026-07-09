@@ -5,6 +5,7 @@ import argparse
 import json
 
 from cwo_core.coach import coach_orchestration_prompt
+from cwo_core.errors import CWOError
 from cwo_core.util import read_text_arg
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
@@ -138,24 +139,27 @@ def main() -> None:
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    result = coach_orchestration_prompt(
-        text,
-        external_ok=args.external_ok,
-        allow_disclosure_escalation=args.allow_disclosure_escalation,
-        local_ok=args.local_ok,
-        prefer_local=args.prefer_local,
-        local_profile=args.local_profile,
-        share_boundary=args.share_boundary,
-        data_sensitivity=args.data_sensitivity,
-        requested_roles=args.requested_role,
-        file_paths=args.file_path,
-        stage=args.stage,
-        unattended=args.unattended,
-        execution_environment=args.execution_environment,
-        model_synthesis=args.model_synthesis,
-        scaffold_size=args.scaffold_size,
-        beads_context_depth=args.beads_context_depth,
-    )
+    try:
+        result = coach_orchestration_prompt(
+            text,
+            external_ok=args.external_ok,
+            allow_disclosure_escalation=args.allow_disclosure_escalation,
+            local_ok=args.local_ok,
+            prefer_local=args.prefer_local,
+            local_profile=args.local_profile,
+            share_boundary=args.share_boundary,
+            data_sensitivity=args.data_sensitivity,
+            requested_roles=args.requested_role,
+            file_paths=args.file_path,
+            stage=args.stage,
+            unattended=args.unattended,
+            execution_environment=args.execution_environment,
+            model_synthesis=args.model_synthesis,
+            scaffold_size=args.scaffold_size,
+            beads_context_depth=args.beads_context_depth,
+        )
+    except CWOError as exc:
+        raise SystemExit(str(exc))
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     elif args.brief:

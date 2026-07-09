@@ -17,6 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt
+from cwo_core.errors import CWOError
 from cwo_core.routing import classify_work
 from cwo_core.audit import (
     enforce_contracting_quota,
@@ -780,17 +781,20 @@ def main() -> None:
         return
 
     task = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    route = classify_work(
-        task,
-        external_ok=args.external_ok,
-        allow_disclosure_escalation=args.allow_disclosure_escalation,
-        local_ok=args.local_ok,
-        prefer_local=args.prefer_local,
-        local_profile=args.local_profile,
-        share_boundary=args.share_boundary,
-        data_sensitivity=args.data_sensitivity,
-        requested_roles=args.requested_role,
-    )
+    try:
+        route = classify_work(
+            task,
+            external_ok=args.external_ok,
+            allow_disclosure_escalation=args.allow_disclosure_escalation,
+            local_ok=args.local_ok,
+            prefer_local=args.prefer_local,
+            local_profile=args.local_profile,
+            share_boundary=args.share_boundary,
+            data_sensitivity=args.data_sensitivity,
+            requested_roles=args.requested_role,
+        )
+    except CWOError as exc:
+        raise SystemExit(str(exc))
     if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:
         raise SystemExit(
             "external manual dispatch requires --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"

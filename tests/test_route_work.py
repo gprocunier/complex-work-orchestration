@@ -19,6 +19,25 @@ RETIRED_FLAG = "--beads-" + "briefing-depth"
 
 
 class RouteWorkTests(unittest.TestCase):
+    def test_route_cli_translates_typed_error_without_traceback(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "route_work.py"),
+                "--execution-environment",
+                "missing-env",
+                "Review the architecture plan.",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unknown execution environment: missing-env", result.stderr)
+        self.assertNotIn("Traceback", result.stderr + result.stdout)
+
     def test_route_outputs_beads_context_depth_and_provenance(self) -> None:
         result = classify_work("Use subagents for a deep docs second pass with prior Beads comments.")
 

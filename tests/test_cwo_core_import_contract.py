@@ -15,10 +15,10 @@ ALLOWED_IMPORTS = {
     "util": set(),
     "chatgpt_urls": set(),
     "policy": {"paths", "util"},
-    "routing": {"policy", "routing_signals", "synthesis", "util"},
+    "routing": {"errors", "policy", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
-    "coach": {"routing", "synthesis", "util"},
+    "coach": {"routing", "synthesis", "types", "util"},
     "packets": {"paths", "policy", "util"},
     "return_common": {"policy"},
     "return_sections": {"policy"},
@@ -101,6 +101,12 @@ class CwoCoreImportContractTests(unittest.TestCase):
         for module in ALLOWED_IMPORTS:
             with self.subTest(module=module):
                 importlib.import_module(f"cwo_core.{module}")
+
+    def test_routing_and_coach_contract_types_import(self) -> None:
+        from cwo_core.types import CoachResult, RouteResult  # noqa: E402
+
+        self.assertEqual(CoachResult.__name__, "CoachResult")
+        self.assertEqual(RouteResult.__name__, "RouteResult")
 
 
 if __name__ == "__main__":

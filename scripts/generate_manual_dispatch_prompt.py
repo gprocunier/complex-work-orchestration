@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cwo_core.errors import CWOError
 from cwo_core.packets import fenced_block, redact_text, require_valid_contractor_packet
 from cwo_core.routing import classify_work
 from cwo_core.util import read_text_arg
@@ -256,16 +257,19 @@ def main() -> None:
         return
 
     task = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    route = classify_work(
-        task,
-        external_ok=args.external_ok,
-        allow_disclosure_escalation=args.allow_disclosure_escalation,
-        local_ok=args.local_ok,
-        prefer_local=args.prefer_local,
-        share_boundary=args.share_boundary,
-        data_sensitivity=args.data_sensitivity,
-        requested_roles=args.requested_role,
-    )
+    try:
+        route = classify_work(
+            task,
+            external_ok=args.external_ok,
+            allow_disclosure_escalation=args.allow_disclosure_escalation,
+            local_ok=args.local_ok,
+            prefer_local=args.prefer_local,
+            share_boundary=args.share_boundary,
+            data_sensitivity=args.data_sensitivity,
+            requested_roles=args.requested_role,
+        )
+    except CWOError as exc:
+        raise SystemExit(str(exc))
     if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:
         raise SystemExit(
             "external manual prompts require --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"

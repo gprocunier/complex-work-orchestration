@@ -9,6 +9,7 @@ from .routing import (
     resolve_beads_context_depth,
 )
 from .synthesis import recommend_model_synthesis
+from .types import CoachResult
 from .util import term_hits
 
 
@@ -1531,7 +1532,7 @@ def coach_orchestration_prompt(
     beads_context_depth: str | None = None,
     data_sensitivity: str | None = None,
     execution_environment: str | None = None,
-) -> dict[str, Any]:
+) -> CoachResult:
     route = classify_work(
         text,
         external_ok=external_ok,

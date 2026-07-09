@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .errors import CWOPolicyError, CWOValidationError
 from .policy import (
     EDITOR_GATE_EXPERT,
     EXTERNAL_GUARD_LABELS,
@@ -37,6 +38,7 @@ from .routing_signals import (
     requested_architecture_critic_executor_keys,
 )
 from .synthesis import recommend_model_synthesis, zero_trust_route_requirement
+from .types import RouteResult
 from .util import rank_allows, rank_max, term_hits
 
 
@@ -51,7 +53,7 @@ def normalize_data_sensitivity(value: str | None) -> str | None:
         return None
     normalized = value.strip().lower()
     if normalized not in SENSITIVITY_ORDER:
-        raise SystemExit(
+        raise CWOValidationError(
             "data_sensitivity must be one of: " + ", ".join(SENSITIVITY_ORDER)
         )
     return normalized
@@ -150,7 +152,7 @@ def resolve_execution_environment(execution_environment: str | None) -> tuple[st
     profiles = load_policy("execution-environments").get("profiles", {})
     profile = profiles.get(key)
     if not isinstance(profile, dict):
-        raise SystemExit(f"unknown execution environment: {key}")
+        raise CWOPolicyError(f"unknown execution environment: {key}")
     return key, profile
 
 
@@ -197,7 +199,7 @@ def normalize_beads_context_depth(value: str | None, *, field_name: str = "beads
     normalized = str(value).strip().lower().replace("_", "-")
     normalized = BEADS_CONTEXT_DEPTH_ALIASES.get(normalized, normalized)
     if normalized not in BEADS_CONTEXT_DEPTHS:
-        raise SystemExit(
+        raise CWOValidationError(
             f"{field_name} must be one of {', '.join(BEADS_CONTEXT_DEPTHS)}"
         )
     return normalized
@@ -891,7 +893,7 @@ def classify_work(
     beads_context_depth: str | None = None,
     data_sensitivity: str | None = None,
     execution_environment: str | None = None,
-) -> dict[str, Any]:
+) -> RouteResult:
     routing = load_policy("routing-policy")
     expert_registry = load_policy("expert-registry")
     execution_environment_key, execution_environment_config = resolve_execution_environment(execution_environment)
@@ -1162,7 +1164,7 @@ def classify_work(
         actor_context=stage or "routing",
     )
 
-    result = {
+    result: RouteResult = {
         "route": route,
         "task_class": task_class,
         "risk_level": risk,

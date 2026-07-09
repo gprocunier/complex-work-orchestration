@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from cwo_core.errors import CWOError
 from cwo_core.routing import classify_work
 from cwo_core.util import read_text_arg
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
@@ -158,23 +159,26 @@ def main() -> None:
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
-    route = classify_work(
-        text,
-        external_ok=args.external_ok,
-        allow_disclosure_escalation=args.allow_disclosure_escalation,
-        local_ok=args.local_ok,
-        prefer_local=args.prefer_local,
-        local_profile=args.local_profile,
-        share_boundary=args.share_boundary,
-        data_sensitivity=args.data_sensitivity,
-        requested_roles=args.requested_role,
-        file_paths=args.file_path,
-        stage=args.stage,
-        unattended=args.unattended,
-        execution_environment=args.execution_environment,
-        model_synthesis=args.model_synthesis,
-        beads_context_depth=args.beads_context_depth,
-    )
+    try:
+        route = classify_work(
+            text,
+            external_ok=args.external_ok,
+            allow_disclosure_escalation=args.allow_disclosure_escalation,
+            local_ok=args.local_ok,
+            prefer_local=args.prefer_local,
+            local_profile=args.local_profile,
+            share_boundary=args.share_boundary,
+            data_sensitivity=args.data_sensitivity,
+            requested_roles=args.requested_role,
+            file_paths=args.file_path,
+            stage=args.stage,
+            unattended=args.unattended,
+            execution_environment=args.execution_environment,
+            model_synthesis=args.model_synthesis,
+            beads_context_depth=args.beads_context_depth,
+        )
+    except CWOError as exc:
+        raise SystemExit(str(exc))
     if args.json:
         print(json.dumps(route, indent=2, sort_keys=True))
     else:
