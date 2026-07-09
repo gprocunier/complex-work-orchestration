@@ -248,7 +248,7 @@ class ScaffoldTests(unittest.TestCase):
 
     def test_glm_primary_environment_scaffold_has_pm_architect_counter_review_and_reports(self) -> None:
         route = classify_work(
-            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
             requested_roles=["architecture"],
             execution_environment="connected-codex-glm-primary",
             model_synthesis=True,

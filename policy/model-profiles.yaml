@@ -2,7 +2,7 @@
   "version": 1,
   "schema": "json-compatible-yaml",
   "scope": "RedHatAI-first public Hugging Face model profiles for RHOAI vLLM execution environments.",
-  "last_reviewed": "2026-06-22",
+  "last_reviewed": "2026-07-09",
   "source_policy": {
     "primary_catalog": "https://huggingface.co/RedHatAI",
     "fallback_policy": "Use non-RedHatAI public Hugging Face models only when RedHatAI artifacts do not cover the role.",
@@ -19,7 +19,7 @@
   "role_substitution_matrix": [
     {
       "cwo_role": "architect",
-      "connected_default": "Codex 5.5 x-high architect",
+      "connected_default": "Codex 5.6 Sol architect",
       "airgapped_profile": "rhoai-architect-mistral-small-4-119b-nvfp4",
       "enterprise_profiles": ["rhoai-architect-nemotron-3-ultra-550b-a55b-fp8", "rhoai-architect-glm-5-2-bf16-thinking", "rhoai-architect-glm-5-2-fp8"],
       "substitute_confidence": "high",

@@ -116,7 +116,7 @@ def synthesis_panel_for_route(policy: dict[str, Any], route: dict[str, Any]) -> 
                 "executor": counter_review,
                 "role": "architecture-counter-review",
                 "provider_camp": "codex",
-                "effort": "xhigh",
+                "effort": "codex-5.6-sol",
                 "external": False,
             },
         ]

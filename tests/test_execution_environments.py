@@ -33,6 +33,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("rhoai-architect-glm-5-2-fp8", registry["profiles"])
         self.assertIn("rhoai-architect-glm-5-2-bf16-thinking", registry["profiles"])
         architect_row = next(row for row in registry["role_substitution_matrix"] if row["cwo_role"] == "architect")
+        self.assertEqual(architect_row["connected_default"], "Codex 5.6 Sol architect")
         self.assertEqual(
             architect_row["enterprise_profiles"],
             [
@@ -125,6 +126,29 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("Access profile: rhoai-vllm", envelope["prompt"])
         self.assertIn("--model rhoai/architect", envelope["suggested_command"])
         self.assertIn("--variant reasoning-high", envelope["suggested_command"])
+        self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
+
+    def test_connected_codex_default_architect_resolves_sol_model(self) -> None:
+        environment = execution_environment_registry()["profiles"]["connected-codex"]
+        binding = environment["role_bindings"]["architect"]
+
+        self.assertEqual(binding["executor"], "frontier_architect")
+        self.assertEqual(binding["model"], "codex-5.6-sol")
+        self.assertEqual(binding["variant"], "sol")
+
+        envelope = build_harness_dispatch(
+            task="Review the connected architecture plan.",
+            dispatch_id="dispatch-test",
+            environment_key="connected-codex",
+            role="architect",
+            bead_id="cwo-test",
+        )
+        self.assertEqual(envelope["harness"], "codex_cli")
+        self.assertEqual(envelope["model"], "codex-5.6-sol")
+        self.assertEqual(envelope["variant"], "sol")
+        self.assertIsNone(envelope["model_profile"])
+        self.assertEqual(envelope["access_profile"], "codex-connected-shell")
+        self.assertIn("Codex conversation", envelope["suggested_command"])
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
 
     def test_h200_nemotron_environment_resolves_deep_reasoning_profile(self) -> None:

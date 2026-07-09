@@ -215,7 +215,7 @@ class RouteWorkTests(unittest.TestCase):
 
     def test_glm_primary_environment_routes_architecture_to_glm_with_codex_counter_review(self) -> None:
         result = classify_work(
-            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
             requested_roles=["architecture"],
             execution_environment="connected-codex-glm-primary",
             model_synthesis=True,
@@ -234,17 +234,24 @@ class RouteWorkTests(unittest.TestCase):
         )
         panel = {item["executor"]: item for item in result["model_synthesis"]["recommended_panel"]}
         self.assertEqual(panel["codex_architecture_critic"]["role"], "architecture-counter-review")
+        self.assertEqual(panel["codex_architecture_critic"]["effort"], "codex-5.6-sol")
         self.assertEqual(panel["rhoai_glm_primary_architect"]["role"], "primary-architect")
 
     def test_default_environment_keeps_codex_as_architect(self) -> None:
         result = classify_work(
-            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
             requested_roles=["architecture"],
             model_synthesis=True,
         )
 
         self.assertEqual(result["execution_environment"], "connected-codex")
         self.assertEqual(result["architecture_authority"], "codex-frontier-architect")
+        self.assertEqual(result["primary_architect_executor"], "frontier_architect")
+        self.assertEqual(result["selected_executor"]["model_label"], "codex-5.6-sol")
+        self.assertEqual(
+            result["execution_environment_profile"]["role_bindings"]["architect"]["model"],
+            "codex-5.6-sol",
+        )
         self.assertNotEqual(result["recommended_executor"], "rhoai_glm_primary_architect")
 
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:

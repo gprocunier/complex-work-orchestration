@@ -189,6 +189,22 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertEqual(executor["requested_key"], "chatgpt_pro_5_5_extended_reasoning_browser")
         self.assertEqual(executor["dispatch_mode"], "browser_automation")
 
+        self.assertEqual(
+            resolve_executor_key("codex_5_6_sol_architect", registry),
+            "frontier_architect",
+        )
+        self.assertEqual(
+            resolve_executor_key("codex_5_6_sol_architecture_critic", registry),
+            "codex_architecture_critic",
+        )
+        self.assertEqual(
+            resolve_executor_key("codex_5_5_xhigh_architecture_critic", registry),
+            "codex_architecture_critic",
+        )
+        architect = executor_config("codex_5_6_sol_architect", registry)
+        self.assertEqual(architect["canonical_key"], "frontier_architect")
+        self.assertEqual(architect["model_label"], "codex-5.6-sol")
+
     def test_executor_alias_matching_accepts_alias_or_canonical_key(self) -> None:
         registry = load_policy("executor-registry")
 
@@ -220,6 +236,15 @@ class ProviderPolicyTests(unittest.TestCase):
             executor_default_synthesis_use("gemini_3_1_pro_preview_agy"),
             "salvage-only",
         )
+
+    def test_frontier_architect_is_codex_sol_primary_architect(self) -> None:
+        executor = load_policy("executor-registry")["executors"]["frontier_architect"]
+
+        self.assertEqual(executor["display_name"], "Codex 5.6 Sol main architect")
+        self.assertEqual(executor["model_label"], "codex-5.6-sol")
+        self.assertEqual(executor["model_role"], "primary-architect")
+        self.assertEqual(executor["provider_key"], "internal_codex")
+        self.assertEqual(executor["dispatch_mode"], "main_thread")
 
     def test_glm_bf16_architecture_critic_is_registered_as_local_reviewer(self) -> None:
         executors = load_policy("executor-registry")["executors"]
@@ -263,7 +288,7 @@ class ProviderPolicyTests(unittest.TestCase):
             {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 4096},
         )
 
-    def test_codex_xhigh_counter_review_is_internal_read_only_review_lane(self) -> None:
+    def test_codex_sol_counter_review_is_internal_read_only_review_lane(self) -> None:
         executors = load_policy("executor-registry")["executors"]
         executor = executors["codex_architecture_critic"]
 
@@ -271,6 +296,9 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertEqual(executor["provider_key"], "internal_codex")
         self.assertEqual(executor["dispatch_mode"], "main_thread_review")
         self.assertEqual(executor["role"], "architecture-critic")
+        self.assertEqual(executor["display_name"], "Codex 5.6 Sol architecture critic")
+        self.assertEqual(executor["model_label"], "codex-5.6-sol")
+        self.assertEqual(executor["model_role"], "architecture-counter-review")
         self.assertEqual(executor["codex_pickup"], "forbidden")
         self.assertEqual(executor["critique_mode"], "architect-design-second-opinion")
         self.assertTrue(executor["supports_repo_read"])

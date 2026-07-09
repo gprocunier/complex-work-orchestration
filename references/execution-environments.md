@@ -92,7 +92,7 @@ conventions; the backing Hugging Face model IDs remain recorded in
 
 | CWO role | Connected default | Practical airgapped profile | Enterprise evaluation targets | Confidence |
 | --- | --- | --- | --- | --- |
-| Architect | Codex 5.5 x-high architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | High after benchmark |
+| Architect | Codex 5.6 Sol architect | `rhoai-architect-mistral-small-4-119b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | High after benchmark |
 | Project manager | Codex PM or smaller coordination model | `rhoai-project-manager-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-project-manager-qwen3-6-35b-a3b-nvfp4</code></li><li><code>rhoai-architect-glm-5-2-fp8</code> for summarization-heavy workloads</li></ul> | High |
 | Workerbee | Codex 5.3 Spark | `rhoai-worker-qwen2-5-coder-32b-fp8` | <ul><li><code>rhoai-worker-qwen2-5-coder-32b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code> for large reasoning packets</li></ul> | High |
 | Review worker | Codex 5.3 Spark review-only subagent | `rhoai-reviewer-nemotron-3-nano-30b-fp8` | <ul><li><code>rhoai-reviewer-llama-4-maverick-17b-128e-fp8</code></li><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li></ul> | Medium to high |
@@ -107,11 +107,15 @@ provenance, and architect adjudication.
 
 ### Connected GLM-Primary Bridge
 
+The default connected Codex environment binds `frontier_architect` to
+`codex-5.6-sol`. Keep `frontier_architect` as the stable role key in plans,
+Beads metadata, and policy references.
+
 `connected-codex-glm-primary` is the first-pass bridge for testing an
 airgap-ready hierarchy without leaving the Codex shell. The main Codex thread is
 the project manager and operator surface. GLM-5.2 BF16 Thinking is bound as the
 primary architect through `rhoai_glm_primary_architect`.
-Codex 5.5 x-high is represented by
+Codex 5.6 Sol is represented by
 `codex_architecture_critic` as the internal counter-review lane.
 
 Select it explicitly:

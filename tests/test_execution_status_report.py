@@ -30,7 +30,7 @@ def sample_audit_events() -> list[dict[str, object]]:
             "executor_external": False,
             "lane": "architect",
             "expert_profile": "architecture",
-            "model": "codex-5.5-x-high",
+            "model": "codex-5.6-sol",
             "calls": 1,
             "retry_count": 0,
             "input_tokens": 500,
@@ -124,7 +124,7 @@ class ExecutionStatusReportTests(unittest.TestCase):
                     "executor_external": False,
                     "lane": "architect",
                     "expert_profile": "architecture",
-                    "model": "codex-5.5-x-high",
+                    "model": "codex-5.6-sol",
                 },
                 {
                     "dispatch_id": "skip-1",

@@ -471,8 +471,13 @@ def build_harness_dispatch(
                 f"model profile {resolved_profile_key!r} uses provider {provider_key!r}, "
                 f"which is not allowed in environment {environment_key!r}"
             )
-    resolved_model = model or resolved_profile.get("model_alias") or resolved_profile.get("huggingface_model_id")
-    resolved_variant = variant or resolved_profile.get("default_variant")
+    resolved_model = (
+        model
+        or binding.get("model")
+        or resolved_profile.get("model_alias")
+        or resolved_profile.get("huggingface_model_id")
+    )
+    resolved_variant = variant or binding.get("variant") or resolved_profile.get("default_variant")
 
     prompt = build_harness_prompt(
         task=task,

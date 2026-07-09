@@ -191,7 +191,7 @@ def execution_environment_summary(environment_key: str, environment: dict[str, A
             summary = {
                 key: value
                 for key, value in binding.items()
-                if key in {"harness", "executor", "agent", "model_profile"}
+                if key in {"harness", "executor", "agent", "model", "variant", "model_profile"}
             }
             executor_key = binding.get("executor")
             executor = executors.get(executor_key) if executor_key else None
@@ -830,6 +830,8 @@ def score_executors(
                 "key": key,
                 "display_name": executor.get("display_name", key),
                 "role": executor.get("role"),
+                "model_label": executor.get("model_label"),
+                "model_role": executor.get("model_role"),
                 "venue": executor.get("venue"),
                 "dispatch_mode": executor.get("dispatch_mode"),
                 "external": bool(executor.get("external")),

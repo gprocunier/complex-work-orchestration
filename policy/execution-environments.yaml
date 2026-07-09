@@ -9,7 +9,7 @@
       "allowed_harnesses": ["codex_cli", "opencode", "manual_operator"],
       "allowed_providers": ["internal_codex", "openshift_ai_vllm", "local_inference", "anthropic_manual", "google_gemini_manual", "openai_manual"],
       "role_bindings": {
-        "architect": {"harness": "codex_cli", "executor": "frontier_architect"},
+        "architect": {"harness": "codex_cli", "executor": "frontier_architect", "model": "codex-5.6-sol", "variant": "sol"},
         "project_manager": {"harness": "codex_cli", "executor": "frontier_architect"},
         "worker": {"harness": "codex_cli", "executor": "internal_worker"},
         "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
@@ -24,7 +24,7 @@
         "execution_lifecycle_owner": "CWO",
         "concurrent_bead_execution": "disabled-by-default"
       },
-      "notes": "Current production-quality path. Codex owns architecture and integration while optional local or external lanes return evaluated evidence."
+      "notes": "Current production-quality path. Codex 5.6 Sol owns architecture and integration while optional local or external lanes return evaluated evidence."
     },
     "connected-codex-glm-primary": {
       "display_name": "Connected Codex PM plus GLM-5.2 Primary Architect",
@@ -51,7 +51,7 @@
         "execution_lifecycle_owner": "CWO",
         "concurrent_bead_execution": "disabled-by-default"
       },
-      "notes": "Experimental first-pass path for airgap preparation. Codex shell coordinates as PM; GLM-5.2 BF16 Thinking owns architecture decisions as no-write local evidence; Codex 5.5 x-high becomes an internal second-opinion lane."
+      "notes": "Experimental first-pass path for airgap preparation. Codex shell coordinates as PM; GLM-5.2 BF16 Thinking owns architecture decisions as no-write local evidence; Codex 5.6 Sol is the internal second-opinion lane and the connected default architect."
     },
     "connected-opencode-exemplar": {
       "display_name": "Connected OpenCode Exemplar",

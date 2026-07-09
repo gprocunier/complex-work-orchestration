@@ -45,6 +45,18 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertIn("input evaluator dispositions", synthesis["artifact_contract"])
         self.assertIn("partial or missing lane summary", synthesis["artifact_contract"])
 
+    def test_default_codex_synthesis_owner_uses_sol_label(self) -> None:
+        route = classify_work(
+            "Use model synthesis with Codex 5.6 Sol, Claude Opus, and Gemini.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        panel = {item["executor"]: item for item in route["model_synthesis"]["recommended_panel"]}
+
+        self.assertEqual(panel["frontier_architect"]["role"], "synthesis-owner")
+        self.assertEqual(panel["frontier_architect"]["effort"], "codex-5.6-sol")
+
     def test_accepted_synthesis_opt_in_is_active(self) -> None:
         text = "Refactor a high-risk architecture policy route."
         route = classify_work(text, requested_roles=["architecture"])

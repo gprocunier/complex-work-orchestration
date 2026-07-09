@@ -57,7 +57,7 @@ profile but reads the GLM route and model from
 The same endpoint can be selected as an experimental primary architect through
 `rhoai_glm_primary_architect` by choosing the
 `connected-codex-glm-primary` execution environment. That path keeps the Codex
-shell as project manager, moves Codex 5.5 x-high to an internal counter-review
+shell as project manager, moves Codex 5.6 Sol to an internal counter-review
 lane, and still treats GLM as local read-only evidence until evaluator,
 synthesis, and adjudication gates accept the work.
 

@@ -427,7 +427,7 @@ class PromptCoachTests(unittest.TestCase):
 
     def test_glm_primary_environment_is_visible_in_coach_output(self) -> None:
         result = coach_orchestration_prompt(
-            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.5 x-high synthesis.",
+            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
             requested_roles=["architecture"],
             execution_environment="connected-codex-glm-primary",
             model_synthesis=True,

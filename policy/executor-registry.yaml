@@ -2,6 +2,9 @@
   "version": 2,
   "schema": "json-compatible-yaml",
   "aliases": {
+    "codex_5_6_sol_architect": "frontier_architect",
+    "codex_5_6_sol_main_architect": "frontier_architect",
+    "codex_5_6_sol_architecture_critic": "codex_architecture_critic",
     "codex_5_5_xhigh_architecture_critic": "codex_architecture_critic",
     "chatgpt_pro_5_5_extended_reasoning_browser": "chatgpt_pro_browser_master_reviewer",
     "claude_opus_4_6_architecture_critic": "claude_architecture_critic",
@@ -12,8 +15,10 @@
   },
   "executors": {
     "frontier_architect": {
-      "display_name": "Main Codex architect",
+      "display_name": "Codex 5.6 Sol main architect",
       "role": "architect",
+      "model_label": "codex-5.6-sol",
+      "model_role": "primary-architect",
       "provider_key": "internal_codex",
       "venue": "codex-main-thread",
       "dispatch_mode": "main_thread",
@@ -60,8 +65,10 @@
       "codex_pickup": "allowed"
     },
     "codex_architecture_critic": {
-      "display_name": "Codex 5.5 x-high architecture critic",
+      "display_name": "Codex 5.6 Sol architecture critic",
       "role": "architecture-critic",
+      "model_label": "codex-5.6-sol",
+      "model_role": "architecture-counter-review",
       "provider_key": "internal_codex",
       "venue": "codex-review-lane",
       "dispatch_mode": "main_thread_review",
