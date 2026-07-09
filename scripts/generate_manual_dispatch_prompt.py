@@ -162,6 +162,7 @@ Assigned bead: {packet['bead_id']}
 Job-description label: {packet['job_description_label']}
 Share boundary: {packet['share_boundary']}
 Disclosure stage: {packet.get('disclosure_stage')}
+Expected return language: {packet.get('expected_return_language', 'policy-default')}
 Packet SHA-256: {packet.get('packet_sha256', 'not-recorded')}
 {command_line}
 

@@ -22,7 +22,7 @@ from cwo_core.util import (
     make_dispatch_id,
 )
 from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
-from cwo_core.packets import find_residual_private_context, require_valid_contractor_packet
+from cwo_core.packets import contractor_packet_language_metadata, find_residual_private_context, require_valid_contractor_packet
 from cwo_core.policy import load_policy
 from cwo_core.telemetry import safe_text_hash, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
@@ -212,6 +212,7 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
         require_valid_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
+        expected_language, expected_language_source = contractor_packet_language_metadata(packet)
         if packet.get("executor") != EXECUTOR_KEY:
             raise SystemExit(f"packet executor must be {EXECUTOR_KEY}")
         if not args.allow_unlinked_packet:
@@ -233,6 +234,8 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
             "job_description_label": packet.get("job_description_label"),
             "expert_profile": profile.get("path"),
             "share_boundary": packet.get("share_boundary"),
+            "expected_return_language": expected_language,
+            "expected_return_language_source": expected_language_source,
         }
     if not args.allow_degraded_packet:
         raise SystemExit("ChatGPT prompt-file dispatch bypasses packet validation; use --packet or pass --allow-degraded-packet for an operator-only degraded dispatch")
@@ -942,6 +945,8 @@ def build_result(
         "reasoning_label": config.get("reasoning_label"),
         "share_boundary": metadata.get("share_boundary"),
         "packet_sha256": metadata.get("packet_sha256"),
+        "expected_return_language": metadata.get("expected_return_language"),
+        "expected_return_language_source": metadata.get("expected_return_language_source"),
         "prompt_sha256": artifact_hash(prompt),
         "prompt_chars": len(prompt),
         "config": config_summary(config, config_path),
@@ -1104,6 +1109,8 @@ def main() -> None:
                     failure_reason_chars=len(str(result.get("failure_reason") or "")) if result.get("failure_reason") else None,
                     model_attestation_status=attestation.get("status"),
                     model_attestation_required=attestation.get("required"),
+                    expected_return_language=result.get("expected_return_language"),
+                    expected_return_language_source=result.get("expected_return_language_source"),
                 ),
             }
         )

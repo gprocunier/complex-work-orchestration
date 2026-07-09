@@ -3,9 +3,15 @@
   "title": "Contractor Return Bundle",
   "type": "object",
   "required": ["bundle_type", "version", "sections", "boundary_taint_status", "boundary_taint_findings", "required_sections_missing", "evidence_items", "sabotage_score", "sabotage_signals", "malpractice_score", "malpractice_signals", "quarantine_recommended", "bundle_sha256"],
+  "allOf": [
+    {
+      "if": {"properties": {"version": {"minimum": 2}}, "required": ["version"]},
+      "then": {"required": ["expected_return_language", "expected_return_language_source", "return_language_status", "return_language_findings", "detected_letter_scripts", "unexpected_script_ratio", "unicode_normalization_changed"]}
+    }
+  ],
   "properties": {
     "bundle_type": {"const": "contractor-return-bundle"},
-    "version": {"type": "integer"},
+    "version": {"type": "integer", "minimum": 1},
     "bead_id": {"type": ["string", "null"]},
     "dispatch_id": {"type": ["string", "null"]},
     "executor": {"type": ["string", "null"]},
@@ -22,6 +28,13 @@
     "share_boundary": {"type": ["string", "null"]},
     "job_description_label": {"type": ["string", "null"]},
     "packet_sha256": {"type": ["string", "null"]},
+    "expected_return_language": {"type": ["string", "null"]},
+    "expected_return_language_source": {"type": "string"},
+    "return_language_status": {"enum": ["not-enforced", "clear", "review", "quarantine"]},
+    "return_language_findings": {"type": "array", "items": {"type": "object"}},
+    "detected_letter_scripts": {"type": "array", "items": {"type": "string"}},
+    "unexpected_script_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+    "unicode_normalization_changed": {"type": "boolean"},
     "workspace_mutation": {"type": ["object", "null"]},
     "sections": {"type": "object"},
     "boundary_taint_status": {"enum": ["clear", "boundary-tainted", "not-applicable"]},

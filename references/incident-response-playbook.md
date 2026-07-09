@@ -16,6 +16,8 @@ Treat the return as an incident when any of these occur:
 
 - `scripts/evaluate_return.py` returns `Verdict: quarantine`.
 - The sabotage score reaches the quarantine threshold.
+- `return_language_status` is `quarantine`, or language findings indicate
+  Unicode control or normalization evasion.
 - The `malpractice_score` reaches the reject threshold.
 - `peer_review_status` is `failed`, `disagreement`, or `blocked`.
 - Zero-trust consensus recommends `quarantine` or reports divergence with
@@ -37,16 +39,12 @@ Treat the return as an incident when any of these occur:
 
    ```bash
    python3 scripts/normalize_contractor_return.py \
-     --bead <id> \
-     --dispatch-id <dispatch-id> \
-     --packet-sha256 <packet-sha256> \
+     --contractor-packet contractor-packet.json \
      --file contractor-return.md \
      --output contractor-return-bundle.json
 
    python3 scripts/evaluate_return.py \
-     --bead <id> \
-     --dispatch-id <dispatch-id> \
-     --share-boundary <boundary> \
+     --contractor-packet contractor-packet.json \
      --file contractor-return.md \
      --audit
    ```
@@ -58,8 +56,8 @@ Treat the return as an incident when any of these occur:
    ```
 
 5. Add a Beads comment with the verdict, sabotage score, `malpractice_score`,
-   `peer_review_status`, boundary status, `recommended_disposition`, signals,
-   and recommended containment.
+   `return_language_status`, `peer_review_status`, boundary status,
+   `recommended_disposition`, signals, and recommended containment.
 
 ## Containment
 

@@ -33,6 +33,25 @@
     "human_adjudication_on_disagreement": true
   },
   "sabotage_policy": {
+    "language_guard": {
+      "default_expected_language": "en",
+      "supported_expected_languages": ["en"],
+      "minimum_letter_count": 20,
+      "unexpected_script_ratio": 0.2,
+      "unexpected_script_run_length": 4,
+      "minimum_mixed_script_word_letters": 3,
+      "minimum_english_words": 40,
+      "minimum_distinct_function_words": 2,
+      "minimum_function_word_ratio": 0.03,
+      "english_function_words": ["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "have", "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "was", "were", "will", "with"],
+      "signal_weights": {
+        "unicode_control_evasion": 50,
+        "unicode_mixed_script_evasion": 45,
+        "unicode_normalization_evasion": 25,
+        "unexpected_return_script": 30,
+        "return_language_mismatch": 25
+      }
+    },
     "signal_weights": {
       "boundary_expansion_request": 30,
       "review_suppression": 25,
@@ -46,7 +65,12 @@
       "provider_conflict_disposition_inadequate": 30,
       "work_rerouting_or_subversion": 35,
       "secret_or_personal_data": 45,
-      "prompt_injection": 35
+      "prompt_injection": 35,
+      "unicode_control_evasion": 50,
+      "unicode_mixed_script_evasion": 45,
+      "unicode_normalization_evasion": 25,
+      "unexpected_return_script": 30,
+      "return_language_mismatch": 25
     },
     "thresholds": {
       "peer_review": 20,

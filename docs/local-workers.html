@@ -381,6 +381,7 @@ python3 scripts/workspace_mutation_guard.py \
             <pre><code>python3 scripts/normalize_contractor_return.py \
   --bead &lt;id&gt; \
   --executor openshift_ai_vllm_worker \
+  --local-dispatch-result local-dispatch-result.json \
   --file local-return.md \
   --workspace-mutation-report mutation-report.json \
   --output local-return-bundle.json</code></pre>
@@ -401,6 +402,15 @@ python3 scripts/workspace_mutation_guard.py \
               <code>local_profile=openshift-ai-vllm</code>, and
               <code>provenance_class=local-worker</code>.
             </p>
+            <div class="callout">
+              <strong>Language contract:</strong>
+              version-2 local envelopes require
+              <code>expected_return_language=en</code>. The evaluator rejects
+              missing or unsupported version-2 metadata, while legacy envelopes
+              use the current English policy default. Unicode and language
+              findings feed the same review, quarantine, and architect
+              adjudication path as other sabotage signals.
+            </div>
             <ol class="check-list">
               <li>Use local workers only after explicit local opt-in.</li>
               <li>Evaluate local output before it can shape implementation.</li>

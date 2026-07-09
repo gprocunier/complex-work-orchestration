@@ -154,7 +154,7 @@ contract-jd-security-reasoning</code></pre>
                 <strong>Security review packet:</strong>
               </p>
               <pre><code>python3 scripts/build_contractor_packet.py \
-  --bead &lt;id&gt; \
+  --contractor-packet contractor-packet.json \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
   --external-ok \
@@ -205,7 +205,7 @@ claude --model claude-opus-4-6 --effort high \
                 opt-in.
               </p>
               <pre><code>python3 scripts/build_contractor_packet.py \
-  --bead &lt;id&gt; \
+  --contractor-packet contractor-packet.json \
   --executor gemini_manual_reviewer \
   --share-boundary patch-branch \
   --allow-disclosure-escalation \
@@ -449,6 +449,15 @@ python3 scripts/evaluate_return.py \
   --bead &lt;id&gt; \
   --file contractor-return.md \
   --workspace-mutation-report mutation-report.json</code></pre>
+            <div class="callout">
+              <strong>Expected return language:</strong>
+              new packets bind an English return contract into the packet hash.
+              Evaluation checks Unicode controls, mixed-script words,
+              normalization-only sabotage patterns, unexpected scripts, and
+              low English likelihood. Uncertain prose is routed to review;
+              high-confidence or combined evasion signals can quarantine the
+              return. Legacy packets keep the policy default.
+            </div>
             <div class="callout">
               <strong>Quarantine rule:</strong>
               High sabotage or malpractice scores isolate the return. No

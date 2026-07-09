@@ -26,6 +26,16 @@ class ReturnSignal(TypedDict):
     weight: int
 
 
+class ReturnLanguageResult(TypedDict, total=False):
+    expected_return_language: str | None
+    expected_return_language_source: str
+    return_language_status: str
+    return_language_findings: list[ReturnSignal]
+    detected_letter_scripts: list[str]
+    unexpected_script_ratio: float
+    unicode_normalization_changed: bool
+
+
 class SabotageSignalResult(TypedDict, total=False):
     sabotage_score: int
     sabotage_signals: list[ReturnSignal]
@@ -33,6 +43,13 @@ class SabotageSignalResult(TypedDict, total=False):
     sabotage_review_recommended: bool
     sabotage_architect_escalation_recommended: bool
     quarantine_recommended: bool
+    expected_return_language: str | None
+    expected_return_language_source: str
+    return_language_status: str
+    return_language_findings: list[ReturnSignal]
+    detected_letter_scripts: list[str]
+    unexpected_script_ratio: float
+    unicode_normalization_changed: bool
 
 
 class MalpracticeSignalResult(TypedDict, total=False):
@@ -284,6 +301,13 @@ class ContractorReturnBundle(TypedDict, total=False):
     share_boundary: str | None
     job_description_label: str | None
     packet_sha256: str | None
+    expected_return_language: str | None
+    expected_return_language_source: str
+    return_language_status: str
+    return_language_findings: list[ReturnSignal]
+    detected_letter_scripts: list[str]
+    unexpected_script_ratio: float
+    unicode_normalization_changed: bool
     sections: dict[str, str]
     executor: str | None
     provider_key: str | None
@@ -318,6 +342,14 @@ class AcceptanceDecision(TypedDict, total=False):
     dispatch_id: str | None
     bead_id: str | None
     share_boundary: str | None
+    packet_sha256: str | None
+    expected_return_language: str | None
+    expected_return_language_source: str
+    return_language_status: str
+    return_language_findings: list[ReturnSignal]
+    detected_letter_scripts: list[str]
+    unexpected_script_ratio: float
+    unicode_normalization_changed: bool
     executor: str | None
     provider_key: str | None
     provider_trust_tier: str | None

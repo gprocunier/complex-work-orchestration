@@ -39,6 +39,7 @@ from .return_evidence import (
     score_research_evidence,
     structured_json_values,
 )
+from .return_language import default_expected_return_language, validate_expected_return_language
 from .return_sections import (
     RETURN_CONTROL_SECTIONS,
     RETURN_SECTION_ALIASES,
@@ -168,6 +169,24 @@ __all__ = [
     "work_rerouting_or_subversion_reasons",
     "workspace_unexpected_mutations",
 ]
+
+
+def resolve_return_language_context(
+    expected_return_language: str | None,
+    expected_return_language_source: str | None,
+    *,
+    provenance: ReturnProvenance,
+    share_boundary: str | None,
+) -> tuple[str | None, str]:
+    explicit = validate_expected_return_language(expected_return_language)
+    if explicit is not None:
+        return explicit, expected_return_language_source or "explicit"
+    evidence_lane = provenance.get("provenance_class") in {"external-contractor", "local-worker"}
+    if share_boundary in {"redacted-packet", "repo-readonly", "patch-branch"}:
+        evidence_lane = True
+    if evidence_lane:
+        return default_expected_return_language(), expected_return_language_source or "policy-default"
+    return None, expected_return_language_source or "not-enforced"
 
 
 def evidence_quality_thresholds() -> dict[str, int]:
@@ -320,6 +339,8 @@ def normalize_contractor_return(
     dispatch_mode: str | None = None,
     local_profile: str | None = None,
     model_profile: str | None = None,
+    expected_return_language: str | None = None,
+    expected_return_language_source: str | None = None,
     workspace_mutation: dict[str, Any] | None = None,
 ) -> ContractorReturnBundle:
     sections = parse_return_sections(text)
@@ -328,7 +349,27 @@ def normalize_contractor_return(
     missing = [section for section in required if not sections.get(section)]
     research_evidence = score_research_evidence(sections, reader=reader)
     evidence_quality = score_evidence_quality(sections, research_quality=research_evidence, reader=reader)
-    sabotage = score_sabotage_signals(text, sections, reader=reader)
+    provenance = return_provenance(
+        executor=executor,
+        provider_key=provider_key,
+        provider_trust_tier=provider_trust_tier,
+        dispatch_mode=dispatch_mode,
+        local_profile=local_profile,
+        model_profile=model_profile,
+    )
+    resolved_language, language_source = resolve_return_language_context(
+        expected_return_language,
+        expected_return_language_source,
+        provenance=provenance,
+        share_boundary=share_boundary,
+    )
+    sabotage = score_sabotage_signals(
+        text,
+        sections,
+        reader=reader,
+        expected_return_language=resolved_language,
+        expected_return_language_source=language_source,
+    )
     malpractice = score_malpractice_signals(
         text,
         sections,
@@ -342,17 +383,9 @@ def normalize_contractor_return(
         share_boundary=share_boundary,
     )
     boundary_taint_findings = redacted_boundary_taint_findings(text, sections, share_boundary=share_boundary)
-    provenance = return_provenance(
-        executor=executor,
-        provider_key=provider_key,
-        provider_trust_tier=provider_trust_tier,
-        dispatch_mode=dispatch_mode,
-        local_profile=local_profile,
-        model_profile=model_profile,
-    )
     bundle: dict[str, Any] = {
         "bundle_type": "contractor-return-bundle",
-        "version": 1,
+        "version": 2,
         "bead_id": bead_id,
         "dispatch_id": dispatch_id,
         "share_boundary": share_boundary,
@@ -385,6 +418,7 @@ def make_acceptance_decision(
     *,
     bead_id: str | None = None,
     dispatch_id: str | None = None,
+    packet_sha256: str | None = None,
     share_boundary: str | None = None,
     job_description_label: str | None = None,
     executor: str | None = None,
@@ -393,6 +427,8 @@ def make_acceptance_decision(
     dispatch_mode: str | None = None,
     local_profile: str | None = None,
     model_profile: str | None = None,
+    expected_return_language: str | None = None,
+    expected_return_language_source: str | None = None,
     peer_review_required: bool = False,
     peer_review_status: str = "not-run",
     provider_conflict_domains: list[str] | None = None,
@@ -414,6 +450,12 @@ def make_acceptance_decision(
         dispatch_mode=dispatch_mode,
         local_profile=local_profile,
         model_profile=model_profile,
+    )
+    resolved_language, language_source = resolve_return_language_context(
+        expected_return_language,
+        expected_return_language_source,
+        provenance=provenance,
+        share_boundary=share_boundary,
     )
     sections = parse_return_sections(text)
     reader = SectionReader(sections)
@@ -544,6 +586,8 @@ def make_acceptance_decision(
         review_threshold=sabotage_review_threshold,
         quarantine_threshold=sabotage_quarantine_threshold,
         reader=reader,
+        expected_return_language=resolved_language,
+        expected_return_language_source=language_source,
     )
     malpractice = score_malpractice_signals(
         text,
@@ -665,6 +709,7 @@ def make_acceptance_decision(
     return {
         "dispatch_id": dispatch_id,
         "bead_id": bead_id,
+        "packet_sha256": packet_sha256,
         "share_boundary": share_boundary,
         **provenance,
         "verdict": verdict,
@@ -677,6 +722,13 @@ def make_acceptance_decision(
         "sabotage_signal_categories": sabotage["sabotage_signal_categories"],
         "sabotage_review_recommended": sabotage["sabotage_review_recommended"],
         "sabotage_architect_escalation_recommended": sabotage["sabotage_architect_escalation_recommended"],
+        "expected_return_language": sabotage["expected_return_language"],
+        "expected_return_language_source": sabotage["expected_return_language_source"],
+        "return_language_status": sabotage["return_language_status"],
+        "return_language_findings": sabotage["return_language_findings"],
+        "detected_letter_scripts": sabotage["detected_letter_scripts"],
+        "unexpected_script_ratio": sabotage["unexpected_script_ratio"],
+        "unicode_normalization_changed": sabotage["unicode_normalization_changed"],
         "evidence_quality_score": evidence_quality["evidence_quality_score"],
         "evidence_quality_signals": evidence_quality["evidence_quality_signals"],
         "evidence_quality_signal_categories": evidence_quality["evidence_quality_signal_categories"],

@@ -8,7 +8,13 @@ from typing import Any
 
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
+from cwo_core.errors import CWOPolicyError
 from cwo_core.policy import resolve_executor_key
+from cwo_core.packets import (
+    contractor_packet_evaluation_metadata,
+    local_dispatch_language_metadata,
+    require_valid_contractor_packet,
+)
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 
@@ -22,6 +28,10 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Architect review required: {result['architect_review_required']}")
     print(f"Escalation flagged: {result['escalation_flagged']}")
     print(f"Sabotage score: {result.get('sabotage_score', 0)}")
+    print(f"Expected return language: {result.get('expected_return_language') or 'not enforced'}")
+    print(f"Return language status: {result.get('return_language_status', 'not-enforced')}")
+    print(f"Detected letter scripts: {', '.join(str(item) for item in (result.get('detected_letter_scripts') or [])) or 'none'}")
+    print(f"Unexpected script ratio: {result.get('unexpected_script_ratio', 0)}")
     print(f"Evidence quality score: {result.get('evidence_quality_score', 0)}")
     print(f"Malpractice score: {result.get('malpractice_score', 0)}")
     print(f"Peer review required: {result.get('peer_review_required', False)}")
@@ -116,6 +126,15 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
     primary_expert_label = _as_str(_as_dict(primary_expert).get("job_description_label"))
     local_envelope = _as_dict(artifact.get("local_envelope"))
     local_response = _as_dict(artifact.get("local_response"))
+    expected_return_language: str | None = None
+    expected_return_language_source: str | None = None
+    if local_envelope:
+        try:
+            expected_return_language, expected_return_language_source = local_dispatch_language_metadata(
+                local_envelope
+            )
+        except CWOPolicyError as exc:
+            raise SystemExit(f"Invalid local dispatch language metadata: {exc}") from exc
     raw_finish_reasons = local_response.get("finish_reasons")
     if isinstance(raw_finish_reasons, list):
         finish_reasons = [str(item) for item in raw_finish_reasons if isinstance(item, (str, int, float, bool))]
@@ -169,6 +188,8 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
             _as_str(selected_executor.get("model_profile"))
             or _as_str(local_envelope.get("model_profile"))
         ),
+        "expected_return_language": expected_return_language,
+        "expected_return_language_source": expected_return_language_source,
         "local_response_truncated": (
             bool(local_response.get("response_truncated"))
             if isinstance(local_response.get("response_truncated"), bool)
@@ -188,6 +209,8 @@ def main() -> None:
     parser.add_argument("--file", required=True, help="Contractor return text file.")
     parser.add_argument("--bead", help="Assigned Beads ID.")
     parser.add_argument("--dispatch-id", help="Dispatch ID to link audit records.")
+    parser.add_argument("--packet-sha256", help="Packet hash linked to the contractor return.")
+    parser.add_argument("--contractor-packet", help="Validated contractor packet JSON supplying authenticated return metadata.")
     parser.add_argument("--share-boundary", help="Share boundary used for the dispatch.")
     parser.add_argument("--job-description", help="Expected job-description label.")
     parser.add_argument("--executor", help="Executor key that produced the return.")
@@ -196,6 +219,7 @@ def main() -> None:
     parser.add_argument("--dispatch-mode", help="Dispatch mode from the route, packet, or local envelope.")
     parser.add_argument("--local-profile", help="Local executor profile, for example openshift-ai-vllm.")
     parser.add_argument("--model-profile", help="Model profile key from the dispatch envelope or execution harness.")
+    parser.add_argument("--expected-return-language", help="Expected return language when dispatch metadata does not supply it.")
     parser.add_argument(
         "--peer-review-required",
         action="store_true",
@@ -238,20 +262,38 @@ def main() -> None:
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
     require_waiver_reason(args, ["audit"])
+    if args.contractor_packet and args.local_dispatch_result:
+        raise SystemExit("--contractor-packet and --local-dispatch-result are mutually exclusive")
     local_dispatch_metadata = (
         _load_local_dispatch_metadata(Path(args.local_dispatch_result))
         if args.local_dispatch_result
         else {}
     )
+    contractor_packet_metadata: dict[str, Any] = {}
+    if args.contractor_packet:
+        packet = json.loads(Path(args.contractor_packet).read_text(encoding="utf-8"))
+        require_valid_contractor_packet(packet)
+        contractor_packet_metadata = contractor_packet_evaluation_metadata(packet)
+    dispatch_metadata = contractor_packet_metadata or local_dispatch_metadata
 
     def _cli_or_metadata(name: str) -> str | None:
         explicit = getattr(args, name, None)
+        metadata_value = dispatch_metadata.get(name)
+        if (
+            contractor_packet_metadata
+            and explicit is not None
+            and explicit != ""
+            and isinstance(metadata_value, str)
+            and metadata_value
+            and explicit != metadata_value
+        ):
+            raise SystemExit(f"--{name.replace('_', '-')} conflicts with authenticated contractor packet metadata")
         if explicit is not None and explicit != "":
             return explicit
-        metadata_value = local_dispatch_metadata.get(name)
         return metadata_value if isinstance(metadata_value, str) else None
 
     dispatch_id = _cli_or_metadata("dispatch_id")
+    packet_sha256 = _cli_or_metadata("packet_sha256")
     bead_id = _cli_or_metadata("bead")
     share_boundary = _cli_or_metadata("share_boundary")
     job_description_label = _cli_or_metadata("job_description")
@@ -261,6 +303,8 @@ def main() -> None:
     dispatch_mode = _cli_or_metadata("dispatch_mode")
     local_profile = _cli_or_metadata("local_profile")
     model_profile = _cli_or_metadata("model_profile")
+    expected_return_language = _cli_or_metadata("expected_return_language")
+    expected_return_language_source = _cli_or_metadata("expected_return_language_source")
     if executor:
         executor = resolve_executor_key(executor)
 
@@ -277,6 +321,7 @@ def main() -> None:
         Path(args.file).read_text(encoding="utf-8"),
         bead_id=bead_id,
         dispatch_id=dispatch_id,
+        packet_sha256=packet_sha256,
         share_boundary=share_boundary,
         job_description_label=job_description_label,
         executor=executor,
@@ -285,6 +330,8 @@ def main() -> None:
         dispatch_mode=dispatch_mode,
         local_profile=local_profile,
         model_profile=model_profile,
+        expected_return_language=expected_return_language,
+        expected_return_language_source=expected_return_language_source,
         peer_review_required=args.peer_review_required,
         peer_review_status=args.peer_review_status,
         provider_conflict_domains=args.provider_conflict_domain,
@@ -305,6 +352,7 @@ def main() -> None:
                 "event_type": "return_evaluated",
                 "dispatch_id": dispatch_id,
                 "bead_id": bead_id,
+                "packet_sha256": packet_sha256,
                 "share_boundary": share_boundary,
                 "executor_key": result.get("executor"),
                 "executor": result.get("executor"),
@@ -347,6 +395,13 @@ def main() -> None:
                     master_review_packet_only_go_hold=result.get("master_review_packet_only_go_hold"),
                     provider_family=result.get("provider_family"),
                     provider_retention_class=result.get("provider_retention_class"),
+                    expected_return_language=result.get("expected_return_language"),
+                    expected_return_language_source=result.get("expected_return_language_source"),
+                    return_language_status=result.get("return_language_status"),
+                    return_language_finding_count=len(result.get("return_language_findings") or []),
+                    detected_letter_scripts=result.get("detected_letter_scripts"),
+                    unexpected_script_ratio=result.get("unexpected_script_ratio"),
+                    unicode_normalization_changed=result.get("unicode_normalization_changed"),
                 ),
             },
             audit_path,

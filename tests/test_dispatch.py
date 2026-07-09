@@ -172,6 +172,8 @@ class DispatchTests(unittest.TestCase):
         )
         require_valid_contractor_packet(packet)
         self.assertEqual(packet["review_surface_contract"]["review_surface"], "packet-only")
+        self.assertEqual(packet["packet_version"], 2)
+        self.assertEqual(packet["expected_return_language"], "en")
         self.assertIn("Review surface", packet["required_return_sections"])
 
     def test_gemini_agy_architecture_critic_packet_is_provider_bound(self) -> None:

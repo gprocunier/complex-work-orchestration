@@ -32,12 +32,13 @@ from cwo_core.access_profiles import (
     sanitized_access_profile,
 )
 from cwo_core.policy import executor_config
+from cwo_core.return_language import default_expected_return_language
 from cwo_core.util import (
     artifact_hash,
     make_dispatch_id,
     read_text_arg,
 )
-from cwo_core.packets import redact_text, require_valid_contractor_packet
+from cwo_core.packets import contractor_packet_language_metadata, redact_text, require_valid_contractor_packet
 
 
 LOCAL_ENDPOINT_NETWORKS = tuple(
@@ -477,7 +478,7 @@ def build_local_envelope(
     ]
     return {
         "envelope_type": "local-openai-compatible-dispatch",
-        "version": 1,
+        "version": 2,
         "dispatch_id": dispatch_id,
         "bead_id": bead_id,
         "epic_id": epic_id,
@@ -489,6 +490,8 @@ def build_local_envelope(
         "access_profile_readiness": access_profile_runtime_status(access_profile_key),
         "local_profile": selected.get("local_profile"),
         "model_profile": selected.get("model_profile"),
+        "expected_return_language": default_expected_return_language(),
+        "expected_return_language_source": "local-envelope-v2",
         "transport_kind": transport.get("kind"),
         "base_url_env": transport.get("base_url_env"),
         "base_url_configured": bool(transport.get("base_url")),
@@ -743,6 +746,7 @@ def main() -> None:
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
         require_valid_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
+        expected_language, expected_language_source = contractor_packet_language_metadata(packet)
         if not args.allow_unlinked_packet:
             require_packet_build_audit(
                 dispatch_id=str(packet.get("dispatch_id") or ""),
@@ -767,6 +771,9 @@ def main() -> None:
             "share_boundary": packet.get("share_boundary"),
             "disclosure_stage": packet.get("disclosure_stage"),
             "packet_sha256": packet.get("packet_sha256"),
+            "packet_version": packet.get("packet_version"),
+            "expected_return_language": expected_language,
+            "expected_return_language_source": expected_language_source,
             "manual_prompt": render_packet_prompt(packet),
             **quota_info,
         }
@@ -805,6 +812,8 @@ def main() -> None:
                         job_description_label=packet.get("job_description_label"),
                         expert_profile=profile.get("path"),
                         expert_profile_path=profile.get("path"),
+                        expected_return_language=expected_language,
+                        expected_return_language_source=expected_language_source,
                     ),
                 }
             )
@@ -902,6 +911,8 @@ def main() -> None:
             tls_ca_bundle_configured=(local_envelope or {}).get("tls_ca_bundle_configured"),
             thinking_parser=(local_envelope or {}).get("thinking_parser"),
             response_sanitization=(local_envelope or {}).get("response_sanitization"),
+            expected_return_language=(local_envelope or {}).get("expected_return_language"),
+            expected_return_language_source=(local_envelope or {}).get("expected_return_language_source"),
         )
         base_telemetry.update(local_response_telemetry(local_response))
         record_audit_event(

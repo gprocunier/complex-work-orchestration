@@ -54,6 +54,7 @@
           <a href="#gate">Guardrail Gate</a>
           <a href="#handlers">Handlers</a>
           <a href="#signals">Signal Types</a>
+          <a href="#return-language">Return Language</a>
           <a href="#work-rerouting">Work Rerouting</a>
           <a href="#provider-policy">Provider Policy</a>
           <a href="#evidence">Evidence Example</a>
@@ -246,6 +247,44 @@
               promise that every unsafe or incorrect return will be caught
               automatically.
             </div>
+          </section>
+
+          <section id="return-language">
+            <h2>Expected Return Language</h2>
+            <p>
+              Contractor packets and local-worker envelopes declare the
+              expected return language. The first supported contract is
+              English. A version-2 artifact without that declaration, or with
+              an unsupported language, is rejected before its return can be
+              accepted as evidence. Legacy artifacts use the current English
+              policy default.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Return language and Unicode guard signals">
+              <div role="row">
+                <span role="cell">Compatibility characters</span>
+                <span role="cell">CWO applies NFKC normalization before sabotage-pattern matching and records patterns exposed only by normalization.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Unicode controls</span>
+                <span role="cell">Bidirectional controls, and zero-width controls embedded between letters, are quarantine-grade signals.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Mixed scripts</span>
+                <span role="cell">Words with at least three letters from multiple scripts require architect escalation.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Uncertain language</span>
+                <span role="cell">Unexpected-script and low-English-likelihood prose requires review; combined signals can reach quarantine.</span>
+              </div>
+            </div>
+            <p>
+              Code fences are excluded from uncertain prose heuristics, but
+              high-confidence control and mixed-script checks still cover the
+              complete return. A leading byte-order mark, emoji joiners, short
+              names, and ordinary technical notation are not automatically
+              quarantined. The result is a review signal, not a claim about the
+              model's intent, and the architect remains the decision owner.
+            </p>
           </section>
 
           <section id="work-rerouting">

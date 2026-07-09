@@ -341,6 +341,23 @@ python3 scripts/normalize_contractor_return.py --file local-return.md --executor
 python3 scripts/evaluate_return.py --file local-return.md --executor openshift_ai_vllm_worker
 ```
 
+Prefer the complete dispatch result when it is available. Version-2 local
+envelopes carry `expected_return_language: en`; the evaluator rejects a
+version-2 envelope that omits or changes that contract. Version-1 envelopes
+remain compatible and use the current English policy default:
+
+```bash
+python3 scripts/evaluate_return.py \
+  --file local-return.md \
+  --local-dispatch-result local-dispatch-result.json
+```
+
+The evaluator applies NFKC sabotage matching, Unicode-control checks,
+mixed-script word detection, and prose-only language likelihood checks before a
+local return can influence implementation. Review and quarantine findings still
+require architect adjudication; they do not authorize automatic rejection or
+follow-up work by themselves.
+
 The minimal fallback is `python3 scripts/evaluate_return.py --file local-return.md`,
 but operator flows should prefer `--executor` or the equivalent
 `--provider-key`, `--provider-trust-tier`, `--dispatch-mode`, and

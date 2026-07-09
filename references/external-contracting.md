@@ -732,14 +732,50 @@ python3 scripts/build_contractor_packet.py \
 
    ```bash
    python3 scripts/normalize_contractor_return.py \
-     --bead <id> \
-     --dispatch-id <dispatch-id> \
-     --packet-sha256 <packet-sha256> \
+     --contractor-packet contractor-packet.json \
      --file contractor-return.md \
      --output contractor-return-bundle.json
 
-   python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
+   python3 scripts/evaluate_return.py \
+     --contractor-packet contractor-packet.json \
+     --file contractor-return.md
    ```
+
+   Passing the validated packet binds the Bead, dispatch, executor, provider,
+   share boundary, packet hash, and expected return language to evaluation.
+   Explicit CLI metadata that conflicts with the packet is rejected.
+
+### Expected Return Language Guard
+
+New contractor packets use `packet_version: 2` and carry
+`expected_return_language: en`. Version-2 packets without that field, and
+packets naming an unsupported language, fail validation. A packet without a
+version remains a legacy version-1 packet and receives the current English
+policy default during evaluation.
+
+The guard does not try to translate or decide whether a model intended harm.
+It prevents non-English and Unicode-obfuscated text from bypassing the normal
+sabotage gate:
+
+- NFKC normalization exposes compatibility-character variants to the existing
+  sabotage patterns. A pattern found only after normalization adds a separate
+  normalization-evasion signal.
+- Bidirectional controls are quarantine-grade signals anywhere in a return.
+  Zero-width controls are quarantine-grade only when embedded between Unicode
+  letters; a leading byte-order mark and emoji joiners do not trigger this
+  rule.
+- A lexical word containing at least three letters from two or more scripts is
+  an architect-escalation signal. This high-confidence check includes fenced
+  blocks.
+- Script-ratio, script-run, and English function-word checks examine prose with
+  fenced blocks removed. A single uncertain-language signal requires review;
+  combined signals can reach quarantine.
+
+The first implementation supports an English return contract. Unsupported
+expected languages fail closed instead of silently using English heuristics.
+Direct internal text without an external-contractor or local-worker provenance
+contract is not language-enforced. Every finding remains evidence for evaluator
+and architect adjudication, not an automatic claim about model intent.
 
    Research-style returns can add optional structured sections without changing
    the required return template. Use `Research evidence`, `Research

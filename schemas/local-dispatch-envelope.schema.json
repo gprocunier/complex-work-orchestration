@@ -13,6 +13,12 @@
     "constraints",
     "execution_enabled"
   ],
+  "allOf": [
+    {
+      "if": {"properties": {"version": {"minimum": 2}}, "required": ["version"]},
+      "then": {"required": ["expected_return_language", "expected_return_language_source"]}
+    }
+  ],
   "properties": {
     "envelope_type": {"const": "local-openai-compatible-dispatch"},
     "version": {"type": "integer"},
@@ -27,6 +33,8 @@
     "access_profile_readiness": {"type": ["object", "null"]},
     "local_profile": {"type": ["string", "null"]},
     "model_profile": {"type": ["string", "null"]},
+    "expected_return_language": {"enum": ["en"]},
+    "expected_return_language_source": {"type": "string"},
     "transport_kind": {"type": "string"},
     "base_url_env": {"type": "string"},
     "base_url_configured": {"type": "boolean"},

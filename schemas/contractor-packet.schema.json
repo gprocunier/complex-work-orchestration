@@ -3,8 +3,15 @@
   "title": "Contractor Packet",
   "type": "object",
   "required": ["dispatch_id", "generated_at", "bead_id", "executor", "provider_key", "provider_trust_tier", "share_boundary", "disclosure_stage", "disclosure_escalation_approved", "job_description_label", "expert_profile_included", "degraded_context_justification", "external_opt_in", "opt_in_basis", "boundary_description", "bead_summary", "selected_snippets", "included_artifacts", "excluded_artifacts", "required_return_sections", "acceptance_rule", "quota_checked", "packet_sha256"],
+  "allOf": [
+    {
+      "if": {"properties": {"packet_version": {"minimum": 2}}, "required": ["packet_version"]},
+      "then": {"required": ["expected_return_language"]}
+    }
+  ],
   "properties": {
     "dispatch_id": {"type": "string"},
+    "packet_version": {"type": "integer", "minimum": 1},
     "generated_at": {"type": "string"},
     "bead_id": {"type": "string"},
     "epic_id": {"type": ["string", "null"]},
@@ -17,6 +24,7 @@
     "disclosure_stage": {"enum": ["none", "redacted", "repo-readonly", "patch-branch"]},
     "disclosure_escalation_approved": {"type": "boolean"},
     "job_description_label": {"type": "string"},
+    "expected_return_language": {"enum": ["en"]},
     "expert_profile": {
       "oneOf": [
         {"type": "null"},

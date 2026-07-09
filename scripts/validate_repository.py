@@ -59,13 +59,14 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "types", "util"},
-    "packets": {"paths", "policy", "util"},
+    "packets": {"errors", "paths", "policy", "return_language", "util"},
     "return_common": {"policy"},
+    "return_language": {"errors", "policy", "return_common", "types"},
     "return_sections": {"errors", "policy"},
     "return_boundary": {"return_common", "return_sections"},
     "return_evidence": {"return_common", "return_sections", "types"},
-    "return_risk": {"policy", "return_common", "return_evidence", "return_sections", "types"},
-    "returns": {"policy", "return_boundary", "return_common", "return_evidence", "return_risk", "return_sections", "types", "util"},
+    "return_risk": {"policy", "return_common", "return_evidence", "return_language", "return_sections", "types"},
+    "returns": {"policy", "return_boundary", "return_common", "return_evidence", "return_language", "return_risk", "return_sections", "types", "util"},
     "workspace": {"paths", "util"},
     "workgraph_markdown": set(),
     "telemetry": {"util"},
@@ -475,6 +476,13 @@ def validate_repository() -> list[str]:
             "human_adjudication_required",
             "recommended_disposition",
             "recommended_synthesis_use",
+            "expected_return_language",
+            "expected_return_language_source",
+            "return_language_status",
+            "return_language_findings",
+            "detected_letter_scripts",
+            "unexpected_script_ratio",
+            "unicode_normalization_changed",
         ],
     )
     contractor_return_bundle_schema = load_json(REPO_ROOT / "schemas" / "contractor-return-bundle.schema.json")
@@ -499,6 +507,13 @@ def validate_repository() -> list[str]:
             "research_evidence_items",
             "research_contradictions",
             "research_reflection",
+            "expected_return_language",
+            "expected_return_language_source",
+            "return_language_status",
+            "return_language_findings",
+            "detected_letter_scripts",
+            "unexpected_script_ratio",
+            "unicode_normalization_changed",
         ],
     )
     local_envelope_schema = load_json(REPO_ROOT / "schemas" / "local-dispatch-envelope.schema.json")
@@ -892,6 +907,10 @@ def validate_repository() -> list[str]:
             "distributed training infrastructure",
             "ML accelerator design",
             "Handlers For Model Work",
+            "Expected Return Language",
+            "NFKC normalization",
+            "Mixed scripts",
+            "architect remains the decision owner",
             "./zero-trust-consensus.html",
             "./workflows.html#validate-handoff",
             "./model-synthesis.html",
@@ -1110,6 +1129,7 @@ def validate_repository() -> list[str]:
             "workspace_mutation_guard.py",
             "closure-memory comment",
             "Unexpected tracked-file",
+            "Expected return language",
         ],
     )
     require_doc_terms(
@@ -1499,6 +1519,8 @@ def validate_repository() -> list[str]:
             "zero_trust_claims",
             "Trust Model And Enforcement Boundary",
             "outside the audit guarantee",
+            "Expected Return Language Guard",
+            "expected_return_language: en",
         ],
     )
     require_doc_terms(
@@ -1606,6 +1628,7 @@ def validate_repository() -> list[str]:
             "--execute-local",
             "scripts/dispatch_work.py",
             "architect adjudication",
+            "expected_return_language: en",
         ],
     )
     validate_local_inference_peer_review_guidance(errors)

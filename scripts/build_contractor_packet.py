@@ -32,6 +32,7 @@ from cwo_core.audit import (
     record_audit_event,
 )
 from cwo_core.telemetry import telemetry_fields
+from cwo_core.return_language import default_expected_return_language, validate_expected_return_language
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 from cwo_core.packets import (
     fenced_block,
@@ -201,6 +202,8 @@ def build_packet(
     quota_info: dict[str, Any] | None = None,
     disclosure_escalation_approved: bool = False,
     requested_executor: str | None = None,
+    packet_version: int = 2,
+    expected_return_language: str | None = None,
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
     executor_info = load_policy("executor-registry").get("executors", {}).get(executor, {})
@@ -290,7 +293,11 @@ def build_packet(
     for section in review_surface_contract["required_disclosures"]:
         if section not in required_return_sections:
             required_return_sections.append(section)
+    resolved_expected_language = validate_expected_return_language(expected_return_language)
+    if resolved_expected_language is None:
+        resolved_expected_language = default_expected_return_language()
     packet: dict[str, Any] = {
+        "packet_version": int(packet_version),
         "dispatch_id": dispatch_id,
         "generated_at": now,
         "bead_id": bead_id,
@@ -306,6 +313,7 @@ def build_packet(
         "disclosure_stage": share_boundary_disclosure_stage(share_boundary),
         "disclosure_escalation_approved": bool(disclosure_escalation_approved),
         "job_description_label": job_description_label,
+        "expected_return_language": resolved_expected_language,
         "expert_profile": expert_profile or None,
         "expert_profile_included": bool(expert_profile),
         "degraded_context_justification": degraded_context_justification.strip(),
@@ -362,6 +370,7 @@ Share boundary: {packet['share_boundary']}
 Disclosure stage: {packet['disclosure_stage']}
 Disclosure escalation approved: {packet['disclosure_escalation_approved']}
 Packet SHA-256: {packet['packet_sha256']}
+Expected return language: {packet.get('expected_return_language', 'policy-default')}
 
 ## Boundary
 
@@ -410,6 +419,7 @@ def main() -> None:
         help="Explicitly approve repo-readonly or patch-branch disclosure stage for this packet.",
     )
     parser.add_argument("--job-description")
+    parser.add_argument("--expected-return-language")
     parser.add_argument("--bead-json-file")
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument("--opt-in-record")
@@ -484,6 +494,7 @@ def main() -> None:
         quota_info=quota_info,
         disclosure_escalation_approved=args.allow_disclosure_escalation,
         requested_executor=requested_executor,
+        expected_return_language=args.expected_return_language,
     )
     packet_errors = validate_contractor_packet(
         packet,
@@ -532,6 +543,8 @@ def main() -> None:
                         int(item.get("line_count") or 0) for item in selected_snippets if isinstance(item, dict)
                     ),
                     packet_output_sha256=artifact_hash(rendered),
+                    expected_return_language=packet.get("expected_return_language"),
+                    expected_return_language_source="packet-v2",
                 ),
             }
         )

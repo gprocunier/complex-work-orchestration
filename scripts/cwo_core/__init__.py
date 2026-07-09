@@ -20,6 +20,7 @@ __all__ = [
     "return_boundary",
     "return_common",
     "return_evidence",
+    "return_language",
     "return_risk",
     "return_sections",
     "returns",

@@ -29,6 +29,8 @@ TELEMETRY_NUMERIC_FIELDS = {
     "selected_snippet_lines",
     "timeout_seconds",
     "max_input_chars",
+    "return_language_finding_count",
+    "unexpected_script_ratio",
 }
 TELEMETRY_BOOLEAN_FIELDS = {
     "execution_enabled",
@@ -48,6 +50,7 @@ TELEMETRY_BOOLEAN_FIELDS = {
     "review_surface_mismatch",
     "review_surface_required_evidence_missing",
     "master_review_packet_only_go_hold",
+    "unicode_normalization_changed",
 }
 TELEMETRY_STRING_FIELDS = {
     "telemetry_kind",
@@ -97,6 +100,9 @@ TELEMETRY_STRING_FIELDS = {
     "tls_ca_bundle_env",
     "thinking_parser",
     "response_sanitization",
+    "expected_return_language",
+    "expected_return_language_source",
+    "return_language_status",
 }
 TELEMETRY_STRING_LIST_FIELDS = {
     "telemetry_missing_reasons",
@@ -108,6 +114,7 @@ TELEMETRY_STRING_LIST_FIELDS = {
     "workerbee_planned_lanes",
     "workerbee_actual_lanes",
     "workerbee_delegation_gap_reasons",
+    "detected_letter_scripts",
 }
 
 AUDIT_NUMERIC_FIELDS = {

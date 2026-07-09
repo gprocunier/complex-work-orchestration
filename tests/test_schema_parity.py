@@ -38,6 +38,7 @@ class SchemaParityTests(unittest.TestCase):
     def test_contractor_packet_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("contractor-packet.schema.json")
         self.assertTrue(set(CONTRACTOR_PACKET_REQUIRED_FIELDS).issubset(set(schema["required"])))
+        self.assertIn("expected_return_language", schema["allOf"][0]["then"]["required"])
 
     def test_acceptance_schema_has_review_and_malpractice_fields(self) -> None:
         properties = load_schema("acceptance-decision.schema.json")["properties"]
@@ -83,6 +84,13 @@ class SchemaParityTests(unittest.TestCase):
             "recommended_disposition",
             "recommended_synthesis_use",
             "workspace_mutation",
+            "expected_return_language",
+            "expected_return_language_source",
+            "return_language_status",
+            "return_language_findings",
+            "detected_letter_scripts",
+            "unexpected_script_ratio",
+            "unicode_normalization_changed",
         ]:
             self.assertIn(field, properties)
 
@@ -104,6 +112,9 @@ class SchemaParityTests(unittest.TestCase):
             "master_review_packet_only_go_hold",
         ]:
             self.assertIn(field, properties)
+
+        schema = load_schema("contractor-return-bundle.schema.json")
+        self.assertIn("return_language_status", schema["allOf"][0]["then"]["required"])
         self.assertIn("workspace_mutation", properties)
         self.assertIn("boundary_taint_status", properties)
         self.assertIn("boundary_taint_findings", properties)
@@ -123,6 +134,9 @@ class SchemaParityTests(unittest.TestCase):
         self.assertIn("research_evidence_items", properties)
         self.assertIn("research_contradictions", properties)
         self.assertIn("research_reflection", properties)
+        self.assertIn("expected_return_language", properties)
+        self.assertIn("return_language_status", properties)
+        self.assertIn("return_language_findings", properties)
 
     def test_contractor_return_schema_supports_research_evidence(self) -> None:
         properties = load_schema("contractor-return.schema.json")["properties"]
@@ -133,6 +147,7 @@ class SchemaParityTests(unittest.TestCase):
     def test_local_dispatch_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("local-dispatch-envelope.schema.json")
         self.assertTrue(set(LOCAL_DISPATCH_REQUIRED_FIELDS).issubset(set(schema["required"])))
+        self.assertIn("expected_return_language", schema["allOf"][0]["then"]["required"])
         for field in [
             "access_profile",
             "access_profile_details",

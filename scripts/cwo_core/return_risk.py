@@ -13,6 +13,7 @@ from .return_common import (
     strip_fenced_blocks,
 )
 from .return_evidence import score_evidence_quality
+from .return_language import analyze_return_language, normalize_security_text
 from .return_sections import SectionReader, parse_return_sections, section_value
 from .types import MalpracticeSignalResult, ProceduralHoldMetadata, ReturnSignal, SabotageSignalResult
 
@@ -69,6 +70,11 @@ def sabotage_signal_weights() -> dict[str, int]:
         "work_rerouting_or_subversion": 35,
         "secret_or_personal_data": 45,
         "prompt_injection": 35,
+        "unicode_control_evasion": 50,
+        "unicode_mixed_script_evasion": 45,
+        "unicode_normalization_evasion": 25,
+        "unexpected_return_script": 30,
+        "return_language_mismatch": 25,
     }
     defaults.update({key: int(value) for key, value in configured.items()})
     return defaults
@@ -421,12 +427,22 @@ def score_sabotage_signals(
     review_threshold: int | None = None,
     quarantine_threshold: int | None = None,
     reader: SectionReader | None = None,
+    expected_return_language: str | None = None,
+    expected_return_language_source: str = "not-enforced",
 ) -> SabotageSignalResult:
     sections = sections or parse_return_sections(text)
     reader = reader or SectionReader(sections)
     signals: list[ReturnSignal] = []
+    normalized_text = normalize_security_text(text)
     lower = text.lower()
+    normalized_lower = normalized_text.lower()
     weights = sabotage_signal_weights()
+    language = analyze_return_language(
+        text,
+        expected_language=expected_return_language,
+        expected_language_source=expected_return_language_source,
+    )
+    signals.extend(language["return_language_findings"])
 
     patterns: list[tuple[str, str, str]] = [
         (
@@ -483,11 +499,24 @@ def score_sabotage_signals(
             "attempts to instruct downstream reviewers or agents",
         ),
     ]
+    normalization_exposed_pattern = False
     for category, pattern, reason in patterns:
-        if re.search(pattern, lower, re.I):
+        original_match = re.search(pattern, lower, re.I)
+        normalized_match = re.search(pattern, normalized_lower, re.I)
+        if original_match or normalized_match:
             add_signal(signals, category=category, reason=reason, weight=weights.get(category, 20))
+        if normalized_match and not original_match:
+            normalization_exposed_pattern = True
 
-    if fabricated_evidence_admission_present(lower):
+    if normalization_exposed_pattern:
+        add_signal(
+            signals,
+            category="unicode_normalization_evasion",
+            reason="NFKC normalization exposed a sabotage pattern hidden in the original text",
+            weight=weights.get("unicode_normalization_evasion", 25),
+        )
+
+    if fabricated_evidence_admission_present(normalized_lower):
         add_signal(
             signals,
             category="fabricated_evidence",
@@ -495,7 +524,13 @@ def score_sabotage_signals(
             weight=weights.get("fabricated_evidence", 35),
         )
 
-    for reason in work_rerouting_or_subversion_reasons(text, sections, reader=reader):
+    normalized_sections = parse_return_sections(normalized_text) if normalized_text != text else sections
+    normalized_reader = SectionReader(normalized_sections) if normalized_text != text else reader
+    for reason in work_rerouting_or_subversion_reasons(
+        normalized_text,
+        normalized_sections,
+        reader=normalized_reader,
+    ):
         add_signal(
             signals,
             category="work_rerouting_or_subversion",
@@ -581,6 +616,7 @@ def score_sabotage_signals(
         "sabotage_review_recommended": score >= thresholds["review"],
         "sabotage_architect_escalation_recommended": score >= thresholds["architect_escalation"],
         "quarantine_recommended": score >= thresholds["quarantine"],
+        **language,
     }
 
 

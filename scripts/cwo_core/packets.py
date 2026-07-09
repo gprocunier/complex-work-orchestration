@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .errors import CWOPolicyError
 from .paths import REPO_ROOT, assert_repo_safe_path, repo_relative_path
 from .policy import (
     boundary_config,
@@ -17,6 +18,7 @@ from .policy import (
     provider_profile,
 )
 from .util import artifact_hash, packet_payload_hash, parse_iso_datetime
+from .return_language import default_expected_return_language, validate_expected_return_language
 
 
 MANDATORY_EXCLUDED_ARTIFACTS = {"full_bead_json", "secrets", "production_access"}
@@ -290,6 +292,19 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
     if allowed_external and not executor_key_allowed(executor_key, allowed_external):
         errors.append(f"packet executor {executor_key!r} is not allowed by contracting controls")
 
+    raw_packet_version = packet.get("packet_version")
+    packet_version = 1 if raw_packet_version is None else raw_packet_version
+    if not isinstance(packet_version, int) or isinstance(packet_version, bool) or packet_version < 1:
+        errors.append("packet_version must be a positive integer when present")
+    expected_language = packet.get("expected_return_language")
+    if isinstance(packet_version, int) and packet_version >= 2 and expected_language in {None, ""}:
+        errors.append("version-2 contractor packet is missing expected_return_language")
+    if expected_language not in {None, ""}:
+        try:
+            validate_expected_return_language(str(expected_language))
+        except CWOPolicyError as exc:
+            errors.append(str(exc))
+
     share_boundary = str(packet.get("share_boundary", ""))
     try:
         boundary = boundary_config(share_boundary)
@@ -443,6 +458,57 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
     if not packet.get("required_return_sections"):
         errors.append("packet required_return_sections must not be empty")
     return errors
+
+
+def contractor_packet_language_metadata(packet: dict[str, Any]) -> tuple[str, str]:
+    raw_version = packet.get("packet_version")
+    packet_version = 1 if raw_version is None else raw_version
+    if not isinstance(packet_version, int) or isinstance(packet_version, bool) or packet_version < 1:
+        raise CWOPolicyError("packet_version must be a positive integer when present")
+    raw = packet.get("expected_return_language")
+    if raw not in {None, ""}:
+        resolved = validate_expected_return_language(str(raw))
+        if resolved is None:
+            raise CWOPolicyError("contractor packet expected_return_language is empty")
+        source = "packet-v2" if packet_version >= 2 else "packet"
+        return resolved, source
+    if packet_version >= 2:
+        raise CWOPolicyError("version-2 contractor packet is missing expected_return_language")
+    return default_expected_return_language(), "legacy-policy-default"
+
+
+def local_dispatch_language_metadata(envelope: dict[str, Any]) -> tuple[str, str]:
+    raw_version = envelope.get("version")
+    version = 1 if raw_version is None else raw_version
+    if not isinstance(version, int) or isinstance(version, bool) or version < 1:
+        raise CWOPolicyError("local dispatch envelope version must be a positive integer")
+    raw = envelope.get("expected_return_language")
+    if raw not in {None, ""}:
+        resolved = validate_expected_return_language(str(raw))
+        if resolved is None:
+            raise CWOPolicyError("local dispatch envelope expected_return_language is empty")
+        source = "local-envelope-v2" if version >= 2 else "local-envelope"
+        return resolved, source
+    if version >= 2:
+        raise CWOPolicyError("version-2 local dispatch envelope is missing expected_return_language")
+    return default_expected_return_language(), "legacy-policy-default"
+
+
+def contractor_packet_evaluation_metadata(packet: dict[str, Any]) -> dict[str, Any]:
+    expected_language, expected_language_source = contractor_packet_language_metadata(packet)
+    return {
+        "bead": packet.get("bead_id"),
+        "bead_id": packet.get("bead_id"),
+        "dispatch_id": packet.get("dispatch_id"),
+        "packet_sha256": packet.get("packet_sha256"),
+        "share_boundary": packet.get("share_boundary"),
+        "job_description": packet.get("job_description_label"),
+        "executor": packet.get("executor"),
+        "provider_key": packet.get("provider_key"),
+        "provider_trust_tier": packet.get("provider_trust_tier"),
+        "expected_return_language": expected_language,
+        "expected_return_language_source": expected_language_source,
+    }
 
 
 def require_valid_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet: bool = False) -> None:
