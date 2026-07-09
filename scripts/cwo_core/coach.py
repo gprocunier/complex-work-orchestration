@@ -632,8 +632,8 @@ def prompt_coach_missing_questions(
         questions.append(
             {
                 "id": "workerbee_parallelism",
-                "question": "Should Codex parallelize this work with subagents?",
-                "why": "Subagents can review docs, tests, routing, validation, terminology, or disjoint implementation workstreams while the main thread owns integration.",
+                "question": "Should CWO parallelize this work with subagent lanes?",
+                "why": "Subagents can review docs, tests, routing, validation, terminology, or disjoint implementation workstreams while the selected lead owns integration.",
                 "default": default,
             }
         )
@@ -642,10 +642,10 @@ def prompt_coach_missing_questions(
         questions.append(
             {
                 "id": "beads_context_depth",
-                "question": "How much Beads history should internal Codex agents read?",
-                "why": "The answer controls durable-memory recall for internal agents without changing contractor redaction boundaries.",
+                "question": "How much Beads history should internal sidecar agents read?",
+                "why": "The answer controls durable-memory recall for internal sidecar agents without changing contractor redaction boundaries.",
                 "default": (
-                    f"Use {depth} context. Use build_beads_brief.py for internal agents; "
+                    f"Use {depth} context. Use build_beads_brief.py for internal sidecar agents; "
                     "use build_contractor_packet.py for outside contractors."
                 ),
             }
@@ -743,7 +743,7 @@ def prompt_coach_interactive_questions(
             {
                 "id": "orchestration_level",
                 "header": "Harness",
-                "question": "How much orchestration should Codex use?",
+                "question": "How much orchestration should CWO use?",
                 "why": "The answer changes graph size and review workstreams; Beads tracking remains mandatory.",
                 "options": dedupe_interactive_options(options),
             }
@@ -813,7 +813,7 @@ def prompt_coach_interactive_questions(
             {
                 "id": "workerbee_parallelism",
                 "header": "Subagents",
-                "question": "Should Codex parallelize this work with subagents?",
+                "question": "Should CWO parallelize this work with subagent lanes?",
                 "why": "The answer changes whether sidecar review or disjoint implementation work runs in parallel.",
                 "options": workerbee_parallelism_options(str(recommended_mode), first, model_phrase),
             }
@@ -825,8 +825,8 @@ def prompt_coach_interactive_questions(
             {
                 "id": "beads_context_depth",
                 "header": "Context",
-                "question": "How much Beads history should internal agents read?",
-                "why": "This sizes durable-memory recall for Codex/subagents while keeping external contractor packets redacted.",
+                "question": "How much Beads history should internal sidecar agents read?",
+                "why": "This sizes durable-memory recall for the active harness and subagents while keeping external contractor packets redacted.",
                 "options": beads_context_depth_options(recommended_depth),
             }
         )
@@ -938,7 +938,7 @@ def prompt_coach_interactive_questions(
             {
                 "id": "validation_bar",
                 "header": "Validate",
-                "question": "What validation bar should Codex apply?",
+                "question": "What validation bar should this execution run apply?",
                 "why": "The answer sets the acceptance evidence before implementation is considered complete.",
                 "options": dedupe_interactive_options([
                     first,

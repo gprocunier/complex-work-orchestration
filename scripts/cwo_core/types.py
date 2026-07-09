@@ -20,6 +20,49 @@ OrchestrationLevel = Literal[
 ]
 
 
+class ReturnSignal(TypedDict):
+    category: str
+    reason: str
+    weight: int
+
+
+class SabotageSignalResult(TypedDict, total=False):
+    sabotage_score: int
+    sabotage_signals: list[ReturnSignal]
+    sabotage_signal_categories: list[str]
+    sabotage_review_recommended: bool
+    sabotage_architect_escalation_recommended: bool
+    quarantine_recommended: bool
+
+
+class MalpracticeSignalResult(TypedDict, total=False):
+    malpractice_score: int
+    malpractice_signals: list[ReturnSignal]
+    malpractice_signal_categories: list[str]
+    malpractice_review_recommended: bool
+    malpractice_reject_recommended: bool
+
+
+class ProceduralHoldMetadata(TypedDict, total=False):
+    implementation_blocked: bool
+    hold_reasons: list[str]
+    hold_classification: str
+
+
+class ReturnProvenance(TypedDict, total=False):
+    executor: str | None
+    provider_key: str | None
+    provider_trust_tier: str | None
+    provider_family: str | None
+    provider_retention_class: str | None
+    provider_external: bool | None
+    dispatch_mode: str | None
+    local_profile: str | None
+    model_profile: str | None
+    provenance_class: str
+    provenance_warnings: list[str]
+
+
 class ExecutorCandidate(TypedDict, total=False):
     key: str
     display_name: str
@@ -220,13 +263,13 @@ class ResearchEvidenceQuality(TypedDict, total=False):
     research_unresolved_contradiction_count: int
     research_replan_recommended: bool
     research_evidence_score: int
-    research_evidence_signals: list[dict[str, Any]]
+    research_evidence_signals: list[ReturnSignal]
     research_evidence_signal_categories: list[str]
 
 
 class EvidenceQuality(TypedDict, total=False):
     evidence_quality_score: int
-    evidence_quality_signals: list[dict[str, Any]]
+    evidence_quality_signals: list[ReturnSignal]
     evidence_quality_signal_categories: list[str]
 
 
@@ -239,18 +282,99 @@ class ContractorReturnBundle(TypedDict, total=False):
     job_description_label: str | None
     packet_sha256: str | None
     sections: dict[str, str]
+    executor: str | None
+    provider_key: str | None
+    provider_trust_tier: str | None
+    provider_family: str | None
+    provider_retention_class: str | None
+    provider_external: bool | None
+    dispatch_mode: str | None
+    local_profile: str | None
+    model_profile: str | None
+    provenance_class: str
+    provenance_warnings: list[str]
+    boundary_taint_status: str
+    boundary_taint_findings: list[str]
+    required_sections_missing: list[str]
+    required_sections_present: list[str]
+    evidence_items: list[dict[str, str]]
+    workspace_mutation: dict[str, Any] | None
+    implementation_blocked: bool
+    hold_reasons: list[str]
+    hold_classification: str
+    review_surface: str
+    source_inspection: str
+    sources_inspected: str
+    sources_not_inspected: str
+    independent_verification: str
+    packet_reported_claims: str
     bundle_sha256: str
 
 
 class AcceptanceDecision(TypedDict, total=False):
+    dispatch_id: str | None
+    bead_id: str | None
+    share_boundary: str | None
+    executor: str | None
+    provider_key: str | None
+    provider_trust_tier: str | None
+    provider_family: str | None
+    provider_retention_class: str | None
+    provider_external: bool | None
+    dispatch_mode: str | None
+    local_profile: str | None
+    model_profile: str | None
+    provenance_class: str
+    provenance_warnings: list[str]
     verdict: AcceptanceVerdict
     score: int
     recommended_disposition: str
     recommended_synthesis_use: SynthesisUse
     missing_sections: list[str]
+    penalty_reasons: list[str]
     hard_disqualifiers: list[str]
+    sabotage_score: int
+    sabotage_signals: list[ReturnSignal]
+    sabotage_signal_categories: list[str]
+    sabotage_review_recommended: bool
+    sabotage_architect_escalation_recommended: bool
+    malpractice_score: int
+    malpractice_signals: list[ReturnSignal]
+    malpractice_signal_categories: list[str]
+    malpractice_review_recommended: bool
+    malpractice_reject_recommended: bool
+    evidence_quality_score: int
+    evidence_quality_signals: list[ReturnSignal]
+    evidence_quality_signal_categories: list[str]
+    signal_categories: list[str]
+    peer_review_required: bool
+    peer_review_status: str
+    review_surface: str
+    source_inspection: str
+    sources_inspected: str
+    sources_not_inspected: str
+    independent_verification: str
+    packet_reported_claims: str
+    review_surface_packet_only: bool
+    source_inspection_packet_only: bool
+    go_for_pr_merge_readiness_claimed: bool
+    review_surface_mismatch: bool
+    review_surface_required_evidence_missing: bool
+    review_surface_mismatch_reasons: list[str]
+    master_review_packet_only_go_hold: bool
+    implementation_blocked: bool
+    hold_reasons: list[str]
+    hold_classification: str
+    patch_authorization_state: str
+    provider_conflict_domains: list[str]
+    boundary_taint_status: str
+    boundary_taint_findings: list[str]
+    workspace_mutation: dict[str, Any] | None
     human_adjudication_required: bool
     quarantine_recommended: bool
+    escalation_flagged: bool
+    architect_review_required: bool
+    sections: dict[str, str]
 
 
 class SynthesisInputSummary(TypedDict, total=False):

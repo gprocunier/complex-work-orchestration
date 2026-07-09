@@ -119,7 +119,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("Executor:", result.stdout)
         self.assertIn("Execution gate:", result.stdout)
         self.assertIn("Coach options:", result.stdout)
-        self.assertIn("Should Codex parallelize this work with subagents?", result.stdout)
+        self.assertIn("Should CWO parallelize this work with subagent lanes?", result.stdout)
         self.assertNotIn("Recommended launch prompt:", result.stdout)
 
     def test_multi_session_work_recommends_lightweight_beads(self) -> None:

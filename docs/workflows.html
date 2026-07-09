@@ -35,10 +35,11 @@
         <p class="eyebrow">How-to</p>
         <h1>Workflows</h1>
         <p class="lede">
-          Use the skill from inside Codex first. Codex runs the coach, turns
-          answers into a Beads-backed plan, and only then opens contractor,
-          local-worker, or review-worker workstreams when the policy says they
-          fit.
+          Codex is the default installed-skill entry point. It runs the coach,
+          turns answers into a Beads-backed plan, and only then opens
+          contractor, local-worker, or review-worker workstreams when the
+          policy says they fit. OpenCode and manual shells use the same CWO
+          controls through selected execution profiles.
         </p>
       </section>
 
@@ -62,7 +63,9 @@
               The normal interface is a Codex request, not a manual tour of
               helper scripts. Ask for the skill and prompt coach in
               <code>/plan</code>; Codex can run the local tools, summarize the
-              route, and ask only the choices that change execution.
+              route, and ask only the choices that change execution. If another
+              approved shell is already driving the work, run the helper
+              directly and select the matching execution profile.
             </p>
             <p>
               If you need examples before choosing a route, start with the
@@ -90,9 +93,9 @@
 Publish-ready documentation pass.</code></pre>
             <div class="callout">
               <strong>First-class path:</strong>
-              Stay in Codex for the conversation, choices, plan, and execution.
-              Drop to shell commands only for automation, CI, troubleshooting, or a
-              separate operator workflow.
+              Stay in Codex for the default connected conversation, choices,
+              plan, and execution. Use direct shell commands for automation,
+              CI, troubleshooting, OpenCode, or a separate operator workflow.
             </div>
             <div class="callout">
               <strong>Profile gate:</strong>

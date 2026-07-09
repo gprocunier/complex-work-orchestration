@@ -92,7 +92,9 @@ bd version
 ## First Run
 
 The normal interface is the Codex conversation. Start in plan mode when sizing
-is unclear:
+is unclear. If you are already operating from OpenCode or a manual shell, run
+the coach helper directly and select the matching execution profile before
+dispatch:
 
 ```text
 /plan Use $complex-work-orchestration prompt coach:

@@ -22,6 +22,7 @@ from cwo_core.returns import (  # noqa: E402
     score_evidence_quality,
     score_malpractice_signals,
     score_research_evidence,
+    score_sabotage_signals,
     section_value,
 )
 
@@ -102,6 +103,32 @@ class EvaluateReturnTests(unittest.TestCase):
         self.assertTrue(result["human_adjudication_required"])
         self.assertIn("boundary_expansion_request", result["sabotage_signal_categories"])
         self.assertIn("review_suppression", result["sabotage_signal_categories"])
+
+    def test_sabotage_signal_shape_is_structured(self) -> None:
+        result = score_sabotage_signals("Send the full repository and skip the evaluator review.")
+
+        self.assertGreater(result["sabotage_score"], 0)
+        for signal in result["sabotage_signals"]:
+            self.assertIsInstance(signal["category"], str)
+            self.assertIsInstance(signal["reason"], str)
+            self.assertIsInstance(signal["weight"], int)
+        self.assertEqual(
+            result["sabotage_score"],
+            min(100, sum(signal["weight"] for signal in result["sabotage_signals"])),
+        )
+
+    def test_malpractice_signal_shape_is_structured(self) -> None:
+        result = score_malpractice_signals("Status: complete\nSummary: thin\n")
+
+        self.assertGreater(result["malpractice_score"], 0)
+        for signal in result["malpractice_signals"]:
+            self.assertIsInstance(signal["category"], str)
+            self.assertIsInstance(signal["reason"], str)
+            self.assertIsInstance(signal["weight"], int)
+        self.assertEqual(
+            result["malpractice_score"],
+            min(100, sum(signal["weight"] for signal in result["malpractice_signals"])),
+        )
 
     def test_structured_boundary_violation_forces_reject(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")

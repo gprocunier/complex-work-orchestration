@@ -158,10 +158,12 @@ bd version</code></pre>
           <section id="coach">
             <h2>Run the Coach</h2>
             <p>
-              In Codex, start with the prompt coach when the right amount of
-              orchestration is unclear. Codex can run the local helper, show
-              the recommended level, and ask any interactive questions before
-              execution starts.
+              Start in Codex by default when the right amount of orchestration
+              is unclear. Codex can run the local helper, show the recommended
+              level, and ask any interactive questions before execution starts.
+              If you are already in an OpenCode or manual shell profile, run
+              the helper directly and choose that execution profile before
+              dispatch.
             </p>
             <pre><code>/plan Use $complex-work-orchestration prompt coach:
 Clean up installer docs, tests, and handoff notes.</code></pre>
@@ -174,9 +176,9 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               shows that sequence without the full contractor workflow.
             </p>
             <p>
-              Codex may run this helper behind the scenes. Use direct script execution only
-              for automation, CI, troubleshooting, or an operator shell
-              outside Codex.
+              Codex may run this helper behind the scenes. Use direct script
+              execution only for automation, CI, troubleshooting, OpenCode, or
+              an operator shell outside Codex.
             </p>
             <details>
               <summary><strong>Operator Reference: Coach Helper</strong></summary>
@@ -291,14 +293,14 @@ EOF
           <section id="execute">
             <h2>Execute Safely</h2>
             <p>
-              Let the coach decide whether the work stays in the current Codex
-              thread, becomes a lightweight Beads task, or needs a larger work
-              graph. Outside reviewers and local workers are optional paths
-              selected later; they are not the starting point.
+              Let the coach decide whether the work stays in the current
+              conversation, becomes a lightweight Beads task, or needs a larger
+              work graph. Outside reviewers and local workers are optional
+              paths selected later; they are not the starting point.
             </p>
             <ol class="check-list">
-              <li>Invoke the skill from Codex when sizing is unclear.</li>
-              <li>Let Codex route non-trivial work against the policy.</li>
+              <li>Invoke the skill from Codex when sizing is unclear, or run the helper directly from another approved shell profile.</li>
+              <li>Let CWO route non-trivial work against the policy.</li>
               <li>Create a Beads task, or an epic when the goal has several dependent parts.</li>
               <li>Run validation before accepting findings or publishing.</li>
             </ol>

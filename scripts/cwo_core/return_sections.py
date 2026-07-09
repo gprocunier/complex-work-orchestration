@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
+from .errors import CWOPolicyError
 from .policy import load_policy
 
 
@@ -96,13 +97,13 @@ def return_section_aliases() -> dict[str, str]:
     elif alias_source == "policy":
         configured_aliases = policy.get("return_section_aliases")
         if not isinstance(configured_aliases, dict):
-            raise SystemExit("acceptance-policy.yaml return_section_alias_source=policy requires return_section_aliases")
+            raise CWOPolicyError("acceptance-policy.yaml return_section_alias_source=policy requires return_section_aliases")
     else:
-        raise SystemExit("acceptance-policy.yaml must set return_section_alias_source to 'policy' or 'legacy'")
+        raise CWOPolicyError("acceptance-policy.yaml must set return_section_alias_source to 'policy' or 'legacy'")
     valid_targets = {section_lookup_key(section) for section in canonical_sections}
     for alias, target in configured_aliases.items():
         if section_lookup_key(str(target)) not in valid_targets:
-            raise SystemExit(f"acceptance-policy.yaml alias {alias!r} points at unknown return section {target!r}")
+            raise CWOPolicyError(f"acceptance-policy.yaml alias {alias!r} points at unknown return section {target!r}")
         canonical[section_lookup_key(alias)] = target
     return canonical
 

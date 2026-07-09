@@ -6,7 +6,7 @@ from typing import Any
 
 from .return_common import add_signal, malpractice_signal_weights, strip_fenced_blocks
 from .return_sections import SectionReader
-from .types import EvidenceQuality, ResearchEvidenceQuality
+from .types import EvidenceQuality, ResearchEvidenceQuality, ReturnSignal
 
 
 RESEARCH_SOURCE_TYPES = {
@@ -173,7 +173,7 @@ def score_research_evidence(
     weights = malpractice_signal_weights()
     reader = reader or SectionReader(sections)
     research = research_evidence_from_sections(sections, reader=reader)
-    signals: list[dict[str, Any]] = []
+    signals: list[ReturnSignal] = []
     if not research["research_evidence_present"]:
         return {
             **research,
@@ -343,7 +343,7 @@ def score_evidence_quality(
 ) -> EvidenceQuality:
     reader = reader or SectionReader(sections)
     weights = malpractice_signal_weights()
-    signals: list[dict[str, Any]] = []
+    signals: list[ReturnSignal] = []
     evidence = strip_fenced_blocks(reader.value("Evidence"))
     provenance = reader.value("Evidence provenance")
     items = evidence_items_from_sections(sections, reader=reader)
