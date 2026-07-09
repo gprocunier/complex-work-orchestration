@@ -23,6 +23,7 @@ COMMANDS = {
     "status-report": "render_execution_status_report.py",
     "close-bead": "close_bead_with_summary.py",
     "cleanup-stale-agents": "cleanup_stale_agents.py",
+    "temp": "cwo_temp.py",
     "continue": "continue_sprint.py",
 }
 

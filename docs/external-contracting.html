@@ -305,9 +305,10 @@ claude --model claude-opus-4-6 --effort high \
               <p>
                 Use the browser-mediated master review lane (using ChatGPT Pro 5.5 Extended Reasoning) to build and ingest the plan review:
               </p>
-              <pre><code>mkdir -p work-packets
-cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
-# Fill work-packets/master-review-plan.md with the final plan and evidence.
+              <pre><code>WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
+mkdir -p "$WORK_PACKET_DIR"
+cp templates/master-review-plan-packet.md "$WORK_PACKET_DIR/master-review-plan.md"
+# Fill "$WORK_PACKET_DIR/master-review-plan.md" with the final plan and evidence.
 
 python3 scripts/build_contractor_packet.py \
   --bead &lt;id&gt; \
@@ -315,32 +316,32 @@ python3 scripts/build_contractor_packet.py \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
-  --snippet-file work-packets/master-review-plan.md \
+  --snippet-file "$WORK_PACKET_DIR/master-review-plan.md" \
   --attest-packet \
   --format json \
-  --output master-plan-review-packet.json
+  --output "$WORK_PACKET_DIR/master-plan-review-packet.json"
 
 python3 scripts/chatgpt_browser_review.py \
-  --packet master-plan-review-packet.json \
+  --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" \
   --confirm-only \
   --json \
-  &gt; master-plan-review-confirmation.json
+  &gt; "$WORK_PACKET_DIR/master-plan-review-confirmation.json"
 
 python3 scripts/chatgpt_browser_review.py \
-  --packet master-plan-review-packet.json \
+  --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" \
   --json \
-  &gt; master-plan-review-dispatch.json
+  &gt; "$WORK_PACKET_DIR/master-plan-review-dispatch.json"
 
-SHARE_URL="$(jq -r '.share_url' master-plan-review-dispatch.json)"
-DISPATCH_ID="$(jq -r '.dispatch_id' master-plan-review-dispatch.json)"
-PACKET_SHA256="$(jq -r '.packet_sha256' master-plan-review-dispatch.json)"
+SHARE_URL="$(jq -r '.share_url' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
+DISPATCH_ID="$(jq -r '.dispatch_id' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
+PACKET_SHA256="$(jq -r '.packet_sha256' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
 
 python3 scripts/ingest_chatgpt_share_return.py \
   "$SHARE_URL" \
   --bead &lt;id&gt; \
   --dispatch-id "$DISPATCH_ID" \
   --packet-sha256 "$PACKET_SHA256" \
-  --output master-plan-review-return.md</code></pre>
+  --output "$WORK_PACKET_DIR/master-plan-review-return.md"</code></pre>
             </details>
             <div class="callout">
               <strong>Snippet boundary:</strong>

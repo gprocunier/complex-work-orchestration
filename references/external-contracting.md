@@ -259,8 +259,9 @@ python3 scripts/route_work.py \
   --requested-role master-plan-review \
   "Use ChatGPT Pro 5.5 Extended Reasoning as a master reviewer for the final execution plan."
 
-mkdir -p work-packets
-cp templates/master-review-plan-packet.md work-packets/master-review-plan.md
+WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
+mkdir -p "$WORK_PACKET_DIR"
+cp templates/master-review-plan-packet.md "$WORK_PACKET_DIR/master-review-plan.md"
 
 python3 scripts/build_contractor_packet.py \
   --bead <id> \
@@ -268,10 +269,10 @@ python3 scripts/build_contractor_packet.py \
   --share-boundary redacted-packet \
   --external-ok \
   --job-description contract-jd-master-plan-review \
-  --snippet-file work-packets/master-review-plan.md \
+  --snippet-file "$WORK_PACKET_DIR/master-review-plan.md" \
   --attest-packet \
   --format json \
-  --output master-plan-review-packet.json
+  --output "$WORK_PACKET_DIR/master-plan-review-packet.json"
 ```
 
 Use `templates/master-review-plan-packet.md` for the snippet file and copy it
@@ -391,13 +392,15 @@ fields. That fallback is less durable and does not provide automatic ready-work
 filtering, dependency state, or shared comments.
 
 ```bash
+WORKGRAPH="$(python3 scripts/cwo.py temp path --purpose markdown-workgraph --name cwo-workgraph.md)"
+
 python3 scripts/scaffold_workgraph.py \
   --title "<goal>" \
   --description "<scope>" \
   --dry-run \
-  --format markdown-workgraph > /tmp/cwo-workgraph.md
+  --format markdown-workgraph > "$WORKGRAPH"
 
-python3 scripts/summarize_resume_state.py --markdown-workgraph /tmp/cwo-workgraph.md
+python3 scripts/summarize_resume_state.py --markdown-workgraph "$WORKGRAPH"
 ```
 
 ## Required Labels
@@ -682,27 +685,29 @@ python3 scripts/build_contractor_packet.py \
    and ingests the returned share link through the local reader:
 
    ```bash
+   WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
+
    python3 scripts/chatgpt_browser_review.py \
-     --packet master-plan-review-packet.json \
+     --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" \
      --confirm-only \
      --json \
-     > master-plan-review-confirmation.json
+     > "$WORK_PACKET_DIR/master-plan-review-confirmation.json"
 
    python3 scripts/chatgpt_browser_review.py \
-     --packet master-plan-review-packet.json \
+     --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" \
      --json \
-     > master-plan-review-dispatch.json
+     > "$WORK_PACKET_DIR/master-plan-review-dispatch.json"
 
-   SHARE_URL="$(jq -r '.share_url' master-plan-review-dispatch.json)"
-   DISPATCH_ID="$(jq -r '.dispatch_id' master-plan-review-dispatch.json)"
-   PACKET_SHA256="$(jq -r '.packet_sha256' master-plan-review-dispatch.json)"
+   SHARE_URL="$(jq -r '.share_url' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
+   DISPATCH_ID="$(jq -r '.dispatch_id' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
+   PACKET_SHA256="$(jq -r '.packet_sha256' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
 
    python3 scripts/ingest_chatgpt_share_return.py \
      "$SHARE_URL" \
      --bead <id> \
      --dispatch-id "$DISPATCH_ID" \
      --packet-sha256 "$PACKET_SHA256" \
-     --output master-plan-review-return.md
+     --output "$WORK_PACKET_DIR/master-plan-review-return.md"
    ```
 
    The share link is a return channel, not a new share boundary. Evaluate the

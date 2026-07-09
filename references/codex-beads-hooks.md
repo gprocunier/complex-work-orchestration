@@ -96,8 +96,9 @@ Before applying a quiet profile, prove that display suppression does not change
 the context returned by Beads:
 
 ```bash
-bd codex-hook SessionStart > /tmp/beads-sessionstart.json
-jq -r '.hookSpecificOutput.additionalContext' /tmp/beads-sessionstart.json | wc -c
+SESSION_CONTEXT="$(python3 scripts/cwo.py temp path --purpose beads-hooks --name beads-sessionstart.json)"
+bd codex-hook SessionStart > "$SESSION_CONTEXT"
+jq -r '.hookSpecificOutput.additionalContext' "$SESSION_CONTEXT" | wc -c
 python3 scripts/configure_codex_beads_hooks.py --mode quiet --json
 python -m unittest tests/test_configure_codex_beads_hooks.py -v
 ```

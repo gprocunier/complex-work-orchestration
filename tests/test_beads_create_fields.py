@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -54,22 +56,27 @@ class BeadsCreateFieldsTests(unittest.TestCase):
         captured: list[list[str]] = []
         large_description = "Purpose:\n" + ("Document the work.\n" * 300)
         large_design = "Design:\n" + ("Use file-backed Beads fields.\n" * 300)
+        seen_paths: list[Path] = []
 
         def fake_run_bd(args: list[str]) -> str:
             captured.append(args)
             description_path = Path(args[args.index("--body-file") + 1])
             design_path = Path(args[args.index("--design-file") + 1])
+            metadata_path = Path(args[args.index("--metadata") + 1][1:])
+            seen_paths.extend([description_path, design_path, metadata_path])
             self.assertEqual(description_path.read_text(encoding="utf-8"), large_description.strip())
             self.assertEqual(design_path.read_text(encoding="utf-8"), large_design.strip())
             return "Created issue: example-2\n"
 
-        with patch("cwo_core.beads.run_bd", side_effect=fake_run_bd):
-            result = create_bead(
-                "Large Example",
-                description=large_description,
-                design=large_design,
-                metadata={"route": {"ranked_experts": [{"name": "editor"}]}},
-            )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(os.environ, {"CWO_TEMP_ROOT": tmpdir, "CWO_SESSION_ID": "beads-test"}, clear=False):
+                with patch("cwo_core.beads.run_bd", side_effect=fake_run_bd):
+                    result = create_bead(
+                        "Large Example",
+                        description=large_description,
+                        design=large_design,
+                        metadata={"route": {"ranked_experts": [{"name": "editor"}]}},
+                    )
 
         self.assertEqual(result["id"], "example-2")
         args = captured[0]
@@ -79,6 +86,10 @@ class BeadsCreateFieldsTests(unittest.TestCase):
         self.assertNotIn("--design", args)
         self.assertFalse(Path(args[args.index("--body-file") + 1]).exists())
         self.assertFalse(Path(args[args.index("--design-file") + 1]).exists())
+        self.assertTrue(seen_paths)
+        for path in seen_paths:
+            self.assertIn("/cwo-", path.as_posix())
+            self.assertIn("/beads/", path.as_posix())
 
 
 if __name__ == "__main__":

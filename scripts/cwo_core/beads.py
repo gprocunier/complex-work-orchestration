@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from .paths import REPO_ROOT
+from .paths import REPO_ROOT, cwo_temp_dir
 from .util import metadata_json
 
 DEFAULT_BEADS_TIMEOUT_SECONDS = 300
@@ -102,11 +102,13 @@ def create_bead(
     temp_paths: list[Path] = []
 
     def temp_file_arg(prefix: str, suffix: str, content: str) -> str:
+        temp_dir = cwo_temp_dir(scope="session", purpose="beads")
         with tempfile.NamedTemporaryFile(
             "w",
             encoding="utf-8",
             prefix=prefix,
             suffix=suffix,
+            dir=temp_dir,
             delete=False,
         ) as handle:
             handle.write(content)

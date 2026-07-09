@@ -3,13 +3,15 @@ from __future__ import annotations
 import tempfile
 import sys
 import unittest
+from unittest.mock import patch
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.packets import file_snippet  # noqa: E402
-from cwo_core.paths import assert_safe_output_path  # noqa: E402
+from cwo_core.paths import assert_safe_output_path, cwo_temp_dir, cwo_temp_path, is_cwo_temp_path  # noqa: E402
 
 
 class PathSafetyTests(unittest.TestCase):
@@ -67,6 +69,55 @@ class PathSafetyTests(unittest.TestCase):
             parent_link.symlink_to(real_parent, target_is_directory=True)
             with self.assertRaises(SystemExit):
                 assert_safe_output_path(parent_link / "out.txt")
+
+    def test_cwo_temp_session_and_exchange_dirs_use_safe_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(
+                "os.environ",
+                {"CWO_TEMP_ROOT": tmpdir, "CWO_SESSION_ID": "session 1", "USER": "test user"},
+                clear=False,
+            ):
+                session_dir = cwo_temp_dir(scope="session")
+                exchange_dir = cwo_temp_dir(scope="exchange")
+                self.assertEqual(session_dir.name, "cwo-test-user-session-1")
+                self.assertEqual(exchange_dir.name, "cwo-exchange")
+                self.assertEqual(session_dir.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(exchange_dir.stat().st_mode & 0o7777, 0o1770)
+                artifact = cwo_temp_path("work graph.md", purpose="fallback graph")
+                self.assertTrue(str(artifact).endswith("fallback-graph/work-graph.md"))
+                self.assertTrue(is_cwo_temp_path(artifact))
+                self.assertFalse(is_cwo_temp_path(Path(tmpdir) / "not-cwo" / "artifact.txt"))
+
+    def test_cwo_temp_rejects_relative_or_symlinked_roots_and_parts(self) -> None:
+        with patch.dict("os.environ", {"CWO_TEMP_ROOT": "relative-temp-root"}, clear=False):
+            with self.assertRaises(SystemExit):
+                cwo_temp_dir(scope="session")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real = Path(tmpdir) / "real"
+            real.mkdir()
+            link = Path(tmpdir) / "link"
+            link.symlink_to(real, target_is_directory=True)
+            with patch.dict("os.environ", {"CWO_TEMP_ROOT": str(link)}, clear=False):
+                with self.assertRaises(SystemExit):
+                    cwo_temp_dir(scope="session")
+            broken = Path(tmpdir) / "broken"
+            broken.symlink_to(Path(tmpdir) / "missing", target_is_directory=True)
+            with patch.dict("os.environ", {"CWO_TEMP_ROOT": str(broken / "nested")}, clear=False):
+                with self.assertRaises(SystemExit):
+                    cwo_temp_dir(scope="session")
+
+    def test_cwo_temp_rejects_private_dir_owned_by_another_user(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_dir = Path(tmpdir) / "cwo-test-session"
+            session_dir.mkdir()
+            with patch.dict(
+                "os.environ",
+                {"CWO_TEMP_ROOT": tmpdir, "CWO_SESSION_ID": "session", "USER": "test"},
+                clear=False,
+            ):
+                with patch("cwo_core.paths.os.getuid", return_value=os.getuid() + 1):
+                    with self.assertRaises(SystemExit):
+                        cwo_temp_dir(scope="session")
 
 
 if __name__ == "__main__":

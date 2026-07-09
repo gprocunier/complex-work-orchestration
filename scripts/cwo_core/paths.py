@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import getpass
 import os
 from pathlib import Path
+import re
+import stat
 import tempfile
+import time
+
+
+_SAFE_TEMP_COMPONENT_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+_DEFAULT_SESSION_ID: str | None = None
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -16,6 +24,8 @@ REPO_ROOT = _find_repo_root(Path(__file__).resolve())
 POLICY_DIR = REPO_ROOT / "policy"
 AUDIT_DIR = REPO_ROOT / ".orchestration-audit"
 AUDIT_LOG = Path(os.environ.get("CWO_AUDIT_FILE", AUDIT_DIR / "audit.jsonl")).expanduser()
+CWO_TEMP_DIR_PREFIX = "cwo-"
+CWO_EXCHANGE_DIR_NAME = "cwo-exchange"
 BLOCKED_PACKET_PATH_PARTS = {".git", ".beads", ".orchestration-audit"}
 BLOCKED_OUTPUT_PATH_PARTS = BLOCKED_PACKET_PATH_PARTS | {".orchestration-agents"}
 BLOCKED_PACKET_FILE_NAMES = {
@@ -27,6 +37,150 @@ BLOCKED_PACKET_FILE_NAMES = {
     "id_ed25519",
 }
 BLOCKED_PACKET_SUFFIXES = {".pem", ".key", ".p12", ".pfx"}
+
+
+def _sanitize_temp_component(value: str | None, default: str) -> str:
+    raw = (value or "").strip()
+    safe = _SAFE_TEMP_COMPONENT_RE.sub("-", raw).strip(".-")
+    return safe[:96] or default
+
+
+def _absolute_configured_dir(env_name: str, default: Path) -> Path:
+    configured = os.environ.get(env_name)
+    raw = Path(configured).expanduser() if configured else default
+    if not raw.is_absolute():
+        raise SystemExit(f"{env_name} must be an absolute path: {raw}")
+    return raw
+
+
+def _reject_symlinked_existing_parts(path: Path) -> None:
+    absolute = path.expanduser()
+    if not absolute.is_absolute():
+        absolute = absolute.resolve()
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current = current / part
+        if current.is_symlink():
+            raise SystemExit(f"refusing CWO temp path with symlink component: {path}")
+
+
+def _ensure_temp_dir(path: Path, *, mode: int, require_owner: bool) -> Path:
+    _reject_symlinked_existing_parts(path)
+    path.mkdir(parents=True, exist_ok=True, mode=mode)
+    if path.is_symlink():
+        raise SystemExit(f"refusing symlink CWO temp directory: {path}")
+    if not path.is_dir():
+        raise SystemExit(f"CWO temp path is not a directory: {path}")
+    stat_result = path.stat()
+    if require_owner and stat_result.st_uid != os.getuid():
+        raise SystemExit(f"refusing CWO private temp directory owned by another user: {path}")
+    try:
+        current_mode = stat.S_IMODE(stat_result.st_mode)
+        if current_mode != mode:
+            path.chmod(mode)
+            current_mode = stat.S_IMODE(path.stat().st_mode)
+        if require_owner and current_mode != mode:
+            raise SystemExit(f"could not enforce private CWO temp directory mode: {path}")
+    except PermissionError:
+        if require_owner:
+            raise SystemExit(f"could not enforce private CWO temp directory mode: {path}") from None
+        # Shared exchange directories may be owned by an operator-managed group.
+        # Keep running when the directory is usable but chmod is not allowed.
+    return path.resolve()
+
+
+def cwo_temp_root(*, create: bool = True) -> Path:
+    """Return the root used for CWO-owned ephemeral artifacts."""
+    configured = os.environ.get("CWO_TEMP_ROOT")
+    root = _absolute_configured_dir("CWO_TEMP_ROOT", Path(tempfile.gettempdir()))
+    if create:
+        if configured:
+            _reject_symlinked_existing_parts(root)
+            root.mkdir(parents=True, exist_ok=True, mode=0o770)
+            if root.is_symlink():
+                raise SystemExit(f"refusing symlink CWO temp root: {root}")
+            if not root.is_dir():
+                raise SystemExit(f"CWO temp root is not a directory: {root}")
+            return root.resolve()
+        _reject_symlinked_existing_parts(root)
+        if not root.exists() or not root.is_dir():
+            raise SystemExit(f"system temp root is not a directory: {root}")
+        return root.resolve()
+    return root
+
+
+def cwo_session_id() -> str:
+    """Return the stable session id for this process or CWO_SESSION_ID override."""
+    configured = os.environ.get("CWO_SESSION_ID")
+    if configured:
+        return _sanitize_temp_component(configured, "session")
+    global _DEFAULT_SESSION_ID
+    if _DEFAULT_SESSION_ID is None:
+        _DEFAULT_SESSION_ID = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}"
+    return _DEFAULT_SESSION_ID
+
+
+def cwo_user_name() -> str:
+    """Return a sanitized user component for CWO temp directory names."""
+    return _sanitize_temp_component(os.environ.get("USER") or getpass.getuser(), "user")
+
+
+def cwo_temp_dir(
+    *,
+    scope: str = "session",
+    purpose: str | None = None,
+    create: bool = True,
+) -> Path:
+    """Return a CWO-owned temp directory for private session or exchange use.
+
+    Session scope is owner-private and defaults to ``/tmp/cwo-<user>-<session>``.
+    Exchange scope is for operator-approved cross-user handoff and defaults to
+    ``/tmp/cwo-exchange`` with best-effort group-readable permissions.
+    """
+    if scope == "session":
+        base = cwo_temp_root(create=create) / f"{CWO_TEMP_DIR_PREFIX}{cwo_user_name()}-{cwo_session_id()}"
+        mode = 0o700
+    elif scope == "exchange":
+        default_exchange = cwo_temp_root(create=create) / CWO_EXCHANGE_DIR_NAME
+        base = _absolute_configured_dir("CWO_EXCHANGE_ROOT", default_exchange)
+        mode = 0o1770
+    else:
+        raise SystemExit("scope must be 'session' or 'exchange'")
+    if purpose:
+        base = base / _sanitize_temp_component(purpose, "artifact")
+    if create:
+        return _ensure_temp_dir(base, mode=mode, require_owner=scope == "session")
+    return base
+
+
+def cwo_temp_path(
+    name: str,
+    *,
+    scope: str = "session",
+    purpose: str | None = None,
+    create_parent: bool = True,
+) -> Path:
+    """Return a path under a CWO-owned temp directory without creating the file."""
+    safe_name = _sanitize_temp_component(name, "artifact")
+    return cwo_temp_dir(scope=scope, purpose=purpose, create=create_parent) / safe_name
+
+
+def is_cwo_temp_path(path: Path) -> bool:
+    """Return whether a path is inside the configured CWO temp or exchange roots."""
+    resolved = path.expanduser().resolve()
+    exchange_root = cwo_temp_dir(scope="exchange", create=False).expanduser().resolve()
+    try:
+        resolved.relative_to(exchange_root)
+        return True
+    except ValueError:
+        pass
+    temp_root = cwo_temp_root(create=False).expanduser().resolve()
+    try:
+        relative = resolved.relative_to(temp_root)
+    except ValueError:
+        return False
+    return bool(relative.parts) and relative.parts[0].startswith(CWO_TEMP_DIR_PREFIX)
+    return False
 
 
 def repo_relative_path(path: Path) -> str:
