@@ -11,11 +11,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 
 ALLOWED_IMPORTS = {
+    "access_profiles": {"policy"},
     "paths": set(),
     "util": set(),
     "chatgpt_urls": set(),
     "policy": {"paths", "util"},
-    "routing": {"errors", "policy", "routing_signals", "synthesis", "types", "util"},
+    "routing": {"access_profiles", "errors", "policy", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "types", "util"},
@@ -32,7 +33,7 @@ ALLOWED_IMPORTS = {
     "audit": {"paths", "policy", "telemetry", "util"},
     "waivers": set(),
     "beads": {"paths", "util"},
-    "harness": {"policy", "util"},
+    "harness": {"access_profiles", "policy", "util"},
     "execution_status_report": {"audit", "paths"},
     "public_copy": set(),
     "errors": set(),

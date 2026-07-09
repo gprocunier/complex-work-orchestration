@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Access Profile Registry",
+  "type": "object",
+  "required": ["version", "schema", "scope", "profiles"],
+  "properties": {
+    "version": {"type": "integer"},
+    "schema": {"const": "json-compatible-yaml"},
+    "scope": {"type": "string"},
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "display_name",
+          "status",
+          "provider_keys",
+          "harnesses",
+          "dispatch_modes",
+          "external",
+          "repo_access",
+          "tool_access",
+          "disclosure",
+          "credential_sources",
+          "runtime_readiness",
+          "authority"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "status": {"enum": ["available", "offline", "experimental", "deprecated"]},
+          "provider_keys": {"type": "array", "items": {"type": "string"}},
+          "harnesses": {"type": "array", "items": {"type": "string"}},
+          "dispatch_modes": {"type": "array", "items": {"type": "string"}},
+          "external": {"type": "boolean"},
+          "repo_access": {"enum": ["none", "read-only", "read-write", "bounded"]},
+          "tool_access": {
+            "type": "object",
+            "required": ["shell", "web", "repo_read", "repo_write", "local_openai_compatible"],
+            "properties": {
+              "shell": {"type": "boolean"},
+              "web": {"type": "boolean"},
+              "repo_read": {"type": "boolean"},
+              "repo_write": {"type": "boolean"},
+              "local_openai_compatible": {"type": "boolean"}
+            }
+          },
+          "disclosure": {
+            "type": "object",
+            "required": ["outside_sharing", "default_share_boundary", "max_share_boundary"],
+            "properties": {
+              "outside_sharing": {"type": "boolean"},
+              "default_share_boundary": {"type": "string"},
+              "max_share_boundary": {"type": "string"}
+            }
+          },
+          "credential_sources": {
+            "type": "object",
+            "required": ["required_env", "optional_env"],
+            "properties": {
+              "required_env": {"type": "array", "items": {"type": "string"}},
+              "optional_env": {"type": "array", "items": {"type": "string"}}
+            }
+          },
+          "runtime_readiness": {
+            "type": "object",
+            "required": ["mode", "missing_required_env_is_error"],
+            "properties": {
+              "mode": {"type": "string"},
+              "missing_required_env_is_error": {"type": "boolean"}
+            }
+          },
+          "authority": {
+            "type": "object",
+            "required": ["evidence_only", "may_execute", "may_write_repo"],
+            "properties": {
+              "evidence_only": {"type": "boolean"},
+              "may_execute": {"type": "boolean"},
+              "may_write_repo": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

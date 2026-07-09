@@ -5,6 +5,7 @@ does not re-export symbols.
 """
 
 __all__ = [
+    "access_profiles",
     "audit",
     "beads",
     "chatgpt_urls",

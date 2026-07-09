@@ -177,8 +177,8 @@ See:
 - `scripts/` - coach, routing, dispatch, validation, install, and reporting
   helpers.
 - `policy/` - JSON-compatible YAML registries for routing, providers,
-  executors, experts, model profiles, share boundaries, and contracting
-  controls.
+  executors, access profiles, experts, model profiles, share boundaries, and
+  contracting controls.
 - `schemas/` - JSON schemas for packets, returns, dispatch envelopes,
   readiness plans, reports, and continuation artifacts.
 - `experts/` - calibrated review profiles used by internal and external lanes.

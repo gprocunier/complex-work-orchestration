@@ -76,6 +76,8 @@ class ExecutorCandidate(TypedDict, total=False):
     provider_retention_class: str | None
     local_profile: str | None
     model_profile: str | None
+    access_profile: str | None
+    access_profile_details: dict[str, Any] | None
     transport: dict[str, Any] | None
     supports_repo_read: bool
     supports_repo_write: bool
@@ -189,6 +191,7 @@ class RouteResult(TypedDict, total=False):
     acceptance_required_experts: list[str]
     recommended_executor: str
     selected_executor: ExecutorCandidate
+    access_profile: str | None
     blocking_review_required: bool
     blocking_review_active: bool
     blocking_review_gate: str | None

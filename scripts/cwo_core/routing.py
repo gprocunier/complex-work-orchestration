@@ -5,6 +5,12 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .access_profiles import (
+    access_profile_for_binding,
+    access_profile_for_executor,
+    access_profiles,
+    sanitized_access_profile,
+)
 from .errors import CWOPolicyError, CWOValidationError
 from .policy import (
     EDITOR_GATE_EXPERT,
@@ -177,13 +183,35 @@ def executor_registry_entry(executor_key: str | None) -> dict[str, Any]:
 
 def execution_environment_summary(environment_key: str, environment: dict[str, Any]) -> dict[str, Any]:
     bindings: dict[str, Any] = {}
+    executors = load_policy("executor-registry").get("executors", {})
+    model_profile_configs = load_policy("model-profiles").get("profiles", {})
+    access_profile_configs = access_profiles()
     for role, binding in (environment.get("role_bindings") or {}).items():
         if isinstance(binding, dict):
-            bindings[str(role)] = {
+            summary = {
                 key: value
                 for key, value in binding.items()
                 if key in {"harness", "executor", "agent", "model_profile"}
             }
+            executor_key = binding.get("executor")
+            executor = executors.get(executor_key) if executor_key else None
+            executor_config = dict(executor) if isinstance(executor, dict) else {}
+            if executor_key and executor_config:
+                executor_config.setdefault("key", executor_key)
+            model_profile_key = binding.get("model_profile")
+            model_profile_config = model_profile_configs.get(model_profile_key) if model_profile_key else None
+            access_profile_key = access_profile_for_binding(
+                binding,
+                executor=executor_config,
+                model_profile_key=str(model_profile_key) if model_profile_key else None,
+                model_profile=model_profile_config if isinstance(model_profile_config, dict) else {},
+            )
+            if access_profile_key:
+                summary["access_profile"] = access_profile_key
+                access_profile = access_profile_configs.get(access_profile_key)
+                if isinstance(access_profile, dict):
+                    summary["access_profile_status"] = access_profile.get("status")
+            bindings[str(role)] = summary
     return {
         "key": environment_key,
         "display_name": environment.get("display_name"),
@@ -707,6 +735,7 @@ def score_executors(
 
     for key, executor in registry.items():
         capabilities = executor.get("capabilities", [])
+        access_profile_key = access_profile_for_executor({**executor, "key": key})
         score = 0
         reasons: list[str] = []
         violations = executor_policy_violations(
@@ -807,6 +836,8 @@ def score_executors(
                 **provider_metadata,
                 "local_profile": executor.get("local_profile"),
                 "model_profile": executor.get("model_profile"),
+                "access_profile": access_profile_key,
+                "access_profile_details": sanitized_access_profile(access_profile_key),
                 "transport": executor.get("transport"),
                 "supports_repo_read": bool(executor.get("supports_repo_read")),
                 "supports_repo_write": bool(executor.get("supports_repo_write")),
@@ -1055,6 +1086,7 @@ def classify_work(
             "provider_key": candidate.get("provider_key"),
             "provider_family": candidate.get("provider_family"),
             "provider_trust_tier": candidate.get("provider_trust_tier"),
+            "access_profile": candidate.get("access_profile"),
             "job_description_label": "contract-jd-architecture-reasoning",
             "critique_mode": candidate.get("critique_mode"),
             "share_boundary": share_boundary,
@@ -1200,6 +1232,7 @@ def classify_work(
         "acceptance_required_experts": acceptance_required_experts,
         "recommended_executor": recommended_executor,
         "selected_executor": selected,
+        "access_profile": selected.get("access_profile"),
         "blocking_review_required": chatgpt_master_review_required,
         "blocking_review_active": bool(
             chatgpt_master_review_required
@@ -1284,6 +1317,9 @@ def selected_executor_for_expert(expert: dict[str, Any], fallback_executor: str 
         value = dict(executor)
         value.setdefault("key", key)
         value.update(provider_metadata_for_executor(value))
+        access_profile_key = access_profile_for_executor(value)
+        value["access_profile"] = access_profile_key
+        value["access_profile_details"] = sanitized_access_profile(access_profile_key)
         return value
     return {"key": str(key or ""), "external": False, "codex_pickup": "allowed", "dispatch_mode": ""}
 
@@ -1335,6 +1371,7 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
         "provider_key": selected.get("provider_key"),
         "provider_family": selected.get("provider_family"),
         "provider_trust_tier": selected.get("provider_trust_tier"),
+        "access_profile": selected.get("access_profile"),
         "executor_policy_violations": expert.get("executor_policy_violations", []),
         "codex_pickup": (
             contract_codex_pickup
@@ -1356,6 +1393,7 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
                 "provider_key",
                 "provider_family",
                 "provider_trust_tier",
+                "access_profile",
                 "job_description_label",
                 "critique_mode",
                 "manual_command",

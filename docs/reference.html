@@ -122,14 +122,21 @@
               Policies are JSON-compatible YAML files used by helper scripts.
               They describe route classes, executors, providers, experts,
               sharing boundaries, peer-review requirements, acceptance rules,
-              execution environment profiles, harness capabilities, RHOAI model
-              substitutions, and contracting controls.
+              execution environment profiles, harness capabilities, access
+              profiles, RHOAI model substitutions, and contracting controls.
             </p>
             <p>
               Model-profile registries include <code>deployment_tier</code>,
               <code>benchmark_gate</code>, and <code>promotion_status</code>
               fields so practical defaults and enterprise evaluation targets
               are visible in dispatch envelopes as well as docs.
+            </p>
+            <p>
+              Access profiles describe how CWO reaches a model or reviewer:
+              Codex shell, Codex review lane, external manual CLI, browser
+              review, generic local endpoint, OpenShift AI vLLM, GLM BF16, or
+              human specialist. They record env var names and authority limits,
+              not credential values.
             </p>
             <div class="reference-table compact" role="table" aria-label="Policy files">
               <div role="row"><span role="cell">Routing</span><code role="cell">policy/routing-policy.yaml</code></div>
@@ -138,6 +145,7 @@
               <div role="row"><span role="cell">Experts</span><code role="cell">policy/expert-registry.yaml</code></div>
               <div role="row"><span role="cell">Harnesses</span><code role="cell">policy/harness-registry.yaml</code></div>
               <div role="row"><span role="cell">Execution environments</span><code role="cell">policy/execution-environments.yaml</code></div>
+              <div role="row"><span role="cell">Access profiles</span><code role="cell">policy/access-profiles.yaml</code></div>
               <div role="row"><span role="cell">Model profiles</span><code role="cell">policy/model-profiles.yaml</code></div>
               <div role="row"><span role="cell">Zero-trust consensus</span><code role="cell">policy/zero-trust-consensus-policy.yaml</code></div>
             </div>
@@ -149,8 +157,8 @@
               Schemas make helper outputs reviewable: prompt coach results,
               route results, contractor handoff packets, contractor returns,
               local dispatch envelopes, versioned harness dispatch envelopes,
-              execution environment profiles, model-profile registries, run
-              readiness plans, sprint continuation briefs, acceptance
+              execution environment profiles, access-profile and model-profile
+              registries, run readiness plans, sprint continuation briefs, acceptance
               decisions, audit events, and attestations.
             </p>
             <div class="reference-table compact" role="table" aria-label="Schema files">
@@ -159,6 +167,7 @@
               <div role="row"><span role="cell">Acceptance decision</span><code role="cell">schemas/acceptance-decision.schema.json</code></div>
               <div role="row"><span role="cell">Harness dispatch</span><code role="cell">schemas/harness-dispatch-envelope.schema.json</code></div>
               <div role="row"><span role="cell">Execution environment</span><code role="cell">schemas/execution-environment.schema.json</code></div>
+              <div role="row"><span role="cell">Access profile</span><code role="cell">schemas/access-profile.schema.json</code></div>
               <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
               <div role="row"><span role="cell">Sprint continuation</span><code role="cell">schemas/sprint-continuation.schema.json</code></div>
               <div role="row"><span role="cell">Execution status report</span><code role="cell">schemas/execution-status-report.schema.json</code></div>

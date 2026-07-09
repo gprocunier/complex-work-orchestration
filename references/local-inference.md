@@ -33,7 +33,10 @@ python3 scripts/coach_prompt.py \
 
 ## Profiles
 
-Registered local profiles live in `policy/executor-registry.yaml`.
+Registered local endpoint profiles still live in `policy/executor-registry.yaml`
+for backward compatibility. Access-profile metadata lives in
+`policy/access-profiles.yaml` and is emitted in route, local-dispatch, and
+harness-dispatch artifacts.
 
 - `generic-openai-compatible`: local endpoint configured with
   `CWO_LOCAL_OPENAI_BASE_URL`, `CWO_LOCAL_OPENAI_MODEL`, and optional
@@ -65,8 +68,18 @@ vLLM. The important distinction is:
 
 - Executor profile: where the endpoint lives and which environment variables
   configure the call.
+- Access profile: the access class for that executor, including allowed
+  harnesses, outside-sharing posture, repo/tool authority, and the env var names
+  CWO may mention.
 - Model profile: which approved model alias or Hugging Face model ID should be
   used for a CWO role.
+
+The access registry does not rename current operator env vars. It records names
+such as `CWO_OPENSHIFT_AI_VLLM_BASE_URL`,
+`CWO_OPENSHIFT_AI_VLLM_API_KEY`,
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL`, and
+`CWO_CHATGPT_BROWSER_CONFIG` so packets and status reports can show the access
+path without printing values.
 
 For example, `airgapped-rhoai` binds its worker role to
 `rhoai-worker-qwen2-5-coder-32b-fp8`. Rendering a harness envelope resolves that
@@ -161,7 +174,16 @@ python3 scripts/dispatch_work.py \
 ```
 
 The envelope follows `schemas/local-dispatch-envelope.schema.json` and includes
-only endpoint environment variable names, never API key values.
+the selected `access_profile`, sanitized `access_profile_details`, readiness
+booleans for required and optional env var names, and only endpoint environment
+variable names. It never includes API key values or endpoint URLs.
+
+To inspect access readiness without dispatching:
+
+```bash
+python3 scripts/render_access_profile_status.py --profile rhoai-vllm
+python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
+```
 
 For GLM-5.2 BF16 thinking:
 

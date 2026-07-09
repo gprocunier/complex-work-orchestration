@@ -320,6 +320,16 @@ class PlaywrightChatGPTRunner:
     def selector(self, key: str, default: str) -> str:
         return str(self.selectors.get(key) or default)
 
+    def _stop_playwright(self, playwright: Any) -> None:
+        try:
+            playwright.stop()
+        except RuntimeError as exc:
+            # Python 3.14 can report this after successful CDP work while
+            # Playwright is cleaning up. Do not let cleanup discard the review
+            # result, but keep other RuntimeErrors visible.
+            if "event loop is already running" not in str(exc):
+                raise
+
     def confirm_model_only(self) -> dict[str, Any]:
         try:
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -328,9 +338,11 @@ class PlaywrightChatGPTRunner:
             raise SystemExit("Playwright is required for ChatGPT browser dispatch") from exc
 
         timeout_ms = int(self.config.get("page_timeout_seconds", 30)) * 1000
-        with sync_playwright() as playwright:
-            browser = None
-            attached = False
+        manager = sync_playwright()
+        playwright = manager.start()
+        context = None
+        attached = False
+        try:
             if self.config.get("connect_over_cdp_url"):
                 attached = True
                 browser = playwright.chromium.connect_over_cdp(str(self.config["connect_over_cdp_url"]))
@@ -346,8 +358,10 @@ class PlaywrightChatGPTRunner:
             self._wait_for_prompt(page, timeout_ms)
             self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
             model_attestation = self._confirm_configured_labels(page, timeout_ms)
-            if not attached:
+        finally:
+            if context is not None and not attached:
                 context.close()
+            self._stop_playwright(playwright)
         return {"model_attestation": model_attestation}
 
     def run(self, prompt: str) -> dict[str, Any]:
@@ -364,9 +378,11 @@ class PlaywrightChatGPTRunner:
         model_attestation: dict[str, Any] | None = None
         share_url = ""
         response_text = ""
-        with sync_playwright() as playwright:
-            browser = None
-            attached = False
+        manager = sync_playwright()
+        playwright = manager.start()
+        context = None
+        attached = False
+        try:
             if self.config.get("connect_over_cdp_url"):
                 attached = True
                 browser = playwright.chromium.connect_over_cdp(str(self.config["connect_over_cdp_url"]))
@@ -419,8 +435,10 @@ class PlaywrightChatGPTRunner:
                     },
                 ) from exc
             finally:
-                if not attached:
+                if context is not None and not attached:
                     context.close()
+        finally:
+            self._stop_playwright(playwright)
         if self.config.get("share_link_required", True) and not valid_chatgpt_share_url(share_url):
             raise ChatGPTBrowserReviewError(
                 "share-link",

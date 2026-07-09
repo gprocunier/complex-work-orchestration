@@ -149,15 +149,22 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               the workflow.
             </p>
             <p>
-              Registered local profiles live in the executor registry. Use
-              <code>openshift-ai-vllm</code> when targeting an OpenShift AI
-              vLLM endpoint, or the generic OpenAI-compatible profile for other
-              serving stacks.
+              Registered local endpoint profiles still live in the executor
+              registry for compatibility. Access profiles now record the access
+              class: Codex shell, external manual CLI, browser review, generic
+              local endpoint, OpenShift AI vLLM, GLM BF16, or human specialist.
+            </p>
+            <p>
+              Use <code>openshift-ai-vllm</code> when targeting an OpenShift
+              AI vLLM endpoint, or the generic OpenAI-compatible profile for
+              other serving stacks. The access profile records the env var
+              names CWO may mention; it does not print API keys or endpoint
+              values.
             </p>
             <p>
               Execution profiles add role-specific model profiles on top of
-              endpoint profiles. The executor profile says where the local API
-              lives; the model profile says which approved RHOAI/vLLM model
+              access profiles. The access profile says how the model is
+              reached; the model profile says which approved RHOAI/vLLM model
               alias should handle a CWO role. In airgapped OpenCode flows, CWO
               can bind architect, PM, workerbee, review, secure-review, and
               synthesis lanes to local model profiles from
@@ -232,9 +239,10 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
             <h2>Dispatch Envelope</h2>
             <p>
               Dispatch prepares a local envelope by default. The envelope names
-              the endpoint environment variables and bounded prompt content; it
-              does not include API key values and it does not call the endpoint
-              unless <code>--execute-local</code> is set.
+              the selected access profile, endpoint environment variables, and
+              bounded prompt content; it does not include API key values or
+              endpoint URLs, and it does not call the endpoint unless
+              <code>--execute-local</code> is set.
             </p>
             <pre><code>export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
 export CWO_OPENSHIFT_AI_VLLM_MODEL="vllm-local"
@@ -247,6 +255,8 @@ python3 scripts/dispatch_work.py \
   --bead example \
   --json \
   "Summarize docs-review risks."</code></pre>
+            <pre><code>python3 scripts/render_access_profile_status.py --profile rhoai-vllm
+python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured</code></pre>
           </section>
 
           <section id="endpoint-safety">

@@ -50,11 +50,12 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
 CWO_CORE_ALLOWED_IMPORTS = {
+    "access_profiles": {"policy"},
     "paths": set(),
     "util": set(),
     "chatgpt_urls": set(),
     "policy": {"paths", "util"},
-    "routing": {"errors", "policy", "routing_signals", "synthesis", "types", "util"},
+    "routing": {"access_profiles", "errors", "policy", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "types", "util"},
@@ -71,7 +72,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "audit": {"paths", "policy", "telemetry", "util"},
     "waivers": set(),
     "beads": {"paths", "util"},
-    "harness": {"policy", "util"},
+    "harness": {"access_profiles", "policy", "util"},
     "execution_status_report": {"audit", "paths"},
     "public_copy": set(),
     "errors": set(),
@@ -114,6 +115,7 @@ WAIVER_CONVENTION_SCRIPTS = {
             "--allow-disclosure-escalation",
             "--local-allow-private-dns",
             "--local-insecure-tls",
+            "--allow-offline-access-profile",
             "--no-audit",
         ],
         "audit_fields": True,
@@ -511,6 +513,9 @@ def validate_repository() -> list[str]:
         schema_name="local-dispatch-envelope.schema.json",
         schema=local_envelope_schema,
         properties=[
+            "access_profile",
+            "access_profile_details",
+            "access_profile_readiness",
             "model_profile",
             "allow_private_dns",
             "tls_verify",
@@ -544,6 +549,7 @@ def validate_repository() -> list[str]:
         schema_name="route-result.schema.json",
         schema=load_json(REPO_ROOT / "schemas" / "route-result.schema.json"),
         properties=[
+            "access_profile",
             "model_synthesis",
             "data_sensitivity_source",
             "data_sensitivity_heuristic",
@@ -568,7 +574,19 @@ def validate_repository() -> list[str]:
         errors,
         schema_name="harness-dispatch-envelope.schema.json",
         schema=harness_dispatch_schema,
-        properties=["model_profile", "model_profile_details"],
+        properties=[
+            "model_profile",
+            "model_profile_details",
+            "access_profile",
+            "access_profile_details",
+            "access_profile_readiness",
+        ],
+    )
+    require_schema_properties(
+        errors,
+        schema_name="access-profile.schema.json",
+        schema=load_json(REPO_ROOT / "schemas" / "access-profile.schema.json"),
+        properties=["profiles"],
     )
     model_profile_schema = load_json(REPO_ROOT / "schemas" / "model-profile.schema.json")
     profile_properties = (

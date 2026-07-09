@@ -134,6 +134,9 @@ class SchemaParityTests(unittest.TestCase):
         schema = load_schema("local-dispatch-envelope.schema.json")
         self.assertTrue(set(LOCAL_DISPATCH_REQUIRED_FIELDS).issubset(set(schema["required"])))
         for field in [
+            "access_profile",
+            "access_profile_details",
+            "access_profile_readiness",
             "model_profile",
             "allow_private_dns",
             "tls_verify",
@@ -172,6 +175,7 @@ class SchemaParityTests(unittest.TestCase):
         self.assertNotIn(RETIRED_FIELD, schema["required"])
         self.assertIn("beads_context_depth_provenance", schema["required"])
         self.assertIn("beads_context_depth", schema["properties"])
+        self.assertIn("access_profile", schema["properties"])
         self.assertNotIn(RETIRED_FIELD, schema["properties"])
         for field in [
             "activation_state",
@@ -208,6 +212,14 @@ class SchemaParityTests(unittest.TestCase):
         self.assertTrue(set(HARNESS_DISPATCH_REQUIRED_FIELDS).issubset(set(schema["required"])))
         self.assertIn("model_profile", schema["properties"])
         self.assertIn("model_profile_details", schema["properties"])
+        self.assertIn("access_profile", schema["properties"])
+        self.assertIn("access_profile_details", schema["properties"])
+        self.assertIn("access_profile_readiness", schema["properties"])
+
+    def test_access_profile_schema_has_profiles_root(self) -> None:
+        schema = load_schema("access-profile.schema.json")
+        self.assertIn("profiles", schema["required"])
+        self.assertIn("profiles", schema["properties"])
 
     def test_model_profile_schema_matches_runtime_required_fields(self) -> None:
         schema = load_schema("model-profile.schema.json")

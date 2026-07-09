@@ -84,6 +84,23 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         self.assertNotIn(str(Path(tmpdir)), rendered)
         self.assertNotIn(str(Path(tmpdir) / "profile"), rendered)
 
+    def test_playwright_cleanup_keeps_completed_result_on_python314_loop_error(self) -> None:
+        class CleanupRaises:
+            def stop(self) -> None:
+                raise RuntimeError("This event loop is already running")
+
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
+        runner._stop_playwright(CleanupRaises())
+
+    def test_playwright_cleanup_preserves_unexpected_runtime_errors(self) -> None:
+        class CleanupRaises:
+            def stop(self) -> None:
+                raise RuntimeError("transport failed")
+
+        runner = PlaywrightChatGPTRunner({"selectors": {}, "local_clipboard_fallback": False})
+        with self.assertRaises(RuntimeError):
+            runner._stop_playwright(CleanupRaises())
+
     def test_config_summary_reports_confirmation_selectors(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = self.write_config(Path(tmpdir))

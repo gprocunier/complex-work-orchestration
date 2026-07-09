@@ -1,0 +1,279 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "scope": "Access profiles classify how CWO reaches models and tools. They do not replace executor, model, provider, or execution-environment registries.",
+  "profiles": {
+    "codex-connected-shell": {
+      "display_name": "Codex connected shell",
+      "status": "available",
+      "provider_keys": ["internal_codex"],
+      "harnesses": ["codex_cli"],
+      "dispatch_modes": ["main_thread", "codex_worker"],
+      "external": false,
+      "repo_access": "read-write",
+      "tool_access": {
+        "shell": true,
+        "web": false,
+        "repo_read": true,
+        "repo_write": true,
+        "local_openai_compatible": false
+      },
+      "disclosure": {
+        "outside_sharing": false,
+        "default_share_boundary": "no-outside-sharing",
+        "max_share_boundary": "no-outside-sharing"
+      },
+      "credential_sources": {
+        "required_env": [],
+        "optional_env": []
+      },
+      "runtime_readiness": {
+        "mode": "in-process",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": false,
+        "may_execute": true,
+        "may_write_repo": true
+      }
+    },
+    "codex-review-lane": {
+      "display_name": "Codex internal review lane",
+      "status": "available",
+      "provider_keys": ["internal_codex"],
+      "harnesses": ["codex_cli"],
+      "dispatch_modes": ["main_thread_review"],
+      "external": false,
+      "repo_access": "read-only",
+      "tool_access": {
+        "shell": false,
+        "web": false,
+        "repo_read": true,
+        "repo_write": false,
+        "local_openai_compatible": false
+      },
+      "disclosure": {
+        "outside_sharing": false,
+        "default_share_boundary": "no-outside-sharing",
+        "max_share_boundary": "no-outside-sharing"
+      },
+      "credential_sources": {
+        "required_env": [],
+        "optional_env": []
+      },
+      "runtime_readiness": {
+        "mode": "in-process",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    },
+    "manual-external-cli": {
+      "display_name": "Manual external CLI reviewer",
+      "status": "available",
+      "provider_keys": ["anthropic_manual", "google_gemini_manual"],
+      "harnesses": ["manual_operator"],
+      "dispatch_modes": ["manual_ui"],
+      "external": true,
+      "repo_access": "read-only",
+      "tool_access": {
+        "shell": true,
+        "web": true,
+        "repo_read": true,
+        "repo_write": false,
+        "local_openai_compatible": false
+      },
+      "disclosure": {
+        "outside_sharing": true,
+        "default_share_boundary": "repo-readonly",
+        "max_share_boundary": "repo-readonly"
+      },
+      "credential_sources": {
+        "required_env": [],
+        "optional_env": []
+      },
+      "runtime_readiness": {
+        "mode": "operator-managed",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    },
+    "browser-external-review": {
+      "display_name": "Browser external review",
+      "status": "available",
+      "provider_keys": ["openai_manual"],
+      "harnesses": ["manual_operator"],
+      "dispatch_modes": ["browser_automation", "manual_ui"],
+      "external": true,
+      "repo_access": "none",
+      "tool_access": {
+        "shell": false,
+        "web": true,
+        "repo_read": false,
+        "repo_write": false,
+        "local_openai_compatible": false
+      },
+      "disclosure": {
+        "outside_sharing": true,
+        "default_share_boundary": "redacted-packet",
+        "max_share_boundary": "redacted-packet"
+      },
+      "credential_sources": {
+        "required_env": [],
+        "optional_env": ["CWO_CHATGPT_BROWSER_CONFIG"]
+      },
+      "runtime_readiness": {
+        "mode": "operator-managed",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    },
+    "local-openai-compatible": {
+      "display_name": "Local OpenAI-compatible endpoint",
+      "status": "available",
+      "provider_keys": ["local_inference"],
+      "harnesses": ["manual_operator", "opencode"],
+      "dispatch_modes": ["local_openai_compatible", "local_secure_review"],
+      "external": false,
+      "repo_access": "bounded",
+      "tool_access": {
+        "shell": false,
+        "web": false,
+        "repo_read": true,
+        "repo_write": false,
+        "local_openai_compatible": true
+      },
+      "disclosure": {
+        "outside_sharing": false,
+        "default_share_boundary": "no-outside-sharing",
+        "max_share_boundary": "no-outside-sharing"
+      },
+      "credential_sources": {
+        "required_env": ["CWO_LOCAL_OPENAI_BASE_URL"],
+        "optional_env": ["CWO_LOCAL_OPENAI_API_KEY", "CWO_LOCAL_OPENAI_MODEL"]
+      },
+      "runtime_readiness": {
+        "mode": "env-or-cli-override",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    },
+    "rhoai-vllm": {
+      "display_name": "OpenShift AI vLLM endpoint",
+      "status": "available",
+      "provider_keys": ["openshift_ai_vllm"],
+      "harnesses": ["manual_operator", "opencode"],
+      "dispatch_modes": ["local_openai_compatible", "local_secure_review"],
+      "external": false,
+      "repo_access": "bounded",
+      "tool_access": {
+        "shell": false,
+        "web": false,
+        "repo_read": true,
+        "repo_write": false,
+        "local_openai_compatible": true
+      },
+      "disclosure": {
+        "outside_sharing": false,
+        "default_share_boundary": "no-outside-sharing",
+        "max_share_boundary": "no-outside-sharing"
+      },
+      "credential_sources": {
+        "required_env": ["CWO_OPENSHIFT_AI_VLLM_BASE_URL"],
+        "optional_env": ["CWO_OPENSHIFT_AI_VLLM_API_KEY", "CWO_OPENSHIFT_AI_VLLM_MODEL", "CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE"]
+      },
+      "runtime_readiness": {
+        "mode": "env-or-cli-override",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    },
+    "rhoai-glm-bf16": {
+      "display_name": "OpenShift AI GLM-5.2 BF16 endpoint",
+      "status": "offline",
+      "provider_keys": ["openshift_ai_vllm"],
+      "harnesses": ["manual_operator", "opencode"],
+      "dispatch_modes": ["local_secure_review"],
+      "external": false,
+      "repo_access": "bounded",
+      "tool_access": {
+        "shell": false,
+        "web": false,
+        "repo_read": true,
+        "repo_write": false,
+        "local_openai_compatible": true
+      },
+      "disclosure": {
+        "outside_sharing": false,
+        "default_share_boundary": "no-outside-sharing",
+        "max_share_boundary": "no-outside-sharing"
+      },
+      "credential_sources": {
+        "required_env": ["CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL"],
+        "optional_env": ["CWO_OPENSHIFT_AI_VLLM_API_KEY", "CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL", "CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE", "CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY"]
+      },
+      "runtime_readiness": {
+        "mode": "env-or-cli-override",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    },
+    "human-specialist-contractor": {
+      "display_name": "Human specialist contractor",
+      "status": "available",
+      "provider_keys": ["human_specialist"],
+      "harnesses": ["manual_operator"],
+      "dispatch_modes": ["human"],
+      "external": true,
+      "repo_access": "read-only",
+      "tool_access": {
+        "shell": false,
+        "web": true,
+        "repo_read": true,
+        "repo_write": false,
+        "local_openai_compatible": false
+      },
+      "disclosure": {
+        "outside_sharing": true,
+        "default_share_boundary": "redacted-packet",
+        "max_share_boundary": "repo-readonly"
+      },
+      "credential_sources": {
+        "required_env": [],
+        "optional_env": []
+      },
+      "runtime_readiness": {
+        "mode": "operator-managed",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    }
+  }
+}

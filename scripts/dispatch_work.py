@@ -26,6 +26,11 @@ from cwo_core.audit import (
 )
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
+from cwo_core.access_profiles import (
+    access_profile_for_executor,
+    access_profile_runtime_status,
+    sanitized_access_profile,
+)
 from cwo_core.policy import executor_config
 from cwo_core.util import (
     artifact_hash,
@@ -436,6 +441,10 @@ def build_local_envelope(
     args: argparse.Namespace,
 ) -> dict[str, Any]:
     selected = dict(route["selected_executor"])
+    access_profile_key = str(selected.get("access_profile") or access_profile_for_executor(selected) or "")
+    access_profile_details = sanitized_access_profile(access_profile_key)
+    if not access_profile_key or not access_profile_details:
+        raise SystemExit("selected local executor does not resolve to a known access profile")
     transport = local_transport(selected, args)
     tls = local_tls_settings(transport, args)
     max_input_chars = int(transport["max_input_chars"])
@@ -475,6 +484,9 @@ def build_local_envelope(
         "executor_key": route["recommended_executor"],
         "provider_key": selected.get("provider_key"),
         "provider_trust_tier": selected.get("provider_trust_tier"),
+        "access_profile": access_profile_key or None,
+        "access_profile_details": access_profile_details,
+        "access_profile_readiness": access_profile_runtime_status(access_profile_key),
         "local_profile": selected.get("local_profile"),
         "model_profile": selected.get("model_profile"),
         "transport_kind": transport.get("kind"),
@@ -501,7 +513,22 @@ def build_local_envelope(
     }
 
 
+def require_access_profile_online_for_execution(envelope: dict[str, Any], args: argparse.Namespace) -> None:
+    profile_key = str(envelope.get("access_profile") or "")
+    details = envelope.get("access_profile_details") if isinstance(envelope.get("access_profile_details"), dict) else {}
+    status = str(details.get("status") or "").strip().lower()
+    if status != "offline":
+        return
+    if getattr(args, "allow_offline_access_profile", False):
+        return
+    raise SystemExit(
+        f"access profile {profile_key!r} is marked offline; "
+        "pass --allow-offline-access-profile with --waiver-reason only after the operator confirms the endpoint is restored"
+    )
+
+
 def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    require_access_profile_online_for_execution(envelope, args)
     transport = local_transport(selected_executor, args)
     base_url = transport.get("base_url")
     if not base_url:
@@ -676,6 +703,11 @@ def main() -> None:
         help="Lab-only: disable TLS verification when the selected local executor profile explicitly allows it.",
     )
     parser.add_argument("--execute-local", action="store_true", help="Actually POST a local-worker envelope to the endpoint.")
+    parser.add_argument(
+        "--allow-offline-access-profile",
+        action="store_true",
+        help="Permit execution when the selected access profile is marked offline. Requires --waiver-reason.",
+    )
     parser.add_argument("--share-boundary", default="no-outside-sharing")
     parser.add_argument(
         "--data-sensitivity",
@@ -703,6 +735,7 @@ def main() -> None:
             "allow_disclosure_escalation",
             "local_allow_private_dns",
             "local_insecure_tls",
+            "allow_offline_access_profile",
             "audit",
         ],
     )
@@ -751,6 +784,7 @@ def main() -> None:
                     "executor_key": artifact["executor_key"],
                     "provider_key": artifact["provider_key"],
                     "provider_trust_tier": artifact["provider_trust_tier"],
+                    "access_profile": packet.get("access_profile"),
                     "executor_external": quota_info.get("executor_external"),
                     "dispatch_mode": artifact["dispatch_mode"],
                     "share_boundary": artifact["share_boundary"],
@@ -853,6 +887,7 @@ def main() -> None:
             model=(local_envelope or {}).get("model"),
             provider_family=selected_executor.get("provider_family"),
             provider_retention_class=selected_executor.get("provider_retention_class"),
+            access_profile=selected_executor.get("access_profile"),
             job_description_label=job_label,
             local_status_code=(local_response or {}).get("status_code") if local_response else None,
             execution_enabled=bool(args.execute_local),
@@ -883,6 +918,7 @@ def main() -> None:
                         "allow_disclosure_escalation",
                         "local_allow_private_dns",
                         "local_insecure_tls",
+                        "allow_offline_access_profile",
                         "audit",
                     ],
                 ),
@@ -890,6 +926,7 @@ def main() -> None:
                 "executor_key": route["recommended_executor"],
                 "provider_key": route["selected_executor"].get("provider_key"),
                 "provider_trust_tier": route["selected_executor"].get("provider_trust_tier"),
+                "access_profile": route["selected_executor"].get("access_profile"),
                 "executor_external": quota_info.get("executor_external"),
                 "dispatch_mode": artifact["dispatch_mode"],
                 "share_boundary": args.share_boundary,

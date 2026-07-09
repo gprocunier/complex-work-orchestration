@@ -3,6 +3,13 @@ from __future__ import annotations
 import shlex
 from typing import Any
 
+from .access_profiles import (
+    access_profile_for_binding,
+    access_profile_runtime_status,
+    access_profiles,
+    sanitized_access_profile,
+    validate_access_profile_registry,
+)
 from .policy import load_policy
 from .util import artifact_hash
 
@@ -201,11 +208,13 @@ def sanitized_model_profile(profile_key: str | None) -> dict[str, Any] | None:
 def validate_execution_environment_registry() -> list[str]:
     errors: list[str] = []
     errors.extend(validate_model_profile_registry())
+    errors.extend(validate_access_profile_registry())
     harnesses = harness_registry().get("harnesses", {})
     environments = execution_environment_registry().get("profiles", {})
     providers = load_policy("provider-registry").get("providers", {})
     executors = load_policy("executor-registry").get("executors", {})
     profiles = model_profiles()
+    access_profile_configs = access_profiles()
 
     if not isinstance(harnesses, dict) or not harnesses:
         return ["harness registry must define at least one harness"]
@@ -269,13 +278,19 @@ def validate_execution_environment_registry() -> list[str]:
             if harness_key not in harnesses:
                 errors.append(f"execution environment {env_key!r} role {role!r} references unknown harness {harness_key!r}")
             executor_key = binding.get("executor")
+            executor = {}
             if executor_key and executor_key not in executors:
                 errors.append(f"execution environment {env_key!r} role {role!r} references unknown executor {executor_key!r}")
+            elif executor_key:
+                executor = dict(executors[executor_key])
+                executor.setdefault("key", executor_key)
             profile_key = binding.get("model_profile")
+            profile_config = {}
             if profile_key:
                 profile_config = profiles.get(profile_key)
                 if not isinstance(profile_config, dict):
                     errors.append(f"execution environment {env_key!r} role {role!r} references unknown model_profile {profile_key!r}")
+                    profile_config = {}
                 else:
                     provider_key = profile_config.get("provider_key")
                     if provider_key not in allowed_providers:
@@ -289,6 +304,25 @@ def validate_execution_environment_registry() -> list[str]:
                                 f"execution environment {env_key!r} role {role!r} model_profile {profile_key!r} "
                                 f"requires a local OpenAI-compatible harness"
                             )
+            access_profile_key = access_profile_for_binding(
+                binding,
+                executor=executor,
+                model_profile_key=str(profile_key) if profile_key else None,
+                model_profile=profile_config if isinstance(profile_config, dict) else {},
+            )
+            if not access_profile_key:
+                errors.append(f"execution environment {env_key!r} role {role!r} does not resolve to an access profile")
+            elif access_profile_key not in access_profile_configs:
+                errors.append(
+                    f"execution environment {env_key!r} role {role!r} references unknown access profile {access_profile_key!r}"
+                )
+            else:
+                access_profile = access_profile_configs[access_profile_key]
+                if harness_key not in access_profile.get("harnesses", []):
+                    errors.append(
+                        f"execution environment {env_key!r} role {role!r} harness {harness_key!r} "
+                        f"is not allowed by access profile {access_profile_key!r}"
+                    )
     return errors
 
 
@@ -328,8 +362,10 @@ def build_harness_prompt(
     bead_id: str | None,
     epic_id: str | None,
     model_profile_key: str | None = None,
+    access_profile_key: str | None = None,
 ) -> str:
     profile_line = f"Model profile: {model_profile_key}\n" if model_profile_key else ""
+    access_profile_line = f"Access profile: {access_profile_key}\n" if access_profile_key else ""
     return (
         "You are executing a bounded Complex Work Orchestration assignment.\n"
         "Return evidence only. Do not claim authority to accept, merge, publish, "
@@ -337,6 +373,7 @@ def build_harness_prompt(
         f"Execution environment: {environment_key}\n"
         f"Role: {role}\n"
         f"{profile_line}"
+        f"{access_profile_line}"
         f"Bead: {bead_id or 'unassigned'}\n"
         f"Epic: {epic_id or 'none'}\n\n"
         "CWO rules:\n"
@@ -389,6 +426,32 @@ def build_harness_dispatch(
     resolved_profile = model_profile(str(resolved_profile_key) if resolved_profile_key else None)
     if resolved_profile_key and not resolved_profile:
         raise SystemExit(f"unknown model profile: {resolved_profile_key}")
+    bound_executor_key = binding.get("executor")
+    executor_details: dict[str, Any] = {}
+    if bound_executor_key:
+        executors = load_policy("executor-registry").get("executors", {})
+        executor = executors.get(bound_executor_key)
+        if not isinstance(executor, dict):
+            raise SystemExit(f"unknown executor: {bound_executor_key}")
+        executor_details = dict(executor)
+        executor_details.setdefault("key", bound_executor_key)
+    access_profile_model_key = resolved_profile_key or binding.get("model_profile")
+    access_profile_model = resolved_profile
+    if not access_profile_model and access_profile_model_key:
+        access_profile_model = model_profile(str(access_profile_model_key))
+    access_profile_key = access_profile_for_binding(
+        binding,
+        executor=executor_details,
+        model_profile_key=str(access_profile_model_key) if access_profile_model_key else None,
+        model_profile=access_profile_model,
+    )
+    access_profile_details = sanitized_access_profile(access_profile_key)
+    if access_profile_key and not access_profile_details:
+        raise SystemExit(f"unknown access profile: {access_profile_key}")
+    if access_profile_details and selected_harness not in set(access_profile_details.get("harnesses", [])):
+        raise SystemExit(
+            f"harness {selected_harness!r} is not allowed by access profile {access_profile_key!r}"
+        )
     requirements = {
         "supports_repo_read": True,
         "supports_repo_write": False,
@@ -418,6 +481,7 @@ def build_harness_dispatch(
         bead_id=bead_id,
         epic_id=epic_id,
         model_profile_key=str(resolved_profile_key) if resolved_profile_key else None,
+        access_profile_key=access_profile_key,
     )
     command = _suggested_command(
         harness_key=selected_harness,
@@ -442,6 +506,9 @@ def build_harness_dispatch(
         "variant": resolved_variant,
         "model_profile": str(resolved_profile_key) if resolved_profile_key else None,
         "model_profile_details": sanitized_model_profile(str(resolved_profile_key) if resolved_profile_key else None),
+        "access_profile": access_profile_key,
+        "access_profile_details": access_profile_details,
+        "access_profile_readiness": access_profile_runtime_status(access_profile_key),
         "prompt": prompt,
         "prompt_sha256": artifact_hash(prompt),
         "suggested_command": command,

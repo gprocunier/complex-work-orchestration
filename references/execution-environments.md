@@ -24,6 +24,11 @@ packet, or dispatch envelope. A harness return is evidence, not authority.
 Execution profiles live in `policy/execution-environments.yaml`.
 Role-specific local model profiles live in `policy/model-profiles.yaml`, with
 runtime shape described by `schemas/model-profile.schema.json`.
+Access profiles live in `policy/access-profiles.yaml`, with runtime shape
+described by `schemas/access-profile.schema.json`. They classify how a role
+reaches a model or tool: Codex shell, Codex review lane, external manual CLI,
+ChatGPT browser review, generic local OpenAI-compatible endpoint, OpenShift AI
+vLLM, GLM BF16, or human specialist.
 
 - `connected-codex`: current production-quality path. Codex owns architecture
   and integration; OpenShift AI vLLM, Claude, Gemini, or ChatGPT Pro lanes are
@@ -37,6 +42,15 @@ runtime shape described by `schemas/model-profile.schema.json`.
   OpenAI-compatible endpoint.
 
 Harness capabilities live in `policy/harness-registry.yaml`.
+
+Think of the three profile layers this way:
+
+- Execution environment: which harness and executor owns each CWO role.
+- Access profile: what kind of access the executor has, which env var names
+  configure it, and whether it can read, write, use shell, use web, or share
+  externally.
+- Model profile: which approved model alias or Hugging Face model ID should
+  serve a CWO role.
 
 ## Why OpenCode First
 
@@ -61,7 +75,9 @@ The JSON envelope follows `schemas/harness-dispatch-envelope.schema.json`. It
 includes `envelope_version=1.0`, lifecycle state `rendered`, a prompt SHA-256
 that must match the rendered prompt, execution environment, harness, role,
 capability requirements, timeout, selected `model_profile`, sanitized
-`model_profile_details`, shell-quoted suggested command, and constraints. It
+`model_profile_details`, selected `access_profile`, sanitized
+`access_profile_details`, redacted access-profile readiness, shell-quoted
+suggested command, and constraints. It
 must not include API keys, bearer tokens, browser cookies, kubeconfigs, or other
 credential values.
 
@@ -157,9 +173,11 @@ default.
 
 1. The execution environment chooses the bound harness and agent for the role.
 2. A bound `model_profile` supplies the model alias and default variant.
-3. `--model-profile` can choose another approved profile explicitly.
-4. `--model` is an operator override and disables profile resolution.
-5. `--model` and `--model-profile` are mutually exclusive.
+3. The access profile records the access class and configured env var names.
+4. `--model-profile` can choose another approved profile explicitly.
+5. `--model` is an operator override and disables model-profile details for
+   that dispatch, while the role's access profile still records the access path.
+6. `--model` and `--model-profile` are mutually exclusive.
 
 Resolved model-profile dispatch is still render-only. It creates the prompt,
 hash, suggested OpenCode command, and reviewable envelope; it does not call
@@ -204,9 +222,12 @@ Before promoting this beyond v2:
   validate cleanly.
 - `policy/model-profiles.yaml` records role substitution, public Hugging Face
   model IDs, confidence, deployment boundaries, and vLLM endpoint assumptions.
+- `policy/access-profiles.yaml` records Codex, external, browser, local,
+  RHOAI, GLM, and human access classes without credential values.
 - `schemas/execution-environment.schema.json` and
   `schemas/harness-dispatch-envelope.schema.json` match runtime fields.
 - `schemas/model-profile.schema.json` matches runtime model-profile fields.
+- `schemas/access-profile.schema.json` matches runtime access-profile fields.
 - `scripts/render_harness_dispatch.py` renders versioned OpenCode artifacts
   with lifecycle state, capability requirements, model profile metadata, and no
   execution by default.

@@ -129,8 +129,41 @@ class LocalDispatchTests(unittest.TestCase):
                 args=args,
             )
         self.assertEqual(envelope["api_key_env"], "CWO_OPENSHIFT_AI_VLLM_API_KEY")
+        self.assertEqual(envelope["access_profile"], "rhoai-vllm")
+        self.assertIn("CWO_OPENSHIFT_AI_VLLM_API_KEY", str(envelope["access_profile_readiness"]))
         self.assertNotIn("secret-token", str(envelope))
         self.assertFalse(envelope["execution_enabled"])
+
+    def test_local_envelope_fails_if_executor_has_no_access_profile(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        broken_route = dict(route)
+        broken_executor = dict(route["selected_executor"])
+        broken_executor.pop("access_profile", None)
+        broken_executor["provider_key"] = "unknown_provider"
+        broken_route["selected_executor"] = broken_executor
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url=None,
+            local_model=None,
+            execute_local=False,
+        )
+        with self.assertRaises(SystemExit) as context:
+            build_local_envelope(
+                task="Documentation review for internal example notes.",
+                route=broken_route,
+                dispatch_id="dispatch-local-test",
+                bead_id="cwo-local",
+                epic_id=None,
+                args=args,
+            )
+        self.assertIn("known access profile", str(context.exception))
 
     def test_execute_local_posts_openai_compatible_payload(self) -> None:
         route = classify_work(
@@ -345,6 +378,8 @@ class LocalDispatchTests(unittest.TestCase):
 
         self.assertEqual(envelope["model"], "glm-5.2-bf16-128k")
         self.assertEqual(envelope["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(envelope["access_profile"], "rhoai-glm-bf16")
+        self.assertEqual(envelope["access_profile_details"]["status"], "offline")
         self.assertTrue(envelope["allow_private_dns"])
         self.assertFalse(envelope["tls_verify"])
         self.assertEqual(envelope["tls_verify_source"], "--local-insecure-tls")
@@ -355,6 +390,37 @@ class LocalDispatchTests(unittest.TestCase):
         )
         self.assertEqual(envelope["thinking_parser"], "glm-think-tags")
         self.assertEqual(envelope["response_sanitization"], "strip-raw-thinking")
+
+    def test_glm_offline_access_profile_fails_closed_without_override(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            local_max_tokens=None,
+            local_thinking="default",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        with self.assertRaises(SystemExit) as context:
+            execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertIn("marked offline", str(context.exception))
 
     def test_glm_envelope_and_payload_preserve_default_request_options(self) -> None:
         route = classify_work(
@@ -373,6 +439,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_insecure_tls=False,
             local_max_tokens=None,
             local_thinking="default",
+            allow_offline_access_profile=True,
             execute_local=True,
         )
         envelope = build_local_envelope(
@@ -410,6 +477,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_allow_private_dns=False,
             local_ca_bundle=None,
             local_insecure_tls=False,
+            allow_offline_access_profile=True,
             execute_local=True,
         )
         envelope = build_local_envelope(
@@ -453,6 +521,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_allow_private_dns=False,
             local_ca_bundle=None,
             local_insecure_tls=False,
+            allow_offline_access_profile=True,
             execute_local=True,
         )
         envelope = build_local_envelope(
@@ -491,6 +560,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_insecure_tls=False,
             local_max_tokens=1234,
             local_thinking="default",
+            allow_offline_access_profile=True,
             execute_local=True,
         )
         envelope = build_local_envelope(
@@ -529,6 +599,7 @@ class LocalDispatchTests(unittest.TestCase):
                 local_insecure_tls=False,
                 local_max_tokens=None,
                 local_thinking="off",
+                allow_offline_access_profile=True,
                 execute_local=True,
             )
             envelope = build_local_envelope(
@@ -557,6 +628,7 @@ class LocalDispatchTests(unittest.TestCase):
                 local_insecure_tls=False,
                 local_max_tokens=None,
                 local_thinking="on",
+                allow_offline_access_profile=True,
                 execute_local=True,
             )
             envelope = build_local_envelope(
@@ -591,6 +663,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_insecure_tls=False,
             local_max_tokens=4096,
             local_thinking="off",
+            allow_offline_access_profile=True,
             execute_local=True,
         )
         envelope = build_local_envelope(
@@ -655,6 +728,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_allow_private_dns=False,
             local_ca_bundle=None,
             local_insecure_tls=True,
+            allow_offline_access_profile=True,
             execute_local=True,
         )
         envelope = build_local_envelope(
