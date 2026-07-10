@@ -36,6 +36,18 @@ from cwo_core.workgraph_markdown import (
     WORKGRAPH_FALLBACK_MARKER,
 )
 
+SPARK_WORKER_MODEL = "gpt-5.3-codex-spark"
+SPARK_WORKER_MODE = "implementation-capable"
+OPERATIONAL_WORKER_BEANS_LANES = {
+    "implementation",
+    "validation",
+    "publish-sanitization",
+    "docs",
+    "wrap-up-report",
+    "dashboard-report",
+}
+OPERATIONAL_SPARK_LABELS = ["no-sol-exec", "spark-operative-owner"]
+
 
 def body(purpose: str, expected: str) -> str:
     return f"""Purpose:
@@ -82,6 +94,68 @@ def unique_strings(items: list[object]) -> list[str]:
             seen.add(text)
             result.append(text)
     return result
+
+
+def _route_prefers_spark_operational(route: dict[str, Any]) -> bool:
+    planned = route.get("workerbee_planned_delegation")
+    if not isinstance(planned, dict):
+        return False
+    spark_worker_key = planned.get("spark_operational_worker", planned.get("spark_operative_worker"))
+    return (
+        bool(spark_worker_key)
+        and str(planned.get("mode") or "") == SPARK_WORKER_MODE
+        and str(planned.get("model") or "") == SPARK_WORKER_MODEL
+    )
+
+
+def _route_planned_workerbee_delegation(
+    route: dict[str, Any], lane: str
+) -> dict[str, Any]:
+    planned = route.get("workerbee_planned_delegation")
+    if not isinstance(planned, dict):
+        lanes: list[str] = []
+        return {
+            "workerbee_planned_delegation": {
+                "mode": "none",
+                "model": None,
+                "lanes": lanes,
+            },
+            "workerbee_planned_mode": "none",
+            "workerbee_planned_model": "",
+            "workerbee_planned_lanes": lanes,
+            "workerbee_operational_owner": "",
+            "workerbee_registry_tool_mismatch": False,
+            "spark_operational_worker": False,
+            "workerbee_spark_dispatch": {},
+        }
+    lanes = unique_strings([item for item in planned.get("lanes", [])])
+    mode = str(planned.get("mode") or "none")
+    model = planned.get("model")
+    model = model if not (model is not None and not str(model).strip()) else None
+    if _route_prefers_spark_operational(route) and lane in OPERATIONAL_WORKER_BEANS_LANES:
+        mode = SPARK_WORKER_MODE
+        model = SPARK_WORKER_MODEL
+    if model is None:
+        workerbee_operational_owner = ""
+    else:
+        workerbee_operational_owner = "spark" if lane in OPERATIONAL_WORKER_BEANS_LANES else ""
+    spark_dispatch = planned.get("spark_dispatch")
+    if not isinstance(spark_dispatch, dict):
+        spark_dispatch = {}
+    return {
+        "workerbee_planned_delegation": {
+            "mode": mode,
+            "model": model,
+            "lanes": lanes,
+        },
+        "workerbee_planned_mode": mode,
+        "workerbee_planned_model": str(model) if model is not None else "",
+        "workerbee_planned_lanes": lanes,
+        "workerbee_operational_owner": workerbee_operational_owner,
+        "workerbee_registry_tool_mismatch": bool(planned.get("registry_tool_mismatch")),
+        "spark_operational_worker": bool(planned.get("spark_operational_worker")),
+        "workerbee_spark_dispatch": spark_dispatch,
+    }
 
 
 def bullet_list(items: list[object], fallback: str) -> str:
@@ -142,40 +216,36 @@ def route_notes(route: dict[str, Any]) -> str:
         model = str(planned.get("model") or "unassigned")
         lanes = ", ".join(unique_strings([item for item in planned.get("lanes", [])])) or "none"
         lines.append(f"Planned workerbee delegation: mode={mode}, model={model}, lanes=[{lanes}]")
+        spark_dispatch = planned.get("workerbee_spark_dispatch")
+        if isinstance(spark_dispatch, dict):
+            lines.append(
+                "Spark dispatch metadata: "
+                f"status={spark_dispatch.get('status', 'not-applicable')} | "
+                f"requested_route={spark_dispatch.get('requested_route', '') or 'none'} | "
+                f"requested_model={spark_dispatch.get('requested_model', '') or ''} | "
+                f"failed_check={spark_dispatch.get('failed_native_capability_check', '') or ''} | "
+                f"fallback_route={spark_dispatch.get('fallback_route', '') or ''}"
+            )
     return "\n".join(lines)
 
 
 def _planned_workerbee_metadata(route: dict[str, Any]) -> dict[str, Any]:
-    planned = route.get("workerbee_planned_delegation")
-    if not isinstance(planned, dict):
-        lanes: list[str] = []
-        return {
-            "workerbee_planned_delegation": {
-                "mode": "none",
-                "model": None,
-                "lanes": lanes,
-            },
-            "workerbee_planned_mode": "none",
-            "workerbee_planned_model": "",
-            "workerbee_planned_lanes": lanes,
-        }
-    lanes = unique_strings([item for item in planned.get("lanes", [])])
-    return {
-        "workerbee_planned_delegation": {
-            "mode": str(planned.get("mode") or "none"),
-            "model": planned.get("model"),
-            "lanes": lanes,
-        },
-        "workerbee_planned_mode": str(planned.get("mode") or "none"),
-        "workerbee_planned_model": str(planned.get("model") or "") if planned.get("model") is not None else "",
-        "workerbee_planned_lanes": lanes,
-    }
+    return _route_planned_workerbee_delegation(route, "non-operational")
 
 
-def _lane_metadata(route: dict[str, Any], metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+def _lane_metadata(
+    route: dict[str, Any], lane: str, metadata: dict[str, Any] | None = None
+) -> dict[str, Any]:
     merged = dict(metadata or {})
-    merged.update(_planned_workerbee_metadata(route))
+    merged.update(_route_planned_workerbee_delegation(route, lane))
     return merged
+
+
+def _lane_labels(route: dict[str, Any], lane: str, labels: list[str]) -> list[str]:
+    lane_labels = list(labels)
+    if _route_prefers_spark_operational(route) and lane in OPERATIONAL_WORKER_BEANS_LANES:
+        lane_labels.extend(OPERATIONAL_SPARK_LABELS)
+    return unique_strings(lane_labels)
 
 
 LANE_FIELDS: dict[str, dict[str, object]] = {
@@ -261,7 +331,7 @@ def lane_fields(
         "acceptance": str(fields["acceptance"]),
         "design": str(fields["design"]),
         "notes": route_notes(route),
-        "metadata": _lane_metadata(route, metadata),
+        "metadata": _lane_metadata(route, lane, metadata),
     }
 
 
@@ -464,7 +534,11 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             "title": f"Implement: {title}",
             "type": "task",
             "lane": "implementation",
-            "labels": ["workerbee", "implementation"],
+            "labels": _lane_labels(
+                route,
+                "implementation",
+                ["workerbee", "implementation"],
+            ),
             "depends_on_lanes": ["architect", *implementation_blocker_lanes],
             **lane_fields("implementation", route),
         },
@@ -472,7 +546,11 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             "title": f"Validate: {title}",
             "type": "task",
             "lane": "validation",
-            "labels": ["workerbee", "validation"],
+            "labels": _lane_labels(
+                route,
+                "validation",
+                ["workerbee", "validation"],
+            ),
             "depends_on_lanes": ["implementation", *validation_blocker_lanes],
             **lane_fields("validation", route),
         },
@@ -484,7 +562,11 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                 "title": f"Publish sanitization: {title}",
                 "type": "task",
                 "lane": "publish-sanitization",
-                "labels": ["publish-sanitization", "public-artifact-review"],
+                "labels": _lane_labels(
+                    route,
+                    "publish-sanitization",
+                    ["publish-sanitization", "public-artifact-review"],
+                ),
                 "depends_on_lanes": ["validation", *editor_gate_lanes],
                 **lane_fields("publish-sanitization", route),
             }
@@ -496,7 +578,11 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             "title": f"Docs and handoff: {title}",
             "type": "task",
             "lane": "docs",
-            "labels": ["docs", "handoff"],
+            "labels": _lane_labels(
+                route,
+                "docs",
+                ["docs", "handoff"],
+            ),
             "depends_on_lanes": [docs_dependency],
             **lane_fields("docs", route),
         }
@@ -507,7 +593,11 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                 "title": f"Wrap-up report: {title}",
                 "type": "task",
                 "lane": "wrap-up-report",
-                "labels": ["reporting", "wrap-up-status"],
+                "labels": _lane_labels(
+                    route,
+                    "wrap-up-report",
+                    ["reporting", "wrap-up-status"],
+                ),
                 "depends_on_lanes": ["docs"],
                 **lane_fields("wrap-up-report", route),
             },
@@ -515,7 +605,11 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                 "title": f"Dashboard report: {title}",
                 "type": "task",
                 "lane": "dashboard-report",
-                "labels": ["reporting", "dashboard"],
+                "labels": _lane_labels(
+                    route,
+                    "dashboard-report",
+                    ["reporting", "dashboard"],
+                ),
                 "depends_on_lanes": ["validation"],
                 **lane_fields("dashboard-report", route),
             },

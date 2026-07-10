@@ -33,6 +33,8 @@ project uses Beads. Beads tracking is mandatory for non-trivial work stories.
 - Default share boundary is `no-outside-sharing`.
 - Ask for outside sharing only when a contractor lane is materially useful.
 - Use review-only workerbees before implementation workerbees unless ownership boundaries are disjoint.
+- Default role split in connected-Codex work is: Codex 5.6 Sol for internal architecture, counter-review, and architect-adjudication reasoning; Codex 5.3 Spark for operative workerbee lanes.
+- Sol is not treated as the automatic external critic lane; it is internal architecture/control authority and is applied only by explicit external-review or internal counter-review requirement.
 - In Default mode, apply conservative defaults unless the user explicitly asked for the coach.
 - Explicit coach requests require presenting coach options before plan creation unless the user already requested execution.
 - In Plan mode, surface coach questions whose answers change execution behavior, including subagent parallelism and Beads context depth.
@@ -137,9 +139,28 @@ require confirmed model attestation plus a share-link return before using the
 result. For local inference, require `--local-ok`; use `--prefer-local` only for
 low-risk work where a local review lane is intended.
 
-Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a
-checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, or
-boundary-tainted returns until peer review and architect adjudication complete.
+When a hosted worker registry omits Spark but the local Codex CLI is available,
+native Spark remains primary; use bridge fallback only after a documented native
+failure (not for convenience/speed).
+
+```bash
+cat > native-check-evidence.json <<'JSON'
+{"outcome":"native-subagent-unavailable","requested_model":"gpt-5.3-codex-spark","details":"native spark subagent tooling not installed"}
+JSON
+cat > native-check-evidence-rejected.json <<'JSON'
+{"outcome":"native-dispatch-rejected","requested_model":"gpt-5.3-codex-spark","reason":"native model override rejected by explicit routing policy"}
+JSON
+
+printf '%s\n' "Dispatch prompt..." | python3 scripts/dispatch_codex_spark_worker.py \
+  --bead-id <bead-id> \
+  --mode implementation-capable \
+  --lane <canonical-lane> \
+  --workdir <repo-root> \
+  --sandbox workspace-write \
+  --native-check-evidence native-check-evidence.json # or native-check-evidence-rejected.json
+```
+
+Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, and boundary-tainted returns until peer review and architect adjudication complete.
 
 ## Run Readiness And Closeout
 
@@ -156,9 +177,6 @@ Before closing meaningful Beads, add a compact closure-memory comment. Prefer:
 ```bash
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition completed --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful --close
 ```
-
-Tiny mechanical leaf tasks can rely on the close reason when it fully explains
-the outcome.
 
 Before the final user-visible response for any CWO closeout, pushed commit,
 parked sprint, blocked sprint, or carry-forward handoff, produce an operator

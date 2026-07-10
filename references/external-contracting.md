@@ -72,6 +72,14 @@ explicitly recorded operator exceptions. A successful audit chain means the
 helper-managed workflow was followed; it does not certify that no unrecorded
 manual sharing or local mutation happened elsewhere.
 
+Packet redaction is structure-aware. Secret-like fields in assignments and
+bounded JSON/YAML-style structures are removed aggressively. For fields that are
+structurally present, even short alphabetic values (for example `safe`) are
+redacted by design to keep disclosure conservative. In ordinary prose, a
+secret-like word is removed only when the following value has a strong credential
+shape. Do not place real credentials in source text or rely on redaction as the
+only disclosure control; inspect the rendered packet before dispatch.
+
 Generated contractor packets include the matched Distinguished Engineer profile
 by default. That profile is part of the contract artifact and gives the outside
 model the operating lens for the assigned discipline. A packet generated without
@@ -219,6 +227,17 @@ python3 scripts/build_contractor_packet.py \
   --attest-packet \
   --format json \
   --output architect-critique-packet.json
+
+python3 scripts/dispatch_work.py \
+  --packet architect-critique-packet.json \
+  --mode manual \
+  > gemini-architect-critique-dispatch-prompt.md
+
+WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
+mkdir -p "$WORK_PACKET_DIR"
+cp gemini-architect-critique-dispatch-prompt.md "$WORK_PACKET_DIR/gemini-architect-critique-dispatch-prompt.md"
+agy --add-dir "$WORK_PACKET_DIR" --print "Read gemini-architect-critique-dispatch-prompt.md and output only the contractor return template." \
+  > gemini-architect-critique-return.md
 ```
 
 The returned critique is evidence for the architect. Accepted concerns become
@@ -645,9 +664,12 @@ python3 scripts/build_contractor_packet.py \
 
    ```bash
    python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
+   WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
 
    claude -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
-   agy -p "$(cat contractor-dispatch-prompt.md)" > contractor-return.md
+   cp contractor-dispatch-prompt.md "$WORK_PACKET_DIR/contractor-dispatch-prompt.md"
+   agy --add-dir "$WORK_PACKET_DIR" --print "Read contractor-dispatch-prompt.md and output only the contractor return template." \
+     > contractor-return.md
 
    python3 scripts/workspace_mutation_guard.py --compare before.json --output mutation-report.json
    ```
@@ -668,7 +690,12 @@ python3 scripts/build_contractor_packet.py \
    When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
    over putting large prompts in process arguments. If the CLI only accepts
    `-p`, keep the packet, prompt, and return artifacts local and remember that
-   command arguments may be visible to local process observers.
+   command arguments may be visible to local process observers. For `agy`, always
+   use a short `--print` argument and reference a validated prompt file made
+   available with `--add-dir`; do not imply that bare `-p` reads stdin. `agy -p`
+   is an inline argument form for `agy --print`, and it is suitable only for short
+   instructions. For large prompts, keep full dispatch content in a file and pass a short
+   `--print` instruction to read that file by name through `--add-dir`.
 
    Executor access prerequisite: the Codex runtime account must be able to
    invoke the approved contractor CLI directly, or it must have
@@ -810,7 +837,7 @@ and architect adjudication, not an automatic claim about model intent.
 ## Hello-World Contractor Demo Lessons
 
 The public `gprocunier/hello-world-contractor-demo` project exercised this
-flow with two outside CLIs: Antigravity through `agy -p` and Claude Code through
+flow with two outside CLIs: Antigravity through `agy` and Claude Code through
 `claude -p`. Codex remained the architect, PM, integrator, and publisher.
 
 Use the demo as the concrete operator pattern:
@@ -822,14 +849,15 @@ Use the demo as the concrete operator pattern:
 - start the demo from an in-Codex `/plan Use $complex-work-orchestration prompt coach ...`
   request so the coach can ask about outside sharing, subagent parallelism,
   validation, and publish gates before execution
-- ensure the Codex runtime account can invoke `agy -p` and `claude -p`, or has
+- ensure the Codex runtime account can invoke `agy --add-dir --print ...` and
+  `claude -p`, or has
   operator-approved privilege escalation to accounts that can run those
   commands; keep local usernames, sudoers rules, private paths, and hostnames
   out of public documentation
 - keep packet JSON, rendered prompts, and contractor-return files ignored unless
   they have been intentionally sanitized for publication
-- give `agy -p` or `claude -p` an explicit branch, allowed path set, validation
-  command, and return format
+- give `agy` with `--add-dir` and short `--print` or `claude -p` an explicit
+  branch, allowed path set, validation command, and return format
 - when a contractor CLI runs under a different operating-system account, arrange
   repository access so commands still run as the repository owner; document that
   requirement generically rather than publishing local usernames or paths

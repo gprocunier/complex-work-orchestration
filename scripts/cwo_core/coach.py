@@ -12,6 +12,8 @@ from .synthesis import recommend_model_synthesis
 from .types import CoachResult
 from .util import term_hits
 
+SPARK_MODEL_ALIAS = "gpt-5.3-codex-spark"
+
 
 PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "coach_result_type",
@@ -44,6 +46,11 @@ def _normalize_workerbee_planned_delegation(workerbee_parallelism: dict[str, Any
     model = (workerbee_parallelism or {}).get("recommended_model")
     if model is not None and not str(model).strip():
         model = None
+    registry_tool_mismatch = bool((workerbee_parallelism or {}).get("registry_tool_mismatch"))
+    spark_operational_worker = bool((workerbee_parallelism or {}).get("spark_operational_worker"))
+    spark_dispatch = (workerbee_parallelism or {}).get("spark_dispatch")
+    if not isinstance(spark_dispatch, dict):
+        spark_dispatch = {}
     raw_lanes = (workerbee_parallelism or {}).get("suggested_lanes")
     if not isinstance(raw_lanes, list):
         raw_lanes = []
@@ -56,6 +63,11 @@ def _normalize_workerbee_planned_delegation(workerbee_parallelism: dict[str, Any
         "mode": mode,
         "model": model,
         "lanes": lanes,
+        "registry_tool_mismatch": registry_tool_mismatch,
+        "hard_stop": bool((workerbee_parallelism or {}).get("hard_stop")),
+        "hard_stop_reason": str((workerbee_parallelism or {}).get("hard_stop_reason") or ""),
+        "spark_operational_worker": spark_operational_worker,
+        "spark_dispatch": spark_dispatch,
     }
 
 
@@ -124,11 +136,161 @@ def prompt_coach_has_workerbee_availability_constraint(text: str) -> bool:
             "can't use",
             "chatgpt pro",
             "pro plan",
-            "fallback",
-            "fallbacks",
-            "tunable",
+            "native tool missing",
+            "native tooling",
+            "no spark",
+            "tooling unavailable",
+            "spawn tool",
         ],
     )
+
+
+def prompt_coach_has_spark_native_tool_absence_signal(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "native tool",
+            "native tooling",
+            "tooling is unavailable",
+            "tooling unavailable",
+            "spark native tool",
+            "native worker",
+            "spawn tool",
+            "spawn-tool",
+        ],
+    )
+
+
+def prompt_coach_has_spark_override_rejection_signal(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "override rejected",
+            "model override",
+            "override for gpt-5.3-codex-spark",
+            "override for codex 5.3 spark",
+            "native spark model override",
+        ],
+    )
+
+
+def prompt_coach_has_review_only_workerbee_signal(text: str) -> bool:
+    return bool(
+        re.search(r"\breview(?:ing)?\s*[-_\s]*\s*only\b", text)
+        or re.search(r"\bread(?:\s*[-_\s]*\s*only)\b", text)
+    )
+
+
+def prompt_coach_has_spark_registry_tool_mismatch_signal(text: str) -> bool:
+    return bool(
+        re.search(r"\bspark\b.*\bregistry\s*/?\s*tool\b.*\bmismatch\b", text)
+        or re.search(r"\bregistry\s*/?\s*tool\b.*\bmismatch\b.*\bspark\b", text)
+        or re.search(r"\bmismatch\s+between\s+registry\s+and\s+tool\b", text)
+    )
+
+
+def prompt_coach_has_explicit_operative_authority(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(?:implement(?:ation)?|split\s+implementation|disjoint\s+files?|disjoint\s+file\s+scopes|write\s+patch(es)?|patch\s+files?)\b",
+            text,
+        )
+        or text_has_any(
+            text,
+            [
+                "main-thread integration",
+                "disjoint file scopes",
+                "edit the code",
+                "change the code",
+                "make changes",
+                "write code",
+                "disjoint implementation files",
+            ],
+        )
+    )
+
+
+def prompt_coach_has_sol_reasoning_signal(text: str) -> bool:
+    return bool(
+        re.search(r"\b(?:codex\s*)?5\.6\s*sol\b.*\barchitect\b", text)
+        or "sol as architect" in text
+        or "sol architect" in text
+    )
+
+
+def prompt_coach_has_spark_operative_signal(text: str) -> bool:
+    return bool(
+        re.search(r"\b(?:codex\s*)?(?:5\.3\s*spark|gpt-5\.3-codex-spark)\b", text)
+        and text_has_any(
+            text,
+            [
+                "operative",
+                "operator",
+                "worker",
+                "workerbee",
+                "implementation",
+                "implement",
+                "work stream",
+                "workstream",
+            ],
+        )
+    )
+
+
+def prompt_coach_has_spark_operational_architect_pairing(text: str) -> bool:
+    return prompt_coach_has_sol_reasoning_signal(text) and prompt_coach_has_spark_operative_signal(text)
+
+
+def prompt_coach_spark_operational_lanes(text: str, route: dict[str, Any]) -> list[str]:
+    lanes = ["implementation"]
+    if text_has_any(
+        text,
+        [
+            "validation",
+            "validating",
+            "validate",
+            "tests",
+            "ci",
+            "schema",
+        ],
+    ):
+        lanes.append("validation")
+    if text_has_any(
+        text,
+        [
+            "docs",
+            "documentation",
+            "readme",
+            "github pages",
+            "site flow",
+            "diataxis",
+            "diátaxis",
+        ],
+    ):
+        lanes.append("docs")
+    if text_has_any(
+        text,
+        [
+            "report",
+            "handoff",
+            "status",
+            "close-out",
+            "closeout",
+            "dashboard",
+        ],
+    ):
+        lanes.extend(["wrap-up-report", "dashboard-report"])
+    if (
+        route.get("editor_gate_required")
+        or route.get("route") == "publish-release"
+        or text_has_any(
+            text,
+            ["publish", "release", "installation", "install", "artifact", "publication"],
+        )
+    ):
+        if "publish-sanitization" not in lanes:
+            lanes.append("publish-sanitization")
+    return [item for index, item in enumerate(lanes) if item not in lanes[:index]]
 
 
 def prompt_coach_has_conditional_workerbee_language(text: str) -> bool:
@@ -271,7 +433,11 @@ def selection_before_plan_gate(text: str, interactive_questions: list[dict[str, 
 def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[str, Any]) -> dict[str, Any]:
     lower = text.lower()
     explicit_workerbee = prompt_coach_has_explicit_workerbee_request(lower)
+    review_only_intent = prompt_coach_has_review_only_workerbee_signal(lower)
+    spark_operational_pairing = prompt_coach_has_spark_operational_architect_pairing(lower)
+    explicit_operative_authority = prompt_coach_has_explicit_operative_authority(lower)
     model_unavailable = prompt_coach_has_workerbee_availability_constraint(lower)
+    registry_tool_mismatch = prompt_coach_has_spark_registry_tool_mismatch_signal(lower)
     review_terms = [
         "parallel",
         "multiple agents",
@@ -315,6 +481,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         "heavy subagents",
     ]
     suggested_lanes: list[str] = []
+    hard_stop = False
     if text_has_any(lower, ["docs", "documentation", "readme", "github pages", "site flow", "diataxis", "diátaxis"]):
         suggested_lanes.append("docs-flow-review")
         suggested_lanes.append("terminology-review")
@@ -332,7 +499,49 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     prompt_user = True
     mode = "none"
     rationale: list[str] = []
-    if text_has_any(lower, heavy_review_terms):
+    review_only_forced = (
+        review_only_intent
+        and not spark_operational_pairing
+        and not explicit_operative_authority
+    )
+    spark_dispatch = {
+        "status": "not-applicable",
+        "requested_model": "",
+        "requested_route": "",
+        "failed_native_capability_check": "",
+        "failed_native_capability_check_justification": "",
+        "fallback_route": "",
+    }
+
+    if registry_tool_mismatch:
+        mode = "blocked"
+        hard_stop = True
+        suggested_lanes = []
+        spark_dispatch.update(
+            {
+                "status": "hard-stop",
+                "requested_model": SPARK_MODEL_ALIAS if mode != "none" else "",
+                "requested_route": mode,
+                "failed_native_capability_check": "spark-registry-tool-mismatch",
+                "failed_native_capability_check_justification": "Registry/tool mismatch blocks native Spark worker dispatch.",
+            }
+        )
+        rationale.append(
+            "Spark registry/tool mismatch is explicitly reported; execution cannot continue with workerbee execution until the mismatch is resolved."
+        )
+    elif spark_operational_pairing and not review_only_intent:
+        mode = "implementation-capable"
+        suggested_lanes = prompt_coach_spark_operational_lanes(lower, route)
+        rationale.append(
+            "Explicit Sol-as-reasoning-architect and Spark-as-operative-worker instructions were detected; "
+            "delegate implementation, validation, and reporting work to Spark-capable workerbees."
+        )
+    elif review_only_forced:
+        mode = "review-only"
+        rationale.append(
+            "The instruction includes review-only/read-only language; keep sidecar work in read-only mode unless explicit operative authority is given."
+        )
+    elif text_has_any(lower, heavy_review_terms):
         mode = "heavy-review"
         rationale.append("The request explicitly asks to heavily parallelize bounded review work.")
     elif text_has_any(lower, implementation_terms):
@@ -349,20 +558,60 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             rationale.append("Independent review, test, docs, policy, or validation workstreams can run beside main-thread implementation.")
 
     if mode == "none":
-        suggested_lanes = []
         rationale.append("No clear parallel sidecar workstream is needed; ask anyway so the user can explicitly choose subagents or stay in-thread.")
+
+    if mode == "none":
+        suggested_lanes = []
     if route.get("route") in {"external-contract", "local-worker"} and mode != "none":
         rationale.append("Workerbees are separate from contractor/local-worker dispatch; do not use them for no-codex-exec contract work.")
+
+    if mode == "none":
+        spark_dispatch["requested_route"] = ""
+    elif model_unavailable:
+        spark_dispatch.update(
+            {
+                "status": "bridge-fallback-required",
+                "requested_model": SPARK_MODEL_ALIAS,
+                "requested_route": mode,
+                "failed_native_capability_check": (
+                    "spark-native-tool-absence"
+                    if prompt_coach_has_spark_native_tool_absence_signal(lower)
+                    else "spark-native-model-override-rejection"
+                    if prompt_coach_has_spark_override_rejection_signal(lower)
+                    else "spark-native-capability-check-failed"
+                ),
+                "failed_native_capability_check_justification": "Native Spark tooling or model capability was explicitly rejected for this request.",
+                "fallback_route": "scripts/dispatch_codex_spark_worker.py",
+            }
+        )
+    elif mode != "none" and not hard_stop:
+        spark_dispatch.update(
+            {
+                "status": "native-first",
+                "requested_model": SPARK_MODEL_ALIAS,
+                "requested_route": mode,
+            }
+        )
+
+    if spark_dispatch["status"] == "hard-stop":
+        hard_stop_reason = "registry_tool_mismatch"
+    elif hard_stop:
+        hard_stop_reason = "spark_dispatch_hard_stop"
+    else:
+        hard_stop_reason = ""
 
     return {
         "recommended_mode": mode,
         "recommended_model": (
-            "smallest-available-capable-review-workerbee"
-            if mode != "none" and model_unavailable
-            else "gpt-5.3-codex-spark"
-            if mode != "none"
+            SPARK_MODEL_ALIAS
+            if mode != "none" and not hard_stop
             else None
         ),
+        "spark_operational_worker": spark_operational_pairing and not review_only_intent and mode == "implementation-capable",
+        "hard_stop": hard_stop,
+        "hard_stop_reason": hard_stop_reason,
+        "registry_tool_mismatch": hard_stop,
+        "spark_dispatch": spark_dispatch,
         "prompt_user_in_plan_mode": prompt_user,
         "suggested_lanes": suggested_lanes,
         "rationale": rationale,
@@ -621,12 +870,33 @@ def prompt_coach_missing_questions(
         )
     if workerbee_parallelism:
         mode = str(workerbee_parallelism.get("recommended_mode") or "none")
+        registry_tool_mismatch = bool(workerbee_parallelism.get("registry_tool_mismatch"))
+        hard_stop = bool(workerbee_parallelism.get("hard_stop"))
+        spark_dispatch = workerbee_parallelism.get("spark_dispatch") or {}
         if mode == "heavy-review":
             default = "Use heavy review subagents for bounded docs-flow, terminology, web-design, validation, and publish-sanitization workstreams; keep implementation authority in the main thread."
         elif mode == "implementation-capable":
             default = "Use implementation subagents only for disjoint file scopes, with main-thread integration and acceptance."
         elif mode == "review-only":
-            default = "Use review-only subagents with Codex 5.3 Spark when available, or the smallest available capable review model; keep implementation authority in the main thread."
+            worker_dispatch_status = str(spark_dispatch.get("status") or "")
+            if worker_dispatch_status == "bridge-fallback-required":
+                default = (
+                    "Use Codex 5.3 Spark for native workerbee dispatch. If native Spark tooling is explicitly unavailable "
+                    "for this route, use dispatch_codex_spark_worker.py as the fallback bridge after recording the native-capability check. "
+                    "Do not substitute any alternate model."
+                )
+            elif worker_dispatch_status:
+                default = "Use Codex 5.3 Spark for native workerbee dispatch; keep implementation authority in the main thread."
+            else:
+                default = "Use Codex 5.3 Spark for workerbee review sidecars and keep implementation authority in the main thread."
+            if registry_tool_mismatch:
+                default += (
+                    " If Spark is unavailable, execution stops and a registry/tool mismatch record must be written before dispatch."
+                )
+        elif hard_stop:
+            default = (
+                "Spark registry/tool mismatch is active. Do not dispatch workerbees until the mismatch is recorded as a hard stop and resolved."
+            )
         else:
             default = "Use no subagents by default for narrow work, but still present the parallelization choice so the user can opt into review subagents."
         questions.append(
@@ -692,10 +962,19 @@ def prompt_coach_missing_questions(
 
 def workerbee_model_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
     if not workerbee_parallelism:
-        return "Codex 5.3 Spark when available, otherwise the smallest available capable review model"
-    if workerbee_parallelism.get("recommended_model") == "smallest-available-capable-review-workerbee":
-        return "the smallest available capable review subagent"
-    return "Codex 5.3 Spark when available, otherwise the smallest available capable review model"
+        return "Codex 5.3 Spark as the default operative route"
+    if workerbee_parallelism.get("registry_tool_mismatch"):
+        return "no available Codex 5.3 Spark path until a registry/tool mismatch is resolved"
+    dispatch = workerbee_parallelism.get("spark_dispatch")
+    if not isinstance(dispatch, dict):
+        return "Codex 5.3 Spark as the default operative route"
+    status = str(dispatch.get("status") or "")
+    fallback_route = str(dispatch.get("fallback_route") or "")
+    if status == "bridge-fallback-required" and fallback_route:
+        return "Codex 5.3 Spark natively, with dispatch_codex_spark_worker.py if native tooling is explicitly unavailable"
+    if workerbee_parallelism.get("recommended_model") == SPARK_MODEL_ALIAS:
+        return "Codex 5.3 Spark natively"
+    return "Codex 5.3 Spark as the default operative route"
 
 
 def prompt_coach_interactive_questions(
@@ -993,6 +1272,8 @@ def workerbee_parallelism_options(
     }
     if recommended_mode == "implementation-capable":
         return dedupe_interactive_options([first, heavy, no_subagents])
+    if recommended_mode == "blocked":
+        return [no_subagents]
     if recommended_mode == "heavy-review":
         return dedupe_interactive_options([first, review, no_subagents])
     if recommended_mode == "none":
@@ -1095,10 +1376,30 @@ def prompt_coach_enabled_levers(
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
         levers.append(f"subagent-parallelism={workerbee_parallelism.get('recommended_mode')}")
         levers.append(f"workerbee-parallelism={workerbee_parallelism.get('recommended_mode')}")
-        if workerbee_parallelism.get("recommended_model") == "smallest-available-capable-review-workerbee":
-            levers.append("workerbee-model-fallback-required")
-        else:
-            levers.append("codex-5.3-spark-workerbees-when-available")
+        status = "not-applicable"
+        spark_dispatch = workerbee_parallelism.get("spark_dispatch")
+        if isinstance(spark_dispatch, dict):
+            status = str(spark_dispatch.get("status") or "")
+            if status == "bridge-fallback-required":
+                levers.append("workerbee-dispatch-route=bridge-codex-spark")
+            elif status == "native-first":
+                levers.append("workerbee-dispatch-route=native-spark")
+            elif status == "hard-stop":
+                levers.append("workerbee-dispatch-route=hard-stop")
+            else:
+                levers.append("workerbee-dispatch-route=not-applicable")
+            failed_check = str(spark_dispatch.get("failed_native_capability_check") or "")
+            if failed_check:
+                levers.append(f"workerbee-spark-native-check={failed_check}")
+        if workerbee_parallelism.get("hard_stop"):
+            levers.append("workerbee-blocked=registry_tool_mismatch")
+            levers.append("workerbee-dispatch-stopped")
+        if workerbee_parallelism.get("registry_tool_mismatch"):
+            levers.append("workerbee-registry-tool-mismatch")
+            if "workerbee-dispatch-stopped" not in levers:
+                levers.append("workerbee-dispatch-stopped")
+        elif status == "native-first":
+            levers.append("codex-5.3-spark-workerbees-native-first")
     if model_synthesis and model_synthesis.get("recommended_mode") != "none":
         mode = str(model_synthesis.get("recommended_mode"))
         levers.append(f"model-synthesis={mode}")
@@ -1129,6 +1430,8 @@ def prompt_coach_disabled_levers(
         levers.extend(["outside-contractor", "local-worker-dispatch", "full-contractor-packet"])
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") == "review-only":
         levers.append("implementation-workerbees-until-disjoint-scope")
+    if workerbee_parallelism and workerbee_parallelism.get("hard_stop"):
+        levers.append("subagent-parallelism-blocked")
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") == "none":
         levers.append("subagent-parallelism-unselected")
     if not route.get("external_contract_allowed"):
@@ -1230,6 +1533,7 @@ def prompt_coach_rationale(
 def prompt_coach_warnings(
     route: dict[str, Any],
     missing_questions: list[dict[str, str]],
+    workerbee_parallelism: dict[str, Any] | None = None,
     model_synthesis: dict[str, Any] | None = None,
     beads_context_depth_signal: dict[str, Any] | None = None,
     operator_calibration: dict[str, Any] | None = None,
@@ -1238,6 +1542,26 @@ def prompt_coach_warnings(
     hard_stops = route.get("hard_stops") or []
     for stop in hard_stops:
         warnings.append(f"Policy hard stop: {stop}")
+    if "registry_tool_mismatch" in [str(stop) for stop in hard_stops]:
+        warnings.append(
+            "Spark registry/tool mismatch is a hard stop: execution of Spark-dependent workerbees is blocked until the mismatch is recorded and resolved."
+        )
+    if workerbee_parallelism:
+        spark_dispatch = workerbee_parallelism.get("spark_dispatch")
+        if isinstance(spark_dispatch, dict):
+            status = str(spark_dispatch.get("status") or "")
+            failed_check = str(spark_dispatch.get("failed_native_capability_check") or "")
+            fallback_route = str(spark_dispatch.get("fallback_route") or "")
+            requested_route = str(spark_dispatch.get("requested_route") or "")
+            requested_model = str(spark_dispatch.get("requested_model") or "")
+            if status == "bridge-fallback-required" and failed_check:
+                warnings.append(
+                    "Native-capability check required before Spark workerbee dispatch was explicit: "
+                    f"{failed_check}. Use {requested_model} on route {requested_route} only as native-first, and use "
+                    f"{fallback_route} as the only fallback bridge."
+                )
+            if status == "hard-stop":
+                warnings.append("Native Spark is hard-stopped; do not substitute Sol or another model unless native capability is re-proven.")
     if route.get("provider_conflict_detected"):
         warnings.append("Provider conflict detected; keep peer review and architect adjudication in the flow.")
     if route.get("peer_review_required"):
@@ -1258,6 +1582,10 @@ def prompt_coach_warnings(
         and beads_context_depth_signal.get("beads_context_depth") in {"focused", "heavy", "audit"}
     ):
         warnings.append("Comment-bearing Beads briefs are internal only; outside contractors must receive redacted contractor packets.")
+    if route.get("workerbee_planned_delegation", {}).get("registry_tool_mismatch"):
+        warnings.append(
+            "Spark registry/tool mismatch detected. Workerbee execution is paused until the mismatch is recorded and resolved."
+        )
     if operator_calibration and operator_calibration.get("mode") == "required":
         warnings.append("Operator-calibrated execution is required before accepting the closeout disposition.")
     return warnings
@@ -1266,9 +1594,31 @@ def prompt_coach_warnings(
 def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
     if not workerbee_parallelism or workerbee_parallelism.get("recommended_mode") == "none":
         return "Always ask the user whether to parallelize with subagents; default to no subagents for narrow work unless the user opts in.\n"
+    if workerbee_parallelism.get("hard_stop"):
+        return (
+            "Native Spark dispatch is hard-stopped. Do not dispatch workerbees until a hard-stop resolution is recorded.\n"
+        )
+    mismatch_notice = ""
+    fallback_notice = ""
+    dispatch = workerbee_parallelism.get("spark_dispatch")
+    if isinstance(dispatch, dict):
+        if str(dispatch.get("status") or "") == "bridge-fallback-required":
+            fallback_notice = (
+                "Native Spark routing failed its explicit capability check; use dispatch_codex_spark_worker.py as a last-resort bridge fallback only after recording the cause. "
+                "If this fallback cannot be used, hard-stop rather than substitute another model.\n"
+            )
+        elif str(dispatch.get("status") or "") == "native-first":
+            fallback_notice = "Native Spark dispatch is the preferred route.\n"
+    if workerbee_parallelism.get("registry_tool_mismatch"):
+        mismatch_notice = (
+            "A registry/tool mismatch is recorded for Spark; execution of Spark-dependent workerbees stops "
+            "until the operator records a resolution.\n"
+        )
     lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]
     prefix = "heavy review" if workerbee_parallelism.get("recommended_mode") == "heavy-review" else workerbee_parallelism.get("recommended_mode")
     return (
+        mismatch_notice +
+        fallback_notice +
         f"Use {workerbee_model_phrase(workerbee_parallelism)} for "
         f"{prefix} parallelism on: "
         + ", ".join(str(item) for item in lanes)
@@ -1552,6 +1902,12 @@ def coach_orchestration_prompt(
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
+    if workerbee_parallelism.get("hard_stop_reason"):
+        hard_stops = list(route.get("hard_stops", []))
+        hard_stop_reason = str(workerbee_parallelism.get("hard_stop_reason"))
+        if hard_stop_reason and hard_stop_reason not in hard_stops:
+            hard_stops.append(hard_stop_reason)
+        route = {**route, "hard_stops": hard_stops}
     workerbee_planned_delegation = _normalize_workerbee_planned_delegation(workerbee_parallelism)
     scaffold_sizing = prompt_coach_scaffold_sizing_signal(text, level, route, force_size=scaffold_size)
     model_synthesis_config = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
@@ -1651,6 +2007,7 @@ def coach_orchestration_prompt(
         "warnings": prompt_coach_warnings(
             route,
             questions,
+            workerbee_parallelism,
             model_synthesis_config,
             beads_context_depth_signal,
             operator_calibration,

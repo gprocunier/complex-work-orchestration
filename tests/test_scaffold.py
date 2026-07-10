@@ -47,6 +47,14 @@ class ScaffoldTests(unittest.TestCase):
             "mode": "review-only",
             "model": "gpt-5.3-codex-spark",
             "lanes": ["policy-routing-review", "policy-routing-review", "", "publish-sanitization-review"],
+            "spark_dispatch": {
+                "status": "native-first",
+                "requested_model": "gpt-5.3-codex-spark",
+                "requested_route": "review-only",
+                "failed_native_capability_check": "",
+                "failed_native_capability_check_justification": "",
+                "fallback_route": "",
+            },
         }
         graph = planned_graph("Field Example", route)
         expected_lanes = ["policy-routing-review", "publish-sanitization-review"]
@@ -60,6 +68,88 @@ class ScaffoldTests(unittest.TestCase):
             self.assertEqual(item.get("metadata", {}).get("workerbee_planned_mode"), "review-only")
             self.assertEqual(item.get("metadata", {}).get("workerbee_planned_model"), "gpt-5.3-codex-spark")
             self.assertEqual(item.get("metadata", {}).get("workerbee_planned_lanes"), expected_lanes)
+            self.assertEqual(
+                item.get("metadata", {}).get("workerbee_spark_dispatch"),
+                route["workerbee_planned_delegation"]["spark_dispatch"],
+            )
+
+    def test_operational_lanes_get_spark_owner_metadata_and_labels(self) -> None:
+        route = classify_work(
+            "Refactor docs, implementation, and validation with Codex 5.6 Sol and Codex 5.3 Spark roles.",
+            requested_roles=["architecture", "documentation", "implementation"],
+        )
+        route["workerbee_planned_delegation"] = {
+            "mode": "implementation-capable",
+            "model": "gpt-5.3-codex-spark",
+            "lanes": ["implementation", "test-construction", "validation-troubleshooting", "docs-reporting-dashboard"],
+            "spark_operational_worker": True,
+        }
+        graph = planned_graph("Operative Role Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        operative_lanes = {"implementation", "validation", "docs", "wrap-up-report", "dashboard-report"}
+        for lane in operative_lanes:
+            item = by_lane.get(lane)
+            self.assertIsNotNone(item)
+            metadata = item["metadata"]
+            self.assertEqual(metadata.get("workerbee_planned_mode"), "implementation-capable")
+            self.assertEqual(metadata.get("workerbee_planned_model"), "gpt-5.3-codex-spark")
+            self.assertEqual(metadata.get("workerbee_operational_owner"), "spark")
+            self.assertIn("no-sol-exec", item["labels"])
+            self.assertIn("spark-operative-owner", item["labels"])
+
+        self.assertNotIn("no-sol-exec", by_lane["architect"]["labels"])
+        self.assertNotIn("spark-operative-owner", by_lane["architect"]["labels"])
+        self.assertEqual(by_lane["architect"]["metadata"].get("workerbee_operational_owner"), "")
+        if "architect-adjudication" in by_lane:
+            self.assertEqual(
+                by_lane["architect-adjudication"]["metadata"].get("workerbee_operational_owner"),
+                "",
+            )
+        if "publish-sanitization" in by_lane:
+            self.assertEqual(by_lane["publish-sanitization"]["metadata"].get("workerbee_operational_owner"), "spark")
+
+    def test_spark_operational_metadata_does_not_infect_architect_and_model_synthesis_lanes(self) -> None:
+        text = (
+            "Architect a high-risk public docs migration, with Sol routing as architect and Spark as implementation worker. "
+            "Use model synthesis with Claude Opus and Gemini for independent second opinions."
+        )
+        route = classify_work(
+            text,
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture", "documentation", "implementation"],
+        )
+        route = {**route, "model_synthesis": recommend_model_synthesis(text, route)}
+        route["workerbee_planned_delegation"] = {
+            "mode": "implementation-capable",
+            "model": "gpt-5.3-codex-spark",
+            "lanes": [
+                "implementation",
+                "validation",
+                "docs",
+                "wrap-up-report",
+                "dashboard-report",
+            ],
+            "spark_operational_worker": True,
+        }
+        graph = planned_graph("Isolation Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        for lane in ["architect", "architect-adjudication", "model-synthesis"]:
+            item = by_lane.get(lane)
+            self.assertIsNotNone(item)
+            self.assertEqual(item["metadata"].get("workerbee_operational_owner"), "")
+            self.assertNotIn("no-sol-exec", item["labels"])
+            self.assertNotIn("spark-operative-owner", item["labels"])
+
+        for lane in ["implementation", "validation", "docs", "wrap-up-report", "dashboard-report"]:
+            item = by_lane.get(lane)
+            if item is not None:
+                self.assertEqual(item["metadata"].get("workerbee_operational_owner"), "spark")
+                self.assertIn("no-sol-exec", item["labels"])
+                self.assertIn("spark-operative-owner", item["labels"])
+
 
     def test_dependency_creation_fails_closed(self) -> None:
         with patch("scaffold_workgraph.add_dependency", side_effect=RuntimeError("dependency failure")):

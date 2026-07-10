@@ -135,6 +135,58 @@ are recorded. Synthesis ownership moves from `frontier_architect` to the GLM
 primary architect for this environment only; the default `connected-codex`
 profile remains unchanged.
 
+### Spark bridge fallback only after native Spark capability rejection
+
+Spark dispatch is native-first. Use the bridge script only when the native
+Spark capability check is explicitly unavailable (for example, missing native
+Spark tooling or explicit native model-override rejection for `gpt-5.3-codex-spark`).
+Do not use bridge fallback for convenience, speed, lifecycle, or familiarity reasons.
+Native Spark remains the primary route.
+When native capability is explicitly rejected, call the bridge directly and keep the
+requested model as `gpt-5.3-codex-spark`, recording the failed check as part of
+dispatch metadata. If both routes cannot prove Spark, hard-stop instead of
+substituting Sol or another model.
+
+Bridge call pattern:
+
+```bash
+cat > /tmp/native-check-unavailable.json <<'JSON'
+{"outcome":"native-subagent-unavailable","requested_model":"gpt-5.3-codex-spark","details":"spark native subagent tooling missing"}
+JSON
+
+cat > /tmp/native-check-rejected.json <<'JSON'
+{"outcome":"native-dispatch-rejected","requested_model":"gpt-5.3-codex-spark","reason":"native-dispatch rejected by explicit route policy"}
+JSON
+
+printf '%s\n' "Dispatch prompt..." | \
+python3 scripts/dispatch_codex_spark_worker.py \
+  --bead-id <bead-id> \
+  --mode implementation-capable \
+  --lane <canonical-lane> \
+  --workdir <repo-root> \
+  --sandbox workspace-write \
+  --output <artifact.json> \
+  --return-file <return.txt> \
+  --audit-file <audit.jsonl> \
+  --native-check-evidence /tmp/native-check-unavailable.json
+
+# Or for explicit Spark model rejection:
+python3 scripts/dispatch_codex_spark_worker.py \
+  --bead-id <bead-id> \
+  --mode implementation-capable \
+  --lane <canonical-lane> \
+  --workdir <repo-root> \
+  --sandbox workspace-write \
+  --output <artifact.json> \
+  --return-file <return.txt> \
+  --audit-file <audit.jsonl> \
+  --native-check-evidence /tmp/native-check-rejected.json
+```
+
+If `--return-file` is used and no final `item.type == agent_message` completion
+is present in the stream, the bridge fails closed and does not persist any
+response text in the status artifact or audit.
+
 ### Enterprise Evaluation Targets
 
 For medium enterprise and larger disconnected work, the registry includes two

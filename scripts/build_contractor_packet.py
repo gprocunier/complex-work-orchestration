@@ -34,6 +34,7 @@ from cwo_core.audit import (
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.return_language import default_expected_return_language, validate_expected_return_language
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
+from cwo_core.errors import CWOPolicyError
 from cwo_core.packets import (
     fenced_block,
     file_snippet,
@@ -159,15 +160,24 @@ def validate_gate(
     return "cli-flag" if external_ok else "audit-record"
 
 
-def collect_snippets(paths: list[str], max_lines: int) -> list[dict[str, Any]]:
+def collect_snippets(paths: list[str], max_lines: int, *, require_policy_patterns: bool = False) -> list[dict[str, Any]]:
     snippets: list[dict[str, Any]] = []
     for raw in paths:
-        snippets.append(file_snippet((REPO_ROOT / raw).resolve(), max_lines=max_lines))
+        snippets.append(
+            file_snippet(
+                (REPO_ROOT / raw).resolve(),
+                max_lines=max_lines,
+                require_policy_patterns=require_policy_patterns,
+            )
+        )
     return snippets
 
 
 def inline_snippet(snippet: str, *, index: int, max_lines: int, path: str | None = None) -> dict[str, Any]:
-    redacted = redact_text(snippet)
+    try:
+        redacted = redact_text(snippet, require_policy_patterns=True)
+    except (CWOPolicyError, SystemExit) as exc:
+        raise SystemExit(f"invalid secret-field policy configuration: {exc}") from exc
     lines = redacted.splitlines()
     if max_lines and len(lines) > max_lines:
         label = path or f"inline snippet {index}"
@@ -212,10 +222,24 @@ def build_packet(
     manual_command = str(transport.get("default_command", "")).strip()
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     dispatch_id = dispatch_id or make_dispatch_id(bead_id, now.replace("-", "").replace(":", ""))
-    bead_summary = sanitize_bead(bead_json, share_boundary)
-    selected_snippets = collect_snippets(allowed_files, int(boundary.get("snippet_line_limit", 80)))
-    profile_path = expert_profile_path or persona_for_job_label(job_description_label)
-    expert_profile = load_expert_profile(profile_path) if include_expert_profile and profile_path else {}
+    try:
+        bead_summary = sanitize_bead(bead_json, share_boundary, require_policy_patterns=True)
+        selected_snippets = collect_snippets(
+            allowed_files,
+            int(boundary.get("snippet_line_limit", 80)),
+            require_policy_patterns=True,
+        )
+        profile_path = expert_profile_path or persona_for_job_label(job_description_label)
+        expert_profile = (
+            load_expert_profile(
+                profile_path,
+                require_policy_patterns=True,
+            )
+            if include_expert_profile and profile_path
+            else {}
+        )
+    except (CWOPolicyError, SystemExit) as exc:
+        raise SystemExit(f"invalid secret-field policy configuration: {exc}") from exc
     if not expert_profile and not degraded_context_justification.strip():
         raise SystemExit("degraded packet requires --degraded-context-justification")
     snippet_files = snippet_files or []

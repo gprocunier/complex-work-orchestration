@@ -56,9 +56,39 @@
   },
   "redaction_patterns": [
     "(?i)(authorization\\s*:\\s*bearer\\s+)[A-Za-z0-9._~+/=-]+",
-    "(?i)(api[_-]?key|access[_-]?key|secret[_-]?access[_-]?key|aws[_-]?access[_-]?key[_-]?id|aws[_-]?secret[_-]?access[_-]?key|token|password|passwd|secret|credential|private[_-]?key|client[_-]?secret|connection[_-]?string|authorization|auth[_-]?token|session[_-]?token|cookie)\\s*[:=]\\s*[^\\s]+",
     "-----BEGIN [A-Z ]+ PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]+ PRIVATE KEY-----"
   ],
+  "secret_field_policy": {
+    "parser_owner": "scripts/cwo_core/packets.py",
+    "categories": {
+      "credential_tokens": [
+        "token",
+        "password",
+        "passwd",
+        "secret",
+        "credential",
+        "private_key",
+        "client_secret",
+        "cookie",
+        "authorization",
+        "auth_token",
+        "session_token"
+      ],
+      "access_keys": [
+        "api_key",
+        "accesskey",
+        "access_key",
+        "secret_access_key",
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "connection_string"
+      ]
+    },
+    "parser_notes": {
+      "source": "structured parser",
+      "notes": "keys are matched as structural fields (prefix-qualified and case-insensitive)"
+    }
+  },
   "never_share": [
     "secrets",
     "private credentials",

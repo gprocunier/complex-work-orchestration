@@ -498,8 +498,9 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
-        self.assertIn("codex-5.3-spark-workerbees-when-available", result["enabled_levers"])
-        self.assertIn("Codex 5.3 Spark when available", result["paste_ready_prompt"])
+        self.assertIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
+        self.assertIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
+        self.assertIn("Codex 5.3 Spark natively", result["paste_ready_prompt"])
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
         ]
@@ -527,7 +528,8 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
-        self.assertIn("codex-5.3-spark-workerbees-when-available", result["enabled_levers"])
+        self.assertIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
+        self.assertIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
         ]
@@ -569,12 +571,67 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
         self.assertEqual(
             result["workerbee_parallelism"]["recommended_model"],
-            "smallest-available-capable-review-workerbee",
+            "gpt-5.3-codex-spark",
         )
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
-        self.assertIn("workerbee-model-fallback-required", result["enabled_levers"])
-        self.assertIn("smallest available capable review subagent", result["paste_ready_prompt"])
+        self.assertFalse(result["workerbee_parallelism"]["registry_tool_mismatch"])
+        self.assertFalse(result["workerbee_parallelism"]["hard_stop"])
+        spark_dispatch = result["workerbee_parallelism"]["spark_dispatch"]
+        self.assertEqual(spark_dispatch.get("status"), "bridge-fallback-required")
+        self.assertEqual(spark_dispatch.get("requested_route"), "review-only")
+        self.assertEqual(spark_dispatch.get("requested_model"), "gpt-5.3-codex-spark")
+        self.assertIn(
+            spark_dispatch.get("failed_native_capability_check"),
+            {"spark-native-tool-absence", "spark-native-capability-check-failed"},
+        )
+        self.assertEqual(
+            spark_dispatch.get("failed_native_capability_check_justification"),
+            "Native Spark tooling or model capability was explicitly rejected for this request.",
+        )
+        self.assertEqual(spark_dispatch.get("fallback_route"), "scripts/dispatch_codex_spark_worker.py")
+        self.assertIn("workerbee-dispatch-route=bridge-codex-spark", result["enabled_levers"])
+        self.assertNotIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
+        self.assertNotIn("workerbee-registry-tool-mismatch", result["enabled_levers"])
+        self.assertNotIn("workerbee-dispatch-stopped", result["enabled_levers"])
+        self.assertNotIn("no available Codex 5.3 Spark path until a registry/tool mismatch is resolved", result["paste_ready_prompt"])
         self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+        self.assertIn(
+            "Use Codex 5.3 Spark for native workerbee dispatch. If native Spark tooling is explicitly unavailable",
+            result["paste_ready_prompt"],
+        )
+
+    def test_registry_tool_mismatch_hard_stops_execution(self) -> None:
+        result = coach_orchestration_prompt(
+            "There is a Spark registry/tool mismatch for this task; execution must stop until this is fixed."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "blocked")
+        self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
+        self.assertTrue(result["workerbee_parallelism"]["registry_tool_mismatch"])
+        self.assertTrue(result["workerbee_parallelism"]["hard_stop"])
+        self.assertEqual(result["workerbee_parallelism"]["spark_dispatch"].get("status"), "hard-stop")
+        self.assertIn("workerbee-dispatch-stopped", result["enabled_levers"])
+        self.assertIn("workerbee-blocked=registry_tool_mismatch", result["enabled_levers"])
+        self.assertIn("no-subagents", [option["value"] for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism" for option in item["options"]])
+        self.assertNotIn("review-subagents", [option["value"] for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism" for option in item["options"]])
+        self.assertIn("subagent-parallelism-blocked", result["disabled_levers"])
+        self.assertTrue(
+            any(
+                "spark registry/tool mismatch is a hard stop" in str(warning).lower()
+                for warning in result["warnings"]
+            )
+        )
+
+    def test_spark_operational_pairing_uses_canonical_lanes(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and report."
+        )
+        self.assertEqual(
+            set(result["workerbee_parallelism"]["suggested_lanes"]),
+            {"implementation", "docs", "validation", "wrap-up-report", "dashboard-report"},
+        )
+        self.assertNotIn("test-construction", result["workerbee_parallelism"]["suggested_lanes"])
+        self.assertNotIn("validation-troubleshooting", result["workerbee_parallelism"]["suggested_lanes"])
+        self.assertNotIn("docs-reporting-dashboard", result["workerbee_parallelism"]["suggested_lanes"])
 
     def test_conditional_workerbee_language_still_prompts_for_parallelism(self) -> None:
         result = coach_orchestration_prompt(
@@ -583,6 +640,90 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
+
+    def test_spark_operational_pairing_selects_implementation_capable_mode(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and reporting."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "implementation-capable")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
+        self.assertTrue(result["workerbee_parallelism"]["spark_operational_worker"])
+        self.assertFalse(result["workerbee_parallelism"]["registry_tool_mismatch"])
+        spark_dispatch = result["workerbee_parallelism"]["spark_dispatch"]
+        self.assertEqual(spark_dispatch.get("status"), "native-first")
+        self.assertEqual(spark_dispatch.get("requested_route"), "implementation-capable")
+        self.assertEqual(spark_dispatch.get("requested_model"), "gpt-5.3-codex-spark")
+        self.assertEqual(spark_dispatch.get("fallback_route"), "")
+        self.assertEqual(spark_dispatch.get("failed_native_capability_check"), "")
+        worker_questions = [
+            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
+        ]
+        self.assertEqual(len(worker_questions), 1)
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "implementation-subagents")
+        self.assertIn(
+            "Native Spark dispatch is the preferred route.",
+            result["paste_ready_prompt"],
+        )
+
+    def test_workerbee_parallel_mode_precedence_matrix(self) -> None:
+        cases = [
+            {
+                "name": "hard-stop plus spark pairing",
+                "prompt": "There is a Spark registry/tool mismatch for this task. Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs and reporting.",
+                "expected_mode": "blocked",
+                "expected_model": None,
+                "expected_lanes": [],
+                "expected_spark_worker": False,
+                "expected_hard_stop": True,
+            },
+            {
+                "name": "review-only plus spark wording",
+                "prompt": "Use review-only workerbees to inspect docs and run a second pass on GitHub Pages tests. Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker.",
+                "expected_mode": "review-only",
+                "expected_model": "gpt-5.3-codex-spark",
+                "expected_lanes": ["docs-flow-review", "terminology-review", "web-design-review", "test-gap-review"],
+                "expected_spark_worker": False,
+                "expected_hard_stop": False,
+            },
+            {
+                "name": "heavy review preserves heavy-review precedence over impl hints",
+                "prompt": "Heavily parallelize docs, tests, and implementation workerbees for fixups in multiple files.",
+                "expected_mode": "heavy-review",
+                "expected_model": "gpt-5.3-codex-spark",
+                "expected_lanes": ["docs-flow-review", "terminology-review", "web-design-review", "test-gap-review"],
+                "expected_spark_worker": False,
+                "expected_hard_stop": False,
+            },
+            {
+                "name": "implementation plus review wording keeps implementation-capable",
+                "prompt": "Spawn implementation workerbees for disjoint files and run a second pass on routing and policy docs.",
+                "expected_mode": "implementation-capable",
+                "expected_model": "gpt-5.3-codex-spark",
+                "expected_lanes": ["docs-flow-review", "terminology-review", "web-design-review", "policy-routing-review"],
+                "expected_spark_worker": False,
+                "expected_hard_stop": False,
+            },
+        ]
+
+        for case in cases:
+            with self.subTest(case["name"]):
+                result = coach_orchestration_prompt(case["prompt"])
+                workerbee = result["workerbee_parallelism"]
+                self.assertEqual(workerbee["recommended_mode"], case["expected_mode"], case["name"])
+                self.assertEqual(workerbee["recommended_model"], case["expected_model"], case["name"])
+                self.assertEqual(workerbee["spark_operational_worker"], case["expected_spark_worker"], case["name"])
+                self.assertEqual(workerbee["hard_stop"], case["expected_hard_stop"], case["name"])
+                self.assertEqual(workerbee["suggested_lanes"], case["expected_lanes"], case["name"])
+
+    def test_review_only_term_keeps_review_only_workerbee_mode(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use review-only workerbees to inspect docs and run a second pass on GitHub Pages tests."
+        )
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
+        self.assertFalse(result["workerbee_parallelism"]["spark_operational_worker"])
+        worker_questions = [item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"]
+        self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")
 
     def test_public_docs_editor_task_requires_editor_gate_in_coach(self) -> None:
         result = coach_orchestration_prompt(
