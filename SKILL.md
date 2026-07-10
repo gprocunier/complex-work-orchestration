@@ -33,7 +33,7 @@ project uses Beads. Beads tracking is mandatory for non-trivial work stories.
 - Default share boundary is `no-outside-sharing`.
 - Ask for outside sharing only when a contractor lane is materially useful.
 - Use review-only workerbees before implementation workerbees unless ownership boundaries are disjoint.
-- Default role split in connected-Codex work is: Codex 5.6 Sol for internal architecture, counter-review, and architect-adjudication reasoning; Codex 5.3 Spark for operative workerbee lanes.
+- Default role split in connected-Codex work is: Codex 5.6 Sol for architecture, counter-review, and architect-adjudication reasoning; Codex 5.3 Spark for operative workerbee execution.
 - Sol is not treated as the automatic external critic lane; it is internal architecture/control authority and is applied only by explicit external-review or internal counter-review requirement.
 - In Default mode, apply conservative defaults unless the user explicitly asked for the coach.
 - Explicit coach requests require presenting coach options before plan creation unless the user already requested execution.
@@ -99,6 +99,20 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 
 `--dry-run --format beads-graph` renders a graph accepted by
 `bd create --graph`; normal execution creates Beads directly.
+
+## Bootstrap Policy Controls
+
+- For every native-operative segment, use `policy/native-worker-execution.yaml` as the bootstrap policy.
+- Sol remains architecture/adjudication only. Spark runs operative work.
+- Operative worker segments start with a `no-tools` attestation gate. The gate must use trusted control-plane/session metadata; model self-report does not authorize work.
+- Every operative task segment begins a fresh attestation boundary.
+- `resume_agent` is forbidden by default. If explicitly waived, keep the segment quarantined until post-resume attestation exactly matches `gpt-5.3-codex-spark`.
+- Missing or mismatched model attestation must quarantine output and trigger a fresh Spark redispatch.
+- Durable continuation uses Beads checkpoint + fresh Spark worker, not operative agent resume.
+- Realignment return requires: completed evidence, files touched, mutation state, decision required, bounded options, recommendation, remaining scope, and usage.
+- In realignment, worker must stop mutating and await architect decision.
+- Fix -> reload -> resume means reinstall/reload this skill, then resume from Beads. Never resume the operative agent session.
+- Hard-stop returns for bootstrap policy are `needs-architect-realignment`, `budget-exhausted`, and `model-mismatch`.
 
 ## Reference Map
 

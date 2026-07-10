@@ -137,10 +137,37 @@ profile remains unchanged.
 
 ### Native-only Spark route
 
-Spark dispatch is native-only. Use native subagents for Spark work and assert model
-attestation from trusted control-plane/session metadata, never from model self-report.
-Hard-stop if actual model attestation is missing or not `gpt-5.3-codex-spark`;
-do not substitute Sol or another model.
+Spark dispatch is native-only. Use native subagents for Spark work and assert
+model attestation from trusted control-plane/session metadata, never from model
+self-report. Hard-stop if actual model attestation is missing or not
+`gpt-5.3-codex-spark`; do not substitute Sol or another model.
+
+### Bootstrap policy for native execution
+
+Policy for CWO bootstrap operative execution is in
+`policy/native-worker-execution.yaml`.
+
+- `Sol` remains architecture and adjudication control only.
+- Operative workerbees use fresh native `gpt-5.3-codex-spark` sessions.
+- Each operative segment starts with a no-tools attestation gate using trusted
+  control-plane/session metadata.
+- Every new task segment is a fresh attestation boundary.
+- `resume_agent` is forbidden by default for model-pinned operative work; explicit
+  waivers remain quarantined until post-resume attestation exactly matches
+  Spark.
+- Missing/mismatched model output is quarantined and requires fresh Spark
+  redispatch.
+- Durable continuation is Beads checkpoint + fresh worker, not agent resume.
+- Lane budgets are enforced as implementation/validation/review/publish-report-admin
+  with soft/hard tool and time ceilings.
+- Return statuses are `completed`, `blocked`, `needs-architect-realignment`,
+  `budget-exhausted`, and `model-mismatch`.
+- `needs-architect-realignment` is required when two distinct soft-limit
+  dimensions are exceeded in one segment (for example tools + elapsed), or when
+  any hard limit is hit.
+- Realignment requires completed evidence, files touched, mutation state,
+  decision required, bounded options, recommendation, remaining scope, and usage.
+- Resume path for fixes is: reinstall/reload the skill, then resume from Beads.
 
 ### Enterprise Evaluation Targets
 
