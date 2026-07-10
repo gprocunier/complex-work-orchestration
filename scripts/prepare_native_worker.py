@@ -1,0 +1,1031 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+from cwo_core.paths import assert_safe_output_path
+from cwo_core.policy import load_policy
+from cwo_core.util import atomic_write_text, make_dispatch_id
+
+REQUESTED_MODEL = "gpt-5.3-codex-spark"
+NATIVE_WORKER_POLICY_PATH = "policy/native-worker-execution.yaml"
+NATIVE_WORKER_PACKET_SCHEMA = "schemas/native-worker-packet.schema.json"
+NATIVE_WORKER_RETURN_SCHEMA = "schemas/native-worker-return.schema.json"
+ALLOWED_PACKET_FIELDS = {
+    "packet_type",
+    "version",
+    "packet_id",
+    "bead_id",
+    "lane",
+    "requested_model",
+    "session_policy",
+    "scope",
+    "acceptance_checks",
+    "budget",
+    "escalation_triggers",
+    "return_contract",
+}
+ALLOWED_SESSION_POLICY_FIELDS = {
+    "fresh_session_required",
+    "resume_forbidden",
+    "attestation",
+    "source",
+}
+ALLOWED_ATTESTATION_FIELDS = {
+    "required",
+    "tool_mode",
+    "model_authority",
+    "self_report_authority",
+    "required_actual_model",
+}
+ALLOWED_SCOPE_FIELDS = {
+    "workdir",
+    "allowed_paths",
+    "allowed_actions",
+    "prohibited_actions",
+}
+ALLOWED_BUDGET_FIELDS = {
+    "tool_calls_soft",
+    "tool_calls_hard",
+    "runtime_seconds_soft",
+    "runtime_seconds_hard",
+    "max_compactions",
+    "max_full_suite_runs",
+}
+ALLOWED_ESCALATION_TRIGGER_FIELDS = {
+    "scope_ambiguity",
+    "architecture_ambiguity",
+    "security_ambiguity",
+    "policy_ambiguity",
+    "soft_limit",
+    "hard_limit",
+    "compaction",
+}
+ALLOWED_RETURN_CONTRACT_FIELDS = {
+    "allowed_statuses",
+    "required_fields",
+    "realignment_required_fields",
+}
+ALLOWED_RETURN_FIELDS = {
+    "return_type",
+    "version",
+    "packet_id",
+    "bead_id",
+    "session_id",
+    "segment_id",
+    "status",
+    "requested_model",
+    "actual_model",
+    "attestation_source",
+    "attestation_status",
+    "completed_evidence",
+    "files_touched",
+    "mutation_state",
+    "commands_run",
+    "validation",
+    "decision_required",
+    "bounded_options",
+    "recommendation",
+    "remaining_scope",
+    "usage",
+    "residual_risks",
+}
+ALLOWED_RETURN_USAGE_FIELDS = {
+    "tool_calls",
+    "elapsed_seconds",
+    "context_compactions",
+    "full_suite_runs",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cached_input_tokens",
+    "reasoning_tokens",
+}
+ALLOWED_MUTATION_STATES = {"clean", "modified", "committed", "unknown"}
+ALLOWED_ATTESTATION_STATUSES = {
+    "trusted",
+    "missing",
+    "mismatch",
+    "untrusted",
+    "denied",
+}
+
+
+def _required_string_list(
+    value: Any, field: str, *, min_items: int = 1
+) -> tuple[list[str], list[str]]:
+    if not isinstance(value, list):
+        return [f"{field} must be a list"], []
+    if len(value) < min_items:
+        return [f"{field} must contain at least {min_items} item(s)"], []
+    errors: list[str] = []
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{field} items must be non-empty strings")
+            break
+        result.append(item.strip())
+    return errors, result
+
+
+def load_native_worker_policy() -> dict[str, Any]:
+    policy = load_policy("native-worker-execution")
+    lane_budgets = policy.get("lane_budgets")
+    if not isinstance(lane_budgets, dict) or not lane_budgets:
+        raise SystemExit("policy missing lane_budgets")
+    return_policy = policy.get("return_statuses")
+    if not isinstance(return_policy, list) or not return_policy:
+        raise SystemExit("policy missing return_statuses")
+    return_policy = [str(item) for item in return_policy]
+    execution_bootstrap = policy.get("execution_bootstrap")
+    if not isinstance(execution_bootstrap, dict):
+        raise SystemExit("policy missing execution_bootstrap")
+    return {"policy": policy, "lane_budgets": lane_budgets, "return_statuses": return_policy}
+
+
+def _load_alignment_triggers() -> dict[str, Any]:
+    policy = load_policy("native-worker-execution").get("alignment_triggers", {})
+    needs_architect = policy.get("needs_architect_realignment")
+    if not isinstance(needs_architect, dict):
+        raise SystemExit("policy missing alignment_triggers.needs_architect_realignment")
+    return needs_architect
+
+
+def _policy_model() -> str:
+    policy = load_policy("native-worker-execution")
+    spark = policy.get("governance", {}).get("spark", {})
+    value = spark.get("exact_model")
+    if not value:
+        raise SystemExit("policy missing governance.spark.exact_model")
+    return str(value)
+
+
+def _policy_lanes() -> list[str]:
+    return sorted(load_policy("native-worker-execution").get("lane_budgets", {}).keys())
+
+
+def _policy_budgets_for_lane(lane: str) -> dict[str, int]:
+    policy = load_native_worker_policy()
+    raw = policy["lane_budgets"].get(lane)
+    if not isinstance(raw, dict):
+        raise SystemExit(f"policy missing budget profile for lane {lane!r}")
+    return {
+        "tool_calls_soft": int(raw["tool_calls_soft"]),
+        "tool_calls_hard": int(raw["tool_calls_hard"]),
+        "runtime_seconds_soft": int(raw["runtime_seconds_soft"]),
+        "runtime_seconds_hard": int(raw["runtime_seconds_hard"]),
+        "max_compactions": int(raw["max_compactions"]),
+        "max_full_suite_runs": int(raw["max_full_suite_runs"]),
+    }
+
+
+def _policy_return_statuses() -> list[str]:
+    return list(load_native_worker_policy()["return_statuses"])
+
+
+def _resolve_existing_or_future_path(raw: str) -> Path:
+    try:
+        return Path(raw).expanduser().resolve()
+    except OSError as exc:
+        raise SystemExit(f"invalid path {raw!r}: {exc}") from exc
+
+
+def _normalize_workdir(workdir: str) -> Path:
+    if not isinstance(workdir, str) or not workdir.strip():
+        raise SystemExit("workdir is required")
+    path = _resolve_existing_or_future_path(workdir)
+    if not path.is_dir():
+        raise SystemExit(f"workdir is not a directory: {workdir!r}")
+    return path
+
+
+def _normalize_allowed_path(raw: str, workdir: Path, seen: set[str]) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise SystemExit("allowed path must be a non-empty string")
+    stripped = raw.strip()
+    candidate = Path(stripped)
+    if candidate.is_absolute():
+        resolved = _resolve_existing_or_future_path(str(candidate))
+    else:
+        resolved = _resolve_existing_or_future_path(str(workdir / candidate))
+    if ".." in candidate.parts:
+        raise SystemExit(f"path traversal is not allowed in allowed path {raw!r}")
+    try:
+        resolved.relative_to(workdir)
+    except ValueError as exc:
+        raise SystemExit(f"allowed path {raw!r} is outside workdir {workdir}") from exc
+    normalized = resolved.relative_to(workdir).as_posix()
+    if normalized in seen:
+        return normalized
+    seen.add(normalized)
+    return normalized
+
+
+def _normalize_allowed_paths(paths: list[Any], workdir: Path) -> list[str]:
+    if not paths:
+        raise SystemExit("at least one --allowed-path is required")
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for raw in paths:
+        normalized.append(_normalize_allowed_path(str(raw), workdir, seen))
+    return normalized
+
+
+def _required_nonempty_str(value: Any, field: str, *, allow_empty: bool = False) -> str | None:
+    if not isinstance(value, str):
+        return f"{field} must be a string"
+    if allow_empty:
+        return None
+    if not value.strip():
+        return f"{field} must be a non-empty string"
+    return None
+
+
+def _required_bool(value: Any, field: str, expected: bool | None = None) -> str | None:
+    if not isinstance(value, bool):
+        return f"{field} must be boolean"
+    if expected is not None and value != expected:
+        return f"{field} must be {expected}"
+    return None
+
+
+def _required_int(value: Any, field: str, *, minimum: int = 0) -> str | None:
+    if not isinstance(value, int) or isinstance(value, bool):
+        return f"{field} must be an integer"
+    if value < minimum:
+        return f"{field} must be >= {minimum}"
+    return None
+
+
+def _required_non_negative_number(value: Any, field: str) -> str | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return f"{field} must be a non-negative number"
+    if value < 0:
+        return f"{field} must be >= 0"
+    return None
+
+
+def _reject_unknown_fields(
+    payload: dict[str, Any], field_path: str, allowed: set[str]
+) -> list[str]:
+    extras = sorted(set(payload) - allowed)
+    if extras:
+        return [f"{field_path} has unknown field(s): {', '.join(extras)}"]
+    return []
+
+
+def _normalize_scope_paths(scope_paths: list[str], workdir: Path) -> list[Path]:
+    allowed: list[Path] = []
+    for raw in scope_paths:
+        candidate = Path(raw)
+        if ".." in candidate.parts:
+            continue
+        if candidate.is_absolute():
+            resolved = _resolve_existing_or_future_path(str(candidate))
+        else:
+            resolved = _resolve_existing_or_future_path(str(workdir / candidate))
+        try:
+            resolved.relative_to(workdir)
+        except ValueError:
+            continue
+        allowed.append(resolved)
+    return allowed
+
+
+def _path_in_scope(raw: str, workdir: Path, allowed_paths: list[Path]) -> str | None:
+    if not raw or not str(raw).strip():
+        return "files_touched item must be a non-empty string"
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        resolved = _resolve_existing_or_future_path(str(candidate))
+    else:
+        resolved = _resolve_existing_or_future_path(str(workdir / candidate))
+    try:
+        resolved.relative_to(workdir)
+    except ValueError:
+        return f"{raw!r} is outside workdir {workdir}"
+    if not allowed_paths:
+        return "no allowed_paths available for scope validation"
+    for allowed in allowed_paths:
+        try:
+            resolved.relative_to(allowed)
+            return None
+        except ValueError:
+            continue
+    return f"{raw!r} is outside packet scope"
+
+
+def _build_session_policy() -> dict[str, Any]:
+    policy = load_policy("native-worker-execution")
+    spawn = policy.get("execution_bootstrap", {}).get("spawn", {}).get("attestation_gate", {})
+    if not isinstance(spawn, dict):
+        raise SystemExit("policy missing execution_bootstrap.spawn.attestation_gate")
+    return {
+        "fresh_session_required": True,
+        "resume_forbidden": True,
+        "attestation": {
+            "required": bool(spawn.get("required", True)),
+            "tool_mode": str(spawn.get("tool_mode", "no-tools")),
+            "model_authority": str(spawn.get("model_authority", "trusted-control-plane-session-metadata")),
+            "self_report_authority": str(spawn.get("self_report_authority", "forbidden")),
+            "required_actual_model": str(spawn.get("required_actual_model", REQUESTED_MODEL)),
+        },
+        "source": NATIVE_WORKER_POLICY_PATH,
+    }
+
+
+def _build_escalation_triggers() -> dict[str, Any]:
+    needs_architect = _load_alignment_triggers()
+    return {
+        "scope_ambiguity": "needs-architect-realignment",
+        "architecture_ambiguity": "needs-architect-realignment",
+        "security_ambiguity": "needs-architect-realignment",
+        "policy_ambiguity": "needs-architect-realignment",
+        "soft_limit": {
+            "distinct_soft_limits_required": int(needs_architect.get("distinct_soft_limits_required", 2)),
+        },
+        "hard_limit": {
+            "any_hard_limit": str(needs_architect.get("any_hard_limit", "realignment")),
+            "status": str(needs_architect.get("status", "needs-architect-realignment")),
+        },
+        "compaction": {
+            "any_compaction": str(needs_architect.get("any_compaction", "hard-stop/realignment")),
+            "status": str(needs_architect.get("status", "needs-architect-realignment")),
+        },
+    }
+
+
+def _build_return_contract() -> dict[str, Any]:
+    policy = load_policy("native-worker-execution")
+    return_contract = policy.get("realignment_return_contract", {})
+    required_fields = return_contract.get("required_fields", [])
+    return {
+        "allowed_statuses": list(policy.get("return_statuses", [])),
+        "required_fields": [
+            "completed_evidence",
+            "files_touched",
+            "mutation_state",
+            "commands_run",
+            "validation",
+            "decision_required",
+            "bounded_options",
+            "recommendation",
+            "remaining_scope",
+            "usage",
+            "residual_risks",
+        ],
+        "realignment_required_fields": required_fields,
+    }
+
+
+def build_native_worker_packet(
+    *,
+    bead_id: str,
+    lane: str,
+    workdir: str,
+    allowed_paths: list[str],
+    acceptance_checks: list[str],
+    packet_id: str | None = None,
+) -> dict[str, Any]:
+    if not str(bead_id).strip():
+        raise SystemExit("bead-id must be non-empty")
+    if lane not in _policy_lanes():
+        raise SystemExit(f"unknown lane {lane!r}")
+    acceptance_checks = [check.strip() for check in acceptance_checks]
+    if not acceptance_checks:
+        raise SystemExit("at least one --acceptance-check is required")
+    if any(not check.strip() for check in acceptance_checks):
+        raise SystemExit("acceptance_check values must be non-empty")
+    workdir_path = _normalize_workdir(workdir)
+    normalized_paths = _normalize_allowed_paths(allowed_paths, workdir_path)
+    packet = {
+        "packet_type": "cwo-native-worker-packet",
+        "version": 1,
+        "packet_id": packet_id or make_dispatch_id(bead_id),
+        "bead_id": bead_id,
+        "lane": lane,
+        "requested_model": _policy_model(),
+        "session_policy": _build_session_policy(),
+        "scope": {
+            "workdir": str(workdir_path),
+            "allowed_paths": normalized_paths,
+            "allowed_actions": [
+                "read-assigned-bead",
+                "edit-scoped-files",
+                "run-tests-in-scope",
+                "write-packaged-artifacts",
+            ],
+            "prohibited_actions": [
+                "resume-previous-session",
+                "trust-self-reported-model",
+                "write-out-of-scope",
+                "model-override",
+            ],
+        },
+        "acceptance_checks": acceptance_checks,
+        "budget": _policy_budgets_for_lane(lane),
+        "escalation_triggers": _build_escalation_triggers(),
+        "return_contract": _build_return_contract(),
+    }
+    errors = validate_native_worker_packet(packet)
+    if errors:
+        raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
+    return packet
+
+
+def validate_native_worker_packet(payload: Any) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(payload, dict):
+        return ["packet is not a JSON object"]
+    errors.extend(_reject_unknown_fields(payload, "packet", ALLOWED_PACKET_FIELDS))
+    if len(errors) > 0:
+        return errors
+
+    if (value := _required_nonempty_str(payload.get("packet_type"), "packet_type")) is not None:
+        errors.append(value)
+    elif payload["packet_type"] != "cwo-native-worker-packet":
+        errors.append("packet_type must be cwo-native-worker-packet")
+
+    if payload.get("version") != 1:
+        errors.append("version must be 1")
+
+    if (error := _required_nonempty_str(payload.get("packet_id"), "packet_id")) is not None:
+        errors.append(error)
+    if (error := _required_nonempty_str(payload.get("bead_id"), "bead_id")) is not None:
+        errors.append(error)
+
+    lane = payload.get("lane")
+    if str(lane) not in _policy_lanes():
+        errors.append("lane is not a known native-worker lane")
+
+    if (error := _required_nonempty_str(payload.get("requested_model"), "requested_model")) is not None:
+        errors.append(error)
+    elif payload["requested_model"] != _policy_model():
+        errors.append("requested_model must match policy exact_model gpt-5.3-codex-spark")
+
+    session_policy = payload.get("session_policy")
+    if not isinstance(session_policy, dict):
+        errors.append("session_policy must be an object")
+    else:
+        errors.extend(_reject_unknown_fields(session_policy, "session_policy", ALLOWED_SESSION_POLICY_FIELDS))
+        for key, expected in (("fresh_session_required", True), ("resume_forbidden", True)):
+            if (error := _required_bool(session_policy.get(key), f"session_policy.{key}", expected=expected)) is not None:
+                errors.append(error)
+        attestation = session_policy.get("attestation")
+        if not isinstance(attestation, dict):
+            errors.append("session_policy.attestation must be an object")
+        else:
+            errors.extend(_reject_unknown_fields(attestation, "session_policy.attestation", ALLOWED_ATTESTATION_FIELDS))
+            if (error := _required_bool(attestation.get("required"), "session_policy.attestation.required", expected=True)) is not None:
+                errors.append(error)
+            if (error := _required_nonempty_str(attestation.get("tool_mode"), "session_policy.attestation.tool_mode")) is not None:
+                errors.append(error)
+            elif attestation["tool_mode"] != "no-tools":
+                errors.append("session_policy.attestation.tool_mode must be no-tools")
+            if (error := _required_nonempty_str(attestation.get("model_authority"), "session_policy.attestation.model_authority")) is not None:
+                errors.append(error)
+            elif attestation["model_authority"] != "trusted-control-plane-session-metadata":
+                errors.append("session_policy.attestation.model_authority must be trusted-control-plane-session-metadata")
+            if (error := _required_nonempty_str(attestation.get("self_report_authority"), "session_policy.attestation.self_report_authority")) is not None:
+                errors.append(error)
+            elif attestation["self_report_authority"] != "forbidden":
+                errors.append("session_policy.attestation.self_report_authority must be forbidden")
+            if (error := _required_nonempty_str(attestation.get("required_actual_model"), "session_policy.attestation.required_actual_model")) is not None:
+                errors.append(error)
+            elif attestation["required_actual_model"] != _policy_model():
+                errors.append("session_policy.attestation.required_actual_model must match policy")
+        if (error := _required_nonempty_str(session_policy.get("source"), "session_policy.source")) is not None:
+            errors.append(error)
+        elif session_policy["source"] != NATIVE_WORKER_POLICY_PATH:
+            errors.append("session_policy.source must be policy/native-worker-execution.yaml")
+
+    scope = payload.get("scope")
+    if not isinstance(scope, dict):
+        errors.append("scope must be an object")
+    else:
+        errors.extend(_reject_unknown_fields(scope, "scope", ALLOWED_SCOPE_FIELDS))
+        if (error := _required_nonempty_str(scope.get("workdir"), "scope.workdir")) is not None:
+            errors.append(error)
+        else:
+            workdir = _normalize_workdir(str(scope["workdir"]))
+            allowed_paths = scope.get("allowed_paths")
+            normalized_path_errors, normalized = _required_string_list(
+                allowed_paths, "scope.allowed_paths"
+            )
+            if normalized_path_errors:
+                errors.extend(normalized_path_errors)
+            if not normalized:
+                errors.append("scope.allowed_paths must contain at least one path")
+            else:
+                for item in normalized:
+                    if str(item).strip().startswith("/"):
+                        # Absolute path must stay in workdir
+                        abs_path = _resolve_existing_or_future_path(item)
+                        try:
+                            abs_path.relative_to(workdir)
+                        except ValueError:
+                            errors.append("scope.allowed_paths contains absolute path outside workdir")
+                    if ".." in Path(item).parts:
+                        errors.append("scope.allowed_paths contains path traversal components")
+                    normalized_path = _normalize_allowed_path(item, workdir, set())
+                    _ = normalized_path
+            allowed_action_errors, allowed_actions = _required_string_list(
+                scope.get("allowed_actions"), "scope.allowed_actions"
+            )
+            errors.extend(allowed_action_errors)
+            if allowed_actions:
+                for action in allowed_actions:
+                    if _required_nonempty_str(action, "scope.allowed_actions item") is not None:
+                        errors.append(_required_nonempty_str(action, "scope.allowed_actions item") or "")
+            prohibited_action_errors, prohibited_actions = _required_string_list(
+                scope.get("prohibited_actions"), "scope.prohibited_actions", min_items=0
+            )
+            errors.extend(prohibited_action_errors)
+            if prohibited_actions:
+                for action in prohibited_actions:
+                    if _required_nonempty_str(action, "scope.prohibited_actions item") is not None:
+                        errors.append(_required_nonempty_str(action, "scope.prohibited_actions item") or "")
+
+    acceptance_errors, acceptance_checks = _required_string_list(
+        payload.get("acceptance_checks"), "acceptance_checks"
+    )
+    if acceptance_errors:
+        errors.extend(acceptance_errors)
+    elif not acceptance_checks:
+        errors.append("acceptance_checks must contain at least one check")
+
+    policy_budgets = _policy_budgets_for_lane(lane) if isinstance(lane, str) else None
+    budget = payload.get("budget")
+    if not isinstance(budget, dict):
+        errors.append("budget must be an object")
+    else:
+        errors.extend(_reject_unknown_fields(budget, "budget", ALLOWED_BUDGET_FIELDS))
+        if policy_budgets is not None:
+            for key, value in policy_budgets.items():
+                if (error := _required_int(budget.get(key), f"budget.{key}")) is not None:
+                    errors.append(error)
+                elif budget[key] != value:
+                    errors.append(f"budget.{key} must equal policy profile for lane {lane!r}")
+
+    escalation = payload.get("escalation_triggers")
+    if not isinstance(escalation, dict):
+        errors.append("escalation_triggers must be an object")
+    else:
+        errors.extend(_reject_unknown_fields(escalation, "escalation_triggers", ALLOWED_ESCALATION_TRIGGER_FIELDS))
+        align = _load_alignment_triggers()
+        for key in [
+            "scope_ambiguity",
+            "architecture_ambiguity",
+            "security_ambiguity",
+            "policy_ambiguity",
+        ]:
+            if str(escalation.get(key)) != "needs-architect-realignment":
+                errors.append(f"escalation_triggers.{key} must be needs-architect-realignment")
+        soft_limit = escalation.get("soft_limit")
+        if not isinstance(soft_limit, dict):
+            errors.append("escalation_triggers.soft_limit must be an object")
+        else:
+            errors.extend(_reject_unknown_fields(soft_limit, "escalation_triggers.soft_limit", {"distinct_soft_limits_required"}))
+            if soft_limit.get("distinct_soft_limits_required") != int(align.get("distinct_soft_limits_required", 2)):
+                errors.append("escalation_triggers.soft_limit.distinct_soft_limits_required must be 2")
+        hard_limit = escalation.get("hard_limit")
+        if not isinstance(hard_limit, dict):
+            errors.append("escalation_triggers.hard_limit must be an object")
+        else:
+            errors.extend(_reject_unknown_fields(hard_limit, "escalation_triggers.hard_limit", {"any_hard_limit", "status"}))
+            if hard_limit.get("any_hard_limit") != str(align.get("any_hard_limit", "realignment")):
+                errors.append("escalation_triggers.hard_limit.any_hard_limit must be realignment")
+            if hard_limit.get("status") != str(align.get("status", "needs-architect-realignment")):
+                errors.append("escalation_triggers.hard_limit.status must be needs-architect-realignment")
+        compaction = escalation.get("compaction")
+        if not isinstance(compaction, dict):
+            errors.append("escalation_triggers.compaction must be an object")
+        else:
+            errors.extend(_reject_unknown_fields(compaction, "escalation_triggers.compaction", {"any_compaction", "status"}))
+            if compaction.get("any_compaction") != str(align.get("any_compaction", "hard-stop/realignment")):
+                errors.append("escalation_triggers.compaction.any_compaction must be hard-stop/realignment")
+            if compaction.get("status") != str(align.get("status", "needs-architect-realignment")):
+                errors.append("escalation_triggers.compaction.status must be needs-architect-realignment")
+    return_contract = payload.get("return_contract")
+    if not isinstance(return_contract, dict):
+        errors.append("return_contract must be an object")
+    else:
+        errors.extend(_reject_unknown_fields(return_contract, "return_contract", ALLOWED_RETURN_CONTRACT_FIELDS))
+        allowed = return_contract.get("allowed_statuses")
+        if not isinstance(allowed, list):
+            errors.append("return_contract.allowed_statuses must be a list")
+        elif not allowed:
+            errors.append("return_contract.allowed_statuses must be non-empty")
+        else:
+            for status in allowed:
+                if not isinstance(status, str):
+                    errors.append("return_contract.allowed_statuses must only contain strings")
+                    break
+            for expected in _policy_return_statuses():
+                if expected not in allowed:
+                    errors.append(f"return_contract.allowed_statuses missing {expected!r}")
+                    break
+        required_errors, required = _required_string_list(
+            return_contract.get("required_fields"), "return_contract.required_fields"
+        )
+        if required_errors:
+            errors.extend(required_errors)
+        elif not required:
+            errors.append("return_contract.required_fields must be non-empty")
+
+    return errors
+
+
+def _parse_usage_limits(payload: dict[str, Any]) -> list[str]:
+    usage = payload.get("usage")
+    errors: list[str] = []
+    if not isinstance(usage, dict):
+        return ["usage must be an object"]
+    errors.extend(_reject_unknown_fields(usage, "usage", ALLOWED_RETURN_USAGE_FIELDS))
+    for field in ["tool_calls", "elapsed_seconds", "context_compactions", "full_suite_runs"]:
+        if field == "elapsed_seconds":
+            if (error := _required_non_negative_number(usage.get(field), f"usage.{field}")) is not None:
+                errors.append(error)
+        else:
+            if (error := _required_int(usage.get(field), f"usage.{field}")) is not None:
+                errors.append(error)
+    for key in [
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "cached_input_tokens",
+        "reasoning_tokens",
+    ]:
+        if key in usage and (error := _required_int(usage.get(key), f"usage.{key}", minimum=0)) is not None:
+            errors.append(error)
+    return errors
+
+
+def _parse_usage_limits_for_completion(usage: dict[str, Any], packet: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    budget = packet.get("budget", {})
+    if not isinstance(budget, dict):
+        return errors
+    hard_tool_calls = budget.get("tool_calls_hard")
+    hard_runtime = budget.get("runtime_seconds_hard")
+    max_compactions = budget.get("max_compactions")
+    max_full_suite_runs = budget.get("max_full_suite_runs")
+    if isinstance(hard_tool_calls, int) and usage["tool_calls"] > hard_tool_calls:
+        errors.append(
+            f"usage.tool_calls exceeds hard budget {usage['tool_calls']} > {hard_tool_calls}"
+        )
+    if isinstance(hard_runtime, int) and usage["elapsed_seconds"] > hard_runtime:
+        errors.append(
+            f"usage.elapsed_seconds exceeds hard budget {usage['elapsed_seconds']} > {hard_runtime}"
+        )
+    if isinstance(max_compactions, int) and usage["context_compactions"] > max_compactions:
+        errors.append("usage.context_compactions exceeds max_compactions")
+    if isinstance(max_full_suite_runs, int) and usage["full_suite_runs"] > max_full_suite_runs:
+        errors.append("usage.full_suite_runs exceeds max_full_suite_runs")
+    return errors
+
+
+def validate_native_worker_return(packet: dict[str, Any], result: Any) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(result, dict):
+        return ["return is not a JSON object"]
+    errors.extend(_reject_unknown_fields(result, "return", ALLOWED_RETURN_FIELDS))
+    if len(errors) > 0:
+        return errors
+
+    if (error := _required_nonempty_str(result.get("return_type"), "return_type")) is not None:
+        errors.append(error)
+    elif result["return_type"] != "cwo-native-worker-return":
+        errors.append("return_type must be cwo-native-worker-return")
+
+    if result.get("version") != 1:
+        errors.append("version must be 1")
+
+    for field in [
+        "packet_id",
+        "bead_id",
+        "session_id",
+        "segment_id",
+        "requested_model",
+        "attestation_source",
+        "attestation_status",
+        "completed_evidence",
+    ]:
+        if (error := _required_nonempty_str(result.get(field), field)) is not None:
+            errors.append(error)
+
+    status = result.get("status")
+    if not isinstance(status, str):
+        errors.append("status must be a string")
+    if packet.get("packet_id") and result.get("packet_id") != packet.get("packet_id"):
+        errors.append("return.packet_id must match packet.packet_id")
+    if packet.get("bead_id") and result.get("bead_id") != packet.get("bead_id"):
+        errors.append("return.bead_id must match packet.bead_id")
+    if result.get("requested_model") != packet.get("requested_model"):
+        errors.append("return.requested_model must match packet.requested_model")
+    if result.get("mutation_state") not in ALLOWED_MUTATION_STATES:
+        errors.append("mutation_state must be clean, modified, committed, or unknown")
+
+    allowed_statuses = packet.get("return_contract", {}).get("allowed_statuses") or _policy_return_statuses()
+    if status and status not in allowed_statuses:
+        errors.append(f"status {status!r} is not allowed by this packet")
+
+    attestation_status = result.get("attestation_status")
+    if attestation_status not in ALLOWED_ATTESTATION_STATUSES:
+        errors.append("attestation_status must be one of trusted, missing, mismatch, untrusted, denied")
+    if attestation_status == "trusted" and (
+        str(result.get("attestation_source", "")).strip() != "trusted-control-plane-session-metadata"
+    ):
+        errors.append("attestation_source must be trusted-control-plane-session-metadata for trusted status")
+    actual_model = result.get("actual_model")
+    if status == "completed":
+        if actual_model is None:
+            errors.append("completed return requires actual_model to be set")
+        elif _required_nonempty_str(actual_model, "actual_model") is not None:
+            errors.append("actual_model must be a string when return is completed")
+        elif actual_model != result.get("requested_model"):
+            errors.append("completed return requires exact model match")
+    elif status == "model-mismatch":
+        if actual_model is None:
+            errors.append("model-mismatch return requires actual_model")
+        elif _required_nonempty_str(actual_model, "actual_model") is not None:
+            errors.append("actual_model must be a non-empty string for model-mismatch")
+        elif actual_model == result.get("requested_model"):
+            errors.append("model-mismatch status requires actual_model different from requested_model")
+    elif actual_model is not None and _required_nonempty_str(actual_model, "actual_model") is not None:
+        errors.append("actual_model must be a string or null")
+
+    files = result.get("files_touched")
+    normalized_files_errors, normalized_files = _required_string_list(files, "files_touched", min_items=0)
+    if normalized_files_errors:
+        errors.extend(normalized_files_errors)
+    if isinstance(normalized_files, list):
+        scope = packet.get("scope", {})
+        if not isinstance(scope, dict):
+            errors.append("packet.scope must be present for files_touched validation")
+        else:
+            workdir = scope.get("workdir")
+            allowed_paths = scope.get("allowed_paths")
+            if isinstance(workdir, str) and isinstance(allowed_paths, list):
+                normalized_workdir = _normalize_workdir(workdir)
+                normalized_allowed = _normalize_scope_paths([str(item) for item in allowed_paths], normalized_workdir)
+                for item in normalized_files:
+                    file_error = _path_in_scope(item, normalized_workdir, normalized_allowed)
+                    if file_error:
+                        errors.append(file_error)
+            else:
+                errors.append("packet.scope.workdir and packet.scope.allowed_paths are required for files_touched checks")
+    elif not normalized_files and normalized_files != []:
+        errors.append("files_touched must be a list")
+
+    if not isinstance(result.get("commands_run"), list) or not all(
+        isinstance(item, str) and item.strip() for item in result["commands_run"]
+    ):
+        errors.append("commands_run must be a list of non-empty strings")
+
+    if not isinstance(result.get("validation"), dict):
+        errors.append("validation must be an object")
+
+    if not isinstance(result.get("decision_required"), list):
+        errors.append("decision_required must be a list")
+    if not isinstance(result.get("bounded_options"), list):
+        errors.append("bounded_options must be a list")
+    if not isinstance(result.get("residual_risks"), list):
+        errors.append("residual_risks must be a list")
+    elif any(not isinstance(item, str) or not item.strip() for item in result["residual_risks"]):
+        errors.append("residual_risks must contain non-empty strings")
+
+    if not isinstance(result.get("remaining_scope"), dict):
+        errors.append("remaining_scope must be an object")
+
+    errors.extend(_parse_usage_limits(result))
+    if status == "completed":
+        completion_usage = result.get("usage")
+        if isinstance(completion_usage, dict):
+            completion_usage_errors = _parse_usage_limits_for_completion(completion_usage, packet)
+            if completion_usage_errors:
+                errors.extend(completion_usage_errors)
+        if result.get("attestation_status") != "trusted":
+            errors.append("completed return requires attestation_status 'trusted'")
+        if result.get("validation") == {}:
+            errors.append("completed return requires explicit validation")
+        try:
+            scope = packet["scope"]
+            allowed = _normalize_scope_paths(scope.get("allowed_paths", []), _normalize_workdir(scope["workdir"]))
+            _, paths_for_validation = _required_string_list(
+                result.get("files_touched"), "files_touched", min_items=0
+            )
+            for path in paths_for_validation:
+                file_error = _path_in_scope(
+                    path,
+                    _normalize_workdir(scope["workdir"]),
+                    allowed,
+                )
+                if file_error:
+                    errors.append(file_error)
+        except (TypeError, KeyError, SystemExit):
+            pass
+
+    if status in {"needs-architect-realignment", "budget-exhausted", "model-mismatch"}:
+        if (
+            not isinstance(result.get("decision_required"), list)
+            or not result["decision_required"]
+        ):
+            errors.append("decision_required must be non-empty for realignment-like returns")
+        bounded_errors, bounded_options = _required_string_list(result.get("bounded_options"), "bounded_options", min_items=1)
+        errors.extend(bounded_errors)
+        if not bounded_options:
+            errors.append("bounded_options must be non-empty for realignment-like returns")
+        recommendation = result.get("recommendation")
+        if not isinstance(recommendation, str) or not recommendation.strip():
+            errors.append("recommendation must be non-empty for realignment-like returns")
+        remaining_scope = result.get("remaining_scope")
+        if not remaining_scope:
+            errors.append("remaining_scope must be non-empty for realignment-like returns")
+
+    if status == "model-mismatch":
+        if result.get("actual_model") == result.get("requested_model"):
+            errors.append("model-mismatch status requires actual_model different from requested_model")
+
+    return errors
+
+
+def _load_json_payload(path: str) -> Any:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise SystemExit(f"unable to read {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"invalid JSON in {path}: {exc}") from exc
+
+
+def _emit_payload(payload: dict[str, Any], output: str | None) -> None:
+    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if output:
+        atomic_write_text(assert_safe_output_path(Path(output)), rendered)
+    else:
+        print(rendered)
+
+
+def _render_prompt(payload: dict[str, Any]) -> str:
+    budget = payload["budget"]
+    scope = payload["scope"]
+    accepted = "\n".join(f"- {check}" for check in payload["acceptance_checks"][:8])
+    paths = "\n".join(f"- {path}" for path in scope["allowed_paths"][:8])
+    triggers = ", ".join(
+        f"{key}:{value}" for key, value in payload["escalation_triggers"].items()
+    )
+    return_skeleton = {
+        "return_type": "cwo-native-worker-return",
+        "version": 1,
+        "packet_id": payload["packet_id"],
+        "bead_id": payload["bead_id"],
+        "session_id": "<session id>",
+        "segment_id": "<segment id>",
+        "status": "completed",
+        "requested_model": payload["requested_model"],
+        "actual_model": payload["requested_model"],
+        "attestation_source": "trusted-control-plane-session-metadata",
+        "attestation_status": "trusted",
+        "completed_evidence": "<why this is complete>",
+        "files_touched": ["<relative/path.ext>"],
+        "mutation_state": "modified",
+        "commands_run": ["<command>"],
+        "validation": {"status": "pass"},
+        "decision_required": [],
+        "bounded_options": [],
+        "recommendation": "",
+        "remaining_scope": {},
+        "usage": {
+            "tool_calls": 0,
+            "elapsed_seconds": 0.0,
+            "context_compactions": 0,
+            "full_suite_runs": 0,
+        },
+        "residual_risks": [],
+    }
+    lines = [
+        "Native Worker Packet Prompt",
+        "",
+        f"Packet: {payload['packet_id']}",
+        f"Bead: {payload['bead_id']}",
+        f"Lane: {payload['lane']}",
+        f"Model: {payload['requested_model']}",
+        f"Session policy: fresh session, no-tools attestation, self-report forbidden",
+        f"Workdir: {scope['workdir']}",
+        "Allowed paths:",
+        paths,
+        "Allowed actions:",
+        *[f"- {item}" for item in payload["scope"]["allowed_actions"]],
+        "Prohibited actions:",
+        *[f"- {item}" for item in payload["scope"]["prohibited_actions"]],
+        "Acceptance checks:",
+        accepted,
+        f"Budget: tool-calls hard {budget['tool_calls_hard']} / soft {budget['tool_calls_soft']}, runtime hard {budget['runtime_seconds_hard']}s, max compactions {budget['max_compactions']}, max full-suite {budget['max_full_suite_runs']}",
+        f"Escalation triggers: {triggers}",
+        f"Allowed statuses: {', '.join(payload['return_contract']['allowed_statuses'])}",
+        "",
+        "Worker instructions:",
+        "- Stay within packet scope",
+        "- Do not resume prior sessions",
+        "- Do not report completion until attestation is trusted",
+        "- Return exactly one compliant cwo-native-worker-return artifact",
+        "",
+        "Return skeleton (required fields):",
+        json.dumps(return_skeleton, indent=2),
+    ]
+    return "\n".join(lines).strip() + "\n"
+
+
+def validate_schema_files() -> list[str]:
+    for relative in [NATIVE_WORKER_PACKET_SCHEMA, NATIVE_WORKER_RETURN_SCHEMA]:
+        path = Path(relative)
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return [f"{relative} is not valid JSON: {exc}"]
+    return []
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Build, validate, and render native-worker packets and returns."
+    )
+    subcommands = parser.add_subparsers(dest="command", required=True)
+
+    build = subcommands.add_parser("build", help="Build a native-worker packet.")
+    build.add_argument("--bead-id", required=True)
+    build.add_argument("--lane", required=True)
+    build.add_argument("--workdir", required=True)
+    build.add_argument("--allowed-path", action="append", required=True, dest="allowed_paths")
+    build.add_argument("--acceptance-check", action="append", required=True, dest="acceptance_checks")
+    build.add_argument("--output")
+
+    validate_cmd = subcommands.add_parser("validate", help="Validate a native-worker packet.")
+    validate_cmd.add_argument("packet")
+
+    render = subcommands.add_parser("render", help="Render a bounded native-worker task prompt.")
+    render.add_argument("packet")
+
+    validate_return = subcommands.add_parser(
+        "validate-return", help="Validate a native-worker return against a packet."
+    )
+    validate_return.add_argument("--packet", required=True)
+    validate_return.add_argument("--return", required=True, dest="return_path")
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = _parse_args()
+    errors = validate_schema_files()
+    if errors:
+        raise SystemExit(errors[0])
+
+    if args.command == "build":
+        packet = build_native_worker_packet(
+            bead_id=args.bead_id,
+            lane=args.lane,
+            workdir=args.workdir,
+            allowed_paths=args.allowed_paths,
+            acceptance_checks=args.acceptance_checks,
+        )
+        _emit_payload(packet, args.output)
+        return
+
+    if args.command == "validate":
+        packet = _load_json_payload(args.packet)
+        errors = validate_native_worker_packet(packet)
+        if errors:
+            raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
+        print("packet valid")
+        return
+
+    if args.command == "render":
+        packet = _load_json_payload(args.packet)
+        errors = validate_native_worker_packet(packet)
+        if errors:
+            raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
+        print(_render_prompt(packet))
+        return
+
+    if args.command == "validate-return":
+        packet = _load_json_payload(args.packet)
+        packet_errors = validate_native_worker_packet(packet)
+        if packet_errors:
+            raise SystemExit("packet validation failed:\n- " + "\n- ".join(packet_errors))
+        native_return = _load_json_payload(args.return_path)
+        return_errors = validate_native_worker_return(packet, native_return)
+        if return_errors:
+            raise SystemExit("return validation failed:\n- " + "\n- ".join(return_errors))
+        print("return valid")
+        return
+
+    raise SystemExit(f"unknown command: {args.command!r}")
+
+
+if __name__ == "__main__":
+    main()

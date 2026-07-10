@@ -1,0 +1,542 @@
+from __future__ import annotations
+
+import copy
+import json
+import importlib
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
+
+from prepare_native_worker import (  # noqa: E402
+    _policy_budgets_for_lane,
+    _policy_lanes,
+    build_native_worker_packet,
+    validate_native_worker_packet,
+    validate_native_worker_return,
+)
+
+
+def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "prepare_native_worker.py"), *args],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+class NativeWorkerPacketTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.policy = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
+
+    def test_schemas_are_loadable(self) -> None:
+        for schema in [
+            ROOT / "schemas" / "native-worker-packet.schema.json",
+            ROOT / "schemas" / "native-worker-return.schema.json",
+        ]:
+            json.loads(schema.read_text(encoding="utf-8"))
+
+    def test_build_outputs_policy_derived_budget_and_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            result = run_cli(
+                "build",
+                "--bead-id",
+                "bead-1",
+                "--lane",
+                "implementation",
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(allowed),
+                "--acceptance-check",
+                "tests pass",
+                "--acceptance-check",
+                "artifact clean",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            packet = json.loads(result.stdout)
+
+            self.assertEqual(packet["packet_type"], "cwo-native-worker-packet")
+            self.assertEqual(packet["version"], 1)
+            self.assertEqual(packet["lane"], "implementation")
+            self.assertEqual(packet["requested_model"], "gpt-5.3-codex-spark")
+            self.assertEqual(packet["budget"], _policy_budgets_for_lane("implementation"))
+            self.assertEqual(
+                packet["return_contract"]["allowed_statuses"],
+                self.policy["return_statuses"],
+            )
+            self.assertIn("scope", packet)
+            self.assertEqual(packet["scope"]["workdir"], str(Path(workdir).resolve()))
+            self.assertEqual(
+                packet["escalation_triggers"]["soft_limit"],
+                {"distinct_soft_limits_required": 2},
+            )
+            self.assertEqual(
+                packet["escalation_triggers"]["hard_limit"],
+                {"any_hard_limit": "realignment", "status": "needs-architect-realignment"},
+            )
+            self.assertEqual(
+                packet["escalation_triggers"]["compaction"],
+                {"any_compaction": "hard-stop/realignment", "status": "needs-architect-realignment"},
+            )
+
+    def test_build_rejects_unknown_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            result = run_cli(
+                "build",
+                "--bead-id",
+                "bead-1",
+                "--lane",
+                "mystery",
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                ".",
+                "--acceptance-check",
+                "tests pass",
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("unknown lane", result.stderr.lower())
+
+    def test_build_rejects_traversal_and_out_of_scope_allowed_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            inside = Path(workdir) / "inside"
+            outside = Path(workdir).parent / "outside"
+            inside.mkdir()
+            outside.mkdir(exist_ok=True)
+            result = run_cli(
+                "build",
+                "--bead-id",
+                "bead-1",
+                "--lane",
+                _policy_lanes()[0],
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                "..",
+                "--acceptance-check",
+                "tests pass",
+            )
+            self.assertNotEqual(result.returncode, 0)
+            result_abs = run_cli(
+                "build",
+                "--bead-id",
+                "bead-1",
+                "--lane",
+                _policy_lanes()[0],
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(outside),
+                "--acceptance-check",
+                "tests pass",
+            )
+            self.assertNotEqual(result_abs.returncode, 0)
+
+            result_ok = run_cli(
+                "build",
+                "--bead-id",
+                "bead-1",
+                "--lane",
+                _policy_lanes()[0],
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(inside),
+                "--acceptance-check",
+                "tests pass",
+            )
+            self.assertEqual(result_ok.returncode, 0, result_ok.stderr)
+
+    def test_build_rejects_empty_acceptance_check(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            result = run_cli(
+                "build",
+                "--bead-id",
+                "bead-1",
+                "--lane",
+                _policy_lanes()[0],
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(allowed),
+                "--acceptance-check",
+                "",
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("non-empty", result.stderr.lower())
+
+    def test_cli_validate_rejects_model_and_budget_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="implementation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["tests pass"],
+            )
+            packet_path = Path(workdir) / "packet.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            with open(packet_path, "r+", encoding="utf-8") as handle:
+                payload = json.load(handle)
+                payload["requested_model"] = "different-model"
+                handle.seek(0)
+                handle.truncate()
+                handle.write(json.dumps(payload))
+            result = run_cli("validate", str(packet_path))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("requested_model must match policy", result.stderr)
+
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="validation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["tests pass"],
+            )
+            with open(packet_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(packet))
+            with open(packet_path, "r+", encoding="utf-8") as handle:
+                payload = json.load(handle)
+                payload["budget"]["tool_calls_hard"] = 999
+                handle.seek(0)
+                handle.truncate()
+                handle.write(json.dumps(payload))
+            payload["escalation_triggers"]["soft_limit"]["distinct_soft_limits_required"] = 1
+            with open(packet_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload))
+            result_budget = run_cli("validate", str(packet_path))
+            self.assertNotEqual(result_budget.returncode, 0)
+            self.assertIn("budget.tool_calls_hard must equal policy profile", result_budget.stderr)
+
+            result_valid = run_cli("validate", str(packet_path))
+            self.assertNotEqual(result_valid.returncode, 0)
+
+    def test_build_render_cli_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="implementation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["tests pass"],
+            )
+            packet_path = Path(workdir) / "packet.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            result = run_cli("render", str(packet_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Native Worker Packet Prompt", result.stdout)
+            self.assertIn("Packet:", result.stdout)
+            self.assertIn("Lane:", result.stdout)
+            self.assertIn('"return_type": "cwo-native-worker-return"', result.stdout)
+            self.assertIn('"mutation_state": "modified"', result.stdout)
+
+    def test_validate_native_worker_packet_helpers(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="implementation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["tests pass"],
+            )
+            self.assertEqual(validate_native_worker_packet(copy.deepcopy(packet)), [])
+            corrupted = copy.deepcopy(packet)
+            corrupted["scope"]["allowed_paths"] = []
+            self.assertNotEqual(validate_native_worker_packet(corrupted), [])
+            corrupted_top = copy.deepcopy(packet)
+            corrupted_top["policy"] = {"unexpected": True}
+            self.assertNotEqual(validate_native_worker_packet(corrupted_top), [])
+            corrupted_nested = copy.deepcopy(packet)
+            corrupted_nested["session_policy"]["unexpected"] = True
+            self.assertNotEqual(validate_native_worker_packet(corrupted_nested), [])
+
+    def test_validate_return_completed_and_model_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="implementation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["tests pass"],
+            )
+            packet_path = Path(workdir) / "packet.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            valid_return = {
+                "return_type": "cwo-native-worker-return",
+                "version": 1,
+                "packet_id": packet["packet_id"],
+                "bead_id": "bead-1",
+                "session_id": "session-1",
+                "segment_id": "segment-1",
+                "status": "completed",
+                "requested_model": packet["requested_model"],
+                "actual_model": packet["requested_model"],
+                "attestation_source": "trusted-control-plane-session-metadata",
+                "attestation_status": "trusted",
+                "completed_evidence": "implementation complete",
+                "files_touched": ["allowed/file.txt"],
+                "mutation_state": "modified",
+                "commands_run": ["pytest"],
+                "validation": {"status": "pass"},
+                "decision_required": [],
+                "bounded_options": [],
+                "recommendation": "",
+                "remaining_scope": {},
+                "usage": {
+                    "tool_calls": 1,
+                    "elapsed_seconds": 1,
+                    "context_compactions": 0,
+                    "full_suite_runs": 0,
+                    "cached_input_tokens": 2,
+                    "reasoning_tokens": 1,
+                },
+                "residual_risks": [],
+            }
+            mismatch_return = copy.deepcopy(valid_return)
+            mismatch_return["actual_model"] = "gpt-5.3-codex-spark-mismatch"
+            mismatch_return["status"] = "model-mismatch"
+            mismatch_return["decision_required"] = ["refresh session"]
+            mismatch_return["bounded_options"] = ["redo segment"]
+            mismatch_return["recommendation"] = "realign"
+            mismatch_return["remaining_scope"] = {"focus": "remaining tasks"}
+            self.assertEqual(validate_native_worker_return(packet, valid_return), [])
+            self.assertEqual(validate_native_worker_return(packet, mismatch_return), [])
+            mismatch_return["status"] = "completed"
+            self.assertNotEqual(validate_native_worker_return(packet, mismatch_return), [])
+
+            mismatch_path = Path(workdir) / "return.json"
+            mismatch_path.write_text(json.dumps(mismatch_return), encoding="utf-8")
+            result = run_cli("validate-return", "--packet", str(packet_path), "--return", str(mismatch_path))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("completed return requires exact model match", result.stdout + result.stderr)
+
+            missing_attestation_return = copy.deepcopy(valid_return)
+            missing_attestation_return["status"] = "needs-architect-realignment"
+            missing_attestation_return["attestation_status"] = "missing"
+            missing_attestation_return["attestation_source"] = "missing"
+            missing_attestation_return["actual_model"] = None
+            missing_attestation_return["decision_required"] = ["wait for architect"]
+            missing_attestation_return["bounded_options"] = ["request fresh session"]
+            missing_attestation_return["recommendation"] = "pause"
+            missing_attestation_return["remaining_scope"] = {"focus": "same task"}
+            self.assertEqual(validate_native_worker_return(packet, missing_attestation_return), [])
+            missing_attestation_return["return_surplus"] = "not allowed"
+            self.assertNotEqual(validate_native_worker_return(packet, missing_attestation_return), [])
+
+            missing_attestation_return.pop("return_surplus")
+            missing_attestation_return["usage"]["unexpected_tokens"] = 11
+            self.assertNotEqual(validate_native_worker_return(packet, missing_attestation_return), [])
+
+    def test_validate_return_enforces_hard_budgets_and_compaction(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="validation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["tests pass"],
+            )
+            bad_return = {
+                "return_type": "cwo-native-worker-return",
+                "version": 1,
+                "packet_id": packet["packet_id"],
+                "bead_id": "bead-1",
+                "session_id": "session-1",
+                "segment_id": "segment-1",
+                "status": "completed",
+                "requested_model": packet["requested_model"],
+                "actual_model": packet["requested_model"],
+                "attestation_source": "trusted-control-plane-session-metadata",
+                "attestation_status": "trusted",
+                "completed_evidence": "validation complete",
+                "files_touched": ["allowed/file.txt"],
+                "mutation_state": "modified",
+                "commands_run": ["pytest"],
+                "validation": {"status": "pass"},
+                "decision_required": [],
+                "bounded_options": [],
+                "recommendation": "",
+                "remaining_scope": {},
+                "usage": {
+                    "tool_calls": packet["budget"]["tool_calls_hard"] + 1,
+                    "elapsed_seconds": 1,
+                    "context_compactions": packet["budget"]["max_compactions"],
+                    "full_suite_runs": 0,
+                },
+                "residual_risks": [],
+            }
+            self.assertNotEqual(validate_native_worker_return(packet, bad_return), [])
+
+            bad_return["usage"]["tool_calls"] = 1
+            bad_return["usage"]["context_compactions"] = packet["budget"]["max_compactions"] + 1
+            bad_return["status"] = "needs-architect-realignment"
+            bad_return["decision_required"] = ["fix compaction"]
+            bad_return["bounded_options"] = ["reduce context"]
+            bad_return["recommendation"] = "continue under guardrails"
+            bad_return["remaining_scope"] = {"allowed": packet["scope"]["allowed_paths"]}
+            self.assertEqual(validate_native_worker_return(packet, bad_return), [])
+
+    def test_validate_return_requires_realignment_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="review",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["tests pass"],
+            )
+            realignment = {
+                "return_type": "cwo-native-worker-return",
+                "version": 1,
+                "packet_id": packet["packet_id"],
+                "bead_id": "bead-1",
+                "session_id": "session-1",
+                "segment_id": "segment-1",
+                "status": "needs-architect-realignment",
+                "requested_model": packet["requested_model"],
+                "actual_model": "gpt-5.3-codex-spark",
+                "attestation_source": "trusted-control-plane-session-metadata",
+                "attestation_status": "trusted",
+                "completed_evidence": "stopped on ambiguity",
+                "files_touched": ["allowed/file.txt"],
+                "mutation_state": "modified",
+                "commands_run": ["rg"],
+                "validation": {"status": "blocked"},
+                "decision_required": [],
+                "bounded_options": [],
+                "recommendation": "",
+                "remaining_scope": {},
+                "usage": {
+                    "tool_calls": 1,
+                    "elapsed_seconds": 1,
+                    "context_compactions": 0,
+                    "full_suite_runs": 0,
+                },
+                "residual_risks": ["scope ambiguity"],
+            }
+            self.assertNotEqual(validate_native_worker_return(packet, realignment), [])
+
+            realignment["decision_required"] = ["resolve scope and architecture ambiguity"]
+            realignment["bounded_options"] = ["scope split"]
+            realignment["recommendation"] = "continue after architect direction"
+            realignment["remaining_scope"] = {"allowed_paths": packet["scope"]["allowed_paths"]}
+            self.assertEqual(validate_native_worker_return(packet, realignment), [])
+
+    @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed in test environment")
+    def test_validate_return_schema_conditional_invariants(self) -> None:
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads((ROOT / "schemas" / "native-worker-return.schema.json").read_text(encoding="utf-8"))
+        validator = Draft202012Validator(schema)
+        base_return = {
+            "return_type": "cwo-native-worker-return",
+            "version": 1,
+            "packet_id": "packet-1",
+            "bead_id": "bead-1",
+            "session_id": "session-1",
+            "segment_id": "segment-1",
+            "requested_model": "gpt-5.3-codex-spark",
+            "attestation_source": "trusted-control-plane-session-metadata",
+            "attestation_status": "trusted",
+            "completed_evidence": "complete",
+            "files_touched": ["allowed/file.txt"],
+            "mutation_state": "modified",
+            "commands_run": ["pytest"],
+            "validation": {"status": "pass"},
+            "usage": {
+                "tool_calls": 1,
+                "elapsed_seconds": 0.1,
+                "context_compactions": 0,
+                "full_suite_runs": 0,
+            },
+            "residual_risks": [],
+        }
+        completed = dict(base_return)
+        completed.update(
+            {
+                "status": "completed",
+                "actual_model": "gpt-5.3-codex-spark",
+                "decision_required": [],
+                "bounded_options": [],
+                "recommendation": "",
+                "remaining_scope": {},
+            }
+        )
+        validator.validate(completed)
+        completed_bad_model = dict(completed)
+        completed_bad_model["requested_model"] = "gpt-other"
+        self.assertTrue(list(validator.iter_errors(completed_bad_model)))
+        completed_bad_status = dict(completed)
+        completed_bad_status["actual_model"] = "gpt-other"
+        self.assertTrue(list(validator.iter_errors(completed_bad_status)))
+
+        for status in ("needs-architect-realignment", "budget-exhausted", "model-mismatch"):
+            status_return = dict(base_return)
+            status_return.update(
+                {
+                    "status": status,
+                    "actual_model": None if status == "needs-architect-realignment" else "gpt-5.3-codex-spark-mismatch",
+                    "decision_required": ["fix scope"],
+                    "bounded_options": ["request alignment"],
+                    "recommendation": "retry after architect guidance",
+                    "remaining_scope": {"focus": "resume"},
+                }
+            )
+            validator.validate(status_return)
+
+            status_return["decision_required"] = []
+            self.assertTrue(list(validator.iter_errors(status_return)))
+            status_return["decision_required"] = ["fix scope"]
+            status_return["bounded_options"] = []
+            self.assertTrue(list(validator.iter_errors(status_return)))
+            status_return["bounded_options"] = ["request alignment"]
+            status_return["recommendation"] = ""
+            self.assertTrue(list(validator.iter_errors(status_return)))
+            status_return["recommendation"] = "retry"
+            status_return["remaining_scope"] = {}
+            self.assertTrue(list(validator.iter_errors(status_return)))
+            if status == "model-mismatch":
+                status_return["actual_model"] = None
+                self.assertTrue(list(validator.iter_errors(status_return)))
+
+        blocked = dict(base_return)
+        blocked.update(
+            {
+                "status": "blocked",
+                "actual_model": None,
+                "decision_required": [],
+                "bounded_options": [],
+                "recommendation": "",
+                "remaining_scope": {},
+            }
+        )
+        validator.validate(blocked)
+
+
+if __name__ == "__main__":
+    unittest.main()
