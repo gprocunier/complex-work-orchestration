@@ -8,6 +8,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
 from scaffold_workgraph import planned_graph, recovery_summary, try_dep  # noqa: E402
@@ -19,6 +20,66 @@ class ScaffoldTests(unittest.TestCase):
         self.assertTrue(item.get("acceptance"), item.get("title"))
         self.assertTrue(item.get("design"), item.get("title"))
         self.assertTrue(item.get("notes"), item.get("title"))
+
+    def assert_hard_stop_workerbee_metadata(
+        self,
+        item: dict[str, object],
+        expected_dispatch: dict[str, object],
+        *,
+        expected_registry_tool_mismatch: bool = True,
+    ) -> None:
+        metadata = item["metadata"]
+        self.assertEqual(metadata.get("workerbee_planned_mode"), "blocked")
+        self.assertEqual(metadata.get("workerbee_planned_model"), "")
+        self.assertEqual(metadata.get("workerbee_planned_lanes"), [])
+        self.assertEqual(metadata.get("workerbee_operational_owner"), "")
+        self.assertIs(
+            metadata.get("workerbee_registry_tool_mismatch"),
+            expected_registry_tool_mismatch,
+        )
+        self.assertIs(metadata.get("spark_operational_worker"), False)
+        self.assertEqual(
+            metadata.get("workerbee_planned_delegation"),
+            {"mode": "blocked", "model": None, "lanes": []},
+        )
+        self.assertEqual(metadata.get("workerbee_spark_dispatch"), expected_dispatch)
+        self.assertNotIn("no-sol-exec", item["labels"])
+        self.assertNotIn("spark-operative-owner", item["labels"])
+
+    def assert_coach_hard_stop_graph(
+        self,
+        prompt: str,
+        *,
+        expected_registry_tool_mismatch: bool,
+        expected_failed_check: str,
+    ) -> None:
+        coach_result = coach_orchestration_prompt(prompt)
+        planned = coach_result["workerbee_planned_delegation"]
+        self.assertTrue(planned["hard_stop"])
+        self.assertEqual(planned["mode"], "blocked")
+        self.assertIsNone(planned["model"])
+        self.assertEqual(planned["lanes"], [])
+        self.assertIs(
+            planned["registry_tool_mismatch"],
+            expected_registry_tool_mismatch,
+        )
+        expected_dispatch = planned["spark_dispatch"]
+        self.assertEqual(expected_dispatch["status"], "hard-stop")
+        self.assertEqual(
+            expected_dispatch["failed_native_capability_check"],
+            expected_failed_check,
+        )
+
+        graph = planned_graph("Coach Hard Stop Example", coach_result["route"])
+        for item in graph:
+            if item.get("type") == "epic":
+                continue
+            with self.subTest(lane=item.get("lane")):
+                self.assert_hard_stop_workerbee_metadata(
+                    item,
+                    expected_dispatch,
+                    expected_registry_tool_mismatch=expected_registry_tool_mismatch,
+                )
 
     def test_planned_graph_populates_native_beads_fields_for_every_item(self) -> None:
         route = classify_work(
@@ -53,11 +114,18 @@ class ScaffoldTests(unittest.TestCase):
                 "requested_route": "review-only",
                 "failed_native_capability_check": "",
                 "failed_native_capability_check_justification": "",
-                "fallback_route": "",
+                "obsolete_field": "retired-route",
             },
         }
         graph = planned_graph("Field Example", route)
         expected_lanes = ["policy-routing-review", "publish-sanitization-review"]
+        expected_dispatch = {
+            "status": "native-first",
+            "requested_model": "gpt-5.3-codex-spark",
+            "requested_route": "review-only",
+            "failed_native_capability_check": "",
+            "failed_native_capability_check_justification": "",
+        }
         for item in graph:
             if item.get("type") == "epic":
                 continue
@@ -70,7 +138,11 @@ class ScaffoldTests(unittest.TestCase):
             self.assertEqual(item.get("metadata", {}).get("workerbee_planned_lanes"), expected_lanes)
             self.assertEqual(
                 item.get("metadata", {}).get("workerbee_spark_dispatch"),
-                route["workerbee_planned_delegation"]["spark_dispatch"],
+                expected_dispatch,
+            )
+            self.assertNotIn(
+                "obsolete_field",
+                item.get("metadata", {}).get("workerbee_spark_dispatch", {}),
             )
 
     def test_operational_lanes_get_spark_owner_metadata_and_labels(self) -> None:
@@ -83,6 +155,13 @@ class ScaffoldTests(unittest.TestCase):
             "model": "gpt-5.3-codex-spark",
             "lanes": ["implementation", "test-construction", "validation-troubleshooting", "docs-reporting-dashboard"],
             "spark_operational_worker": True,
+            "spark_dispatch": {
+                "status": "native-first",
+                "requested_route": "implementation-capable",
+                "requested_model": "gpt-5.3-codex-spark",
+                "failed_native_capability_check": "",
+                "failed_native_capability_check_justification": "",
+            },
         }
         graph = planned_graph("Operative Role Example", route)
         by_lane = {item.get("lane"): item for item in graph}
@@ -109,6 +188,125 @@ class ScaffoldTests(unittest.TestCase):
         if "publish-sanitization" in by_lane:
             self.assertEqual(by_lane["publish-sanitization"]["metadata"].get("workerbee_operational_owner"), "spark")
 
+    def test_native_first_route_assigns_spark_operational_metadata_to_operative_lanes(self) -> None:
+        route = classify_work(
+            "Implement a small helper and verify tests with Spark-native dispatch.",
+            requested_roles=["implementation", "documentation", "validation"],
+        )
+        route["workerbee_planned_delegation"] = {
+            "mode": "implementation-capable",
+            "model": "gpt-5.3-codex-spark",
+            "lanes": ["implementation", "validation", "docs", "wrap-up-report", "dashboard-report"],
+            "spark_operational_worker": True,
+            "spark_dispatch": {
+                "status": "native-first",
+                "requested_route": "implementation-capable",
+                "requested_model": "gpt-5.3-codex-spark",
+                "failed_native_capability_check": "",
+                "failed_native_capability_check_justification": "",
+            },
+        }
+        graph = planned_graph("Native First Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+
+        operative_lanes = {"implementation", "validation", "docs", "wrap-up-report", "dashboard-report"}
+        for lane in operative_lanes:
+            item = by_lane[lane]
+            self.assertEqual(item["metadata"].get("workerbee_operational_owner"), "spark")
+            self.assertIn("no-sol-exec", item["labels"])
+            self.assertIn("spark-operative-owner", item["labels"])
+            self.assertEqual(item["metadata"].get("workerbee_planned_mode"), "implementation-capable")
+            self.assertEqual(item["metadata"].get("workerbee_planned_model"), "gpt-5.3-codex-spark")
+
+    def test_hard_stop_route_normalizes_every_lane_workerbee_metadata(self) -> None:
+        trigger_cases = [
+            ("planned-hard-stop", True, "native-first"),
+            ("dispatch-hard-stop", False, "hard-stop"),
+        ]
+        for case_name, planned_hard_stop, dispatch_status in trigger_cases:
+            with self.subTest(trigger=case_name):
+                route = classify_work(
+                    "Architectural change with Spark dispatch hard-stop required before implementation.",
+                    requested_roles=["implementation", "documentation", "validation"],
+                )
+                expected_dispatch = {
+                    "status": dispatch_status,
+                    "requested_model": "gpt-5.3-codex-spark",
+                    "requested_route": "implementation-capable",
+                    "failed_native_capability_check": "spark-registry-tool-mismatch",
+                    "failed_native_capability_check_justification": (
+                        "Registry/tool mismatch blocks native Spark worker dispatch."
+                    ),
+                }
+                route["workerbee_planned_delegation"] = {
+                    "mode": "implementation-capable",
+                    "model": "gpt-5.3-codex-spark",
+                    "lanes": ["implementation", "validation", "docs", "wrap-up-report", "dashboard-report"],
+                    "spark_operational_worker": True,
+                    "hard_stop": planned_hard_stop,
+                    "spark_dispatch": {**expected_dispatch, "obsolete_field": "retired-route"},
+                }
+                graph = planned_graph("Hard Stop Example", route)
+                for item in graph:
+                    if item.get("type") == "epic":
+                        continue
+                    with self.subTest(trigger=case_name, lane=item.get("lane")):
+                        self.assert_hard_stop_workerbee_metadata(
+                            item,
+                            expected_dispatch,
+                            expected_registry_tool_mismatch=False,
+                        )
+
+                architecture = next(item for item in graph if item.get("lane") == "architect")
+                self.assertIn(f"status={dispatch_status}", architecture["notes"])
+                self.assertIn("requested_route=implementation-capable", architecture["notes"])
+                self.assertIn("failed_check=spark-registry-tool-mismatch", architecture["notes"])
+
+    def test_registry_tool_mismatch_overrides_native_first_metadata(self) -> None:
+        route = classify_work(
+            "Implement with native Spark despite contradictory registry metadata.",
+            requested_roles=["implementation", "documentation", "validation"],
+        )
+        expected_dispatch = {
+            "status": "native-first",
+            "requested_model": "gpt-5.3-codex-spark",
+            "requested_route": "implementation-capable",
+            "failed_native_capability_check": "spark-registry-tool-mismatch",
+            "failed_native_capability_check_justification": (
+                "Registry/tool mismatch overrides executable route metadata."
+            ),
+        }
+        route["workerbee_planned_delegation"] = {
+            "mode": "implementation-capable",
+            "model": "gpt-5.3-codex-spark",
+            "lanes": ["implementation", "validation", "docs", "wrap-up-report", "dashboard-report"],
+            "spark_operational_worker": True,
+            "hard_stop": False,
+            "registry_tool_mismatch": True,
+            "spark_dispatch": expected_dispatch,
+        }
+
+        graph = planned_graph("Registry Mismatch Example", route)
+        for item in graph:
+            if item.get("type") == "epic":
+                continue
+            with self.subTest(lane=item.get("lane")):
+                self.assert_hard_stop_workerbee_metadata(item, expected_dispatch)
+
+    def test_real_coach_native_tool_unavailable_preserves_non_mismatch_hard_stop(self) -> None:
+        self.assert_coach_hard_stop_graph(
+            "Plan docs work. Native Spark tooling is unavailable.",
+            expected_registry_tool_mismatch=False,
+            expected_failed_check="spark-native-tool-absence",
+        )
+
+    def test_real_coach_registry_tool_mismatch_preserves_mismatch_hard_stop(self) -> None:
+        self.assert_coach_hard_stop_graph(
+            "There is a Spark registry/tool mismatch for this task.",
+            expected_registry_tool_mismatch=True,
+            expected_failed_check="spark-registry-tool-mismatch",
+        )
+
     def test_spark_operational_metadata_does_not_infect_architect_and_model_synthesis_lanes(self) -> None:
         text = (
             "Architect a high-risk public docs migration, with Sol routing as architect and Spark as implementation worker. "
@@ -132,6 +330,13 @@ class ScaffoldTests(unittest.TestCase):
                 "dashboard-report",
             ],
             "spark_operational_worker": True,
+            "spark_dispatch": {
+                "status": "native-first",
+                "requested_route": "implementation-capable",
+                "requested_model": "gpt-5.3-codex-spark",
+                "failed_native_capability_check": "",
+                "failed_native_capability_check_justification": "",
+            },
         }
         graph = planned_graph("Isolation Example", route)
         by_lane = {item.get("lane"): item for item in graph}

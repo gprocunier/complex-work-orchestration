@@ -2,6 +2,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Prompt Coach Result",
   "type": "object",
+  "$defs": {
+    "sparkDispatch": {
+      "type": "object",
+      "required": [
+        "status",
+        "requested_model",
+        "requested_route",
+        "failed_native_capability_check",
+        "failed_native_capability_check_justification"
+      ],
+      "properties": {
+        "status": {"enum": ["not-applicable", "native-first", "hard-stop"]},
+        "requested_model": {"type": "string"},
+        "requested_route": {"type": "string"},
+        "failed_native_capability_check": {"type": "string"},
+        "failed_native_capability_check_justification": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
   "required": [
     "coach_result_type",
     "version",
@@ -25,6 +45,33 @@
     "route",
     "paste_ready_prompt",
     "warnings"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "workerbee_parallelism": {
+            "type": "object",
+            "required": ["hard_stop"],
+            "properties": {"hard_stop": {"const": true}}
+          }
+        },
+        "required": ["workerbee_parallelism"]
+      },
+      "then": {
+        "properties": {
+          "interactive_questions": {
+            "not": {
+              "contains": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {"id": {"const": "workerbee_parallelism"}}
+              }
+            }
+          }
+        }
+      }
+    }
   ],
   "properties": {
     "coach_result_type": {"const": "complex-work-orchestration-prompt-coach"},
@@ -100,7 +147,7 @@
           "options": {
             "type": "array",
             "minItems": 2,
-            "maxItems": 3,
+            "maxItems": 4,
             "items": {
               "type": "object",
               "required": ["label", "value", "description"],
@@ -124,13 +171,18 @@
       "required": [
         "recommended_mode",
         "recommended_model",
+        "spark_operational_worker",
+        "hard_stop",
+        "hard_stop_reason",
+        "registry_tool_mismatch",
+        "spark_dispatch",
         "prompt_user_in_plan_mode",
         "suggested_lanes",
         "rationale"
       ],
       "properties": {
         "recommended_mode": {
-          "enum": ["none", "review-only", "heavy-review", "implementation-capable"]
+          "enum": ["none", "review-only", "heavy-review", "implementation-capable", "blocked"]
         },
         "recommended_model": {
           "anyOf": [
@@ -138,16 +190,91 @@
             {"type": "null"}
           ]
         },
+        "spark_operational_worker": {"type": "boolean"},
+        "hard_stop": {"type": "boolean"},
+        "hard_stop_reason": {"type": "string"},
+        "registry_tool_mismatch": {"type": "boolean"},
+        "spark_dispatch": {"$ref": "#/$defs/sparkDispatch"},
         "prompt_user_in_plan_mode": {"type": "boolean"},
         "suggested_lanes": {"type": "array", "items": {"type": "string"}},
         "rationale": {"type": "array", "items": {"type": "string"}}
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"hard_stop": {"const": true}},
+            "required": ["hard_stop"]
+          },
+          "then": {
+            "properties": {
+              "recommended_mode": {"const": "blocked"},
+              "recommended_model": {"type": "null"},
+              "spark_operational_worker": {"const": false},
+              "hard_stop_reason": {"type": "string", "minLength": 1},
+              "registry_tool_mismatch": {"type": "boolean"},
+              "suggested_lanes": {"maxItems": 0},
+              "spark_dispatch": {
+                "properties": {"status": {"const": "hard-stop"}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"recommended_mode": {"const": "blocked"}},
+            "required": ["recommended_mode"]
+          },
+          "then": {
+            "properties": {
+              "hard_stop": {"const": true},
+              "registry_tool_mismatch": {"type": "boolean"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"registry_tool_mismatch": {"const": true}},
+            "required": ["registry_tool_mismatch"]
+          },
+          "then": {
+            "properties": {
+              "hard_stop": {"const": true}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "spark_dispatch": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {"status": {"const": "hard-stop"}}
+              }
+            },
+            "required": ["spark_dispatch"]
+          },
+          "then": {
+            "properties": {
+              "hard_stop": {"const": true}
+            }
+          }
+        }
+      ]
     },
     "workerbee_planned_delegation": {
       "type": "object",
-      "required": ["mode", "model", "lanes"],
+      "required": [
+        "mode",
+        "model",
+        "lanes",
+        "registry_tool_mismatch",
+        "hard_stop",
+        "hard_stop_reason",
+        "spark_operational_worker",
+        "spark_dispatch"
+      ],
       "properties": {
-        "mode": {"type": "string"},
+        "mode": {"enum": ["none", "review-only", "heavy-review", "implementation-capable", "blocked"]},
         "model": {
           "anyOf": [
             {"type": "string"},
@@ -162,8 +289,74 @@
             {"type": "null"}
           ]
         },
-        "suggested_lanes": {"type": "array", "items": {"type": "string"}}
-      }
+        "suggested_lanes": {"type": "array", "items": {"type": "string"}},
+        "registry_tool_mismatch": {"type": "boolean"},
+        "hard_stop": {"type": "boolean"},
+        "hard_stop_reason": {"type": "string"},
+        "spark_operational_worker": {"type": "boolean"},
+        "spark_dispatch": {"$ref": "#/$defs/sparkDispatch"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"hard_stop": {"const": true}},
+            "required": ["hard_stop"]
+          },
+          "then": {
+            "properties": {
+              "mode": {"const": "blocked"},
+              "model": {"type": "null"},
+              "lanes": {"maxItems": 0},
+              "registry_tool_mismatch": {"type": "boolean"},
+              "hard_stop_reason": {"type": "string", "minLength": 1},
+              "spark_operational_worker": {"const": false},
+              "spark_dispatch": {
+                "properties": {"status": {"const": "hard-stop"}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"mode": {"const": "blocked"}},
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": {
+              "hard_stop": {"const": true},
+              "registry_tool_mismatch": {"type": "boolean"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"registry_tool_mismatch": {"const": true}},
+            "required": ["registry_tool_mismatch"]
+          },
+          "then": {
+            "properties": {
+              "hard_stop": {"const": true}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "spark_dispatch": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {"status": {"const": "hard-stop"}}
+              }
+            },
+            "required": ["spark_dispatch"]
+          },
+          "then": {
+            "properties": {
+              "hard_stop": {"const": true}
+            }
+          }
+        }
+      ]
     },
     "model_synthesis": {
       "type": "object",

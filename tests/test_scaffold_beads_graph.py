@@ -88,6 +88,59 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertIn("workerbee", by_id["implementation"]["labels"])
         self.assertIn("architect", by_id["implementation"]["depends_on_lanes"])
 
+    def test_markdown_workgraph_preserves_hard_stop_metadata(self) -> None:
+        route = classify_work(
+            "Implement a route where Spark-native is hard-stopped but native checks are preserved.",
+            requested_roles=["implementation", "documentation"],
+        )
+        route["workerbee_planned_delegation"] = {
+            "mode": "implementation-capable",
+            "model": "gpt-5.3-codex-spark",
+            "lanes": ["implementation", "validation", "docs", "wrap-up-report", "dashboard-report"],
+            "spark_operational_worker": True,
+            "hard_stop": True,
+            "registry_tool_mismatch": True,
+            "spark_dispatch": {
+                "status": "hard-stop",
+                "requested_route": "implementation-capable",
+                "requested_model": "gpt-5.3-codex-spark",
+                "failed_native_capability_check": "spark-registry-tool-mismatch",
+                "failed_native_capability_check_justification": "Registry/tool mismatch blocks native Spark dispatch.",
+                "obsolete_field": "retired-route",
+            },
+        }
+        cwo_graph = planned_graph("Markdown Hard Stop", route)
+        rendered = markdown_workgraph_plan("Markdown Hard Stop", cwo_graph)
+
+        expected_dispatch = {
+            "status": "hard-stop",
+            "requested_model": "gpt-5.3-codex-spark",
+            "requested_route": "implementation-capable",
+            "failed_native_capability_check": "spark-registry-tool-mismatch",
+            "failed_native_capability_check_justification": "Registry/tool mismatch blocks native Spark dispatch.",
+        }
+        for item in cwo_graph:
+            if item.get("type") == "epic":
+                continue
+            metadata = item["metadata"]
+            self.assertEqual(metadata["workerbee_planned_mode"], "blocked")
+            self.assertEqual(metadata["workerbee_planned_model"], "")
+            self.assertEqual(metadata["workerbee_planned_lanes"], [])
+            self.assertEqual(metadata["workerbee_operational_owner"], "")
+            self.assertIs(metadata["workerbee_registry_tool_mismatch"], True)
+            self.assertIs(metadata["spark_operational_worker"], False)
+            self.assertEqual(
+                metadata["workerbee_planned_delegation"],
+                {"mode": "blocked", "model": None, "lanes": []},
+            )
+            self.assertEqual(metadata["workerbee_spark_dispatch"], expected_dispatch)
+            self.assertNotIn("no-sol-exec", item["labels"])
+            self.assertNotIn("spark-operative-owner", item["labels"])
+        self.assertNotIn("obsolete_field", rendered)
+        self.assertIn("Spark dispatch metadata: status=hard-stop", rendered)
+        self.assertIn("requested_route=implementation-capable", rendered)
+        self.assertIn("failed_check=spark-registry-tool-mismatch", rendered)
+
     def test_beads_graph_plan_exports_model_synthesis_lane(self) -> None:
         text = "Use model synthesis for architecture routing and schema policy."
         route = classify_work(text, requested_roles=["architecture"])

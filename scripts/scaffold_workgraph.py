@@ -38,7 +38,7 @@ from cwo_core.workgraph_markdown import (
 
 SPARK_WORKER_MODEL = "gpt-5.3-codex-spark"
 SPARK_WORKER_MODE = "implementation-capable"
-OPERATIONAL_WORKER_BEANS_LANES = {
+OPERATIONAL_WORKER_BEAD_LANES = {
     "implementation",
     "validation",
     "publish-sanitization",
@@ -47,6 +47,13 @@ OPERATIONAL_WORKER_BEANS_LANES = {
     "dashboard-report",
 }
 OPERATIONAL_SPARK_LABELS = ["no-sol-exec", "spark-operative-owner"]
+SPARK_DISPATCH_METADATA_FIELDS = (
+    "status",
+    "requested_model",
+    "requested_route",
+    "failed_native_capability_check",
+    "failed_native_capability_check_justification",
+)
 
 
 def body(purpose: str, expected: str) -> str:
@@ -100,12 +107,51 @@ def _route_prefers_spark_operational(route: dict[str, Any]) -> bool:
     planned = route.get("workerbee_planned_delegation")
     if not isinstance(planned, dict):
         return False
-    spark_worker_key = planned.get("spark_operational_worker", planned.get("spark_operative_worker"))
     return (
-        bool(spark_worker_key)
+        bool(planned.get("spark_operational_worker"))
         and str(planned.get("mode") or "") == SPARK_WORKER_MODE
         and str(planned.get("model") or "") == SPARK_WORKER_MODEL
     )
+
+
+def _route_spark_dispatch_status(route: dict[str, Any]) -> str:
+    planned = route.get("workerbee_planned_delegation")
+    if not isinstance(planned, dict):
+        return ""
+    spark_dispatch = planned.get("spark_dispatch")
+    if not isinstance(spark_dispatch, dict):
+        return ""
+    return str(spark_dispatch.get("status") or "").strip().lower()
+
+
+def _route_prefers_native_spark_operational(route: dict[str, Any]) -> bool:
+    if not _route_prefers_spark_operational(route):
+        return False
+    if _route_has_spark_hard_stop(route):
+        return False
+    dispatch_status = _route_spark_dispatch_status(route)
+    return dispatch_status == "native-first"
+
+
+def _route_has_spark_hard_stop(route: dict[str, Any]) -> bool:
+    planned = route.get("workerbee_planned_delegation")
+    if not isinstance(planned, dict):
+        return False
+    return (
+        bool(planned.get("hard_stop"))
+        or bool(planned.get("registry_tool_mismatch"))
+        or _route_spark_dispatch_status(route) == "hard-stop"
+    )
+
+
+def _sanitize_workerbee_spark_dispatch(value: object) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        field: value[field]
+        for field in SPARK_DISPATCH_METADATA_FIELDS
+        if field in value
+    }
 
 
 def _route_planned_workerbee_delegation(
@@ -128,20 +174,38 @@ def _route_planned_workerbee_delegation(
             "spark_operational_worker": False,
             "workerbee_spark_dispatch": {},
         }
+    spark_dispatch = _sanitize_workerbee_spark_dispatch(planned.get("spark_dispatch"))
+    if _route_has_spark_hard_stop(route):
+        lanes: list[str] = []
+        return {
+            "workerbee_planned_delegation": {
+                "mode": "blocked",
+                "model": None,
+                "lanes": lanes,
+            },
+            "workerbee_planned_mode": "blocked",
+            "workerbee_planned_model": "",
+            "workerbee_planned_lanes": lanes,
+            "workerbee_operational_owner": "",
+            "workerbee_registry_tool_mismatch": bool(planned.get("registry_tool_mismatch")),
+            "spark_operational_worker": False,
+            "workerbee_spark_dispatch": spark_dispatch,
+        }
     lanes = unique_strings([item for item in planned.get("lanes", [])])
     mode = str(planned.get("mode") or "none")
     model = planned.get("model")
     model = model if not (model is not None and not str(model).strip()) else None
-    if _route_prefers_spark_operational(route) and lane in OPERATIONAL_WORKER_BEANS_LANES:
+    if _route_prefers_native_spark_operational(route):
+        is_operative_lane = lane in OPERATIONAL_WORKER_BEAD_LANES
+    else:
+        is_operative_lane = False
+    if is_operative_lane:
         mode = SPARK_WORKER_MODE
         model = SPARK_WORKER_MODEL
     if model is None:
         workerbee_operational_owner = ""
     else:
-        workerbee_operational_owner = "spark" if lane in OPERATIONAL_WORKER_BEANS_LANES else ""
-    spark_dispatch = planned.get("spark_dispatch")
-    if not isinstance(spark_dispatch, dict):
-        spark_dispatch = {}
+        workerbee_operational_owner = "spark" if is_operative_lane else ""
     return {
         "workerbee_planned_delegation": {
             "mode": mode,
@@ -216,15 +280,18 @@ def route_notes(route: dict[str, Any]) -> str:
         model = str(planned.get("model") or "unassigned")
         lanes = ", ".join(unique_strings([item for item in planned.get("lanes", [])])) or "none"
         lines.append(f"Planned workerbee delegation: mode={mode}, model={model}, lanes=[{lanes}]")
-        spark_dispatch = planned.get("workerbee_spark_dispatch")
+        spark_dispatch = planned.get("spark_dispatch")
+        if not isinstance(spark_dispatch, dict):
+            spark_dispatch = planned.get("workerbee_spark_dispatch")
+        if not isinstance(spark_dispatch, dict):
+            spark_dispatch = {}
         if isinstance(spark_dispatch, dict):
             lines.append(
                 "Spark dispatch metadata: "
                 f"status={spark_dispatch.get('status', 'not-applicable')} | "
                 f"requested_route={spark_dispatch.get('requested_route', '') or 'none'} | "
                 f"requested_model={spark_dispatch.get('requested_model', '') or ''} | "
-                f"failed_check={spark_dispatch.get('failed_native_capability_check', '') or ''} | "
-                f"fallback_route={spark_dispatch.get('fallback_route', '') or ''}"
+                f"failed_check={spark_dispatch.get('failed_native_capability_check', '') or ''}"
             )
     return "\n".join(lines)
 
@@ -242,8 +309,10 @@ def _lane_metadata(
 
 
 def _lane_labels(route: dict[str, Any], lane: str, labels: list[str]) -> list[str]:
+    if _route_has_spark_hard_stop(route):
+        return unique_strings([label for label in labels if label not in OPERATIONAL_SPARK_LABELS])
     lane_labels = list(labels)
-    if _route_prefers_spark_operational(route) and lane in OPERATIONAL_WORKER_BEANS_LANES:
+    if _route_prefers_native_spark_operational(route) and lane in OPERATIONAL_WORKER_BEAD_LANES:
         lane_labels.extend(OPERATIONAL_SPARK_LABELS)
     return unique_strings(lane_labels)
 

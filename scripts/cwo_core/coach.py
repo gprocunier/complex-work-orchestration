@@ -121,56 +121,351 @@ def prompt_coach_has_tight_chain_signal(text: str) -> bool:
     )
 
 
-def prompt_coach_has_workerbee_availability_constraint(text: str) -> bool:
-    if "codex 5.3 spark" not in text:
-        return False
+def prompt_coach_spark_failure_clauses(text: str) -> list[str]:
+    return [
+        clause.strip()
+        for clause in re.split(r"(?:[!?;]+|(?<!\d)\.(?!\d))\s*|\n+", text)
+        if clause.strip()
+    ]
+
+
+def prompt_coach_has_browser_provider_context(text: str) -> bool:
     return text_has_any(
         text,
         [
-            "not available",
-            "unavailable",
-            "isn't available",
-            "is not available",
-            "not being available",
-            "cannot use",
-            "can't use",
             "chatgpt pro",
+            "chatgpt plus",
+            "chatgpt browser",
             "pro plan",
-            "native tool missing",
-            "native tooling",
-            "no spark",
-            "tooling unavailable",
-            "spawn tool",
+            "browser lane",
+            "browser-based lane",
+            "browser mediated lane",
+            "browser-mediated lane",
+            "in the browser",
+            "through the browser",
+            "via the browser",
+            "browser surface",
+            "provider lane",
+            "hosted provider",
+            "openai provider",
+            "through the provider",
+            "via the provider",
+            "provider surface",
         ],
+    )
+
+
+def prompt_coach_has_native_spark_control_context(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "native spark",
+            "native dispatch",
+            "native spark dispatch",
+            "native-spark",
+            "native-dispatch",
+            "native spark tooling",
+            "native spark tool",
+            "native tool",
+            "native-tool",
+            "native tooling",
+            "native-tooling",
+            "native worker",
+            "native-worker",
+            "native subagent",
+            "native-subagent",
+            "spawn tool",
+            "spawn-tool",
+            "control plane",
+            "control-plane",
+            "native registry",
+            "native-registry",
+            "worker registry",
+            "workerbee registry",
+            "spark tooling",
+            "spark tool",
+            "spark capability",
+            "spark dispatch",
+            "spark route",
+            "spark workerbee",
+            "spark worker",
+            "spark model",
+            "codex 5.3 spark",
+            "gpt-5.3-codex-spark",
+            "local spark",
+            "local codex cli",
+            "local cli",
+            "local tool surface",
+            "local tool-surface",
+            "spark tool surface",
+            "spark tool-surface",
+            "registry_tool_mismatch",
+            "registry/tool",
+            "registry-tool",
+            "registry tool",
+            "registry and tool",
+            "model override",
+        ],
+    )
+
+
+def prompt_coach_has_explicit_native_spark_scope(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "native spark",
+            "native dispatch",
+            "native spark dispatch",
+            "native-spark",
+            "native-dispatch",
+            "native spark tooling",
+            "native spark tool",
+            "native tool",
+            "native-tool",
+            "native tooling",
+            "native-tooling",
+            "native worker",
+            "native-worker",
+            "native subagent",
+            "native-subagent",
+            "native registry",
+            "native-registry",
+            "control plane",
+            "control-plane",
+            "local spark",
+            "local codex cli",
+            "local cli",
+            "local tool surface",
+            "local tool-surface",
+            "spark tool surface",
+            "spark tool-surface",
+        ],
+    )
+
+
+def prompt_coach_has_workerbee_execution_context(text: str) -> bool:
+    return text_has_any(
+        text,
+        [
+            "workerbee dispatch",
+            "workerbee execution",
+            "workerbee route",
+            "workerbee tooling",
+        ],
+    )
+
+
+def prompt_coach_is_native_spark_failure_clause(text: str) -> bool:
+    return bool(
+        "spark" in text
+        and (
+            not prompt_coach_has_browser_provider_context(text)
+            or prompt_coach_clause_has_explicit_native_spark_failure(text)
+        )
+        and (
+            prompt_coach_has_native_spark_control_context(text)
+            or prompt_coach_has_workerbee_execution_context(text)
+            or prompt_coach_clause_has_bare_direct_spark_absence(text)
+        )
+    )
+
+
+SPARK_MODEL_PATTERN = r"(?:codex\s+5\.3\s+|gpt-5\.3-codex-)?spark"
+SPARK_FAILURE_STATE_PATTERN = r"(?:(?:is|are|was|were|may|might|will|would|can|could)\s+)*"
+SPARK_UNAVAILABLE_PATTERN = (
+    r"(?:is(?:\s+not|n't)\s+available|are(?:\s+not|n't)\s+available|"
+    r"not\s+(?:be\s+)?available|unavailable|absent|missing|not\s+installed)"
+)
+
+
+def prompt_coach_clause_has_direct_spark_absence(text: str) -> bool:
+    spark_subject = (
+        rf"\b{SPARK_MODEL_PATTERN}\b"
+        r"(?:\s+(?:native\s+)?(?:model|capability|dispatch|route|workerbee|worker|tooling|tool|spawn\s+tool))?"
+    )
+    return bool(
+        re.search(
+            rf"{spark_subject}\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
+            text,
+        )
+        or re.search(rf"\bno\s+(?:native\s+)?{SPARK_MODEL_PATTERN}\b", text)
+        or re.search(rf"\b(?:cannot|can't)\s+use\s+{SPARK_MODEL_PATTERN}\b", text)
+        or re.search(
+            rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?{spark_subject}",
+            text,
+        )
+        or re.search(
+            rf"\b(?:does\s+not|doesn't)\s+(?:expose|include|list)\b.{{0,40}}\b{SPARK_MODEL_PATTERN}\b",
+            text,
+        )
+        or re.search(rf"\bomits?\b.{{0,40}}\b{SPARK_MODEL_PATTERN}\b", text)
+    )
+
+
+def prompt_coach_clause_has_bare_direct_spark_absence(text: str) -> bool:
+    return bool(
+        re.search(
+            rf"\bspark\b\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
+            text,
+        )
+    )
+
+
+def prompt_coach_clause_has_native_tool_absence(text: str) -> bool:
+    spark_tool_subject = (
+        rf"(?:(?:native|local)\s+)?{SPARK_MODEL_PATTERN}\s+"
+        r"(?:tooling|tool(?:\s+surface|-surface)?|spawn(?:\s+|-)tool|registry)"
+    )
+    native_tool_subject = (
+        r"(?:native|local)\s+(?:spark\s+)?"
+        r"(?:tooling|tool(?:\s+surface|-surface)?|spawn(?:\s+|-)tool|worker(?:bee)?|subagent|registry)"
+    )
+    return bool(
+        re.search(
+            rf"\b(?:{spark_tool_subject}|{native_tool_subject})\b\s+"
+            rf"{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
+            text,
+        )
+        or re.search(
+            rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?"
+            rf"(?:{spark_tool_subject}|{native_tool_subject})\b",
+            text,
+        )
+        or re.search(
+            rf"\b{SPARK_MODEL_PATTERN}\b\s+{SPARK_FAILURE_STATE_PATTERN}(?:absent|missing)\b.{{0,40}}"
+            r"\b(?:native\s+)?(?:worker|workerbee)\s+registry\b",
+            text,
+        )
+        or re.search(
+            r"\b(?:native\s+)?(?:worker|workerbee)\s+registry\b.{{0,40}}"
+            rf"\b(?:does\s+not|doesn't)\s+(?:expose|include|list)\b.{{0,40}}\b{SPARK_MODEL_PATTERN}\b",
+            text,
+        )
+    )
+
+
+def prompt_coach_clause_has_explicit_native_spark_absence(text: str) -> bool:
+    explicit_subject = (
+        rf"(?:(?:native|local)\s+{SPARK_MODEL_PATTERN}"
+        r"(?:\s+(?:model|capability|dispatch|route|workerbee|worker|tooling|"
+        r"tool(?:\s+surface|-surface)?|spawn(?:\s+|-)tool|registry))?"
+        rf"|{SPARK_MODEL_PATTERN}\s+(?:tool\s+surface|tool-surface))"
+    )
+    return bool(
+        re.search(
+            rf"\b{explicit_subject}\b\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
+            text,
+        )
+        or re.search(
+            rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?{explicit_subject}\b",
+            text,
+        )
+        or re.search(
+            rf"\b{SPARK_MODEL_PATTERN}\b(?:\s+(?:model|capability|dispatch|route|workerbee|worker|tooling|tool))?"
+            rf"\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b.{{0,40}}"
+            r"\b(?:local\s+(?:codex\s+)?cli|local\s+tool(?:\s+surface|-surface)|spark\s+tool(?:\s+surface|-surface))\b",
+            text,
+        )
+    )
+
+
+def prompt_coach_clause_has_explicit_native_tool_absence(text: str) -> bool:
+    explicit_tool_subject = (
+        rf"(?:(?:native|local)\s+{SPARK_MODEL_PATTERN}\s+"
+        r"(?:tooling|tool(?:\s+surface|-surface)?|spawn(?:\s+|-)tool|registry)"
+        rf"|{SPARK_MODEL_PATTERN}\s+(?:tool\s+surface|tool-surface))"
+    )
+    return bool(
+        re.search(
+            rf"\b{explicit_tool_subject}\b\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
+            text,
+        )
+        or re.search(
+            rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?{explicit_tool_subject}\b",
+            text,
+        )
+    )
+
+
+def prompt_coach_has_workerbee_availability_constraint(text: str) -> bool:
+    return any(
+        prompt_coach_is_native_spark_failure_clause(clause)
+        and (
+            (
+                prompt_coach_clause_has_explicit_native_spark_absence(clause)
+                if prompt_coach_has_browser_provider_context(clause)
+                else prompt_coach_clause_has_direct_spark_absence(clause)
+            )
+            or (
+                prompt_coach_clause_has_explicit_native_tool_absence(clause)
+                if prompt_coach_has_browser_provider_context(clause)
+                else prompt_coach_clause_has_native_tool_absence(clause)
+            )
+        )
+        for clause in prompt_coach_spark_failure_clauses(text)
     )
 
 
 def prompt_coach_has_spark_native_tool_absence_signal(text: str) -> bool:
-    return text_has_any(
-        text,
-        [
-            "native tool",
-            "native tooling",
-            "tooling is unavailable",
-            "tooling unavailable",
-            "spark native tool",
-            "native worker",
-            "spawn tool",
-            "spawn-tool",
-        ],
+    return any(
+        prompt_coach_is_native_spark_failure_clause(clause)
+        and (
+            prompt_coach_clause_has_explicit_native_tool_absence(clause)
+            if prompt_coach_has_browser_provider_context(clause)
+            else prompt_coach_clause_has_native_tool_absence(clause)
+        )
+        for clause in prompt_coach_spark_failure_clauses(text)
+    )
+
+
+def prompt_coach_clause_has_spark_rejection(text: str) -> bool:
+    spark_subject = (
+        rf"(?:native\s+)?{SPARK_MODEL_PATTERN}"
+        r"(?:\s+(?:model(?:\s+(?:override|selection))?|dispatch|route|routing))?"
+    )
+    rejected = r"reject(?:ed|s|ing)"
+    state = r"(?:(?:is|are|was|were|has\s+been|have\s+been)\s+)?"
+    emphasis = r"(?:explicitly\s+)?"
+    native_subject = r"native\s+(?:spark\s+)?(?:model(?:\s+(?:override|selection))?|dispatch|route|routing)"
+    return bool(
+        re.search(rf"\b{spark_subject}\b\s+{state}{emphasis}{rejected}\b", text)
+        or re.search(rf"\b{rejected}\b\s+(?:the\s+)?{spark_subject}\b", text)
+        or re.search(rf"\b{native_subject}\b\s+{state}{emphasis}{rejected}\b", text)
+        or re.search(
+            rf"\b(?:native\s+)?(?:dispatch|route|routing)\b\s+{state}{emphasis}{rejected}\b.{{0,40}}"
+            rf"\b(?:for|of)\s+(?:the\s+)?(?:native\s+)?{SPARK_MODEL_PATTERN}\b",
+            text,
+        )
+    )
+
+
+def prompt_coach_clause_has_explicit_native_spark_rejection(text: str) -> bool:
+    explicit_subject = (
+        rf"(?:(?:native|local)\s+{SPARK_MODEL_PATTERN}"
+        r"(?:\s+(?:model(?:\s+(?:override|selection))?|dispatch|route|routing))?"
+        rf"|{SPARK_MODEL_PATTERN}\s+(?:tool\s+surface|tool-surface))"
+    )
+    predicate = r"(?:(?:is|are|was|were|has\s+been|have\s+been)\s+)?(?:explicitly\s+)?reject(?:ed|s|ing)"
+    return bool(
+        re.search(rf"\b{explicit_subject}\b\s+{predicate}\b", text)
+        or re.search(rf"\breject(?:ed|s|ing)\b\s+(?:the\s+)?{explicit_subject}\b", text)
+        or re.search(
+            rf"\b(?:native|local)\s+(?:dispatch|route|routing)\b\s+{predicate}\b.{{0,40}}"
+            rf"\b(?:for|of)\s+(?:the\s+)?{SPARK_MODEL_PATTERN}\b",
+            text,
+        )
     )
 
 
 def prompt_coach_has_spark_override_rejection_signal(text: str) -> bool:
-    return text_has_any(
-        text,
-        [
-            "override rejected",
-            "model override",
-            "override for gpt-5.3-codex-spark",
-            "override for codex 5.3 spark",
-            "native spark model override",
-        ],
+    return any(
+        prompt_coach_is_native_spark_failure_clause(clause)
+        and (
+            prompt_coach_clause_has_explicit_native_spark_rejection(clause)
+            if prompt_coach_has_browser_provider_context(clause)
+            else prompt_coach_clause_has_spark_rejection(clause)
+        )
+        for clause in prompt_coach_spark_failure_clauses(text)
     )
 
 
@@ -181,12 +476,101 @@ def prompt_coach_has_review_only_workerbee_signal(text: str) -> bool:
     )
 
 
-def prompt_coach_has_spark_registry_tool_mismatch_signal(text: str) -> bool:
-    return bool(
-        re.search(r"\bspark\b.*\bregistry\s*/?\s*tool\b.*\bmismatch\b", text)
-        or re.search(r"\bregistry\s*/?\s*tool\b.*\bmismatch\b.*\bspark\b", text)
-        or re.search(r"\bmismatch\s+between\s+registry\s+and\s+tool\b", text)
+def prompt_coach_clause_has_spark_registry_tool_mismatch(text: str) -> bool:
+    spark_subject = rf"(?:native\s+)?{SPARK_MODEL_PATTERN}"
+    mismatch = (
+        r"(?:registry_tool_mismatch|registry\s*/\s*tool\s+mismatch|registry-tool\s+mismatch|"
+        r"registry\s+tool\s+mismatch|registry\s+and\s+tool\s+mismatch)"
     )
+    return bool(
+        re.search(rf"\b{spark_subject}\b\s+{mismatch}\b", text)
+        or re.search(
+            rf"\b{spark_subject}\b(?:\s+evidence)?\s+(?:has|reports?|reported)\s+(?:a\s+)?{mismatch}\b",
+            text,
+        )
+        or re.search(
+            rf"\b{mismatch}\b.{{0,40}}\b(?:for|of|on)\s+(?:the\s+)?{spark_subject}\b",
+            text,
+        )
+        or re.search(
+            r"\bmismatch\b.{0,40}\bbetween\s+(?:the\s+)?registry\s+and\s+(?:the\s+)?tool\b"
+            rf".{{0,40}}\bfor\s+(?:the\s+)?{spark_subject}\b",
+            text,
+        )
+        or re.search(
+            rf"\bmismatch\b.{{0,40}}\bbetween\s+(?:the\s+)?{spark_subject}\s+registry\b"
+            r".{0,40}\b(?:native\s+)?tool\b",
+            text,
+        )
+        or re.search(
+            rf"\bmismatch\b.{{0,40}}\bbetween\s+(?:the\s+)?(?:native\s+)?tool\b"
+            rf".{{0,40}}\b{spark_subject}\s+registry\b",
+            text,
+        )
+        or re.search(
+            rf"\b{spark_subject}\s+registry\b.{{0,40}}\bdoes\s+not\s+match\b"
+            r".{0,40}\b(?:the\s+)?(?:native\s+)?tool\b",
+            text,
+        )
+        or re.search(
+            rf"\b{spark_subject}\s+tool\b.{{0,40}}\bdoes\s+not\s+match\b"
+            r".{0,40}\b(?:the\s+)?(?:native\s+)?registry\b",
+            text,
+        )
+    )
+
+
+def prompt_coach_clause_has_explicit_native_spark_registry_tool_mismatch(text: str) -> bool:
+    explicit_subject = (
+        rf"(?:(?:native|local)\s+{SPARK_MODEL_PATTERN}|"
+        rf"{SPARK_MODEL_PATTERN}\s+(?:tool\s+surface|tool-surface))"
+    )
+    mismatch = (
+        r"(?:registry_tool_mismatch|registry\s*/\s*tool\s+mismatch|registry-tool\s+mismatch|"
+        r"registry\s+tool\s+mismatch|registry\s+and\s+tool\s+mismatch)"
+    )
+    return bool(
+        re.search(rf"\b{explicit_subject}\b.{{0,40}}\b{mismatch}\b", text)
+        or re.search(rf"\b{mismatch}\b.{{0,40}}\b(?:for|of|on)\s+(?:the\s+)?{explicit_subject}\b", text)
+    )
+
+
+def prompt_coach_clause_has_explicit_native_spark_failure(text: str) -> bool:
+    return bool(
+        prompt_coach_clause_has_explicit_native_spark_absence(text)
+        or prompt_coach_clause_has_explicit_native_spark_rejection(text)
+        or prompt_coach_clause_has_explicit_native_spark_registry_tool_mismatch(text)
+    )
+
+
+def prompt_coach_has_spark_registry_tool_mismatch_signal(text: str) -> bool:
+    return any(
+        prompt_coach_is_native_spark_failure_clause(clause)
+        and (
+            prompt_coach_clause_has_explicit_native_spark_registry_tool_mismatch(clause)
+            if prompt_coach_has_browser_provider_context(clause)
+            else prompt_coach_clause_has_spark_registry_tool_mismatch(clause)
+        )
+        for clause in prompt_coach_spark_failure_clauses(text)
+    )
+
+
+def prompt_coach_has_provider_scoped_spark_failure(text: str) -> bool:
+    return any(
+        "spark" in clause
+        and prompt_coach_has_browser_provider_context(clause)
+        and not prompt_coach_clause_has_explicit_native_spark_failure(clause)
+        and (
+            prompt_coach_clause_has_direct_spark_absence(clause)
+            or prompt_coach_clause_has_native_tool_absence(clause)
+            or prompt_coach_clause_has_spark_rejection(clause)
+        )
+        for clause in prompt_coach_spark_failure_clauses(text)
+    )
+
+
+def prompt_coach_has_direct_spark_tooling_request(text: str) -> bool:
+    return bool(re.search(r"\buse\s+(?:the\s+)?spark\s+(?:tooling|tool)\b", text))
 
 
 def prompt_coach_has_explicit_operative_authority(text: str) -> bool:
@@ -436,6 +820,10 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     review_only_intent = prompt_coach_has_review_only_workerbee_signal(lower)
     spark_operational_pairing = prompt_coach_has_spark_operational_architect_pairing(lower)
     explicit_operative_authority = prompt_coach_has_explicit_operative_authority(lower)
+    provider_scoped_spark_failure = prompt_coach_has_provider_scoped_spark_failure(lower)
+    direct_spark_tooling_request = prompt_coach_has_direct_spark_tooling_request(lower)
+    native_tool_absent = prompt_coach_has_spark_native_tool_absence_signal(lower)
+    model_rejected = prompt_coach_has_spark_override_rejection_signal(lower)
     model_unavailable = prompt_coach_has_workerbee_availability_constraint(lower)
     registry_tool_mismatch = prompt_coach_has_spark_registry_tool_mismatch_signal(lower)
     review_terms = [
@@ -510,25 +898,38 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         "requested_route": "",
         "failed_native_capability_check": "",
         "failed_native_capability_check_justification": "",
-        "fallback_route": "",
     }
 
-    if registry_tool_mismatch:
+    if registry_tool_mismatch or native_tool_absent or model_rejected or model_unavailable:
         mode = "blocked"
         hard_stop = True
         suggested_lanes = []
+        if registry_tool_mismatch:
+            failed_check = "spark-registry-tool-mismatch"
+            hard_stop_reason = "registry_tool_mismatch"
+            failed_check_justification = "Registry/tool mismatch blocks native Spark worker dispatch."
+        elif model_rejected:
+            failed_check = "spark-native-model-rejection"
+            hard_stop_reason = "spark_native_model_rejected"
+            failed_check_justification = "Native Spark model selection or dispatch was explicitly rejected."
+        elif native_tool_absent:
+            failed_check = "spark-native-tool-absence"
+            hard_stop_reason = "spark_native_tool_absent"
+            failed_check_justification = "Native Spark tooling is explicitly unavailable."
+        else:
+            failed_check = "spark-native-capability-unavailable"
+            hard_stop_reason = "spark_native_unavailable"
+            failed_check_justification = "Native Spark capability is explicitly unavailable."
         spark_dispatch.update(
             {
                 "status": "hard-stop",
-                "requested_model": SPARK_MODEL_ALIAS if mode != "none" else "",
+                "requested_model": SPARK_MODEL_ALIAS,
                 "requested_route": mode,
-                "failed_native_capability_check": "spark-registry-tool-mismatch",
-                "failed_native_capability_check_justification": "Registry/tool mismatch blocks native Spark worker dispatch.",
+                "failed_native_capability_check": failed_check,
+                "failed_native_capability_check_justification": failed_check_justification,
             }
         )
-        rationale.append(
-            "Spark registry/tool mismatch is explicitly reported; execution cannot continue with workerbee execution until the mismatch is resolved."
-        )
+        rationale.append(f"{failed_check_justification} Workerbee execution remains blocked until native capability is re-proven.")
     elif spark_operational_pairing and not review_only_intent:
         mode = "implementation-capable"
         suggested_lanes = prompt_coach_spark_operational_lanes(lower, route)
@@ -550,6 +951,16 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             rationale.append("The request explicitly asks for workerbee execution on separable implementation work.")
         else:
             rationale.append("The request names separable implementation work that may be safe to split by file ownership.")
+    elif provider_scoped_spark_failure or direct_spark_tooling_request:
+        mode = "review-only"
+        if not suggested_lanes:
+            suggested_lanes.append("bounded-investigation")
+        if provider_scoped_spark_failure:
+            rationale.append(
+                "A provider- or browser-scoped Spark failure does not establish a native failure; keep the native Spark review route eligible."
+            )
+        else:
+            rationale.append("The request directly selects Spark tooling for a bounded investigation.")
     elif level in {"full-harness", "publish-release"} or text_has_any(lower, review_terms):
         mode = "review-only"
         if explicit_workerbee:
@@ -565,26 +976,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     if route.get("route") in {"external-contract", "local-worker"} and mode != "none":
         rationale.append("Workerbees are separate from contractor/local-worker dispatch; do not use them for no-codex-exec contract work.")
 
-    if mode == "none":
-        spark_dispatch["requested_route"] = ""
-    elif model_unavailable:
-        spark_dispatch.update(
-            {
-                "status": "bridge-fallback-required",
-                "requested_model": SPARK_MODEL_ALIAS,
-                "requested_route": mode,
-                "failed_native_capability_check": (
-                    "spark-native-tool-absence"
-                    if prompt_coach_has_spark_native_tool_absence_signal(lower)
-                    else "spark-native-model-override-rejection"
-                    if prompt_coach_has_spark_override_rejection_signal(lower)
-                    else "spark-native-capability-check-failed"
-                ),
-                "failed_native_capability_check_justification": "Native Spark tooling or model capability was explicitly rejected for this request.",
-                "fallback_route": "scripts/dispatch_codex_spark_worker.py",
-            }
-        )
-    elif mode != "none" and not hard_stop:
+    if mode != "none" and not hard_stop:
         spark_dispatch.update(
             {
                 "status": "native-first",
@@ -593,11 +985,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             }
         )
 
-    if spark_dispatch["status"] == "hard-stop":
-        hard_stop_reason = "registry_tool_mismatch"
-    elif hard_stop:
+    if hard_stop and not hard_stop_reason:
         hard_stop_reason = "spark_dispatch_hard_stop"
-    else:
+    elif not hard_stop:
         hard_stop_reason = ""
 
     return {
@@ -610,7 +1000,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         "spark_operational_worker": spark_operational_pairing and not review_only_intent and mode == "implementation-capable",
         "hard_stop": hard_stop,
         "hard_stop_reason": hard_stop_reason,
-        "registry_tool_mismatch": hard_stop,
+        "registry_tool_mismatch": registry_tool_mismatch,
         "spark_dispatch": spark_dispatch,
         "prompt_user_in_plan_mode": prompt_user,
         "suggested_lanes": suggested_lanes,
@@ -868,7 +1258,7 @@ def prompt_coach_missing_questions(
                 "default": default,
             }
         )
-    if workerbee_parallelism:
+    if workerbee_parallelism and not workerbee_parallelism.get("hard_stop"):
         mode = str(workerbee_parallelism.get("recommended_mode") or "none")
         registry_tool_mismatch = bool(workerbee_parallelism.get("registry_tool_mismatch"))
         hard_stop = bool(workerbee_parallelism.get("hard_stop"))
@@ -879,13 +1269,7 @@ def prompt_coach_missing_questions(
             default = "Use implementation subagents only for disjoint file scopes, with main-thread integration and acceptance."
         elif mode == "review-only":
             worker_dispatch_status = str(spark_dispatch.get("status") or "")
-            if worker_dispatch_status == "bridge-fallback-required":
-                default = (
-                    "Use Codex 5.3 Spark for native workerbee dispatch. If native Spark tooling is explicitly unavailable "
-                    "for this route, use dispatch_codex_spark_worker.py as the fallback bridge after recording the native-capability check. "
-                    "Do not substitute any alternate model."
-                )
-            elif worker_dispatch_status:
+            if worker_dispatch_status == "native-first":
                 default = "Use Codex 5.3 Spark for native workerbee dispatch; keep implementation authority in the main thread."
             else:
                 default = "Use Codex 5.3 Spark for workerbee review sidecars and keep implementation authority in the main thread."
@@ -968,10 +1352,6 @@ def workerbee_model_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
     dispatch = workerbee_parallelism.get("spark_dispatch")
     if not isinstance(dispatch, dict):
         return "Codex 5.3 Spark as the default operative route"
-    status = str(dispatch.get("status") or "")
-    fallback_route = str(dispatch.get("fallback_route") or "")
-    if status == "bridge-fallback-required" and fallback_route:
-        return "Codex 5.3 Spark natively, with dispatch_codex_spark_worker.py if native tooling is explicitly unavailable"
     if workerbee_parallelism.get("recommended_model") == SPARK_MODEL_ALIAS:
         return "Codex 5.3 Spark natively"
     return "Codex 5.3 Spark as the default operative route"
@@ -1061,7 +1441,10 @@ def prompt_coach_interactive_questions(
             }
         )
 
-    if "workerbee_parallelism" in missing_ids:
+    if (
+        "workerbee_parallelism" in missing_ids
+        and not (workerbee_parallelism or {}).get("hard_stop")
+    ):
         recommended = workerbee_parallelism or {}
         recommended_mode = recommended.get("recommended_mode") or "review-only"
         model_phrase = workerbee_model_phrase(workerbee_parallelism)
@@ -1272,8 +1655,6 @@ def workerbee_parallelism_options(
     }
     if recommended_mode == "implementation-capable":
         return dedupe_interactive_options([first, heavy, no_subagents])
-    if recommended_mode == "blocked":
-        return [no_subagents]
     if recommended_mode == "heavy-review":
         return dedupe_interactive_options([first, review, no_subagents])
     if recommended_mode == "none":
@@ -1380,9 +1761,7 @@ def prompt_coach_enabled_levers(
         spark_dispatch = workerbee_parallelism.get("spark_dispatch")
         if isinstance(spark_dispatch, dict):
             status = str(spark_dispatch.get("status") or "")
-            if status == "bridge-fallback-required":
-                levers.append("workerbee-dispatch-route=bridge-codex-spark")
-            elif status == "native-first":
+            if status == "native-first":
                 levers.append("workerbee-dispatch-route=native-spark")
             elif status == "hard-stop":
                 levers.append("workerbee-dispatch-route=hard-stop")
@@ -1392,9 +1771,9 @@ def prompt_coach_enabled_levers(
             if failed_check:
                 levers.append(f"workerbee-spark-native-check={failed_check}")
         if workerbee_parallelism.get("hard_stop"):
-            levers.append("workerbee-blocked=registry_tool_mismatch")
             levers.append("workerbee-dispatch-stopped")
         if workerbee_parallelism.get("registry_tool_mismatch"):
+            levers.append("workerbee-blocked=registry_tool_mismatch")
             levers.append("workerbee-registry-tool-mismatch")
             if "workerbee-dispatch-stopped" not in levers:
                 levers.append("workerbee-dispatch-stopped")
@@ -1550,16 +1929,6 @@ def prompt_coach_warnings(
         spark_dispatch = workerbee_parallelism.get("spark_dispatch")
         if isinstance(spark_dispatch, dict):
             status = str(spark_dispatch.get("status") or "")
-            failed_check = str(spark_dispatch.get("failed_native_capability_check") or "")
-            fallback_route = str(spark_dispatch.get("fallback_route") or "")
-            requested_route = str(spark_dispatch.get("requested_route") or "")
-            requested_model = str(spark_dispatch.get("requested_model") or "")
-            if status == "bridge-fallback-required" and failed_check:
-                warnings.append(
-                    "Native-capability check required before Spark workerbee dispatch was explicit: "
-                    f"{failed_check}. Use {requested_model} on route {requested_route} only as native-first, and use "
-                    f"{fallback_route} as the only fallback bridge."
-                )
             if status == "hard-stop":
                 warnings.append("Native Spark is hard-stopped; do not substitute Sol or another model unless native capability is re-proven.")
     if route.get("provider_conflict_detected"):
@@ -1598,27 +1967,14 @@ def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
         return (
             "Native Spark dispatch is hard-stopped. Do not dispatch workerbees until a hard-stop resolution is recorded.\n"
         )
-    mismatch_notice = ""
-    fallback_notice = ""
+    dispatch_notice = ""
     dispatch = workerbee_parallelism.get("spark_dispatch")
-    if isinstance(dispatch, dict):
-        if str(dispatch.get("status") or "") == "bridge-fallback-required":
-            fallback_notice = (
-                "Native Spark routing failed its explicit capability check; use dispatch_codex_spark_worker.py as a last-resort bridge fallback only after recording the cause. "
-                "If this fallback cannot be used, hard-stop rather than substitute another model.\n"
-            )
-        elif str(dispatch.get("status") or "") == "native-first":
-            fallback_notice = "Native Spark dispatch is the preferred route.\n"
-    if workerbee_parallelism.get("registry_tool_mismatch"):
-        mismatch_notice = (
-            "A registry/tool mismatch is recorded for Spark; execution of Spark-dependent workerbees stops "
-            "until the operator records a resolution.\n"
-        )
+    if isinstance(dispatch, dict) and str(dispatch.get("status") or "") == "native-first":
+        dispatch_notice = "Native Spark dispatch is the preferred route.\n"
     lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]
     prefix = "heavy review" if workerbee_parallelism.get("recommended_mode") == "heavy-review" else workerbee_parallelism.get("recommended_mode")
     return (
-        mismatch_notice +
-        fallback_notice +
+        dispatch_notice +
         f"Use {workerbee_model_phrase(workerbee_parallelism)} for "
         f"{prefix} parallelism on: "
         + ", ".join(str(item) for item in lanes)

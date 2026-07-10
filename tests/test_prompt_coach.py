@@ -5,6 +5,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -14,6 +15,132 @@ from cwo_core.errors import CWOPolicyError  # noqa: E402
 
 RETIRED_FIELD = "beads_" + "briefing_depth"
 RETIRED_FLAG = "--beads-" + "briefing-depth"
+
+
+class SchemaValidationError(AssertionError):
+    pass
+
+
+def _schema_type_matches(instance: object, expected: str) -> bool:
+    return {
+        "array": isinstance(instance, list),
+        "boolean": isinstance(instance, bool),
+        "integer": isinstance(instance, int) and not isinstance(instance, bool),
+        "null": instance is None,
+        "number": isinstance(instance, (int, float)) and not isinstance(instance, bool),
+        "object": isinstance(instance, dict),
+        "string": isinstance(instance, str),
+    }.get(expected, False)
+
+
+def _resolve_schema_ref(root: dict[str, Any], reference: str) -> dict[str, Any]:
+    if not reference.startswith("#/"):
+        raise SchemaValidationError(f"unsupported schema reference: {reference}")
+    value: Any = root
+    for raw_part in reference[2:].split("/"):
+        part = raw_part.replace("~1", "/").replace("~0", "~")
+        if not isinstance(value, dict) or part not in value:
+            raise SchemaValidationError(f"unresolved schema reference: {reference}")
+        value = value[part]
+    if not isinstance(value, dict):
+        raise SchemaValidationError(f"schema reference is not an object: {reference}")
+    return value
+
+
+def validate_schema_instance(
+    instance: Any,
+    schema: dict[str, Any],
+    *,
+    root: dict[str, Any] | None = None,
+    path: str = "$",
+) -> None:
+    root = schema if root is None else root
+
+    if "$ref" in schema:
+        validate_schema_instance(
+            instance,
+            _resolve_schema_ref(root, str(schema["$ref"])),
+            root=root,
+            path=path,
+        )
+    if "not" in schema:
+        try:
+            validate_schema_instance(instance, schema["not"], root=root, path=path)
+        except SchemaValidationError:
+            pass
+        else:
+            raise SchemaValidationError(f"{path} matches a forbidden schema")
+    if "allOf" in schema:
+        for child in schema["allOf"]:
+            validate_schema_instance(instance, child, root=root, path=path)
+    if "anyOf" in schema:
+        if not any(_schema_accepts(instance, child, root, path) for child in schema["anyOf"]):
+            raise SchemaValidationError(f"{path} does not match any allowed schema")
+    if "oneOf" in schema:
+        matches = sum(_schema_accepts(instance, child, root, path) for child in schema["oneOf"])
+        if matches != 1:
+            raise SchemaValidationError(f"{path} matches {matches} oneOf branches")
+    if "if" in schema:
+        branch = "then" if _schema_accepts(instance, schema["if"], root, path) else "else"
+        if branch in schema:
+            validate_schema_instance(instance, schema[branch], root=root, path=path)
+
+    if "const" in schema and instance != schema["const"]:
+        raise SchemaValidationError(f"{path} does not equal {schema['const']!r}")
+    if "enum" in schema and instance not in schema["enum"]:
+        raise SchemaValidationError(f"{path} is not in the schema enum")
+    if "type" in schema:
+        expected_types = schema["type"] if isinstance(schema["type"], list) else [schema["type"]]
+        if not any(_schema_type_matches(instance, str(expected)) for expected in expected_types):
+            raise SchemaValidationError(f"{path} has the wrong type")
+
+    if isinstance(instance, dict):
+        required = schema.get("required", [])
+        missing = [key for key in required if key not in instance]
+        if missing:
+            raise SchemaValidationError(f"{path} is missing required keys: {missing}")
+        properties = schema.get("properties", {})
+        for key, child in properties.items():
+            if key in instance:
+                validate_schema_instance(instance[key], child, root=root, path=f"{path}.{key}")
+        if schema.get("additionalProperties") is False:
+            extras = sorted(set(instance) - set(properties))
+            if extras:
+                raise SchemaValidationError(f"{path} has unexpected keys: {extras}")
+
+    if isinstance(instance, list):
+        if len(instance) < int(schema.get("minItems", 0)):
+            raise SchemaValidationError(f"{path} has too few items")
+        if "maxItems" in schema and len(instance) > int(schema["maxItems"]):
+            raise SchemaValidationError(f"{path} has too many items")
+        if "items" in schema:
+            for index, item in enumerate(instance):
+                validate_schema_instance(item, schema["items"], root=root, path=f"{path}[{index}]")
+        if "contains" in schema and not any(
+            _schema_accepts(item, schema["contains"], root, f"{path}[{index}]")
+            for index, item in enumerate(instance)
+        ):
+            raise SchemaValidationError(f"{path} does not contain a matching item")
+
+    if isinstance(instance, str):
+        if len(instance) < int(schema.get("minLength", 0)):
+            raise SchemaValidationError(f"{path} is too short")
+        if "maxLength" in schema and len(instance) > int(schema["maxLength"]):
+            raise SchemaValidationError(f"{path} is too long")
+
+    if isinstance(instance, (int, float)) and not isinstance(instance, bool):
+        if "minimum" in schema and instance < schema["minimum"]:
+            raise SchemaValidationError(f"{path} is below the minimum")
+        if "maximum" in schema and instance > schema["maximum"]:
+            raise SchemaValidationError(f"{path} is above the maximum")
+
+
+def _schema_accepts(instance: Any, schema: dict[str, Any], root: dict[str, Any], path: str) -> bool:
+    try:
+        validate_schema_instance(instance, schema, root=root, path=path)
+    except SchemaValidationError:
+        return False
+    return True
 
 
 class PromptCoachTests(unittest.TestCase):
@@ -564,41 +691,407 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("heavy-review-subagents", [option["value"] for option in worker_questions[0]["options"]])
         self.assertIn("no-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
-    def test_unavailable_spark_mention_still_prompts_for_workerbee_parallelism(self) -> None:
+    def test_spark_absence_rejection_and_mismatch_phrases_hard_stop(self) -> None:
+        cases = [
+            (
+                "native unavailable",
+                "Plan docs work, but native Spark is unavailable for workerbee dispatch.",
+                "spark-native-capability-unavailable",
+                "spark_native_unavailable",
+                False,
+            ),
+            (
+                "native tooling unavailable",
+                "Plan docs work. Native Spark tooling is unavailable.",
+                "spark-native-tool-absence",
+                "spark_native_tool_absent",
+                False,
+            ),
+            (
+                "spawn tool missing",
+                "Plan docs work. The native Spark spawn tool is missing.",
+                "spark-native-tool-absence",
+                "spark_native_tool_absent",
+                False,
+            ),
+            (
+                "registry omission",
+                "Plan docs work. Spark is absent from the native worker registry.",
+                "spark-native-tool-absence",
+                "spark_native_tool_absent",
+                False,
+            ),
+            (
+                "model rejected",
+                "Plan docs work. The native Spark model was rejected for this task.",
+                "spark-native-model-rejection",
+                "spark_native_model_rejected",
+                False,
+            ),
+            (
+                "override rejected",
+                "Plan docs work. The gpt-5.3-codex-spark model override was rejected.",
+                "spark-native-model-rejection",
+                "spark_native_model_rejected",
+                False,
+            ),
+            (
+                "dispatch rejected",
+                "Plan docs work. Native dispatch was rejected for Codex 5.3 Spark.",
+                "spark-native-model-rejection",
+                "spark_native_model_rejected",
+                False,
+            ),
+            (
+                "worker registry rejected spark",
+                "Plan docs work. The native worker registry rejected Spark.",
+                "spark-native-model-rejection",
+                "spark_native_model_rejected",
+                False,
+            ),
+            (
+                "spark rejected by worker registry",
+                "Plan docs work. Spark was rejected by the native worker registry.",
+                "spark-native-model-rejection",
+                "spark_native_model_rejected",
+                False,
+            ),
+            (
+                "registry tool mismatch",
+                "There is a Spark registry/tool mismatch for this task.",
+                "spark-registry-tool-mismatch",
+                "registry_tool_mismatch",
+                True,
+            ),
+            (
+                "structured registry mismatch",
+                "Native Spark evidence reports registry_tool_mismatch=true.",
+                "spark-registry-tool-mismatch",
+                "registry_tool_mismatch",
+                True,
+            ),
+            (
+                "registry and tool mismatch",
+                "Native Spark has a registry and tool mismatch.",
+                "spark-registry-tool-mismatch",
+                "registry_tool_mismatch",
+                True,
+            ),
+            (
+                "reordered mismatch",
+                "A mismatch exists between the Spark registry and native tool.",
+                "spark-registry-tool-mismatch",
+                "registry_tool_mismatch",
+                True,
+            ),
+            (
+                "registry does not match tool",
+                "The Spark registry does not match the native tool.",
+                "spark-registry-tool-mismatch",
+                "registry_tool_mismatch",
+                True,
+            ),
+            (
+                "explicitly rejected model",
+                "Native Spark model was explicitly rejected.",
+                "spark-native-model-rejection",
+                "spark_native_model_rejected",
+                False,
+            ),
+            (
+                "mismatch between registry and tool for spark",
+                "There is a mismatch between the registry and tool for Spark.",
+                "spark-registry-tool-mismatch",
+                "registry_tool_mismatch",
+                True,
+            ),
+        ]
+        dispatch_fields = {
+            "status",
+            "requested_model",
+            "requested_route",
+            "failed_native_capability_check",
+            "failed_native_capability_check_justification",
+        }
+
+        for name, prompt, failed_check, hard_stop_reason, expected_mismatch in cases:
+            with self.subTest(name):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                planned = result["workerbee_planned_delegation"]
+                spark_dispatch = workerbee["spark_dispatch"]
+
+                self.assertEqual(workerbee["recommended_mode"], "blocked")
+                self.assertIsNone(workerbee["recommended_model"])
+                self.assertEqual(workerbee["suggested_lanes"], [])
+                self.assertTrue(workerbee["hard_stop"])
+                self.assertEqual(workerbee["hard_stop_reason"], hard_stop_reason)
+                self.assertIs(workerbee["registry_tool_mismatch"], expected_mismatch)
+                self.assertFalse(workerbee["spark_operational_worker"])
+                self.assertEqual(set(spark_dispatch), dispatch_fields)
+                self.assertEqual(spark_dispatch["status"], "hard-stop")
+                self.assertEqual(spark_dispatch["requested_route"], "blocked")
+                self.assertEqual(spark_dispatch["requested_model"], "gpt-5.3-codex-spark")
+                self.assertEqual(spark_dispatch["failed_native_capability_check"], failed_check)
+                self.assertEqual(planned["mode"], "blocked")
+                self.assertIsNone(planned["model"])
+                self.assertEqual(planned["lanes"], [])
+                self.assertTrue(planned["hard_stop"])
+                self.assertEqual(planned["hard_stop_reason"], hard_stop_reason)
+                self.assertIs(planned["registry_tool_mismatch"], expected_mismatch)
+                self.assertEqual(planned["spark_dispatch"], spark_dispatch)
+                self.assertIn("workerbee-dispatch-route=hard-stop", result["enabled_levers"])
+                self.assertIn("workerbee-dispatch-stopped", result["enabled_levers"])
+                self.assertEqual(
+                    "workerbee-blocked=registry_tool_mismatch" in result["enabled_levers"],
+                    expected_mismatch,
+                )
+                self.assertEqual(
+                    "workerbee-registry-tool-mismatch" in result["enabled_levers"],
+                    expected_mismatch,
+                )
+                self.assertIn("subagent-parallelism-blocked", result["disabled_levers"])
+                self.assertNotIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
+                self.assertFalse(
+                    any(
+                        item["id"] == "workerbee_parallelism"
+                        for item in result["missing_questions"]
+                    )
+                )
+                self.assertFalse(
+                    any(
+                        item["id"] == "workerbee_parallelism"
+                        for item in result["interactive_questions"]
+                    )
+                )
+                emitted = json.dumps(result).lower()
+                self.assertNotIn("bridge", emitted)
+                self.assertNotIn("fallback", emitted)
+
+    def test_unqualified_direct_spark_execution_subjects_hard_stop(self) -> None:
+        cases = [
+            ("Spark tooling is unavailable.", "spark_native_tool_absent"),
+            ("Spark tool is unavailable.", "spark_native_tool_absent"),
+            ("Spark capability is unavailable.", "spark_native_unavailable"),
+            ("Spark dispatch is unavailable.", "spark_native_unavailable"),
+            ("Spark route is unavailable.", "spark_native_unavailable"),
+            ("Spark worker is unavailable.", "spark_native_unavailable"),
+            ("Spark workerbee is unavailable.", "spark_native_unavailable"),
+            ("Spark model is unavailable.", "spark_native_unavailable"),
+            (
+                "Use Spark workerbees for docs. Codex 5.3 Spark is unavailable.",
+                "spark_native_unavailable",
+            ),
+            ("Codex 5.3 Spark isn't available.", "spark_native_unavailable"),
+        ]
+
+        for prompt, expected_reason in cases:
+            with self.subTest(prompt):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                planned = result["workerbee_planned_delegation"]
+
+                self.assertEqual(workerbee["recommended_mode"], "blocked")
+                self.assertIsNone(workerbee["recommended_model"])
+                self.assertEqual(workerbee["suggested_lanes"], [])
+                self.assertTrue(workerbee["hard_stop"])
+                self.assertEqual(workerbee["hard_stop_reason"], expected_reason)
+                self.assertFalse(workerbee["registry_tool_mismatch"])
+                self.assertEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
+                self.assertEqual(planned["mode"], "blocked")
+                self.assertIsNone(planned["model"])
+                self.assertEqual(planned["lanes"], [])
+                self.assertTrue(planned["hard_stop"])
+                self.assertEqual(planned["hard_stop_reason"], expected_reason)
+                self.assertFalse(planned["registry_tool_mismatch"])
+                self.assertEqual(planned["spark_dispatch"]["status"], "hard-stop")
+
+    def test_provider_scoped_spark_failures_keep_native_route_eligible(self) -> None:
+        prompts = [
+            "Plan docs work. Codex 5.3 Spark may not be available in ChatGPT Pro.",
+            "Plan docs work. Spark is unavailable to ChatGPT Pro.",
+            "Plan docs work. Spark tooling is unavailable in ChatGPT Pro.",
+            "Plan docs work. ChatGPT Pro rejected the Spark model override.",
+            "Plan docs work. Spark may not be available on the Pro plan.",
+            "Plan docs work. Spark tooling is unavailable in the browser.",
+            "Plan docs work. Spark tooling is unavailable through the OpenAI provider.",
+        ]
+
+        for prompt in prompts:
+            with self.subTest(prompt):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                spark_dispatch = workerbee["spark_dispatch"]
+
+                self.assertEqual(workerbee["recommended_mode"], "review-only")
+                self.assertEqual(workerbee["recommended_model"], "gpt-5.3-codex-spark")
+                self.assertFalse(workerbee["hard_stop"])
+                self.assertFalse(workerbee["registry_tool_mismatch"])
+                self.assertTrue(workerbee["suggested_lanes"])
+                self.assertEqual(spark_dispatch["status"], "native-first")
+                self.assertEqual(spark_dispatch["requested_route"], "review-only")
+                self.assertIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
+                self.assertIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
+                emitted = json.dumps(result).lower()
+                self.assertNotIn("bridge", emitted)
+                self.assertNotIn("fallback", emitted)
+
+    def test_provider_scoped_direct_spark_failures_are_non_blocking(self) -> None:
+        prompts = [
+            "Spark tooling is unavailable in ChatGPT Pro.",
+            "Spark may not be available on the Pro plan.",
+            "ChatGPT Pro rejected the Spark model override.",
+            "Spark tooling is unavailable in the browser.",
+            "Spark tooling is unavailable through the OpenAI provider.",
+        ]
+
+        for prompt in prompts:
+            with self.subTest(prompt):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                planned = result["workerbee_planned_delegation"]
+
+                self.assertEqual(workerbee["recommended_mode"], "review-only")
+                self.assertEqual(workerbee["recommended_model"], "gpt-5.3-codex-spark")
+                self.assertFalse(workerbee["hard_stop"])
+                self.assertFalse(workerbee["registry_tool_mismatch"])
+                self.assertTrue(workerbee["suggested_lanes"])
+                self.assertEqual(workerbee["spark_dispatch"]["status"], "native-first")
+                self.assertEqual(planned["mode"], "review-only")
+                self.assertEqual(planned["model"], "gpt-5.3-codex-spark")
+                self.assertFalse(planned["hard_stop"])
+                self.assertFalse(planned["registry_tool_mismatch"])
+                self.assertTrue(planned["lanes"])
+                self.assertEqual(planned["spark_dispatch"]["status"], "native-first")
+
+    def test_explicit_native_scoping_overrides_provider_scope(self) -> None:
+        prompts = [
+            "ChatGPT Pro is available, but native Spark tooling is unavailable.",
+            "ChatGPT Pro is available, but native Spark dispatch was rejected.",
+            "Spark tooling is unavailable in the browser, but local Spark tooling is unavailable.",
+            "Spark tooling is unavailable through the OpenAI provider, but the local Spark tool surface is unavailable.",
+            "Spark tooling is unavailable in the browser, but the Spark tool surface is unavailable.",
+        ]
+        expected_hard_stop_reasons = {
+            prompts[0]: "spark_native_tool_absent",
+            prompts[1]: "spark_native_model_rejected",
+            prompts[2]: "spark_native_tool_absent",
+            prompts[3]: "spark_native_tool_absent",
+            prompts[4]: "spark_native_tool_absent",
+        }
+        for prompt in prompts:
+            with self.subTest(prompt):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                planned = result["workerbee_planned_delegation"]
+                spark_dispatch = workerbee["spark_dispatch"]
+                self.assertEqual(workerbee["recommended_mode"], "blocked")
+                self.assertIsNone(workerbee["recommended_model"])
+                self.assertTrue(workerbee["hard_stop"])
+                self.assertEqual(workerbee["hard_stop_reason"], expected_hard_stop_reasons[prompt])
+                self.assertFalse(workerbee["registry_tool_mismatch"])
+                self.assertFalse(workerbee["spark_operational_worker"])
+                self.assertEqual(spark_dispatch["status"], "hard-stop")
+                self.assertEqual(planned["mode"], "blocked")
+                self.assertIsNone(planned["model"])
+                self.assertTrue(planned["hard_stop"])
+                self.assertEqual(planned["hard_stop_reason"], expected_hard_stop_reasons[prompt])
+                self.assertEqual(planned["spark_dispatch"]["status"], "hard-stop")
+
+    def test_same_clause_unrelated_rejection_and_mismatch_do_not_bind_to_spark(self) -> None:
+        prompts = [
+            "Use Spark workerbee to review why the Figma model was rejected",
+            "Use Spark workerbees despite a Figma registry/tool mismatch",
+        ]
+
+        for prompt in prompts:
+            with self.subTest(prompt):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                planned = result["workerbee_planned_delegation"]
+
+                self.assertNotEqual(workerbee["recommended_mode"], "blocked")
+                self.assertFalse(workerbee["hard_stop"])
+                self.assertFalse(workerbee["registry_tool_mismatch"])
+                self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
+                self.assertNotEqual(planned["mode"], "blocked")
+                self.assertFalse(planned["hard_stop"])
+                self.assertFalse(planned["registry_tool_mismatch"])
+                self.assertNotEqual(planned["spark_dispatch"]["status"], "hard-stop")
+
+    def test_failure_predicates_bind_to_their_spark_subjects(self) -> None:
+        non_blocking = [
+            "Spark tooling is unavailable in the browser, but native Spark tooling is available.",
+            "Use Spark tooling to diagnose why Figma tooling is unavailable.",
+            "Use Spark tooling to diagnose why the Figma model was explicitly rejected.",
+            "Use Spark tooling despite a mismatch between the registry and tool for Figma.",
+        ]
+        blocking = [
+            "Spark tooling is available in the browser, but native Spark tooling is unavailable.",
+            "Use Spark tooling to diagnose why Spark tooling is unavailable.",
+            "Native Spark model was explicitly rejected.",
+            "There is a mismatch between the registry and tool for Spark.",
+        ]
+
+        for prompt in non_blocking:
+            with self.subTest(prompt=prompt, expected="native-first"):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                self.assertEqual(workerbee["recommended_mode"], "review-only")
+                self.assertFalse(workerbee["hard_stop"])
+                self.assertFalse(workerbee["registry_tool_mismatch"])
+                self.assertEqual(workerbee["spark_dispatch"]["status"], "native-first")
+
+        for prompt in blocking:
+            with self.subTest(prompt=prompt, expected="hard-stop"):
+                result = coach_orchestration_prompt(prompt)
+                workerbee = result["workerbee_parallelism"]
+                self.assertEqual(workerbee["recommended_mode"], "blocked")
+                self.assertTrue(workerbee["hard_stop"])
+                self.assertEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
+
+    def test_bare_spark_availability_failure_requires_direct_unscoped_predicate(self) -> None:
+        blocked = coach_orchestration_prompt("Spark isn't available.")["workerbee_parallelism"]
+        self.assertEqual(blocked["recommended_mode"], "blocked")
+        self.assertTrue(blocked["hard_stop"])
+        self.assertFalse(blocked["registry_tool_mismatch"])
+        self.assertEqual(blocked["spark_dispatch"]["status"], "hard-stop")
+
+        non_blocking = [
+            "Spark isn't available in the browser.",
+            "Spark isn't available through the OpenAI provider.",
+            "Spark is available.",
+            "Use Spark to diagnose why Figma isn't available.",
+        ]
+        for prompt in non_blocking:
+            with self.subTest(prompt):
+                workerbee = coach_orchestration_prompt(prompt)["workerbee_parallelism"]
+                self.assertNotEqual(workerbee["recommended_mode"], "blocked")
+                self.assertFalse(workerbee["hard_stop"])
+                self.assertFalse(workerbee["registry_tool_mismatch"])
+                self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
+
+    def test_unrelated_tool_failure_does_not_block_spark(self) -> None:
         result = coach_orchestration_prompt(
-            "Plan a docs and GitHub Pages correction. Codex 5.3 Spark may not be available in ChatGPT Pro."
+            "Use Spark workerbees. The Figma tool is missing."
         )
-        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
-        self.assertEqual(
-            result["workerbee_parallelism"]["recommended_model"],
-            "gpt-5.3-codex-spark",
+        workerbee = result["workerbee_parallelism"]
+
+        self.assertNotEqual(workerbee["recommended_mode"], "blocked")
+        self.assertFalse(workerbee["hard_stop"])
+        self.assertFalse(workerbee["registry_tool_mismatch"])
+        self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
+
+    def test_unrelated_provider_tool_failure_does_not_block_native_route(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Spark workerbees. ChatGPT Pro tooling is unavailable, but this task is unrelated to non-native tooling."
         )
-        self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
-        self.assertFalse(result["workerbee_parallelism"]["registry_tool_mismatch"])
-        self.assertFalse(result["workerbee_parallelism"]["hard_stop"])
-        spark_dispatch = result["workerbee_parallelism"]["spark_dispatch"]
-        self.assertEqual(spark_dispatch.get("status"), "bridge-fallback-required")
-        self.assertEqual(spark_dispatch.get("requested_route"), "review-only")
-        self.assertEqual(spark_dispatch.get("requested_model"), "gpt-5.3-codex-spark")
-        self.assertIn(
-            spark_dispatch.get("failed_native_capability_check"),
-            {"spark-native-tool-absence", "spark-native-capability-check-failed"},
-        )
-        self.assertEqual(
-            spark_dispatch.get("failed_native_capability_check_justification"),
-            "Native Spark tooling or model capability was explicitly rejected for this request.",
-        )
-        self.assertEqual(spark_dispatch.get("fallback_route"), "scripts/dispatch_codex_spark_worker.py")
-        self.assertIn("workerbee-dispatch-route=bridge-codex-spark", result["enabled_levers"])
-        self.assertNotIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
-        self.assertNotIn("workerbee-registry-tool-mismatch", result["enabled_levers"])
-        self.assertNotIn("workerbee-dispatch-stopped", result["enabled_levers"])
-        self.assertNotIn("no available Codex 5.3 Spark path until a registry/tool mismatch is resolved", result["paste_ready_prompt"])
-        self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
-        self.assertIn(
-            "Use Codex 5.3 Spark for native workerbee dispatch. If native Spark tooling is explicitly unavailable",
-            result["paste_ready_prompt"],
-        )
+        workerbee = result["workerbee_parallelism"]
+
+        self.assertNotEqual(workerbee["recommended_mode"], "blocked")
+        self.assertFalse(workerbee["hard_stop"])
+        self.assertFalse(workerbee["registry_tool_mismatch"])
+        self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
 
     def test_registry_tool_mismatch_hard_stops_execution(self) -> None:
         result = coach_orchestration_prompt(
@@ -608,11 +1101,20 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
         self.assertTrue(result["workerbee_parallelism"]["registry_tool_mismatch"])
         self.assertTrue(result["workerbee_parallelism"]["hard_stop"])
+        self.assertEqual(result["workerbee_parallelism"]["hard_stop_reason"], "registry_tool_mismatch")
+        self.assertEqual(
+            result["workerbee_parallelism"]["spark_dispatch"]["failed_native_capability_check"],
+            "spark-registry-tool-mismatch",
+        )
         self.assertEqual(result["workerbee_parallelism"]["spark_dispatch"].get("status"), "hard-stop")
         self.assertIn("workerbee-dispatch-stopped", result["enabled_levers"])
         self.assertIn("workerbee-blocked=registry_tool_mismatch", result["enabled_levers"])
-        self.assertIn("no-subagents", [option["value"] for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism" for option in item["options"]])
-        self.assertNotIn("review-subagents", [option["value"] for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism" for option in item["options"]])
+        self.assertFalse(
+            any(
+                item["id"] == "workerbee_parallelism"
+                for item in result["interactive_questions"]
+            )
+        )
         self.assertIn("subagent-parallelism-blocked", result["disabled_levers"])
         self.assertTrue(
             any(
@@ -643,7 +1145,7 @@ class PromptCoachTests(unittest.TestCase):
 
     def test_spark_operational_pairing_selects_implementation_capable_mode(self) -> None:
         result = coach_orchestration_prompt(
-            "Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and reporting."
+            "Native Spark is available. Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and reporting."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "implementation-capable")
         self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
@@ -653,7 +1155,16 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(spark_dispatch.get("status"), "native-first")
         self.assertEqual(spark_dispatch.get("requested_route"), "implementation-capable")
         self.assertEqual(spark_dispatch.get("requested_model"), "gpt-5.3-codex-spark")
-        self.assertEqual(spark_dispatch.get("fallback_route"), "")
+        self.assertEqual(
+            set(spark_dispatch),
+            {
+                "status",
+                "requested_model",
+                "requested_route",
+                "failed_native_capability_check",
+                "failed_native_capability_check_justification",
+            },
+        )
         self.assertEqual(spark_dispatch.get("failed_native_capability_check"), "")
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
@@ -664,6 +1175,83 @@ class PromptCoachTests(unittest.TestCase):
             "Native Spark dispatch is the preferred route.",
             result["paste_ready_prompt"],
         )
+        emitted = json.dumps(result).lower()
+        self.assertNotIn("bridge", emitted)
+        self.assertNotIn("fallback", emitted)
+
+    def test_prompt_coach_schema_defines_spark_hard_stop_contract(self) -> None:
+        schema = json.loads((ROOT / "schemas" / "prompt-coach-result.schema.json").read_text())
+        blocked_result = coach_orchestration_prompt(
+            "Plan docs work. Native Spark tooling is unavailable."
+        )
+        workerbee_schema = schema["properties"]["workerbee_parallelism"]
+        planned_schema = schema["properties"]["workerbee_planned_delegation"]
+        dispatch_schema = schema["$defs"]["sparkDispatch"]
+        hard_stop_fields = {
+            "spark_operational_worker",
+            "hard_stop",
+            "hard_stop_reason",
+            "registry_tool_mismatch",
+            "spark_dispatch",
+        }
+
+        self.assertIn("blocked", workerbee_schema["properties"]["recommended_mode"]["enum"])
+        self.assertIn("blocked", planned_schema["properties"]["mode"]["enum"])
+        self.assertTrue(hard_stop_fields.issubset(workerbee_schema["required"]))
+        self.assertTrue(hard_stop_fields.issubset(planned_schema["required"]))
+        self.assertEqual(
+            set(dispatch_schema["required"]),
+            {
+                "status",
+                "requested_model",
+                "requested_route",
+                "failed_native_capability_check",
+                "failed_native_capability_check_justification",
+            },
+        )
+        self.assertFalse(dispatch_schema["additionalProperties"])
+        self.assertIn("hard-stop", dispatch_schema["properties"]["status"]["enum"])
+        self.assertFalse(blocked_result["workerbee_parallelism"]["registry_tool_mismatch"])
+        self.assertFalse(blocked_result["workerbee_planned_delegation"]["registry_tool_mismatch"])
+        validate_schema_instance(blocked_result, schema)
+
+        for conditional_schema in (workerbee_schema, planned_schema):
+            for conditional in conditional_schema["allOf"]:
+                properties = conditional.get("then", {}).get("properties", {})
+                if "registry_tool_mismatch" in properties:
+                    self.assertEqual(properties["registry_tool_mismatch"], {"type": "boolean"})
+
+        mismatch_result = coach_orchestration_prompt(
+            "There is a Spark registry/tool mismatch for this task."
+        )
+        self.assertTrue(mismatch_result["workerbee_parallelism"]["registry_tool_mismatch"])
+        self.assertTrue(mismatch_result["workerbee_planned_delegation"]["registry_tool_mismatch"])
+        for result in (blocked_result, mismatch_result):
+            validate_schema_instance(result, schema)
+            self.assertFalse(
+                any(
+                    question["id"] == "workerbee_parallelism"
+                    for question in result["interactive_questions"]
+                )
+            )
+
+        stable_result = coach_orchestration_prompt("Fix typo in README.md")
+        for schema_target, object_name in (
+            (workerbee_schema, "workerbee_parallelism"),
+            (planned_schema, "workerbee_planned_delegation"),
+        ):
+            object_result = json.loads(json.dumps(stable_result[object_name]))
+            registry_inconsistent = json.loads(json.dumps(object_result))
+            registry_inconsistent["registry_tool_mismatch"] = True
+            registry_inconsistent["hard_stop"] = False
+            with self.assertRaises(SchemaValidationError):
+                validate_schema_instance(registry_inconsistent, schema_target)
+
+            dispatch_status_inconsistent = json.loads(json.dumps(object_result))
+            dispatch_status_inconsistent["spark_dispatch"]["status"] = "hard-stop"
+            dispatch_status_inconsistent["hard_stop"] = False
+            with self.assertRaises(SchemaValidationError):
+                validate_schema_instance(dispatch_status_inconsistent, schema_target)
 
     def test_workerbee_parallel_mode_precedence_matrix(self) -> None:
         cases = [
@@ -675,6 +1263,7 @@ class PromptCoachTests(unittest.TestCase):
                 "expected_lanes": [],
                 "expected_spark_worker": False,
                 "expected_hard_stop": True,
+                "expected_registry_tool_mismatch": True,
             },
             {
                 "name": "review-only plus spark wording",
@@ -684,6 +1273,7 @@ class PromptCoachTests(unittest.TestCase):
                 "expected_lanes": ["docs-flow-review", "terminology-review", "web-design-review", "test-gap-review"],
                 "expected_spark_worker": False,
                 "expected_hard_stop": False,
+                "expected_registry_tool_mismatch": False,
             },
             {
                 "name": "heavy review preserves heavy-review precedence over impl hints",
@@ -693,6 +1283,7 @@ class PromptCoachTests(unittest.TestCase):
                 "expected_lanes": ["docs-flow-review", "terminology-review", "web-design-review", "test-gap-review"],
                 "expected_spark_worker": False,
                 "expected_hard_stop": False,
+                "expected_registry_tool_mismatch": False,
             },
             {
                 "name": "implementation plus review wording keeps implementation-capable",
@@ -702,6 +1293,7 @@ class PromptCoachTests(unittest.TestCase):
                 "expected_lanes": ["docs-flow-review", "terminology-review", "web-design-review", "policy-routing-review"],
                 "expected_spark_worker": False,
                 "expected_hard_stop": False,
+                "expected_registry_tool_mismatch": False,
             },
         ]
 
@@ -713,6 +1305,11 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertEqual(workerbee["recommended_model"], case["expected_model"], case["name"])
                 self.assertEqual(workerbee["spark_operational_worker"], case["expected_spark_worker"], case["name"])
                 self.assertEqual(workerbee["hard_stop"], case["expected_hard_stop"], case["name"])
+                self.assertEqual(
+                    workerbee["registry_tool_mismatch"],
+                    case["expected_registry_tool_mismatch"],
+                    case["name"],
+                )
                 self.assertEqual(workerbee["suggested_lanes"], case["expected_lanes"], case["name"])
 
     def test_review_only_term_keeps_review_only_workerbee_mode(self) -> None:
@@ -860,7 +1457,12 @@ class PromptCoachTests(unittest.TestCase):
             q for q in result["interactive_questions"] if q["id"] == "outside_sharing_boundary"
         )
         option_values = [opt["value"] for opt in sharing_question["options"]]
+        self.assertEqual(len(option_values), 4)
         self.assertIn("patch-branch", option_values)
+        self.assertEqual(
+            set(option_values),
+            {"no-outside-sharing", "redacted-packet", "repo-readonly", "patch-branch"},
+        )
 
     def test_publish_validation_dedupes_interactive_options(self) -> None:
         result = coach_orchestration_prompt("Publish the skill to GitHub after release validation.")

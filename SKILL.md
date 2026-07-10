@@ -139,26 +139,11 @@ require confirmed model attestation plus a share-link return before using the
 result. For local inference, require `--local-ok`; use `--prefer-local` only for
 low-risk work where a local review lane is intended.
 
-When a hosted worker registry omits Spark but the local Codex CLI is available,
-native Spark remains primary; use bridge fallback only after a documented native
-failure (not for convenience/speed).
+Spark is native-only in this policy. Use native subagents with `gpt-5.3-codex-spark`
+and enforce model attestation from trusted control-plane/session metadata.
 
-```bash
-cat > native-check-evidence.json <<'JSON'
-{"outcome":"native-subagent-unavailable","requested_model":"gpt-5.3-codex-spark","details":"native spark subagent tooling not installed"}
-JSON
-cat > native-check-evidence-rejected.json <<'JSON'
-{"outcome":"native-dispatch-rejected","requested_model":"gpt-5.3-codex-spark","reason":"native model override rejected by explicit routing policy"}
-JSON
-
-printf '%s\n' "Dispatch prompt..." | python3 scripts/dispatch_codex_spark_worker.py \
-  --bead-id <bead-id> \
-  --mode implementation-capable \
-  --lane <canonical-lane> \
-  --workdir <repo-root> \
-  --sandbox workspace-write \
-  --native-check-evidence native-check-evidence.json # or native-check-evidence-rejected.json
-```
+Hard-stop if the attested actual model is missing or does not exactly match the
+requested model (`gpt-5.3-codex-spark`). Do not substitute Sol or any other model.
 
 Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, and boundary-tainted returns until peer review and architect adjudication complete.
 
