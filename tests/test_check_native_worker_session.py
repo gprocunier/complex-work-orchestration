@@ -607,6 +607,89 @@ class CheckNativeWorkerSessionTests(unittest.TestCase):
             self.assertEqual(payload["status"], "budget-exhausted")
             self.assertEqual(payload["segments"][0]["full_suite_runs"], 1)
 
+    def test_shell_separated_full_suite_commands_are_counted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = Path(tmpdir) / "session.jsonl"
+            commands = [
+                "cd /repo && python -m unittest discover -s tests -q",
+                "echo ready; python3 -m unittest discover -v -s tests",
+                "false || /usr/bin/python -m unittest discover -s tests",
+                "echo ready\npython -m unittest discover -s tests",
+                "python -m unittest discover -s tests | tee suite.log",
+                (
+                    "python -m unittest discover -s tests; "
+                    "python -m unittest discover -s tests"
+                ),
+            ]
+            records = [spark_record("2026-07-10T21:00:00Z", "shell-suite", "task_started")]
+            records.extend(
+                spark_record(
+                    f"2026-07-10T21:00:{index:02d}Z",
+                    "shell-suite",
+                    "assistant",
+                    response_type="function_call",
+                    command=command,
+                )
+                for index, command in enumerate(commands, start=1)
+            )
+            records.append(
+                spark_record("2026-07-10T21:00:20Z", "shell-suite", "task_complete")
+            )
+            write_records(session_file, records)
+            result = run_cli(
+                "--session-id",
+                "shell-suite",
+                "--requested-model",
+                "gpt-5.3-codex-spark",
+                "--budget-profile",
+                "implementation",
+                "--session-file",
+                str(session_file),
+                "--json",
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["segments"][0]["full_suite_runs"], 7)
+
+    def test_shell_separators_do_not_promote_focused_or_quoted_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = Path(tmpdir) / "session.jsonl"
+            commands = [
+                "cd /repo && python -m unittest tests.test_focus_case",
+                "echo ready; python -m unittest discover -s focused_tests",
+                "printf '%s\\n' 'python -m unittest discover -s tests'",
+                "echo 'python -m unittest discover -s tests' || true",
+            ]
+            records = [spark_record("2026-07-10T21:00:00Z", "shell-focused", "task_started")]
+            records.extend(
+                spark_record(
+                    f"2026-07-10T21:00:{index:02d}Z",
+                    "shell-focused",
+                    "assistant",
+                    response_type="function_call",
+                    command=command,
+                )
+                for index, command in enumerate(commands, start=1)
+            )
+            records.append(
+                spark_record("2026-07-10T21:00:20Z", "shell-focused", "task_complete")
+            )
+            write_records(session_file, records)
+            result = run_cli(
+                "--session-id",
+                "shell-focused",
+                "--requested-model",
+                "gpt-5.3-codex-spark",
+                "--budget-profile",
+                "implementation",
+                "--session-file",
+                str(session_file),
+                "--json",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["segments"][0]["full_suite_runs"], 0)
+
     def test_non_full_suite_tool_calls_do_not_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             session_file = Path(tmpdir) / "session.jsonl"

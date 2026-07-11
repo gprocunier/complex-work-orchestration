@@ -17,6 +17,35 @@
       "tool_gate_required": true
     }
   },
+  "rollout_mode": "canary-then-enforce",
+  "enforcement_mode": "fail-closed",
+  "poll_interval_ms": 1000,
+  "poll_lag_tolerance_ms": 1500,
+  "arm_to_dispatch_max_ms": 5000,
+  "control_turn_required": true,
+  "segment_start_grace_seconds": 10,
+  "tool_reserve": {
+    "ratio": 0.10,
+    "floor": 3
+  },
+  "runtime_reserve": {
+    "ratio": 0.10,
+    "floor": 5
+  },
+  "required_control_adapter": "native-multi-agent-v1",
+  "required_capabilities": [
+    "interrupt",
+    "close",
+    "wait"
+  ],
+  "missing_telemetry_control": "stop-before-dispatch",
+  "validation_attempt_limit": 1,
+  "recursive_validation_forbidden": true,
+  "packet_versions": {
+    "emitted": 2,
+    "historical": [1],
+    "dispatchable": [2]
+  },
   "execution_bootstrap": {
     "spawn": {
       "attestation_gate": {

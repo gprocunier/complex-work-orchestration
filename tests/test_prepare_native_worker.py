@@ -81,10 +81,34 @@ class NativeWorkerPacketTests(unittest.TestCase):
             packet = json.loads(result.stdout)
 
             self.assertEqual(packet["packet_type"], "cwo-native-worker-packet")
-            self.assertEqual(packet["version"], 1)
+            self.assertEqual(packet["version"], 2)
             self.assertEqual(packet["lane"], "implementation")
             self.assertEqual(packet["requested_model"], "gpt-5.3-codex-spark")
             self.assertEqual(packet["budget"], _policy_budgets_for_lane("implementation"))
+            self.assertEqual(
+                packet["budget_provenance"],
+                {
+                    "profile": "implementation",
+                    "policy_source": "policy/native-worker-execution.yaml",
+                    "overrides_applied": False,
+                    "overridden_fields": [],
+                },
+            )
+            self.assertEqual(
+                packet["supervision"]["interrupt_thresholds"],
+                {"tool_calls": 90, "runtime_seconds": 972},
+            )
+            self.assertEqual(packet["supervision"]["segment_start_grace_seconds"], 10)
+            self.assertEqual(packet["supervision"]["poll_lag_tolerance_ms"], 1500)
+            self.assertEqual(packet["supervision"]["arm_to_dispatch_max_ms"], 5000)
+            self.assertTrue(packet["supervision"]["control_turn_required"])
+            self.assertEqual(packet["validation_lineage"]["attempt"], 0)
+            self.assertIsNone(packet["validation_lineage"]["parent_packet_id"])
+            if HAS_JSONSCHEMA:
+                import jsonschema
+
+                schema = json.loads((ROOT / "schemas" / "native-worker-packet.schema.json").read_text(encoding="utf-8"))
+                jsonschema.validate(packet, schema)
             self.assertEqual(
                 packet["return_contract"]["allowed_statuses"],
                 self.policy["return_statuses"],
@@ -192,7 +216,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("non-empty", result.stderr.lower())
 
-    def test_cli_validate_rejects_model_and_budget_overrides(self) -> None:
+    def test_cli_validate_rejects_model_and_relaxed_budget(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             allowed = Path(workdir) / "allowed"
             allowed.mkdir()
@@ -230,15 +254,177 @@ class NativeWorkerPacketTests(unittest.TestCase):
                 handle.seek(0)
                 handle.truncate()
                 handle.write(json.dumps(payload))
-            payload["escalation_triggers"]["soft_limit"]["distinct_soft_limits_required"] = 1
             with open(packet_path, "w", encoding="utf-8") as handle:
                 handle.write(json.dumps(payload))
             result_budget = run_cli("validate", str(packet_path))
             self.assertNotEqual(result_budget.returncode, 0)
-            self.assertIn("budget.tool_calls_hard must equal policy profile", result_budget.stderr)
+            self.assertIn("budget.tool_calls_hard may only tighten policy profile", result_budget.stderr)
 
-            result_valid = run_cli("validate", str(packet_path))
-            self.assertNotEqual(result_valid.returncode, 0)
+    def test_build_accepts_only_tightening_budget_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            result = run_cli(
+                "build",
+                "--bead-id",
+                "bead-budget",
+                "--lane",
+                "implementation",
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(allowed),
+                "--acceptance-check",
+                "focused tests pass",
+                "--tool-calls-soft",
+                "5",
+                "--tool-calls-hard",
+                "10",
+                "--runtime-seconds-soft",
+                "30",
+                "--runtime-seconds-hard",
+                "60",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            packet = json.loads(result.stdout)
+            self.assertEqual(packet["budget"]["tool_calls_soft"], 5)
+            self.assertEqual(packet["budget"]["tool_calls_hard"], 10)
+            self.assertEqual(packet["budget"]["runtime_seconds_soft"], 30)
+            self.assertEqual(packet["budget"]["runtime_seconds_hard"], 60)
+            self.assertEqual(
+                packet["budget_provenance"]["overridden_fields"],
+                [
+                    "runtime_seconds_hard",
+                    "runtime_seconds_soft",
+                    "tool_calls_hard",
+                    "tool_calls_soft",
+                ],
+            )
+            self.assertTrue(packet["budget_provenance"]["overrides_applied"])
+            self.assertEqual(
+                packet["supervision"]["interrupt_thresholds"],
+                {"tool_calls": 7, "runtime_seconds": 54},
+            )
+            self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+            corrupted_provenance = copy.deepcopy(packet)
+            corrupted_provenance["budget_provenance"]["overridden_fields"] = []
+            corrupted_provenance["budget_provenance"]["overrides_applied"] = False
+            self.assertIn(
+                "must match effective budget differences",
+                " ".join(validate_native_worker_packet(corrupted_provenance, dispatchable=True)),
+            )
+
+            relaxed = run_cli(
+                "build",
+                "--bead-id",
+                "bead-budget",
+                "--lane",
+                "implementation",
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(allowed),
+                "--acceptance-check",
+                "focused tests pass",
+                "--tool-calls-hard",
+                "101",
+            )
+            self.assertNotEqual(relaxed.returncode, 0)
+            self.assertIn("may only tighten", relaxed.stderr)
+
+            invalid_relation = run_cli(
+                "build",
+                "--bead-id",
+                "bead-budget",
+                "--lane",
+                "implementation",
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(allowed),
+                "--acceptance-check",
+                "focused tests pass",
+                "--tool-calls-soft",
+                "10",
+                "--tool-calls-hard",
+                "5",
+            )
+            self.assertNotEqual(invalid_relation.returncode, 0)
+            self.assertIn("must not exceed", invalid_relation.stderr)
+
+    def test_packet_v1_is_historical_only(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-v1",
+                lane="review",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["review complete"],
+            )
+            packet["version"] = 1
+            packet.pop("budget_provenance")
+            packet.pop("supervision")
+            packet.pop("validation_lineage")
+            self.assertEqual(validate_native_worker_packet(packet), [])
+            self.assertIn("dispatch-forbidden", " ".join(validate_native_worker_packet(packet, dispatchable=True)))
+            packet_path = Path(workdir) / "v1.json"
+            packet_path.write_text(json.dumps(packet), encoding="utf-8")
+            rendered = run_cli("render", str(packet_path))
+            self.assertNotEqual(rendered.returncode, 0)
+            self.assertIn("dispatch-forbidden", rendered.stderr)
+
+    def test_validation_lineage_allows_one_attempt_and_forbids_recursion(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-validation",
+                lane="validation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["validate"],
+                packet_id="validation-child",
+                validation_root_packet_id="implementation-root",
+                validation_parent_packet_id="implementation-root",
+                validation_attempt=1,
+            )
+            self.assertEqual(
+                packet["validation_lineage"],
+                {
+                    "root_packet_id": "implementation-root",
+                    "parent_packet_id": "implementation-root",
+                    "attempt": 1,
+                },
+            )
+            self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+            with self.assertRaisesRegex(SystemExit, "0 or 1"):
+                build_native_worker_packet(
+                    bead_id="bead-validation",
+                    lane="validation",
+                    workdir=workdir,
+                    allowed_paths=[str(allowed)],
+                    acceptance_checks=["validate"],
+                    validation_parent_packet_id="validation-child",
+                    validation_attempt=2,
+                )
+            with self.assertRaisesRegex(SystemExit, "explicit root"):
+                build_native_worker_packet(
+                    bead_id="bead-validation",
+                    lane="validation",
+                    workdir=workdir,
+                    allowed_paths=[str(allowed)],
+                    acceptance_checks=["validate"],
+                    validation_parent_packet_id="implementation-root",
+                    validation_attempt=1,
+                )
+            recursive = copy.deepcopy(packet)
+            recursive["validation_lineage"]["parent_packet_id"] = packet["packet_id"]
+            self.assertIn(
+                "cannot reference its own packet_id",
+                " ".join(validate_native_worker_packet(recursive, dispatchable=True)),
+            )
 
     def test_build_render_cli_mode(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

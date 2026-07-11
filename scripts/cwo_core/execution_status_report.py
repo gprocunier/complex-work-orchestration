@@ -14,7 +14,7 @@ from .paths import AUDIT_LOG
 UNAVAILABLE = "?"
 NOT_APPLICABLE = "n/a"
 REPORT_TYPE = "cwo-execution-status-report"
-REPORT_VERSION = 4
+REPORT_VERSION = 5
 
 STATUS_KEYS = (
     "completed",
@@ -228,6 +228,8 @@ def build_execution_status_report(
         "workerbee_delegation_details": _workerbee_delegation_detail_rows(records),
         "native_disposition_summary": _native_disposition_summary(records),
         "native_disposition_details": _native_disposition_detail_rows(records),
+        "native_supervision_summary": _native_supervision_summary(records),
+        "native_supervision_details": _native_supervision_detail_rows(records),
         "sol_breakfix_summary": _sol_breakfix_summary(records),
         "second_opinion_review_lane_productivity": _second_opinion_rows(records),
         "second_opinion_review_lane_productivity_details": _second_opinion_detail_rows(records),
@@ -336,6 +338,7 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
     lines.extend(_key_value_box("Main Thread / Architect Productivity", report.get("main_thread_architect_productivity", {}), term_width))
     lines.extend(_key_value_box("Workerbee Delegation Summary", report.get("workerbee_delegation_summary", {}), term_width))
     lines.extend(_key_value_box("Native Session / Artifact Disposition", report.get("native_disposition_summary", {}), term_width))
+    lines.extend(_key_value_box("Native Worker Live Supervision", report.get("native_supervision_summary", {}), term_width))
     lines.extend(_key_value_box("Sol Break-Fix Exceptions", report.get("sol_breakfix_summary", {}), term_width))
     if expanded:
         lines.extend(
@@ -366,6 +369,32 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
                     ("Validation", "validation"),
                 ],
                 report.get("native_disposition_details", []),
+                term_width,
+            )
+        )
+        lines.extend(
+            _detail_rows(
+                "Native Supervision Details",
+                [
+                    ("State", "state_id"),
+                    ("Bead", "bead_id"),
+                    ("Lane", "lane"),
+                    ("Model", "model"),
+                    ("Status", "status"),
+                    ("Decision", "decision"),
+                    ("Calls actual/interrupt/hard", "calls"),
+                    ("Runtime actual/interrupt/hard", "runtime"),
+                    ("Compactions", "compactions"),
+                    ("Full suites", "full_suite_runs"),
+                    ("Armed before dispatch", "armed_before_dispatch"),
+                    ("Arm to dispatch ms", "arm_to_dispatch_ms"),
+                    ("First poll ms", "first_poll_ms"),
+                    ("Max poll gap ms", "max_poll_gap_ms"),
+                    ("Late polls", "late_polls"),
+                    ("Receipts", "control_receipts"),
+                    ("Reasons", "reasons"),
+                ],
+                report.get("native_supervision_details", []),
                 term_width,
             )
         )
@@ -600,6 +629,28 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "sol_breakfix_automatic_selection_forbidden": record.get("automatic_selection_forbidden")
         if isinstance(record.get("automatic_selection_forbidden"), bool)
         else None,
+        "native_supervision_state_id": _clean(record.get("native_supervision_state_id")),
+        "native_supervision_status": _clean(record.get("native_supervision_status")),
+        "native_supervision_decision": _clean(record.get("native_supervision_decision")),
+        "native_supervision_reasons": _strings(record.get("native_supervision_reasons")),
+        "control_action": _clean(record.get("control_action")),
+        "control_receipts": _strings(record.get("control_receipts")),
+        "planned_tool_calls_hard": _numeric(record, ("planned_tool_calls_hard",)),
+        "interrupt_tool_calls_threshold": _numeric(record, ("interrupt_tool_calls_threshold",)),
+        "observed_tool_calls": _numeric(record, ("observed_tool_calls",)),
+        "planned_runtime_seconds_hard": _numeric(record, ("planned_runtime_seconds_hard",)),
+        "interrupt_runtime_seconds_threshold": _numeric(record, ("interrupt_runtime_seconds_threshold",)),
+        "observed_runtime_seconds": _numeric(record, ("observed_runtime_seconds",)),
+        "observed_context_compactions": _numeric(record, ("observed_context_compactions",)),
+        "observed_full_suite_runs": _numeric(record, ("observed_full_suite_runs",)),
+        "monitor_armed_before_dispatch": record.get("monitor_armed_before_dispatch")
+        if isinstance(record.get("monitor_armed_before_dispatch"), bool)
+        else None,
+        "arm_to_dispatch_ms": _numeric(record, ("arm_to_dispatch_ms",)),
+        "dispatch_to_first_poll_ms": _numeric(record, ("dispatch_to_first_poll_ms",)),
+        "max_poll_gap_ms": _numeric(record, ("max_poll_gap_ms",)),
+        "late_poll_count": _numeric(record, ("late_poll_count",)),
+        "control_turn_id": _clean(record.get("control_turn_id")),
     }
     return view
 
@@ -751,6 +802,8 @@ def _telemetry_kind(record: dict[str, Any], source_kind: str) -> str:
         return "browser_dispatch"
     if event_type == "harness_dispatch_rendered":
         return "harness_render"
+    if event_type.startswith("native_supervision_"):
+        return "native_supervision"
     if event_type == "dispatch_prepared":
         if dispatch_mode in {"local_openai_compatible", "local_secure_review"}:
             return "local_dispatch"
@@ -780,6 +833,7 @@ def _telemetry_metric_expected(
         "browser_confirmation",
         "browser_rehearsal",
         "artifact",
+        "native_supervision",
     }:
         return False
     if telemetry_kind == "local_dispatch" and record.get("execution_enabled") is False:
@@ -1098,7 +1152,7 @@ def _workerbee_delegation_summary(records: list[dict[str, Any]]) -> dict[str, An
 
 def _native_disposition_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for record in records:
+    for record in _native_disposition_records(records):
         session = _clean(record.get("session_disposition"))
         artifact = _clean(record.get("artifact_disposition"))
         validation = record.get("artifact_validation")
@@ -1140,7 +1194,7 @@ def _native_disposition_summary(records: list[dict[str, Any]]) -> dict[str, Any]
     }
     eligible = 0
     considered = 0
-    for record in records:
+    for record in _native_disposition_records(records):
         session = _clean(record.get("session_disposition"))
         artifact = _clean(record.get("artifact_disposition"))
         validation = record.get("artifact_validation")
@@ -1163,6 +1217,163 @@ def _native_disposition_summary(records: list[dict[str, Any]]) -> dict[str, Any]
         "artifact_rejected": artifact_counts["rejected"],
         "artifact_unknown": artifact_counts["unknown"],
         "validation_eligible": eligible,
+    }
+
+
+def _native_disposition_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ordinary: list[dict[str, Any]] = []
+    supervised: dict[str, dict[str, Any]] = {}
+    for record in records:
+        state_id = _clean(record.get("native_supervision_state_id"))
+        if state_id:
+            supervised[state_id] = record
+        else:
+            ordinary.append(record)
+    return [*ordinary, *[supervised[key] for key in sorted(supervised)]]
+
+
+def _native_supervision_states(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for record in records:
+        state_id = _clean(record.get("native_supervision_state_id"))
+        if not state_id:
+            continue
+        row = grouped.setdefault(
+            state_id,
+            {
+                "state_id": state_id,
+                "bead_id": UNAVAILABLE,
+                "dispatch_id": UNAVAILABLE,
+                "lane": UNAVAILABLE,
+                "model": UNAVAILABLE,
+                "status": UNAVAILABLE,
+                "decision": UNAVAILABLE,
+                "planned_tool_calls_hard": None,
+                "interrupt_tool_calls_threshold": None,
+                "observed_tool_calls": None,
+                "planned_runtime_seconds_hard": None,
+                "interrupt_runtime_seconds_threshold": None,
+                "observed_runtime_seconds": None,
+                "compactions": 0,
+                "full_suite_runs": 0,
+                "monitor_armed_before_dispatch": None,
+                "arm_to_dispatch_ms": None,
+                "dispatch_to_first_poll_ms": None,
+                "max_poll_gap_ms": None,
+                "late_poll_count": 0,
+                "control_receipts": [],
+                "reasons": [],
+            },
+        )
+        for source, target in (
+            ("bead_id", "bead_id"),
+            ("dispatch_id", "dispatch_id"),
+            ("lane", "lane"),
+            ("model", "model"),
+            ("native_supervision_status", "status"),
+            ("native_supervision_decision", "decision"),
+            ("planned_tool_calls_hard", "planned_tool_calls_hard"),
+            ("interrupt_tool_calls_threshold", "interrupt_tool_calls_threshold"),
+            ("observed_tool_calls", "observed_tool_calls"),
+            ("planned_runtime_seconds_hard", "planned_runtime_seconds_hard"),
+            ("interrupt_runtime_seconds_threshold", "interrupt_runtime_seconds_threshold"),
+            ("observed_runtime_seconds", "observed_runtime_seconds"),
+            ("observed_context_compactions", "compactions"),
+            ("observed_full_suite_runs", "full_suite_runs"),
+            ("monitor_armed_before_dispatch", "monitor_armed_before_dispatch"),
+            ("arm_to_dispatch_ms", "arm_to_dispatch_ms"),
+            ("dispatch_to_first_poll_ms", "dispatch_to_first_poll_ms"),
+            ("max_poll_gap_ms", "max_poll_gap_ms"),
+            ("late_poll_count", "late_poll_count"),
+        ):
+            value = record.get(source)
+            if value not in (None, "", []):
+                row[target] = value
+        row["control_receipts"] = _unique_items([*row["control_receipts"], *_strings(record.get("control_receipts"))])
+        row["reasons"] = _unique_items([*row["reasons"], *_strings(record.get("native_supervision_reasons"))])
+    return [grouped[key] for key in sorted(grouped)]
+
+
+def _native_supervision_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for state in _native_supervision_states(records):
+        observed_calls = state["observed_tool_calls"]
+        threshold_calls = state["interrupt_tool_calls_threshold"]
+        hard_calls = state["planned_tool_calls_hard"]
+        observed_runtime = state["observed_runtime_seconds"]
+        threshold_runtime = state["interrupt_runtime_seconds_threshold"]
+        hard_runtime = state["planned_runtime_seconds_hard"]
+        rows.append(
+            {
+                "state_id": state["state_id"],
+                "bead_id": state["bead_id"],
+                "dispatch_id": state["dispatch_id"],
+                "lane": state["lane"],
+                "model": state["model"],
+                "status": state["status"],
+                "decision": state["decision"],
+                "calls": f"{_present(observed_calls)}/{_present(threshold_calls)}/{_present(hard_calls)}",
+                "runtime": f"{_present(observed_runtime)}/{_present(threshold_runtime)}/{_present(hard_runtime)}",
+                "compactions": state["compactions"],
+                "full_suite_runs": state["full_suite_runs"],
+                "armed_before_dispatch": _present(state["monitor_armed_before_dispatch"]),
+                "arm_to_dispatch_ms": _present(state["arm_to_dispatch_ms"]),
+                "first_poll_ms": _present(state["dispatch_to_first_poll_ms"]),
+                "max_poll_gap_ms": _present(state["max_poll_gap_ms"]),
+                "late_polls": state["late_poll_count"],
+                "control_receipts": _joined_values(state["control_receipts"]),
+                "reasons": _joined_values(state["reasons"]),
+            }
+        )
+    return rows
+
+
+def _native_supervision_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    states = _native_supervision_states(records)
+    complete = sum(state["status"] == "completed" for state in states)
+    interrupted = sum(
+        state["decision"] in {"interrupt", "control-lost"}
+        or state["status"] in {"closed", "control-failed"}
+        for state in states
+    )
+    hard_overruns = sum(
+        isinstance(state["observed_tool_calls"], (int, float))
+        and isinstance(state["planned_tool_calls_hard"], (int, float))
+        and state["observed_tool_calls"] > state["planned_tool_calls_hard"]
+        for state in states
+    )
+    reserve_stops = sum(
+        state["decision"] == "interrupt"
+        and isinstance(state["observed_tool_calls"], (int, float))
+        and isinstance(state["planned_tool_calls_hard"], (int, float))
+        and state["observed_tool_calls"] <= state["planned_tool_calls_hard"]
+        for state in states
+    )
+    return {
+        "workers_supervised": len(states),
+        "completed": complete,
+        "interrupted_or_control_lost": interrupted,
+        "reserve_stops_before_hard_limit": reserve_stops,
+        "hard_limit_overruns": hard_overruns,
+        "planned_tool_calls_hard": sum(
+            state["planned_tool_calls_hard"] for state in states if isinstance(state["planned_tool_calls_hard"], (int, float))
+        ),
+        "observed_tool_calls": sum(
+            state["observed_tool_calls"] for state in states if isinstance(state["observed_tool_calls"], (int, float))
+        ),
+        "context_compactions": sum(int(state["compactions"] or 0) for state in states),
+        "full_suite_runs": sum(int(state["full_suite_runs"] or 0) for state in states),
+        "armed_before_dispatch": sum(state["monitor_armed_before_dispatch"] is True for state in states),
+        "late_poll_workers": sum(int(state["late_poll_count"] or 0) > 0 for state in states),
+        "late_poll_count": sum(int(state["late_poll_count"] or 0) for state in states),
+        "max_dispatch_to_first_poll_ms": max(
+            [state["dispatch_to_first_poll_ms"] for state in states if isinstance(state["dispatch_to_first_poll_ms"], (int, float))]
+            or [0]
+        ),
+        "max_poll_gap_ms": max(
+            [state["max_poll_gap_ms"] for state in states if isinstance(state["max_poll_gap_ms"], (int, float))]
+            or [0]
+        ),
     }
 
 
@@ -1764,6 +1975,8 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     dispositions = dispositions if isinstance(dispositions, dict) else {}
     sol_breakfix = report.get("sol_breakfix_summary", {})
     sol_breakfix = sol_breakfix if isinstance(sol_breakfix, dict) else {}
+    supervision = report.get("native_supervision_summary", {})
+    supervision = supervision if isinstance(supervision, dict) else {}
     gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
 
     status_line = "  ".join(
@@ -1829,10 +2042,23 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
             f"Sol break-fix {_cell(sol_breakfix.get('authorization_count'))}",
         ]
     )
+    supervision_line = "Supervision: " + "  ".join(
+        [
+            f"workers {_cell(supervision.get('workers_supervised'))}",
+            f"complete {_cell(supervision.get('completed'))}",
+            f"stopped {_cell(supervision.get('interrupted_or_control_lost'))}",
+            f"reserve-stop {_cell(supervision.get('reserve_stops_before_hard_limit'))}",
+            f"overrun {_cell(supervision.get('hard_limit_overruns'))}",
+            f"calls {_cell(supervision.get('observed_tool_calls'))}/{_cell(supervision.get('planned_tool_calls_hard'))}",
+            f"first-poll {_cell(supervision.get('max_dispatch_to_first_poll_ms'))}ms",
+            f"max-gap {_cell(supervision.get('max_poll_gap_ms'))}ms",
+            f"late {_cell(supervision.get('late_poll_count'))}",
+        ]
+    )
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
     lines = [_section_top("Dashboard", width)]
-    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, disposition_line, next_line]:
+    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, supervision_line, disposition_line, next_line]:
         lines.extend(_wrapped_box_lines(line, width))
     lines.append(_section_bottom(width))
     return lines

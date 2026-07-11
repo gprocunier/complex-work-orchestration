@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Worker Supervision Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_type", "version", "schema", "state_id", "packet_id", "session_id",
+    "decision", "reasons", "observed", "interrupt_thresholds", "control_turn_id", "control_timing", "control_action_required",
+    "session_disposition", "artifact_disposition", "artifact_validation",
+    "trailing_partial_record_ignored"
+  ],
+  "properties": {
+    "result_type": {"const": "cwo-native-supervision-decision"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-supervision-decision.schema.json"},
+    "state_id": {"type": "string", "minLength": 1},
+    "packet_id": {"type": "string", "minLength": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "decision": {"enum": ["continue", "warn", "interrupt", "complete", "control-lost"]},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "observed": {"type": "object"},
+    "interrupt_thresholds": {"type": "object"},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "control_timing": {"type": "object"},
+    "control_action_required": {"type": "boolean"},
+    "session_disposition": {"enum": ["accepted", "accepted-with-warning", "quarantined"]},
+    "artifact_disposition": {"enum": ["accepted", "independent-validation-required", "architect-adjudication-required", "rejected"]},
+    "artifact_validation": {"type": "object"},
+    "trailing_partial_record_ignored": {"type": "boolean"}
+  }
+}

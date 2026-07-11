@@ -113,9 +113,16 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 - In realignment, worker must stop mutating and await architect decision.
 - Fix -> reload -> resume means reinstall/reload this skill, then resume from Beads. Never resume the operative agent session.
 - Hard-stop returns for bootstrap policy are `needs-architect-realignment`, `budget-exhausted`, and `model-mismatch`.
+- Native operative packets are emitted as version 2. Version 1 remains readable for historical inspection but is dispatch-forbidden.
+- Every native operative worker requires `scripts/supervise_native_worker.py`. After trusted no-tools attestation, create and arm supervision before sending the task.
+- Bind `arm`, native `send_input`, `mark-dispatched`, one-second checks, interrupt, close, and receipts to one control-turn ID and one uninterrupted tool-orchestration turn. No assistant/model round-trip may occur between task submission and the first check.
+- A stale arm window, missing dispatch receipt, wrong control-turn ID, late first poll, or late intermediate poll is control loss and requires interruption. Do not use a long blocking wait as the monitor.
+- An `interrupt` or `control-lost` decision requires native interrupt, close, and recorded control receipts. Do not launch a salvage worker automatically.
+- If the active tool surface cannot interrupt, close, wait, or expose trusted session telemetry, stop before dispatch. Do not substitute Sol or another model.
 - Sol operative break-fix is forbidden by default. A self-hosting CWO incident requires explicit operator approval in the current interaction, an audited Bead-scoped authorization with a heavy warning, and fresh Spark validation; the exception expires when that Bead closes and must never be selected automatically.
 
-`scripts/check_native_worker_session.py` is the trusted monitor for native segment attestation; see
+`scripts/check_native_worker_session.py` provides retrospective/session checks;
+`scripts/supervise_native_worker.py` enforces live packet-v2 limits. See
 `references/execution-environments.md` for session-file lookup, segmenting, and exit-code
 rules.
 

@@ -34,6 +34,21 @@ TELEMETRY_NUMERIC_FIELDS = {
     "max_input_chars",
     "return_language_finding_count",
     "unexpected_script_ratio",
+    "planned_tool_calls_hard",
+    "interrupt_tool_calls_threshold",
+    "observed_tool_calls",
+    "planned_runtime_seconds_hard",
+    "interrupt_runtime_seconds_threshold",
+    "observed_runtime_seconds",
+    "observed_context_compactions",
+    "observed_full_suite_runs",
+    "validation_lineage_attempt",
+    "arm_to_dispatch_ms",
+    "dispatch_to_first_poll_ms",
+    "max_poll_gap_ms",
+    "late_poll_count",
+    "poll_interval_ms",
+    "poll_lag_tolerance_ms",
 }
 TELEMETRY_BOOLEAN_FIELDS = {
     "execution_enabled",
@@ -54,6 +69,11 @@ TELEMETRY_BOOLEAN_FIELDS = {
     "review_surface_required_evidence_missing",
     "master_review_packet_only_go_hold",
     "unicode_normalization_changed",
+    "native_supervision_required",
+    "control_action_required",
+    "control_receipt_confirmed",
+    "trailing_partial_record_ignored",
+    "monitor_armed_before_dispatch",
 }
 TELEMETRY_STRING_FIELDS = {
     "telemetry_kind",
@@ -107,6 +127,14 @@ TELEMETRY_STRING_FIELDS = {
     "expected_return_language",
     "expected_return_language_source",
     "return_language_status",
+    "native_supervision_state_id",
+    "native_supervision_decision",
+    "native_supervision_status",
+    "control_adapter",
+    "control_action",
+    "session_id",
+    "control_turn_id",
+    "submission_id",
 }
 TELEMETRY_STRING_LIST_FIELDS = {
     "telemetry_missing_reasons",
@@ -119,6 +147,8 @@ TELEMETRY_STRING_LIST_FIELDS = {
     "workerbee_actual_lanes",
     "workerbee_delegation_gap_reasons",
     "detected_letter_scripts",
+    "native_supervision_reasons",
+    "control_receipts",
 }
 
 AUDIT_NUMERIC_FIELDS = {

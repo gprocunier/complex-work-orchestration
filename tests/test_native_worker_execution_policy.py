@@ -18,6 +18,27 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
     def test_policy_is_json_loadable(self) -> None:
         self.assertIsInstance(self.__class__.policy, dict)
 
+    def test_live_supervision_policy_is_fail_closed(self) -> None:
+        policy = self.__class__.policy
+        self.assertEqual(policy["rollout_mode"], "canary-then-enforce")
+        self.assertEqual(policy["enforcement_mode"], "fail-closed")
+        self.assertEqual(policy["poll_interval_ms"], 1000)
+        self.assertEqual(policy["poll_lag_tolerance_ms"], 1500)
+        self.assertEqual(policy["arm_to_dispatch_max_ms"], 5000)
+        self.assertTrue(policy["control_turn_required"])
+        self.assertEqual(policy["segment_start_grace_seconds"], 10)
+        self.assertEqual(policy["tool_reserve"], {"ratio": 0.10, "floor": 3})
+        self.assertEqual(policy["runtime_reserve"], {"ratio": 0.10, "floor": 5})
+        self.assertEqual(policy["required_control_adapter"], "native-multi-agent-v1")
+        self.assertEqual(policy["required_capabilities"], ["interrupt", "close", "wait"])
+        self.assertEqual(policy["missing_telemetry_control"], "stop-before-dispatch")
+        self.assertEqual(policy["validation_attempt_limit"], 1)
+        self.assertTrue(policy["recursive_validation_forbidden"])
+        self.assertEqual(
+            policy["packet_versions"],
+            {"emitted": 2, "historical": [1], "dispatchable": [2]},
+        )
+
     def test_bootstrap_roles_and_attestation_invariants(self) -> None:
         policy = self.__class__.policy
         self.assertEqual(policy["governance"]["sol"]["role"], "architecture-and-adjudication-only")

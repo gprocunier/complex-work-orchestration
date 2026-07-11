@@ -142,20 +142,92 @@ model attestation from trusted control-plane/session metadata, never from model
 self-report. Hard-stop if actual model attestation is missing or not
 `gpt-5.3-codex-spark`; do not substitute Sol or another model.
 
-### Native session monitor
+### Native packet and live supervisor
 
-Use `scripts/check_native_worker_session.py` to validate native segment checks:
+Build a version-2 packet with a lane profile. Explicit limits may only tighten
+that profile:
 
 ```bash
-python3 scripts/check_native_worker_session.py \
+python3 scripts/prepare_native_worker.py build \
+  --bead-id "<bead-id>" \
+  --lane implementation \
+  --workdir "<repo>" \
+  --allowed-path "<repo>/scripts" \
+  --acceptance-check "focused tests pass" \
+  --tool-calls-soft 20 \
+  --tool-calls-hard 30 \
+  --output "<cwo-temp>/packet.json"
+```
+
+Packet version 1 is historical-inspection-only. Rendering or dispatching it
+fails closed. Packet version 2 records the effective budget, its policy
+provenance, reserve-derived interrupt thresholds, required control adapter, and
+single-attempt validation lineage.
+
+After the fresh native worker passes its no-tools trusted attestation, create and
+arm the supervisor before sending the operative task:
+
+```bash
+python3 scripts/supervise_native_worker.py start \
+  --packet "<cwo-temp>/packet.json" \
   --session-id "<session-id>" \
-  --requested-model "gpt-5.3-codex-spark" \
-  --budget-profile implementation \
-  --sessions-root "<path>" \
+  --session-file "<session-jsonl>" \
+  --agent-id "<native-agent-id>" \
+  --state-file "<cwo-temp>/supervision.json" \
+  --json
+python3 scripts/supervise_native_worker.py arm \
+  --state-file "<cwo-temp>/supervision.json" \
+  --control-turn-id "<unique-control-turn-id>" \
   --json
 ```
 
-Lookup and status rules:
+The remaining actions must run in one uninterrupted tool-orchestration turn:
+
+1. Call native `send_input` and retain its submission ID.
+2. Record that receipt within the policy arm window.
+3. Poll every second with the same control-turn ID.
+4. On exit code `2`, issue native interrupt, close the worker, and record both
+   receipts before returning control to the model.
+
+Do not place an assistant/model round-trip between `send_input` and the first
+poll. Record the submission and poll with:
+
+```bash
+python3 scripts/supervise_native_worker.py mark-dispatched \
+  --state-file "<cwo-temp>/supervision.json" \
+  --control-turn-id "<unique-control-turn-id>" \
+  --submission-id "<native-submission-id>" \
+  --json
+python3 scripts/supervise_native_worker.py check \
+  --state-file "<cwo-temp>/supervision.json" \
+  --control-turn-id "<unique-control-turn-id>" \
+  --json
+```
+
+Do not use a long `wait_agent` call as the monitor. A stale arm window, missing
+dispatch receipt, wrong control-turn ID, late first poll, or late intermediate
+poll fails closed as control loss. A `check` exit code of `2`
+means interrupt or control loss. Immediately issue native interrupt, close the
+worker, and record both receipts:
+
+```bash
+python3 scripts/supervise_native_worker.py finalize \
+  --state-file "<cwo-temp>/supervision.json" \
+  --control-turn-id "<unique-control-turn-id>" \
+  --control-action interrupt-confirmed --json
+python3 scripts/supervise_native_worker.py finalize \
+  --state-file "<cwo-temp>/supervision.json" \
+  --control-turn-id "<unique-control-turn-id>" \
+  --control-action close-confirmed --json
+```
+
+For a clean completion, record `--control-action worker-completed`. If interrupt,
+close, wait, or trusted session telemetry is unavailable, stop before dispatch.
+Do not substitute another model or start an automatic salvage chain.
+
+Use `scripts/check_native_worker_session.py --packet <packet-v2>` for an
+independent or retrospective session check. `--budget-profile` remains available
+for historical sessions without a packet. Lookup and status rules are:
 
 - Default sessions root is `<CODEX_HOME>/sessions` or `$HOME/.codex/sessions`.
 - `--session-id` lookup prefers exactly one filename containing the session id;
@@ -165,6 +237,12 @@ Lookup and status rules:
 - Exit codes: `0` for compliant/soft-limit, `2` for hard-stop/model mismatch,
   `1` for parse/input errors.
 - Segments follow `task_started` -> `task_complete` boundaries.
+- A short startup grace covers the interval between task submission and the first
+  trusted boundary; expiry is control loss.
+- The supervisor audits creation, arming, dispatch receipt, decision transitions,
+  and control receipts, not every poll. The execution dashboard reports
+  arm-to-dispatch latency, first-poll latency, maximum poll gap, late polls,
+  actual/interrupt/hard usage, reserve stops, and hard overruns.
 
 ### Bootstrap policy for native execution
 
@@ -183,7 +261,8 @@ Policy for CWO bootstrap operative execution is in
   redispatch.
 - Durable continuation is Beads checkpoint + fresh worker, not agent resume.
 - Lane budgets are enforced as implementation/validation/review/publish-report-admin
-  with soft/hard tool and time ceilings.
+  with soft/hard tool and time ceilings. Live interruption occurs at the
+  reserve-derived threshold before the hard ceiling.
 - Return statuses are `completed`, `blocked`, `needs-architect-realignment`,
   `budget-exhausted`, and `model-mismatch`.
 - `needs-architect-realignment` is required when two distinct soft-limit

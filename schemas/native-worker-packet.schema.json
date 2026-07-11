@@ -24,7 +24,7 @@
     },
     "version": {
       "type": "integer",
-      "const": 1
+      "enum": [1, 2]
     },
     "packet_id": {
       "type": "string",
@@ -189,6 +189,61 @@
         }
       }
     },
+    "budget_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "policy_source", "overrides_applied", "overridden_fields"],
+      "properties": {
+        "profile": {"type": "string", "minLength": 1},
+        "policy_source": {"const": "policy/native-worker-execution.yaml"},
+        "overrides_applied": {"type": "boolean"},
+        "overridden_fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["tool_calls_soft", "tool_calls_hard", "runtime_seconds_soft", "runtime_seconds_hard", "max_compactions", "max_full_suite_runs"]
+          }
+        }
+      }
+    },
+    "supervision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "mode", "poll_interval_ms", "poll_lag_tolerance_ms", "arm_to_dispatch_max_ms", "control_turn_required", "segment_start_grace_seconds", "control_adapter", "required_capabilities", "interrupt_thresholds"],
+      "properties": {
+        "required": {"const": true},
+        "mode": {"const": "live-fail-closed"},
+        "poll_interval_ms": {"type": "integer", "minimum": 100},
+        "poll_lag_tolerance_ms": {"type": "integer", "minimum": 0},
+        "arm_to_dispatch_max_ms": {"type": "integer", "minimum": 100},
+        "control_turn_required": {"const": true},
+        "segment_start_grace_seconds": {"type": "integer", "minimum": 1},
+        "control_adapter": {"const": "native-multi-agent-v1"},
+        "required_capabilities": {
+          "type": "array",
+          "const": ["interrupt", "close", "wait"]
+        },
+        "interrupt_thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tool_calls", "runtime_seconds"],
+          "properties": {
+            "tool_calls": {"type": "integer", "minimum": 0},
+            "runtime_seconds": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "validation_lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root_packet_id", "parent_packet_id", "attempt"],
+      "properties": {
+        "root_packet_id": {"type": "string", "minLength": 1},
+        "parent_packet_id": {"type": ["string", "null"]},
+        "attempt": {"type": "integer", "minimum": 0, "maximum": 1}
+      }
+    },
     "escalation_triggers": {
       "type": "object",
       "additionalProperties": false,
@@ -302,5 +357,11 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"version": {"const": 2}}},
+      "then": {"required": ["budget_provenance", "supervision", "validation_lineage"]}
+    }
+  ]
 }

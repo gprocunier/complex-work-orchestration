@@ -106,6 +106,14 @@ Beads task, run validation, and close the task with recovery-quality notes. For
 broader work, the coach can scaffold an epic with implementation, review,
 validation, publication, and handoff workstreams.
 
+In connected Codex work, the main Sol thread owns architecture and final
+decisions. Native Spark workerbees perform bounded operative tasks. CWO emits a
+version-2 worker packet, verifies the actual model from trusted session metadata,
+and supervises live tool, time, compaction, and full-suite limits. Missing
+control or telemetry stops dispatch; another frontier model is not a silent
+substitute. Native dispatch and one-second monitoring remain in one uninterrupted
+control turn so worker execution cannot advance during a model round-trip.
+
 For automation or troubleshooting, the same coach can be run directly:
 
 ```bash
@@ -144,8 +152,9 @@ flowchart LR
 
 ## Connected And Disconnected Paths
 
-The best-tested path is connected Codex: the main Codex thread plans, edits,
-runs checks, and records evidence in Beads.
+The best-tested path is connected Codex: the main Sol thread plans and
+adjudicates, supervised native Spark workers perform bounded operative work, and
+CWO records evidence in Beads.
 
 CWO is designed so the governance model can survive beyond one shell. Restricted
 or disconnected environments can render bounded work envelopes for OpenCode or

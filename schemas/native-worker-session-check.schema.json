@@ -10,6 +10,8 @@
     "session_path",
     "requested_model",
     "budget_profile",
+    "budget_provenance",
+    "interrupt_thresholds",
     "attestation_source",
     "attested_model",
     "status",
@@ -147,6 +149,12 @@
         }
       }
     },
+    "budget_provenance": {
+      "type": ["object", "null"]
+    },
+    "interrupt_thresholds": {
+      "type": ["object", "null"]
+    },
     "aggregate": {
       "type": "object",
       "additionalProperties": false,
@@ -227,7 +235,8 @@
           "return_status",
           "soft_limit_reasons",
           "hard_stop_reasons",
-          "records"
+          "records",
+          "complete"
         ],
         "properties": {
           "tool_calls": {
@@ -356,6 +365,9 @@
           "records": {
             "type": "integer",
             "minimum": 0
+          },
+          "complete": {
+            "type": "boolean"
           }
         }
       }

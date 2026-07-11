@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,9 @@ ALLOWED_PACKET_FIELDS = {
     "scope",
     "acceptance_checks",
     "budget",
+    "budget_provenance",
+    "supervision",
+    "validation_lineage",
     "escalation_triggers",
     "return_contract",
 }
@@ -55,6 +59,30 @@ ALLOWED_BUDGET_FIELDS = {
     "runtime_seconds_hard",
     "max_compactions",
     "max_full_suite_runs",
+}
+ALLOWED_BUDGET_PROVENANCE_FIELDS = {
+    "profile",
+    "policy_source",
+    "overrides_applied",
+    "overridden_fields",
+}
+ALLOWED_SUPERVISION_FIELDS = {
+    "required",
+    "mode",
+    "poll_interval_ms",
+    "poll_lag_tolerance_ms",
+    "arm_to_dispatch_max_ms",
+    "control_turn_required",
+    "segment_start_grace_seconds",
+    "control_adapter",
+    "required_capabilities",
+    "interrupt_thresholds",
+}
+ALLOWED_INTERRUPT_THRESHOLD_FIELDS = {"tool_calls", "runtime_seconds"}
+ALLOWED_VALIDATION_LINEAGE_FIELDS = {
+    "root_packet_id",
+    "parent_packet_id",
+    "attempt",
 }
 ALLOWED_ESCALATION_TRIGGER_FIELDS = {
     "scope_ambiguity",
@@ -181,6 +209,43 @@ def _policy_budgets_for_lane(lane: str) -> dict[str, int]:
         "runtime_seconds_hard": int(raw["runtime_seconds_hard"]),
         "max_compactions": int(raw["max_compactions"]),
         "max_full_suite_runs": int(raw["max_full_suite_runs"]),
+    }
+
+
+def _effective_budget(lane: str, overrides: dict[str, int] | None = None) -> tuple[dict[str, int], list[str]]:
+    policy_budget = _policy_budgets_for_lane(lane)
+    effective = dict(policy_budget)
+    changed: list[str] = []
+    for field, value in (overrides or {}).items():
+        if field not in ALLOWED_BUDGET_FIELDS:
+            raise SystemExit(f"unknown budget override {field!r}")
+        if not isinstance(value, int) or value < 0:
+            raise SystemExit(f"budget override {field} must be a non-negative integer")
+        if value > policy_budget[field]:
+            raise SystemExit(f"budget override {field} may only tighten the {lane!r} profile")
+        if value != policy_budget[field]:
+            effective[field] = value
+            changed.append(field)
+    if effective["tool_calls_hard"] < 5:
+        raise SystemExit("budget override tool_calls_hard must be at least 5")
+    if effective["tool_calls_soft"] > effective["tool_calls_hard"]:
+        raise SystemExit("budget override tool_calls_soft must not exceed tool_calls_hard")
+    if effective["runtime_seconds_soft"] > effective["runtime_seconds_hard"]:
+        raise SystemExit("budget override runtime_seconds_soft must not exceed runtime_seconds_hard")
+    return effective, sorted(changed)
+
+
+def _interrupt_thresholds(budget: dict[str, int]) -> dict[str, int]:
+    policy = load_policy("native-worker-execution")
+    tool_reserve = policy.get("tool_reserve", {})
+    runtime_reserve = policy.get("runtime_reserve", {})
+    tool_hard = budget["tool_calls_hard"]
+    runtime_hard = budget["runtime_seconds_hard"]
+    tool_margin = max(int(tool_reserve.get("floor", 3)), math.ceil(tool_hard * float(tool_reserve.get("ratio", 0.10))))
+    runtime_margin = max(int(runtime_reserve.get("floor", 5)), math.ceil(runtime_hard * float(runtime_reserve.get("ratio", 0.10))))
+    return {
+        "tool_calls": max(0, tool_hard - tool_margin),
+        "runtime_seconds": max(0, runtime_hard - runtime_margin),
     }
 
 
@@ -394,6 +459,10 @@ def build_native_worker_packet(
     allowed_paths: list[str],
     acceptance_checks: list[str],
     packet_id: str | None = None,
+    budget_overrides: dict[str, int] | None = None,
+    validation_root_packet_id: str | None = None,
+    validation_parent_packet_id: str | None = None,
+    validation_attempt: int = 0,
 ) -> dict[str, Any]:
     if not str(bead_id).strip():
         raise SystemExit("bead-id must be non-empty")
@@ -406,10 +475,30 @@ def build_native_worker_packet(
         raise SystemExit("acceptance_check values must be non-empty")
     workdir_path = _normalize_workdir(workdir)
     normalized_paths = _normalize_allowed_paths(allowed_paths, workdir_path)
+    packet_id = packet_id or make_dispatch_id(bead_id)
+    budget, overridden_fields = _effective_budget(lane, budget_overrides)
+    policy = load_policy("native-worker-execution")
+    if validation_attempt not in {0, 1}:
+        raise SystemExit("validation_attempt must be 0 or 1")
+    if validation_attempt == 1 and not validation_parent_packet_id:
+        raise SystemExit("validation attempt 1 requires a parent packet id")
+    if validation_attempt == 1 and not validation_root_packet_id:
+        raise SystemExit("validation attempt 1 requires an explicit root packet id")
+    if validation_attempt == 0 and validation_parent_packet_id:
+        raise SystemExit("validation attempt 0 cannot have a parent packet id")
+    root_packet_id = validation_root_packet_id or packet_id
+    if validation_attempt == 0 and root_packet_id != packet_id:
+        raise SystemExit("validation attempt 0 root packet id must equal packet id")
+    if validation_attempt == 1 and lane != "validation":
+        raise SystemExit("validation attempt 1 requires the validation lane")
+    if validation_attempt == 1 and validation_parent_packet_id != root_packet_id:
+        raise SystemExit("validation attempt 1 parent packet id must equal root packet id")
+    if validation_attempt == 1 and packet_id in {root_packet_id, validation_parent_packet_id}:
+        raise SystemExit("validation attempt 1 cannot reference itself")
     packet = {
         "packet_type": "cwo-native-worker-packet",
-        "version": 1,
-        "packet_id": packet_id or make_dispatch_id(bead_id),
+        "version": 2,
+        "packet_id": packet_id,
         "bead_id": bead_id,
         "lane": lane,
         "requested_model": _policy_model(),
@@ -431,7 +520,30 @@ def build_native_worker_packet(
             ],
         },
         "acceptance_checks": acceptance_checks,
-        "budget": _policy_budgets_for_lane(lane),
+        "budget": budget,
+        "budget_provenance": {
+            "profile": lane,
+            "policy_source": NATIVE_WORKER_POLICY_PATH,
+            "overrides_applied": bool(overridden_fields),
+            "overridden_fields": overridden_fields,
+        },
+        "supervision": {
+            "required": True,
+            "mode": "live-fail-closed",
+            "poll_interval_ms": int(policy.get("poll_interval_ms", 1000)),
+            "poll_lag_tolerance_ms": int(policy.get("poll_lag_tolerance_ms", 1500)),
+            "arm_to_dispatch_max_ms": int(policy.get("arm_to_dispatch_max_ms", 5000)),
+            "control_turn_required": policy.get("control_turn_required") is True,
+            "segment_start_grace_seconds": int(policy.get("segment_start_grace_seconds", 10)),
+            "control_adapter": str(policy.get("required_control_adapter", "native-multi-agent-v1")),
+            "required_capabilities": list(policy.get("required_capabilities", ["interrupt", "close", "wait"])),
+            "interrupt_thresholds": _interrupt_thresholds(budget),
+        },
+        "validation_lineage": {
+            "root_packet_id": root_packet_id,
+            "parent_packet_id": validation_parent_packet_id,
+            "attempt": validation_attempt,
+        },
         "escalation_triggers": _build_escalation_triggers(),
         "return_contract": _build_return_contract(),
     }
@@ -441,7 +553,7 @@ def build_native_worker_packet(
     return packet
 
 
-def validate_native_worker_packet(payload: Any) -> list[str]:
+def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -> list[str]:
     errors: list[str] = []
     if not isinstance(payload, dict):
         return ["packet is not a JSON object"]
@@ -454,8 +566,11 @@ def validate_native_worker_packet(payload: Any) -> list[str]:
     elif payload["packet_type"] != "cwo-native-worker-packet":
         errors.append("packet_type must be cwo-native-worker-packet")
 
-    if payload.get("version") != 1:
-        errors.append("version must be 1")
+    version = payload.get("version")
+    if version not in {1, 2}:
+        errors.append("version must be 1 or 2")
+    if dispatchable and version != 2:
+        errors.append("packet version 1 is historical-inspection-only and dispatch-forbidden")
 
     if (error := _required_nonempty_str(payload.get("packet_id"), "packet_id")) is not None:
         errors.append(error)
@@ -572,8 +687,95 @@ def validate_native_worker_packet(payload: Any) -> list[str]:
             for key, value in policy_budgets.items():
                 if (error := _required_int(budget.get(key), f"budget.{key}")) is not None:
                     errors.append(error)
-                elif budget[key] != value:
+                elif version == 1 and budget[key] != value:
                     errors.append(f"budget.{key} must equal policy profile for lane {lane!r}")
+                elif version == 2 and budget[key] > value:
+                    errors.append(f"budget.{key} may only tighten policy profile for lane {lane!r}")
+        if version == 2 and isinstance(budget.get("tool_calls_hard"), int) and budget["tool_calls_hard"] < 5:
+            errors.append("budget.tool_calls_hard must be at least 5")
+        if isinstance(budget.get("tool_calls_soft"), int) and isinstance(budget.get("tool_calls_hard"), int) and budget["tool_calls_soft"] > budget["tool_calls_hard"]:
+            errors.append("budget.tool_calls_soft must not exceed budget.tool_calls_hard")
+        if isinstance(budget.get("runtime_seconds_soft"), int) and isinstance(budget.get("runtime_seconds_hard"), int) and budget["runtime_seconds_soft"] > budget["runtime_seconds_hard"]:
+            errors.append("budget.runtime_seconds_soft must not exceed budget.runtime_seconds_hard")
+
+    if version == 2:
+        provenance = payload.get("budget_provenance")
+        if not isinstance(provenance, dict):
+            errors.append("budget_provenance must be an object for packet version 2")
+        else:
+            errors.extend(_reject_unknown_fields(provenance, "budget_provenance", ALLOWED_BUDGET_PROVENANCE_FIELDS))
+            if provenance.get("profile") != lane:
+                errors.append("budget_provenance.profile must equal lane")
+            if provenance.get("policy_source") != NATIVE_WORKER_POLICY_PATH:
+                errors.append("budget_provenance.policy_source must be policy/native-worker-execution.yaml")
+            overridden = provenance.get("overridden_fields")
+            if not isinstance(overridden, list) or any(item not in ALLOWED_BUDGET_FIELDS for item in overridden):
+                errors.append("budget_provenance.overridden_fields is invalid")
+            elif policy_budgets is not None and isinstance(budget, dict):
+                expected_overridden = sorted(
+                    key
+                    for key, policy_value in policy_budgets.items()
+                    if budget.get(key) != policy_value
+                )
+                if sorted(overridden) != expected_overridden:
+                    errors.append("budget_provenance.overridden_fields must match effective budget differences")
+                if provenance.get("overrides_applied") != bool(expected_overridden):
+                    errors.append("budget_provenance.overrides_applied must match effective budget differences")
+        supervision = payload.get("supervision")
+        if not isinstance(supervision, dict):
+            errors.append("supervision must be an object for packet version 2")
+        else:
+            errors.extend(_reject_unknown_fields(supervision, "supervision", ALLOWED_SUPERVISION_FIELDS))
+            expected_policy = load_policy("native-worker-execution")
+            if supervision.get("required") is not True or supervision.get("mode") != "live-fail-closed":
+                errors.append("supervision must require live-fail-closed mode")
+            if supervision.get("poll_interval_ms") != int(expected_policy.get("poll_interval_ms", 1000)):
+                errors.append("supervision.poll_interval_ms must match policy")
+            if supervision.get("poll_lag_tolerance_ms") != int(expected_policy.get("poll_lag_tolerance_ms", 1500)):
+                errors.append("supervision.poll_lag_tolerance_ms must match policy")
+            if supervision.get("arm_to_dispatch_max_ms") != int(expected_policy.get("arm_to_dispatch_max_ms", 5000)):
+                errors.append("supervision.arm_to_dispatch_max_ms must match policy")
+            if supervision.get("control_turn_required") is not True:
+                errors.append("supervision.control_turn_required must be true")
+            if supervision.get("segment_start_grace_seconds") != int(expected_policy.get("segment_start_grace_seconds", 10)):
+                errors.append("supervision.segment_start_grace_seconds must match policy")
+            if supervision.get("control_adapter") != expected_policy.get("required_control_adapter"):
+                errors.append("supervision.control_adapter must match policy")
+            if supervision.get("required_capabilities") != expected_policy.get("required_capabilities"):
+                errors.append("supervision.required_capabilities must match policy")
+            thresholds = supervision.get("interrupt_thresholds")
+            if not isinstance(thresholds, dict):
+                errors.append("supervision.interrupt_thresholds must be an object")
+            else:
+                errors.extend(_reject_unknown_fields(thresholds, "supervision.interrupt_thresholds", ALLOWED_INTERRUPT_THRESHOLD_FIELDS))
+                if isinstance(budget, dict) and all(isinstance(budget.get(key), int) for key in ALLOWED_BUDGET_FIELDS):
+                    if thresholds != _interrupt_thresholds(budget):
+                        errors.append("supervision.interrupt_thresholds must be derived from effective budget")
+        lineage = payload.get("validation_lineage")
+        if not isinstance(lineage, dict):
+            errors.append("validation_lineage must be an object for packet version 2")
+        else:
+            errors.extend(_reject_unknown_fields(lineage, "validation_lineage", ALLOWED_VALIDATION_LINEAGE_FIELDS))
+            attempt = lineage.get("attempt")
+            parent = lineage.get("parent_packet_id")
+            if attempt not in {0, 1}:
+                errors.append("validation_lineage.attempt must be 0 or 1")
+            if attempt == 0 and parent is not None:
+                errors.append("validation_lineage attempt 0 requires null parent_packet_id")
+            if attempt == 1 and not isinstance(parent, str):
+                errors.append("validation_lineage attempt 1 requires parent_packet_id")
+            if not isinstance(lineage.get("root_packet_id"), str) or not lineage.get("root_packet_id"):
+                errors.append("validation_lineage.root_packet_id is required")
+            root = lineage.get("root_packet_id")
+            packet_id = payload.get("packet_id")
+            if attempt == 0 and root != packet_id:
+                errors.append("validation_lineage attempt 0 root_packet_id must equal packet_id")
+            if attempt == 1 and lane != "validation":
+                errors.append("validation_lineage attempt 1 requires validation lane")
+            if attempt == 1 and parent != root:
+                errors.append("validation_lineage attempt 1 parent_packet_id must equal root_packet_id")
+            if attempt == 1 and packet_id in {parent, root}:
+                errors.append("validation_lineage attempt 1 cannot reference its own packet_id")
 
     escalation = payload.get("escalation_triggers")
     if not isinstance(escalation, dict):
@@ -942,6 +1144,8 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         "Acceptance checks:",
         accepted,
         f"Budget: tool-calls hard {budget['tool_calls_hard']} / soft {budget['tool_calls_soft']}, runtime hard {budget['runtime_seconds_hard']}s, max compactions {budget['max_compactions']}, max full-suite {budget['max_full_suite_runs']}",
+        f"Live supervision: poll {payload.get('supervision', {}).get('poll_interval_ms')}ms; interrupt thresholds {payload.get('supervision', {}).get('interrupt_thresholds')}",
+        f"Validation lineage: {payload.get('validation_lineage')}",
         f"Escalation triggers: {triggers}",
         f"Allowed statuses: {', '.join(payload['return_contract']['allowed_statuses'])}",
         "",
@@ -979,6 +1183,11 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--workdir", required=True)
     build.add_argument("--allowed-path", action="append", required=True, dest="allowed_paths")
     build.add_argument("--acceptance-check", action="append", required=True, dest="acceptance_checks")
+    for field in sorted(ALLOWED_BUDGET_FIELDS):
+        build.add_argument("--" + field.replace("_", "-"), type=int, dest=field)
+    build.add_argument("--validation-root-packet-id")
+    build.add_argument("--validation-parent-packet-id")
+    build.add_argument("--validation-attempt", type=int, choices=[0, 1], default=0)
     build.add_argument("--output")
 
     validate_cmd = subcommands.add_parser("validate", help="Validate a native-worker packet.")
@@ -1003,12 +1212,21 @@ def main() -> None:
         raise SystemExit(errors[0])
 
     if args.command == "build":
+        overrides = {
+            field: getattr(args, field)
+            for field in ALLOWED_BUDGET_FIELDS
+            if getattr(args, field) is not None
+        }
         packet = build_native_worker_packet(
             bead_id=args.bead_id,
             lane=args.lane,
             workdir=args.workdir,
             allowed_paths=args.allowed_paths,
             acceptance_checks=args.acceptance_checks,
+            budget_overrides=overrides,
+            validation_root_packet_id=args.validation_root_packet_id,
+            validation_parent_packet_id=args.validation_parent_packet_id,
+            validation_attempt=args.validation_attempt,
         )
         _emit_payload(packet, args.output)
         return
@@ -1023,7 +1241,7 @@ def main() -> None:
 
     if args.command == "render":
         packet = _load_json_payload(args.packet)
-        errors = validate_native_worker_packet(packet)
+        errors = validate_native_worker_packet(packet, dispatchable=True)
         if errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
         print(_render_prompt(packet))

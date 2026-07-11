@@ -55,8 +55,10 @@ def parse_args() -> argparse.Namespace:
         description="Check a native worker session log against native-worker policy budgets."
     )
     parser.add_argument("--session-id", required=True)
-    parser.add_argument("--requested-model", required=True)
-    parser.add_argument("--budget-profile", required=True, choices=SUPPORTED_BUDGET_PROFILES)
+    parser.add_argument("--requested-model")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--budget-profile", choices=SUPPORTED_BUDGET_PROFILES)
+    source.add_argument("--packet", help="Use requested model and effective budget from a dispatchable native packet v2.")
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument("--sessions-root", help="Directory containing session JSONL files.")
     source_group.add_argument(
@@ -344,11 +346,7 @@ def _extract_command(payload: Any) -> str | None:
     return None
 
 
-def _is_full_suite_command(command: str) -> bool:
-    try:
-        args = shlex.split(command)
-    except ValueError:
-        return False
+def _is_full_suite_args(args: list[str]) -> bool:
     if not args:
         return False
     interpreter = args[0].split("/")[-1]
@@ -360,22 +358,32 @@ def _is_full_suite_command(command: str) -> bool:
         return False
     if m_index + 1 >= len(args) or args[m_index + 1] != "unittest":
         return False
-    discover_index = -1
-    for index in range(m_index + 2, len(args)):
-        if args[index] == "discover":
-            discover_index = index
-            break
-    if discover_index == -1:
+    try:
+        discover_index = args.index("discover", m_index + 2)
+    except ValueError:
         return False
-    for index in range(discover_index + 1, len(args)):
-        token = args[index]
-        if token != "-s":
-            continue
-        if index + 1 >= len(args):
-            continue
-        if args[index + 1] == "tests":
+    for index in range(discover_index + 1, len(args) - 1):
+        if args[index] == "-s" and args[index + 1] == "tests":
             return True
     return False
+
+
+def _count_full_suite_commands(command: str) -> int:
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|\n")
+        lexer.whitespace = " \t\r"
+        lexer.whitespace_split = True
+        tokens = list(lexer)
+    except ValueError:
+        return 0
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token and all(character in ";&|\n" for character in token):
+            if segments[-1]:
+                segments.append([])
+            continue
+        segments[-1].append(token)
+    return sum(_is_full_suite_args(segment) for segment in segments if segment)
 
 
 def _record_token_snapshot(record: dict[str, Any]) -> dict[str, int] | None:
@@ -434,6 +442,7 @@ def _build_segment_snapshot() -> dict[str, Any]:
         "soft_limit_reasons": [],
         "hard_stop_reasons": [],
         "records": 0,
+        "complete": False,
         "session_disposition": "accepted",
         "artifact_disposition": "accepted",
         "artifact_validation": {
@@ -759,21 +768,20 @@ def _evaluate_records(
             if isinstance(rtype, str) and rtype in {"function_call", "custom_tool_call"}:
                 open_segment["tool_calls"] += 1
                 command = _extract_command(response_item) or ""
-                if _is_full_suite_command(command):
-                    open_segment["full_suite_runs"] += 1
+                open_segment["full_suite_runs"] += _count_full_suite_commands(command)
             elif event_msg == "response_event":
                 if (
                     isinstance(response_item.get("name"), str)
                     and response_item.get("name") == "Shell"
                 ):
                     command = _extract_command(response_item)
-                    if _is_full_suite_command(command or ""):
-                        open_segment["full_suite_runs"] += 1
+                    open_segment["full_suite_runs"] += _count_full_suite_commands(command or "")
 
         if event_msg == COMPACTION_EVENT:
             open_segment["context_compactions"] += 1
 
         if event_msg == SEGMENT_END_EVENT:
+            open_segment["complete"] = True
             segments.append(
                 _close_segment(
                     open_segment,
@@ -855,8 +863,31 @@ def _evaluate_records(
 
 def main() -> int:
     args = parse_args()
-    policy = _load_policy(args.budget_profile)
-    requested_model = args.requested_model.strip() or DEFAULT_REQUESTED_MODEL
+    packet_provenance = None
+    interrupt_thresholds = None
+    if args.packet:
+        from prepare_native_worker import validate_native_worker_packet
+
+        packet_path = Path(args.packet).expanduser().resolve()
+        try:
+            packet = json.loads(packet_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            _error(f"could not load packet {packet_path}: {exc}")
+        packet_errors = validate_native_worker_packet(packet, dispatchable=True)
+        if packet_errors:
+            _error("packet validation failed: " + "; ".join(packet_errors))
+        requested_model = str(packet["requested_model"])
+        if args.requested_model and args.requested_model.strip() != requested_model:
+            _error("--requested-model must match packet requested_model")
+        policy = {
+            "profile_name": str(packet["lane"]),
+            "snapshot": dict(packet["budget"]),
+        }
+        packet_provenance = packet.get("budget_provenance")
+        interrupt_thresholds = packet.get("supervision", {}).get("interrupt_thresholds")
+    else:
+        policy = _load_policy(args.budget_profile)
+        requested_model = (args.requested_model or DEFAULT_REQUESTED_MODEL).strip() or DEFAULT_REQUESTED_MODEL
     sessions_root = Path(args.sessions_root).expanduser().resolve() if args.sessions_root else _sessions_root(args.codex_home)
     explicit = Path(args.session_file).expanduser().resolve() if args.session_file else None
     session_file = find_session_file(args.session_id, sessions_root, explicit)
@@ -878,6 +909,8 @@ def main() -> int:
         "session_path": str(session_file),
         "requested_model": requested_model,
         "budget_profile": policy,
+        "budget_provenance": packet_provenance,
+        "interrupt_thresholds": interrupt_thresholds,
         "attestation_source": selected_segment["attestation_source"],
         "attested_model": selected_segment["attested_model"],
         "status": overall_status,

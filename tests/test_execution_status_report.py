@@ -521,6 +521,73 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertIn("Native Disposition Details", expanded)
         self.assertIn("Sol Break-Fix Exceptions", expanded)
 
+    def test_native_supervision_reports_planned_threshold_and_actual_usage(self) -> None:
+        common = {
+            "dispatch_id": "packet-supervision",
+            "bead_id": "cwo-supervision",
+            "native_supervision_state_id": "state-supervision",
+            "model": "gpt-5.3-codex-spark",
+            "role": "implementation",
+            "planned_tool_calls_hard": 10,
+            "interrupt_tool_calls_threshold": 7,
+            "planned_runtime_seconds_hard": 60,
+            "interrupt_runtime_seconds_threshold": 54,
+            "observed_context_compactions": 0,
+            "observed_full_suite_runs": 0,
+            "monitor_armed_before_dispatch": True,
+            "arm_to_dispatch_ms": 100,
+            "dispatch_to_first_poll_ms": 1000,
+            "max_poll_gap_ms": 1000,
+            "late_poll_count": 0,
+        }
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    **common,
+                    "event_type": "native_supervision_started",
+                    "native_supervision_status": "active",
+                    "native_supervision_decision": "continue",
+                    "observed_tool_calls": 0,
+                    "observed_runtime_seconds": 0,
+                },
+                {
+                    **common,
+                    "event_type": "native_supervision_decision",
+                    "native_supervision_status": "interrupt-pending",
+                    "native_supervision_decision": "interrupt",
+                    "native_supervision_reasons": ["tool-call-interrupt-threshold"],
+                    "observed_tool_calls": 7,
+                    "observed_runtime_seconds": 8,
+                },
+                {
+                    **common,
+                    "event_type": "native_supervision_control_receipt",
+                    "native_supervision_status": "closed",
+                    "native_supervision_decision": "interrupt",
+                    "control_receipts": ["interrupt-confirmed", "close-confirmed"],
+                    "observed_tool_calls": 7,
+                    "observed_runtime_seconds": 8,
+                },
+            ]
+        )
+        summary = report["native_supervision_summary"]
+        self.assertEqual(summary["workers_supervised"], 1)
+        self.assertEqual(summary["interrupted_or_control_lost"], 1)
+        self.assertEqual(summary["reserve_stops_before_hard_limit"], 1)
+        self.assertEqual(summary["hard_limit_overruns"], 0)
+        self.assertEqual(summary["planned_tool_calls_hard"], 10)
+        self.assertEqual(summary["observed_tool_calls"], 7)
+        self.assertEqual(summary["armed_before_dispatch"], 1)
+        self.assertEqual(summary["late_poll_count"], 0)
+        self.assertEqual(summary["max_dispatch_to_first_poll_ms"], 1000)
+        self.assertEqual(summary["max_poll_gap_ms"], 1000)
+        self.assertEqual(report["native_disposition_summary"]["records_considered"], 1)
+        self.assertEqual(report["native_supervision_details"][0]["calls"], "7/7/10")
+        self.assertEqual(report["native_supervision_details"][0]["first_poll_ms"], "1000")
+        self.assertIn("close-confirmed", report["native_supervision_details"][0]["control_receipts"])
+        self.assertIn("Supervision:", render_terminal(report, width=100))
+        self.assertIn("Native Supervision Details", render_terminal(report, width=100, layout="expanded"))
+
     def test_telemetry_gaps_report_missing_fields_by_source_kind(self) -> None:
         report = build_execution_status_report(
             audit_events=[
@@ -662,6 +729,8 @@ class ExecutionStatusReportTests(unittest.TestCase):
             "workerbee_delegation_details",
             "native_disposition_summary",
             "native_disposition_details",
+            "native_supervision_summary",
+            "native_supervision_details",
             "sol_breakfix_summary",
             "second_opinion_review_lane_productivity",
             "second_opinion_review_lane_productivity_details",
