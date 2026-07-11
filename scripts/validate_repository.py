@@ -76,6 +76,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "harness": {"access_profiles", "policy", "util"},
     "native_disposition": set(),
     "execution_status_report": {"audit", "paths"},
+    "native_session": {"native_disposition"},
+    "native_worker_contracts": {"native_disposition"},
     "public_copy": set(),
     "errors": set(),
     "types": set(),

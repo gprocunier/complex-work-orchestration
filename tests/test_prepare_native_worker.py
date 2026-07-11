@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -21,6 +22,7 @@ from prepare_native_worker import (  # noqa: E402
     validate_native_worker_return,
 )
 from cwo_core.native_disposition import derive_disposition  # noqa: E402
+from cwo_core import native_worker_contracts as contracts  # noqa: E402
 
 
 def set_disposition(packet: dict, result: dict) -> None:
@@ -57,6 +59,49 @@ class NativeWorkerPacketTests(unittest.TestCase):
             ROOT / "schemas" / "native-worker-return.schema.json",
         ]:
             json.loads(schema.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _schema(path: Path) -> dict[str, Any]:
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def test_packet_schema_property_contract_parity(self) -> None:
+        schema = self._schema(ROOT / "schemas" / "native-worker-packet.schema.json")
+        properties = schema["properties"]
+        self.assertEqual(set(properties.keys()), contracts.ALLOWED_PACKET_FIELDS)
+        self.assertEqual(set(properties["session_policy"]["properties"].keys()), contracts.ALLOWED_SESSION_POLICY_FIELDS)
+        self.assertEqual(
+            set(properties["session_policy"]["properties"]["attestation"]["properties"].keys()),
+            contracts.ALLOWED_ATTESTATION_FIELDS,
+        )
+        self.assertEqual(set(properties["scope"]["properties"].keys()), contracts.ALLOWED_SCOPE_FIELDS)
+        self.assertEqual(set(properties["budget"]["properties"].keys()), contracts.ALLOWED_BUDGET_FIELDS)
+        self.assertEqual(set(properties["budget_provenance"]["properties"].keys()), contracts.ALLOWED_BUDGET_PROVENANCE_FIELDS)
+        self.assertEqual(set(properties["supervision"]["properties"].keys()), contracts.ALLOWED_SUPERVISION_FIELDS)
+        self.assertEqual(
+            set(properties["supervision"]["properties"]["interrupt_thresholds"]["properties"].keys()),
+            contracts.ALLOWED_INTERRUPT_THRESHOLD_FIELDS,
+        )
+        self.assertEqual(set(properties["validation_lineage"]["properties"].keys()), contracts.ALLOWED_VALIDATION_LINEAGE_FIELDS)
+        self.assertEqual(set(properties["escalation_triggers"]["properties"].keys()), contracts.ALLOWED_ESCALATION_TRIGGER_FIELDS)
+        self.assertEqual(
+            set(properties["escalation_triggers"]["properties"]["soft_limit"]["properties"].keys()),
+            contracts.ALLOWED_ESCALATION_SOFT_LIMIT_FIELDS,
+        )
+        self.assertEqual(
+            set(properties["escalation_triggers"]["properties"]["hard_limit"]["properties"].keys()),
+            contracts.ALLOWED_ESCALATION_HARD_LIMIT_FIELDS,
+        )
+        self.assertEqual(
+            set(properties["escalation_triggers"]["properties"]["compaction"]["properties"].keys()),
+            contracts.ALLOWED_ESCALATION_COMPACTION_FIELDS,
+        )
+        self.assertEqual(set(properties["return_contract"]["properties"].keys()), contracts.ALLOWED_RETURN_CONTRACT_FIELDS)
+
+    def test_return_schema_property_contract_parity(self) -> None:
+        schema = self._schema(ROOT / "schemas" / "native-worker-return.schema.json")
+        properties = schema["properties"]
+        self.assertEqual(set(properties.keys()), contracts.ALLOWED_RETURN_FIELDS)
+        self.assertEqual(set(properties["usage"]["properties"].keys()), contracts.ALLOWED_RETURN_USAGE_FIELDS)
 
     def test_build_outputs_policy_derived_budget_and_contract(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

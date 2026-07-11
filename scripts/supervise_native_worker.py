@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from check_native_worker_session import (
+from cwo_core.native_session import (
     SEGMENT_START_EVENT,
     _evaluate_records,
     _is_user_boundary_record,

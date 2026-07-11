@@ -338,7 +338,16 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
     lines.extend(_key_value_box("Main Thread / Architect Productivity", report.get("main_thread_architect_productivity", {}), term_width))
     lines.extend(_key_value_box("Workerbee Delegation Summary", report.get("workerbee_delegation_summary", {}), term_width))
     lines.extend(_key_value_box("Native Session / Artifact Disposition", report.get("native_disposition_summary", {}), term_width))
-    lines.extend(_key_value_box("Native Worker Live Supervision", report.get("native_supervision_summary", {}), term_width))
+    lines.extend(
+        _key_value_box(
+            "Native Worker Live Supervision",
+            report.get("native_supervision_summary", {}),
+            term_width,
+            label_overrides={
+                "first_attempt_completion_rate_percent": "First attempt completion %",
+            },
+        )
+    )
     lines.extend(_key_value_box("Sol Break-Fix Exceptions", report.get("sol_breakfix_summary", {}), term_width))
     if expanded:
         lines.extend(
@@ -633,6 +642,7 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "native_supervision_status": _clean(record.get("native_supervision_status")),
         "native_supervision_decision": _clean(record.get("native_supervision_decision")),
         "native_supervision_reasons": _strings(record.get("native_supervision_reasons")),
+        "validation_lineage_attempt": _numeric(record, ("validation_lineage_attempt",)),
         "control_action": _clean(record.get("control_action")),
         "control_receipts": _strings(record.get("control_receipts")),
         "planned_tool_calls_hard": _numeric(record, ("planned_tool_calls_hard",)),
@@ -1255,6 +1265,7 @@ def _native_supervision_states(records: list[dict[str, Any]]) -> list[dict[str, 
                 "interrupt_runtime_seconds_threshold": None,
                 "observed_runtime_seconds": None,
                 "compactions": 0,
+                "validation_lineage_attempt": None,
                 "full_suite_runs": 0,
                 "monitor_armed_before_dispatch": None,
                 "arm_to_dispatch_ms": None,
@@ -1275,6 +1286,7 @@ def _native_supervision_states(records: list[dict[str, Any]]) -> list[dict[str, 
             ("planned_tool_calls_hard", "planned_tool_calls_hard"),
             ("interrupt_tool_calls_threshold", "interrupt_tool_calls_threshold"),
             ("observed_tool_calls", "observed_tool_calls"),
+            ("validation_lineage_attempt", "validation_lineage_attempt"),
             ("planned_runtime_seconds_hard", "planned_runtime_seconds_hard"),
             ("interrupt_runtime_seconds_threshold", "interrupt_runtime_seconds_threshold"),
             ("observed_runtime_seconds", "observed_runtime_seconds"),
@@ -1289,6 +1301,10 @@ def _native_supervision_states(records: list[dict[str, Any]]) -> list[dict[str, 
             value = record.get(source)
             if value not in (None, "", []):
                 row[target] = value
+        if row["validation_lineage_attempt"] is None:
+            lineage = record.get("validation_lineage")
+            if isinstance(lineage, dict) and "attempt" in lineage:
+                row["validation_lineage_attempt"] = lineage.get("attempt")
         row["control_receipts"] = _unique_items([*row["control_receipts"], *_strings(record.get("control_receipts"))])
         row["reasons"] = _unique_items([*row["reasons"], *_strings(record.get("native_supervision_reasons"))])
     return [grouped[key] for key in sorted(grouped)]
@@ -1336,12 +1352,15 @@ def _native_supervision_summary(records: list[dict[str, Any]]) -> dict[str, Any]
         or state["status"] in {"closed", "control-failed"}
         for state in states
     )
+    control_lost_workers = sum(state["decision"] == "control-lost" for state in states)
+    completion_rate = _percentage_ratio(complete, len(states))
     hard_overruns = sum(
         isinstance(state["observed_tool_calls"], (int, float))
         and isinstance(state["planned_tool_calls_hard"], (int, float))
         and state["observed_tool_calls"] > state["planned_tool_calls_hard"]
         for state in states
     )
+    hard_limit_breach_rate = _percentage_ratio(hard_overruns, len(states))
     reserve_stops = sum(
         state["decision"] == "interrupt"
         and isinstance(state["observed_tool_calls"], (int, float))
@@ -1349,18 +1368,45 @@ def _native_supervision_summary(records: list[dict[str, Any]]) -> dict[str, Any]
         and state["observed_tool_calls"] <= state["planned_tool_calls_hard"]
         for state in states
     )
+    planned_tool_calls_hard = sum(
+        state["planned_tool_calls_hard"] for state in states if isinstance(state["planned_tool_calls_hard"], (int, float))
+    )
+    observed_tool_calls = sum(
+        state["observed_tool_calls"] for state in states if isinstance(state["observed_tool_calls"], (int, float))
+    )
+    compaction_workers = sum(int(state["compactions"] or 0) > 0 for state in states)
+    compaction_rate = _percentage_ratio(compaction_workers, len(states))
+    first_attempt_workers = sum(
+        isinstance(state["validation_lineage_attempt"], (int, float)) and state["validation_lineage_attempt"] == 0
+        for state in states
+    )
+    first_attempt_completed = sum(
+        state["status"] == "completed"
+        and isinstance(state["validation_lineage_attempt"], (int, float))
+        and state["validation_lineage_attempt"] == 0
+        for state in states
+    )
+    first_attempt_completion_rate = _percentage_ratio(first_attempt_completed, first_attempt_workers)
+    control_loss_rate = _percentage_ratio(control_lost_workers, len(states))
+    hard_budget_utilization = _percentage_ratio(observed_tool_calls, planned_tool_calls_hard)
     return {
         "workers_supervised": len(states),
         "completed": complete,
         "interrupted_or_control_lost": interrupted,
+        "completion_rate_percent": completion_rate,
+        "control_lost_workers": control_lost_workers,
+        "control_loss_rate_percent": control_loss_rate,
         "reserve_stops_before_hard_limit": reserve_stops,
         "hard_limit_overruns": hard_overruns,
-        "planned_tool_calls_hard": sum(
-            state["planned_tool_calls_hard"] for state in states if isinstance(state["planned_tool_calls_hard"], (int, float))
-        ),
-        "observed_tool_calls": sum(
-            state["observed_tool_calls"] for state in states if isinstance(state["observed_tool_calls"], (int, float))
-        ),
+        "hard_limit_breach_rate_percent": hard_limit_breach_rate,
+        "planned_tool_calls_hard": planned_tool_calls_hard,
+        "observed_tool_calls": observed_tool_calls,
+        "hard_budget_utilization_percent": hard_budget_utilization,
+        "compaction_workers": compaction_workers,
+        "compaction_worker_rate_percent": compaction_rate,
+        "first_attempt_workers": first_attempt_workers,
+        "first_attempt_completed": first_attempt_completed,
+        "first_attempt_completion_rate_percent": first_attempt_completion_rate,
         "context_compactions": sum(int(state["compactions"] or 0) for state in states),
         "full_suite_runs": sum(int(state["full_suite_runs"] or 0) for state in states),
         "armed_before_dispatch": sum(state["monitor_armed_before_dispatch"] is True for state in states),
@@ -1718,6 +1764,12 @@ def _has_numeric_metric(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _percentage_ratio(numerator: Any, denominator: Any) -> float:
+    if not _has_numeric_metric(numerator) or not _has_numeric_metric(denominator) or denominator <= 0:
+        return 0.0
+    return round(100 * float(numerator) / float(denominator), 1)
+
+
 def _is_second_opinion(record: dict[str, Any]) -> bool:
     if record.get("provider_external") is True:
         return True
@@ -2046,7 +2098,9 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
         [
             f"workers {_cell(supervision.get('workers_supervised'))}",
             f"complete {_cell(supervision.get('completed'))}",
+            f"util {_cell(supervision.get('hard_budget_utilization_percent'))}%",
             f"stopped {_cell(supervision.get('interrupted_or_control_lost'))}",
+            f"control-loss {_cell(supervision.get('control_loss_rate_percent'))}%",
             f"reserve-stop {_cell(supervision.get('reserve_stops_before_hard_limit'))}",
             f"overrun {_cell(supervision.get('hard_limit_overruns'))}",
             f"calls {_cell(supervision.get('observed_tool_calls'))}/{_cell(supervision.get('planned_tool_calls_hard'))}",
@@ -2102,10 +2156,17 @@ def _missing_reason_summary(reasons: Any, *, limit: int = 2) -> str:
     return ",".join(shown)
 
 
-def _key_value_box(title: str, mapping: Any, width: int) -> list[str]:
+def _key_value_box(
+    title: str,
+    mapping: Any,
+    width: int,
+    *,
+    label_overrides: dict[str, str] | None = None,
+) -> list[str]:
     if not isinstance(mapping, dict):
         mapping = {}
-    rows = [[_label(key), _cell(value)] for key, value in mapping.items()]
+    labels = label_overrides or {}
+    rows = [[labels.get(key, _label(key)), _cell(value)] for key, value in mapping.items()]
     return _table(title, ["Metric", "Value"], rows, width)
 
 

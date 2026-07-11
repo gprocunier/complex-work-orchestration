@@ -14,6 +14,8 @@ __all__ = [
     "execution_status_report",
     "harness",
     "native_disposition",
+    "native_session",
+    "native_worker_contracts",
     "packets",
     "paths",
     "policy",

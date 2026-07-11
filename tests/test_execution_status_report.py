@@ -588,6 +588,100 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertIn("Supervision:", render_terminal(report, width=100))
         self.assertIn("Native Supervision Details", render_terminal(report, width=100, layout="expanded"))
 
+    def test_native_supervision_summary_mixed_states_and_first_attempts(self) -> None:
+        common = {
+            "dispatch_id": "packet-supervision",
+            "bead_id": "cwo-supervision",
+            "model": "gpt-5.3-codex-spark",
+            "role": "implementation",
+            "planned_tool_calls_hard": 10,
+            "interrupt_tool_calls_threshold": 7,
+            "planned_runtime_seconds_hard": 60,
+            "interrupt_runtime_seconds_threshold": 54,
+            "observed_context_compactions": 0,
+            "observed_full_suite_runs": 0,
+            "monitor_armed_before_dispatch": True,
+            "arm_to_dispatch_ms": 100,
+            "dispatch_to_first_poll_ms": 1000,
+            "max_poll_gap_ms": 1000,
+            "late_poll_count": 0,
+        }
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    **common,
+                    "native_supervision_state_id": "state-complete",
+                    "native_supervision_status": "completed",
+                    "native_supervision_decision": "continue",
+                    "validation_lineage_attempt": 0,
+                    "observed_tool_calls": 5,
+                    "observed_runtime_seconds": 5,
+                },
+                {
+                    **common,
+                    "native_supervision_state_id": "state-reserve",
+                    "native_supervision_status": "closed",
+                    "native_supervision_decision": "interrupt",
+                    "validation_lineage_attempt": 0,
+                    "observed_tool_calls": 7,
+                    "observed_runtime_seconds": 8,
+                },
+                {
+                    **common,
+                    "native_supervision_state_id": "state-control-lost",
+                    "native_supervision_status": "control-failed",
+                    "native_supervision_decision": "control-lost",
+                    "validation_lineage_attempt": 1,
+                    "observed_tool_calls": 12,
+                    "observed_context_compactions": 1,
+                    "observed_runtime_seconds": 11,
+                    "native_supervision_reasons": ["control-loss-timeout", "compaction"],
+                },
+            ]
+        )
+        summary = report["native_supervision_summary"]
+        self.assertEqual(summary["workers_supervised"], 3)
+        self.assertEqual(summary["completed"], 1)
+        self.assertEqual(summary["interrupted_or_control_lost"], 2)
+        self.assertEqual(summary["control_lost_workers"], 1)
+        self.assertEqual(summary["reserve_stops_before_hard_limit"], 1)
+        self.assertEqual(summary["hard_limit_overruns"], 1)
+        self.assertEqual(summary["hard_limit_breach_rate_percent"], 33.3)
+        self.assertEqual(summary["completion_rate_percent"], 33.3)
+        self.assertEqual(summary["control_loss_rate_percent"], 33.3)
+        self.assertEqual(summary["compaction_workers"], 1)
+        self.assertEqual(summary["compaction_worker_rate_percent"], 33.3)
+        self.assertEqual(summary["first_attempt_workers"], 2)
+        self.assertEqual(summary["first_attempt_completed"], 1)
+        self.assertEqual(summary["first_attempt_completion_rate_percent"], 50.0)
+        self.assertEqual(summary["hard_budget_utilization_percent"], 80.0)
+        self.assertIn(
+            "First attempt completion %",
+            render_terminal(report, width=120, layout="expanded"),
+        )
+        rendered = render_terminal(report, width=100)
+        self.assertIn("util 80.0%", rendered)
+        self.assertIn("control-loss 33.3%", rendered)
+        self.assertIn("Native Supervision Details", render_terminal(report, width=100, layout="expanded"))
+
+    def test_native_supervision_summary_zero_state(self) -> None:
+        report = build_execution_status_report()
+        summary = report["native_supervision_summary"]
+        self.assertEqual(summary["workers_supervised"], 0)
+        self.assertEqual(summary["completed"], 0)
+        self.assertEqual(summary["completion_rate_percent"], 0.0)
+        self.assertEqual(summary["control_loss_rate_percent"], 0.0)
+        self.assertEqual(summary["hard_limit_breach_rate_percent"], 0.0)
+        self.assertEqual(summary["hard_budget_utilization_percent"], 0.0)
+        self.assertEqual(summary["compaction_workers"], 0)
+        self.assertEqual(summary["compaction_worker_rate_percent"], 0.0)
+        self.assertEqual(summary["first_attempt_workers"], 0)
+        self.assertEqual(summary["first_attempt_completed"], 0)
+        self.assertEqual(summary["first_attempt_completion_rate_percent"], 0.0)
+        rendered = render_terminal(report, width=100)
+        self.assertIn("util 0.0%", rendered)
+        self.assertIn("control-loss 0.0%", rendered)
+
     def test_telemetry_gaps_report_missing_fields_by_source_kind(self) -> None:
         report = build_execution_status_report(
             audit_events=[

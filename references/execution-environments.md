@@ -244,6 +244,14 @@ for historical sessions without a packet. Lookup and status rules are:
   arm-to-dispatch latency, first-poll latency, maximum poll gap, late polls,
   actual/interrupt/hard usage, reserve stops, and hard overruns.
 
+### Proof-period rubric (canonical native supervisor)
+
+- Epic proof target: hard breaches 0; compactions 0; automatic salvage 0; control-loss <2%
+- First-attempt completion: >=80% with no more than one independent validation per repair root
+- Sol operative exceptions: 0 outside approved self-repair
+- Track aggregate budget utilization, Sol reasoning tokens, total Spark tokens/calls, elapsed time, and operator interventions vs pre-delegation work
+- Delegation ROI is not yet proven
+
 ### Bootstrap policy for native execution
 
 Policy for CWO bootstrap operative execution is in
