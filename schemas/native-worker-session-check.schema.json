@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Worker Session Check",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "session_id",
+    "session_path",
+    "requested_model",
+    "budget_profile",
+    "attestation_source",
+    "attested_model",
+    "status",
+    "return_status",
+    "segments",
+    "aggregate",
+    "soft_limit_reasons",
+    "hard_stop_reasons"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "schemas/native-worker-session-check.schema.json"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attestation_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attested_model": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "within-budget",
+        "soft-limit",
+        "needs-architect-realignment",
+        "budget-exhausted",
+        "model-mismatch"
+      ]
+    },
+    "return_status": {
+      "type": "string",
+      "enum": [
+        "within-budget",
+        "soft-limit",
+        "needs-architect-realignment",
+        "budget-exhausted",
+        "model-mismatch"
+      ]
+    },
+    "budget_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_name",
+        "snapshot"
+      ],
+      "properties": {
+        "profile_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tool_calls_soft",
+            "tool_calls_hard",
+            "runtime_seconds_soft",
+            "runtime_seconds_hard",
+            "max_compactions",
+            "max_full_suite_runs"
+          ],
+          "properties": {
+            "tool_calls_soft": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_calls_hard": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "runtime_seconds_soft": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "runtime_seconds_hard": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_compactions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_full_suite_runs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_calls",
+        "context_compactions",
+        "full_suite_runs",
+        "runtime_seconds",
+        "token_deltas"
+      ],
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_compactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "full_suite_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "token_deltas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "input",
+            "cached_input",
+            "output",
+            "reasoning",
+            "total"
+          ],
+          "properties": {
+            "input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cached_input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reasoning": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tool_calls",
+          "context_compactions",
+          "full_suite_runs",
+          "runtime_seconds",
+          "token_deltas",
+          "models",
+          "attested_model",
+          "attestation_source",
+          "status",
+          "return_status",
+          "soft_limit_reasons",
+          "hard_stop_reasons",
+          "records"
+        ],
+        "properties": {
+          "tool_calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "context_compactions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "full_suite_runs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runtime_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "token_deltas": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "input",
+              "cached_input",
+              "output",
+              "reasoning",
+              "total"
+            ],
+            "properties": {
+              "input": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cached_input": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "output": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reasoning": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "attested_model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attestation_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "within-budget",
+              "soft-limit",
+              "needs-architect-realignment",
+              "budget-exhausted",
+              "model-mismatch"
+            ]
+          },
+          "return_status": {
+            "type": "string",
+            "enum": [
+              "within-budget",
+              "soft-limit",
+              "needs-architect-realignment",
+              "budget-exhausted",
+              "model-mismatch"
+            ]
+          },
+          "soft_limit_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hard_stop_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "records": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "soft_limit_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hard_stop_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

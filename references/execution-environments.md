@@ -142,6 +142,30 @@ model attestation from trusted control-plane/session metadata, never from model
 self-report. Hard-stop if actual model attestation is missing or not
 `gpt-5.3-codex-spark`; do not substitute Sol or another model.
 
+### Native session monitor
+
+Use `scripts/check_native_worker_session.py` to validate native segment checks:
+
+```bash
+python3 scripts/check_native_worker_session.py \
+  --session-id "<session-id>" \
+  --requested-model "gpt-5.3-codex-spark" \
+  --budget-profile implementation \
+  --sessions-root "<path>" \
+  --json
+```
+
+Lookup and status rules:
+
+- Default sessions root is `<CODEX_HOME>/sessions` or `$HOME/.codex/sessions`.
+- `--session-id` lookup prefers exactly one filename containing the session id;
+  duplicate or missing matches fail.
+- If no filename match exists, the checker falls back to content scan; malformed
+  unrelated files are skipped.
+- Exit codes: `0` for compliant/soft-limit, `2` for hard-stop/model mismatch,
+  `1` for parse/input errors.
+- Segments follow `task_started` -> `task_complete` boundaries.
+
 ### Bootstrap policy for native execution
 
 Policy for CWO bootstrap operative execution is in

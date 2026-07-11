@@ -114,6 +114,10 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 - Fix -> reload -> resume means reinstall/reload this skill, then resume from Beads. Never resume the operative agent session.
 - Hard-stop returns for bootstrap policy are `needs-architect-realignment`, `budget-exhausted`, and `model-mismatch`.
 
+`scripts/check_native_worker_session.py` is the trusted monitor for native segment attestation; see
+`references/execution-environments.md` for session-file lookup, segmenting, and exit-code
+rules.
+
 ## Reference Map
 
 - Human operating guide: `README.md`
@@ -187,32 +191,8 @@ themselves; the final TUI response must include the packet. Use
 python3 scripts/validate_operator_handoff.py <handoff.md>
 ```
 
-## Required Output
+For closeout and resume guidance, use the existing continuation format in
+`references/run-readiness.md`.
 
-When CWO is used, return only the useful orchestration packet:
-
-- harness decision and why
-- coach result, if used
-- route class, risk, sensitivity, selected experts, and executor
-- Beads tasks or graph summary
-- contractor, local-worker, evaluation, and adjudication gates, if any
-- validation matrix and escalation rules
-- resume command, usually `bd ready --json`
-
-For closeout or handoff responses, include these exact continuation fields:
-
-- Next executable Bead
-- Why it is next
-- Exact command/resume
-- Execution prompt
-- What must NOT run yet
-- Commit/push status
-- Validation status
-- Escalation rule
-
-If no next work exists, write `none - stop condition met` and explain the
-stop condition. Do not let commit/push/remote verification replace the
-continuation packet.
-
-For broad or risky work, do not begin worker execution until the user has seen
-the scaffold unless they explicitly asked you to proceed end to end.
+For closeout/handoff, retain the required fields:
+`Next executable Bead`, `Commit/push status`, and `Execution prompt`.
