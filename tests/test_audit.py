@@ -74,6 +74,42 @@ class AuditTests(unittest.TestCase):
             self.assertEqual(loaded["input_tokens"], 8)
             self.assertNotIn("total_tokens", loaded)
 
+    def test_sol_breakfix_authorization_fields_survive_sanitization(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit = Path(tmp) / "audit.jsonl"
+            record_audit_event(
+                {
+                    "event_type": "sol_breakfix_authorized",
+                    "bead_id": "project-123",
+                    "operator_approval_ref": "current-chat-turn",
+                    "sol_breakfix_incident_kind": "self-hosting-orchestration",
+                    "sol_breakfix_scope": "repair native worker controls",
+                    "sol_breakfix_expiry": "project-123",
+                    "swimlane_violation": True,
+                    "automatic_selection_forbidden": True,
+                    "session_disposition": "quarantined",
+                    "artifact_disposition": "independent-validation-required",
+                    "artifact_validation": {
+                        "eligible": True,
+                        "max_attempts": 1,
+                        "attempts_used": 0,
+                        "outcome": "not-run",
+                        "reason": "budget-only hard overrun",
+                    },
+                },
+                audit,
+            )
+            loaded = json.loads(audit.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(loaded["operator_approval_ref"], "current-chat-turn")
+            self.assertEqual(loaded["sol_breakfix_incident_kind"], "self-hosting-orchestration")
+            self.assertEqual(loaded["sol_breakfix_scope"], "repair native worker controls")
+            self.assertEqual(loaded["sol_breakfix_expiry"], "project-123")
+            self.assertTrue(loaded["swimlane_violation"])
+            self.assertTrue(loaded["automatic_selection_forbidden"])
+            self.assertEqual(loaded["session_disposition"], "quarantined")
+            self.assertEqual(loaded["artifact_disposition"], "independent-validation-required")
+            self.assertTrue(loaded["artifact_validation"]["eligible"])
+
     def test_audit_event_sanitizes_workspace_mutation_object(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             audit = Path(tmp) / "audit.jsonl"

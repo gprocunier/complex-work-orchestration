@@ -74,6 +74,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "waivers": set(),
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
+    "native_disposition": set(),
     "execution_status_report": {"audit", "paths"},
     "public_copy": set(),
     "errors": set(),
@@ -100,6 +101,10 @@ PUBLIC_COPY_INTERNAL_LABEL_ALLOWED_FILES = {
     "AGENTS.md",
 }
 WAIVER_CONVENTION_SCRIPTS = {
+    "scripts/authorize_sol_breakfix.py": {
+        "flags": ["--allow-sol-breakfix"],
+        "audit_fields": True,
+    },
     "scripts/build_contractor_packet.py": {
         "flags": ["--allow-disclosure-escalation", "--no-audit"],
         "audit_fields": True,

@@ -190,8 +190,49 @@ Policy for CWO bootstrap operative execution is in
   dimensions are exceeded in one segment (for example tools + elapsed), or when
   any hard limit is hit.
 - Realignment requires completed evidence, files touched, mutation state,
-  decision required, bounded options, recommendation, remaining scope, and usage.
+  decision required, bounded options, recommendation, remaining scope, usage,
+  session disposition, artifact disposition, and validation state.
 - Resume path for fixes is: reinstall/reload the skill, then resume from Beads.
+
+### Session and artifact disposition
+
+A stopped worker and its output are separate decisions. The session disposition
+records whether the worker may continue; the artifact disposition records what
+may happen to the work already produced.
+
+- Model mismatch rejects the artifact. It is never validation-eligible.
+- Context compaction quarantines the session and requires architect adjudication
+  of the artifact.
+- A budget-only overrun quarantines the session but may send the artifact to one
+  fresh independent validation attempt.
+- A passed independent validation accepts the artifact. A failed attempt rejects
+  it and ends the path; CWO must not start an automatic salvage chain.
+
+Both dispositions and the validation attempt state are emitted by
+`scripts/check_native_worker_session.py`, required in newly generated native
+worker returns, and included in the execution report dashboard.
+
+### Exceptional Sol break-fix
+
+Sol remains the architect and adjudicator. Operative Sol work is allowed only
+to repair a self-hosting CWO orchestration incident after the operator approves
+that exact exception in the current interaction. Record it before work begins:
+
+```bash
+python3 scripts/authorize_sol_breakfix.py \
+  --allow-sol-breakfix \
+  --operator-approval-ref "current interaction" \
+  --bead "<incident-bead>" \
+  --incident-kind self-hosting-orchestration \
+  --scope "<bounded incident repair>" \
+  --expires-after-bead "<incident-bead>" \
+  --waiver-reason "<why native Spark cannot safely repair its own harness>"
+```
+
+The authorization is warning-bearing, audited, forbidden as an automatic
+fallback, and invalid for convenience, speed, quota substitution, or ordinary
+feature work. It expires when the named Bead closes. A fresh native Spark lane
+must independently validate the result before publication.
 
 ### Enterprise Evaluation Targets
 

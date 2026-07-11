@@ -113,6 +113,7 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 - In realignment, worker must stop mutating and await architect decision.
 - Fix -> reload -> resume means reinstall/reload this skill, then resume from Beads. Never resume the operative agent session.
 - Hard-stop returns for bootstrap policy are `needs-architect-realignment`, `budget-exhausted`, and `model-mismatch`.
+- Sol operative break-fix is forbidden by default. A self-hosting CWO incident requires explicit operator approval in the current interaction, an audited Bead-scoped authorization with a heavy warning, and fresh Spark validation; the exception expires when that Bead closes and must never be selected automatically.
 
 `scripts/check_native_worker_session.py` is the trusted monitor for native segment attestation; see
 `references/execution-environments.md` for session-file lookup, segmenting, and exit-code

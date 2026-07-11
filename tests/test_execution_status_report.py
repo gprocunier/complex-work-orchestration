@@ -469,6 +469,58 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertIn("Workerbees:", rendered)
         self.assertIn("unfulfilled 1", rendered)
 
+    def test_native_dispositions_and_sol_breakfix_are_visible(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "spark-overrun",
+                    "event_type": "execution_telemetry_import",
+                    "bead_id": "cwo-disposition",
+                    "lane": "implementation",
+                    "session_disposition": "quarantined",
+                    "artifact_disposition": "independent-validation-required",
+                    "artifact_validation": {
+                        "eligible": True,
+                        "max_attempts": 1,
+                        "attempts_used": 0,
+                        "outcome": "not-run",
+                        "reason": "budget-only hard overrun",
+                    },
+                },
+                {
+                    "event_type": "sol_breakfix_authorized",
+                    "bead_id": "cwo-disposition",
+                    "operator_approval_ref": "current-chat-turn",
+                    "sol_breakfix_scope": "self-hosting incident repair",
+                    "sol_breakfix_expiry": "cwo-disposition",
+                    "automatic_selection_forbidden": True,
+                },
+                {
+                    "dispatch_id": "legacy-spark",
+                    "event_type": "dispatch",
+                    "bead_id": "cwo-legacy",
+                    "model": "gpt-5.3-codex-spark",
+                },
+            ]
+        )
+
+        summary = report["native_disposition_summary"]
+        self.assertEqual(summary["session_quarantined"], 1)
+        self.assertEqual(summary["session_unknown"], 1)
+        self.assertEqual(summary["artifact_validation_required"], 1)
+        self.assertEqual(summary["validation_eligible"], 1)
+        self.assertEqual(report["sol_breakfix_summary"]["authorization_count"], 1)
+        self.assertTrue(report["sol_breakfix_summary"]["automatic_selection_forbidden"])
+        self.assertEqual(len(report["native_disposition_details"]), 2)
+
+        dashboard = render_terminal(report, width=120)
+        self.assertIn("Dispositions:", dashboard)
+        self.assertIn("Sol break-fix 1", dashboard)
+        expanded = render_terminal(report, width=120, layout="expanded")
+        self.assertIn("Native Session / Artifact Disposition", expanded)
+        self.assertIn("Native Disposition Details", expanded)
+        self.assertIn("Sol Break-Fix Exceptions", expanded)
+
     def test_telemetry_gaps_report_missing_fields_by_source_kind(self) -> None:
         report = build_execution_status_report(
             audit_events=[
@@ -608,6 +660,9 @@ class ExecutionStatusReportTests(unittest.TestCase):
             "workerbee_delegation_accountability",
             "workerbee_delegation_summary",
             "workerbee_delegation_details",
+            "native_disposition_summary",
+            "native_disposition_details",
+            "sol_breakfix_summary",
             "second_opinion_review_lane_productivity",
             "second_opinion_review_lane_productivity_details",
             "telemetry_gaps",

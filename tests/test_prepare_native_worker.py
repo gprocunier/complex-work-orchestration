@@ -20,6 +20,20 @@ from prepare_native_worker import (  # noqa: E402
     validate_native_worker_packet,
     validate_native_worker_return,
 )
+from cwo_core.native_disposition import derive_disposition  # noqa: E402
+
+
+def set_disposition(packet: dict, result: dict) -> None:
+    result.update(
+        derive_disposition(
+            status=result["status"],
+            requested_model=packet["requested_model"],
+            actual_model=result.get("actual_model"),
+            usage=result["usage"],
+            budget=packet["budget"],
+            validation=result.get("artifact_validation"),
+        )
+    )
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -320,9 +334,12 @@ class NativeWorkerPacketTests(unittest.TestCase):
             mismatch_return["bounded_options"] = ["redo segment"]
             mismatch_return["recommendation"] = "realign"
             mismatch_return["remaining_scope"] = {"focus": "remaining tasks"}
+            set_disposition(packet, valid_return)
+            set_disposition(packet, mismatch_return)
             self.assertEqual(validate_native_worker_return(packet, valid_return), [])
             self.assertEqual(validate_native_worker_return(packet, mismatch_return), [])
             mismatch_return["status"] = "completed"
+            set_disposition(packet, mismatch_return)
             self.assertNotEqual(validate_native_worker_return(packet, mismatch_return), [])
 
             mismatch_path = Path(workdir) / "return.json"
@@ -340,6 +357,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             missing_attestation_return["bounded_options"] = ["request fresh session"]
             missing_attestation_return["recommendation"] = "pause"
             missing_attestation_return["remaining_scope"] = {"focus": "same task"}
+            set_disposition(packet, missing_attestation_return)
             self.assertEqual(validate_native_worker_return(packet, missing_attestation_return), [])
             missing_attestation_return["return_surplus"] = "not allowed"
             self.assertNotEqual(validate_native_worker_return(packet, missing_attestation_return), [])
@@ -388,6 +406,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
                 },
                 "residual_risks": [],
             }
+            set_disposition(packet, bad_return)
             self.assertNotEqual(validate_native_worker_return(packet, bad_return), [])
 
             bad_return["usage"]["tool_calls"] = 1
@@ -397,6 +416,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             bad_return["bounded_options"] = ["reduce context"]
             bad_return["recommendation"] = "continue under guardrails"
             bad_return["remaining_scope"] = {"allowed": packet["scope"]["allowed_paths"]}
+            set_disposition(packet, bad_return)
             self.assertEqual(validate_native_worker_return(packet, bad_return), [])
 
     def test_validate_return_requires_realignment_fields(self) -> None:
@@ -439,12 +459,14 @@ class NativeWorkerPacketTests(unittest.TestCase):
                 },
                 "residual_risks": ["scope ambiguity"],
             }
+            set_disposition(packet, realignment)
             self.assertNotEqual(validate_native_worker_return(packet, realignment), [])
 
             realignment["decision_required"] = ["resolve scope and architecture ambiguity"]
             realignment["bounded_options"] = ["scope split"]
             realignment["recommendation"] = "continue after architect direction"
             realignment["remaining_scope"] = {"allowed_paths": packet["scope"]["allowed_paths"]}
+            set_disposition(packet, realignment)
             self.assertEqual(validate_native_worker_return(packet, realignment), [])
 
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed in test environment")

@@ -13,6 +13,7 @@ __all__ = [
     "errors",
     "execution_status_report",
     "harness",
+    "native_disposition",
     "packets",
     "paths",
     "policy",

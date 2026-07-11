@@ -226,6 +226,9 @@ def build_execution_status_report(
         "main_thread_architect_productivity": _main_thread_summary(records),
         "workerbee_delegation_summary": _workerbee_delegation_summary(records),
         "workerbee_delegation_details": _workerbee_delegation_detail_rows(records),
+        "native_disposition_summary": _native_disposition_summary(records),
+        "native_disposition_details": _native_disposition_detail_rows(records),
+        "sol_breakfix_summary": _sol_breakfix_summary(records),
         "second_opinion_review_lane_productivity": _second_opinion_rows(records),
         "second_opinion_review_lane_productivity_details": _second_opinion_detail_rows(records),
         "telemetry_gaps": _telemetry_gaps(records, source_counts),
@@ -332,6 +335,8 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
         )
     lines.extend(_key_value_box("Main Thread / Architect Productivity", report.get("main_thread_architect_productivity", {}), term_width))
     lines.extend(_key_value_box("Workerbee Delegation Summary", report.get("workerbee_delegation_summary", {}), term_width))
+    lines.extend(_key_value_box("Native Session / Artifact Disposition", report.get("native_disposition_summary", {}), term_width))
+    lines.extend(_key_value_box("Sol Break-Fix Exceptions", report.get("sol_breakfix_summary", {}), term_width))
     if expanded:
         lines.extend(
             _detail_rows(
@@ -346,6 +351,21 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
                     ("Gaps", "gap_reasons"),
                 ],
                 report.get("workerbee_delegation_details", []),
+                term_width,
+            )
+        )
+        lines.extend(
+            _detail_rows(
+                "Native Disposition Details",
+                [
+                    ("Dispatch", "dispatch_id"),
+                    ("Bead", "bead_id"),
+                    ("Lane", "lane"),
+                    ("Session", "session_disposition"),
+                    ("Artifact", "artifact_disposition"),
+                    ("Validation", "validation"),
+                ],
+                report.get("native_disposition_details", []),
                 term_width,
             )
         )
@@ -565,6 +585,21 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "workerbee_delegation_status": _clean(record.get("workerbee_delegation_status")),
         "workerbee_delegation_source": _clean(record.get("workerbee_delegation_source")),
         "workerbee_delegation_gap_reasons": _strings(record.get("workerbee_delegation_gap_reasons")),
+        "session_disposition": _clean(record.get("session_disposition")),
+        "artifact_disposition": _clean(record.get("artifact_disposition")),
+        "artifact_validation": record.get("artifact_validation")
+        if isinstance(record.get("artifact_validation"), dict)
+        else None,
+        "sol_breakfix_exception": record.get("event_type") == "sol_breakfix_authorized"
+        or record.get("sol_breakfix_exception") is True,
+        "sol_breakfix_approval_source": _clean(
+            record.get("operator_approval_ref") or record.get("sol_breakfix_approval_source")
+        ),
+        "sol_breakfix_scope": _clean(record.get("sol_breakfix_scope")),
+        "sol_breakfix_expiry": _clean(record.get("sol_breakfix_expiry")),
+        "sol_breakfix_automatic_selection_forbidden": record.get("automatic_selection_forbidden")
+        if isinstance(record.get("automatic_selection_forbidden"), bool)
+        else None,
     }
     return view
 
@@ -1058,6 +1093,111 @@ def _workerbee_delegation_summary(records: list[dict[str, Any]]) -> dict[str, An
         "unfulfilled_lanes": _joined_values(unfulfilled),
         "status_summary": _count_summary(status_counts),
         "gap_reasons": _count_summary(gap_counts),
+    }
+
+
+def _native_disposition_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for record in records:
+        session = _clean(record.get("session_disposition"))
+        artifact = _clean(record.get("artifact_disposition"))
+        validation = record.get("artifact_validation")
+        if not _is_native_disposition_record(record):
+            continue
+        validation_text = UNAVAILABLE
+        if isinstance(validation, dict):
+            validation_text = "/".join(
+                [
+                    _present(validation.get("outcome")),
+                    f"attempts={_present(validation.get('attempts_used'))}/{_present(validation.get('max_attempts'))}",
+                    f"eligible={_present(validation.get('eligible'))}",
+                ]
+            )
+        rows.append(
+            {
+                "dispatch_id": record.get("dispatch_id") or UNAVAILABLE,
+                "bead_id": record.get("bead_id") or UNAVAILABLE,
+                "lane": record.get("lane") or UNAVAILABLE,
+                "session_disposition": session or UNAVAILABLE,
+                "artifact_disposition": artifact or UNAVAILABLE,
+                "validation": validation_text,
+            }
+        )
+    return rows
+
+
+def _native_disposition_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    session_counts = {key: 0 for key in ("accepted", "accepted-with-warning", "quarantined", "unknown")}
+    artifact_counts = {
+        key: 0
+        for key in (
+            "accepted",
+            "independent-validation-required",
+            "architect-adjudication-required",
+            "rejected",
+            "unknown",
+        )
+    }
+    eligible = 0
+    considered = 0
+    for record in records:
+        session = _clean(record.get("session_disposition"))
+        artifact = _clean(record.get("artifact_disposition"))
+        validation = record.get("artifact_validation")
+        if not _is_native_disposition_record(record):
+            continue
+        considered += 1
+        session_counts[session if session in session_counts else "unknown"] += 1
+        artifact_counts[artifact if artifact in artifact_counts else "unknown"] += 1
+        if isinstance(validation, dict) and validation.get("eligible") is True:
+            eligible += 1
+    return {
+        "records_considered": considered,
+        "session_accepted": session_counts["accepted"],
+        "session_warning": session_counts["accepted-with-warning"],
+        "session_quarantined": session_counts["quarantined"],
+        "session_unknown": session_counts["unknown"],
+        "artifact_accepted": artifact_counts["accepted"],
+        "artifact_validation_required": artifact_counts["independent-validation-required"],
+        "artifact_adjudication_required": artifact_counts["architect-adjudication-required"],
+        "artifact_rejected": artifact_counts["rejected"],
+        "artifact_unknown": artifact_counts["unknown"],
+        "validation_eligible": eligible,
+    }
+
+
+def _is_native_disposition_record(record: dict[str, Any]) -> bool:
+    if record.get("session_disposition") or record.get("artifact_disposition"):
+        return True
+    if isinstance(record.get("artifact_validation"), dict):
+        return True
+    model = _clean(record.get("model")) or _clean(record.get("workerbee_actual_model"))
+    return model == "gpt-5.3-codex-spark"
+
+
+def _sol_breakfix_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    by_bead: dict[str, dict[str, Any]] = {}
+    for index, record in enumerate(records):
+        if record.get("sol_breakfix_exception") is not True:
+            continue
+        key = _clean(record.get("bead_id")) or f"unlinked-{index}"
+        previous = by_bead.get(key)
+        if previous is None or record.get("sol_breakfix_approval_source"):
+            by_bead[key] = record
+    exceptions = list(by_bead.values())
+    return {
+        "authorization_count": len(exceptions),
+        "automatic_selection_forbidden": all(
+            record.get("sol_breakfix_automatic_selection_forbidden") is True for record in exceptions
+        )
+        if exceptions
+        else True,
+        "beads": _joined_values([record.get("bead_id") for record in exceptions]),
+        "approval_sources": _joined_values(
+            [record.get("sol_breakfix_approval_source") for record in exceptions]
+        ),
+        "scopes": _joined_values([record.get("sol_breakfix_scope") for record in exceptions]),
+        "expiries": _joined_values([record.get("sol_breakfix_expiry") for record in exceptions]),
     }
 
 
@@ -1620,6 +1760,10 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     evidence = evidence if isinstance(evidence, dict) else {}
     workerbees = report.get("workerbee_delegation_summary", {})
     workerbees = workerbees if isinstance(workerbees, dict) else {}
+    dispositions = report.get("native_disposition_summary", {})
+    dispositions = dispositions if isinstance(dispositions, dict) else {}
+    sol_breakfix = report.get("sol_breakfix_summary", {})
+    sol_breakfix = sol_breakfix if isinstance(sol_breakfix, dict) else {}
     gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
 
     status_line = "  ".join(
@@ -1673,10 +1817,22 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
             f"status {_cell(workerbees.get('status_summary'))}",
         ]
     )
+    disposition_line = "Dispositions: " + "  ".join(
+        [
+            f"session ok {_cell(dispositions.get('session_accepted'))}",
+            f"warn {_cell(dispositions.get('session_warning'))}",
+            f"quarantine {_cell(dispositions.get('session_quarantined'))}",
+            f"artifact ok {_cell(dispositions.get('artifact_accepted'))}",
+            f"validate {_cell(dispositions.get('artifact_validation_required'))}",
+            f"adjudicate {_cell(dispositions.get('artifact_adjudication_required'))}",
+            f"reject {_cell(dispositions.get('artifact_rejected'))}",
+            f"Sol break-fix {_cell(sol_breakfix.get('authorization_count'))}",
+        ]
+    )
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
     lines = [_section_top("Dashboard", width)]
-    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, next_line]:
+    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, disposition_line, next_line]:
         lines.extend(_wrapped_box_lines(line, width))
     lines.append(_section_bottom(width))
     return lines

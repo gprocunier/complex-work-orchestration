@@ -35,6 +35,7 @@ ALLOWED_IMPORTS = {
     "waivers": set(),
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
+    "native_disposition": set(),
     "execution_status_report": {"audit", "paths"},
     "public_copy": set(),
     "errors": set(),

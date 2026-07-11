@@ -121,6 +121,9 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
                 "recommendation",
                 "remaining_scope",
                 "usage",
+                "session_disposition",
+                "artifact_disposition",
+                "artifact_validation",
             ],
         )
         self.assertEqual(policy["realignment_return_contract"]["worker_mutation_policy"], "stop_mutating")
@@ -146,3 +149,29 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             ["fix", "reload", "resume"],
         )
         self.assertEqual(policy["realignment_return_contract"]["resume_from"], "beads")
+
+    def test_disposition_and_sol_breakfix_policy(self) -> None:
+        policy = self.__class__.policy
+        disposition = policy["disposition_policy"]
+        self.assertFalse(disposition["automatic_sol_breakfix"])
+        self.assertEqual(disposition["validation_attempt_limit"], 1)
+        self.assertEqual(
+            disposition["artifact_dispositions"],
+            [
+                "accepted",
+                "independent-validation-required",
+                "architect-adjudication-required",
+                "rejected",
+            ],
+        )
+
+        breakfix = policy["sol_breakfix"]
+        self.assertEqual(breakfix["default"], "forbidden")
+        self.assertTrue(breakfix["automatic_selection_forbidden"])
+        self.assertEqual(
+            breakfix["required_approval_source"],
+            "explicit-operator-in-current-interaction",
+        )
+        self.assertTrue(breakfix["required_bead_record"])
+        self.assertTrue(breakfix["independent_validation_required"])
+        self.assertTrue(breakfix["expires_at_authorized_bead_closure"])

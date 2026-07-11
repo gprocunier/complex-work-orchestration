@@ -197,6 +197,26 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "session_disposition": {
+      "type": "string",
+      "enum": ["accepted", "accepted-with-warning", "quarantined"]
+    },
+    "artifact_disposition": {
+      "type": "string",
+      "enum": ["accepted", "independent-validation-required", "architect-adjudication-required", "rejected"]
+    },
+    "artifact_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "max_attempts", "attempts_used", "outcome", "reason"],
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "max_attempts": {"type": "integer", "const": 1},
+        "attempts_used": {"type": "integer", "minimum": 0, "maximum": 1},
+        "outcome": {"type": "string", "enum": ["not-run", "passed", "failed"]},
+        "reason": {"type": "string", "minLength": 1}
+      }
     }
   },
   "allOf": [

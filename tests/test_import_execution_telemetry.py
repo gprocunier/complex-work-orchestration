@@ -233,6 +233,64 @@ class ImportExecutionTelemetryTests(unittest.TestCase):
             self.assertEqual(imported["workerbee_planned_model"], "gpt-5.3-codex-spark")
             self.assertEqual(imported["workerbee_planned_lanes"], ["policy-routing-review"])
 
+    def test_cli_imports_native_disposition_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temp = Path(tmp)
+            audit = temp / "audit.jsonl"
+            audit.write_text(
+                json.dumps(
+                    {
+                        "event_type": "dispatch",
+                        "dispatch_id": "dispatch-native",
+                        "bead_id": "cwo-native",
+                        "model": "gpt-5.3-codex-spark",
+                        "event_hash": "target-hash",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            sidecar = temp / "native.json"
+            sidecar.write_text(
+                json.dumps(
+                    {
+                        "dispatch_id": "dispatch-native",
+                        "session_disposition": "quarantined",
+                        "artifact_disposition": "independent-validation-required",
+                        "artifact_validation": {
+                            "eligible": True,
+                            "max_attempts": 1,
+                            "attempts_used": 0,
+                            "outcome": "not-run",
+                            "reason": "budget-only hard overrun",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "import_execution_telemetry.py"),
+                    "--file",
+                    str(sidecar),
+                    "--audit-file",
+                    str(audit),
+                    "--json",
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(json.loads(result.stdout)["imported"], 1)
+            imported = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()][1]
+            self.assertEqual(imported["session_disposition"], "quarantined")
+            self.assertEqual(imported["artifact_disposition"], "independent-validation-required")
+            self.assertTrue(imported["artifact_validation"]["eligible"])
+
 
 if __name__ == "__main__":
     unittest.main()

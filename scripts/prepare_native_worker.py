@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.paths import assert_safe_output_path
+from cwo_core.native_disposition import DISPOSITION_FIELDS, validate_disposition
 from cwo_core.policy import load_policy
 from cwo_core.util import atomic_write_text, make_dispatch_id
 
@@ -92,6 +93,7 @@ ALLOWED_RETURN_FIELDS = {
     "remaining_scope",
     "usage",
     "residual_risks",
+    *DISPOSITION_FIELDS,
 }
 ALLOWED_RETURN_USAGE_FIELDS = {
     "tool_calls",
@@ -370,6 +372,9 @@ def _build_return_contract() -> dict[str, Any]:
             "mutation_state",
             "commands_run",
             "validation",
+            "session_disposition",
+            "artifact_disposition",
+            "artifact_validation",
             "decision_required",
             "bounded_options",
             "recommendation",
@@ -802,6 +807,9 @@ def validate_native_worker_return(packet: dict[str, Any], result: Any) -> list[s
         errors.append("remaining_scope must be an object")
 
     errors.extend(_parse_usage_limits(result))
+    required_fields = packet.get("return_contract", {}).get("required_fields", [])
+    disposition_required = isinstance(required_fields, list) and DISPOSITION_FIELDS.issubset(set(required_fields))
+    errors.extend(validate_disposition(packet=packet, result=result, required=disposition_required))
     if status == "completed":
         completion_usage = result.get("usage")
         if isinstance(completion_usage, dict):
@@ -904,6 +912,15 @@ def _render_prompt(payload: dict[str, Any]) -> str:
             "elapsed_seconds": 0.0,
             "context_compactions": 0,
             "full_suite_runs": 0,
+        },
+        "session_disposition": "accepted",
+        "artifact_disposition": "accepted",
+        "artifact_validation": {
+            "eligible": False,
+            "max_attempts": 1,
+            "attempts_used": 0,
+            "outcome": "not-run",
+            "reason": "completed within policy",
         },
         "residual_risks": [],
     }

@@ -21,6 +21,32 @@
     "share_boundary": {"type": "string"},
     "disclosure_stage": {"type": "string"},
     "opt_in_basis": {"type": "string"},
+    "operator_approval_ref": {"type": "string"},
+    "sol_breakfix_incident_kind": {"type": "string", "const": "self-hosting-orchestration"},
+    "sol_breakfix_scope": {"type": "string"},
+    "sol_breakfix_expiry": {"type": "string"},
+    "swimlane_violation": {"type": "boolean"},
+    "automatic_selection_forbidden": {"type": "boolean"},
+    "session_disposition": {
+      "type": "string",
+      "enum": ["accepted", "accepted-with-warning", "quarantined"]
+    },
+    "artifact_disposition": {
+      "type": "string",
+      "enum": ["accepted", "independent-validation-required", "architect-adjudication-required", "rejected"]
+    },
+    "artifact_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "max_attempts", "attempts_used", "outcome", "reason"],
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "max_attempts": {"type": "integer", "const": 1},
+        "attempts_used": {"type": "integer", "minimum": 0, "maximum": 1},
+        "outcome": {"type": "string", "enum": ["not-run", "passed", "failed"]},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
     "quota_remaining": {"type": ["integer", "null"]},
     "packet_sha256": {"type": "string"},
     "expected_return_language": {"type": "string"},

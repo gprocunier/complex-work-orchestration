@@ -128,12 +128,14 @@ AUDIT_NUMERIC_FIELDS = {
     "sabotage_score",
 }
 AUDIT_BOOLEAN_FIELDS = {
+    "automatic_selection_forbidden",
     "executor_external",
     "human_adjudication_required",
     "implementation_blocked",
     "peer_review_required",
     "provider_external",
     "quarantine_recommended",
+    "swimlane_violation",
     "waiver_required",
 }
 AUDIT_STRING_FIELDS = {
@@ -151,6 +153,7 @@ AUDIT_STRING_FIELDS = {
     "access_profile",
     "local_profile",
     "opt_in_basis",
+    "operator_approval_ref",
     "packet_sha256",
     "peer_review_status",
     "previous_event_hash",
@@ -160,6 +163,11 @@ AUDIT_STRING_FIELDS = {
     "quota_stage",
     "recommended_disposition",
     "share_boundary",
+    "artifact_disposition",
+    "session_disposition",
+    "sol_breakfix_expiry",
+    "sol_breakfix_incident_kind",
+    "sol_breakfix_scope",
     "timestamp",
     "verdict",
     "waiver_reason",
@@ -170,6 +178,7 @@ AUDIT_STRING_LIST_FIELDS = {
     "waiver_flags",
 }
 AUDIT_OBJECT_FIELDS = {
+    "artifact_validation",
     "workspace_mutation",
 }
 WORKSPACE_MUTATION_NUMERIC_FIELDS = {
@@ -279,6 +288,10 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
                 workspace_mutation = sanitize_workspace_mutation(value)
                 if workspace_mutation is not None:
                     sanitized[key] = workspace_mutation
+            elif key == "artifact_validation":
+                artifact_validation = sanitize_artifact_validation(value)
+                if artifact_validation is not None:
+                    sanitized[key] = artifact_validation
             continue
 
     if "total_tokens" not in sanitized:
@@ -287,6 +300,33 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
         if isinstance(input_tokens, (int, float)) and isinstance(output_tokens, (int, float)):
             sanitized["total_tokens"] = input_tokens + output_tokens
     return sanitized
+
+
+def sanitize_artifact_validation(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    eligible = value.get("eligible")
+    max_attempts = value.get("max_attempts")
+    attempts_used = value.get("attempts_used")
+    outcome = value.get("outcome")
+    reason = normalize_short_text(value.get("reason"))
+    if not isinstance(eligible, bool):
+        return None
+    if max_attempts != 1 or attempts_used not in {0, 1}:
+        return None
+    if outcome not in {"not-run", "passed", "failed"} or reason is None:
+        return None
+    if (attempts_used == 0 and outcome != "not-run") or (
+        attempts_used == 1 and (outcome not in {"passed", "failed"} or eligible is not False)
+    ):
+        return None
+    return {
+        "eligible": eligible,
+        "max_attempts": max_attempts,
+        "attempts_used": attempts_used,
+        "outcome": outcome,
+        "reason": reason,
+    }
 
 
 def telemetry_fields(**values: Any) -> dict[str, Any]:

@@ -116,6 +116,46 @@ def spark_record(
 
 
 class CheckNativeWorkerSessionTests(unittest.TestCase):
+    def test_explicit_native_session_file_matches_session_meta_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = Path(tmpdir) / "session.jsonl"
+            session_id = "native-child-session"
+            task_records = [
+                spark_record("2026-07-10T21:00:00Z", session_id, "task_started"),
+                spark_record("2026-07-10T21:00:10Z", session_id, "assistant", response_type="function_call"),
+                spark_record("2026-07-10T21:00:20Z", session_id, "task_complete"),
+            ]
+            for record in task_records:
+                record.pop("session_id", None)
+            write_records(
+                session_file,
+                [
+                    {
+                        "timestamp": "2026-07-10T20:59:59Z",
+                        "type": "session_meta",
+                        "payload": {"id": session_id, "session_id": "parent-session"},
+                    },
+                    *task_records,
+                ],
+            )
+
+            result = run_cli(
+                "--session-id",
+                session_id,
+                "--requested-model",
+                "gpt-5.3-codex-spark",
+                "--budget-profile",
+                "implementation",
+                "--session-file",
+                str(session_file),
+                "--json",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["session_id"], session_id)
+            self.assertEqual(payload["aggregate"]["tool_calls"], 1)
+
     def test_valid_two_segment_spark(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -148,6 +188,9 @@ class CheckNativeWorkerSessionTests(unittest.TestCase):
             self.assertEqual(payload["segments"][1]["models"], ["gpt-5.3-codex-spark"])
             self.assertEqual(payload["segments"][0]["token_deltas"]["total"], 7)
             self.assertEqual(payload["segments"][1]["token_deltas"]["total"], 10)
+            self.assertEqual(payload["session_disposition"], "accepted")
+            self.assertEqual(payload["artifact_disposition"], "accepted")
+            self.assertEqual(payload["segments"][1]["artifact_disposition"], "accepted")
 
     def test_model_drift_between_segments(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -175,6 +218,8 @@ class CheckNativeWorkerSessionTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(payload["status"], "model-mismatch")
             self.assertIn("model-mismatch", payload["hard_stop_reasons"])
+            self.assertEqual(payload["session_disposition"], "quarantined")
+            self.assertEqual(payload["artifact_disposition"], "rejected")
             self.assertEqual(len(payload["segments"]), 2)
             self.assertEqual(payload["segments"][1]["models"], ["gpt-4", "gpt-5.3-codex-spark"])
 
@@ -200,6 +245,8 @@ class CheckNativeWorkerSessionTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 2, result.stderr)
             payload = json.loads(result.stdout)
+            self.assertEqual(payload["session_disposition"], "quarantined")
+            self.assertEqual(payload["artifact_disposition"], "rejected")
             self.assertEqual(payload["status"], "model-mismatch")
             self.assertIn("missing-attestation", payload["hard_stop_reasons"])
 
@@ -281,6 +328,8 @@ class CheckNativeWorkerSessionTests(unittest.TestCase):
             self.assertEqual(payload["status"], "budget-exhausted")
             self.assertIn("tool_calls_hard", payload["hard_stop_reasons"])
             self.assertIn("max_compactions", payload["hard_stop_reasons"])
+            self.assertEqual(payload["session_disposition"], "quarantined")
+            self.assertEqual(payload["artifact_disposition"], "architect-adjudication-required")
 
     def test_two_soft_limits_triggers_realignment(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

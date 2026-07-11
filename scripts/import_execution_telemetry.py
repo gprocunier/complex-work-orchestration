@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.audit import iter_audit_events, record_audit_event
+from cwo_core.native_disposition import ARTIFACT_DISPOSITIONS, SESSION_DISPOSITIONS
 from cwo_core.paths import AUDIT_LOG
 from cwo_core.telemetry import SENSITIVE_AUDIT_FIELDS, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
@@ -47,6 +48,8 @@ STRING_FIELDS = {
     "workerbee_actual_model",
     "workerbee_delegation_status",
     "workerbee_delegation_source",
+    "session_disposition",
+    "artifact_disposition",
 }
 LIST_FIELDS = {
     "telemetry_missing_reasons",
@@ -54,7 +57,7 @@ LIST_FIELDS = {
     "workerbee_actual_lanes",
     "workerbee_delegation_gap_reasons",
 }
-OBJECT_FIELDS = {"workerbee_planned_delegation"}
+OBJECT_FIELDS = {"artifact_validation", "workerbee_planned_delegation"}
 WORKERBEE_FIELDS = {
     "workerbee_planned_mode",
     "workerbee_planned_model",
@@ -65,6 +68,11 @@ WORKERBEE_FIELDS = {
     "workerbee_delegation_status",
     "workerbee_delegation_source",
     "workerbee_delegation_gap_reasons",
+}
+NATIVE_DISPOSITION_FIELDS = {
+    "session_disposition",
+    "artifact_disposition",
+    "artifact_validation",
 }
 ALLOWED_FIELDS = NUMERIC_FIELDS | STRING_FIELDS | LIST_FIELDS | OBJECT_FIELDS | {"usage"}
 DISPATCH_EVENT_TYPES = {
@@ -161,6 +169,10 @@ def normalize_import_record(record: dict[str, Any], *, path: Path, index: int) -
         text = _short_text(record.get(field))
         if text is not None:
             normalized[field] = text
+    if normalized.get("session_disposition") not in SESSION_DISPOSITIONS and "session_disposition" in normalized:
+        raise ValueError(f"{path}: record {index} session_disposition is invalid")
+    if normalized.get("artifact_disposition") not in ARTIFACT_DISPOSITIONS and "artifact_disposition" in normalized:
+        raise ValueError(f"{path}: record {index} artifact_disposition is invalid")
     for field in NUMERIC_FIELDS:
         if field in record:
             normalized[field] = _nonnegative_number(record[field], path=path, index=index, field=field)
@@ -175,6 +187,28 @@ def normalize_import_record(record: dict[str, Any], *, path: Path, index: int) -
         if not isinstance(planned, dict):
             raise ValueError(f"{path}: record {index} field workerbee_planned_delegation must be an object")
         _copy_workerbee_plan(planned, normalized)
+    if "artifact_validation" in record:
+        validation = record["artifact_validation"]
+        if not isinstance(validation, dict):
+            raise ValueError(f"{path}: record {index} field artifact_validation must be an object")
+        required = {"eligible", "max_attempts", "attempts_used", "outcome", "reason"}
+        if set(validation) != required:
+            raise ValueError(f"{path}: record {index} field artifact_validation has invalid keys")
+        if not isinstance(validation["eligible"], bool):
+            raise ValueError(f"{path}: record {index} artifact_validation.eligible must be boolean")
+        if validation["max_attempts"] != 1 or validation["attempts_used"] not in {0, 1}:
+            raise ValueError(f"{path}: record {index} artifact_validation attempt counts are invalid")
+        if validation["outcome"] not in {"not-run", "passed", "failed"}:
+            raise ValueError(f"{path}: record {index} artifact_validation.outcome is invalid")
+        if (validation["attempts_used"] == 0 and validation["outcome"] != "not-run") or (
+            validation["attempts_used"] == 1
+            and (validation["outcome"] not in {"passed", "failed"} or validation["eligible"] is not False)
+        ):
+            raise ValueError(f"{path}: record {index} artifact_validation attempt state is inconsistent")
+        reason = _short_text(validation["reason"])
+        if reason is None:
+            raise ValueError(f"{path}: record {index} artifact_validation.reason is required")
+        normalized["artifact_validation"] = {**validation, "reason": reason}
 
     usage = record.get("usage")
     if usage is not None:
@@ -188,7 +222,10 @@ def normalize_import_record(record: dict[str, Any], *, path: Path, index: int) -
         raise ValueError(f"{path}: record {index} must include dispatch_id or bead_id")
     if not any(
         field in normalized
-        for field in NUMERIC_FIELDS | {"telemetry_missing_reason", "telemetry_missing_reasons"} | WORKERBEE_FIELDS
+        for field in NUMERIC_FIELDS
+        | {"telemetry_missing_reason", "telemetry_missing_reasons"}
+        | WORKERBEE_FIELDS
+        | NATIVE_DISPOSITION_FIELDS
     ):
         raise ValueError(f"{path}: record {index} must include telemetry values or missing reasons")
     return normalized
@@ -251,6 +288,9 @@ def build_import_event(
             workerbee_delegation_source=record.get("workerbee_delegation_source"),
             workerbee_delegation_gap_reasons=record.get("workerbee_delegation_gap_reasons"),
         ),
+        "session_disposition": record.get("session_disposition"),
+        "artifact_disposition": record.get("artifact_disposition"),
+        "artifact_validation": record.get("artifact_validation"),
     }
     return {key: value for key, value in event.items() if value not in [None, "", []]}
 

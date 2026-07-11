@@ -10,6 +10,8 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from cwo_core.native_disposition import derive_disposition
+
 SCHEMA_PATH = "schemas/native-worker-session-check.schema.json"
 REPO_POLICY = "policy/native-worker-execution.yaml"
 SCHEMA_VERSION = 1
@@ -432,6 +434,15 @@ def _build_segment_snapshot() -> dict[str, Any]:
         "soft_limit_reasons": [],
         "hard_stop_reasons": [],
         "records": 0,
+        "session_disposition": "accepted",
+        "artifact_disposition": "accepted",
+        "artifact_validation": {
+            "eligible": False,
+            "max_attempts": 1,
+            "attempts_used": 0,
+            "outcome": "not-run",
+            "reason": "pending segment evaluation",
+        },
     }
 
 
@@ -545,6 +556,19 @@ def _finalize_segment(
     segment["models"] = sorted(set(segment["models"]))
     if segment["attested_model"] is None and segment["models"]:
         segment["attested_model"] = segment["models"][0]
+    disposition = derive_disposition(
+        status=segment["status"],
+        requested_model=requested_model,
+        actual_model=segment["attested_model"],
+        usage={
+            "tool_calls": segment["tool_calls"],
+            "elapsed_seconds": segment["runtime_seconds"],
+            "context_compactions": segment["context_compactions"],
+            "full_suite_runs": segment["full_suite_runs"],
+        },
+        budget=budget,
+    )
+    segment.update(disposition)
     return segment
 
 
@@ -609,6 +633,10 @@ def _session_id_matches(path: Path, session_id: str, *, strict: bool = True) -> 
         current = record.get("session_id")
         if current == session_id:
             return True
+        if _coerce_model(record.get("type")) == "session_meta":
+            payload = _normalize_record_payload(record)
+            if isinstance(payload, dict) and payload.get("id") == session_id:
+                return True
     return False
 
 
@@ -858,6 +886,9 @@ def main() -> int:
         "aggregate": aggregate,
         "soft_limit_reasons": sorted(set(selected_segment.get("soft_limit_reasons", []))),
         "hard_stop_reasons": sorted(set(selected_segment.get("hard_stop_reasons", []))),
+        "session_disposition": selected_segment["session_disposition"],
+        "artifact_disposition": selected_segment["artifact_disposition"],
+        "artifact_validation": selected_segment["artifact_validation"],
     }
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))

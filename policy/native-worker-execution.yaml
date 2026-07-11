@@ -89,6 +89,33 @@
     "budget-exhausted",
     "model-mismatch"
   ],
+  "disposition_policy": {
+    "version": 1,
+    "automatic_sol_breakfix": false,
+    "session_dispositions": ["accepted", "accepted-with-warning", "quarantined"],
+    "artifact_dispositions": ["accepted", "independent-validation-required", "architect-adjudication-required", "rejected"],
+    "validation_attempt_limit": 1,
+    "precedence": ["model-mismatch", "compaction", "validation-outcome", "budget-only", "soft-warning", "accepted"],
+    "rules": {
+      "model_mismatch": "quarantined-session/rejected-artifact",
+      "compaction": "quarantined-session/architect-adjudication-required",
+      "budget_only": "quarantined-session/one-independent-validation-attempt",
+      "validation_failed": "rejected-artifact/no-further-attempt",
+      "validation_passed": "accepted-artifact",
+      "non_budget_realignment": "quarantined-session/architect-adjudication-required"
+    }
+  },
+  "sol_breakfix": {
+    "default": "forbidden",
+    "automatic_selection_forbidden": true,
+    "required_approval_source": "explicit-operator-in-current-interaction",
+    "required_bead_record": true,
+    "required_warning": "Sol operative execution violates normal architecture/worker swimlanes.",
+    "allowed_scope": "self-hosting incident repair only",
+    "forbidden_reasons": ["convenience", "speed", "quota substitution", "ordinary feature work"],
+    "independent_validation_required": true,
+    "expires_at_authorized_bead_closure": true
+  },
   "alignment_triggers": {
     "needs_architect_realignment": {
       "distinct_soft_limits_required": 2,
@@ -106,7 +133,10 @@
       "bounded_options",
       "recommendation",
       "remaining_scope",
-      "usage"
+      "usage",
+      "session_disposition",
+      "artifact_disposition",
+      "artifact_validation"
     ],
     "worker_mutation_policy": "stop_mutating",
     "decision_owner": "architect",
