@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/native-progress-decision.schema.json",
+  "title": "native-progress-decision",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decision_type": {"const": "cwo-native-progress-decision"},
+    "version": {"const": 1},
+    "outcome": {"enum": ["continue", "early-warning", "pm-realignment", "protected-stop", "completed"]},
+    "pm_action": {"enum": ["none", "packet-refinement", "architect-question", "material-split", "protected-stop"]},
+    "reasons": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "warnings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "planned": {"type": "object"},
+    "actual": {"type": "object"},
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool_calls_vs_p90": {"type": "integer"},
+        "runtime_seconds_vs_p90": {"type": "number"},
+        "planned_read_to_mutation_ratio": {"type": "number", "minimum": 0},
+        "actual_read_to_mutation_ratio": {"type": "number", "minimum": 0},
+        "retained_productive_artifacts": {"type": "integer", "minimum": 0},
+        "pure_waste": {"type": "boolean"}
+      },
+      "required": ["tool_calls_vs_p90", "runtime_seconds_vs_p90", "planned_read_to_mutation_ratio", "actual_read_to_mutation_ratio", "retained_productive_artifacts", "pure_waste"]
+    },
+    "realignment": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "completed_evidence": {"type": "array", "items": {"type": "string"}},
+            "mutation_state": {"enum": ["clean", "modified"]},
+            "discovered_work": {"type": "array", "items": {"type": "string"}},
+            "revised_scores": {"type": "object"},
+            "revised_estimate": {"type": "object"},
+            "decision_required": {"enum": ["packet-refinement", "architect-question", "material-split"]},
+            "bounded_options": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+            "recommendation": {"type": "string", "minLength": 1},
+            "retained_artifacts": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["completed_evidence", "mutation_state", "discovered_work", "revised_scores", "revised_estimate", "decision_required", "bounded_options", "recommendation", "retained_artifacts"]
+        }
+      ]
+    }
+  },
+  "required": ["decision_type", "version", "outcome", "pm_action", "reasons", "warnings", "planned", "actual", "calibration", "realignment"]
+}

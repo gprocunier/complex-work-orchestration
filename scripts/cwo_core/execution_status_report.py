@@ -10,11 +10,12 @@ from typing import Any
 
 from .audit import iter_audit_events
 from .paths import AUDIT_LOG
+from .execution_enhancement_metrics import checked_command_details, checked_command_summary, native_progress_details, native_progress_summary
 
 UNAVAILABLE = "?"
 NOT_APPLICABLE = "n/a"
 REPORT_TYPE = "cwo-execution-status-report"
-REPORT_VERSION = 5
+REPORT_VERSION = 6
 
 STATUS_KEYS = (
     "completed",
@@ -230,6 +231,10 @@ def build_execution_status_report(
         "native_disposition_details": _native_disposition_detail_rows(records),
         "native_supervision_summary": _native_supervision_summary(records),
         "native_supervision_details": _native_supervision_detail_rows(records),
+        "native_progress_summary": native_progress_summary(records),
+        "native_progress_details": native_progress_details(records),
+        "checked_command_summary": checked_command_summary(records),
+        "checked_command_details": checked_command_details(records),
         "sol_breakfix_summary": _sol_breakfix_summary(records),
         "second_opinion_review_lane_productivity": _second_opinion_rows(records),
         "second_opinion_review_lane_productivity_details": _second_opinion_detail_rows(records),
@@ -662,6 +667,56 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "late_poll_count": _numeric(record, ("late_poll_count",)),
         "control_turn_id": _clean(record.get("control_turn_id")),
     }
+    enhancement_fields = (
+        "native_progress_outcome",
+        "native_progress_pm_action",
+        "native_progress_reasons",
+        "native_progress_warnings",
+        "progress_validation_complete",
+        "progress_pure_waste",
+        "planned_tool_calls_p50",
+        "planned_tool_calls_p90",
+        "planned_runtime_seconds_p50",
+        "planned_runtime_seconds_p90",
+        "observed_tokens",
+        "planned_context_reads",
+        "observed_context_reads",
+        "planned_mutations",
+        "observed_mutations",
+        "observed_tests_run",
+        "observed_artifacts_completed",
+        "projected_tool_calls",
+        "projected_runtime_seconds",
+        "planned_read_to_mutation_ratio",
+        "actual_read_to_mutation_ratio",
+        "retained_productive_artifacts",
+        "retained_artifacts",
+        "tool_call_calibration_error",
+        "runtime_calibration_error_seconds",
+        "checked_command_id",
+        "checked_command_spec_sha256",
+        "checked_command_mode",
+        "checked_command_preflight_status",
+        "checked_command_linter",
+        "checked_command_execution_status",
+        "checked_command_failure_class",
+        "checked_command_linted_sha256",
+        "checked_command_executed_sha256",
+        "checked_command_hash_match",
+        "checked_command_execution_started",
+        "checked_command_mutation_started",
+        "checked_command_quarantine_required",
+        "checked_command_quoting_error_prevented",
+        "checked_command_complexity_score",
+        "checked_command_exit_code",
+        "checked_command_avoided_retry_cycles",
+        "checked_command_complexity_reasons",
+        "checked_command_mutated_paths",
+    )
+    for field in enhancement_fields:
+        if field in record:
+            view[field] = record[field]
+
     return view
 
 
@@ -2030,6 +2085,8 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     supervision = report.get("native_supervision_summary", {})
     supervision = supervision if isinstance(supervision, dict) else {}
     gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
+    progress = report.get("native_progress_summary", {}) if isinstance(report.get("native_progress_summary"), dict) else {}
+    commands = report.get("checked_command_summary", {}) if isinstance(report.get("checked_command_summary"), dict) else {}
 
     status_line = "  ".join(
         [
@@ -2109,10 +2166,12 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
             f"late {_cell(supervision.get('late_poll_count'))}",
         ]
     )
+    autonomy_line = "Autonomy: " + "  ".join([f"records {_cell(progress.get('records'))}", f"realign {_cell(progress.get('outcomes', {}).get('pm-realignment'))}", f"protected {_cell(progress.get('outcomes', {}).get('protected-stop'))}", f"calls {_cell(progress.get('actual_tool_calls'))}/{_cell(progress.get('planned_tool_calls_p90'))}", f"retained {_cell(progress.get('retained_productive_artifacts'))}", f"waste {_cell(progress.get('pure_waste_records'))}"])
+    command_line = "Commands: " + "  ".join([f"checked {_cell(commands.get('commands'))}", f"preflight {_cell(commands.get('preflight_passed'))}", f"prevented {_cell(commands.get('quoting_errors_prevented'))}", f"avoided retries {_cell(commands.get('avoided_retry_cycles'))}", f"quarantine {_cell(commands.get('quarantined'))}"])
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
     lines = [_section_top("Dashboard", width)]
-    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, supervision_line, disposition_line, next_line]:
+    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, supervision_line, disposition_line, autonomy_line, command_line, next_line]:
         lines.extend(_wrapped_box_lines(line, width))
     lines.append(_section_bottom(width))
     return lines

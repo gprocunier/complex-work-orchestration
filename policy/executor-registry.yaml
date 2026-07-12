@@ -6,6 +6,7 @@
     "codex_5_6_sol_main_architect": "frontier_architect",
     "codex_5_6_sol_architecture_critic": "codex_architecture_critic",
     "codex_5_5_xhigh_architecture_critic": "codex_architecture_critic",
+    "codex_5_3_spark_workerbee": "internal_worker",
     "chatgpt_pro_5_5_extended_reasoning_browser": "chatgpt_pro_browser_master_reviewer",
     "claude_opus_4_6_architecture_critic": "claude_architecture_critic",
     "gemini_3_1_pro_manual": "gemini_manual_reviewer",
@@ -93,8 +94,10 @@
       "critique_mode": "architect-design-second-opinion"
     },
     "internal_worker": {
-      "display_name": "Internal Codex workerbee",
+      "display_name": "Codex 5.3 Spark workerbee",
       "role": "workerbee",
+      "model_label": "gpt-5.3-codex-spark",
+      "model_role": "operative-worker",
       "provider_key": "internal_codex",
       "venue": "codex-worker",
       "dispatch_mode": "codex_worker",

@@ -201,9 +201,17 @@ class ProviderPolicyTests(unittest.TestCase):
             resolve_executor_key("codex_5_5_xhigh_architecture_critic", registry),
             "codex_architecture_critic",
         )
+        self.assertEqual(
+            resolve_executor_key("codex_5_3_spark_workerbee", registry),
+            "internal_worker",
+        )
         architect = executor_config("codex_5_6_sol_architect", registry)
         self.assertEqual(architect["canonical_key"], "frontier_architect")
         self.assertEqual(architect["model_label"], "codex-5.6-sol")
+        worker = executor_config("codex_5_3_spark_workerbee", registry)
+        self.assertEqual(worker["canonical_key"], "internal_worker")
+        self.assertEqual(worker["model_label"], "gpt-5.3-codex-spark")
+        self.assertEqual(worker["model_role"], "operative-worker")
 
     def test_executor_alias_matching_accepts_alias_or_canonical_key(self) -> None:
         registry = load_policy("executor-registry")
@@ -245,6 +253,15 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertEqual(executor["model_role"], "primary-architect")
         self.assertEqual(executor["provider_key"], "internal_codex")
         self.assertEqual(executor["dispatch_mode"], "main_thread")
+
+    def test_internal_worker_is_codex_spark_operative_worker(self) -> None:
+        executor = load_policy("executor-registry")["executors"]["internal_worker"]
+
+        self.assertEqual(executor["display_name"], "Codex 5.3 Spark workerbee")
+        self.assertEqual(executor["model_label"], "gpt-5.3-codex-spark")
+        self.assertEqual(executor["model_role"], "operative-worker")
+        self.assertEqual(executor["provider_key"], "internal_codex")
+        self.assertEqual(executor["dispatch_mode"], "codex_worker")
 
     def test_glm_bf16_architecture_critic_is_registered_as_local_reviewer(self) -> None:
         executors = load_policy("executor-registry")["executors"]

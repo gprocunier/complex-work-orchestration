@@ -18,6 +18,13 @@ from cwo_core.native_session import (
 )
 from cwo_core.audit import acquire_audit_lock, record_audit_event, release_audit_lock
 from cwo_core.native_disposition import derive_disposition
+from cwo_core.native_retry import (
+    build_retry_authorization,
+    canonical_work_sha256,
+    evaluate_retry_eligibility,
+    validate_retry_authorization,
+)
+from cwo_core.policy import load_policy
 from cwo_core.paths import AUDIT_LOG, cwo_temp_path, is_cwo_temp_path
 from cwo_core.util import artifact_hash, atomic_write_text, make_dispatch_id
 from prepare_native_worker import validate_native_worker_packet
@@ -28,6 +35,7 @@ DECISION_TYPE = "cwo-native-supervision-decision"
 STATE_SCHEMA = "schemas/native-supervision-state.schema.json"
 DECISION_SCHEMA = "schemas/native-supervision-decision.schema.json"
 FINAL_STATES = {"completed", "closed", "control-failed"}
+EMPTY_USAGE = {"tool_calls": 0, "runtime_seconds": 0}
 
 
 def _fail(message: str) -> None:
@@ -61,6 +69,64 @@ def _load_json(path: Path, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         _fail(f"{label} must be a JSON object")
     return value
+
+
+def _recovery_payload(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {
+            "attempt": 0,
+            "cumulative_usage": dict(EMPTY_USAGE),
+            "eligibility": None,
+            "authorization": None,
+        }
+    cumulative = value.get("cumulative_usage")
+    usage = cumulative if isinstance(cumulative, dict) else {}
+    for field in ("tool_calls", "runtime_seconds"):
+        if not isinstance(usage.get(field), int) or isinstance(usage.get(field), bool):
+            usage[field] = int(EMPTY_USAGE[field])
+    return {
+        "attempt": int(value.get("attempt", 0)) if isinstance(value.get("attempt"), int) and not isinstance(value.get("attempt"), bool) else 0,
+        "cumulative_usage": {
+            "tool_calls": int(usage["tool_calls"]),
+            "runtime_seconds": int(usage["runtime_seconds"]),
+        },
+        "eligibility": value.get("eligibility"),
+        "authorization": value.get("authorization"),
+    }
+
+
+def _retry_policy() -> dict[str, Any]:
+    policy = load_policy("native-worker-execution").get("bounded_native_retry")
+    if not isinstance(policy, dict):
+        _fail("control-lost: bounded_native_retry policy is missing or invalid")
+    return policy
+
+
+def _require_state_packet(path: str | None, state: dict[str, Any], label: str) -> dict[str, Any]:
+    if not path:
+        _fail(f"{label}: supervision state missing packet_file binding")
+    packet_path = Path(path).expanduser().resolve()
+    packet = _load_json(packet_path, "packet")
+    expected_sha256 = artifact_hash(json.dumps(packet, sort_keys=True))
+    if state.get("packet_sha256") != expected_sha256:
+        _fail("retry lifecycle requires preserved immutable work hash: packet artifact hash changed for this supervision state")
+    return packet
+
+
+def _require_closed_for_retry(state: dict[str, Any]) -> None:
+    if state.get("status") != "closed":
+        _fail("retry lifecycle requires a closed supervision state")
+    receipts = state.get("control_receipts", [])
+    if not isinstance(receipts, list):
+        _fail("retry lifecycle requires control receipts list in state")
+    for required in ("interrupt-confirmed", "close-confirmed"):
+        if required not in receipts:
+            _fail("retry lifecycle requires interrupt-confirmed and close-confirmed control receipts")
+
+
+def _require_native_retry_decision(state: dict[str, Any]) -> None:
+    if state.get("decision") != "interrupt":
+        _fail("retry lifecycle requires decision=interrupt; control-lost is a protected stop")
 
 
 def _read_session(path: Path) -> tuple[list[dict[str, Any]], bool]:
@@ -120,6 +186,7 @@ def _write_state(path: Path, state: dict[str, Any]) -> None:
 
 
 def _decision(state: dict[str, Any]) -> dict[str, Any]:
+    recovery = _recovery_payload(state.get("recovery"))
     return {
         "result_type": DECISION_TYPE,
         "version": 1,
@@ -129,11 +196,13 @@ def _decision(state: dict[str, Any]) -> dict[str, Any]:
         "session_id": state["session_id"],
         "decision": state["decision"],
         "reasons": list(state.get("reasons", [])),
+        "immutable_work_sha256": state.get("immutable_work_sha256"),
         "observed": dict(state.get("observed", {})),
         "interrupt_thresholds": dict(state["interrupt_thresholds"]),
         "control_turn_id": state.get("control_turn_id"),
         "control_timing": dict(state["control_timing"]),
         "control_action_required": bool(state.get("control_action_required")),
+        "recovery": dict(recovery),
         "session_disposition": state["session_disposition"],
         "artifact_disposition": state["artifact_disposition"],
         "artifact_validation": dict(state["artifact_validation"]),
@@ -148,6 +217,9 @@ def _audit_event(
     control_action: str | None = None,
 ) -> dict[str, Any]:
     observed = state.get("observed", {})
+    recovery = _recovery_payload(state.get("recovery"))
+    eligibility = recovery.get("eligibility") if isinstance(recovery.get("eligibility"), dict) else {}
+    authorization = recovery.get("authorization") if isinstance(recovery.get("authorization"), dict) else {}
     budget = state["budget"]
     thresholds = state["interrupt_thresholds"]
     timing = state["control_timing"]
@@ -223,6 +295,14 @@ def _audit_event(
             "session_disposition": state["session_disposition"],
             "artifact_disposition": state["artifact_disposition"],
             "artifact_validation": state["artifact_validation"],
+            "native_retry_work_sha256": state.get("immutable_work_sha256"),
+            "native_retry_attempt": recovery.get("attempt"),
+            "native_retry_eligibility": eligibility,
+            "native_retry_eligibility_reasons": eligibility.get("reasons"),
+            "native_retry_next_action": eligibility.get("next_action"),
+            "native_retry_receipt_sha256": authorization.get("receipt_sha256"),
+            "native_retry_cumulative_usage": recovery.get("cumulative_usage"),
+            "native_retry_remaining_before_retry": eligibility.get("remaining_before_retry"),
         },
         Path(state["audit_file"]),
     )
@@ -257,6 +337,30 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
         usage={"tool_calls": 0, "elapsed_seconds": 0, "context_compactions": 0, "full_suite_runs": 0},
         budget=clean_budget,
     )
+    immutable_work_sha256 = canonical_work_sha256(packet)
+    recovery = _recovery_payload(None)
+    retry_authorization = None
+    if args.retry_authorization:
+        authorization = _load_json(Path(args.retry_authorization).expanduser().resolve(), "retry authorization")
+        errors = validate_retry_authorization(authorization)
+        if errors:
+            _fail("retry authorization validation failed: " + "; ".join(errors))
+        if authorization["retry_packet_id"] != packet["packet_id"]:
+            _fail("retry authorization packet mismatch")
+        if authorization["bead_id"] != packet["bead_id"]:
+            _fail("retry authorization bead mismatch")
+        if authorization["requested_model"] != requested_model or authorization["attested_model"] != requested_model:
+            _fail("retry authorization model mismatch")
+        if authorization["attempt_from"] != 0 or authorization["attempt_to"] != 1:
+            _fail("retry authorization attempt lineage must be 0->1")
+        if authorization["work_sha256"] != immutable_work_sha256:
+            _fail("retry authorization work hash mismatch")
+        recovery = _recovery_payload({
+            "attempt": int(authorization["attempt_to"]),
+            "cumulative_usage": authorization["cumulative_usage"],
+            "eligibility": None,
+            "authorization": authorization,
+        })
     state = {
         "result_type": STATE_TYPE,
         "version": 1,
@@ -264,6 +368,7 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
         "state_id": make_dispatch_id(f"supervision-{packet['packet_id']}"),
         "packet_id": packet["packet_id"],
         "packet_sha256": artifact_hash(json.dumps(packet, sort_keys=True)),
+        "packet_file": str(packet_path),
         "bead_id": packet["bead_id"],
         "lane": packet["lane"],
         "agent_id": args.agent_id,
@@ -281,7 +386,9 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
         "segment_start_grace_seconds": packet["supervision"]["segment_start_grace_seconds"],
         "control_adapter": packet["supervision"]["control_adapter"],
         "required_capabilities": packet["supervision"]["required_capabilities"],
+        "immutable_work_sha256": immutable_work_sha256,
         "validation_lineage": packet["validation_lineage"],
+        "recovery": recovery,
         "audit_file": str(Path(args.audit_file).expanduser().resolve() if args.audit_file else AUDIT_LOG.resolve()),
         "status": "created",
         "decision": "continue",
@@ -628,6 +735,82 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     return state
 
 
+def assess_retry(args: argparse.Namespace) -> dict[str, Any]:
+    path, state = _load_control_state(args.state_file)
+    _require_control_turn(state, args.control_turn_id)
+    _require_closed_for_retry(state)
+    _require_native_retry_decision(state)
+    parent = _require_state_packet(state.get("packet_file"), state, "parent packet")
+    canonical = canonical_work_sha256(parent)
+    if state.get("immutable_work_sha256") != canonical:
+        _fail("retry lifecycle requires preserved immutable work hash")
+    workspace_report = _load_json(Path(args.workspace_report).expanduser().resolve(), "workspace report")
+    semantic_result = _load_json(Path(args.semantic_result).expanduser().resolve(), "semantic result")
+    policy = _retry_policy()
+    eligibility = evaluate_retry_eligibility(
+        packet=parent,
+        supervision_state=state,
+        workspace_report=workspace_report,
+        semantic_result=semantic_result,
+        recovery_policy=policy,
+    )
+    recovery = _recovery_payload(state.get("recovery"))
+    recovery["eligibility"] = dict(eligibility)
+    state["recovery"] = recovery
+    state["updated_at"] = _iso(_iso_now(args.now))
+    _audit_event(state, "native_retry_assessed")
+    _write_state(path, state)
+    return eligibility
+
+
+def authorize_retry(args: argparse.Namespace) -> dict[str, Any]:
+    path, state = _load_control_state(args.state_file)
+    _require_control_turn(state, args.control_turn_id)
+    _require_closed_for_retry(state)
+    _require_native_retry_decision(state)
+    parent = _require_state_packet(state.get("packet_file"), state, "parent packet")
+    canonical = canonical_work_sha256(parent)
+    if state.get("immutable_work_sha256") != canonical:
+        _fail("retry lifecycle requires preserved immutable work hash")
+    workspace_report = _load_json(Path(args.workspace_report).expanduser().resolve(), "workspace report")
+    semantic_result = _load_json(Path(args.semantic_result).expanduser().resolve(), "semantic result")
+    fresh_attestation = _load_json(Path(args.fresh_attestation).expanduser().resolve(), "fresh attestation")
+    retry_packet = _load_json(Path(args.retry_packet).expanduser().resolve(), "retry packet")
+    errors = validate_native_worker_packet(retry_packet, dispatchable=True)
+    if errors:
+        _fail("retry packet validation failed: " + "; ".join(errors))
+    policy = _retry_policy()
+    current = evaluate_retry_eligibility(
+        packet=parent,
+        supervision_state=state,
+        workspace_report=workspace_report,
+        semantic_result=semantic_result,
+        recovery_policy=policy,
+    )
+    stored = state.get("recovery", {}).get("eligibility")
+    if stored != current:
+        _fail("retry requires re-assessing with the same inputs and policy")
+    authorization = build_retry_authorization(
+        parent_packet=parent,
+        retry_packet=retry_packet,
+        supervision_state=state,
+        workspace_report=workspace_report,
+        semantic_result=semantic_result,
+        recovery_policy=policy,
+        fresh_attestation=fresh_attestation,
+    )
+    validation_errors = validate_retry_authorization(authorization)
+    if validation_errors:
+        _fail("retry authorization validation failed: " + "; ".join(validation_errors))
+    recovery = _recovery_payload(state.get("recovery"))
+    recovery["authorization"] = authorization
+    state["recovery"] = recovery
+    state["updated_at"] = _iso(_iso_now(args.now))
+    _audit_event(state, "native_retry_authorized")
+    _write_state(path, state)
+    return authorization
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Supervise one native worker against packet-v2 live budgets.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -638,6 +821,7 @@ def parse_args() -> argparse.Namespace:
     start_cmd.add_argument("--agent-id", required=True)
     start_cmd.add_argument("--audit-file")
     start_cmd.add_argument("--state-file")
+    start_cmd.add_argument("--retry-authorization")
     start_cmd.add_argument("--now")
     start_cmd.add_argument("--json", action="store_true")
     arm_cmd = commands.add_parser("arm")
@@ -662,6 +846,22 @@ def parse_args() -> argparse.Namespace:
     finalize_cmd.add_argument("--control-action", required=True, choices=["interrupt-confirmed", "close-confirmed", "worker-completed", "control-failed"])
     finalize_cmd.add_argument("--now")
     finalize_cmd.add_argument("--json", action="store_true")
+    assess_cmd = commands.add_parser("assess-retry")
+    assess_cmd.add_argument("--state-file", required=True)
+    assess_cmd.add_argument("--control-turn-id", required=True)
+    assess_cmd.add_argument("--workspace-report", required=True)
+    assess_cmd.add_argument("--semantic-result", required=True)
+    assess_cmd.add_argument("--now")
+    assess_cmd.add_argument("--json", action="store_true")
+    authorize_cmd = commands.add_parser("authorize-retry")
+    authorize_cmd.add_argument("--state-file", required=True)
+    authorize_cmd.add_argument("--control-turn-id", required=True)
+    authorize_cmd.add_argument("--retry-packet", required=True)
+    authorize_cmd.add_argument("--fresh-attestation", required=True)
+    authorize_cmd.add_argument("--workspace-report", required=True)
+    authorize_cmd.add_argument("--semantic-result", required=True)
+    authorize_cmd.add_argument("--now")
+    authorize_cmd.add_argument("--json", action="store_true")
     return parser.parse_args()
 
 
@@ -675,8 +875,14 @@ def main() -> int:
         result, code = mark_dispatched(args)
     elif args.command == "check":
         result, code = check(args)
-    else:
+    elif args.command == "finalize":
         result, code = finalize(args), 0
+    elif args.command == "assess-retry":
+        result, code = assess_retry(args), 0
+    elif args.command == "authorize-retry":
+        result, code = authorize_retry(args), 0
+    else:
+        _fail(f"unsupported command {args.command!r}")
     if getattr(args, "json", False):
         print(json.dumps(result, indent=2, sort_keys=True))
     else:

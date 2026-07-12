@@ -118,6 +118,12 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 - Bind `arm`, native `send_input`, `mark-dispatched`, one-second checks, interrupt, close, and receipts to one control-turn ID and one uninterrupted tool-orchestration turn. No assistant/model round-trip may occur between task submission and the first check.
 - A stale arm window, missing dispatch receipt, wrong control-turn ID, late first poll, or late intermediate poll is control loss and requires interruption. Do not use a long blocking wait as the monitor.
 - An `interrupt` or `control-lost` decision requires native interrupt, close, and recorded control receipts. Do not launch a salvage worker automatically.
+- Before packet build, evaluate operative work with semantic work-estimate contract v2. The estimate separates architect authority from operative routing and includes diff, behavior, state/schema, self-hosting/live-control, contract/CLI/policy/telemetry surfaces, test construction, command complexity, expected reads, mutations, and their ratio.
+- Require a zero-tool fit commitment bound to the evaluated work-plan hash and trusted worker attestation. Invalid or ambiguous commitments route to PM realignment without repeated formatting retries.
+- During execution, use `scripts/cwo_core/native_progress.py` to compare planned and observed calls, runtime, tokens, reads, mutations, tests, and artifacts. Retained productive artifacts are not pure waste.
+- The PM may autonomously refine a packet, ask the current architect one bounded reasoning question, or split material work within the original objective and aggregate allowance. These routine corrections do not require operator approval.
+- Reserve protected stops for model, control, security, authority, mutation-attribution, contradictory-validation, or aggregate-budget boundaries.
+- Route complex or mutation-sensitive commands through `scripts/run_checked_command.py`. Raw `python -c`, `bash -c`, and `sh -c` are not valid checked-command inputs; use typed Python or shell source.
 - If the active tool surface cannot interrupt, close, wait, or expose trusted session telemetry, stop before dispatch. Do not substitute Sol or another model.
 - Sol operative break-fix is forbidden by default. A self-hosting CWO incident requires explicit operator approval in the current interaction, an audited Bead-scoped authorization with a heavy warning, and fresh Spark validation; the exception expires when that Bead closes and must never be selected automatically.
 

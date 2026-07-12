@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 ALLOWED_IMPORTS = {
     "access_profiles": {"policy"},
+    "checked_command": set(),
     "paths": set(),
     "util": set(),
     "chatgpt_urls": set(),
@@ -36,11 +37,18 @@ ALLOWED_IMPORTS = {
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
     "native_disposition": set(),
+    "native_progress": {"policy"},
+    "native_recovery": set(),
+    "native_retry": set(),
+    "native_replanning": {"policy"},
     "native_session": {"native_disposition"},
     "native_worker_contracts": {"native_disposition"},
-    "execution_status_report": {"audit", "paths"},
+    "execution_enhancement_metrics": set(),
+    "execution_status_report": {"audit", "execution_enhancement_metrics", "paths"},
+    "work_sizing": {"policy"},
     "public_copy": set(),
     "errors": set(),
+    "native_capability": set(),
     "types": set(),
 }
 

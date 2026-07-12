@@ -45,31 +45,113 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertTrue(policy["governance"]["sol"]["may_authorize_worker_packets"])
         self.assertFalse(policy["governance"]["sol"]["may_execute_operative_work"])
         self.assertEqual(policy["governance"]["spark"]["exact_model"], "gpt-5.3-codex-spark")
+        worker = policy["governance"]["native_operative_worker"]
+        self.assertEqual(worker["preferred_model"], "gpt-5.3-codex-spark")
+        self.assertEqual(worker["authorized_models"], ["gpt-5.3-codex-spark", "gpt-5.6-luna"])
+        self.assertEqual(worker["authorized_fallback_models"], ["gpt-5.6-luna"])
+        self.assertEqual(worker["fallback_selection"], "explicit-only")
 
         gate = policy["execution_bootstrap"]["spawn"]["attestation_gate"]
         self.assertTrue(gate["required"])
         self.assertEqual(gate["tool_mode"], "no-tools")
         self.assertEqual(gate["model_authority"], "trusted-control-plane-session-metadata")
         self.assertEqual(gate["self_report_authority"], "forbidden")
-        self.assertEqual(gate["required_actual_model"], "gpt-5.3-codex-spark")
+        self.assertEqual(gate["required_actual_model_source"], "packet.requested_model")
 
         segmenting = policy["execution_bootstrap"]["segmenting"]
         self.assertTrue(segmenting["new_task_segment"]["new_attestation_boundary"])
         self.assertEqual(segmenting["resume_agent"]["default"], "forbidden")
         self.assertEqual(
             segmenting["resume_agent"]["waiver_release_condition"],
-            "post-resume model attestation exactly matches gpt-5.3-codex-spark",
+            "post-resume model attestation exactly matches packet.requested_model",
         )
 
         mismatch = policy["execution_bootstrap"]["model_mismatch"]
         self.assertEqual(mismatch["action"], "quarantine_output")
-        self.assertEqual(mismatch["required_follow_up"], "fresh-native-spark-redispatch")
+        self.assertEqual(mismatch["required_follow_up"], "fresh-native-operative-worker-redispatch")
         self.assertEqual(mismatch["return_status"], "model-mismatch")
 
         continuation = policy["execution_bootstrap"]["durable_continuation"]
         self.assertEqual(continuation["checkpoint"], "beads")
         self.assertEqual(continuation["worker_rotation"], "fresh-native-worker-per-segment")
         self.assertEqual(continuation["agent_resume_model"], "disallowed")
+
+    def test_native_model_capability_policy_is_advisory_and_fail_closed(self) -> None:
+        capability = self.__class__.policy["native_model_capability"]
+        self.assertEqual(
+            capability["states"],
+            ["configured", "advertised", "spawn-accepted", "attested", "dispatchable"],
+        )
+        self.assertEqual(
+            capability["dispatchable_requires"],
+            ["configured", "spawn-accepted", "attested-exact-model"],
+        )
+        self.assertEqual(capability["advertisement"]["authority"], "advisory-telemetry")
+        self.assertEqual(capability["advertisement"]["omission_outcome"], "advertisement-mismatch")
+        self.assertEqual(capability["outcomes"]["native_spawn_rejected"], "hard-stop")
+        self.assertEqual(capability["outcomes"]["native_attestation_mismatch"], "quarantine-hard-stop")
+        self.assertEqual(capability["outcomes"]["native_capability_confirmed"], "dispatchable")
+        self.assertEqual(capability["receipt"]["schema"], "schemas/native-model-capability-receipt.schema.json")
+        self.assertEqual(capability["receipt"]["authority"], "trusted-session-jsonl")
+        self.assertFalse(capability["receipt"]["cache_generated_registry"])
+        self.assertIn("canary-tool-use", capability["hard_stops"])
+        self.assertIn("generated-cache-edit", capability["prohibitions"])
+        self.assertIn("model-self-report-authority", capability["prohibitions"])
+
+    def test_bounded_native_retry_policy_contract(self) -> None:
+        bounded_retry = self.__class__.policy["bounded_native_retry"]
+        self.assertEqual(
+            bounded_retry,
+            {
+                "version": 1,
+                "enabled": True,
+                "max_retries": 1,
+                "eligible_semantic_statuses": ["delivery-failed", "no-artifact", "no-progress"],
+                "eligible_interrupt_reasons": [
+                    "delivery-failure",
+                    "no-progress",
+                    "tool-call-interrupt-threshold",
+                    "runtime-interrupt-threshold",
+                ],
+                "authority": "cwo-native-supervisor-evidence",
+                "actual_spawn_owner": "native-pm-controller",
+                "operator_approval_required": False,
+                "immutable_work_hash_required": True,
+                "aggregate_budget_shared": True,
+                "fresh_retry_session_required": True,
+                "exact_model_attestation_required": True,
+                "authorization_receipt": {
+                    "type": "cwo-native-retry-authorization",
+                    "version": 1,
+                    "schema": "schemas/native-retry-authorization.schema.json",
+                    "next_action": "spawn-fresh-native-retry",
+                },
+                "hard_stops": [
+                    "model-mismatch",
+                    "context-compaction",
+                    "control-loss",
+                    "security-violation",
+                    "workspace-mutation",
+                    "workspace-attribution-ambiguity",
+                    "invalid-semantic-evidence",
+                    "retry-exhausted",
+                    "aggregate-allowance-exhausted",
+                    "immutable-work-hash-mismatch",
+                ],
+                "prohibitions": [
+                    "model-substitution",
+                    "non-native-bridge",
+                    "operative-agent-resume",
+                    "sol-operative-substitution",
+                    "automatic-salvage-chain",
+                ],
+            },
+        )
+        self.assertFalse(
+            self.__class__.policy["work_sizing"]["enforcement"]["foundation-canary"]["autonomous_replanning"][
+                "live_replay_enabled"
+            ]
+        )
 
     def test_native_worker_lane_budgets_and_alignment_statuses(self) -> None:
         policy = self.__class__.policy

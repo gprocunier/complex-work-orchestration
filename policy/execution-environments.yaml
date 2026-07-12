@@ -11,7 +11,7 @@
       "role_bindings": {
         "architect": {"harness": "codex_cli", "executor": "frontier_architect", "model": "codex-5.6-sol", "variant": "sol"},
         "project_manager": {"harness": "codex_cli", "executor": "frontier_architect"},
-        "worker": {"harness": "codex_cli", "executor": "internal_worker"},
+        "worker": {"harness": "codex_cli", "executor": "internal_worker", "model": "gpt-5.3-codex-spark", "variant": "spark"},
         "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
         "master_review": {"harness": "manual_operator", "executor": "chatgpt_pro_browser_master_reviewer"}
       },
@@ -36,7 +36,7 @@
         "project_manager": {"harness": "codex_cli", "executor": "codex_project_manager"},
         "architect": {"harness": "manual_operator", "executor": "rhoai_glm_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},
         "architecture_counter_review": {"harness": "codex_cli", "executor": "codex_architecture_critic"},
-        "worker": {"harness": "codex_cli", "executor": "internal_worker"},
+        "worker": {"harness": "codex_cli", "executor": "internal_worker", "model": "gpt-5.3-codex-spark", "variant": "spark"},
         "local_worker": {"harness": "manual_operator", "executor": "openshift_ai_vllm_worker", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
         "local_secure_reviewer": {"harness": "manual_operator", "executor": "openshift_ai_vllm_secure_reviewer", "model_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4"},
         "synthesis_input": {"harness": "manual_operator", "executor": "rhoai_glm_primary_architect", "model_profile": "rhoai-architect-glm-5-2-bf16-thinking"},

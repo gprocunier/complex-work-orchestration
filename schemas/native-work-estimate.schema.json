@@ -1,0 +1,596 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/native-work-estimate.schema.json",
+  "title": "native-work-estimate",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "route": {
+      "type": "string",
+      "enum": [
+        "spark",
+        "split",
+        "architect"
+      ]
+    },
+    "estimateQuantiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool_calls_p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_calls_p90": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_p90": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "tool_calls_p50",
+        "tool_calls_p90",
+        "runtime_seconds_p50",
+        "runtime_seconds_p90"
+      ]
+    },
+    "estimateDeltas": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool_calls_p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_calls_p90": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_p90": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "tool_calls_p50",
+        "tool_calls_p90",
+        "runtime_seconds_p50",
+        "runtime_seconds_p90"
+      ]
+    }
+  },
+  "properties": {
+    "estimate_type": {
+      "const": "cwo-native-work-estimate"
+    },
+    "version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "estimate_contract_version": {
+      "type": "integer",
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "work_unit_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_outcome": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "expert_profiles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "frozen_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "unresolved_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "subsystems": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "write_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "context_manifest": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "path",
+          "selector",
+          "purpose",
+          "bytes",
+          "sha256"
+        ]
+      }
+    },
+    "acceptance_checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "estimates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool_calls_p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_calls_p90": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_p90": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_tokens_p90": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "tool_calls_p50",
+        "tool_calls_p90",
+        "runtime_seconds_p50",
+        "runtime_seconds_p90",
+        "context_tokens_p90"
+      ]
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reasoning_uncertainty": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "subsystem_coupling": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "contract_risk": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "diagnostic_uncertainty": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "context_breadth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "validation_breadth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      },
+      "required": [
+        "reasoning_uncertainty",
+        "subsystem_coupling",
+        "contract_risk",
+        "diagnostic_uncertainty",
+        "context_breadth",
+        "validation_breadth"
+      ]
+    },
+    "semantic_estimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "estimated_diff_p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimated_diff_p90": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "behavioral_changes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state_machine_changes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "schema_changes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "self_hosting_risk": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "live_control_risk": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "contract_surfaces": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cli_surfaces": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "policy_surfaces": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "telemetry_surfaces": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_regressions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "test_construction_complexity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "command_complexity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "nested_quote_layers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_context_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_mutations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "read_to_mutation_ratio": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "estimated_diff_p50",
+        "estimated_diff_p90",
+        "behavioral_changes",
+        "state_machine_changes",
+        "schema_changes",
+        "self_hosting_risk",
+        "live_control_risk",
+        "contract_surfaces",
+        "cli_surfaces",
+        "policy_surfaces",
+        "telemetry_surfaces",
+        "expected_regressions",
+        "test_construction_complexity",
+        "command_complexity",
+        "nested_quote_layers",
+        "expected_context_reads",
+        "expected_mutations",
+        "read_to_mutation_ratio"
+      ]
+    },
+    "pm_estimate": {
+      "$ref": "#/$defs/estimateQuantiles"
+    },
+    "domain_expert_estimate": {
+      "$ref": "#/$defs/estimateQuantiles"
+    },
+    "semantic_scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "diff_p90": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "behavioral_changes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "state_schema_changes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "surface_changes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "expected_regressions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "read_to_mutation_ratio": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "self_hosting_live_control_risk": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "test_construction_complexity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "command_complexity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      },
+      "required": [
+        "diff_p90",
+        "behavioral_changes",
+        "state_schema_changes",
+        "surface_changes",
+        "expected_regressions",
+        "read_to_mutation_ratio",
+        "self_hosting_live_control_risk",
+        "test_construction_complexity",
+        "command_complexity"
+      ]
+    },
+    "score_total": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18
+    },
+    "route": {
+      "$ref": "#/$defs/route"
+    },
+    "v1_route": {
+      "$ref": "#/$defs/route"
+    },
+    "semantic_route": {
+      "$ref": "#/$defs/route"
+    },
+    "authority_route": {
+      "$ref": "#/$defs/route"
+    },
+    "operative_route": {
+      "$ref": "#/$defs/route"
+    },
+    "route_conflict": {
+      "type": "boolean"
+    },
+    "variance_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pm_estimate_delta": {
+          "$ref": "#/$defs/estimateDeltas"
+        },
+        "domain_estimate_delta": {
+          "$ref": "#/$defs/estimateDeltas"
+        }
+      }
+    },
+    "hard_gate_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "unresolved-decisions",
+          "reasoning-uncertainty-architect",
+          "contract-risk-architect",
+          "too-many-subsystems",
+          "too-many-write-paths",
+          "too-many-context-entries",
+          "too-many-acceptance-checks",
+          "context-tokens-p90-exceeded",
+          "tool-calls-p90-exceeded",
+          "runtime-seconds-p90-exceeded",
+          "semantic-authority-uncertainty",
+          "semantic-route-conflict",
+          "semantic-estimate-variance",
+          "semantic-read-mutation-split-trigger"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "aggregate_allowance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dispatch_soft_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dispatch_soft_cap_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "continuation_authority": {
+          "const": "pm-architect-within-aggregate-budget"
+        },
+        "max_pm_replans": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_architect_cycles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_compactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_calls_hard": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_hard": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "dispatch_soft_cap",
+        "dispatch_soft_cap_action",
+        "continuation_authority",
+        "max_pm_replans",
+        "max_architect_cycles",
+        "max_compactions",
+        "tool_calls_hard",
+        "runtime_seconds_hard"
+      ]
+    }
+  },
+  "required": [
+    "estimate_type",
+    "version",
+    "work_unit_id",
+    "bead_id",
+    "requested_model",
+    "primary_outcome",
+    "expected_artifacts",
+    "expert_profiles",
+    "frozen_decisions",
+    "unresolved_decisions",
+    "subsystems",
+    "write_paths",
+    "context_manifest",
+    "acceptance_checks",
+    "estimates",
+    "scores",
+    "score_total",
+    "route",
+    "hard_gate_reasons",
+    "aggregate_allowance"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "estimate_contract_version": {
+            "const": 2
+          }
+        },
+        "required": [
+          "estimate_contract_version"
+        ]
+      },
+      "then": {
+        "required": [
+          "semantic_estimate",
+          "pm_estimate",
+          "domain_expert_estimate",
+          "semantic_scores",
+          "v1_route",
+          "semantic_route",
+          "authority_route",
+          "operative_route",
+          "route_conflict",
+          "variance_metrics"
+        ]
+      }
+    }
+  ]
+}

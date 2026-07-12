@@ -49,6 +49,29 @@ TELEMETRY_NUMERIC_FIELDS = {
     "late_poll_count",
     "poll_interval_ms",
     "poll_lag_tolerance_ms",
+    "planned_tool_calls_p50",
+    "planned_tool_calls_p90",
+    "planned_runtime_seconds_p50",
+    "planned_runtime_seconds_p90",
+    "observed_tokens",
+    "planned_context_reads",
+    "observed_context_reads",
+    "planned_mutations",
+    "observed_mutations",
+    "observed_tests_run",
+    "observed_artifacts_completed",
+    "projected_tool_calls",
+    "projected_runtime_seconds",
+    "planned_read_to_mutation_ratio",
+    "actual_read_to_mutation_ratio",
+    "retained_productive_artifacts",
+    "checked_command_complexity_score",
+    "checked_command_exit_code",
+    "checked_command_avoided_retry_cycles",
+}
+TELEMETRY_SIGNED_NUMERIC_FIELDS = {
+    "tool_call_calibration_error",
+    "runtime_calibration_error_seconds",
 }
 TELEMETRY_BOOLEAN_FIELDS = {
     "execution_enabled",
@@ -74,6 +97,13 @@ TELEMETRY_BOOLEAN_FIELDS = {
     "control_receipt_confirmed",
     "trailing_partial_record_ignored",
     "monitor_armed_before_dispatch",
+    "progress_validation_complete",
+    "progress_pure_waste",
+    "checked_command_hash_match",
+    "checked_command_execution_started",
+    "checked_command_mutation_started",
+    "checked_command_quarantine_required",
+    "checked_command_quoting_error_prevented",
 }
 TELEMETRY_STRING_FIELDS = {
     "telemetry_kind",
@@ -130,11 +160,23 @@ TELEMETRY_STRING_FIELDS = {
     "native_supervision_state_id",
     "native_supervision_decision",
     "native_supervision_status",
+    "native_retry_receipt_sha256",
     "control_adapter",
     "control_action",
     "session_id",
     "control_turn_id",
     "submission_id",
+    "native_progress_outcome",
+    "native_progress_pm_action",
+    "checked_command_id",
+    "checked_command_spec_sha256",
+    "checked_command_mode",
+    "checked_command_preflight_status",
+    "checked_command_linter",
+    "checked_command_execution_status",
+    "checked_command_failure_class",
+    "checked_command_linted_sha256",
+    "checked_command_executed_sha256",
 }
 TELEMETRY_STRING_LIST_FIELDS = {
     "telemetry_missing_reasons",
@@ -149,6 +191,11 @@ TELEMETRY_STRING_LIST_FIELDS = {
     "detected_letter_scripts",
     "native_supervision_reasons",
     "control_receipts",
+    "native_progress_reasons",
+    "native_progress_warnings",
+    "retained_artifacts",
+    "checked_command_complexity_reasons",
+    "checked_command_mutated_paths",
 }
 
 AUDIT_NUMERIC_FIELDS = {
@@ -275,6 +322,11 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
     for key, value in event.items():
         if key in SENSITIVE_AUDIT_FIELDS:
             continue
+        if key in TELEMETRY_SIGNED_NUMERIC_FIELDS:
+            numeric = normalize_finite_number(value)
+            if numeric is not None:
+                sanitized[key] = numeric
+            continue
         if key in TELEMETRY_NUMERIC_FIELDS:
             numeric = normalize_nonnegative_number(value)
             if numeric is not None:
@@ -368,6 +420,15 @@ def telemetry_fields(**values: Any) -> dict[str, Any]:
         or key in TELEMETRY_STRING_FIELDS
         or key in TELEMETRY_STRING_LIST_FIELDS
     }
+
+
+def normalize_finite_number(value: Any) -> int | float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if not math.isfinite(number):
+        return None
+    return int(number) if number.is_integer() else number
 
 
 def normalize_nonnegative_number(value: Any) -> int | float | None:

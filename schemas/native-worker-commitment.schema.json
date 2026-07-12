@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/native-worker-commitment.schema.json",
+  "title": "cwo-native-worker-fit-commitment",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "commitment_type": {
+      "const": "cwo-native-worker-fit-commitment"
+    },
+    "version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "work_unit_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attestation_source": {
+      "const": "trusted-session-jsonl"
+    },
+    "attested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "work_estimate_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "accept",
+        "pm-realignment",
+        "architect-realignment"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "estimates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool_calls_p50": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tool_calls_p90": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runtime_seconds_p50": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runtime_seconds_p90": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "tool_calls_p50",
+        "tool_calls_p90",
+        "runtime_seconds_p50",
+        "runtime_seconds_p90"
+      ]
+    },
+    "tool_calls_before_commitment": {
+      "type": "integer",
+      "enum": [
+        0
+      ]
+    },
+    "context_compactions_before_commitment": {
+      "type": "integer",
+      "enum": [
+        0
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "commitment_type",
+    "version",
+    "work_unit_id",
+    "bead_id",
+    "requested_model",
+    "session_id",
+    "attestation_source",
+    "attested_model",
+    "work_estimate_sha256",
+    "decision",
+    "confidence",
+    "estimates",
+    "tool_calls_before_commitment",
+    "context_compactions_before_commitment",
+    "reason"
+  ],
+  "$comment": "Decision aliases are accepted only by the deterministic one-pass pre-validation normalizer; this final commitment remains canonical and hash/session/model bound."
+}

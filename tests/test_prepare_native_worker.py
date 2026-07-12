@@ -96,6 +96,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             contracts.ALLOWED_ESCALATION_COMPACTION_FIELDS,
         )
         self.assertEqual(set(properties["return_contract"]["properties"].keys()), contracts.ALLOWED_RETURN_CONTRACT_FIELDS)
+        self.assertEqual(set(properties["command_contract"]["properties"].keys()), contracts.ALLOWED_COMMAND_CONTRACT_FIELDS)
 
     def test_return_schema_property_contract_parity(self) -> None:
         schema = self._schema(ROOT / "schemas" / "native-worker-return.schema.json")
@@ -148,6 +149,8 @@ class NativeWorkerPacketTests(unittest.TestCase):
             self.assertEqual(packet["supervision"]["arm_to_dispatch_max_ms"], 5000)
             self.assertTrue(packet["supervision"]["control_turn_required"])
             self.assertEqual(packet["validation_lineage"]["attempt"], 0)
+            self.assertTrue(packet["command_contract"]["required"])
+            self.assertEqual(packet["command_contract"]["wrapper"], "scripts/run_checked_command.py")
             self.assertIsNone(packet["validation_lineage"]["parent_packet_id"])
             if HAS_JSONSCHEMA:
                 import jsonschema
@@ -190,6 +193,52 @@ class NativeWorkerPacketTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("unknown lane", result.stderr.lower())
+
+    def test_explicit_luna_packet_binds_exact_attestation(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-luna",
+                lane="implementation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["focused tests pass"],
+                requested_model="gpt-5.6-luna",
+            )
+            self.assertEqual(packet["requested_model"], "gpt-5.6-luna")
+            self.assertEqual(
+                packet["session_policy"]["attestation"]["required_actual_model"],
+                "gpt-5.6-luna",
+            )
+            self.assertEqual(validate_native_worker_packet(packet), [])
+
+            if HAS_JSONSCHEMA:
+                from jsonschema import Draft202012Validator
+
+                schema = json.loads((ROOT / "schemas" / "native-worker-packet.schema.json").read_text(encoding="utf-8"))
+                validator = Draft202012Validator(schema)
+                validator.validate(packet)
+
+            packet["session_policy"]["attestation"]["required_actual_model"] = "gpt-5.3-codex-spark"
+            self.assertIn(
+                "session_policy.attestation.required_actual_model must match packet.requested_model",
+                validate_native_worker_packet(packet),
+            )
+            if HAS_JSONSCHEMA:
+                self.assertTrue(list(validator.iter_errors(packet)))
+
+    def test_build_rejects_unauthorized_native_model(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            with self.assertRaisesRegex(SystemExit, "is not authorized"):
+                build_native_worker_packet(
+                    bead_id="bead-model",
+                    lane="implementation",
+                    workdir=workdir,
+                    allowed_paths=["."],
+                    acceptance_checks=["focused tests pass"],
+                    requested_model="gpt-5.6-sol",
+                )
 
     def test_build_rejects_traversal_and_out_of_scope_allowed_paths(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
@@ -282,7 +331,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
                 handle.write(json.dumps(payload))
             result = run_cli("validate", str(packet_path))
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("requested_model must match policy", result.stderr)
+            self.assertIn("requested_model must be an authorized native operative model", result.stderr)
 
             packet = build_native_worker_packet(
                 bead_id="bead-1",
@@ -350,13 +399,13 @@ class NativeWorkerPacketTests(unittest.TestCase):
                 packet["supervision"]["interrupt_thresholds"],
                 {"tool_calls": 7, "runtime_seconds": 54},
             )
-            self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+            self.assertEqual(validate_native_worker_packet(packet), [])
             corrupted_provenance = copy.deepcopy(packet)
             corrupted_provenance["budget_provenance"]["overridden_fields"] = []
             corrupted_provenance["budget_provenance"]["overrides_applied"] = False
             self.assertIn(
                 "must match effective budget differences",
-                " ".join(validate_native_worker_packet(corrupted_provenance, dispatchable=True)),
+                " ".join(validate_native_worker_packet(corrupted_provenance)),
             )
 
             relaxed = run_cli(
@@ -443,7 +492,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
                     "attempt": 1,
                 },
             )
-            self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+            self.assertEqual(validate_native_worker_packet(packet), [])
             with self.assertRaisesRegex(SystemExit, "0 or 1"):
                 build_native_worker_packet(
                     bead_id="bead-validation",
@@ -468,7 +517,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             recursive["validation_lineage"]["parent_packet_id"] = packet["packet_id"]
             self.assertIn(
                 "cannot reference its own packet_id",
-                " ".join(validate_native_worker_packet(recursive, dispatchable=True)),
+                " ".join(validate_native_worker_packet(recursive)),
             )
 
     def test_build_render_cli_mode(self) -> None:
@@ -485,12 +534,8 @@ class NativeWorkerPacketTests(unittest.TestCase):
             packet_path = Path(workdir) / "packet.json"
             packet_path.write_text(json.dumps(packet), encoding="utf-8")
             result = run_cli("render", str(packet_path))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("Native Worker Packet Prompt", result.stdout)
-            self.assertIn("Packet:", result.stdout)
-            self.assertIn("Lane:", result.stdout)
-            self.assertIn('"return_type": "cwo-native-worker-return"', result.stdout)
-            self.assertIn('"mutation_state": "modified"', result.stdout)
+            self.assertNotEqual(result.returncode, 0, result.stderr)
+            self.assertIn("dispatchable packet requires work_plan and worker_commitment", result.stderr)
 
     def test_validate_native_worker_packet_helpers(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
@@ -741,6 +786,16 @@ class NativeWorkerPacketTests(unittest.TestCase):
             }
         )
         validator.validate(completed)
+        completed_luna = dict(completed)
+        completed_luna["requested_model"] = "gpt-5.6-luna"
+        completed_luna["actual_model"] = "gpt-5.6-luna"
+        validator.validate(completed_luna)
+        completed_cross_model = dict(completed)
+        completed_cross_model["actual_model"] = "gpt-5.6-luna"
+        self.assertTrue(list(validator.iter_errors(completed_cross_model)))
+        completed_luna_cross_model = dict(completed_luna)
+        completed_luna_cross_model["actual_model"] = "gpt-5.3-codex-spark"
+        self.assertTrue(list(validator.iter_errors(completed_luna_cross_model)))
         completed_bad_model = dict(completed)
         completed_bad_model["requested_model"] = "gpt-other"
         self.assertTrue(list(validator.iter_errors(completed_bad_model)))

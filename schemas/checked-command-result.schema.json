@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://example.com/schemas/checked-command-result.schema.json",
+  "title": "checked-command-result", "type": "object", "additionalProperties": false,
+  "properties": {
+    "result_type": {"const": "cwo-checked-command-result"}, "version": {"const": 1}, "command_id": {"type": "string"},
+    "spec_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "mode": {"type": "string"}, "complexity": {"type": "object"},
+    "preflight_status": {"enum": ["not-run", "passed", "failed"]}, "linter": {"type": ["string", "null"]},
+    "execution_status": {"enum": ["not-started", "blocked", "passed", "failed", "quarantined"]}, "exit_code": {"type": ["integer", "null"]},
+    "linted_sha256": {"type": ["string", "null"]}, "executed_sha256": {"type": ["string", "null"]}, "hash_match": {"type": ["boolean", "null"]},
+    "execution_started": {"type": "boolean"}, "mutation_started": {"type": "boolean"}, "mutated_paths": {"type": "array", "items": {"type": "string"}},
+    "failure_class": {"type": ["string", "null"]}, "quarantine_required": {"type": "boolean"}, "diagnostics": {"type": "object"},
+    "quoting_error_prevented": {"type": "boolean"}, "avoided_retry_cycles": {"type": "integer", "minimum": 0}
+  },
+  "required": ["result_type", "version", "command_id", "spec_sha256", "mode", "complexity", "preflight_status", "linter", "execution_status", "exit_code", "linted_sha256", "executed_sha256", "hash_match", "execution_started", "mutation_started", "mutated_paths", "failure_class", "quarantine_required", "diagnostics", "quoting_error_prevented", "avoided_retry_cycles"]
+}

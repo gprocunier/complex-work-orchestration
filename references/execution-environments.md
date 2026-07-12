@@ -281,6 +281,48 @@ Policy for CWO bootstrap operative execution is in
   session disposition, artifact disposition, and validation state.
 - Resume path for fixes is: reinstall/reload the skill, then resume from Beads.
 
+### Size and realign operative work
+
+A dispatchable native packet uses semantic work-estimate contract v2. It records
+separate authority and operative routes, expected diff and behavior changes,
+state/schema and self-hosting risk, affected contract/CLI/policy/telemetry
+surfaces, regression and command complexity, and expected reads and mutations.
+Historical v1 estimates remain readable but are not dispatchable.
+
+Before mutation, the attested worker returns one numeric p50/p90 fit commitment
+bound to the evaluated work-plan hash. An invalid, ambiguous, or low-confidence
+response returns to the PM for deterministic normalization or packet
+refinement; it does not start a formatting retry loop.
+
+During execution, `scripts/cwo_core/native_progress.py` compares the commitment
+with observed calls, runtime, tokens, reads, mutations, tests, and artifacts.
+Early warnings return evidence and revised estimates to the PM. Within the
+original objective and aggregate allowance, the PM may refine and redispatch a
+smaller Spark packet, ask the current architect one bounded reasoning question,
+or split material work. Operator approval is reserved for actual protected
+boundaries, not routine estimation correction. Reports retain productive
+artifacts and show calibration error instead of classifying all interrupted
+work as waste.
+
+### Checked command execution
+
+Use a structured checked-command specification for nested source, quoting,
+pipes or redirects, generated arguments, and mutation-sensitive commands:
+
+```bash
+python scripts/run_checked_command.py command-spec.json --output command-result.json
+```
+
+The wrapper performs preflight and execution in one invocation. It uses literal
+argv with `shell=False`, or materializes exact typed shell/Python source,
+validates it, hashes it, and executes those same bytes. Nested JSON and regular
+expressions receive deterministic preflight. A `command-construction-failed` result detected before execution with zero
+mutation is recoverable and does not quarantine source.
+Hash mismatch, scope or security violation, unattributed mutation, or execution
+without evidence requires quarantine. The schemas are
+`schemas/checked-command-spec.schema.json` and
+`schemas/checked-command-result.schema.json`.
+
 ### Session and artifact disposition
 
 A stopped worker and its output are separate decisions. The session disposition

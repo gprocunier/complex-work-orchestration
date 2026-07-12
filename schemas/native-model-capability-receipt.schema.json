@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/native-model-capability-receipt.schema.json",
+  "title": "CWO Native Model Capability Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_type",
+    "version",
+    "requested_model",
+    "configured_model",
+    "advertised",
+    "advertised_models",
+    "spawn_accepted",
+    "canary_session_id",
+    "attestation_source",
+    "attested_model",
+    "tool_calls",
+    "context_compactions",
+    "runtime_seconds",
+    "closure_receipt",
+    "tool_surface_id",
+    "decision",
+    "authority",
+    "issued_at",
+    "expires_at",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "receipt_type": {
+      "const": "cwo-native-model-capability-receipt"
+    },
+    "version": {
+      "const": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "configured_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "advertised": {
+      "type": "boolean"
+    },
+    "advertised_models": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "spawn_accepted": {
+      "const": true
+    },
+    "canary_session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attestation_source": {
+      "const": "trusted-session-jsonl"
+    },
+    "attested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tool_calls": {
+      "const": 0
+    },
+    "context_compactions": {
+      "const": 0
+    },
+    "runtime_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "closure_receipt": {
+      "const": true
+    },
+    "tool_surface_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision": {
+      "const": "native-capability-confirmed"
+    },
+    "authority": {
+      "const": "trusted-session-jsonl"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

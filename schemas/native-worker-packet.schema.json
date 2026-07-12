@@ -3,20 +3,21 @@
   "title": "Native Worker Packet",
   "type": "object",
   "additionalProperties": false,
-    "required": [
-      "packet_type",
-      "version",
-      "packet_id",
-      "bead_id",
-      "lane",
-      "requested_model",
-      "session_policy",
-      "scope",
-      "acceptance_checks",
-      "budget",
-      "escalation_triggers",
-      "return_contract"
-    ],
+  "required": [
+    "packet_type",
+    "version",
+    "packet_id",
+    "bead_id",
+    "lane",
+    "requested_model",
+    "session_policy",
+    "scope",
+    "acceptance_checks",
+    "budget",
+    "escalation_triggers",
+    "return_contract",
+    "command_contract"
+  ],
   "properties": {
     "packet_type": {
       "type": "string",
@@ -24,7 +25,10 @@
     },
     "version": {
       "type": "integer",
-      "enum": [1, 2]
+      "enum": [
+        1,
+        2
+      ]
     },
     "packet_id": {
       "type": "string",
@@ -45,7 +49,10 @@
     },
     "requested_model": {
       "type": "string",
-      "const": "gpt-5.3-codex-spark"
+      "enum": [
+        "gpt-5.3-codex-spark",
+        "gpt-5.6-luna"
+      ]
     },
     "session_policy": {
       "type": "object",
@@ -94,7 +101,10 @@
             },
             "required_actual_model": {
               "type": "string",
-              "const": "gpt-5.3-codex-spark"
+              "enum": [
+                "gpt-5.3-codex-spark",
+                "gpt-5.6-luna"
+              ]
             }
           }
         },
@@ -192,16 +202,35 @@
     "budget_provenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["profile", "policy_source", "overrides_applied", "overridden_fields"],
+      "required": [
+        "profile",
+        "policy_source",
+        "overrides_applied",
+        "overridden_fields"
+      ],
       "properties": {
-        "profile": {"type": "string", "minLength": 1},
-        "policy_source": {"const": "policy/native-worker-execution.yaml"},
-        "overrides_applied": {"type": "boolean"},
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_source": {
+          "const": "policy/native-worker-execution.yaml"
+        },
+        "overrides_applied": {
+          "type": "boolean"
+        },
         "overridden_fields": {
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["tool_calls_soft", "tool_calls_hard", "runtime_seconds_soft", "runtime_seconds_hard", "max_compactions", "max_full_suite_runs"]
+            "enum": [
+              "tool_calls_soft",
+              "tool_calls_hard",
+              "runtime_seconds_soft",
+              "runtime_seconds_hard",
+              "max_compactions",
+              "max_full_suite_runs"
+            ]
           }
         }
       }
@@ -209,27 +238,71 @@
     "supervision": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["required", "mode", "poll_interval_ms", "poll_lag_tolerance_ms", "arm_to_dispatch_max_ms", "control_turn_required", "segment_start_grace_seconds", "control_adapter", "required_capabilities", "interrupt_thresholds"],
+      "required": [
+        "required",
+        "mode",
+        "poll_interval_ms",
+        "poll_lag_tolerance_ms",
+        "arm_to_dispatch_max_ms",
+        "control_turn_required",
+        "segment_start_grace_seconds",
+        "control_adapter",
+        "required_capabilities",
+        "interrupt_thresholds"
+      ],
       "properties": {
-        "required": {"const": true},
-        "mode": {"const": "live-fail-closed"},
-        "poll_interval_ms": {"type": "integer", "minimum": 100},
-        "poll_lag_tolerance_ms": {"type": "integer", "minimum": 0},
-        "arm_to_dispatch_max_ms": {"type": "integer", "minimum": 100},
-        "control_turn_required": {"const": true},
-        "segment_start_grace_seconds": {"type": "integer", "minimum": 1},
-        "control_adapter": {"const": "native-multi-agent-v1"},
+        "required": {
+          "const": true
+        },
+        "mode": {
+          "const": "live-fail-closed"
+        },
+        "poll_interval_ms": {
+          "type": "integer",
+          "minimum": 100
+        },
+        "poll_lag_tolerance_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "arm_to_dispatch_max_ms": {
+          "type": "integer",
+          "minimum": 100
+        },
+        "control_turn_required": {
+          "const": true
+        },
+        "segment_start_grace_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "control_adapter": {
+          "const": "native-multi-agent-v1"
+        },
         "required_capabilities": {
           "type": "array",
-          "const": ["interrupt", "close", "wait"]
+          "const": [
+            "interrupt",
+            "close",
+            "wait"
+          ]
         },
         "interrupt_thresholds": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["tool_calls", "runtime_seconds"],
+          "required": [
+            "tool_calls",
+            "runtime_seconds"
+          ],
           "properties": {
-            "tool_calls": {"type": "integer", "minimum": 0},
-            "runtime_seconds": {"type": "integer", "minimum": 0}
+            "tool_calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "runtime_seconds": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         }
       }
@@ -237,12 +310,36 @@
     "validation_lineage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["root_packet_id", "parent_packet_id", "attempt"],
+      "required": [
+        "root_packet_id",
+        "parent_packet_id",
+        "attempt"
+      ],
       "properties": {
-        "root_packet_id": {"type": "string", "minLength": 1},
-        "parent_packet_id": {"type": ["string", "null"]},
-        "attempt": {"type": "integer", "minimum": 0, "maximum": 1}
+        "root_packet_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_packet_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
+    },
+    "work_plan": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "worker_commitment": {
+      "type": "object",
+      "minProperties": 1
     },
     "escalation_triggers": {
       "type": "object",
@@ -356,12 +453,142 @@
           }
         }
       }
+    },
+    "command_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "const": true
+        },
+        "wrapper": {
+          "const": "scripts/run_checked_command.py"
+        },
+        "spec_schema": {
+          "const": "schemas/checked-command-spec.schema.json"
+        },
+        "result_schema": {
+          "const": "schemas/checked-command-result.schema.json"
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "argv",
+              "shell-source",
+              "python-source"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "typed_source_required_for": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "python -c",
+              "bash -c",
+              "sh -c"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "complex_command_action": {
+          "const": "checked-wrapper-required"
+        },
+        "construction_failure": {
+          "const": "pm-realignment-no-quarantine"
+        },
+        "quarantine_failures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "required",
+        "wrapper",
+        "spec_schema",
+        "result_schema",
+        "modes",
+        "typed_source_required_for",
+        "complex_command_action",
+        "construction_failure",
+        "quarantine_failures"
+      ]
     }
   },
   "allOf": [
     {
-      "if": {"properties": {"version": {"const": 2}}},
-      "then": {"required": ["budget_provenance", "supervision", "validation_lineage"]}
+      "if": {
+        "properties": {
+          "version": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "budget_provenance",
+          "supervision",
+          "validation_lineage"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "requested_model": {
+            "const": "gpt-5.3-codex-spark"
+          }
+        },
+        "required": [
+          "requested_model"
+        ]
+      },
+      "then": {
+        "properties": {
+          "session_policy": {
+            "properties": {
+              "attestation": {
+                "properties": {
+                  "required_actual_model": {
+                    "const": "gpt-5.3-codex-spark"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "requested_model": {
+            "const": "gpt-5.6-luna"
+          }
+        },
+        "required": [
+          "requested_model"
+        ]
+      },
+      "then": {
+        "properties": {
+          "session_policy": {
+            "properties": {
+              "attestation": {
+                "properties": {
+                  "required_actual_model": {
+                    "const": "gpt-5.6-luna"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

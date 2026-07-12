@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import json
 import math
 from pathlib import Path
@@ -9,11 +10,13 @@ from typing import Any
 
 from cwo_core.paths import assert_safe_output_path
 from cwo_core.native_disposition import DISPOSITION_FIELDS, validate_disposition
+from cwo_core.native_recovery import verify_native_worker_semantics
 from cwo_core.native_worker_contracts import (
     ALLOWED_ATTESTATION_FIELDS,
     ALLOWED_ATTESTATION_STATUSES,
     ALLOWED_BUDGET_FIELDS,
     ALLOWED_BUDGET_PROVENANCE_FIELDS,
+    ALLOWED_COMMAND_CONTRACT_FIELDS,
     ALLOWED_ESCALATION_COMPACTION_FIELDS,
     ALLOWED_ESCALATION_HARD_LIMIT_FIELDS,
     ALLOWED_ESCALATION_SOFT_LIMIT_FIELDS,
@@ -21,6 +24,7 @@ from cwo_core.native_worker_contracts import (
     ALLOWED_INTERRUPT_THRESHOLD_FIELDS,
     ALLOWED_MUTATION_STATES,
     ALLOWED_PACKET_FIELDS,
+    ALLOWED_PACKET_V3_FIELDS,
     ALLOWED_RETURN_CONTRACT_FIELDS,
     ALLOWED_RETURN_FIELDS,
     ALLOWED_RETURN_USAGE_FIELDS,
@@ -28,14 +32,22 @@ from cwo_core.native_worker_contracts import (
     ALLOWED_SESSION_POLICY_FIELDS,
     ALLOWED_SUPERVISION_FIELDS,
     ALLOWED_VALIDATION_LINEAGE_FIELDS,
+    PACKET_V3_PHASES,
+    packet_v3_lineage_contract,
+    packet_v3_phase_contract,
+    packet_v3_recovery_contract,
+    validate_packet_v3_phase_contract,
 )
 from cwo_core.policy import load_policy
 from cwo_core.util import atomic_write_text, make_dispatch_id
+from cwo_core.work_sizing import validate_work_estimate, validate_worker_commitment
 
 REQUESTED_MODEL = "gpt-5.3-codex-spark"
 NATIVE_WORKER_POLICY_PATH = "policy/native-worker-execution.yaml"
 NATIVE_WORKER_PACKET_SCHEMA = "schemas/native-worker-packet.schema.json"
 NATIVE_WORKER_RETURN_SCHEMA = "schemas/native-worker-return.schema.json"
+NATIVE_WORK_PLAN_SCHEMA = "schemas/native-work-estimate.schema.json"
+NATIVE_WORKER_COMMITMENT_SCHEMA = "schemas/native-worker-commitment.schema.json"
 
 
 def _required_string_list(
@@ -78,13 +90,36 @@ def _load_alignment_triggers() -> dict[str, Any]:
     return needs_architect
 
 
-def _policy_model() -> str:
+def _policy_model_config() -> dict[str, Any]:
     policy = load_policy("native-worker-execution")
-    spark = policy.get("governance", {}).get("spark", {})
-    value = spark.get("exact_model")
-    if not value:
-        raise SystemExit("policy missing governance.spark.exact_model")
-    return str(value)
+    worker = policy.get("governance", {}).get("native_operative_worker", {})
+    if not isinstance(worker, dict):
+        raise SystemExit("policy missing governance.native_operative_worker")
+    preferred = str(worker.get("preferred_model") or "").strip()
+    authorized = worker.get("authorized_models")
+    if not preferred:
+        raise SystemExit("policy missing governance.native_operative_worker.preferred_model")
+    if not isinstance(authorized, list) or not authorized:
+        raise SystemExit("policy missing governance.native_operative_worker.authorized_models")
+    models = [str(item).strip() for item in authorized if str(item).strip()]
+    if preferred not in models:
+        raise SystemExit("preferred native operative model must be authorized")
+    if worker.get("fallback_selection") != "explicit-only":
+        raise SystemExit("native operative fallback selection must be explicit-only")
+    return {"preferred_model": preferred, "authorized_models": models}
+
+
+def _policy_models() -> list[str]:
+    return list(_policy_model_config()["authorized_models"])
+
+
+def _policy_model(requested_model: str | None = None) -> str:
+    config = _policy_model_config()
+    selected = str(requested_model or config["preferred_model"]).strip()
+    if selected not in config["authorized_models"]:
+        allowed = ", ".join(config["authorized_models"])
+        raise SystemExit(f"requested native operative model {selected!r} is not authorized; allowed: {allowed}")
+    return selected
 
 
 def _policy_lanes() -> list[str]:
@@ -279,7 +314,7 @@ def _path_in_scope(raw: str, workdir: Path, allowed_paths: list[Path]) -> str | 
     return f"{raw!r} is outside packet scope"
 
 
-def _build_session_policy() -> dict[str, Any]:
+def _build_session_policy(requested_model: str) -> dict[str, Any]:
     policy = load_policy("native-worker-execution")
     spawn = policy.get("execution_bootstrap", {}).get("spawn", {}).get("attestation_gate", {})
     if not isinstance(spawn, dict):
@@ -292,7 +327,7 @@ def _build_session_policy() -> dict[str, Any]:
             "tool_mode": str(spawn.get("tool_mode", "no-tools")),
             "model_authority": str(spawn.get("model_authority", "trusted-control-plane-session-metadata")),
             "self_report_authority": str(spawn.get("self_report_authority", "forbidden")),
-            "required_actual_model": str(spawn.get("required_actual_model", REQUESTED_MODEL)),
+            "required_actual_model": requested_model,
         },
         "source": NATIVE_WORKER_POLICY_PATH,
     }
@@ -345,6 +380,23 @@ def _build_return_contract() -> dict[str, Any]:
     }
 
 
+def _build_command_contract(policy: dict[str, Any]) -> dict[str, Any]:
+    checked = policy.get("checked_command")
+    if not isinstance(checked, dict) or checked.get("version") != 1:
+        raise SystemExit("native-worker policy checked_command version 1 is required")
+    return {
+        "required": True,
+        "wrapper": "scripts/run_checked_command.py",
+        "spec_schema": "schemas/checked-command-spec.schema.json",
+        "result_schema": "schemas/checked-command-result.schema.json",
+        "modes": list(checked.get("modes", [])),
+        "typed_source_required_for": list(checked.get("typed_source_required_for", [])),
+        "complex_command_action": "checked-wrapper-required",
+        "construction_failure": "pm-realignment-no-quarantine",
+        "quarantine_failures": list(checked.get("quarantine_required_for", [])),
+    }
+
+
 def build_native_worker_packet(
     *,
     bead_id: str,
@@ -352,24 +404,39 @@ def build_native_worker_packet(
     workdir: str,
     allowed_paths: list[str],
     acceptance_checks: list[str],
+    work_plan: dict[str, Any] | None = None,
+    worker_commitment: dict[str, Any] | None = None,
     packet_id: str | None = None,
     budget_overrides: dict[str, int] | None = None,
     validation_root_packet_id: str | None = None,
     validation_parent_packet_id: str | None = None,
     validation_attempt: int = 0,
+    requested_model: str | None = None,
+    packet_version: int = 2,
+    experimental_v3: bool = False,
+    phase: str | None = None,
 ) -> dict[str, Any]:
     if not str(bead_id).strip():
         raise SystemExit("bead-id must be non-empty")
     if lane not in _policy_lanes():
         raise SystemExit(f"unknown lane {lane!r}")
+    if packet_version not in {2, 3}:
+        raise SystemExit("packet_version must be 2 or 3")
+    if packet_version == 3 and not experimental_v3:
+        raise SystemExit("packet version 3 requires explicit experimental_v3=True")
+    if packet_version == 2 and experimental_v3:
+        raise SystemExit("experimental_v3 requires packet_version 3")
     acceptance_checks = [check.strip() for check in acceptance_checks]
     if not acceptance_checks:
         raise SystemExit("at least one --acceptance-check is required")
     if any(not check.strip() for check in acceptance_checks):
         raise SystemExit("acceptance_check values must be non-empty")
+    if (work_plan is None) != (worker_commitment is None):
+        raise SystemExit("exactly one of work_plan and worker_commitment is provided; provide both or neither")
     workdir_path = _normalize_workdir(workdir)
     normalized_paths = _normalize_allowed_paths(allowed_paths, workdir_path)
     packet_id = packet_id or make_dispatch_id(bead_id)
+    selected_model = _policy_model(requested_model)
     budget, overridden_fields = _effective_budget(lane, budget_overrides)
     policy = load_policy("native-worker-execution")
     if validation_attempt not in {0, 1}:
@@ -391,12 +458,12 @@ def build_native_worker_packet(
         raise SystemExit("validation attempt 1 cannot reference itself")
     packet = {
         "packet_type": "cwo-native-worker-packet",
-        "version": 2,
+        "version": packet_version,
         "packet_id": packet_id,
         "bead_id": bead_id,
         "lane": lane,
-        "requested_model": _policy_model(),
-        "session_policy": _build_session_policy(),
+        "requested_model": selected_model,
+        "session_policy": _build_session_policy(selected_model),
         "scope": {
             "workdir": str(workdir_path),
             "allowed_paths": normalized_paths,
@@ -440,18 +507,50 @@ def build_native_worker_packet(
         },
         "escalation_triggers": _build_escalation_triggers(),
         "return_contract": _build_return_contract(),
+        "command_contract": _build_command_contract(policy),
     }
-    errors = validate_native_worker_packet(packet)
+    if work_plan is not None and worker_commitment is not None:
+        packet["work_plan"] = deepcopy(work_plan)
+        packet["worker_commitment"] = deepcopy(worker_commitment)
+    if packet_version == 3:
+        selected_phase = phase or lane
+        if selected_phase not in PACKET_V3_PHASES:
+            raise SystemExit("packet-v3 phase must be review, implementation, validation, or publish/report/admin")
+        packet.update(
+            {
+                "experimental": True,
+                "phase": selected_phase,
+                "phase_contract": packet_v3_phase_contract(selected_phase),
+                "recovery_contract": packet_v3_recovery_contract(),
+                "lineage_contract": packet_v3_lineage_contract(
+                    packet_id,
+                    root_packet_id=root_packet_id,
+                    parent_packet_id=validation_parent_packet_id,
+                    attempt=validation_attempt,
+                ),
+            }
+        )
+    errors = validate_native_worker_packet(packet, experimental=(packet_version == 3))
     if errors:
         raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
     return packet
 
 
-def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -> list[str]:
+def validate_native_worker_packet(
+    payload: Any,
+    *,
+    dispatchable: bool = False,
+    experimental: bool = False,
+    allow_experimental_v3: bool | None = None,
+) -> list[str]:
     errors: list[str] = []
     if not isinstance(payload, dict):
         return ["packet is not a JSON object"]
-    errors.extend(_reject_unknown_fields(payload, "packet", ALLOWED_PACKET_FIELDS))
+    if allow_experimental_v3 is not None:
+        experimental = allow_experimental_v3
+    version = payload.get("version")
+    allowed_packet_fields = ALLOWED_PACKET_V3_FIELDS if version == 3 else ALLOWED_PACKET_FIELDS
+    errors.extend(_reject_unknown_fields(payload, "packet", allowed_packet_fields))
     if len(errors) > 0:
         return errors
 
@@ -460,11 +559,12 @@ def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -
     elif payload["packet_type"] != "cwo-native-worker-packet":
         errors.append("packet_type must be cwo-native-worker-packet")
 
-    version = payload.get("version")
-    if version not in {1, 2}:
-        errors.append("version must be 1 or 2")
+    if version not in {1, 2, 3}:
+        errors.append("version must be 1, 2, or 3")
+    if version == 3 and not experimental:
+        errors.append("packet version 3 requires explicit experimental validation")
     if dispatchable and version != 2:
-        errors.append("packet version 1 is historical-inspection-only and dispatch-forbidden")
+        errors.append(f"packet version {version} is dispatch-forbidden")
 
     if (error := _required_nonempty_str(payload.get("packet_id"), "packet_id")) is not None:
         errors.append(error)
@@ -477,8 +577,8 @@ def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -
 
     if (error := _required_nonempty_str(payload.get("requested_model"), "requested_model")) is not None:
         errors.append(error)
-    elif payload["requested_model"] != _policy_model():
-        errors.append("requested_model must match policy exact_model gpt-5.3-codex-spark")
+    elif payload["requested_model"] not in _policy_models():
+        errors.append("requested_model must be an authorized native operative model")
 
     session_policy = payload.get("session_policy")
     if not isinstance(session_policy, dict):
@@ -509,8 +609,8 @@ def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -
                 errors.append("session_policy.attestation.self_report_authority must be forbidden")
             if (error := _required_nonempty_str(attestation.get("required_actual_model"), "session_policy.attestation.required_actual_model")) is not None:
                 errors.append(error)
-            elif attestation["required_actual_model"] != _policy_model():
-                errors.append("session_policy.attestation.required_actual_model must match policy")
+            elif attestation["required_actual_model"] != payload.get("requested_model"):
+                errors.append("session_policy.attestation.required_actual_model must match packet.requested_model")
         if (error := _required_nonempty_str(session_policy.get("source"), "session_policy.source")) is not None:
             errors.append(error)
         elif session_policy["source"] != NATIVE_WORKER_POLICY_PATH:
@@ -571,6 +671,60 @@ def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -
     elif not acceptance_checks:
         errors.append("acceptance_checks must contain at least one check")
 
+    command_contract = payload.get("command_contract")
+    if not isinstance(command_contract, dict):
+        errors.append("command_contract must be an object")
+    else:
+        errors.extend(_reject_unknown_fields(command_contract, "command_contract", ALLOWED_COMMAND_CONTRACT_FIELDS))
+        try:
+            expected_command_contract = _build_command_contract(load_policy("native-worker-execution"))
+        except SystemExit as exc:
+            errors.append(str(exc))
+        else:
+            if command_contract != expected_command_contract:
+                errors.append("command_contract must match native-worker checked-command policy")
+
+    has_work_plan = "work_plan" in payload
+    has_worker_commitment = "worker_commitment" in payload
+    if has_work_plan != has_worker_commitment:
+        errors.append("exactly one of work_plan and worker_commitment was provided")
+    elif has_work_plan and has_worker_commitment:
+        work_plan = payload.get("work_plan")
+        worker_commitment = payload.get("worker_commitment")
+        errors.extend("work_plan: " + error for error in validate_work_estimate(work_plan))
+        errors.extend(
+            "worker_commitment: " + error
+            for error in validate_worker_commitment(
+                worker_commitment,
+                work_plan,
+                dispatchable=dispatchable,
+            )
+        )
+        scope_allowed_paths = scope.get("allowed_paths") if isinstance(scope, dict) else None
+        if not isinstance(work_plan, dict):
+            errors.append("work_plan must be an object")
+        else:
+            if dispatchable and work_plan.get("estimate_contract_version") != 2:
+                errors.append("dispatchable work_plan requires estimate_contract_version 2; version 1 is historical-only")
+            if dispatchable and work_plan.get("route") != "spark":
+                errors.append("work_plan.route must be \"spark\" when dispatchable=True")
+            if dispatchable and work_plan.get("authority_route") != "spark":
+                errors.append("work_plan.authority_route must be \"spark\" when dispatchable=True")
+            if dispatchable and work_plan.get("operative_route") != "spark":
+                errors.append("work_plan.operative_route must be \"spark\" when dispatchable=True")
+            if str(work_plan.get("bead_id", "")) != str(payload.get("bead_id", "")):
+                errors.append("work_plan.bead_id must match packet.bead_id")
+            if str(work_plan.get("requested_model", "")) != str(payload.get("requested_model", "")):
+                errors.append("work_plan.requested_model must match packet.requested_model")
+            if scope_allowed_paths != work_plan.get("write_paths"):
+                errors.append("work_plan.write_paths must exactly match packet.scope.allowed_paths")
+            if acceptance_checks != work_plan.get("acceptance_checks"):
+                errors.append("work_plan.acceptance_checks must exactly match packet.acceptance_checks")
+        if not isinstance(worker_commitment, dict):
+            errors.append("worker_commitment must be an object")
+    elif dispatchable and version == 2:
+        errors.append("dispatchable packet requires work_plan and worker_commitment")
+
     policy_budgets = _policy_budgets_for_lane(lane) if isinstance(lane, str) else None
     budget = payload.get("budget")
     if not isinstance(budget, dict):
@@ -591,8 +745,36 @@ def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -
             errors.append("budget.tool_calls_soft must not exceed budget.tool_calls_hard")
         if isinstance(budget.get("runtime_seconds_soft"), int) and isinstance(budget.get("runtime_seconds_hard"), int) and budget["runtime_seconds_soft"] > budget["runtime_seconds_hard"]:
             errors.append("budget.runtime_seconds_soft must not exceed budget.runtime_seconds_hard")
+        if dispatchable and isinstance(payload.get("work_plan"), dict):
+            work_plan = payload.get("work_plan")
+            aggregate_allowance = work_plan.get("aggregate_allowance")
+            if not isinstance(aggregate_allowance, dict):
+                errors.append("work_plan.aggregate_allowance malformed: must be an object")
+            else:
+                work_plan_tool_calls_hard = aggregate_allowance.get("tool_calls_hard")
+                work_plan_runtime_seconds_hard = aggregate_allowance.get("runtime_seconds_hard")
+                if not isinstance(work_plan_tool_calls_hard, int) or isinstance(work_plan_tool_calls_hard, bool):
+                    errors.append(
+                        "work_plan.aggregate_allowance malformed: tool_calls_hard must be an integer"
+                    )
+                elif (
+                    isinstance(budget.get("tool_calls_hard"), int)
+                    and budget["tool_calls_hard"] > work_plan_tool_calls_hard
+                ):
+                    errors.append("budget.tool_calls_hard exceeds work_plan aggregate allowance")
+                if not isinstance(work_plan_runtime_seconds_hard, int) or isinstance(
+                    work_plan_runtime_seconds_hard, bool
+                ):
+                    errors.append(
+                        "work_plan.aggregate_allowance malformed: runtime_seconds_hard must be an integer"
+                    )
+                elif (
+                    isinstance(budget.get("runtime_seconds_hard"), int)
+                    and budget["runtime_seconds_hard"] > work_plan_runtime_seconds_hard
+                ):
+                    errors.append("budget.runtime_seconds_hard exceeds work_plan aggregate allowance")
 
-    if version == 2:
+    if version in {2, 3}:
         provenance = payload.get("budget_provenance")
         if not isinstance(provenance, dict):
             errors.append("budget_provenance must be an object for packet version 2")
@@ -751,7 +933,31 @@ def validate_native_worker_packet(payload: Any, *, dispatchable: bool = False) -
         elif not required:
             errors.append("return_contract.required_fields must be non-empty")
 
+    if version == 3:
+        if payload.get("experimental") is not True:
+            errors.append("packet-v3 experimental marker must be true")
+        phase = payload.get("phase")
+        if phase not in PACKET_V3_PHASES:
+            errors.append("packet-v3 phase is not supported")
+        phase_contract = payload.get("phase_contract")
+        errors.extend(validate_packet_v3_phase_contract(phase_contract, phase=phase if isinstance(phase, str) else None))
+        recovery = payload.get("recovery_contract")
+        if recovery != packet_v3_recovery_contract():
+            errors.append("packet-v3 recovery is disabled and must match the foundation contract")
+        lineage = payload.get("lineage_contract")
+        if not isinstance(lineage, dict):
+            errors.append("packet-v3 lineage_contract must be an object")
+        elif lineage != payload.get("validation_lineage"):
+            errors.append("packet-v3 lineage_contract must match validation_lineage")
+
     return errors
+
+
+def build_native_worker_packet_v3(**kwargs: Any) -> dict[str, Any]:
+    """Explicit experimental/test-only packet-v3 construction path."""
+    kwargs["packet_version"] = 3
+    kwargs["experimental_v3"] = True
+    return build_native_worker_packet(**kwargs)
 
 
 def _parse_usage_limits(payload: dict[str, Any]) -> list[str]:
@@ -1051,6 +1257,11 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         *[f"- {item}" for item in payload["scope"]["prohibited_actions"]],
         "Acceptance checks:",
         accepted,
+        "Checked command execution:",
+        f"- Wrapper: {payload['command_contract']['wrapper']}",
+        f"- Typed modes: {', '.join(payload['command_contract']['modes'])}",
+        "- Complex commands, interpreter -c forms, nested quoting/languages, and mutation commands must use the checked wrapper.",
+        "- A preflight construction failure is PM-recoverable with no source quarantine; hash, scope, security, or mutation-attribution failures quarantine.",
         f"Budget: tool-calls hard {budget['tool_calls_hard']} / soft {budget['tool_calls_soft']}, runtime hard {budget['runtime_seconds_hard']}s, max compactions {budget['max_compactions']}, max full-suite {budget['max_full_suite_runs']}",
         f"Live supervision: poll {payload.get('supervision', {}).get('poll_interval_ms')}ms; interrupt thresholds {payload.get('supervision', {}).get('interrupt_thresholds')}",
         f"Validation lineage: {payload.get('validation_lineage')}",
@@ -1070,7 +1281,12 @@ def _render_prompt(payload: dict[str, Any]) -> str:
 
 
 def validate_schema_files() -> list[str]:
-    for relative in [NATIVE_WORKER_PACKET_SCHEMA, NATIVE_WORKER_RETURN_SCHEMA]:
+    for relative in [
+        NATIVE_WORKER_PACKET_SCHEMA,
+        NATIVE_WORKER_RETURN_SCHEMA,
+        NATIVE_WORK_PLAN_SCHEMA,
+        NATIVE_WORKER_COMMITMENT_SCHEMA,
+    ]:
         path = Path(relative)
         try:
             json.loads(path.read_text(encoding="utf-8"))
@@ -1091,6 +1307,9 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--workdir", required=True)
     build.add_argument("--allowed-path", action="append", required=True, dest="allowed_paths")
     build.add_argument("--acceptance-check", action="append", required=True, dest="acceptance_checks")
+    build.add_argument("--work-plan")
+    build.add_argument("--worker-commitment")
+    build.add_argument("--requested-model")
     for field in sorted(ALLOWED_BUDGET_FIELDS):
         build.add_argument("--" + field.replace("_", "-"), type=int, dest=field)
     build.add_argument("--validation-root-packet-id")
@@ -1125,16 +1344,21 @@ def main() -> None:
             for field in ALLOWED_BUDGET_FIELDS
             if getattr(args, field) is not None
         }
+        work_plan = _load_json_payload(args.work_plan) if args.work_plan else None
+        worker_commitment = _load_json_payload(args.worker_commitment) if args.worker_commitment else None
         packet = build_native_worker_packet(
             bead_id=args.bead_id,
             lane=args.lane,
             workdir=args.workdir,
             allowed_paths=args.allowed_paths,
             acceptance_checks=args.acceptance_checks,
+            work_plan=work_plan,
+            worker_commitment=worker_commitment,
             budget_overrides=overrides,
             validation_root_packet_id=args.validation_root_packet_id,
             validation_parent_packet_id=args.validation_parent_packet_id,
             validation_attempt=args.validation_attempt,
+            requested_model=args.requested_model,
         )
         _emit_payload(packet, args.output)
         return

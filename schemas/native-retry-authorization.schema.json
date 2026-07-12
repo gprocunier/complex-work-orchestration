@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.cwo.local/native-retry-authorization.schema.json",
+  "title": "Native Retry Authorization Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_type",
+    "version",
+    "parent_packet_id",
+    "retry_packet_id",
+    "bead_id",
+    "requested_model",
+    "attested_model",
+    "parent_session_id",
+    "retry_session_id",
+    "tool_surface_id",
+    "attestation_source",
+    "work_sha256",
+    "attempt_from",
+    "attempt_to",
+    "cumulative_usage",
+    "remaining_before_retry",
+    "retry_budget",
+    "authority",
+    "decision",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "receipt_type": {
+      "type": "string",
+      "const": "cwo-native-retry-authorization"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "parent_packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retry_packet_id": {
+      "type": "string",
+      "minLength": 1
+      },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retry_session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tool_surface_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attestation_source": {
+      "type": "string",
+      "const": "trusted-session-jsonl"
+    },
+    "work_sha256": {
+      "$ref": "#/definitions/sha256"
+    },
+    "attempt_from": {
+      "type": "integer",
+      "const": 0,
+      "minimum": 0
+    },
+    "attempt_to": {
+      "type": "integer",
+      "const": 1,
+      "minimum": 1
+    },
+    "cumulative_usage": {
+      "$ref": "#/definitions/usage"
+    },
+    "remaining_before_retry": {
+      "$ref": "#/definitions/usage"
+    },
+    "retry_budget": {
+      "$ref": "#/definitions/usage"
+    },
+    "authority": {
+      "type": "string",
+      "const": "cwo-native-supervisor-evidence"
+    },
+    "decision": {
+      "type": "string",
+      "const": "authorize-one-fresh-retry"
+    },
+    "receipt_sha256": {
+      "$ref": "#/definitions/sha256"
+    }
+  },
+  "definitions": {
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_calls", "runtime_seconds"],
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -151,6 +151,27 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("Codex conversation", envelope["suggested_command"])
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
 
+    def test_connected_codex_worker_resolves_spark_model(self) -> None:
+        environment = execution_environment_registry()["profiles"]["connected-codex"]
+        binding = environment["role_bindings"]["worker"]
+
+        self.assertEqual(binding["executor"], "internal_worker")
+        self.assertEqual(binding["model"], "gpt-5.3-codex-spark")
+        self.assertEqual(binding["variant"], "spark")
+
+        envelope = build_harness_dispatch(
+            task="Implement the bounded operative packet.",
+            dispatch_id="dispatch-spark-test",
+            environment_key="connected-codex",
+            role="worker",
+            bead_id="cwo-spark-test",
+        )
+        self.assertEqual(envelope["harness"], "codex_cli")
+        self.assertEqual(envelope["model"], "gpt-5.3-codex-spark")
+        self.assertEqual(envelope["variant"], "spark")
+        self.assertEqual(envelope["access_profile"], "codex-connected-shell")
+        self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
+
     def test_h200_nemotron_environment_resolves_deep_reasoning_profile(self) -> None:
         envelope = build_harness_dispatch(
             task="Review the enterprise execution plan.",

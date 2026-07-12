@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/checked-command-spec.schema.json",
+  "title": "checked-command-spec",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "spec_type": {"const": "cwo-checked-command-spec"}, "version": {"const": 1},
+    "command_id": {"type": "string", "minLength": 1}, "mode": {"enum": ["argv", "shell-source", "python-source"]},
+    "argv": {"type": "array", "items": {"type": "string"}}, "cwd": {"type": "string", "minLength": 1},
+    "env": {"type": "object", "additionalProperties": {"type": "string"}}, "inherit_environment": {"type": "boolean"},
+    "stdin": {"type": ["string", "null"]}, "source": {"type": ["string", "null"]},
+    "preflights": {"type": "array", "items": {"type": "object", "additionalProperties": false, "properties": {"kind": {"enum": ["json", "json-policy", "regex"]}, "value": {"type": "string"}}, "required": ["kind", "value"]}},
+    "mutation_intent": {"enum": ["none", "workspace-scoped"]}, "allowed_paths": {"type": "array", "items": {"type": "string"}},
+    "timeout_seconds": {"type": "integer", "minimum": 1}
+  },
+  "required": ["spec_type", "version", "command_id", "mode", "argv", "cwd", "env", "inherit_environment", "stdin", "source", "preflights", "mutation_intent", "allowed_paths", "timeout_seconds"]
+}

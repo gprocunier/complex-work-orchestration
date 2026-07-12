@@ -1,0 +1,541 @@
+from __future__ import annotations
+
+import copy
+import json
+import sys
+from pathlib import Path
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from cwo_core.work_sizing import DIMENSIONS, evaluate_work_estimate, validate_work_estimate  # noqa: E402
+from cwo_core.work_sizing import canonical_work_estimate_sha256, validate_worker_commitment  # noqa: E402
+
+
+def _valid_raw_payload():
+    return {
+        "estimate_type": "cwo-native-work-estimate",
+        "version": 1,
+        "work_unit_id": "wu-native-1",
+        "bead_id": "bead-native-1",
+        "requested_model": "gpt-5.3-codex-spark",
+        "primary_outcome": "native-operator completion",
+        "expected_artifacts": ["implementation.patch", "validation.report"],
+        "expert_profiles": ["orchestrator", "architect", "qa"],
+        "frozen_decisions": ["no-regression", "no-shortcuts"],
+        "unresolved_decisions": [],
+        "subsystems": ["routing", "policy"],
+        "write_paths": ["scripts/cwo_core/a.py"],
+        "context_manifest": [
+            {
+                "path": "schemas/native-work-estimate.schema.json",
+                "selector": "schemas/native-work-estimate.schema.json",
+                "purpose": "validation",
+                "bytes": 512,
+                "sha256": "0" * 64,
+            }
+        ],
+        "acceptance_checks": ["unit", "lint", "jsonschema"],
+        "estimates": {
+            "tool_calls_p50": 4,
+            "tool_calls_p90": 10,
+            "runtime_seconds_p50": 40,
+            "runtime_seconds_p90": 120,
+            "context_tokens_p90": 2000,
+        },
+        "scores": {
+            "reasoning_uncertainty": 1,
+            "subsystem_coupling": 1,
+            "contract_risk": 1,
+            "diagnostic_uncertainty": 1,
+            "context_breadth": 1,
+            "validation_breadth": 1,
+        },
+    }
+
+
+def _v2_policy():
+    policy = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
+    foundation = policy["work_sizing"]["enforcement"]["foundation-canary"]
+    foundation["semantic_routing"] = {
+        "max_diff_p90_for_spark": 350,
+        "max_behavioral_changes_for_spark": 5,
+        "max_expected_regressions_for_spark": 12,
+        "max_write_paths_for_spark": 6,
+        "max_context_reads_for_spark": 12,
+        "max_read_mutation_ratio_for_spark": 6,
+        "max_tool_calls_p90": 25,
+        "max_runtime_seconds_p90": 480,
+        "variance_thresholds": {
+            "pm_tool_calls_p90_delta": 8,
+            "pm_runtime_seconds_p90_delta": 90,
+            "domain_tool_calls_p90_delta": 8,
+            "domain_runtime_seconds_p90_delta": 90,
+        },
+    }
+    return policy
+
+
+def _valid_v2_payload():
+    payload = _valid_raw_payload()
+    payload["scores"] = {dimension: 0 for dimension in DIMENSIONS}
+    payload["estimate_contract_version"] = 2
+    payload["semantic_estimate"] = {
+        "estimated_diff_p50": 40,
+        "estimated_diff_p90": 80,
+        "behavioral_changes": 0,
+        "state_machine_changes": 0,
+        "schema_changes": 0,
+        "self_hosting_risk": 1,
+        "live_control_risk": 1,
+        "contract_surfaces": 1,
+        "cli_surfaces": 0,
+        "policy_surfaces": 0,
+        "telemetry_surfaces": 0,
+        "expected_regressions": 3,
+        "test_construction_complexity": 1,
+        "command_complexity": 1,
+        "nested_quote_layers": 1,
+        "expected_context_reads": 4,
+        "expected_mutations": 2,
+        "read_to_mutation_ratio": 2,
+    }
+    estimate = {
+        "tool_calls_p50": payload["estimates"]["tool_calls_p50"],
+        "tool_calls_p90": payload["estimates"]["tool_calls_p90"],
+        "runtime_seconds_p50": payload["estimates"]["runtime_seconds_p50"],
+        "runtime_seconds_p90": payload["estimates"]["runtime_seconds_p90"],
+    }
+    payload["pm_estimate"] = copy.deepcopy(estimate)
+    payload["domain_expert_estimate"] = copy.deepcopy(estimate)
+    return payload
+
+
+def _valid_commitment_payload(work_estimate):
+    return {
+        "commitment_type": "cwo-native-worker-fit-commitment",
+        "version": 1,
+        "work_unit_id": work_estimate["work_unit_id"],
+        "bead_id": work_estimate["bead_id"],
+        "requested_model": work_estimate["requested_model"],
+        "session_id": "native-session-1",
+        "attestation_source": "trusted-session-jsonl",
+        "attested_model": work_estimate["requested_model"],
+        "work_estimate_sha256": canonical_work_estimate_sha256(work_estimate),
+        "decision": "accept",
+        "confidence": 0.9,
+        "estimates": {
+            "tool_calls_p50": 2,
+            "tool_calls_p90": 3,
+            "runtime_seconds_p50": 10,
+            "runtime_seconds_p90": 20,
+        },
+        "tool_calls_before_commitment": 0,
+        "context_compactions_before_commitment": 0,
+        "reason": "fit confirmed against trust-bound metrics",
+    }
+
+
+class NativeWorkSizingTest(unittest.TestCase):
+    def setUp(self):
+        self.maxDiff = None
+
+    def test_route_spark_for_low_score(self):
+        payload = _valid_raw_payload()
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["score_total"], 6)
+        self.assertEqual(result["route"], "split")
+
+    def test_route_split_threshold(self):
+        payload = _valid_raw_payload()
+        payload["scores"]["reasoning_uncertainty"] = 0
+        payload["scores"]["subsystem_coupling"] = 0
+        payload["scores"]["contract_risk"] = 0
+        payload["scores"]["diagnostic_uncertainty"] = 3
+        payload["scores"]["context_breadth"] = 3
+        payload["scores"]["validation_breadth"] = 0  # total 6
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["score_total"], 6)
+        self.assertEqual(result["route"], "split")
+
+    def test_route_architect_total_gate(self):
+        payload = _valid_raw_payload()
+        payload["scores"]["reasoning_uncertainty"] = 2
+        payload["scores"]["subsystem_coupling"] = 2
+        payload["scores"]["contract_risk"] = 2
+        payload["scores"]["diagnostic_uncertainty"] = 2
+        payload["scores"]["context_breadth"] = 1
+        payload["scores"]["validation_breadth"] = 1  # total 10
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["route"], "architect")
+
+    def test_route_architect_unresolved_gate(self):
+        payload = _valid_raw_payload()
+        payload["unresolved_decisions"] = ["decision1"]
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["route"], "architect")
+        self.assertIn("unresolved-decisions", result["hard_gate_reasons"])
+
+    def test_route_architect_reasoning_uncertainty_gate(self):
+        payload = _valid_raw_payload()
+        payload["scores"]["reasoning_uncertainty"] = 3
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["route"], "architect")
+        self.assertIn("reasoning-uncertainty-architect", result["hard_gate_reasons"])
+
+    def test_route_architect_contract_risk_gate(self):
+        payload = _valid_raw_payload()
+        payload["scores"]["contract_risk"] = 3
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["route"], "architect")
+        self.assertIn("contract-risk-architect", result["hard_gate_reasons"])
+
+    def test_all_caps_force_split_or_architect(self):
+        payload = _valid_raw_payload()
+        payload["scores"] = {
+            "reasoning_uncertainty": 0,
+            "subsystem_coupling": 0,
+            "contract_risk": 0,
+            "diagnostic_uncertainty": 0,
+            "context_breadth": 0,
+            "validation_breadth": 0,
+        }
+        payload["subsystems"] = ["a", "b", "c"]
+        payload["write_paths"] = [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+            "j",
+        ]
+        payload["context_manifest"] = [
+            {"path": "a", "selector": "a", "purpose": "check", "bytes": 0, "sha256": "0" * 64}
+        ] * 13
+        payload["acceptance_checks"] = ["x", "y", "z", "w"]
+        payload["estimates"]["context_tokens_p90"] = 96001
+        payload["estimates"]["tool_calls_p90"] = 31
+        payload["estimates"]["runtime_seconds_p90"] = 481
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["route"], "split")
+        for reason in (
+            "too-many-subsystems",
+            "too-many-write-paths",
+            "too-many-context-entries",
+            "too-many-acceptance-checks",
+            "context-tokens-p90-exceeded",
+            "tool-calls-p90-exceeded",
+            "runtime-seconds-p90-exceeded",
+        ):
+            self.assertIn(reason, result["hard_gate_reasons"])
+
+    def test_malformed_source_and_bound_checks(self):
+        payload = _valid_raw_payload()
+        payload["estimates"]["tool_calls_p50"] = 100
+        payload["estimates"]["tool_calls_p90"] = 10
+        with self.assertRaises(ValueError) as err:
+            evaluate_work_estimate(payload)
+        self.assertIn("estimates.tool_calls_p50 must be <= estimates.tool_calls_p90", str(err.exception))
+        payload = _valid_raw_payload()
+        payload["expected_artifacts"] = "not-a-list"
+        with self.assertRaises(ValueError) as err:
+            evaluate_work_estimate(payload)
+        self.assertIn("expected_artifacts must be a list", str(err.exception))
+        payload = _valid_raw_payload()
+        payload["estimates"]["runtime_seconds_p50"] = 90
+        payload["estimates"]["runtime_seconds_p90"] = 20
+        with self.assertRaises(ValueError) as err:
+            evaluate_work_estimate(payload)
+        self.assertIn("runtime_seconds_p50 must be <=", str(err.exception))
+
+    def test_validate_work_estimate_derived_mismatch(self):
+        payload = _valid_raw_payload()
+        payload["route"] = "architect"
+        payload["hard_gate_reasons"] = []
+        payload["score_total"] = 1
+        payload["aggregate_allowance"] = {
+            "dispatch_soft_cap": 1,
+            "dispatch_soft_cap_action": "pm-architect-review",
+            "continuation_authority": "pm-architect-within-aggregate-budget",
+            "max_pm_replans": 1,
+            "max_architect_cycles": 1,
+            "max_compactions": 0,
+            "tool_calls_hard": 100,
+            "runtime_seconds_hard": 200,
+        }
+        errors = validate_work_estimate(payload)
+        self.assertIn("derived check failed: score_total", errors[0])
+        self.assertIn("derived check failed: route", errors[1])
+
+    def test_deep_copy_not_mutated(self):
+        payload = _valid_raw_payload()
+        original = copy.deepcopy(payload)
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(payload, original)
+        self.assertNotEqual(result["route"], "")
+
+    def test_schema_is_json_loadable(self):
+        path = Path(__file__).resolve().parents[1] / "schemas" / "native-work-estimate.schema.json"
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(loaded["$schema"], "https://json-schema.org/draft/2020-12/schema")
+
+    def test_monolith_with_many_write_paths_not_spark(self):
+        payload = _valid_raw_payload()
+        payload["write_paths"] = [f"p/{i}" for i in range(30)]
+        payload["scores"] = {
+            "reasoning_uncertainty": 0,
+            "subsystem_coupling": 0,
+            "contract_risk": 0,
+            "diagnostic_uncertainty": 0,
+            "context_breadth": 1,
+            "validation_breadth": 0,
+        }  # total 1
+        result = evaluate_work_estimate(payload)
+        self.assertNotEqual(result["route"], "spark")
+
+    def test_dispatch_soft_cap_advisory_and_hard_limits(self):
+        payload = _valid_raw_payload()
+        result = evaluate_work_estimate(payload)
+        allowance = result["aggregate_allowance"]
+        self.assertEqual(allowance["dispatch_soft_cap"], 3)
+        self.assertEqual(allowance["dispatch_soft_cap_action"], "pm-architect-review")
+        self.assertEqual(
+            allowance["tool_calls_hard"],
+            result["estimates"]["tool_calls_p90"] + 12,
+        )
+        self.assertEqual(
+            allowance["runtime_seconds_hard"],
+            result["estimates"]["runtime_seconds_p90"] + 240,
+        )
+        self.assertNotIn("dispatch_hard_cap", allowance)
+        self.assertEqual(allowance["continuation_authority"], "pm-architect-within-aggregate-budget")
+
+    def test_native_commitment_validation_accept_dispatch_modes(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        commitment = _valid_commitment_payload(work_estimate)
+        self.assertEqual(validate_worker_commitment(commitment, work_estimate), [])
+        self.assertEqual(validate_worker_commitment(commitment, work_estimate, dispatchable=True), [])
+
+    def test_native_commitment_validation_realignment_modes(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        for decision in ("pm-realignment", "architect-realignment"):
+            commitment = _valid_commitment_payload(work_estimate)
+            commitment["decision"] = decision
+            self.assertEqual(validate_worker_commitment(commitment, work_estimate), [])
+            self.assertNotEqual(validate_worker_commitment(commitment, work_estimate, dispatchable=True), [])
+
+    def test_native_commitment_validation_zero_estimate_fails(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        for field in ("tool_calls_p50", "tool_calls_p90", "runtime_seconds_p50", "runtime_seconds_p90"):
+            commitment = _valid_commitment_payload(work_estimate)
+            commitment["estimates"][field] = 0
+            errors = validate_worker_commitment(commitment, work_estimate)
+            self.assertEqual(len(errors), 1, msg=field)
+            self.assertEqual(errors[0], f"malformed source payload: commitment.estimates.{field} must be a non-negative integer")
+
+    def test_native_commitment_validation_hash_and_identity_mismatches(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["work_estimate_sha256"] = "0" * 64
+        self.assertEqual(validate_worker_commitment(commitment, work_estimate), ["commitment.work_estimate_sha256 does not match evaluated work estimate payload"])
+
+        altered_work_unit = _valid_commitment_payload(work_estimate)
+        altered_work_unit["work_unit_id"] = "different-work-unit"
+        self.assertEqual(validate_worker_commitment(altered_work_unit, work_estimate), ["commitment.work_unit_id must match work_estimate.work_unit_id"])
+
+        altered_bead = _valid_commitment_payload(work_estimate)
+        altered_bead["bead_id"] = "different-bead"
+        self.assertEqual(validate_worker_commitment(altered_bead, work_estimate), ["commitment.bead_id must match work_estimate.bead_id"])
+
+        altered_model = _valid_commitment_payload(work_estimate)
+        altered_model["requested_model"] = "different-model"
+        altered_model["attested_model"] = "different-model"
+        self.assertEqual(validate_worker_commitment(altered_model, work_estimate), ["commitment.requested_model must match work_estimate.requested_model"])
+
+        altered_attested = _valid_commitment_payload(work_estimate)
+        altered_attested["attested_model"] = "different-attested-model"
+        self.assertEqual(validate_worker_commitment(altered_attested, work_estimate), ["commitment.attested_model must match commitment.requested_model"])
+
+    def test_native_commitment_validation_low_confidence_fails(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["confidence"] = 0.74
+        errors = validate_worker_commitment(commitment, work_estimate)
+        self.assertEqual(errors, ["commitment.confidence must be at least 0.75"])
+
+    def test_native_commitment_validation_over_aggregate_allowance_fails(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["estimates"]["tool_calls_p90"] = work_estimate["aggregate_allowance"]["tool_calls_hard"] + 1
+        self.assertEqual(
+            validate_worker_commitment(commitment, work_estimate),
+            ["commitment.estimates.tool_calls_p90 exceeds work_estimate.aggregate_allowance.tool_calls_hard"],
+        )
+
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["estimates"]["runtime_seconds_p90"] = work_estimate["aggregate_allowance"]["runtime_seconds_hard"] + 1
+        self.assertEqual(
+            validate_worker_commitment(commitment, work_estimate),
+            ["commitment.estimates.runtime_seconds_p90 exceeds work_estimate.aggregate_allowance.runtime_seconds_hard"],
+        )
+
+    def test_native_commitment_validation_rejects_unknown_fields(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["extra_field"] = "extra"
+        self.assertEqual(validate_worker_commitment(commitment, work_estimate), ["malformed source payload: commitment has unknown field(s) extra_field"])
+
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["estimates"]["tool_calls_p95"] = 1
+        self.assertEqual(validate_worker_commitment(commitment, work_estimate), ["commitment.estimates has unknown field(s) tool_calls_p95"])
+
+    def test_native_commitment_validation_precommitment_usage_must_be_zero(self):
+        work_estimate = evaluate_work_estimate(_valid_raw_payload())
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["tool_calls_before_commitment"] = 1
+        self.assertEqual(
+            validate_worker_commitment(commitment, work_estimate),
+            ["malformed source payload: commitment.tool_calls_before_commitment must be at most 0"],
+        )
+
+        commitment = _valid_commitment_payload(work_estimate)
+        commitment["context_compactions_before_commitment"] = 1
+        self.assertEqual(
+            validate_worker_commitment(commitment, work_estimate),
+            ["malformed source payload: commitment.context_compactions_before_commitment must be at most 0"],
+        )
+
+    def test_native_commitment_schema_json_loads(self):
+        path = Path(__file__).resolve().parents[1] / "schemas" / "native-worker-commitment.schema.json"
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        self.assertFalse(schema["additionalProperties"])
+
+    def test_validate_work_estimate_for_score_examples(self):
+        payload = _valid_raw_payload()
+        payload["scores"]["reasoning_uncertainty"] = 0
+        payload["scores"]["subsystem_coupling"] = 1
+        payload["scores"]["contract_risk"] = 1
+        payload["scores"]["diagnostic_uncertainty"] = 1
+        payload["scores"]["context_breadth"] = 1
+        payload["scores"]["validation_breadth"] = 2  # total 6
+        result = evaluate_work_estimate(payload)
+        payload.update(result)
+        self.assertEqual(validate_work_estimate(payload), [])
+
+        payload = _valid_raw_payload()
+        payload["scores"]["reasoning_uncertainty"] = 0
+        payload["scores"]["subsystem_coupling"] = 2
+        payload["scores"]["contract_risk"] = 2
+        payload["scores"]["diagnostic_uncertainty"] = 2
+        payload["scores"]["context_breadth"] = 2
+        payload["scores"]["validation_breadth"] = 2  # total 10
+        payload.update(evaluate_work_estimate(payload))
+        self.assertEqual(validate_work_estimate(payload), [])
+
+        payload = _valid_raw_payload()
+        payload["scores"]["reasoning_uncertainty"] = 3
+        payload["scores"]["subsystem_coupling"] = 0
+        payload["scores"]["contract_risk"] = 0
+        payload["scores"]["diagnostic_uncertainty"] = 0
+        payload["scores"]["context_breadth"] = 0
+        payload["scores"]["validation_breadth"] = 0  # total 3
+        payload.update(evaluate_work_estimate(payload))
+        self.assertEqual(validate_work_estimate(payload), [])
+
+    def test_v1_remains_readable_without_semantic_policy(self):
+        result = evaluate_work_estimate(_valid_raw_payload())
+        self.assertNotIn("estimate_contract_version", result)
+        self.assertEqual(validate_work_estimate(result), [])
+
+    def test_v2_spark_fit_exposes_authority_and_operative_axes(self):
+        result = evaluate_work_estimate(_valid_v2_payload(), policy=_v2_policy())
+        self.assertEqual(result["route"], "spark")
+        self.assertEqual(result["authority_route"], "spark")
+        self.assertEqual(result["operative_route"], "spark")
+        self.assertFalse(result["route_conflict"])
+        self.assertEqual(result["semantic_scores"]["diff_p90"], 0)
+        self.assertEqual(result["semantic_scores"]["surface_changes"], 1)
+        self.assertEqual(result["semantic_scores"]["read_to_mutation_ratio"], 0)
+
+    def test_v2_semantic_score_floors_are_deterministic(self):
+        cases = (
+            ("estimated_diff_p90", 81, "diff_p90", 1),
+            ("estimated_diff_p90", 251, "diff_p90", 2),
+            ("estimated_diff_p90", 601, "diff_p90", 3),
+            ("behavioral_changes", 1, "behavioral_changes", 1),
+            ("behavioral_changes", 3, "behavioral_changes", 2),
+            ("behavioral_changes", 6, "behavioral_changes", 3),
+            ("expected_regressions", 4, "expected_regressions", 1),
+            ("expected_regressions", 9, "expected_regressions", 2),
+            ("expected_regressions", 17, "expected_regressions", 3),
+        )
+        for field, value, score_field, expected in cases:
+            with self.subTest(field=field, value=value):
+                payload = _valid_v2_payload()
+                payload["semantic_estimate"][field] = value
+                result = evaluate_work_estimate(payload, policy=_v2_policy())
+                self.assertEqual(result["semantic_scores"][score_field], expected)
+
+    def test_v2_authority_and_self_hosting_test_split_remain_distinct(self):
+        payload = _valid_v2_payload()
+        payload["semantic_estimate"]["self_hosting_risk"] = 3
+        payload["semantic_estimate"]["test_construction_complexity"] = 3
+        result = evaluate_work_estimate(payload, policy=_v2_policy())
+        self.assertEqual(result["authority_route"], "architect")
+        self.assertEqual(result["operative_route"], "split")
+        self.assertEqual(result["route"], "architect")
+        self.assertIn("semantic-authority-uncertainty", result["hard_gate_reasons"])
+        self.assertIn("semantic-read-mutation-split-trigger", result["hard_gate_reasons"])
+
+    def test_v2_estimate_variance_blocks_spark_without_changing_axes(self):
+        payload = _valid_v2_payload()
+        payload["pm_estimate"]["tool_calls_p90"] += 9
+        result = evaluate_work_estimate(payload, policy=_v2_policy())
+        self.assertTrue(result["route_conflict"])
+        self.assertEqual(result["authority_route"], "spark")
+        self.assertEqual(result["operative_route"], "spark")
+        self.assertEqual(result["route"], "split")
+        self.assertIn("semantic-estimate-variance", result["hard_gate_reasons"])
+        self.assertIn("semantic-route-conflict", result["hard_gate_reasons"])
+
+    def test_v2_reads_with_zero_expected_mutations_force_split(self):
+        payload = _valid_v2_payload()
+        payload["semantic_estimate"]["expected_mutations"] = 0
+        payload["semantic_estimate"]["read_to_mutation_ratio"] = 4
+        result = evaluate_work_estimate(payload, policy=_v2_policy())
+        self.assertEqual(result["operative_route"], "split")
+        self.assertIn("semantic-read-mutation-split-trigger", result["hard_gate_reasons"])
+
+    def test_v2_rejects_bool_complexity_and_invalid_diff_order(self):
+        payload = _valid_v2_payload()
+        payload["estimate_contract_version"] = True
+        with self.assertRaises(ValueError):
+            evaluate_work_estimate(payload, policy=_v2_policy())
+
+        payload = _valid_v2_payload()
+        payload["semantic_estimate"]["self_hosting_risk"] = True
+        with self.assertRaises(ValueError):
+            evaluate_work_estimate(payload, policy=_v2_policy())
+
+        payload = _valid_v2_payload()
+        payload["semantic_estimate"]["estimated_diff_p50"] = 81
+        with self.assertRaises(ValueError):
+            evaluate_work_estimate(payload, policy=_v2_policy())
+
+    def test_v2_derived_fields_are_validated(self):
+        result = evaluate_work_estimate(_valid_v2_payload(), policy=_v2_policy())
+        self.assertEqual(validate_work_estimate(result, policy=_v2_policy()), [])
+        result["authority_route"] = "architect"
+        self.assertIn(
+            "derived check failed: authority_route must equal computed authority_route",
+            validate_work_estimate(result, policy=_v2_policy()),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -15,6 +15,20 @@
       "exact_model": "gpt-5.3-codex-spark",
       "session_type": "fresh-native",
       "tool_gate_required": true
+    },
+    "native_operative_worker": {
+      "role": "operative-worker",
+      "preferred_model": "gpt-5.3-codex-spark",
+      "authorized_models": [
+        "gpt-5.3-codex-spark",
+        "gpt-5.6-luna"
+      ],
+      "authorized_fallback_models": [
+        "gpt-5.6-luna"
+      ],
+      "fallback_selection": "explicit-only",
+      "session_type": "fresh-native",
+      "tool_gate_required": true
     }
   },
   "rollout_mode": "canary-then-enforce",
@@ -25,11 +39,11 @@
   "control_turn_required": true,
   "segment_start_grace_seconds": 10,
   "tool_reserve": {
-    "ratio": 0.10,
+    "ratio": 0.1,
     "floor": 3
   },
   "runtime_reserve": {
-    "ratio": 0.10,
+    "ratio": 0.1,
     "floor": 5
   },
   "required_control_adapter": "native-multi-agent-v1",
@@ -43,8 +57,74 @@
   "recursive_validation_forbidden": true,
   "packet_versions": {
     "emitted": 2,
-    "historical": [1],
-    "dispatchable": [2]
+    "historical": [
+      1
+    ],
+    "dispatchable": [
+      2
+    ]
+  },
+  "packet_v3": {
+    "experimental_only": true,
+    "dispatchable": false,
+    "autonomous_retry": false,
+    "phases": {
+      "review": {
+        "expected_artifact_class": "review-report",
+        "permitted_first_action_classes": [
+          "read",
+          "test"
+        ],
+        "first_action_deadline_seconds": 30,
+        "mutation_deadline_seconds": null,
+        "source_mutation_policy": "no-source-mutation"
+      },
+      "implementation": {
+        "expected_artifact_class": "implementation-patch",
+        "permitted_first_action_classes": [
+          "read"
+        ],
+        "first_action_deadline_seconds": 30,
+        "mutation_deadline_seconds": 900,
+        "source_mutation_policy": "scoped-only"
+      },
+      "validation": {
+        "expected_artifact_class": "validation-report",
+        "permitted_first_action_classes": [
+          "read",
+          "test"
+        ],
+        "first_action_deadline_seconds": 30,
+        "mutation_deadline_seconds": null,
+        "source_mutation_policy": "no-source-mutation"
+      },
+      "publish/report/admin": {
+        "expected_artifact_class": "publish-report",
+        "permitted_first_action_classes": [
+          "read",
+          "publish",
+          "control"
+        ],
+        "first_action_deadline_seconds": 30,
+        "mutation_deadline_seconds": null,
+        "source_mutation_policy": "explicitly-authorized-only"
+      }
+    },
+    "recovery": {
+      "enabled": false,
+      "autonomous_replay": false,
+      "max_retries": 0,
+      "requires_fresh_session": true,
+      "incomplete_baseline_disables_replay": true
+    },
+    "lineage": {
+      "attempts": [
+        0,
+        1
+      ],
+      "maximum_validation_attempts": 1,
+      "recursive_validation_forbidden": true
+    }
   },
   "execution_bootstrap": {
     "spawn": {
@@ -53,7 +133,7 @@
         "tool_mode": "no-tools",
         "model_authority": "trusted-control-plane-session-metadata",
         "self_report_authority": "forbidden",
-        "required_actual_model": "gpt-5.3-codex-spark"
+        "required_actual_model_source": "packet.requested_model"
       }
     },
     "segmenting": {
@@ -63,12 +143,12 @@
       "resume_agent": {
         "default": "forbidden",
         "waived_mode": "quarantined",
-        "waiver_release_condition": "post-resume model attestation exactly matches gpt-5.3-codex-spark"
+        "waiver_release_condition": "post-resume model attestation exactly matches packet.requested_model"
       }
     },
     "model_mismatch": {
       "action": "quarantine_output",
-      "required_follow_up": "fresh-native-spark-redispatch",
+      "required_follow_up": "fresh-native-operative-worker-redispatch",
       "return_status": "model-mismatch"
     },
     "durable_continuation": {
@@ -121,10 +201,26 @@
   "disposition_policy": {
     "version": 1,
     "automatic_sol_breakfix": false,
-    "session_dispositions": ["accepted", "accepted-with-warning", "quarantined"],
-    "artifact_dispositions": ["accepted", "independent-validation-required", "architect-adjudication-required", "rejected"],
+    "session_dispositions": [
+      "accepted",
+      "accepted-with-warning",
+      "quarantined"
+    ],
+    "artifact_dispositions": [
+      "accepted",
+      "independent-validation-required",
+      "architect-adjudication-required",
+      "rejected"
+    ],
     "validation_attempt_limit": 1,
-    "precedence": ["model-mismatch", "compaction", "validation-outcome", "budget-only", "soft-warning", "accepted"],
+    "precedence": [
+      "model-mismatch",
+      "compaction",
+      "validation-outcome",
+      "budget-only",
+      "soft-warning",
+      "accepted"
+    ],
     "rules": {
       "model_mismatch": "quarantined-session/rejected-artifact",
       "compaction": "quarantined-session/architect-adjudication-required",
@@ -141,7 +237,12 @@
     "required_bead_record": true,
     "required_warning": "Sol operative execution violates normal architecture/worker swimlanes.",
     "allowed_scope": "self-hosting incident repair only",
-    "forbidden_reasons": ["convenience", "speed", "quota substitution", "ordinary feature work"],
+    "forbidden_reasons": [
+      "convenience",
+      "speed",
+      "quota substitution",
+      "ordinary feature work"
+    ],
     "independent_validation_required": true,
     "expires_at_authorized_bead_closure": true
   },
@@ -177,7 +278,397 @@
     "resume_from": "beads",
     "resume_sequence_notes": "Reinstall/reload the skill and resume from Beads; never resume operative agent sessions."
   },
+  "native_model_capability": {
+    "version": 1,
+    "states": [
+      "configured",
+      "advertised",
+      "spawn-accepted",
+      "attested",
+      "dispatchable"
+    ],
+    "dispatchable_requires": [
+      "configured",
+      "spawn-accepted",
+      "attested-exact-model"
+    ],
+    "advertisement": {
+      "authority": "advisory-telemetry",
+      "omission_outcome": "advertisement-mismatch",
+      "omission_action": "zero-tool-canary-or-applicable-receipt"
+    },
+    "outcomes": {
+      "advertisement_mismatch": "warning-canary-required",
+      "native_spawn_rejected": "hard-stop",
+      "native_attestation_mismatch": "quarantine-hard-stop",
+      "native_capability_confirmed": "dispatchable"
+    },
+    "receipt": {
+      "type": "cwo-native-model-capability-receipt",
+      "version": 1,
+      "schema": "schemas/native-model-capability-receipt.schema.json",
+      "scope": "active-native-tool-surface",
+      "authority": "trusted-session-jsonl",
+      "cache_generated_registry": false
+    },
+    "hard_stops": [
+      "native-spawn-rejected",
+      "native-attestation-mismatch",
+      "canary-tool-use",
+      "canary-compaction",
+      "unavailable-trusted-telemetry",
+      "unauthorized-model",
+      "missing-closure"
+    ],
+    "prohibitions": [
+      "model-substitution",
+      "non-native-bridge",
+      "operative-agent-resume",
+      "generated-cache-edit",
+      "binary-patch",
+      "model-self-report-authority"
+    ]
+  },
+  "bounded_native_retry": {
+    "version": 1,
+    "enabled": true,
+    "max_retries": 1,
+    "eligible_semantic_statuses": [
+      "delivery-failed",
+      "no-artifact",
+      "no-progress"
+    ],
+    "eligible_interrupt_reasons": [
+      "delivery-failure",
+      "no-progress",
+      "tool-call-interrupt-threshold",
+      "runtime-interrupt-threshold"
+    ],
+    "authority": "cwo-native-supervisor-evidence",
+    "actual_spawn_owner": "native-pm-controller",
+    "operator_approval_required": false,
+    "immutable_work_hash_required": true,
+    "aggregate_budget_shared": true,
+    "fresh_retry_session_required": true,
+    "exact_model_attestation_required": true,
+    "authorization_receipt": {
+      "type": "cwo-native-retry-authorization",
+      "version": 1,
+      "schema": "schemas/native-retry-authorization.schema.json",
+      "next_action": "spawn-fresh-native-retry"
+    },
+    "hard_stops": [
+      "model-mismatch",
+      "context-compaction",
+      "control-loss",
+      "security-violation",
+      "workspace-mutation",
+      "workspace-attribution-ambiguity",
+      "invalid-semantic-evidence",
+      "retry-exhausted",
+      "aggregate-allowance-exhausted",
+      "immutable-work-hash-mismatch"
+    ],
+    "prohibitions": [
+      "model-substitution",
+      "non-native-bridge",
+      "operative-agent-resume",
+      "sol-operative-substitution",
+      "automatic-salvage-chain"
+    ]
+  },
+  "work_sizing": {
+    "version": 1,
+    "enforcement": {
+      "foundation-canary": {
+        "estimate_contract_versions": {
+          "historical": [
+            1
+          ],
+          "dispatchable": [
+            2
+          ]
+        },
+        "commitment": {
+          "required_for_dispatch": true,
+          "receipt_type": "cwo-native-worker-fit-commitment",
+          "version": 1,
+          "decisions": [
+            "accept",
+            "pm-realignment",
+            "architect-realignment"
+          ],
+          "dispatchable_decision": "accept",
+          "min_confidence": 0.75,
+          "precommitment_tool_calls": 0,
+          "precommitment_compactions": 0,
+          "attestation_source": "trusted-session-jsonl",
+          "positive_estimates_required": true,
+          "estimate_bound": "within-work-plan-aggregate-hard-allowance",
+          "normalization": {
+            "passes": 1,
+            "deterministic": true,
+            "model_formatting_retry": false,
+            "decision_aliases": {
+              "accept": [
+                "accept",
+                "approve",
+                "proceed"
+              ],
+              "pm-realignment": [
+                "refine",
+                "refinement"
+              ],
+              "architect-realignment": [
+                "architect"
+              ]
+            },
+            "missing_quantiles": "pm-realignment",
+            "mixed_labels": "pm-realignment",
+            "contradictions": "pm-realignment",
+            "ambiguity": "pm-realignment",
+            "accepted_requires": {
+              "exact_work_hash": true,
+              "trusted_session": true,
+              "trusted_model": true,
+              "numeric_quantiles": true,
+              "numeric_confidence": true
+            }
+          }
+        },
+        "semantic_routing": {
+          "max_diff_p90_for_spark": 350,
+          "max_behavioral_changes_for_spark": 5,
+          "max_expected_regressions_for_spark": 12,
+          "max_write_paths_for_spark": 6,
+          "max_context_reads_for_spark": 12,
+          "max_read_mutation_ratio_for_spark": 6,
+          "max_tool_calls_p90": 25,
+          "max_runtime_seconds_p90": 480,
+          "variance_thresholds": {
+            "pm_tool_calls_p90_delta": 8,
+            "pm_runtime_seconds_p90_delta": 90,
+            "domain_tool_calls_p90_delta": 8,
+            "domain_runtime_seconds_p90_delta": 90
+          }
+        },
+        "route_thresholds": {
+          "spark_fit_max": 5,
+          "split_min": 6,
+          "split_max": 9,
+          "architect_min": 10
+        },
+        "hard_caps": {
+          "max_subsystems": 2,
+          "max_write_paths": 8,
+          "max_context_entries": 12,
+          "max_acceptance_checks": 3,
+          "max_context_tokens_p90": 96000,
+          "max_tool_calls_p90": 30,
+          "max_runtime_seconds_p90": 480
+        },
+        "architect_hard_gates": {
+          "unresolved_decisions": true,
+          "reasoning_uncertainty": 3,
+          "contract_risk": 3
+        },
+        "autonomous_replanning": {
+          "states": [
+            "planned",
+            "commitment-required",
+            "dispatchable",
+            "executing",
+            "pm-realignment",
+            "architect-realignment",
+            "reassignment-ready",
+            "protected-stop",
+            "completed"
+          ],
+          "events": [
+            "accepted",
+            "dispatch-started",
+            "exploration-limit",
+            "clean-no-artifact",
+            "worker-compaction",
+            "pm-refined",
+            "architect-refined",
+            "fresh-worker-assigned",
+            "completed",
+            "model-mismatch",
+            "control-loss",
+            "security-or-authority-ambiguity",
+            "out-of-scope-mutation",
+            "tainted-mutation",
+            "operator-trigger"
+          ],
+          "telemetry_fields": [
+            "tool_calls",
+            "runtime_seconds",
+            "dispatches",
+            "compactions",
+            "pm_replans_used",
+            "architect_cycles_used",
+            "counters"
+          ],
+          "protected_stop_reasons": [
+            "aggregate-allowance-exhausted",
+            "model-mismatch",
+            "control-loss",
+            "security-or-authority-ambiguity",
+            "out-of-scope-mutation",
+            "tainted-mutation",
+            "invalid-trusted-evidence",
+            "invalid-completion-evidence",
+            "pm-replan-exhausted",
+            "architect-cycle-exhausted",
+            "objective-change",
+            "security-or-authority-change"
+          ],
+          "exploration_limits": {
+            "exploration-limit": {
+              "max_compactions": 0
+            },
+            "clean-no-artifact": {
+              "max_compactions": 0
+            }
+          },
+          "fresh-worker-reassignment": {
+            "required": true,
+            "event": "fresh-worker-assigned"
+          },
+          "main_thread_effort": {
+            "capture_at": [
+              "planning",
+              "material-replanning"
+            ],
+            "sources": [
+              "trusted-turn-context",
+              "user-declaration"
+            ],
+            "required_runtime_fields": [
+              "model",
+              "effort",
+              "source",
+              "recommended_effort",
+              "recommendation_reason",
+              "advisory",
+              "user_selected_effort_retained"
+            ],
+            "recommendation_advisory": true,
+            "user_selection_authoritative": true,
+            "automatic_effort_change": false,
+            "effort_is_execution_gate": false,
+            "effort_is_authority_boundary": false
+          },
+          "worker_compaction": {
+            "affected_worker_action": "interrupt-close-quarantine",
+            "clean_attributable_requires": [
+              "trusted-evidence",
+              "exact-model",
+              "healthy-control",
+              "scoped-untainted-mutation",
+              "unchanged-security-authority"
+            ],
+            "clean_attributable_route": "architect-realignment-current-main-thread",
+            "retained_artifact_disposition": "independent-validation-required",
+            "ambiguous_route": "main-thread-adjudication",
+            "effort_escalation": "advisory-only"
+          },
+          "refined_child_budgeting": {
+            "materially_refined_child": "fresh-deterministic-estimate-and-allowance",
+            "immutable_retry": "share-parent-allowance",
+            "cumulative_lineage_usage_required": true
+          },
+          "live_replay_enabled": false,
+          "dispatch_soft_cap": 3,
+          "dispatch_soft_cap_action": "pm-architect-review",
+          "operator_approval_required_after_soft_cap": false,
+          "continuation_requires": [
+            "configured-and-attested-model",
+            "healthy-control",
+            "zero-compactions",
+            "zero-tainted-mutation",
+            "unchanged-objective",
+            "aggregate-budget-remaining"
+          ],
+          "operator_required_for": [
+            "aggregate-budget-increase",
+            "model-substitution",
+            "objective-change",
+            "security-or-authority-change",
+            "tainted-mutation-acceptance",
+            "contradictory-validation"
+          ],
+          "max_pm_replans": 1,
+          "max_architect_cycles": 1,
+          "max_compactions": 0,
+          "tool_calls_extra": 12,
+          "runtime_seconds_extra": 240,
+          "progress_thresholds": {
+            "early_warning_fraction_of_p50": 0.5,
+            "minimum_reads_without_progress": 4,
+            "realignment_fraction_of_hard": 0.6,
+            "read_ratio_multiplier": 1.5,
+            "read_ratio_floor": 6,
+            "max_consecutive_reads_without_progress": 8
+          }
+        }
+      }
+    }
+  },
   "resume_notes": {
     "operator_control": "Fresh Spark is required for all re-executes. Operative agent resume is not permitted unless explicitly waived and re-attested."
+  },
+  "checked_command": {
+    "version": 1,
+    "modes": [
+      "argv",
+      "shell-source",
+      "python-source"
+    ],
+    "mandatory_for": [
+      "interpreter-inline-source",
+      "nested-quotes",
+      "shell-metacharacters",
+      "nested-language",
+      "generated-environment",
+      "generated-arguments",
+      "multiple-statements",
+      "mutation-command"
+    ],
+    "typed_source_required_for": [
+      "python -c",
+      "bash -c",
+      "sh -c"
+    ],
+    "construction_failure": {
+      "classification": "command-construction-failed",
+      "execution_started": false,
+      "workspace_quarantine": false,
+      "pm_recoverable": true
+    },
+    "quarantine_required_for": [
+      "checked-executed-hash-mismatch",
+      "scope-violation",
+      "security-violation",
+      "ambiguous-mutation-attribution"
+    ],
+    "telemetry_fields": [
+      "command_id",
+      "spec_sha256",
+      "complexity",
+      "preflight_status",
+      "linter",
+      "linted_sha256",
+      "executed_sha256",
+      "hash_match",
+      "execution_started",
+      "mutation_started",
+      "mutated_paths",
+      "failure_class",
+      "quarantine_required",
+      "quoting_error_prevented",
+      "avoided_retry_cycles"
+    ]
   }
 }

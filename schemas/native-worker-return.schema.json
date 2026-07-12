@@ -232,10 +232,10 @@
       "then": {
         "properties": {
           "requested_model": {
-            "const": "gpt-5.3-codex-spark"
+            "enum": ["gpt-5.3-codex-spark", "gpt-5.6-luna"]
           },
           "actual_model": {
-            "const": "gpt-5.3-codex-spark"
+            "enum": ["gpt-5.3-codex-spark", "gpt-5.6-luna"]
           },
           "attestation_status": {
             "const": "trusted"
@@ -301,6 +301,34 @@
             "type": "string",
             "minLength": 1
           }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {"const": "completed"},
+          "requested_model": {"const": "gpt-5.3-codex-spark"}
+        },
+        "required": ["status", "requested_model"]
+      },
+      "then": {
+        "properties": {
+          "actual_model": {"const": "gpt-5.3-codex-spark"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {"const": "completed"},
+          "requested_model": {"const": "gpt-5.6-luna"}
+        },
+        "required": ["status", "requested_model"]
+      },
+      "then": {
+        "properties": {
+          "actual_model": {"const": "gpt-5.6-luna"}
         }
       }
     }

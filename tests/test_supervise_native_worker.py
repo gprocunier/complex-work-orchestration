@@ -15,9 +15,11 @@ SCRIPT = ROOT / "scripts" / "supervise_native_worker.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from prepare_native_worker import build_native_worker_packet  # noqa: E402
+from cwo_core.work_sizing import canonical_work_estimate_sha256, evaluate_work_estimate
 
 
 MODEL = "gpt-5.3-codex-spark"
+LUNA_MODEL = "gpt-5.6-luna"
 CONTROL_TURN = "control-turn-test"
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
@@ -77,6 +79,117 @@ def event(
     return record
 
 
+def planned_packet(*, packet_id: str, requested_model: str = MODEL, budget_overrides: dict | None = None) -> dict:
+    allowed_paths = ["scripts"]
+    acceptance_checks = ["focused tests pass"]
+    effective_budget = budget_overrides or {
+        "tool_calls_soft": 5,
+        "tool_calls_hard": 10,
+        "runtime_seconds_soft": 30,
+        "runtime_seconds_hard": 60,
+    }
+    work_plan = evaluate_work_estimate(
+        {
+            "estimate_type": "cwo-native-work-estimate",
+            "version": 1,
+            "estimate_contract_version": 2,
+            "work_unit_id": f"test-{packet_id}",
+            "bead_id": "bead-supervision",
+            "requested_model": requested_model,
+            "primary_outcome": "exercise native supervisor behavior",
+            "expected_artifacts": ["supervision-state"],
+            "expert_profiles": ["test_engineering"],
+            "frozen_decisions": [],
+            "unresolved_decisions": [],
+            "subsystems": ["native-supervisor"],
+            "write_paths": allowed_paths,
+            "context_manifest": [],
+            "acceptance_checks": acceptance_checks,
+            "estimates": {
+                "tool_calls_p50": 2,
+                "tool_calls_p90": 5,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 60,
+                "context_tokens_p90": 1000,
+            },
+            "scores": {
+                "reasoning_uncertainty": 0,
+                "subsystem_coupling": 1,
+                "contract_risk": 1,
+                "diagnostic_uncertainty": 0,
+                "context_breadth": 0,
+                "validation_breadth": 1,
+            },
+            "semantic_estimate": {
+                "estimated_diff_p50": 40,
+                "estimated_diff_p90": 80,
+                "behavioral_changes": 0,
+                "state_machine_changes": 0,
+                "schema_changes": 0,
+                "self_hosting_risk": 1,
+                "live_control_risk": 1,
+                "contract_surfaces": 1,
+                "cli_surfaces": 0,
+                "policy_surfaces": 0,
+                "telemetry_surfaces": 0,
+                "expected_regressions": 3,
+                "test_construction_complexity": 1,
+                "command_complexity": 1,
+                "nested_quote_layers": 0,
+                "expected_context_reads": 4,
+                "expected_mutations": 2,
+                "read_to_mutation_ratio": 2,
+            },
+            "pm_estimate": {
+                "tool_calls_p50": 2,
+                "tool_calls_p90": 5,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 60,
+            },
+            "domain_expert_estimate": {
+                "tool_calls_p50": 2,
+                "tool_calls_p90": 5,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 60,
+            },
+        }
+    )
+    commitment = {
+        "commitment_type": "cwo-native-worker-fit-commitment",
+        "version": 1,
+        "work_unit_id": work_plan["work_unit_id"],
+        "bead_id": work_plan["bead_id"],
+        "requested_model": requested_model,
+        "session_id": "spark-session",
+        "attestation_source": "trusted-session-jsonl",
+        "attested_model": requested_model,
+        "work_estimate_sha256": canonical_work_estimate_sha256(work_plan),
+        "decision": "accept",
+        "confidence": 0.95,
+        "estimates": {
+            "tool_calls_p50": 2,
+            "tool_calls_p90": 5,
+            "runtime_seconds_p50": 10,
+            "runtime_seconds_p90": 60,
+        },
+        "tool_calls_before_commitment": 0,
+        "context_compactions_before_commitment": 0,
+        "reason": "deterministic supervisor test fixture",
+    }
+    return build_native_worker_packet(
+        bead_id="bead-supervision",
+        lane="implementation",
+        workdir=str(ROOT),
+        allowed_paths=allowed_paths,
+        acceptance_checks=acceptance_checks,
+        packet_id=packet_id,
+        budget_overrides=effective_budget,
+        requested_model=requested_model,
+        work_plan=work_plan,
+        worker_commitment=commitment,
+    )
+
+
 class NativeWorkerSupervisorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-supervision-test-")
@@ -87,12 +200,7 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         self.state_file = self.root / "state.json"
         self.audit_file = self.root / "audit.jsonl"
         self.activated = False
-        packet = build_native_worker_packet(
-            bead_id="bead-supervision",
-            lane="implementation",
-            workdir=str(ROOT),
-            allowed_paths=[str(ROOT / "scripts")],
-            acceptance_checks=["focused tests pass"],
+        packet = planned_packet(
             packet_id="packet-supervision",
             budget_overrides={
                 "tool_calls_soft": 5,
@@ -103,6 +211,15 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         )
         self.packet_file.write_text(json.dumps(packet), encoding="utf-8")
         write_records(self.session_file, [session_meta(self.session_id)])
+
+    def test_planned_packet_uses_dispatchable_semantic_contract(self) -> None:
+        self.assertEqual(self.packet_file.exists(), True)
+        packet = json.loads(self.packet_file.read_text(encoding="utf-8"))
+        work_plan = packet["work_plan"]
+        self.assertEqual(work_plan["estimate_contract_version"], 2)
+        self.assertEqual(work_plan["route"], "spark")
+        self.assertEqual(work_plan["authority_route"], "spark")
+        self.assertEqual(work_plan["operative_route"], "spark")
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -237,6 +354,23 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         result = self.start()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("attestation mismatch", result.stderr)
+
+    def test_start_accepts_explicit_authorized_luna_packet(self) -> None:
+        packet = planned_packet(packet_id="packet-supervision-luna", requested_model=LUNA_MODEL)
+        self.packet_file.write_text(json.dumps(packet), encoding="utf-8")
+        records = [session_meta(self.session_id)]
+        records[0]["turn_context"]["model"] = LUNA_MODEL
+        write_records(self.session_file, records)
+
+        started = self.start()
+        self.assertEqual(started.returncode, 0, started.stderr)
+        payload = json.loads(started.stdout)
+        self.assertEqual(payload["requested_model"], LUNA_MODEL)
+        if HAS_JSONSCHEMA:
+            import jsonschema
+
+            schema = json.loads((ROOT / "schemas" / "native-supervision-state.schema.json").read_text(encoding="utf-8"))
+            jsonschema.validate(json.loads(self.state_file.read_text(encoding="utf-8")), schema)
 
     def test_unarmed_check_and_dispatch_are_rejected(self) -> None:
         self.assertEqual(self.start().returncode, 0)

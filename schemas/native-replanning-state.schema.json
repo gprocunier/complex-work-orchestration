@@ -1,0 +1,527 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Replanning State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_type",
+    "version",
+    "schema",
+    "main_thread",
+    "state",
+    "work_unit_id",
+    "bead_id",
+    "packet_id",
+    "requested_model",
+    "objective",
+    "security_context",
+    "authority",
+    "model_match",
+    "control_healthy",
+    "counters",
+    "aggregate_allowance",
+    "mutation",
+    "reason_codes",
+    "next_action",
+    "cwo_native_replanning_receipt",
+    "policy_snapshot"
+  ],
+  "properties": {
+    "result_type": {
+      "type": "string",
+      "const": "cwo-native-replanning-state"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "schema": {
+      "type": "string",
+      "const": "schemas/native-replanning-state.schema.json"
+    },
+    "main_thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "effort",
+        "source",
+        "recommended_effort",
+        "recommendation_reason",
+        "advisory",
+        "user_selected_effort_retained"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recommended_effort": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recommendation_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "advisory": {
+          "type": "boolean"
+        },
+        "user_selected_effort_retained": {
+          "type": "boolean"
+        }
+      }
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "commitment-required",
+        "dispatchable",
+        "executing",
+        "pm-realignment",
+        "architect-realignment",
+        "reassignment-ready",
+        "protected-stop",
+        "completed"
+      ]
+    },
+    "work_unit_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "security_context": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_match": {
+      "type": "boolean"
+    },
+    "control_healthy": {
+      "type": "boolean"
+    },
+    "counters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dispatches",
+        "tool_calls_used",
+        "runtime_seconds_used",
+        "context_compactions",
+        "pm_replans_used",
+        "architect_cycles_used"
+      ],
+      "properties": {
+        "dispatches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tool_calls_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context_compactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pm_replans_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "architect_cycles_used": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "aggregate_allowance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_calls_hard",
+        "runtime_seconds_hard",
+        "dispatch_soft_cap",
+        "dispatch_soft_cap_action",
+        "max_pm_replans",
+        "max_architect_cycles",
+        "max_compactions"
+      ],
+      "properties": {
+        "tool_calls_hard": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds_hard": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dispatch_soft_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dispatch_soft_cap_action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_pm_replans": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_architect_cycles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_compactions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["out_of_scope", "tainted"],
+      "properties": {
+        "out_of_scope": {
+          "type": "boolean"
+        },
+        "tainted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "next_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dispatch_soft_cap",
+        "max_pm_replans",
+        "max_architect_cycles",
+        "max_compactions",
+        "live_replay_enabled"
+      ],
+      "properties": {
+        "dispatch_soft_cap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_pm_replans": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_architect_cycles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_compactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "live_replay_enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "cwo_native_replanning_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_type",
+        "version",
+        "schema",
+        "state_before",
+        "main_thread",
+        "state_after",
+        "event",
+        "authority",
+        "decision",
+        "reason_codes",
+        "work_unit_id",
+        "bead_id",
+        "packet_id",
+        "counters",
+        "aggregate",
+        "mutation",
+        "model_health",
+        "control_health",
+        "next_action"
+      ],
+      "properties": {
+        "result_type": {
+          "type": "string",
+          "const": "cwo-native-replanning-receipt"
+        },
+        "main_thread": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "model",
+            "effort",
+            "source",
+            "recommended_effort",
+            "recommendation_reason",
+            "advisory",
+            "user_selected_effort_retained"
+          ],
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "effort": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "recommended_effort": {
+              "type": "string",
+              "minLength": 1
+            },
+            "recommendation_reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "advisory": {
+              "type": "boolean"
+            },
+            "user_selected_effort_retained": {
+              "type": "boolean"
+            }
+          }
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "schema": {
+          "type": "string",
+          "const": "schemas/native-replanning-state.schema.json"
+        },
+        "state_before": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state_after": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authority": {
+          "type": "string",
+          "enum": ["worker", "pm", "architect", "operator"]
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "initialized",
+            "advance",
+            "replan",
+            "complete",
+            "protected-stop"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "work_unit_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bead_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "counters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dispatches",
+            "tool_calls_used",
+            "runtime_seconds_used",
+            "context_compactions",
+            "pm_replans_used",
+            "architect_cycles_used",
+            "tool_calls_remaining",
+            "runtime_seconds_remaining",
+            "dispatches_remaining"
+          ],
+          "properties": {
+            "dispatches": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_calls_used": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "runtime_seconds_used": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "context_compactions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pm_replans_used": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "architect_cycles_used": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_calls_remaining": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "runtime_seconds_remaining": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dispatches_remaining": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "aggregate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tool_calls_hard",
+            "runtime_seconds_hard",
+            "dispatch_soft_cap",
+            "dispatch_soft_cap_action",
+            "max_pm_replans",
+            "max_architect_cycles",
+            "max_compactions"
+          ],
+          "properties": {
+            "tool_calls_hard": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "runtime_seconds_hard": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dispatch_soft_cap": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dispatch_soft_cap_action": {
+              "type": "string",
+              "minLength": 1
+            },
+            "max_pm_replans": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_architect_cycles": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_compactions": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "mutation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["out_of_scope", "tainted"],
+          "properties": {
+            "out_of_scope": {
+              "type": "boolean"
+            },
+            "tainted": {
+              "type": "boolean"
+            }
+          }
+        },
+        "model_health": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exact_model"],
+          "properties": {
+            "exact_model": {
+              "type": "boolean"
+            }
+          }
+        },
+        "control_health": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["healthy"],
+          "properties": {
+            "healthy": {
+              "type": "boolean"
+            }
+          }
+        },
+        "next_action": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
