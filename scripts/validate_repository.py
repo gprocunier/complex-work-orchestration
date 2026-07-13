@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -51,6 +52,21 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why \"validated\" --follow-up none --dry-run --json",
     "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
+NATIVE_MODEL_TOKEN_RE = re.compile(r"\bgpt-\d+(?:\.\d+)*-(?:codex-spark|luna)\b")
+NATIVE_MODEL_SCAN_ROOTS = [
+    "SKILL.md",
+    "README.md",
+    "AGENTS.md",
+    "agents",
+    "references",
+    "docs",
+    "policy",
+    "schemas",
+    "examples",
+    "scripts",
+    "templates",
+]
+NATIVE_MODEL_SCAN_SUFFIXES = {".md", ".yaml", ".json", ".py", ".sh", ".html"}
 CWO_CORE_ALLOWED_IMPORTS = {
     "access_profiles": {"policy"},
     "paths": set(),
@@ -60,7 +76,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "routing": {"access_profiles", "errors", "native_containment", "policy", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
-    "coach": {"routing", "synthesis", "types", "util"},
+    "coach": {"policy", "routing", "synthesis", "types", "util"},
     "packets": {"errors", "paths", "policy", "return_language", "util"},
     "return_common": {"policy"},
     "return_language": {"errors", "policy", "return_common", "types"},
@@ -78,7 +94,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
     "native_disposition": set(),
-    "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths"},
+    "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths", "policy"},
     "execution_enhancement_metrics": set(),
     "native_session": {"native_disposition"},
     "native_session_boundary": {"native_session"},
@@ -489,6 +505,7 @@ def validate_repository() -> list[str]:
         return [str(exc)]
 
     errors.extend(validate_execution_environment_registry())
+    validate_native_model_consistency(errors)
 
     if executor_aliases and not isinstance(executor_aliases, dict):
         errors.append("executor-registry aliases must be an object")
@@ -1905,6 +1922,93 @@ def validate_cwo_core_contract(errors: list[str]) -> None:
                         imported = alias.name.split(".", 1)[1].split(".", 1)[0]
             if imported and imported != module_name and imported not in allowed:
                 errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
+
+
+def _schema_node(schema: Any, steps: list[Any]) -> Any:
+    node = schema
+    for step in steps:
+        if isinstance(step, int):
+            node = node[step] if isinstance(node, list) and len(node) > step else None
+        elif isinstance(node, dict):
+            node = node.get(step)
+        else:
+            node = None
+        if node is None:
+            return None
+    return node
+
+
+def validate_native_model_consistency(errors: list[str]) -> None:
+    try:
+        execution_policy = load_policy("native-worker-execution")
+        registry = load_policy("executor-registry")
+    except SystemExit as exc:
+        errors.append(str(exc))
+        return
+    governance = execution_policy.get("governance", {})
+    worker = governance.get("native_operative_worker", {})
+    preferred = str(worker.get("preferred_model") or "")
+    authorized = [str(item) for item in worker.get("authorized_models") or []]
+    if not preferred:
+        errors.append("native-worker-execution must define governance.native_operative_worker.preferred_model")
+        return
+    if preferred not in authorized:
+        errors.append("native-worker-execution authorized_models must include preferred_model")
+    if str(governance.get("spark", {}).get("exact_model") or "") != preferred:
+        errors.append(
+            "native-worker-execution governance.spark.exact_model must equal native_operative_worker.preferred_model"
+        )
+    for model in [str(item) for item in worker.get("authorized_fallback_models") or []]:
+        if model not in authorized:
+            errors.append(f"native-worker-execution fallback model {model!r} is not in authorized_models")
+    internal_worker = registry.get("executors", {}).get("internal_worker", {})
+    if str(internal_worker.get("model_label") or "") != preferred:
+        errors.append(
+            "executor-registry internal_worker.model_label must equal the pinned native worker preferred_model"
+        )
+    schema_enum_paths = [
+        ("native-supervision-state.schema.json", ["properties", "requested_model", "enum"]),
+        ("native-worker-return.schema.json", ["allOf", 0, "then", "properties", "requested_model", "enum"]),
+        ("native-worker-return.schema.json", ["allOf", 0, "then", "properties", "actual_model", "enum"]),
+    ]
+    for schema_name, steps in schema_enum_paths:
+        try:
+            schema = load_json(REPO_ROOT / "schemas" / schema_name)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        enum = _schema_node(schema, steps)
+        if not isinstance(enum, list) or sorted(str(item) for item in enum) != sorted(authorized):
+            errors.append(
+                f"schemas/{schema_name} {'/'.join(str(step) for step in steps)} must equal the "
+                "authorized native worker models from policy/native-worker-execution.yaml"
+            )
+    allowed_tokens = set(authorized)
+    for root_name in NATIVE_MODEL_SCAN_ROOTS:
+        root = REPO_ROOT / root_name
+        if root.is_file():
+            paths = [root]
+        elif root.is_dir():
+            paths = sorted(
+                path
+                for path in root.rglob("*")
+                if path.is_file() and path.suffix in NATIVE_MODEL_SCAN_SUFFIXES
+            )
+        else:
+            continue
+        for path in paths:
+            if "__pycache__" in path.parts:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for token in sorted(set(NATIVE_MODEL_TOKEN_RE.findall(text))):
+                if token not in allowed_tokens:
+                    errors.append(
+                        f"{path.relative_to(REPO_ROOT)} pins native worker model {token!r} that is not in "
+                        "policy/native-worker-execution.yaml authorized_models"
+                    )
 
 
 def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:
