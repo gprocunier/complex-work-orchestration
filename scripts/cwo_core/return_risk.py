@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .policy import load_contracting_controls, load_policy, peer_review_policy
+from .policy import load_contracting_controls
 from .return_common import (
     add_signal,
     affirmative_field,
@@ -28,28 +28,17 @@ def sabotage_thresholds(
     review_threshold: int | None = None,
     quarantine_threshold: int | None = None,
 ) -> dict[str, int]:
-    policy_thresholds = load_policy("acceptance-policy").get("sabotage", {}).get("thresholds", {})
-    peer_thresholds = peer_review_policy().get("sabotage_thresholds", {})
-    control_thresholds = load_contracting_controls().get("sabotage_policy", {}).get("thresholds", {})
+    """Sabotage thresholds have one policy source: contracting-controls sabotage_policy.thresholds."""
+    configured = load_contracting_controls().get("sabotage_policy", {}).get("thresholds", {})
     return {
         "review": int(
-            review_threshold
-            if review_threshold is not None
-            else control_thresholds.get("peer_review", policy_thresholds.get("review", peer_thresholds.get("review", 30)))
+            review_threshold if review_threshold is not None else configured.get("peer_review", 20)
         ),
-        "architect_escalation": int(
-            control_thresholds.get(
-                "architect_escalation",
-                policy_thresholds.get("architect_escalation", peer_thresholds.get("architect_escalation", 45)),
-            )
-        ),
+        "architect_escalation": int(configured.get("architect_escalation", 35)),
         "quarantine": int(
             quarantine_threshold
             if quarantine_threshold is not None
-            else control_thresholds.get(
-                "quarantine",
-                policy_thresholds.get("quarantine", peer_thresholds.get("quarantine", 60)),
-            )
+            else configured.get("quarantine", 50)
         ),
     }
 
