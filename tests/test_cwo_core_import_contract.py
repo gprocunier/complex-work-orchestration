@@ -44,6 +44,7 @@ ALLOWED_IMPORTS = {
     "native_session": {"native_disposition"},
     "native_worker_contracts": {"native_disposition", "util"},
     "execution_enhancement_metrics": set(),
+    "control_effectiveness": {"audit"},
     "execution_status_report": {"audit", "execution_enhancement_metrics", "paths", "policy"},
     "work_sizing": {"policy"},
     "public_copy": set(),

@@ -49,6 +49,7 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection next-version",
     "python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why \"validated\" --follow-up none --dry-run --json",
     "python scripts/cleanup_stale_agents.py --dry-run --json",
+    "python scripts/render_control_effectiveness.py --audit-file examples/sample-audit-events.jsonl --json",
 ]
 NATIVE_MODEL_TOKEN_RE = re.compile(r"\bgpt-\d+(?:\.\d+)*-(?:codex-spark|luna)\b")
 NATIVE_MODEL_SCAN_ROOTS = [
@@ -91,6 +92,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
     "native_disposition": set(),
+    "control_effectiveness": {"audit"},
     "execution_status_report": {"audit", "execution_enhancement_metrics", "paths", "policy"},
     "execution_enhancement_metrics": set(),
     "native_session": {"native_disposition"},

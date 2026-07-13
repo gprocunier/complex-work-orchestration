@@ -11,6 +11,7 @@ __all__ = [
     "beads",
     "chatgpt_urls",
     "coach",
+    "control_effectiveness",
     "errors",
     "execution_enhancement_metrics",
     "execution_status_report",
