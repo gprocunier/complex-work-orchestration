@@ -181,6 +181,16 @@ python3 scripts/supervise_native_worker.py arm \
   --json
 ```
 
+The dispatch prompt itself is gated on that armed supervisor. `render` refuses
+to produce a dispatchable prompt unless the armed state matches the packet hash
+and control turn; `--preview-only` renders a watermarked NOT-FOR-DISPATCH copy:
+
+```bash
+python3 scripts/prepare_native_worker.py render "<cwo-temp>/packet.json" \
+  --supervision-state "<cwo-temp>/supervision.json" \
+  --control-turn-id "<unique-control-turn-id>"
+```
+
 The remaining actions must run in one uninterrupted tool-orchestration turn:
 
 1. Call native `send_input` and retain its submission ID.
@@ -224,6 +234,48 @@ python3 scripts/supervise_native_worker.py finalize \
 For a clean completion, record `--control-action worker-completed`. If interrupt,
 close, wait, or trusted session telemetry is unavailable, stop before dispatch.
 Do not substitute another model or start an automatic salvage chain.
+
+Return acceptance is also receipt-gated: `validate-return` requires
+`--supervision-state` pointing at a finalized supervision state whose packet
+hash matches, so an unsupervised worker return cannot validate. The
+`--allow-unsupervised-return` waiver exists for historical inspection only and
+requires `--waiver-reason`:
+
+```bash
+python3 scripts/prepare_native_worker.py validate-return \
+  --packet "<cwo-temp>/packet.json" \
+  --return "<cwo-temp>/return.json" \
+  --supervision-state "<cwo-temp>/supervision.json"
+```
+
+### Why the monitor is a polling control turn
+
+The native tool surface only exposes `interrupt`, `close`, and `wait` to the
+orchestrating turn itself: a long blocking `wait_agent` cannot observe budget
+breaches or issue an interrupt mid-wait, so live control must poll from the
+control turn. That is a harness limitation, not a security preference. The
+fail-closed poll timing therefore trips on scheduling hiccups by design; treat
+that as a measurable cost, not noise. Track the split between control-plane
+losses and substantive losses with:
+
+```bash
+python3 scripts/render_control_effectiveness.py --json
+```
+
+and tune `poll_lag_tolerance_ms` and `arm_to_dispatch_max_ms` in
+`policy/native-worker-execution.yaml` from that evidence rather than intuition.
+
+### Trusted session file invariant
+
+Live supervision treats the session JSONL as trusted control-plane telemetry.
+That is only sound when the supervised worker cannot write the file. Operators
+must keep session logs outside every worker-writable sandbox path, and the
+tooling mechanically checks what it can see: the supervisor (`start` and every
+`check`) and the retrospective checker fail closed when the session file is a
+symlink, not a regular file, not owned by the supervising user, group- or
+world-writable, or sits in a world-writable directory without the sticky bit.
+A live trust failure quarantines the segment as control loss; the retrospective
+checker reports it as an input error (exit `1`).
 
 Use `scripts/check_native_worker_session.py --packet <packet-v2>` for an
 independent or retrospective session check. `--budget-profile` remains available
