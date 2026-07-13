@@ -15,6 +15,7 @@ from cwo_core.native_session import (
     _normalize_event_msg,
     _normalize_turn_context,
     _session_id_matches,
+    session_file_trust_report,
 )
 from cwo_core.audit import acquire_audit_lock, record_audit_event, release_audit_lock
 from cwo_core.native_disposition import derive_disposition
@@ -317,6 +318,12 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
     session_file = Path(args.session_file).expanduser().resolve()
     if not session_file.is_file() or not _session_id_matches(session_file, args.session_id):
         _fail("control-lost: session file identity does not match --session-id")
+    trust = session_file_trust_report(session_file)
+    if not trust["trusted"]:
+        _fail(
+            "control-lost: session file failed the trusted-telemetry invariant: "
+            + "; ".join(trust["reasons"])
+        )
     records, trailing = _read_session(session_file)
     models = _trusted_models(records)
     requested_model = str(packet["requested_model"])
@@ -573,6 +580,12 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     previous_audited_decision = state.get("last_audited_decision")
     poll_latency_exceeded = _record_poll_timing(state, now)
     try:
+        trust = session_file_trust_report(Path(state["session_file"]))
+        if not trust["trusted"]:
+            _fail(
+                "control-lost: session file failed the trusted-telemetry invariant: "
+                + "; ".join(trust["reasons"])
+            )
         all_records, trailing = _read_session(Path(state["session_file"]))
         baseline_record_count = state["baseline_record_count"]
         if len(all_records) < baseline_record_count:

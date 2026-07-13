@@ -14,6 +14,7 @@ from cwo_core.native_session import (
     _parse_iso_timestamp,
     _session_id_matches,
     _status_to_return_code,
+    session_file_trust_report,
 )
 from cwo_core.policy import native_spark_model
 
@@ -178,6 +179,12 @@ def main() -> int:
     sessions_root = Path(args.sessions_root).expanduser().resolve() if args.sessions_root else _sessions_root(args.codex_home)
     explicit = Path(args.session_file).expanduser().resolve() if args.session_file else None
     session_file = find_session_file(args.session_id, sessions_root, explicit)
+    trust = session_file_trust_report(session_file)
+    if not trust["trusted"]:
+        _error(
+            "session file failed the trusted-telemetry invariant: "
+            + "; ".join(trust["reasons"])
+        )
     records = [record for _, record in _iter_json_lines(session_file)]
 
     now: dt.datetime | None = None

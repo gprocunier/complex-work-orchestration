@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import importlib.util
 import datetime as dt
+import os
 import subprocess
 import sys
 import tempfile
@@ -354,6 +355,13 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         result = self.start()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("attestation mismatch", result.stderr)
+
+    @unittest.skipUnless(os.name == "posix", "trust checks are POSIX-only")
+    def test_start_rejects_untrusted_session_file(self) -> None:
+        self.session_file.chmod(0o666)
+        result = self.start()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("trusted-telemetry invariant", result.stderr)
 
     def test_start_accepts_explicit_authorized_luna_packet(self) -> None:
         packet = planned_packet(packet_id="packet-supervision-luna", requested_model=LUNA_MODEL)

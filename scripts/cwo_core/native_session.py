@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import shlex
+import stat
 from pathlib import Path
 from typing import Any
 import sys
@@ -738,3 +740,48 @@ def _evaluate_records(
 
     overall_status = selected_segment["status"]
     return segments, aggregate, overall_status, selected_segment
+
+
+def session_file_trust_report(path: Path) -> dict[str, Any]:
+    """Mechanical check of the trusted-session-file invariant.
+
+    Live supervision treats the session JSONL as trusted control-plane
+    telemetry. That is only sound when the supervised worker cannot write
+    it: a regular non-symlinked file, owned by the supervising user, with
+    no group/other write bits, in a directory whose entries others cannot
+    replace.
+    """
+    report: dict[str, Any] = {"path": str(path), "checked": True, "trusted": True, "reasons": []}
+    if os.name != "posix":
+        report["checked"] = False
+        report["reasons"].append("non-posix-platform: ownership/permission checks skipped")
+        return report
+    try:
+        info = os.lstat(path)
+    except OSError as exc:
+        report["trusted"] = False
+        report["reasons"].append(f"session file stat failed: {exc}")
+        return report
+    if stat.S_ISLNK(info.st_mode):
+        report["trusted"] = False
+        report["reasons"].append("session file is a symlink")
+        return report
+    if not stat.S_ISREG(info.st_mode):
+        report["trusted"] = False
+        report["reasons"].append("session file is not a regular file")
+    if info.st_uid != os.geteuid():
+        report["trusted"] = False
+        report["reasons"].append("session file is not owned by the supervising user")
+    if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        report["trusted"] = False
+        report["reasons"].append("session file is group- or world-writable")
+    try:
+        parent = os.stat(path.parent)
+    except OSError as exc:
+        report["trusted"] = False
+        report["reasons"].append(f"session directory stat failed: {exc}")
+        return report
+    if parent.st_mode & stat.S_IWOTH and not parent.st_mode & stat.S_ISVTX:
+        report["trusted"] = False
+        report["reasons"].append("session directory is world-writable without the sticky bit")
+    return report
