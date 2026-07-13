@@ -11,8 +11,10 @@ from typing import Any
 from .audit import iter_audit_events
 from .paths import AUDIT_LOG
 from .execution_enhancement_metrics import checked_command_details, checked_command_summary, native_progress_details, native_progress_summary
+from .policy import native_authorized_worker_models
 
 UNAVAILABLE = "?"
+NATIVE_DISPOSITION_MODELS = frozenset(native_authorized_worker_models())
 NOT_APPLICABLE = "n/a"
 REPORT_TYPE = "cwo-execution-status-report"
 REPORT_VERSION = 6
@@ -1484,7 +1486,7 @@ def _is_native_disposition_record(record: dict[str, Any]) -> bool:
     if isinstance(record.get("artifact_validation"), dict):
         return True
     model = _clean(record.get("model")) or _clean(record.get("workerbee_actual_model"))
-    return model == "gpt-5.3-codex-spark"
+    return model in NATIVE_DISPOSITION_MODELS
 
 
 def _sol_breakfix_summary(records: list[dict[str, Any]]) -> dict[str, Any]:

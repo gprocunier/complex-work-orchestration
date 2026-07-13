@@ -42,7 +42,6 @@ from cwo_core.policy import load_policy
 from cwo_core.util import atomic_write_text, make_dispatch_id
 from cwo_core.work_sizing import validate_work_estimate, validate_worker_commitment
 
-REQUESTED_MODEL = "gpt-5.3-codex-spark"
 NATIVE_WORKER_POLICY_PATH = "policy/native-worker-execution.yaml"
 NATIVE_WORKER_PACKET_SCHEMA = "schemas/native-worker-packet.schema.json"
 NATIVE_WORKER_RETURN_SCHEMA = "schemas/native-worker-return.schema.json"

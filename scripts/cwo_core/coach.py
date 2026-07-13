@@ -8,11 +8,12 @@ from .routing import (
     expert_uses_external_contract,
     resolve_beads_context_depth,
 )
+from .policy import native_spark_model
 from .synthesis import recommend_model_synthesis
 from .types import CoachResult
 from .util import term_hits
 
-SPARK_MODEL_ALIAS = "gpt-5.3-codex-spark"
+SPARK_MODEL_ALIAS = native_spark_model()
 
 
 PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
@@ -191,7 +192,7 @@ def prompt_coach_has_native_spark_control_context(text: str) -> bool:
             "spark worker",
             "spark model",
             "codex 5.3 spark",
-            "gpt-5.3-codex-spark",
+            SPARK_MODEL_ALIAS,
             "local spark",
             "local codex cli",
             "local cli",
