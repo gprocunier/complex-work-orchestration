@@ -465,7 +465,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             self.assertIn("dispatch-forbidden", " ".join(validate_native_worker_packet(packet, dispatchable=True)))
             packet_path = Path(workdir) / "v1.json"
             packet_path.write_text(json.dumps(packet), encoding="utf-8")
-            rendered = run_cli("render", str(packet_path))
+            rendered = run_cli("render", str(packet_path), "--preview-only")
             self.assertNotEqual(rendered.returncode, 0)
             self.assertIn("dispatch-forbidden", rendered.stderr)
 
@@ -533,7 +533,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             )
             packet_path = Path(workdir) / "packet.json"
             packet_path.write_text(json.dumps(packet), encoding="utf-8")
-            result = run_cli("render", str(packet_path))
+            result = run_cli("render", str(packet_path), "--preview-only")
             self.assertNotEqual(result.returncode, 0, result.stderr)
             self.assertIn("dispatchable packet requires work_plan and worker_commitment", result.stderr)
 

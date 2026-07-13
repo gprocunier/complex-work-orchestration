@@ -42,7 +42,7 @@ ALLOWED_IMPORTS = {
     "native_retry": set(),
     "native_replanning": {"policy"},
     "native_session": {"native_disposition"},
-    "native_worker_contracts": {"native_disposition"},
+    "native_worker_contracts": {"native_disposition", "util"},
     "execution_enhancement_metrics": set(),
     "execution_status_report": {"audit", "execution_enhancement_metrics", "paths", "policy"},
     "work_sizing": {"policy"},

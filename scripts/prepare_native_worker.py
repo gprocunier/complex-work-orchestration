@@ -37,11 +37,15 @@ from cwo_core.native_worker_contracts import (
     packet_v3_phase_contract,
     packet_v3_recovery_contract,
     validate_packet_v3_phase_contract,
+    verify_armed_supervision_state,
+    verify_completed_supervision_state,
 )
 from cwo_core.policy import load_policy
 from cwo_core.util import atomic_write_text, make_dispatch_id
+from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 from cwo_core.work_sizing import validate_work_estimate, validate_worker_commitment
 
+PREVIEW_BANNER = "PREVIEW ONLY - NOT FOR DISPATCH: no armed supervisor is bound to this prompt.\n\n"
 NATIVE_WORKER_POLICY_PATH = "policy/native-worker-execution.yaml"
 NATIVE_WORKER_PACKET_SCHEMA = "schemas/native-worker-packet.schema.json"
 NATIVE_WORKER_RETURN_SCHEMA = "schemas/native-worker-return.schema.json"
@@ -1321,12 +1325,36 @@ def _parse_args() -> argparse.Namespace:
 
     render = subcommands.add_parser("render", help="Render a bounded native-worker task prompt.")
     render.add_argument("packet")
+    render_mode = render.add_mutually_exclusive_group(required=True)
+    render_mode.add_argument(
+        "--supervision-state",
+        help="Armed supervision state file created by supervise_native_worker.py start/arm.",
+    )
+    render_mode.add_argument(
+        "--preview-only",
+        action="store_true",
+        help="Render a NOT-FOR-DISPATCH preview without an armed supervisor.",
+    )
+    render.add_argument(
+        "--control-turn-id",
+        help="Control-turn id bound to the armed supervision state.",
+    )
 
     validate_return = subcommands.add_parser(
         "validate-return", help="Validate a native-worker return against a packet."
     )
     validate_return.add_argument("--packet", required=True)
     validate_return.add_argument("--return", required=True, dest="return_path")
+    validate_return.add_argument(
+        "--supervision-state",
+        help="Finalized supervision state file for the packet.",
+    )
+    validate_return.add_argument(
+        "--allow-unsupervised-return",
+        action="store_true",
+        help="Historical-inspection waiver: skip the finalized-supervision receipt requirement.",
+    )
+    add_waiver_reason_argument(validate_return)
 
     return parser.parse_args()
 
@@ -1375,10 +1403,18 @@ def main() -> None:
         errors = validate_native_worker_packet(packet, dispatchable=True)
         if errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
+        if args.preview_only:
+            print(PREVIEW_BANNER + _render_prompt(packet))
+            return
+        state = _load_json_payload(args.supervision_state)
+        gate_errors = verify_armed_supervision_state(state, packet, args.control_turn_id or "")
+        if gate_errors:
+            raise SystemExit("dispatch gate failed:\n- " + "\n- ".join(gate_errors))
         print(_render_prompt(packet))
         return
 
     if args.command == "validate-return":
+        require_waiver_reason(args, ["allow_unsupervised_return"])
         packet = _load_json_payload(args.packet)
         packet_errors = validate_native_worker_packet(packet)
         if packet_errors:
@@ -1387,6 +1423,18 @@ def main() -> None:
         return_errors = validate_native_worker_return(packet, native_return)
         if return_errors:
             raise SystemExit("return validation failed:\n- " + "\n- ".join(return_errors))
+        if args.allow_unsupervised_return:
+            print("return valid (unsupervised waiver: " + str(args.waiver_reason).strip() + ")")
+            return
+        if not args.supervision_state:
+            raise SystemExit(
+                "validate-return requires --supervision-state "
+                "(or --allow-unsupervised-return with --waiver-reason)"
+            )
+        state = _load_json_payload(args.supervision_state)
+        receipt_errors = verify_completed_supervision_state(state, packet)
+        if receipt_errors:
+            raise SystemExit("supervision receipt gate failed:\n- " + "\n- ".join(receipt_errors))
         print("return valid")
         return
 

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .native_disposition import DISPOSITION_FIELDS
+from .util import artifact_hash
 
 ALLOWED_PACKET_FIELDS = {
     "packet_type",
@@ -524,3 +525,51 @@ ALLOWED_ATTESTATION_STATUSES = {
 ALLOWED_ESCALATION_SOFT_LIMIT_FIELDS = {"distinct_soft_limits_required"}
 ALLOWED_ESCALATION_HARD_LIMIT_FIELDS = {"any_hard_limit", "status"}
 ALLOWED_ESCALATION_COMPACTION_FIELDS = {"any_compaction", "status"}
+
+
+def verify_armed_supervision_state(
+    state: Mapping[str, Any],
+    packet: Mapping[str, Any],
+    control_turn_id: str,
+) -> list[str]:
+    """Dispatch gate: the task prompt may only render against an armed supervisor.
+
+    Binds the rendered prompt to one packet (by canonical hash), one armed
+    supervision state, and one control turn, so a native worker cannot be
+    dispatched without live supervision already in place.
+    """
+    errors: list[str] = []
+    if str(state.get("result_type") or "") != "cwo-native-supervision-state":
+        errors.append("supervision state has the wrong result_type")
+    if state.get("status") != "armed":
+        errors.append(f"supervision state status must be 'armed', found {state.get('status')!r}")
+    expected_sha = artifact_hash(json.dumps(dict(packet), sort_keys=True))
+    if state.get("packet_sha256") != expected_sha:
+        errors.append("supervision state packet_sha256 does not match the packet being rendered")
+    if state.get("packet_id") != packet.get("packet_id"):
+        errors.append("supervision state packet_id does not match the packet")
+    supplied = str(control_turn_id or "").strip()
+    if not supplied:
+        errors.append("control-turn-id must be non-empty")
+    elif state.get("control_turn_id") != supplied:
+        errors.append("control-turn-id does not match the armed supervision state")
+    return errors
+
+
+def verify_completed_supervision_state(
+    state: Mapping[str, Any],
+    packet: Mapping[str, Any],
+) -> list[str]:
+    """Acceptance gate: returns only validate against finalized supervision receipts."""
+    errors: list[str] = []
+    if str(state.get("result_type") or "") != "cwo-native-supervision-state":
+        errors.append("supervision state has the wrong result_type")
+    expected_sha = artifact_hash(json.dumps(dict(packet), sort_keys=True))
+    if state.get("packet_sha256") != expected_sha:
+        errors.append("supervision state packet_sha256 does not match the packet")
+    status = state.get("status")
+    if status not in {"completed", "closed", "control-failed"}:
+        errors.append(f"supervision state is not finalized: status {status!r}")
+    if not state.get("finalized_at"):
+        errors.append("supervision state has no finalized_at receipt")
+    return errors

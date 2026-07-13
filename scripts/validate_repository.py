@@ -94,7 +94,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "execution_status_report": {"audit", "execution_enhancement_metrics", "paths", "policy"},
     "execution_enhancement_metrics": set(),
     "native_session": {"native_disposition"},
-    "native_worker_contracts": {"native_disposition"},
+    "native_worker_contracts": {"native_disposition", "util"},
     "native_capability": set(),
     "native_recovery": set(),
     "native_retry": set(),
@@ -155,6 +155,9 @@ WAIVER_CONVENTION_SCRIPTS = {
     "scripts/evaluate_return.py": {
         "flags": ["--no-audit"],
         "audit_fields": True,
+    },
+    "scripts/prepare_native_worker.py": {
+        "flags": ["--allow-unsupervised-return"],
     },
     "scripts/render_harness_dispatch.py": {
         "flags": ["--no-audit"],
