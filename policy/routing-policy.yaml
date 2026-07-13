@@ -39,6 +39,41 @@
       "manual_dispatch_penalty_when_unattended": -15
     }
   },
+  "architecture_critic_triggers": {
+    "shared_critique_terms": [
+      "second opinion",
+      "second opinions",
+      "2nd opinion",
+      "2nd opinions",
+      "independent opinion",
+      "independent opinions",
+      "peer opinion",
+      "peer opinions",
+      "critique",
+      "critiques",
+      "critic",
+      "critics",
+      "review",
+      "reviews"
+    ],
+    "executors": {
+      "claude_architecture_critic": {
+        "provider_terms": ["claude", "opus", "anthropic"],
+        "context_terms": ["architect", "architecture", "design"],
+        "extra_critique_terms": []
+      },
+      "gemini_architecture_critic": {
+        "provider_terms": ["gemini", "agy", "antigravity"],
+        "context_terms": ["architect", "architecture", "design"],
+        "extra_critique_terms": []
+      },
+      "rhoai_glm_hardened_architecture_critic": {
+        "provider_terms": ["glm", "glm 5.2", "glm-5.2", "glm52"],
+        "context_terms": ["architect", "architecture", "design", "synthesis"],
+        "extra_critique_terms": ["synthesis", "synthesize"]
+      }
+    }
+  },
   "restricted_terms": [
     "secret value",
     "credential value",

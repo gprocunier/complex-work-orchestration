@@ -19,7 +19,7 @@ ALLOWED_IMPORTS = {
     "chatgpt_urls": set(),
     "policy": {"paths", "util"},
     "routing": {"access_profiles", "errors", "native_containment", "policy", "routing_signals", "synthesis", "types", "util"},
-    "routing_signals": {"util"},
+    "routing_signals": {"policy", "util"},
     "synthesis": {"policy", "util"},
     "coach": {"policy", "routing", "synthesis", "types", "util"},
     "epic_convergence": set(),
