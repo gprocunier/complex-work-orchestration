@@ -72,7 +72,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "chatgpt_urls": set(),
     "policy": {"paths", "util"},
     "routing": {"access_profiles", "errors", "policy", "routing_signals", "synthesis", "types", "util"},
-    "routing_signals": {"util"},
+    "routing_signals": {"policy", "util"},
     "synthesis": {"policy", "util"},
     "coach": {"policy", "routing", "synthesis", "types", "util"},
     "packets": {"errors", "paths", "policy", "return_language", "util"},
@@ -303,6 +303,11 @@ def validate_repository() -> list[str]:
 
     errors.extend(validate_execution_environment_registry())
     validate_native_model_consistency(errors)
+    try:
+        routing_policy = load_policy("routing-policy")
+    except SystemExit as exc:
+        return [str(exc)]
+    validate_routing_critic_triggers(errors, routing_policy, executors)
 
     if executor_aliases and not isinstance(executor_aliases, dict):
         errors.append("executor-registry aliases must be an object")
@@ -1719,6 +1724,36 @@ def validate_cwo_core_contract(errors: list[str]) -> None:
                         imported = alias.name.split(".", 1)[1].split(".", 1)[0]
             if imported and imported != module_name and imported not in allowed:
                 errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
+
+
+def validate_routing_critic_triggers(
+    errors: list[str],
+    routing_policy: dict[str, Any],
+    executors: dict[str, Any],
+) -> None:
+    triggers = routing_policy.get("architecture_critic_triggers")
+    if not isinstance(triggers, dict):
+        errors.append("routing-policy must define architecture_critic_triggers")
+        return
+    shared = triggers.get("shared_critique_terms")
+    if not isinstance(shared, list) or not shared:
+        errors.append("architecture_critic_triggers.shared_critique_terms must be a non-empty list")
+    configured = triggers.get("executors")
+    if not isinstance(configured, dict) or not configured:
+        errors.append("architecture_critic_triggers.executors must be a non-empty object")
+        return
+    for executor_key, config in configured.items():
+        if executor_key not in executors:
+            errors.append(f"architecture_critic_triggers references unknown executor {executor_key!r}")
+        if not isinstance(config, dict):
+            errors.append(f"architecture_critic_triggers.{executor_key} must be an object")
+            continue
+        for field in ("provider_terms", "context_terms"):
+            values = config.get(field)
+            if not isinstance(values, list) or not values:
+                errors.append(
+                    f"architecture_critic_triggers.{executor_key}.{field} must be a non-empty list"
+                )
 
 
 def _schema_node(schema: Any, steps: list[Any]) -> Any:
