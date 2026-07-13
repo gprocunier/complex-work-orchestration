@@ -40,5 +40,7 @@ jobs:
         run: python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why "validated" --follow-up none --dry-run --json
       - name: Stale agent cleanup dry run
         run: python scripts/cleanup_stale_agents.py --dry-run --json
+      - name: Control effectiveness report dry run
+        run: python scripts/render_control_effectiveness.py --audit-file examples/sample-audit-events.jsonl --json
       - name: Installer dry run
         run: ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run

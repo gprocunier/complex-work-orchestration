@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO control-effectiveness report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_type",
+    "version",
+    "schema",
+    "audit_file",
+    "event_counts",
+    "supervision",
+    "returns",
+    "rubric",
+    "tuning_hints"
+  ],
+  "properties": {
+    "result_type": {"const": "cwo-control-effectiveness-report"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/control-effectiveness-report.schema.json"},
+    "audit_file": {"type": "string"},
+    "event_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "native_supervision", "return_evaluated"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "native_supervision": {"type": "integer", "minimum": 0},
+        "return_evaluated": {"type": "integer", "minimum": 0}
+      }
+    },
+    "supervision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supervised_dispatches",
+        "final_decisions",
+        "control_losses",
+        "interrupt_reasons",
+        "poll_health",
+        "compaction_breach_states"
+      ],
+      "properties": {
+        "supervised_dispatches": {"type": "integer", "minimum": 0},
+        "final_decisions": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "control_losses": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "spurious_control_plane", "substantive", "unclassified", "reasons"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 0},
+            "spurious_control_plane": {"type": "integer", "minimum": 0},
+            "substantive": {"type": "integer", "minimum": 0},
+            "unclassified": {"type": "integer", "minimum": 0},
+            "reasons": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "interrupt_reasons": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "poll_health": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["late_poll_states", "max_poll_gap_ms", "max_dispatch_to_first_poll_ms"],
+          "properties": {
+            "late_poll_states": {"type": "integer", "minimum": 0},
+            "max_poll_gap_ms": {"type": "integer", "minimum": 0},
+            "max_dispatch_to_first_poll_ms": {"type": "integer", "minimum": 0}
+          }
+        },
+        "compaction_breach_states": {"type": "integer", "minimum": 0}
+      }
+    },
+    "returns": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evaluated", "quarantine_recommended", "max_sabotage_score", "mean_sabotage_score"],
+      "properties": {
+        "evaluated": {"type": "integer", "minimum": 0},
+        "quarantine_recommended": {"type": "integer", "minimum": 0},
+        "max_sabotage_score": {"type": ["integer", "null"]},
+        "mean_sabotage_score": {"type": ["number", "null"]}
+      }
+    },
+    "rubric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control_loss_rate_pct", "control_loss_target_pct", "meets_control_loss_target"],
+      "properties": {
+        "control_loss_rate_pct": {"type": ["number", "null"]},
+        "control_loss_target_pct": {"const": 2.0},
+        "meets_control_loss_target": {"type": ["boolean", "null"]}
+      }
+    },
+    "tuning_hints": {"type": "array", "items": {"type": "string"}}
+  }
+}

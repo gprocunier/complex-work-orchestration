@@ -79,6 +79,7 @@ ALLOWED_IMPORTS = {
     "native_session_boundary": {"native_session"},
     "native_worker_contracts": {"native_disposition"},
     "execution_enhancement_metrics": set(),
+    "control_effectiveness": {"audit"},
     "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths", "policy"},
     "work_sizing": {"checked_command", "native_containment", "native_precommit", "policy"},
     "public_copy": set(),
