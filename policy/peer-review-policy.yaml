@@ -32,8 +32,5 @@
     "architect-adjudication",
     "no-implementation"
   ],
-  "sabotage_thresholds": {
-    "review": 30,
-    "quarantine": 60
-  }
+  "sabotage_threshold_authority": "single-source: sabotage thresholds are defined only in contracting-controls.yaml sabotage_policy.thresholds"
 }

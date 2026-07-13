@@ -305,9 +305,16 @@ def validate_repository() -> list[str]:
     validate_native_model_consistency(errors)
     try:
         routing_policy = load_policy("routing-policy")
+        acceptance_policy = load_policy("acceptance-policy")
     except SystemExit as exc:
         return [str(exc)]
     validate_routing_critic_triggers(errors, routing_policy, executors)
+    validate_sabotage_threshold_single_source(
+        errors,
+        acceptance_policy=acceptance_policy,
+        peer_review=peer_review,
+        controls=controls,
+    )
 
     if executor_aliases and not isinstance(executor_aliases, dict):
         errors.append("executor-registry aliases must be an object")
@@ -1724,6 +1731,31 @@ def validate_cwo_core_contract(errors: list[str]) -> None:
                         imported = alias.name.split(".", 1)[1].split(".", 1)[0]
             if imported and imported != module_name and imported not in allowed:
                 errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
+
+
+def validate_sabotage_threshold_single_source(
+    errors: list[str],
+    *,
+    acceptance_policy: dict[str, Any],
+    peer_review: dict[str, Any],
+    controls: dict[str, Any],
+) -> None:
+    if acceptance_policy.get("sabotage", {}).get("thresholds") is not None:
+        errors.append(
+            "sabotage thresholds must live only in contracting-controls.yaml "
+            "(found acceptance-policy sabotage.thresholds)"
+        )
+    if peer_review.get("sabotage_thresholds") is not None:
+        errors.append(
+            "sabotage thresholds must live only in contracting-controls.yaml "
+            "(found peer-review-policy sabotage_thresholds)"
+        )
+    control_thresholds = controls.get("sabotage_policy", {}).get("thresholds", {})
+    for key in ("peer_review", "architect_escalation", "quarantine"):
+        if not isinstance(control_thresholds.get(key), int):
+            errors.append(
+                f"contracting-controls sabotage_policy.thresholds.{key} must be an integer"
+            )
 
 
 def validate_routing_critic_triggers(
