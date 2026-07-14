@@ -135,6 +135,7 @@ ALLOWED_RETURN_FIELDS = {
     "remaining_scope",
     "usage",
     "residual_risks",
+    "replan",
     *DISPOSITION_FIELDS,
 }
 ALLOWED_RETURN_USAGE_FIELDS = {

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
-import sys
 import ast
+import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
+import scaffold_workgraph
+from cwo_core import epic_convergence
 from cwo_core.packets import (
     CONTRACTOR_PACKET_REQUIRED_FIELDS,
     LOCAL_DISPATCH_REQUIRED_FIELDS,
@@ -69,23 +71,25 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "returns": {"policy", "return_boundary", "return_common", "return_evidence", "return_language", "return_risk", "return_sections", "types", "util"},
     "workspace": {"paths", "util"},
     "workgraph_markdown": set(),
-    "telemetry": {"util"},
+    "telemetry": {"epic_convergence", "util"},
     "audit": {"paths", "policy", "telemetry", "util"},
     "waivers": set(),
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
     "native_disposition": set(),
-    "execution_status_report": {"audit", "execution_enhancement_metrics", "paths"},
+    "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths"},
     "execution_enhancement_metrics": set(),
     "native_session": {"native_disposition"},
     "native_worker_contracts": {"native_disposition"},
     "native_capability": set(),
     "native_recovery": set(),
     "native_retry": set(),
+    "native_control": set(),
     "native_replanning": {"policy"},
     "native_progress": {"policy"},
     "checked_command": set(),
     "work_sizing": {"policy"},
+    "epic_convergence": set(),
     "public_copy": set(),
     "errors": set(),
     "types": set(),
@@ -239,11 +243,180 @@ def validate_retired_beads_context_aliases(
                 errors.append(f"{relative} uses retired Beads context alias {pattern!r}")
 
 
+def validate_closure_pressure_contract(errors: list[str]) -> None:
+    def _report_error(prefix: str, message: str) -> None:
+        errors.append(f"closure-pressure contract regression ({prefix}): {message}")
+
+    def _check_graph_fields(graph: list[dict[str, Any]], disposition: str) -> None:
+        if not graph:
+            _report_error("graph", "planned_graph returned empty graph")
+            return
+        for idx, item in enumerate(graph):
+            metadata = item.get("metadata")
+            if not isinstance(metadata, dict):
+                _report_error("graph", f"graph item {idx} is missing metadata")
+                continue
+            if metadata.get("closure_pressure_active") is not True:
+                _report_error(
+                    "graph",
+                    f"graph item {idx} has closure_pressure_active={metadata.get('closure_pressure_active')!r} expected True",
+                )
+            if metadata.get("routine_repair_child_forbidden") is not True:
+                _report_error(
+                    "graph",
+                    f"graph item {idx} has routine_repair_child_forbidden={metadata.get('routine_repair_child_forbidden')!r} expected True",
+                )
+            closure_pressure = metadata.get("closure_pressure")
+            if not isinstance(closure_pressure, dict):
+                _report_error(
+                    "graph",
+                    f"graph item {idx} has invalid closure_pressure metadata",
+                )
+                continue
+            if closure_pressure.get("active") is not True:
+                _report_error(
+                    "graph",
+                    f"graph item {idx} has closure_pressure.active={closure_pressure.get('active')!r} expected True",
+                )
+            if closure_pressure.get("disposition") != disposition:
+                _report_error(
+                    "graph",
+                    f"graph item {idx} has closure_pressure.disposition={closure_pressure.get('disposition')!r} expected {disposition!r}",
+                )
+            if closure_pressure.get("allowed") is not True:
+                _report_error(
+                    "graph",
+                    f"graph item {idx} has closure_pressure.allowed={closure_pressure.get('allowed')!r} expected True",
+                )
+
+    current_action = "continue-current-work-unit"
+    allowed_dispositions = list(epic_convergence.CLOSURE_DISPOSITIONS)
+    baseline_cases = (
+        (
+            False,
+            current_action,
+            None,
+            {
+                "active": False,
+                "action": current_action,
+                "disposition": None,
+                "allowed": True,
+                "reason": "closure-pressure-inactive",
+                "allowed_dispositions": allowed_dispositions,
+            },
+        ),
+        (
+            True,
+            current_action,
+            None,
+            {
+                "active": True,
+                "action": current_action,
+                "disposition": None,
+                "allowed": False,
+                "reason": "explicit-closure-disposition-required",
+                "allowed_dispositions": allowed_dispositions,
+            },
+        ),
+    )
+    for active, action, disposition, expected in baseline_cases:
+        try:
+            decision = epic_convergence.evaluate_closure_pressure(active, action, disposition)
+        except Exception as exc:
+            _report_error("evaluator", f"decision failed for active={active}: {exc}")
+            continue
+        if decision != expected:
+            _report_error("evaluator", f"decision mismatch for active={active}: {decision} != {expected}")
+
+    for disposition in epic_convergence.CLOSURE_DISPOSITIONS:
+        expected_allowed = {
+            "active": True,
+            "action": current_action,
+            "disposition": disposition,
+            "allowed": True,
+            "reason": "closure-disposition-recorded",
+            "allowed_dispositions": allowed_dispositions,
+        }
+        expected_denied = {
+            "active": True,
+            "action": "create-routine-repair-child",
+            "disposition": disposition,
+            "allowed": False,
+            "reason": "routine-repair-child-rejected",
+            "allowed_dispositions": allowed_dispositions,
+        }
+        try:
+            allowed = epic_convergence.evaluate_closure_pressure(
+                True, current_action, disposition
+            )
+            denied = epic_convergence.evaluate_closure_pressure(
+                True, "create-routine-repair-child", disposition
+            )
+        except Exception as exc:
+            _report_error("evaluator", f"decision failed for disposition={disposition!r}: {exc}")
+            continue
+        if allowed != expected_allowed:
+            _report_error(
+                "evaluator",
+                f"current-work decision invalid for disposition={disposition!r}: {allowed}",
+            )
+        if denied != expected_denied:
+            _report_error(
+                "evaluator",
+                f"routine-child decision invalid for disposition={disposition!r}: {denied}",
+            )
+
+        try:
+            continue_route = {
+                "closure_pressure": {
+                    "active": True,
+                    "action": current_action,
+                    "disposition": disposition,
+                }
+            }
+            continue_graph = scaffold_workgraph.planned_graph("closure-pressure-continue", continue_route)
+        except Exception as exc:
+            _report_error(
+                "graph",
+                f"planned_graph failed for disposition={disposition!r} continue path: {exc}",
+            )
+            continue
+        _check_graph_fields(continue_graph, disposition)
+        try:
+            scaffold_workgraph.planned_graph(
+                "closure-pressure-routine-child",
+                {
+                    "closure_pressure": {
+                        "active": True,
+                        "action": "create-routine-repair-child",
+                        "disposition": disposition,
+                    }
+                },
+            )
+        except ValueError as exc:
+            if "routine-repair-child-rejected" not in str(exc):
+                _report_error(
+                    "evaluator",
+                    f"create-routine-repair-child was blocked for wrong reason: {exc}",
+                )
+        except Exception as exc:
+            _report_error(
+                "graph",
+                f"create-routine-repair-child decision failed for disposition={disposition!r}: {exc}",
+            )
+        else:
+            _report_error(
+                "graph",
+                f"create-routine-repair-child was unexpectedly allowed for disposition={disposition!r}",
+            )
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
     validate_cwo_core_contract(errors)
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
+    validate_closure_pressure_contract(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
         try:

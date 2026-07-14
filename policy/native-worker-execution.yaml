@@ -194,6 +194,7 @@
   "return_statuses": [
     "completed",
     "blocked",
+    "needs-replan",
     "needs-architect-realignment",
     "budget-exhausted",
     "model-mismatch"
@@ -277,6 +278,35 @@
     ],
     "resume_from": "beads",
     "resume_sequence_notes": "Reinstall/reload the skill and resume from Beads; never resume operative agent sessions."
+  },
+  "needs_replan_return_contract": {
+    "reason_codes": [
+      "hidden-coupling",
+      "scope-growth",
+      "unexpected-reasoning",
+      "decision-uncertainty",
+      "environment"
+    ],
+    "uncertainty_classes": [
+      "bounded",
+      "material",
+      "architect"
+    ],
+    "decisions": [
+      "pm-refine",
+      "architect-reasoning",
+      "reassign-spark"
+    ],
+    "option_routes": [
+      "pm-refine",
+      "architect-reasoning",
+      "reassign-spark",
+      "protected-stop"
+    ],
+    "worker_mutation_policy": "stop-mutating",
+    "decision_owner": "pm-or-architect-by-typed-decision",
+    "max_pm_refinements_per_work_unit": 1,
+    "routine_operator_approval_required": false
   },
   "native_model_capability": {
     "version": 1,
@@ -436,6 +466,159 @@
             }
           }
         },
+        "task_class_policy": {
+          "literal-command": {
+            "fit_mode": "deterministic",
+            "max_task_outcomes": 1,
+            "max_source_paths": 0,
+            "max_source_mutation_count": 0,
+            "max_read_context_count": 0,
+            "max_focused_test_count": 0,
+            "max_command_count": 1,
+            "max_check_count": 2,
+            "max_full_suite_count": 0,
+            "requires_exact_argv": true,
+            "tool_calls_p50": 1,
+            "tool_calls_p90": 2,
+            "tool_calls_hard": 4,
+            "runtime_seconds_p50": 30,
+            "runtime_seconds_p90": 60,
+            "runtime_seconds_hard": 120
+          },
+          "read-only-validation": {
+            "fit_mode": "deterministic",
+            "max_task_outcomes": 1,
+            "max_source_paths": 0,
+            "max_source_mutation_count": 0,
+            "max_read_context_count": 12,
+            "max_focused_test_count": 6,
+            "max_command_count": 6,
+            "max_check_count": 6,
+            "max_full_suite_count": 1,
+            "requires_exact_argv": true,
+            "tool_calls_p50": 2,
+            "tool_calls_p90": 4,
+            "tool_calls_hard": 8,
+            "runtime_seconds_p50": 150,
+            "runtime_seconds_p90": 300,
+            "runtime_seconds_hard": 600
+          },
+          "narrow-mechanical": {
+            "fit_mode": "deterministic",
+            "max_task_outcomes": 1,
+            "max_source_paths": 2,
+            "max_source_mutation_count": 2,
+            "max_read_context_count": 4,
+            "max_focused_test_count": 2,
+            "max_command_count": 4,
+            "max_check_count": 4,
+            "max_full_suite_count": 0,
+            "max_estimated_diff_p90": 50,
+            "requires_exact_argv": false,
+            "tool_calls_p50": 4,
+            "tool_calls_p90": 6,
+            "tool_calls_hard": 10,
+            "runtime_seconds_p50": 90,
+            "runtime_seconds_p90": 180,
+            "runtime_seconds_hard": 300
+          },
+          "bounded-implementation": {
+            "fit_mode": "semantic",
+            "max_task_outcomes": 4,
+            "max_source_paths": 6,
+            "max_source_mutation_count": 6,
+            "max_read_context_count": 12,
+            "max_focused_test_count": 6,
+            "max_command_count": 8,
+            "max_check_count": 6,
+            "max_full_suite_count": 1,
+            "max_estimated_diff_p90": 350,
+            "requires_exact_argv": false,
+            "tool_calls_p50": 15,
+            "tool_calls_p90": 25,
+            "tool_calls_hard": 37,
+            "runtime_seconds_p50": 240,
+            "runtime_seconds_p90": 480,
+            "runtime_seconds_hard": 720
+          },
+          "diagnosis": {
+            "fit_mode": "semantic",
+            "max_task_outcomes": 2,
+            "max_source_paths": 0,
+            "max_source_mutation_count": 0,
+            "max_read_context_count": 12,
+            "max_focused_test_count": 4,
+            "max_command_count": 6,
+            "max_check_count": 4,
+            "max_full_suite_count": 0,
+            "requires_exact_argv": false,
+            "tool_calls_p50": 6,
+            "tool_calls_p90": 12,
+            "tool_calls_hard": 18,
+            "runtime_seconds_p50": 150,
+            "runtime_seconds_p90": 300,
+            "runtime_seconds_hard": 480
+          },
+          "architecture": {
+            "fit_mode": "architect",
+            "max_task_outcomes": 4,
+            "max_source_paths": 0,
+            "max_source_mutation_count": 0,
+            "max_read_context_count": 12,
+            "max_focused_test_count": 0,
+            "max_command_count": 0,
+            "max_check_count": 4,
+            "max_full_suite_count": 0,
+            "requires_exact_argv": false
+          }
+        },
+        "protected_surfaces": {
+          "security-return-acceptance": [
+            "scripts/evaluate_return.py",
+            "scripts/normalize_contractor_return.py",
+            "scripts/cwo_core/returns.py",
+            "schemas/*return*.schema.json"
+          ],
+          "policy-routing": [
+            "policy/*",
+            "scripts/route_work.py",
+            "scripts/cwo_core/work_sizing.py",
+            "scripts/prepare_native_worker.py"
+          ],
+          "schemas-public-contracts": [
+            "schemas/*",
+            "SKILL.md",
+            "README.md",
+            "references/*",
+            "docs/*"
+          ],
+          "native-supervision-self-hosting": [
+            "scripts/supervise_native_worker.py",
+            "scripts/check_native_worker_session.py",
+            "scripts/cwo_core/native_*.py"
+          ],
+          "provider-access-authority": [
+            "policy/*registry*.yaml",
+            "scripts/dispatch_work.py",
+            "scripts/dispatch_attested_agy.py"
+          ],
+          "credentials": [
+            ".env*",
+            "*.pem",
+            "*.key",
+            "*credential*"
+          ],
+          "release-publication": [
+            "scripts/install.sh",
+            "scripts/package_skill.py",
+            ".github/workflows/*"
+          ],
+          "workflow-automation": [
+            ".github/*",
+            "scripts/scaffold_workgraph.py",
+            "scripts/close_bead_with_summary.py"
+          ]
+        },
         "semantic_routing": {
           "max_diff_p90_for_spark": 350,
           "max_behavioral_changes_for_spark": 5,
@@ -487,6 +670,7 @@
           "events": [
             "accepted",
             "dispatch-started",
+            "needs-replan",
             "exploration-limit",
             "clean-no-artifact",
             "worker-compaction",
@@ -518,6 +702,7 @@
             "out-of-scope-mutation",
             "tainted-mutation",
             "invalid-trusted-evidence",
+            "invalid-needs-replan-evidence",
             "invalid-completion-evidence",
             "pm-replan-exhausted",
             "architect-cycle-exhausted",

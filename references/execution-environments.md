@@ -304,6 +304,44 @@ boundaries, not routine estimation correction. Reports retain productive
 artifacts and show calibration error instead of classifying all interrupted
 work as waste.
 
+### Worktree authority and closure convergence
+
+A native worker can inherit the host shell's original cwd even when its packet
+targets an isolated worktree. Treat packet `scope.workdir` as authoritative:
+run every command there and bind mutation baselines, allowed paths, and receipts
+to that same worktree. Agent-reported cwd is not evidence of the write target.
+
+Activate closure pressure when acceptance or independent validation starts.
+While it is active, continue the current work unit instead of creating a routine
+repair child, and record one disposition: `retain`, `correct`, `quarantine`,
+`defer`, or `close`. Scaffold this state explicitly:
+
+```bash
+python3 scripts/scaffold_workgraph.py \
+  --closure-pressure-active \
+  --closure-action continue-current-work-unit \
+  --closure-disposition correct
+```
+
+The convergence ledger and replay are append-only. Historical unknowns remain
+null; replay must not rewrite old receipts to fit a newer schema.
+
+```bash
+python3 scripts/replay_epic_convergence.py \
+  --input "<ledger-or-summary-a.json>" \
+  --input "<ledger-or-summary-b.json>" \
+  > "<cwo-temp>/convergence-summary.json"
+python3 scripts/render_execution_status_report.py \
+  --convergence-summary "<cwo-temp>/convergence-summary.json" \
+  --format terminal
+```
+
+The report presents absolute counts for productive, validation, attestation,
+fit, monitoring, recovery, PM, architect, and unknown calls, plus each replay
+target's result. Main-thread model and effort detection supplies an advisory
+recommendation only. The user-selected effort remains authoritative; CWO must
+not halt or change effort solely because the recommendation differs.
+
 ### Checked command execution
 
 Use a structured checked-command specification for nested source, quoting,

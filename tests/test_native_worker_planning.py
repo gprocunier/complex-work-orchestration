@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from prepare_native_worker import (
+    _render_prompt,
     build_native_worker_packet,
     validate_native_worker_packet,
 )
@@ -183,6 +184,127 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         self.assertEqual(packet["work_plan"]["authority_route"], "spark")
         self.assertEqual(packet["work_plan"]["operative_route"], "spark")
         self.assertEqual(packet["command_contract"]["wrapper"], "scripts/run_checked_command.py")
+
+    def test_deterministic_plan_builds_policy_fit_commitment_from_trusted_attestation(self):
+        deterministic = plan()
+        deterministic["semantic_estimate"]["estimated_diff_p90"] = 40
+        deterministic["task_profile"] = {
+            "task_class": "narrow-mechanical",
+            "declared_outcome_count": 1,
+            "command_count": 0,
+            "check_count": 3,
+            "focused_test_count": 2,
+            "full_suite_count": 0,
+            "read_context_count": 0,
+            "source_mutation_count": 1,
+            "commands": [],
+            "source_mutation_paths": PATHS,
+        }
+        deterministic = evaluate_work_estimate(deterministic)
+        packet = build_native_worker_packet(
+            bead_id="bead-plan",
+            lane="implementation",
+            workdir=str(ROOT),
+            allowed_paths=PATHS,
+            acceptance_checks=CHECKS,
+            work_plan=deterministic,
+            trusted_session_id="trusted-spark-session",
+            attested_model="gpt-5.3-codex-spark",
+            budget_overrides={
+                "tool_calls_soft": 6,
+                "tool_calls_hard": 10,
+                "runtime_seconds_soft": 180,
+                "runtime_seconds_hard": 300,
+                "max_compactions": 0,
+                "max_full_suite_runs": 0,
+            },
+            requested_model="gpt-5.3-codex-spark",
+        )
+        self.assertEqual(packet["worker_commitment"]["session_id"], "trusted-spark-session")
+        self.assertEqual(packet["worker_commitment"]["estimates"]["tool_calls_p90"], 6)
+        self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+
+    def test_semantic_plan_cannot_skip_worker_commitment(self):
+        with self.assertRaisesRegex(SystemExit, "deterministic"):
+            build_native_worker_packet(
+                bead_id="bead-plan",
+                lane="implementation",
+                workdir=str(ROOT),
+                allowed_paths=PATHS,
+                acceptance_checks=CHECKS,
+                work_plan=plan(),
+                trusted_session_id="trusted-spark-session",
+                attested_model="gpt-5.3-codex-spark",
+                budget_overrides=BUDGET,
+                requested_model="gpt-5.3-codex-spark",
+            )
+
+    def test_read_only_plan_separates_context_scope_from_write_scope(self):
+        read_only = plan()
+        read_only["write_paths"] = []
+        read_only["context_manifest"] = [
+            {"path": PATHS[0], "selector": "file", "purpose": "validation", "bytes": 1, "sha256": "0" * 64}
+        ]
+        read_only["semantic_estimate"].update(
+            {
+                "estimated_diff_p50": 0,
+                "estimated_diff_p90": 0,
+                "expected_context_reads": 1,
+                "expected_mutations": 0,
+                "read_to_mutation_ratio": 1,
+            }
+        )
+        read_only["task_profile"] = {
+            "task_class": "read-only-validation",
+            "declared_outcome_count": 1,
+            "command_count": 3,
+            "check_count": 3,
+            "focused_test_count": 1,
+            "full_suite_count": 0,
+            "read_context_count": 1,
+            "source_mutation_count": 0,
+            "commands": [
+                {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning", "-v"]},
+                {"argv": ["python3", "-m", "compileall", "scripts/prepare_native_worker.py"]},
+                {"argv": ["git", "diff", "--check"]},
+            ],
+            "source_mutation_paths": [],
+        }
+        read_only = evaluate_work_estimate(read_only)
+        packet = build_native_worker_packet(
+            bead_id="bead-plan",
+            lane="validation",
+            workdir=str(ROOT),
+            allowed_paths=PATHS,
+            acceptance_checks=CHECKS,
+            work_plan=read_only,
+            trusted_session_id="trusted-spark-session",
+            attested_model="gpt-5.3-codex-spark",
+            budget_overrides={
+                "tool_calls_soft": 4,
+                "tool_calls_hard": 8,
+                "runtime_seconds_soft": 300,
+                "runtime_seconds_hard": 600,
+                "max_compactions": 0,
+                "max_full_suite_runs": 0,
+            },
+        )
+        self.assertEqual(packet["work_plan"]["write_paths"], [])
+        self.assertEqual(packet["scope"]["allowed_paths"], PATHS)
+        self.assertNotIn("edit-scoped-files", packet["scope"]["allowed_actions"])
+        self.assertIn("source-mutation", packet["scope"]["prohibited_actions"])
+        self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+
+        rendered = _render_prompt(packet)
+        self.assertIn("Deterministic execution contract:", rendered)
+        self.assertIn("The first tool call must execute command 1", rendered)
+        self.assertIn("Do not acknowledge first, inspect helpers or source, run --help", rendered)
+        self.assertIn("No exploratory tool calls are permitted", rendered)
+        self.assertIn("1. python3 -m unittest tests.test_native_worker_planning -v", rendered)
+        self.assertNotIn("- Wrapper: scripts/run_checked_command.py", rendered)
+        self.assertNotIn("build wrapper specifications.\n- Wrapper:", rendered)
+        self.assertIn('"files_touched": []', rendered)
+        self.assertIn('"mutation_state": "clean"', rendered)
 
     def test_planned_non_dispatch_for_realignments_and_dispatchable_decision_message(self):
         for decision in ["pm-realignment", "architect-realignment"]:

@@ -203,6 +203,13 @@ python3 scripts/render_run_projection.py \
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection wrap-up-status
 python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
+python3 scripts/replay_epic_convergence.py --input convergence-ledger.json &gt; convergence-summary.json
+python3 scripts/render_execution_status_report.py --convergence-summary convergence-summary.json --format terminal
+python3 scripts/scaffold_workgraph.py \
+  --title "&lt;goal&gt;" --description "&lt;scope&gt;" \
+  --closure-pressure-active \
+  --closure-action continue-current-work-unit \
+  --closure-disposition correct --dry-run
 python3 scripts/render_execution_status_report.py --format terminal
 python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary</code></pre>
@@ -215,7 +222,17 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               typed projections from Beads; contractor and local-worker returns
               stay evidence until evaluation and architect adjudication.
               The execution status report is a separate end-of-plan accounting
-              view over explicit audit and evaluator artifacts. Its default
+              view over explicit audit and evaluator artifacts. Convergence
+              replay supplies absolute productive, validation, attestation,
+              fit, monitoring, recovery, PM, architect, and unknown call counts.
+              It also reports avoided nonaccepted segments and calls,
+              control-plane reduction, and whether each target was met.
+              Ledgers and replay are append-only; unavailable historical values
+              remain null rather than being inferred or rewritten. Closure
+              pressure reuses the current work unit and records one
+              <code>retain</code>, <code>correct</code>,
+              <code>quarantine</code>, <code>defer</code>, or
+              <code>close</code> disposition. Its default
               terminal layout is a compact dashboard for 80-column,
               half-height terminals, the expanded layout fans out long
               utilization cells into readable rows, the summary layout keeps
@@ -233,6 +250,11 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               only until <code>ownership</code>, <code>locking</code>,
               <code>history</code>, <code>failure_containment</code>, and
               <code>provider_neutral_execution</code> are accepted.
+            </p>
+            <p>
+              Main-thread model and effort guidance remains advisory; the user's
+              selection is authoritative. A different recommendation does not
+              stop or pivot execution.
             </p>
           </section>
 

@@ -122,6 +122,11 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 - Require a zero-tool fit commitment bound to the evaluated work-plan hash and trusted worker attestation. Invalid or ambiguous commitments route to PM realignment without repeated formatting retries.
 - During execution, use `scripts/cwo_core/native_progress.py` to compare planned and observed calls, runtime, tokens, reads, mutations, tests, and artifacts. Retained productive artifacts are not pure waste.
 - The PM may autonomously refine a packet, ask the current architect one bounded reasoning question, or split material work within the original objective and aggregate allowance. These routine corrections do not require operator approval.
+- Packet `scope.workdir` governs commands, mutation baselines, and receipts; ignore inherited worker cwd.
+- Closure pressure starts at acceptance or independent validation. Continue the work unit, record `retain`, `correct`, `quarantine`, `defer`, or `close`, and reject routine repair children.
+- Convergence ledgers and replays are append-only. Keep historical unknowns null and never rewrite prior evidence.
+- Reports show absolute call categories and replay-target results.
+- Main-thread model and effort recommendations are advisory. User selection is authoritative; mismatch alone cannot stop or pivot execution.
 - Reserve protected stops for model, control, security, authority, mutation-attribution, contradictory-validation, or aggregate-budget boundaries.
 - Route complex or mutation-sensitive commands through `scripts/run_checked_command.py`. Raw `python -c`, `bash -c`, and `sh -c` are not valid checked-command inputs; use typed Python or shell source.
 - If the active tool surface cannot interrupt, close, wait, or expose trusted session telemetry, stop before dispatch. Do not substitute Sol or another model.

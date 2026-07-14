@@ -44,6 +44,13 @@
         "expected_return_language_source": {"type": "string"},
         "return_language_status": {"type": "string"},
         "return_language_finding_count": {"type": "number", "minimum": 0},
+        "epic_id": {"type": ["string", "null"]},
+        "work_unit_id": {"type": ["string", "null"]},
+        "packet_id": {"type": ["string", "null"]},
+        "session_id": {"type": ["string", "null"]},
+        "phase": {"type": ["string", "null"]},
+        "event": {"type": ["string", "null"]},
+        "call_category": {"type": ["string", "null"], "enum": ["productive","validation","attestation","fit","monitoring","recovery","pm","architect","unknown", null]},
         "detected_letter_scripts": {"type": "array", "items": {"type": "string"}},
         "unexpected_script_ratio": {"type": "number", "minimum": 0, "maximum": 1},
         "unicode_normalization_changed": {"type": "boolean"},
@@ -95,7 +102,26 @@
             "completion_tokens": {"type": "number", "minimum": 0},
             "reasoning_tokens": {"type": "number", "minimum": 0},
             "total": {"type": "number", "minimum": 0},
-            "total_tokens": {"type": "number", "minimum": 0}
+            "total_tokens": {"type": "number", "minimum": 0},
+            "tool_calls": {"type": ["integer", "null"], "minimum": 0},
+            "runtime_seconds": {"type": ["number", "null"], "minimum": 0},
+            "context_compactions": {"type": ["integer", "null"], "minimum": 0},
+            "full_suite_runs": {"type": ["integer", "null"], "minimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "graph_counters": {
+          "type": "object",
+          "properties": {
+            "beads_total": {"type": ["integer", "null"], "minimum": 0},
+            "beads_open": {"type": ["integer", "null"], "minimum": 0},
+            "beads_closed": {"type": ["integer", "null"], "minimum": 0},
+            "graph_depth": {"type": ["integer", "null"], "minimum": 0},
+            "work_units_total": {"type": ["integer", "null"], "minimum": 0},
+            "work_units_open": {"type": ["integer", "null"], "minimum": 0},
+            "work_units_closed": {"type": ["integer", "null"], "minimum": 0},
+            "routine_repair_children": {"type": ["integer", "null"], "minimum": 0},
+            "worker_sessions": {"type": ["integer", "null"], "minimum": 0}
           },
           "additionalProperties": false
         }

@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.audit import iter_audit_events, record_audit_event
+from cwo_core.epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
 from cwo_core.native_disposition import ARTIFACT_DISPOSITIONS, SESSION_DISPOSITIONS
 from cwo_core.paths import AUDIT_LOG
-from cwo_core.telemetry import SENSITIVE_AUDIT_FIELDS, telemetry_fields
+from cwo_core.telemetry import SENSITIVE_AUDIT_FIELDS, TELEMETRY_USAGE_FIELDS, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
@@ -51,13 +52,21 @@ STRING_FIELDS = {
     "session_disposition",
     "artifact_disposition",
 }
+CONVERGENCE_IDENTITY_FIELDS = {
+    "epic_id",
+    "work_unit_id",
+    "packet_id",
+    "session_id",
+    "phase",
+    "event",
+}
 LIST_FIELDS = {
     "telemetry_missing_reasons",
     "workerbee_planned_lanes",
     "workerbee_actual_lanes",
     "workerbee_delegation_gap_reasons",
 }
-OBJECT_FIELDS = {"artifact_validation", "workerbee_planned_delegation"}
+OBJECT_FIELDS = {"artifact_validation", "workerbee_planned_delegation", "graph_counters"}
 WORKERBEE_FIELDS = {
     "workerbee_planned_mode",
     "workerbee_planned_model",
@@ -74,7 +83,14 @@ NATIVE_DISPOSITION_FIELDS = {
     "artifact_disposition",
     "artifact_validation",
 }
-ALLOWED_FIELDS = NUMERIC_FIELDS | STRING_FIELDS | LIST_FIELDS | OBJECT_FIELDS | {"usage"}
+ALLOWED_FIELDS = (
+    NUMERIC_FIELDS
+    | STRING_FIELDS
+    | CONVERGENCE_IDENTITY_FIELDS
+    | LIST_FIELDS
+    | OBJECT_FIELDS
+    | {"call_category", "usage"}
+)
 DISPATCH_EVENT_TYPES = {
     "chatgpt_browser_dispatch",
     "dispatch",
@@ -182,6 +198,33 @@ def normalize_import_record(record: dict[str, Any], *, path: Path, index: int) -
                 raise ValueError(f"{path}: record {index} field {field} must be an array")
             values = [_short_text(item) for item in record[field]]
             normalized[field] = [item for item in values if item]
+    for field in CONVERGENCE_IDENTITY_FIELDS:
+        if field in record:
+            normalized[field] = _nullable_short_text(
+                record[field],
+                path=path,
+                index=index,
+                field=field,
+            )
+    if "call_category" in record:
+        category = record["call_category"]
+        if category is None:
+            normalized["call_category"] = None
+        elif not isinstance(category, str):
+            raise ValueError(f"{path}: record {index} call_category must be a string or null")
+        else:
+            category = _short_text(category)
+            if category is None:
+                raise ValueError(f"{path}: record {index} call_category must be a string or null")
+            if category not in CALL_CATEGORIES:
+                raise ValueError(f"{path}: record {index} call_category is invalid")
+            normalized["call_category"] = category
+    if "graph_counters" in record:
+        normalized["graph_counters"] = _normalize_graph_counters(
+            record["graph_counters"],
+            path=path,
+            index=index,
+        )
     if "workerbee_planned_delegation" in record:
         planned = record["workerbee_planned_delegation"]
         if not isinstance(planned, dict):
@@ -212,17 +255,56 @@ def normalize_import_record(record: dict[str, Any], *, path: Path, index: int) -
 
     usage = record.get("usage")
     if usage is not None:
-        if not isinstance(usage, dict):
-            raise ValueError(f"{path}: record {index} field usage must be an object")
-        _copy_usage_number(usage, normalized, "input_tokens", ("input_tokens", "prompt_tokens", "input"))
-        _copy_usage_number(usage, normalized, "output_tokens", ("output_tokens", "completion_tokens", "output"))
-        _copy_usage_number(usage, normalized, "total_tokens", ("total_tokens", "total"))
+        normalized_usage = _normalize_usage(usage, path=path, index=index)
+        normalized["usage"] = normalized_usage
+        _copy_usage_number(
+            normalized_usage,
+            normalized,
+            "input_tokens",
+            ("input_tokens", "prompt_tokens", "input"),
+            path=path,
+            index=index,
+        )
+        _copy_usage_number(
+            normalized_usage,
+            normalized,
+            "output_tokens",
+            ("output_tokens", "completion_tokens", "output"),
+            path=path,
+            index=index,
+        )
+        _copy_usage_number(
+            normalized_usage,
+            normalized,
+            "total_tokens",
+            ("total_tokens", "total"),
+            path=path,
+            index=index,
+        )
+        _copy_usage_number(
+            normalized_usage,
+            normalized,
+            "agent_model_calls",
+            ("tool_calls",),
+            path=path,
+            index=index,
+            integer=True,
+        )
+        _copy_usage_number(
+            normalized_usage,
+            normalized,
+            "elapsed_seconds",
+            ("runtime_seconds",),
+            path=path,
+            index=index,
+        )
 
     if not normalized.get("dispatch_id") and not normalized.get("bead_id"):
         raise ValueError(f"{path}: record {index} must include dispatch_id or bead_id")
     if not any(
         field in normalized
         for field in NUMERIC_FIELDS
+        | {"usage", "graph_counters"}
         | {"telemetry_missing_reason", "telemetry_missing_reasons"}
         | WORKERBEE_FIELDS
         | NATIVE_DISPOSITION_FIELDS
@@ -278,6 +360,15 @@ def build_import_event(
             job_description_label=record.get("job_description_label") or (target or {}).get("job_description_label"),
             expert_profile=record.get("expert_profile") or (target or {}).get("expert_profile"),
             expert_profile_path=record.get("expert_profile_path") or (target or {}).get("expert_profile_path"),
+            epic_id=record.get("epic_id"),
+            work_unit_id=record.get("work_unit_id"),
+            packet_id=record.get("packet_id"),
+            session_id=record.get("session_id"),
+            phase=record.get("phase"),
+            event=record.get("event"),
+            call_category=record.get("call_category"),
+            graph_counters=record.get("graph_counters"),
+            usage=record.get("usage"),
             workerbee_planned_mode=record.get("workerbee_planned_mode"),
             workerbee_planned_model=record.get("workerbee_planned_model"),
             workerbee_planned_lanes=record.get("workerbee_planned_lanes"),
@@ -320,12 +411,29 @@ def is_dispatch_target(event: dict[str, Any]) -> bool:
     return event_type in DISPATCH_EVENT_TYPES or event_type.endswith("_dispatch")
 
 
-def _copy_usage_number(usage: dict[str, Any], normalized: dict[str, Any], target: str, keys: tuple[str, ...]) -> None:
+def _copy_usage_number(
+    usage: dict[str, Any],
+    normalized: dict[str, Any],
+    target: str,
+    keys: tuple[str, ...],
+    *,
+    path: Path,
+    index: int,
+    integer: bool = False,
+) -> None:
     if target in normalized:
         return
     for key in keys:
         if key in usage:
-            normalized[target] = _nonnegative_number(usage[key], path=Path("<usage>"), index=0, field=key)
+            if usage[key] is None:
+                return
+            normalized[target] = _nonnegative_number(
+                usage[key],
+                path=path,
+                index=index,
+                field=f"usage.{key}",
+                integer=integer,
+            )
             return
 
 
@@ -347,10 +455,85 @@ def _copy_workerbee_plan(planned: dict[str, Any], normalized: dict[str, Any]) ->
             normalized["workerbee_planned_lanes"] = [item for item in values if item]
 
 
-def _nonnegative_number(value: Any, *, path: Path, index: int, field: str) -> int | float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or value < 0:
+def _nonnegative_number(
+    value: Any,
+    *,
+    path: Path,
+    index: int,
+    field: str,
+    integer: bool = False,
+) -> int | float:
+    if value is None:
+        raise ValueError(f"{path}: record {index} field {field} must be a non-negative number")
+    if isinstance(value, bool):
+        raise ValueError(f"{path}: record {index} field {field} must be a non-negative number")
+    if integer and not isinstance(value, int):
+        raise ValueError(f"{path}: record {index} field {field} must be a non-negative integer")
+    if not isinstance(value, (int, float)) or not math.isfinite(float(value)) or value < 0:
         raise ValueError(f"{path}: record {index} field {field} must be a non-negative number")
     return value
+
+
+def _nullable_short_text(value: Any, *, path: Path, index: int, field: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{path}: record {index} field {field} must be a string or null")
+    text = _short_text(value)
+    if text is None:
+        raise ValueError(f"{path}: record {index} field {field} must be a string or null")
+    return text
+
+
+def _normalize_graph_counters(value: Any, *, path: Path, index: int) -> dict[str, int | None]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{path}: record {index} graph_counters must be an object")
+    unknown = sorted(set(value) - set(GRAPH_COUNTER_FIELDS))
+    if unknown:
+        raise ValueError(
+            f"{path}: record {index} graph_counters has unknown fields: {', '.join(unknown)}"
+        )
+    counters: dict[str, int | None] = {}
+    for field in GRAPH_COUNTER_FIELDS:
+        if field not in value:
+            continue
+        candidate = value[field]
+        if candidate is None:
+            counters[field] = None
+            continue
+        if isinstance(candidate, bool) or not isinstance(candidate, int) or candidate < 0:
+            raise ValueError(
+                f"{path}: record {index} graph_counters.{field} must be a nonnegative integer or null"
+            )
+        counters[field] = candidate
+    return counters
+
+
+def _normalize_usage(value: Any, *, path: Path, index: int) -> dict[str, int | float | None]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{path}: record {index} field usage must be an object")
+    unknown = sorted(set(value) - TELEMETRY_USAGE_FIELDS)
+    if unknown:
+        raise ValueError(f"{path}: record {index} usage has unknown fields: {', '.join(unknown)}")
+    nullable = {"tool_calls", "runtime_seconds", "context_compactions", "full_suite_runs"}
+    integer_fields = {"tool_calls", "context_compactions", "full_suite_runs"}
+    normalized: dict[str, int | float | None] = {}
+    for field, candidate in value.items():
+        if candidate is None:
+            if field not in nullable:
+                raise ValueError(
+                    f"{path}: record {index} field usage.{field} must be a non-negative number"
+                )
+            normalized[field] = None
+            continue
+        normalized[field] = _nonnegative_number(
+            candidate,
+            path=path,
+            index=index,
+            field=f"usage.{field}",
+            integer=field in integer_fields,
+        )
+    return normalized
 
 
 def _short_text(value: Any) -> str | None:

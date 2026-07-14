@@ -68,6 +68,89 @@
         "runtime_seconds_p50",
         "runtime_seconds_p90"
       ]
+    },
+    "taskProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "task_class": {
+          "type": "string",
+          "enum": [
+            "literal-command",
+            "read-only-validation",
+            "narrow-mechanical",
+            "bounded-implementation",
+            "diagnosis",
+            "architecture"
+          ]
+        },
+        "declared_outcome_count": {"type": "integer", "minimum": 0},
+        "command_count": {"type": "integer", "minimum": 0},
+        "check_count": {"type": "integer", "minimum": 0},
+        "focused_test_count": {"type": "integer", "minimum": 0},
+        "full_suite_count": {"type": "integer", "minimum": 0},
+        "read_context_count": {"type": "integer", "minimum": 0},
+        "source_mutation_count": {"type": "integer", "minimum": 0},
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "argv": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string"}
+              }
+            },
+            "required": ["argv"]
+          }
+        },
+        "source_mutation_paths": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "architect_literal_patch": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "pre_patch_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "post_patch_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          },
+          "required": ["path", "pre_patch_sha256", "post_patch_sha256"]
+        }
+      },
+      "required": [
+        "task_class",
+        "declared_outcome_count",
+        "command_count",
+        "check_count",
+        "focused_test_count",
+        "full_suite_count",
+        "read_context_count",
+        "source_mutation_count",
+        "commands"
+      ]
+    },
+    "fitEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {"type": "string", "enum": ["default", "task-profile"]},
+        "task_profile_class": {"type": "string", "minLength": 1},
+        "checks": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "policy_caps": {"type": "object", "additionalProperties": true},
+        "contradictions": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "required": ["source", "task_profile_class", "checks", "policy_caps", "contradictions"]
     }
   },
   "properties": {
@@ -189,6 +272,9 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "task_profile": {
+      "$ref": "#/$defs/taskProfile"
     },
     "estimates": {
       "type": "object",
@@ -472,6 +558,41 @@
         }
       }
     },
+    "task_class": {
+      "type": "string",
+      "enum": [
+        "literal-command",
+        "read-only-validation",
+        "narrow-mechanical",
+        "bounded-implementation",
+        "diagnosis",
+        "architecture"
+      ]
+    },
+    "fit_mode": {
+      "type": "string",
+      "enum": ["deterministic", "semantic", "architect"]
+    },
+    "protected_surface_matches": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "security-return-acceptance",
+          "policy-routing",
+          "schemas-public-contracts",
+          "native-supervision-self-hosting",
+          "provider-access-authority",
+          "credentials",
+          "release-publication",
+          "workflow-automation"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "fit_evidence": {
+      "$ref": "#/$defs/fitEvidence"
+    },
     "hard_gate_reasons": {
       "type": "array",
       "items": {
@@ -490,7 +611,8 @@
           "semantic-authority-uncertainty",
           "semantic-route-conflict",
           "semantic-estimate-variance",
-          "semantic-read-mutation-split-trigger"
+          "semantic-read-mutation-split-trigger",
+          "task-profile-contradiction"
         ]
       },
       "uniqueItems": true
@@ -589,6 +711,19 @@
           "operative_route",
           "route_conflict",
           "variance_metrics"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": ["task_profile"]
+      },
+      "then": {
+        "required": [
+          "task_class",
+          "fit_mode",
+          "protected_surface_matches",
+          "fit_evidence"
         ]
       }
     }

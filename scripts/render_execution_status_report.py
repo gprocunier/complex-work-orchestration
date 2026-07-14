@@ -31,6 +31,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--readiness-plan", help="Optional run-readiness JSON plan.")
     parser.add_argument("--acceptance-decision", action="append", help="Acceptance-decision JSON artifact. May be repeated.")
     parser.add_argument("--return-bundle", action="append", help="Contractor/local return-bundle JSON artifact. May be repeated.")
+    parser.add_argument(
+        "--convergence-summary",
+        action="append",
+        help="Epic-convergence replay summary JSON artifact. May be repeated; the latest is projected.",
+    )
     parser.add_argument("--format", choices=["terminal", "json"], default="terminal")
     parser.add_argument(
         "--layout",
@@ -50,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         readiness_plan = load_json_document(Path(args.readiness_plan)) if args.readiness_plan else None
         decisions = load_json_documents(_path_list(args.acceptance_decision))
         bundles = load_json_documents(_path_list(args.return_bundle))
+        convergence_summaries = load_json_documents(_path_list(args.convergence_summary))
     except (OSError, ValueError, json.JSONDecodeError, SystemExit) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -59,12 +65,14 @@ def main(argv: list[str] | None = None) -> int:
         "readiness_plan": args.readiness_plan,
         "acceptance_decisions": args.acceptance_decision or [],
         "return_bundles": args.return_bundle or [],
+        "convergence_summaries": args.convergence_summary or [],
     }
     report = build_execution_status_report(
         audit_events=audit_events,
         acceptance_decisions=decisions,
         return_bundles=bundles,
         readiness_plan=readiness_plan,
+        convergence_summaries=convergence_summaries,
         source_files=source_files,
     )
     if args.format == "json":

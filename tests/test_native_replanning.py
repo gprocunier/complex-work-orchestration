@@ -72,7 +72,102 @@ def _state_with_overrides(overrides: dict | None = None) -> dict:
     return build_replanning_state(payload)
 
 
+def _needs_replan_evidence(*, decision: str = "pm-refine", uncertainty_class: str = "bounded") -> dict:
+    return {
+        "trusted_evidence": True,
+        "exact_model": True,
+        "control_healthy": True,
+        "tool_calls_delta": 3,
+        "runtime_seconds_delta": 12,
+        "context_compactions_delta": 0,
+        "mutation": {"out_of_scope": False, "tainted": False},
+        "replan": {
+            "reason_code": "unexpected-reasoning",
+            "completed_evidence": "isolated the unexpected decision",
+            "discovered_facts": ["the implementation depends on an authority decision"],
+            "files_touched": [],
+            "mutation_state": "clean",
+            "mutation_stopped": True,
+            "remaining_outcomes": ["apply the adjudicated decision"],
+            "remaining_files": [],
+            "remaining_tests": ["focused decision regression"],
+            "uncertainty": {
+                "class": uncertainty_class,
+                "decision": decision,
+                "detail": "the worker cannot choose the authority boundary",
+            },
+            "scope_delta": {
+                "outcomes_added": 0,
+                "files_added": 0,
+                "tests_added": 1,
+                "within_original_objective": True,
+                "within_aggregate_allowance": True,
+            },
+            "bounded_options": [
+                {
+                    "option_id": "adjudicate",
+                    "route": decision,
+                    "description": "resolve the decision and redispatch a refined packet",
+                    "tool_calls_p90": 4,
+                    "runtime_seconds_p90": 60,
+                }
+            ],
+            "recommendation": "adjudicate",
+            "cumulative_usage": {
+                "tool_calls": 3,
+                "runtime_seconds": 12,
+                "context_compactions": 0,
+                "full_suite_runs": 0,
+            },
+        },
+    }
+
+
 class NativeReplanningTest(unittest.TestCase):
+    def test_typed_needs_replan_routes_to_pm_without_operator_approval(self) -> None:
+        result = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        self.assertEqual(result["state"], "pm-realignment")
+        self.assertEqual(result["counters"]["pm_replans_used"], 1)
+        self.assertEqual(result["next_action"], "request-pm-refinement")
+        reassignment = transition_replanning_state(
+            result,
+            "pm-refined",
+            {"requires_architect_cycle": False},
+        )
+        self.assertEqual(reassignment["state"], "reassignment-ready")
+
+    def test_typed_needs_replan_routes_material_reasoning_to_architect(self) -> None:
+        result = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(decision="architect-reasoning", uncertainty_class="architect"),
+        )
+        self.assertEqual(result["state"], "architect-realignment")
+        self.assertEqual(result["counters"]["pm_replans_used"], 0)
+        self.assertEqual(result["next_action"], "request-architect-refinement")
+
+    def test_typed_needs_replan_fails_closed_on_invalid_evidence_or_scope(self) -> None:
+        malformed = _needs_replan_evidence()
+        malformed["replan"]["mutation_stopped"] = False
+        stopped = transition_replanning_state(_state_with_overrides(), "needs-replan", malformed)
+        self.assertEqual(stopped["state"], "protected-stop")
+        self.assertIn("invalid-needs-replan-evidence", stopped["reason_codes"])
+
+        changed = _needs_replan_evidence()
+        changed["replan"]["scope_delta"]["within_original_objective"] = False
+        stopped = transition_replanning_state(_state_with_overrides(), "needs-replan", changed)
+        self.assertEqual(stopped["state"], "protected-stop")
+        self.assertIn("objective-change", stopped["reason_codes"])
+
+        oversized = _needs_replan_evidence()
+        oversized["replan"]["bounded_options"][0]["tool_calls_p90"] = 98
+        stopped = transition_replanning_state(_state_with_overrides(), "needs-replan", oversized)
+        self.assertEqual(stopped["state"], "protected-stop")
+        self.assertIn("invalid-needs-replan-evidence", stopped["reason_codes"])
     def test_oversized_read_only_exploration_realigns_to_pm_before_compaction(self) -> None:
         evidence = {
             "trusted_evidence": True,

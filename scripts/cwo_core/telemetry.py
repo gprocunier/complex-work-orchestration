@@ -4,6 +4,7 @@ import math
 from typing import Any
 
 from .util import artifact_hash
+from .epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
 
 
 TELEMETRY_NUMERIC_FIELDS = {
@@ -106,6 +107,12 @@ TELEMETRY_BOOLEAN_FIELDS = {
     "checked_command_quoting_error_prevented",
 }
 TELEMETRY_STRING_FIELDS = {
+    "epic_id",
+    "work_unit_id",
+    "packet_id",
+    "phase",
+    "call_category",
+    "event",
     "telemetry_kind",
     "telemetry_status",
     "telemetry_missing_reason",
@@ -258,6 +265,35 @@ AUDIT_OBJECT_FIELDS = {
     "artifact_validation",
     "workspace_mutation",
 }
+TELEMETRY_OBJECT_FIELDS = {
+    "graph_counters",
+    "usage",
+}
+TELEMETRY_CALL_CATEGORY_FIELDS = {"call_category"}
+TELEMETRY_USAGE_FIELDS = {
+    "tool_calls",
+    "runtime_seconds",
+    "context_compactions",
+    "full_suite_runs",
+    "input",
+    "input_tokens",
+    "prompt_tokens",
+    "cached_tokens",
+    "output",
+    "output_tokens",
+    "completion_tokens",
+    "reasoning_tokens",
+    "total",
+    "total_tokens",
+}
+TELEMETRY_CONVERGENCE_IDENTITY_FIELDS = {
+    "epic_id",
+    "work_unit_id",
+    "packet_id",
+    "session_id",
+    "phase",
+    "event",
+}
 WORKSPACE_MUTATION_NUMERIC_FIELDS = {
     "version",
 }
@@ -317,6 +353,66 @@ SENSITIVE_AUDIT_FIELDS = {
 }
 
 
+def _sanitize_nullable_short_text(value: Any) -> str | None:
+    if value is None or not isinstance(value, str):
+        return None
+    return normalize_short_text(value)
+
+
+def _nonnegative_integer_or_null(value: Any, path: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{path} must be a non-negative integer or null")
+    if value < 0:
+        raise ValueError(f"{path} must be non-negative")
+    return value
+
+
+def _sanitize_telemetry_usage(value: Any) -> dict[str, int | float | None] | None:
+    if value is None or not isinstance(value, dict):
+        return None
+    unknown = sorted(set(value) - TELEMETRY_USAGE_FIELDS)
+    if unknown:
+        return None
+    sanitized: dict[str, int | float | None] = {}
+    for field, candidate in value.items():
+        if candidate is None:
+            sanitized[field] = None
+            continue
+        if field == "runtime_seconds":
+            runtime_seconds = normalize_finite_number(candidate)
+            if runtime_seconds is None or runtime_seconds < 0:
+                return None
+            sanitized[field] = runtime_seconds
+            continue
+        if field in {"tool_calls", "context_compactions", "full_suite_runs"}:
+            try:
+                sanitized[field] = _nonnegative_integer_or_null(candidate, f"usage.{field}")
+            except (TypeError, ValueError):
+                return None
+            continue
+        number = normalize_nonnegative_number(candidate)
+        if number is None:
+            return None
+        sanitized[field] = number
+    return sanitized
+
+
+def _sanitize_graph_counters(value: Any) -> dict[str, int | None] | None:
+    if value is None or not isinstance(value, dict):
+        return None
+    if sorted(set(value) - set(GRAPH_COUNTER_FIELDS)):
+        return None
+    sanitized: dict[str, int | None] = {}
+    for field, candidate in value.items():
+        try:
+            sanitized[field] = _nonnegative_integer_or_null(candidate, f"graph_counters.{field}")
+        except (TypeError, ValueError):
+            return None
+    return sanitized
+
+
 def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
     for key, value in event.items():
@@ -331,6 +427,25 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
             numeric = normalize_nonnegative_number(value)
             if numeric is not None:
                 sanitized[key] = numeric
+            continue
+        if key in TELEMETRY_CALL_CATEGORY_FIELDS:
+            if isinstance(value, str) and value in CALL_CATEGORIES:
+                sanitized[key] = value
+            continue
+        if key in TELEMETRY_CONVERGENCE_IDENTITY_FIELDS:
+            text = _sanitize_nullable_short_text(value)
+            if text is not None:
+                sanitized[key] = text
+            continue
+        if key == "usage":
+            usage = _sanitize_telemetry_usage(value)
+            if usage is not None:
+                sanitized[key] = usage
+            continue
+        if key == "graph_counters":
+            graph_counters = _sanitize_graph_counters(value)
+            if graph_counters is not None:
+                sanitized[key] = graph_counters
             continue
         if key in TELEMETRY_BOOLEAN_FIELDS:
             if isinstance(value, bool):
@@ -418,7 +533,10 @@ def telemetry_fields(**values: Any) -> dict[str, Any]:
         if key in TELEMETRY_NUMERIC_FIELDS
         or key in TELEMETRY_BOOLEAN_FIELDS
         or key in TELEMETRY_STRING_FIELDS
+        or key in TELEMETRY_OBJECT_FIELDS
         or key in TELEMETRY_STRING_LIST_FIELDS
+        or key in TELEMETRY_CALL_CATEGORY_FIELDS
+        or key in TELEMETRY_CONVERGENCE_IDENTITY_FIELDS
     }
 
 

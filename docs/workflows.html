@@ -266,6 +266,13 @@ python3 scripts/spawn_expert_reviews.py \
               <div class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-card"><strong>Handoff</strong><span>worker evidence</span></div>
             </div>
+            <p>
+              Closure pressure starts at acceptance or independent validation.
+              The PM reuses the current work unit rather than creating routine
+              repair Beads, and records a <code>retain</code>,
+              <code>correct</code>, <code>quarantine</code>,
+              <code>defer</code>, or <code>close</code> disposition.
+            </p>
             <ol class="sr-only">
               <li>Beads remains the canonical work state.</li>
               <li>The readiness plan names owners, exits, and evidence.</li>
@@ -281,6 +288,8 @@ python3 scripts/render_run_projection.py \
 python3 scripts/render_run_projection.py \
   examples/sample-run-readiness-plan.json --projection wrap-up-status
 python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
+python3 scripts/replay_epic_convergence.py --input convergence-ledger.json &gt; convergence-summary.json
+python3 scripts/render_execution_status_report.py --convergence-summary convergence-summary.json --format terminal
 python3 scripts/render_execution_status_report.py --format terminal
 python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary</code></pre>
@@ -297,8 +306,12 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               explicit audit and evaluator artifacts; a compact dashboard is
               the default for terminal use, expanded utilization rows and
               summary tables remain available, expected but missing telemetry is
-              shown as <code>?</code>, and non-applicable telemetry is shown as
-              <code>n/a</code>.
+              shown as <code>?</code>, non-applicable telemetry is shown as
+              <code>n/a</code>, and absolute productive, validation,
+              attestation, fit, monitoring, recovery, PM, architect, and unknown
+              call counts are reported with replay results for avoided
+              nonaccepted segments and calls, control-plane reduction, and
+              whether each target was met.
             </p>
           </section>
 

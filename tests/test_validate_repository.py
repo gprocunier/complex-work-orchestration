@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import copy
+import subprocess
 import sys
 import tempfile
-import subprocess
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import validate_repository as validate_repository_module  # noqa: E402
 from validate_repository import (  # noqa: E402
     CI_REQUIRED_COMMANDS,
+    validate_closure_pressure_contract,
     validate_ci_workflow,
     validate_local_inference_peer_review_guidance,
     validate_public_docs_do_not_expose_hardware_categories,
@@ -159,6 +163,88 @@ class ValidateRepositoryTests(unittest.TestCase):
             )
 
         self.assertTrue(any("not covered by WAIVER_CONVENTION_SCRIPTS: --allow-danger" in error for error in errors))
+
+    def test_closure_pressure_contract_passes(self) -> None:
+        errors: list[str] = []
+        validate_closure_pressure_contract(errors)
+        self.assertEqual(errors, [])
+
+    def test_validate_repository_reports_evaluator_regression(self) -> None:
+        original_evaluator = (
+            validate_repository_module.epic_convergence.evaluate_closure_pressure
+        )
+
+        def broken_evaluator(active: bool, action: str, disposition: str | None) -> dict[str, object]:
+            if active and disposition is None:
+                return {
+                    "active": True,
+                    "action": action,
+                    "disposition": None,
+                    "allowed": True,
+                    "reason": "legacy-allow",
+                    "allowed_dispositions": ["retain", "correct", "quarantine", "defer", "close"],
+                }
+            return original_evaluator(active, action, disposition)
+
+        with mock.patch.object(
+            validate_repository_module.epic_convergence,
+            "evaluate_closure_pressure",
+            side_effect=broken_evaluator,
+        ):
+            errors: list[str] = []
+            validate_closure_pressure_contract(errors)
+
+        self.assertTrue(
+            any("closure-pressure contract regression (evaluator)" in error for error in errors)
+        )
+        self.assertTrue(
+            any("decision mismatch for active=True: {" in error for error in errors)
+        )
+
+    def test_validate_repository_reports_graph_contract_regression(self) -> None:
+        original_planned_graph = validate_repository_module.scaffold_workgraph.planned_graph
+
+        def broken_planned_graph(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            graph = copy.deepcopy(original_planned_graph(*args, **kwargs))
+            for item in graph:
+                metadata = item.setdefault("metadata", {})
+                metadata.pop("closure_pressure_active", None)
+                metadata.pop("routine_repair_child_forbidden", None)
+                closure_pressure = metadata.get("closure_pressure", {})
+                if isinstance(closure_pressure, dict):
+                    closure_pressure["disposition"] = "wrong"
+            return graph
+
+        with mock.patch.object(
+            validate_repository_module.scaffold_workgraph, "planned_graph", side_effect=broken_planned_graph
+        ):
+            errors: list[str] = []
+            validate_closure_pressure_contract(errors)
+
+        self.assertTrue(
+            any("closure-pressure contract regression (graph)" in error for error in errors)
+        )
+        self.assertTrue(any("closure_pressure.disposition='wrong'" in error for error in errors))
+
+    def test_validate_repository_reports_unexpected_routine_child_allowance(self) -> None:
+        original_planned_graph = validate_repository_module.scaffold_workgraph.planned_graph
+
+        def allow_routine_child(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            route = args[1] if len(args) > 1 else kwargs.get("route", {})
+            closure = route.get("closure_pressure", {}) if isinstance(route, dict) else {}
+            if isinstance(closure, dict) and closure.get("action") == "create-routine-repair-child":
+                return []
+            return original_planned_graph(*args, **kwargs)
+
+        with mock.patch.object(
+            validate_repository_module.scaffold_workgraph,
+            "planned_graph",
+            side_effect=allow_routine_child,
+        ):
+            errors: list[str] = []
+            validate_closure_pressure_contract(errors)
+
+        self.assertTrue(any("was unexpectedly allowed" in error for error in errors))
 
 
 if __name__ == "__main__":

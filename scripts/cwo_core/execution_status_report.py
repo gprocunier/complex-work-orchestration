@@ -9,13 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from .audit import iter_audit_events
-from .paths import AUDIT_LOG
+from .epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
 from .execution_enhancement_metrics import checked_command_details, checked_command_summary, native_progress_details, native_progress_summary
+from .paths import AUDIT_LOG
 
 UNAVAILABLE = "?"
 NOT_APPLICABLE = "n/a"
 REPORT_TYPE = "cwo-execution-status-report"
-REPORT_VERSION = 6
+REPORT_VERSION = 7
 
 STATUS_KEYS = (
     "completed",
@@ -104,6 +105,15 @@ USAGE_IMPORT_MERGE_KEYS = (
     "workerbee_delegation_status",
     "workerbee_delegation_source",
     "workerbee_delegation_gap_reasons",
+    "epic_id",
+    "work_unit_id",
+    "packet_id",
+    "session_id",
+    "phase",
+    "event",
+    "call_category",
+    "usage",
+    "graph_counters",
 )
 
 
@@ -189,6 +199,7 @@ def build_execution_status_report(
     acceptance_decisions: list[dict[str, Any]] | None = None,
     return_bundles: list[dict[str, Any]] | None = None,
     readiness_plan: dict[str, Any] | None = None,
+    convergence_summaries: list[dict[str, Any]] | None = None,
     source_files: dict[str, list[str] | str | None] | None = None,
 ) -> dict[str, Any]:
     raw_events = audit_events or []
@@ -196,6 +207,8 @@ def build_execution_status_report(
     decisions = acceptance_decisions or []
     bundles = return_bundles or []
     readiness_records = _readiness_records(readiness_plan or {})
+    convergence_inputs = [item for item in convergence_summaries or [] if isinstance(item, dict)]
+    latest_convergence_summary = _latest_convergence_summary(convergence_inputs)
     records = (
         [_record_view(item, "audit_event") for item in events]
         + [_record_view(item, "acceptance_decision") for item in decisions]
@@ -209,6 +222,7 @@ def build_execution_status_report(
         "acceptance_decisions": len(decisions),
         "return_bundles": len(bundles),
         "readiness_records": len(readiness_records),
+        "convergence_summaries": len(convergence_inputs),
     }
     report: dict[str, Any] = {
         "result_type": REPORT_TYPE,
@@ -235,6 +249,11 @@ def build_execution_status_report(
         "native_progress_details": native_progress_details(records),
         "checked_command_summary": checked_command_summary(records),
         "checked_command_details": checked_command_details(records),
+        "call_category_summary": _call_category_summary(records, latest_convergence_summary),
+        "epic_convergence_summary": _epic_convergence_summary(
+            latest_convergence_summary,
+            source_count=len(convergence_inputs),
+        ),
         "sol_breakfix_summary": _sol_breakfix_summary(records),
         "second_opinion_review_lane_productivity": _second_opinion_rows(records),
         "second_opinion_review_lane_productivity_details": _second_opinion_detail_rows(records),
@@ -244,6 +263,180 @@ def build_execution_status_report(
     }
     report["executive_summary"]["missing_telemetry_cells"] = _telemetry_missing_total(report["telemetry_gaps"])
     return report
+
+
+def _latest_convergence_summary(convergence_summaries: list[dict[str, Any]] | None) -> dict[str, Any] | None:
+    if not convergence_summaries:
+        return None
+    for summary in reversed(convergence_summaries):
+        if isinstance(summary, dict):
+            return summary
+    return None
+
+
+def _call_category_summary(records: list[dict[str, Any]], convergence_summary: dict[str, Any] | None) -> dict[str, Any]:
+    if convergence_summary:
+        return _call_category_summary_from_convergence(convergence_summary)
+    return _call_category_summary_from_audit(records)
+
+
+def _call_category_summary_from_convergence(summary: dict[str, Any]) -> dict[str, Any]:
+    categories = summary.get("categories", {})
+    if not isinstance(categories, dict):
+        categories = {}
+    call_totals = categories.get("call_totals", {})
+    record_counts = categories.get("record_counts", {})
+    call_category_summary = {}
+    for category in CALL_CATEGORIES:
+        call_category_summary[category] = {
+            "agent_model_calls": _coerce_non_negative_numeric(call_totals.get(category)),
+            "record_count": _coerce_non_negative_int(record_counts.get(category)),
+        }
+    return {
+        "authority": "convergence-replay",
+        "categories": call_category_summary,
+        "total_calls": sum(item["agent_model_calls"] for item in call_category_summary.values()),
+        "total_records": sum(item["record_count"] for item in call_category_summary.values()),
+        "missing_call_category_records": _coerce_non_negative_int(summary.get("unknown_call_records")),
+        "missing_call_records": _coerce_non_negative_int(
+            (summary.get("historical_null_counts") or {}).get("tool_calls")
+            if isinstance(summary.get("historical_null_counts"), dict)
+            else None
+        ),
+    }
+
+
+def _call_category_summary_from_audit(records: list[dict[str, Any]]) -> dict[str, Any]:
+    call_category_summary = {
+        category: {"agent_model_calls": 0.0, "record_count": 0} for category in CALL_CATEGORIES
+    }
+    missing_call_category_records = 0
+    missing_call_records = 0
+    for record in records:
+        if not isinstance(record, dict) or record.get("source_kind") != "audit_event":
+            continue
+        raw_category = _clean(record.get("call_category"))
+        category = raw_category if raw_category in CALL_CATEGORIES else "unknown"
+        if not raw_category or raw_category not in CALL_CATEGORIES:
+            missing_call_category_records += 1
+        call_count = record.get("agent_model_calls")
+        if _has_numeric_metric(call_count):
+            call_category_summary[category]["agent_model_calls"] += call_count
+        else:
+            missing_call_records += 1
+        call_category_summary[category]["record_count"] += 1
+
+    for summary in call_category_summary.values():
+        if isinstance(summary["agent_model_calls"], float) and float(summary["agent_model_calls"]).is_integer():
+            summary["agent_model_calls"] = int(summary["agent_model_calls"])
+    return {
+        "authority": "audit-projection",
+        "categories": call_category_summary,
+        "total_calls": sum(summary["agent_model_calls"] for summary in call_category_summary.values()),
+        "total_records": sum(summary["record_count"] for summary in call_category_summary.values()),
+        "missing_call_category_records": missing_call_category_records,
+        "missing_call_records": missing_call_records,
+    }
+
+
+def _epic_convergence_summary(
+    summary: dict[str, Any] | None,
+    *,
+    source_count: int,
+) -> dict[str, Any]:
+    if not isinstance(summary, dict):
+        return _unavailable_epic_convergence_summary()
+    return {
+        "available": True,
+        "source_count": source_count,
+        "record_count": _coerce_non_negative_int(summary.get("record_count")),
+        "latest_graph_counters": _coerce_nullable_counts(
+            summary.get("latest_graph_counters"),
+            allowed_fields=GRAPH_COUNTER_FIELDS,
+        ),
+        "accepted": _coerce_pair(summary.get("accepted"), ("segments", "calls")),
+        "nonaccepted": _coerce_pair(summary.get("nonaccepted"), ("segments", "calls")),
+        "preventable": _coerce_pair(summary.get("preventable"), ("segments", "calls")),
+        "protected_stops": _coerce_pair(summary.get("protected_stops"), ("count", "calls", "preserved")),
+        "historical_null_counts": _coerce_nullable_counts(summary.get("historical_null_counts")),
+        "targets": summary.get("targets") if isinstance(summary.get("targets"), dict) else _unavailable_targets(),
+    }
+
+
+def _unavailable_epic_convergence_summary() -> dict[str, Any]:
+    return {
+        "available": False,
+        "source_count": 0,
+        "record_count": None,
+        "latest_graph_counters": {},
+        "accepted": {"segments": None, "calls": None},
+        "nonaccepted": {"segments": None, "calls": None},
+        "preventable": {"segments": None, "calls": None},
+        "protected_stops": {"count": None, "calls": None, "preserved": None},
+        "historical_null_counts": {},
+        "targets": _unavailable_targets(),
+    }
+
+
+def _unavailable_targets() -> dict[str, Any]:
+    return {"status": "unavailable"}
+
+
+def _coerce_non_negative_int(value: Any, *, default: int = 0) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value if value >= 0 else default
+    if isinstance(value, float) and math.isfinite(value):
+        return int(value) if value.is_integer() else default
+    return default
+
+
+def _coerce_non_negative_numeric(value: Any, *, default: int = 0) -> int | float:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value if value >= 0 else default
+    if isinstance(value, float) and math.isfinite(value):
+        return value if value >= 0 else default
+    return default
+
+
+def _coerce_nullable_counts(
+    value: Any,
+    *,
+    allowed_fields: tuple[str, ...] | None = None,
+) -> dict[str, int | None]:
+    if not isinstance(value, dict):
+        return {}
+    allowed = set(allowed_fields) if allowed_fields is not None else None
+    normalized: dict[str, int | None] = {}
+    for key, item in value.items():
+        clean_key = _clean(key)
+        if not clean_key or (allowed is not None and clean_key not in allowed):
+            continue
+        if item is None:
+            normalized[clean_key] = None
+            continue
+        if isinstance(item, bool):
+            continue
+        if isinstance(item, int):
+            normalized[clean_key] = item if item >= 0 else None
+        elif isinstance(item, float) and math.isfinite(item):
+            normalized[clean_key] = int(item) if item.is_integer() and item >= 0 else None
+        else:
+            continue
+    return normalized
+
+
+def _coerce_pair(value: Any, keys: tuple[str, ...]) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {key: 0 for key in keys}
+    return {key: _coerce_non_negative_int(value.get(key)) for key in keys}
 
 
 def render_terminal(report: dict[str, Any], *, width: int | None = None, layout: str = "dashboard") -> str:
@@ -258,6 +451,8 @@ def render_terminal(report: dict[str, Any], *, width: int | None = None, layout:
     lines: list[str] = []
     lines.extend(_header("CWO Execution Status Report", "explicit artifact projection", term_width))
     lines.extend(_executive_lines(report, term_width))
+    lines.extend(_call_category_lines(report.get("call_category_summary"), term_width))
+    lines.extend(_convergence_lines(report.get("epic_convergence_summary"), term_width))
     if expanded:
         lines.extend(
             _detail_rows(
@@ -576,6 +771,17 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "source_kind": source_kind,
         "telemetry_kind": telemetry_kind,
         "bead_id": _clean(record.get("bead_id") or record.get("work_unit_id")),
+        "epic_id": _clean(record.get("epic_id")),
+        "work_unit_id": _clean(record.get("work_unit_id")),
+        "packet_id": _clean(record.get("packet_id")),
+        "session_id": _clean(record.get("session_id")),
+        "phase": _clean(record.get("phase")),
+        "convergence_event": _clean(record.get("event")),
+        "call_category": _clean(record.get("call_category")),
+        "usage": dict(record["usage"]) if isinstance(record.get("usage"), dict) else None,
+        "graph_counters": dict(record["graph_counters"])
+        if isinstance(record.get("graph_counters"), dict)
+        else None,
         "dispatch_id": _clean(record.get("dispatch_id")),
         "event_type": _clean(record.get("event_type")),
         "workerbee_planned_delegation": record.get("workerbee_planned_delegation")
@@ -2070,6 +2276,56 @@ def _executive_lines(report: dict[str, Any], width: int) -> list[str]:
     return _key_value_box("Executive Summary", values, width)
 
 
+def _call_category_lines(summary: Any, width: int) -> list[str]:
+    summary = summary if isinstance(summary, dict) else {}
+    categories = summary.get("categories") if isinstance(summary.get("categories"), dict) else {}
+    rows = []
+    for category in CALL_CATEGORIES:
+        values = categories.get(category) if isinstance(categories.get(category), dict) else {}
+        rows.append(
+            [
+                category,
+                _cell(values.get("agent_model_calls")),
+                _cell(values.get("record_count")),
+            ]
+        )
+    rows.append(
+        [
+            "missing telemetry",
+            _cell(summary.get("missing_call_records")),
+            _cell(summary.get("missing_call_category_records")),
+        ]
+    )
+    return _table("Absolute Calls By Category", ["Category", "Calls", "Records"], rows, width)
+
+
+def _convergence_lines(summary: Any, width: int) -> list[str]:
+    summary = summary if isinstance(summary, dict) else {}
+    targets = summary.get("targets") if isinstance(summary.get("targets"), dict) else {}
+    results = targets.get("results") if isinstance(targets.get("results"), dict) else {}
+    nonaccepted = summary.get("nonaccepted") if isinstance(summary.get("nonaccepted"), dict) else {}
+    preventable = summary.get("preventable") if isinstance(summary.get("preventable"), dict) else {}
+    protected = summary.get("protected_stops") if isinstance(summary.get("protected_stops"), dict) else {}
+    values = {
+        "available": summary.get("available"),
+        "sources": summary.get("source_count"),
+        "records": summary.get("record_count"),
+        "nonaccepted_segments": nonaccepted.get("segments"),
+        "nonaccepted_calls": nonaccepted.get("calls"),
+        "preventable_segments": preventable.get("segments"),
+        "preventable_calls": preventable.get("calls"),
+        "protected_stops": protected.get("count"),
+        "protected_preserved": protected.get("preserved"),
+        "avoided_segments": results.get("avoided_nonaccepted_segments"),
+        "avoided_calls": results.get("avoided_nonaccepted_calls"),
+        "control_plane_reduction_percent": results.get("control_plane_reduction_percent"),
+        "segments_target_met": results.get("segments_target_met"),
+        "calls_target_met": results.get("calls_target_met"),
+        "control_plane_target_met": results.get("control_plane_reduction_target_met"),
+    }
+    return _key_value_box("Epic Convergence", values, width)
+
+
 def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     summary = report.get("executive_summary", {}) if isinstance(report.get("executive_summary"), dict) else {}
     quality = report.get("quality_malpractice_sabotage_summary", {})
@@ -2087,6 +2343,12 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
     progress = report.get("native_progress_summary", {}) if isinstance(report.get("native_progress_summary"), dict) else {}
     commands = report.get("checked_command_summary", {}) if isinstance(report.get("checked_command_summary"), dict) else {}
+    category_summary = report.get("call_category_summary", {})
+    category_summary = category_summary if isinstance(category_summary, dict) else {}
+    category_values = category_summary.get("categories", {})
+    category_values = category_values if isinstance(category_values, dict) else {}
+    convergence = report.get("epic_convergence_summary", {})
+    convergence = convergence if isinstance(convergence, dict) else {}
 
     status_line = "  ".join(
         [
@@ -2168,13 +2430,51 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     )
     autonomy_line = "Autonomy: " + "  ".join([f"records {_cell(progress.get('records'))}", f"realign {_cell(progress.get('outcomes', {}).get('pm-realignment'))}", f"protected {_cell(progress.get('outcomes', {}).get('protected-stop'))}", f"calls {_cell(progress.get('actual_tool_calls'))}/{_cell(progress.get('planned_tool_calls_p90'))}", f"retained {_cell(progress.get('retained_productive_artifacts'))}", f"waste {_cell(progress.get('pure_waste_records'))}"])
     command_line = "Commands: " + "  ".join([f"checked {_cell(commands.get('commands'))}", f"preflight {_cell(commands.get('preflight_passed'))}", f"prevented {_cell(commands.get('quoting_errors_prevented'))}", f"avoided retries {_cell(commands.get('avoided_retry_cycles'))}", f"quarantine {_cell(commands.get('quarantined'))}"])
+    category_line = "Calls by category: " + "  ".join(
+        f"{category} {_cell((category_values.get(category) or {}).get('agent_model_calls'))}"
+        for category in CALL_CATEGORIES
+    )
+    category_line += (
+        f"  missing-calls {_cell(category_summary.get('missing_call_records'))}"
+        f"  missing-category {_cell(category_summary.get('missing_call_category_records'))}"
+    )
+    convergence_line = _convergence_dashboard_line(convergence)
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
     lines = [_section_top("Dashboard", width)]
-    for line in [status_line, resource_line, gap_line, quality_line, evidence_line, workerbee_line, supervision_line, disposition_line, autonomy_line, command_line, next_line]:
+    for line in [status_line, resource_line, category_line, convergence_line, gap_line, quality_line, evidence_line, workerbee_line, supervision_line, disposition_line, autonomy_line, command_line, next_line]:
         lines.extend(_wrapped_box_lines(line, width))
     lines.append(_section_bottom(width))
     return lines
+
+
+def _convergence_dashboard_line(summary: dict[str, Any]) -> str:
+    if not summary.get("available"):
+        return "Convergence: replay summary unavailable"
+    nonaccepted = summary.get("nonaccepted") if isinstance(summary.get("nonaccepted"), dict) else {}
+    preventable = summary.get("preventable") if isinstance(summary.get("preventable"), dict) else {}
+    protected = summary.get("protected_stops") if isinstance(summary.get("protected_stops"), dict) else {}
+    targets = summary.get("targets") if isinstance(summary.get("targets"), dict) else {}
+    results = targets.get("results") if isinstance(targets.get("results"), dict) else {}
+    return "Convergence: " + "  ".join(
+        [
+            f"records {_cell(summary.get('record_count'))}",
+            f"nonaccepted {_cell(nonaccepted.get('segments'))}/{_cell(nonaccepted.get('calls'))}",
+            f"preventable {_cell(preventable.get('segments'))}/{_cell(preventable.get('calls'))}",
+            f"protected {_cell(protected.get('preserved'))}/{_cell(protected.get('count'))}",
+            f"avoided {_cell(results.get('avoided_nonaccepted_segments'))}/{_cell(results.get('avoided_nonaccepted_calls'))}",
+            f"reduction {_cell(results.get('control_plane_reduction_percent'))}%",
+            f"targets {_target_status(results.get('segments_target_met'))}/{_target_status(results.get('calls_target_met'))}/{_target_status(results.get('control_plane_reduction_target_met'))}",
+        ]
+    )
+
+
+def _target_status(value: Any) -> str:
+    if value is True:
+        return "met"
+    if value is False:
+        return "not-met"
+    return UNAVAILABLE
 
 
 def _top_gap_summaries(gaps: Any, *, limit: int) -> list[str]:

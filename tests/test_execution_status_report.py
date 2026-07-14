@@ -60,6 +60,71 @@ def sample_audit_events() -> list[dict[str, object]]:
     ]
 
 
+def sample_convergence_summary() -> dict[str, object]:
+    return {
+        "record_count": 12,
+        "categories": {
+            "record_counts": {
+                "productive": 2,
+                "validation": 2,
+                "attestation": 1,
+                "fit": 1,
+                "monitoring": 2,
+                "recovery": 1,
+                "pm": 1,
+                "architect": 1,
+                "unknown": 1,
+            },
+            "call_totals": {
+                "productive": 18,
+                "validation": 6,
+                "attestation": 1,
+                "fit": 1,
+                "monitoring": 4,
+                "recovery": 2,
+                "pm": 2,
+                "architect": 1,
+                "unknown": 0,
+            },
+        },
+        "unknown_call_records": 1,
+        "accepted": {"segments": 8, "calls": 28},
+        "nonaccepted": {"segments": 4, "calls": 7},
+        "preventable": {"segments": 3, "calls": 5},
+        "protected_stops": {"count": 1, "calls": 2, "preserved": 1},
+        "latest_graph_counters": {
+            "beads_total": 7,
+            "beads_open": 2,
+            "beads_closed": 5,
+            "graph_depth": 2,
+            "work_units_total": 6,
+            "work_units_open": 2,
+            "work_units_closed": 4,
+            "routine_repair_children": 0,
+            "worker_sessions": 5,
+        },
+        "historical_null_counts": {
+            "call_category": 1,
+            "artifact_disposition": 0,
+            "tool_calls": 2,
+            "usage": 2,
+            "graph_counters": 1,
+        },
+        "targets": {
+            "results": {
+                "current_nonaccepted_segments": 4,
+                "current_nonaccepted_calls": 7,
+                "avoided_nonaccepted_segments": 6,
+                "avoided_nonaccepted_calls": 110,
+                "control_plane_reduction_percent": 94.0,
+                "segments_target_met": True,
+                "calls_target_met": True,
+                "control_plane_reduction_target_met": True,
+            }
+        },
+    }
+
+
 def sample_acceptance_decisions() -> list[dict[str, object]]:
     return [
         {
@@ -749,6 +814,70 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertIn("?", rendered)
         self.assertIn("n/a", rendered)
 
+    def test_convergence_replay_is_authoritative_for_absolute_call_categories(self) -> None:
+        audit_events = sample_audit_events() + [
+            {
+                "event_type": "dispatch",
+                "dispatch_id": "would-double-count",
+                "bead_id": "cwo-replay",
+                "call_category": "productive",
+                "agent_model_calls": 999,
+                "status": "completed",
+            }
+        ]
+        report = build_execution_status_report(
+            audit_events=audit_events,
+            convergence_summaries=[sample_convergence_summary()],
+        )
+
+        categories = report["call_category_summary"]
+        self.assertEqual(categories["authority"], "convergence-replay")
+        self.assertEqual(categories["categories"]["productive"]["agent_model_calls"], 18)
+        self.assertEqual(categories["total_calls"], 35)
+        self.assertEqual(categories["missing_call_records"], 2)
+        convergence = report["epic_convergence_summary"]
+        self.assertTrue(convergence["available"])
+        self.assertEqual(convergence["source_count"], 1)
+        self.assertEqual(convergence["targets"]["results"]["avoided_nonaccepted_calls"], 110)
+
+        for width in (80, 120):
+            rendered = render_terminal(report, width=width)
+            self.assertIn("productive 18", rendered)
+            self.assertIn("avoided 6/110", rendered)
+            self.assertIn("targets", rendered)
+            self.assertIn("met/met/met", rendered)
+            self.assertTrue(all(len(line) <= width for line in rendered.splitlines()))
+
+    def test_audit_fallback_preserves_missing_call_counts(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "event_type": "dispatch",
+                    "dispatch_id": "productive",
+                    "bead_id": "cwo-product",
+                    "call_category": "productive",
+                    "agent_model_calls": 4,
+                    "status": "completed",
+                },
+                {
+                    "event_type": "dispatch",
+                    "dispatch_id": "missing",
+                    "bead_id": "cwo-missing",
+                    "status": "completed",
+                },
+            ]
+        )
+
+        categories = report["call_category_summary"]
+        self.assertEqual(categories["authority"], "audit-projection")
+        self.assertEqual(categories["categories"]["productive"]["agent_model_calls"], 4)
+        self.assertEqual(categories["categories"]["unknown"]["record_count"], 1)
+        self.assertEqual(categories["missing_call_category_records"], 1)
+        self.assertEqual(categories["missing_call_records"], 0)
+        self.assertEqual(categories["total_calls"], 5)
+        self.assertFalse(report["epic_convergence_summary"]["available"])
+        self.assertIsNone(report["epic_convergence_summary"]["record_count"])
+
     def test_terminal_dashboard_degrades_for_narrow_width(self) -> None:
         report = build_execution_status_report(
             audit_events=sample_audit_events(),
@@ -791,6 +920,8 @@ class ExecutionStatusReportTests(unittest.TestCase):
             audit_log.write_text("\n".join(json.dumps(event) for event in sample_audit_events()) + "\n", encoding="utf-8")
             decision = temp / "decision.json"
             decision.write_text(json.dumps(sample_acceptance_decisions()[0]), encoding="utf-8")
+            convergence = temp / "convergence.json"
+            convergence.write_text(json.dumps(sample_convergence_summary()), encoding="utf-8")
 
             result = subprocess.run(
                 [
@@ -800,6 +931,8 @@ class ExecutionStatusReportTests(unittest.TestCase):
                     str(audit_log),
                     "--acceptance-decision",
                     str(decision),
+                    "--convergence-summary",
+                    str(convergence),
                     "--format",
                     "json",
                 ],
@@ -811,6 +944,8 @@ class ExecutionStatusReportTests(unittest.TestCase):
 
         payload = json.loads(result.stdout)
         self.assertEqual(payload["result_type"], "cwo-execution-status-report")
+        self.assertEqual(payload["source_counts"]["convergence_summaries"], 1)
+        self.assertEqual(payload["call_category_summary"]["categories"]["productive"]["agent_model_calls"], 18)
         for key in [
             "executive_summary",
             "expert_profile_utilization",
@@ -825,6 +960,8 @@ class ExecutionStatusReportTests(unittest.TestCase):
             "native_disposition_details",
             "native_supervision_summary",
             "native_supervision_details",
+            "call_category_summary",
+            "epic_convergence_summary",
             "sol_breakfix_summary",
             "second_opinion_review_lane_productivity",
             "second_opinion_review_lane_productivity_details",

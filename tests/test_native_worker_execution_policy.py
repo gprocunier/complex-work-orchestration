@@ -207,6 +207,7 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             [
                 "completed",
                 "blocked",
+                "needs-replan",
                 "needs-architect-realignment",
                 "budget-exhausted",
                 "model-mismatch",
@@ -231,6 +232,12 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         )
         self.assertEqual(policy["realignment_return_contract"]["worker_mutation_policy"], "stop_mutating")
 
+        needs_replan = policy["needs_replan_return_contract"]
+        self.assertFalse(needs_replan["routine_operator_approval_required"])
+        self.assertEqual(needs_replan["max_pm_refinements_per_work_unit"], 1)
+        self.assertIn("unexpected-reasoning", needs_replan["reason_codes"])
+        self.assertIn("architect-reasoning", needs_replan["decisions"])
+
         self.assertEqual(
             policy["alignment_triggers"]["needs_architect_realignment"]["distinct_soft_limits_required"],
             2,
@@ -252,6 +259,43 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             ["fix", "reload", "resume"],
         )
         self.assertEqual(policy["realignment_return_contract"]["resume_from"], "beads")
+
+    def test_static_task_classes_and_protected_surfaces(self) -> None:
+        foundation = self.__class__.policy["work_sizing"]["enforcement"]["foundation-canary"]
+        classes = foundation["task_class_policy"]
+        self.assertEqual(
+            set(classes),
+            {
+                "literal-command",
+                "read-only-validation",
+                "narrow-mechanical",
+                "bounded-implementation",
+                "diagnosis",
+                "architecture",
+            },
+        )
+        self.assertEqual(classes["literal-command"]["fit_mode"], "deterministic")
+        self.assertEqual(classes["literal-command"]["tool_calls_p90"], 2)
+        self.assertEqual(classes["literal-command"]["tool_calls_hard"], 4)
+        self.assertEqual(classes["read-only-validation"]["runtime_seconds_hard"], 600)
+        self.assertEqual(classes["narrow-mechanical"]["max_estimated_diff_p90"], 50)
+        self.assertEqual(classes["bounded-implementation"]["tool_calls_hard"], 37)
+        self.assertEqual(classes["diagnosis"]["fit_mode"], "semantic")
+        self.assertEqual(classes["architecture"]["fit_mode"], "architect")
+        self.assertEqual(
+            set(foundation["protected_surfaces"]),
+            {
+                "security-return-acceptance",
+                "policy-routing",
+                "schemas-public-contracts",
+                "native-supervision-self-hosting",
+                "provider-access-authority",
+                "credentials",
+                "release-publication",
+                "workflow-automation",
+            },
+        )
+        self.assertIn("needs-replan", foundation["autonomous_replanning"]["events"])
 
     def test_disposition_and_sol_breakfix_policy(self) -> None:
         policy = self.__class__.policy

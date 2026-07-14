@@ -745,6 +745,113 @@ class NativeWorkerPacketTests(unittest.TestCase):
             set_disposition(packet, realignment)
             self.assertEqual(validate_native_worker_return(packet, realignment), [])
 
+    def test_needs_replan_return_is_typed_and_cross_field_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-1",
+                lane="implementation",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["focused tests pass"],
+            )
+            result = {
+                "return_type": "cwo-native-worker-return",
+                "version": 1,
+                "packet_id": packet["packet_id"],
+                "bead_id": "bead-1",
+                "session_id": "session-1",
+                "segment_id": "segment-1",
+                "status": "needs-replan",
+                "requested_model": packet["requested_model"],
+                "actual_model": packet["requested_model"],
+                "attestation_source": "trusted-control-plane-session-metadata",
+                "attestation_status": "trusted",
+                "completed_evidence": "located a hidden schema dependency",
+                "files_touched": ["allowed/file.txt"],
+                "mutation_state": "modified",
+                "commands_run": ["rg schema allowed"],
+                "validation": {"status": "blocked"},
+                "decision_required": ["select the bounded schema correction"],
+                "bounded_options": ["refine"],
+                "recommendation": "refine",
+                "remaining_scope": {"outcomes": ["correct schema binding"]},
+                "usage": {
+                    "tool_calls": 3,
+                    "elapsed_seconds": 12,
+                    "context_compactions": 0,
+                    "full_suite_runs": 0,
+                },
+                "residual_risks": ["schema path remains unverified"],
+                "replan": {
+                    "reason_code": "hidden-coupling",
+                    "completed_evidence": "located a hidden schema dependency",
+                    "discovered_facts": ["the target helper is schema-bound"],
+                    "files_touched": ["allowed/file.txt"],
+                    "mutation_state": "modified",
+                    "mutation_stopped": True,
+                    "remaining_outcomes": ["correct schema binding"],
+                    "remaining_files": ["allowed/file.txt"],
+                    "remaining_tests": ["focused schema regression"],
+                    "uncertainty": {
+                        "class": "bounded",
+                        "decision": "pm-refine",
+                        "detail": "one additional contract must be included",
+                    },
+                    "scope_delta": {
+                        "outcomes_added": 0,
+                        "files_added": 0,
+                        "tests_added": 1,
+                        "within_original_objective": True,
+                        "within_aggregate_allowance": True,
+                    },
+                    "bounded_options": [
+                        {
+                            "option_id": "refine",
+                            "route": "pm-refine",
+                            "description": "refine the packet with the schema regression",
+                            "tool_calls_p90": 4,
+                            "runtime_seconds_p90": 60,
+                        }
+                    ],
+                    "recommendation": "refine",
+                    "cumulative_usage": {
+                        "tool_calls": 3,
+                        "runtime_seconds": 12,
+                        "context_compactions": 0,
+                        "full_suite_runs": 0,
+                    },
+                },
+            }
+            result.update(
+                derive_disposition(
+                    status="needs-architect-realignment",
+                    requested_model=packet["requested_model"],
+                    actual_model=result["actual_model"],
+                    usage=result["usage"],
+                    budget=packet["budget"],
+                )
+            )
+            self.assertEqual(validate_native_worker_return(packet, result), [])
+
+            malformed = copy.deepcopy(result)
+            malformed["replan"]["mutation_stopped"] = False
+            malformed["replan"]["cumulative_usage"]["tool_calls"] = 4
+            errors = validate_native_worker_return(packet, malformed)
+            self.assertTrue(any("mutation_stopped" in error for error in errors))
+            self.assertTrue(any("cumulative_usage" in error for error in errors))
+
+            wrong_model = copy.deepcopy(result)
+            wrong_model["actual_model"] = "gpt-5.6-luna"
+            errors = validate_native_worker_return(packet, wrong_model)
+            self.assertTrue(any("exact model match" in error for error in errors))
+
+            over_budget = copy.deepcopy(result)
+            over_budget["replan"]["bounded_options"][0]["tool_calls_p90"] = packet["budget"]["tool_calls_hard"]
+            errors = validate_native_worker_return(packet, over_budget)
+            self.assertTrue(any("remaining tool-call allowance" in error for error in errors))
+
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed in test environment")
     def test_validate_return_schema_conditional_invariants(self) -> None:
         from jsonschema import Draft202012Validator

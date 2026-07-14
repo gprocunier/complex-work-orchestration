@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -11,7 +13,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
-from scaffold_workgraph import planned_graph, recovery_summary, try_dep  # noqa: E402
+from scaffold_workgraph import (  # noqa: E402
+    _normalize_closure_pressure,
+    planned_graph,
+    recovery_summary,
+    try_dep,
+)
 
 
 class ScaffoldTests(unittest.TestCase):
@@ -45,6 +52,93 @@ class ScaffoldTests(unittest.TestCase):
         self.assertEqual(metadata.get("workerbee_spark_dispatch"), expected_dispatch)
         self.assertNotIn("no-sol-exec", item["labels"])
         self.assertNotIn("spark-operative-owner", item["labels"])
+
+    def test_closure_pressure_requires_disposition_and_rejects_routine_child(self) -> None:
+        route = classify_work("Implement one bounded internal change.")
+        with self.assertRaisesRegex(ValueError, "explicit-closure-disposition-required"):
+            planned_graph(
+                "Closure missing disposition",
+                {
+                    **route,
+                    "closure_pressure": {
+                        "active": True,
+                        "action": "continue-current-work-unit",
+                        "disposition": None,
+                    },
+                },
+            )
+        with self.assertRaisesRegex(ValueError, "routine-repair-child-rejected"):
+            planned_graph(
+                "Closure routine child",
+                {
+                    **route,
+                    "closure_pressure": {
+                        "active": True,
+                        "action": "create-routine-repair-child",
+                        "disposition": "correct",
+                    },
+                },
+            )
+
+    def test_closure_pressure_propagates_every_canonical_disposition(self) -> None:
+        route = classify_work("Implement one bounded internal change.")
+        for disposition in ["retain", "correct", "quarantine", "defer", "close"]:
+            with self.subTest(disposition=disposition):
+                graph = planned_graph(
+                    f"Closure {disposition}",
+                    {
+                        **route,
+                        "closure_pressure": {
+                            "active": True,
+                            "action": "continue-current-work-unit",
+                            "disposition": disposition,
+                        },
+                    },
+                )
+                self.assertTrue(graph)
+                for item in graph:
+                    metadata = item["metadata"]
+                    self.assertTrue(metadata["closure_pressure_active"])
+                    self.assertTrue(metadata["routine_repair_child_forbidden"])
+                    self.assertEqual(metadata["closure_pressure"]["disposition"], disposition)
+                    self.assertTrue(metadata["closure_pressure"]["allowed"])
+
+    def test_inactive_closure_pressure_is_backward_compatible(self) -> None:
+        decision = _normalize_closure_pressure({})
+        self.assertFalse(decision["active"])
+        self.assertTrue(decision["allowed"])
+        graph = planned_graph("Inactive closure", classify_work("Review one internal change."))
+        for item in graph:
+            self.assertFalse(item["metadata"]["closure_pressure_active"])
+            self.assertFalse(item["metadata"]["routine_repair_child_forbidden"])
+
+    def test_closure_pressure_cli_fails_before_creation_and_accepts_disposition(self) -> None:
+        command = [
+            sys.executable,
+            str(ROOT / "scripts" / "scaffold_workgraph.py"),
+            "--title",
+            "Closure CLI",
+            "--description",
+            "Implement one bounded internal change.",
+            "--dry-run",
+            "--format",
+            "cwo",
+            "--closure-pressure-active",
+        ]
+        rejected = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("explicit-closure-disposition-required", rejected.stderr)
+
+        accepted = subprocess.run(
+            [*command, "--closure-disposition", "correct"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        graph = json.loads(accepted.stdout)
+        self.assertTrue(graph[0]["metadata"]["closure_pressure_active"])
+        self.assertEqual(graph[0]["metadata"]["closure_pressure"]["disposition"], "correct")
 
     def assert_coach_hard_stop_graph(
         self,

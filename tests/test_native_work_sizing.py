@@ -10,7 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.work_sizing import DIMENSIONS, evaluate_work_estimate, validate_work_estimate  # noqa: E402
-from cwo_core.work_sizing import canonical_work_estimate_sha256, validate_worker_commitment  # noqa: E402
+from cwo_core.work_sizing import (  # noqa: E402
+    build_policy_fit_commitment,
+    canonical_work_estimate_sha256,
+    validate_worker_commitment,
+)
 
 
 def _valid_raw_payload():
@@ -109,6 +113,55 @@ def _valid_v2_payload():
     }
     payload["pm_estimate"] = copy.deepcopy(estimate)
     payload["domain_expert_estimate"] = copy.deepcopy(estimate)
+    return payload
+
+
+def _literal_command_payload():
+    payload = _valid_v2_payload()
+    payload["subsystems"] = ["validation"]
+    payload["write_paths"] = []
+    payload["context_manifest"] = []
+    payload["semantic_estimate"]["estimated_diff_p50"] = 0
+    payload["semantic_estimate"]["estimated_diff_p90"] = 0
+    payload["semantic_estimate"]["expected_context_reads"] = 0
+    payload["semantic_estimate"]["expected_mutations"] = 0
+    payload["semantic_estimate"]["read_to_mutation_ratio"] = 0
+    payload["task_profile"] = {
+        "task_class": "literal-command",
+        "declared_outcome_count": 1,
+        "command_count": 1,
+        "check_count": 2,
+        "focused_test_count": 0,
+        "full_suite_count": 0,
+        "read_context_count": 0,
+        "source_mutation_count": 0,
+        "commands": [{"argv": ["git", "status", "--short"]}],
+        "source_mutation_paths": [],
+    }
+    return payload
+
+
+def _narrow_profile_payload(path: str = "tests/test_native_work_sizing.py"):
+    payload = _valid_v2_payload()
+    payload["subsystems"] = ["sizing"]
+    payload["write_paths"] = [path]
+    payload["semantic_estimate"]["estimated_diff_p50"] = 20
+    payload["semantic_estimate"]["estimated_diff_p90"] = 40
+    payload["semantic_estimate"]["expected_context_reads"] = 1
+    payload["semantic_estimate"]["expected_mutations"] = 1
+    payload["semantic_estimate"]["read_to_mutation_ratio"] = 1
+    payload["task_profile"] = {
+        "task_class": "narrow-mechanical",
+        "declared_outcome_count": 1,
+        "command_count": 0,
+        "check_count": 2,
+        "focused_test_count": 2,
+        "full_suite_count": 0,
+        "read_context_count": 1,
+        "source_mutation_count": 1,
+        "commands": [],
+        "source_mutation_paths": [path],
+    }
     return payload
 
 
@@ -461,6 +514,104 @@ class NativeWorkSizingTest(unittest.TestCase):
         self.assertEqual(result["semantic_scores"]["diff_p90"], 0)
         self.assertEqual(result["semantic_scores"]["surface_changes"], 1)
         self.assertEqual(result["semantic_scores"]["read_to_mutation_ratio"], 0)
+
+    def test_literal_command_fit_is_deterministic_and_counts_are_independent(self):
+        payload = _literal_command_payload()
+        original = copy.deepcopy(payload)
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(payload, original)
+        self.assertEqual(result["task_class"], "literal-command")
+        self.assertEqual(result["fit_mode"], "deterministic")
+        self.assertEqual(result["route"], "spark")
+        self.assertEqual(result["authority_route"], "spark")
+        self.assertEqual(result["operative_route"], "spark")
+        self.assertEqual(result["aggregate_allowance"]["tool_calls_hard"], 4)
+        self.assertEqual(result["aggregate_allowance"]["runtime_seconds_hard"], 120)
+        self.assertNotIn("semantic-read-mutation-split-trigger", result["hard_gate_reasons"])
+        self.assertEqual(validate_work_estimate(result), [])
+
+    def test_read_only_validation_overrides_zero_mutation_semantic_split(self):
+        payload = _literal_command_payload()
+        payload["task_profile"].update(
+            {
+                "task_class": "read-only-validation",
+                "command_count": 2,
+                "focused_test_count": 1,
+                "full_suite_count": 1,
+                "read_context_count": 1,
+                "commands": [
+                    {"argv": ["python3", "-m", "unittest", "tests.test_native_work_sizing"]},
+                    {"argv": ["git", "diff", "--check"]},
+                ],
+            }
+        )
+        payload["context_manifest"] = [
+            {"path": "tests/test_native_work_sizing.py", "selector": "file", "purpose": "validation", "bytes": 1, "sha256": "0" * 64}
+        ]
+        payload["semantic_estimate"]["expected_context_reads"] = 1
+        payload["semantic_estimate"]["read_to_mutation_ratio"] = 1
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["fit_mode"], "deterministic")
+        self.assertEqual(result["route"], "spark")
+        self.assertEqual(result["aggregate_allowance"]["tool_calls_hard"], 8)
+
+    def test_protected_path_requires_path_bound_literal_patch(self):
+        path = "policy/native-worker-execution.yaml"
+        payload = _narrow_profile_payload(path)
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["fit_mode"], "semantic")
+        self.assertIn("policy-routing", result["protected_surface_matches"])
+        self.assertIn(
+            "protected-surface-requires-path-bound-literal-patch",
+            result["fit_evidence"]["checks"],
+        )
+
+        payload["task_profile"]["architect_literal_patch"] = {
+            "path": path,
+            "pre_patch_sha256": "1" * 64,
+            "post_patch_sha256": "2" * 64,
+        }
+        accepted = evaluate_work_estimate(payload)
+        self.assertEqual(accepted["fit_mode"], "deterministic")
+        self.assertEqual(accepted["route"], "spark")
+
+        payload["task_profile"]["architect_literal_patch"]["path"] = "policy/other.yaml"
+        rejected = evaluate_work_estimate(payload)
+        self.assertEqual(rejected["fit_mode"], "semantic")
+
+    def test_task_profile_contradiction_routes_every_axis_to_architect(self):
+        payload = _narrow_profile_payload()
+        payload["task_profile"]["declared_outcome_count"] = 2
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["route"], "architect")
+        self.assertEqual(result["authority_route"], "architect")
+        self.assertEqual(result["operative_route"], "architect")
+        self.assertIn("task-profile-contradiction", result["hard_gate_reasons"])
+        self.assertTrue(result["fit_evidence"]["contradictions"])
+
+    def test_policy_fit_commitment_is_trusted_zero_tool_and_hash_bound(self):
+        estimate = evaluate_work_estimate(_literal_command_payload())
+        commitment = build_policy_fit_commitment(
+            estimate,
+            session_id="spark-session-1",
+            attested_model="gpt-5.3-codex-spark",
+        )
+        self.assertEqual(commitment["decision"], "accept")
+        self.assertEqual(commitment["tool_calls_before_commitment"], 0)
+        self.assertEqual(commitment["context_compactions_before_commitment"], 0)
+        self.assertEqual(commitment["estimates"]["tool_calls_p90"], 2)
+        self.assertEqual(validate_worker_commitment(commitment, estimate, dispatchable=True), [])
+        with self.assertRaisesRegex(ValueError, "exactly match"):
+            build_policy_fit_commitment(
+                estimate,
+                session_id="spark-session-1",
+                attested_model="gpt-5.6-sol",
+            )
+
+    def test_estimate_without_task_profile_remains_semantic_bounded_implementation(self):
+        result = evaluate_work_estimate(_valid_v2_payload())
+        self.assertEqual(result["task_class"], "bounded-implementation")
+        self.assertEqual(result["fit_mode"], "semantic")
 
     def test_v2_semantic_score_floors_are_deterministic(self):
         cases = (

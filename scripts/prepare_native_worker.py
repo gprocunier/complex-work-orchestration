@@ -6,6 +6,7 @@ from copy import deepcopy
 import json
 import math
 from pathlib import Path
+import shlex
 from typing import Any
 
 from cwo_core.paths import assert_safe_output_path
@@ -38,9 +39,14 @@ from cwo_core.native_worker_contracts import (
     packet_v3_recovery_contract,
     validate_packet_v3_phase_contract,
 )
+from cwo_core.native_replanning import validate_needs_replan_payload
 from cwo_core.policy import load_policy
 from cwo_core.util import atomic_write_text, make_dispatch_id
-from cwo_core.work_sizing import validate_work_estimate, validate_worker_commitment
+from cwo_core.work_sizing import (
+    build_policy_fit_commitment,
+    validate_work_estimate,
+    validate_worker_commitment,
+)
 
 REQUESTED_MODEL = "gpt-5.3-codex-spark"
 NATIVE_WORKER_POLICY_PATH = "policy/native-worker-execution.yaml"
@@ -397,6 +403,15 @@ def _build_command_contract(policy: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _read_only_work_plan(work_plan: Any) -> bool:
+    return (
+        isinstance(work_plan, dict)
+        and work_plan.get("task_class") in {"literal-command", "read-only-validation"}
+        and work_plan.get("fit_mode") == "deterministic"
+        and work_plan.get("write_paths") == []
+    )
+
+
 def build_native_worker_packet(
     *,
     bead_id: str,
@@ -406,6 +421,8 @@ def build_native_worker_packet(
     acceptance_checks: list[str],
     work_plan: dict[str, Any] | None = None,
     worker_commitment: dict[str, Any] | None = None,
+    trusted_session_id: str | None = None,
+    attested_model: str | None = None,
     packet_id: str | None = None,
     budget_overrides: dict[str, int] | None = None,
     validation_root_packet_id: str | None = None,
@@ -431,8 +448,25 @@ def build_native_worker_packet(
         raise SystemExit("at least one --acceptance-check is required")
     if any(not check.strip() for check in acceptance_checks):
         raise SystemExit("acceptance_check values must be non-empty")
-    if (work_plan is None) != (worker_commitment is None):
-        raise SystemExit("exactly one of work_plan and worker_commitment is provided; provide both or neither")
+    if work_plan is None and (
+        worker_commitment is not None or trusted_session_id is not None or attested_model is not None
+    ):
+        raise SystemExit("worker commitment or trusted attestation requires a work_plan")
+    if work_plan is not None and worker_commitment is None:
+        if not trusted_session_id or not attested_model:
+            raise SystemExit(
+                "work_plan without worker_commitment requires trusted_session_id and attested_model for deterministic policy fit"
+            )
+        try:
+            worker_commitment = build_policy_fit_commitment(
+                work_plan,
+                session_id=trusted_session_id,
+                attested_model=attested_model,
+            )
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+    elif worker_commitment is not None and (trusted_session_id is not None or attested_model is not None):
+        raise SystemExit("trusted attestation arguments cannot accompany an explicit worker_commitment")
     workdir_path = _normalize_workdir(workdir)
     normalized_paths = _normalize_allowed_paths(allowed_paths, workdir_path)
     packet_id = packet_id or make_dispatch_id(bead_id)
@@ -448,6 +482,7 @@ def build_native_worker_packet(
     if validation_attempt == 0 and validation_parent_packet_id:
         raise SystemExit("validation attempt 0 cannot have a parent packet id")
     root_packet_id = validation_root_packet_id or packet_id
+    read_only_plan = _read_only_work_plan(work_plan)
     if validation_attempt == 0 and root_packet_id != packet_id:
         raise SystemExit("validation attempt 0 root packet id must equal packet id")
     if validation_attempt == 1 and lane != "validation":
@@ -469,6 +504,10 @@ def build_native_worker_packet(
             "allowed_paths": normalized_paths,
             "allowed_actions": [
                 "read-assigned-bead",
+                "run-tests-in-scope",
+                "write-packaged-artifacts",
+            ] if read_only_plan else [
+                "read-assigned-bead",
                 "edit-scoped-files",
                 "run-tests-in-scope",
                 "write-packaged-artifacts",
@@ -478,6 +517,7 @@ def build_native_worker_packet(
                 "trust-self-reported-model",
                 "write-out-of-scope",
                 "model-override",
+                *(["source-mutation"] if read_only_plan else []),
             ],
         },
         "acceptance_checks": acceptance_checks,
@@ -716,7 +756,19 @@ def validate_native_worker_packet(
                 errors.append("work_plan.bead_id must match packet.bead_id")
             if str(work_plan.get("requested_model", "")) != str(payload.get("requested_model", "")):
                 errors.append("work_plan.requested_model must match packet.requested_model")
-            if scope_allowed_paths != work_plan.get("write_paths"):
+            if _read_only_work_plan(work_plan):
+                manifest_paths = [
+                    item.get("path")
+                    for item in work_plan.get("context_manifest", [])
+                    if isinstance(item, dict)
+                ]
+                if scope_allowed_paths != manifest_paths:
+                    errors.append("read-only work_plan context paths must exactly match packet.scope.allowed_paths")
+                allowed_actions = scope.get("allowed_actions", []) if isinstance(scope, dict) else []
+                prohibited_actions = scope.get("prohibited_actions", []) if isinstance(scope, dict) else []
+                if "edit-scoped-files" in allowed_actions or "source-mutation" not in prohibited_actions:
+                    errors.append("read-only work_plan must prohibit source mutation")
+            elif scope_allowed_paths != work_plan.get("write_paths"):
                 errors.append("work_plan.write_paths must exactly match packet.scope.allowed_paths")
             if acceptance_checks != work_plan.get("acceptance_checks"):
                 errors.append("work_plan.acceptance_checks must exactly match packet.acceptance_checks")
@@ -1125,7 +1177,10 @@ def validate_native_worker_return(packet: dict[str, Any], result: Any) -> list[s
     errors.extend(_parse_usage_limits(result))
     required_fields = packet.get("return_contract", {}).get("required_fields", [])
     disposition_required = isinstance(required_fields, list) and DISPOSITION_FIELDS.issubset(set(required_fields))
-    errors.extend(validate_disposition(packet=packet, result=result, required=disposition_required))
+    disposition_result = result
+    if status == "needs-replan":
+        disposition_result = {**result, "status": "needs-architect-realignment"}
+    errors.extend(validate_disposition(packet=packet, result=disposition_result, required=disposition_required))
     if status == "completed":
         completion_usage = result.get("usage")
         if isinstance(completion_usage, dict):
@@ -1136,6 +1191,9 @@ def validate_native_worker_return(packet: dict[str, Any], result: Any) -> list[s
             errors.append("completed return requires attestation_status 'trusted'")
         if result.get("validation") == {}:
             errors.append("completed return requires explicit validation")
+        if _read_only_work_plan(packet.get("work_plan")):
+            if result.get("files_touched") != [] or result.get("mutation_state") != "clean":
+                errors.append("read-only work_plan completion requires no files_touched and clean mutation_state")
         try:
             scope = packet["scope"]
             allowed = _normalize_scope_paths(scope.get("allowed_paths", []), _normalize_workdir(scope["workdir"]))
@@ -1153,7 +1211,7 @@ def validate_native_worker_return(packet: dict[str, Any], result: Any) -> list[s
         except (TypeError, KeyError, SystemExit):
             pass
 
-    if status in {"needs-architect-realignment", "budget-exhausted", "model-mismatch"}:
+    if status in {"needs-replan", "needs-architect-realignment", "budget-exhausted", "model-mismatch"}:
         if (
             not isinstance(result.get("decision_required"), list)
             or not result["decision_required"]
@@ -1169,6 +1227,70 @@ def validate_native_worker_return(packet: dict[str, Any], result: Any) -> list[s
         remaining_scope = result.get("remaining_scope")
         if not remaining_scope:
             errors.append("remaining_scope must be non-empty for realignment-like returns")
+
+    if status == "needs-replan":
+        replan = result.get("replan")
+        errors.extend(validate_needs_replan_payload(replan))
+        if result.get("attestation_status") != "trusted":
+            errors.append("needs-replan requires trusted attestation")
+        if result.get("actual_model") != result.get("requested_model"):
+            errors.append("needs-replan requires exact model match")
+        if isinstance(replan, dict):
+            if replan.get("completed_evidence") != result.get("completed_evidence"):
+                errors.append("replan.completed_evidence must match completed_evidence")
+            if replan.get("files_touched") != result.get("files_touched"):
+                errors.append("replan.files_touched must match files_touched")
+            if replan.get("mutation_state") != result.get("mutation_state"):
+                errors.append("replan.mutation_state must match mutation_state")
+            option_ids = [
+                option.get("option_id")
+                for option in replan.get("bounded_options", [])
+                if isinstance(option, dict)
+            ]
+            if result.get("bounded_options") != option_ids:
+                errors.append("bounded_options must list the typed replan option ids in order")
+            if result.get("recommendation") != replan.get("recommendation"):
+                errors.append("recommendation must match replan.recommendation")
+            usage = result.get("usage")
+            cumulative = replan.get("cumulative_usage")
+            if isinstance(usage, dict) and isinstance(cumulative, dict):
+                expected_usage = {
+                    "tool_calls": usage.get("tool_calls"),
+                    "runtime_seconds": usage.get("elapsed_seconds"),
+                    "context_compactions": usage.get("context_compactions"),
+                    "full_suite_runs": usage.get("full_suite_runs"),
+                }
+                if cumulative != expected_usage:
+                    errors.append("replan.cumulative_usage must match return usage")
+                if usage.get("context_compactions") != 0:
+                    errors.append("needs-replan is invalid after context compaction")
+                aggregate = packet.get("work_plan", {}).get("aggregate_allowance", {})
+                if not isinstance(aggregate, dict):
+                    aggregate = {}
+                budget = packet.get("budget", {}) if isinstance(packet.get("budget"), dict) else {}
+                calls_hard = aggregate.get("tool_calls_hard", budget.get("tool_calls_hard"))
+                runtime_hard = aggregate.get("runtime_seconds_hard", budget.get("runtime_seconds_hard"))
+                calls_used = usage.get("tool_calls")
+                runtime_used = usage.get("elapsed_seconds")
+                if (
+                    isinstance(calls_hard, int)
+                    and isinstance(runtime_hard, int)
+                    and isinstance(calls_used, int)
+                    and not isinstance(calls_used, bool)
+                    and isinstance(runtime_used, (int, float))
+                    and not isinstance(runtime_used, bool)
+                ):
+                    calls_remaining = max(0, calls_hard - calls_used)
+                    runtime_remaining = max(0, runtime_hard - float(runtime_used))
+                    for index, option in enumerate(replan.get("bounded_options", [])):
+                        if not isinstance(option, dict) or option.get("route") == "protected-stop":
+                            continue
+                        option_calls = option.get("tool_calls_p90")
+                        option_runtime = option.get("runtime_seconds_p90")
+                        if isinstance(option_calls, int) and option_calls > calls_remaining:
+                            errors.append(f"replan.bounded_options[{index}] exceeds remaining tool-call allowance")
+                        if isinstance(option_runtime, int) and option_runtime > runtime_remaining:
+                            errors.append(f"replan.bounded_options[{index}] exceeds remaining runtime allowance")
 
     if status == "model-mismatch":
         if result.get("actual_model") == result.get("requested_model"):
@@ -1199,6 +1321,22 @@ def _render_prompt(payload: dict[str, Any]) -> str:
     scope = payload["scope"]
     accepted = "\n".join(f"- {check}" for check in payload["acceptance_checks"][:8])
     paths = "\n".join(f"- {path}" for path in scope["allowed_paths"][:8])
+    work_plan = payload.get("work_plan")
+    task_profile = work_plan.get("task_profile") if isinstance(work_plan, dict) else None
+    task_class = task_profile.get("task_class") if isinstance(task_profile, dict) else None
+    exact_argv = (
+        isinstance(work_plan, dict)
+        and work_plan.get("fit_mode") == "deterministic"
+        and task_class in {"literal-command", "read-only-validation"}
+        and isinstance(task_profile.get("commands"), list)
+    )
+    declared_commands = task_profile.get("commands", []) if exact_argv else []
+    command_lines = [
+        f"{index}. {shlex.join(command['argv'])}"
+        for index, command in enumerate(declared_commands, start=1)
+        if isinstance(command, dict) and isinstance(command.get("argv"), list)
+    ]
+    read_only = _read_only_work_plan(work_plan)
     triggers = ", ".join(
         f"{key}:{value}" for key, value in payload["escalation_triggers"].items()
     )
@@ -1215,9 +1353,11 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         "attestation_source": "trusted-control-plane-session-metadata",
         "attestation_status": "trusted",
         "completed_evidence": "<why this is complete>",
-        "files_touched": ["<relative/path.ext>"],
-        "mutation_state": "modified",
-        "commands_run": ["<command>"],
+        "files_touched": [] if read_only else ["<relative/path.ext>"],
+        "mutation_state": "clean" if read_only else "modified",
+        "commands_run": [shlex.join(command["argv"]) for command in declared_commands]
+        if exact_argv
+        else ["<command>"],
         "validation": {"status": "pass"},
         "decision_required": [],
         "bounded_options": [],
@@ -1257,11 +1397,27 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         *[f"- {item}" for item in payload["scope"]["prohibited_actions"]],
         "Acceptance checks:",
         accepted,
-        "Checked command execution:",
-        f"- Wrapper: {payload['command_contract']['wrapper']}",
-        f"- Typed modes: {', '.join(payload['command_contract']['modes'])}",
-        "- Complex commands, interpreter -c forms, nested quoting/languages, and mutation commands must use the checked wrapper.",
-        "- A preflight construction failure is PM-recoverable with no source quarantine; hash, scope, security, or mutation-attribution failures quarantine.",
+        *(
+            [
+                "Deterministic execution contract:",
+                f"- Task class: {task_class}",
+                f"- Run exactly {len(command_lines)} declared commands in order from the packet workdir.",
+                "- The first tool call must execute command 1. Do not acknowledge first, inspect helpers or source, run --help, or build wrapper specifications.",
+                "- Execute each command directly as the exact argv shown. Do not prepend cd, wrap, rewrite, combine, or add shell syntax.",
+                "- The generic checked-command wrapper does not apply to these architect-approved exact argv commands.",
+                f"- No exploratory tool calls are permitted; all {len(command_lines)} tool calls are reserved for the declared commands.",
+                "Declared exact commands:",
+                *command_lines,
+            ]
+            if exact_argv
+            else [
+                "Checked command execution:",
+                f"- Wrapper: {payload['command_contract']['wrapper']}",
+                f"- Typed modes: {', '.join(payload['command_contract']['modes'])}",
+                "- Complex commands, interpreter -c forms, nested quoting/languages, and mutation commands must use the checked wrapper.",
+                "- A preflight construction failure is PM-recoverable with no source quarantine; hash, scope, security, or mutation-attribution failures quarantine.",
+            ]
+        ),
         f"Budget: tool-calls hard {budget['tool_calls_hard']} / soft {budget['tool_calls_soft']}, runtime hard {budget['runtime_seconds_hard']}s, max compactions {budget['max_compactions']}, max full-suite {budget['max_full_suite_runs']}",
         f"Live supervision: poll {payload.get('supervision', {}).get('poll_interval_ms')}ms; interrupt thresholds {payload.get('supervision', {}).get('interrupt_thresholds')}",
         f"Validation lineage: {payload.get('validation_lineage')}",
@@ -1272,6 +1428,7 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         "- Stay within packet scope",
         "- Do not resume prior sessions",
         "- Do not report completion until attestation is trusted",
+        *( ["- Do not send acknowledgments or progress messages; run the declared commands, then return the artifact"] if exact_argv else [] ),
         "- Return exactly one compliant cwo-native-worker-return artifact",
         "",
         "Return skeleton (required fields):",
@@ -1309,6 +1466,8 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--acceptance-check", action="append", required=True, dest="acceptance_checks")
     build.add_argument("--work-plan")
     build.add_argument("--worker-commitment")
+    build.add_argument("--trusted-session-id")
+    build.add_argument("--attested-model")
     build.add_argument("--requested-model")
     for field in sorted(ALLOWED_BUDGET_FIELDS):
         build.add_argument("--" + field.replace("_", "-"), type=int, dest=field)
@@ -1354,6 +1513,8 @@ def main() -> None:
             acceptance_checks=args.acceptance_checks,
             work_plan=work_plan,
             worker_commitment=worker_commitment,
+            trusted_session_id=args.trusted_session_id,
+            attested_model=args.attested_model,
             budget_overrides=overrides,
             validation_root_packet_id=args.validation_root_packet_id,
             validation_parent_packet_id=args.validation_parent_packet_id,

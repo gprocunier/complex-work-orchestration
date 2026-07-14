@@ -36,6 +36,7 @@ REQUIRED_STATES = (
 
 EVENT_ACCEPTED = "accepted"
 EVENT_DISPATCH_STARTED = "dispatch-started"
+EVENT_NEEDS_REPLAN = "needs-replan"
 EVENT_EXPLORATION_LIMIT = "exploration-limit"
 EVENT_CLEAN_NO_ARTIFACT = "clean-no-artifact"
 EVENT_PM_REFINED = "pm-refined"
@@ -47,6 +48,7 @@ EVENT_WORKER_COMPACTION = "worker-compaction"
 KNOWN_EVENTS = (
     EVENT_ACCEPTED,
     EVENT_DISPATCH_STARTED,
+    EVENT_NEEDS_REPLAN,
     EVENT_EXPLORATION_LIMIT,
     EVENT_CLEAN_NO_ARTIFACT,
     EVENT_WORKER_COMPACTION,
@@ -65,6 +67,7 @@ KNOWN_EVENTS = (
 KNOWN_EVENT_BY_AUTHORITY = {
     EVENT_ACCEPTED: "worker",
     EVENT_DISPATCH_STARTED: "worker",
+    EVENT_NEEDS_REPLAN: "worker",
     EVENT_EXPLORATION_LIMIT: "pm",
     EVENT_CLEAN_NO_ARTIFACT: "pm",
     EVENT_PM_REFINED: "pm",
@@ -79,6 +82,107 @@ KNOWN_EVENT_BY_AUTHORITY = {
     "tainted-mutation": "operator",
     "operator-trigger": "operator",
 }
+
+NEEDS_REPLAN_FIELDS = {
+    "reason_code", "completed_evidence", "discovered_facts", "files_touched",
+    "mutation_state", "mutation_stopped", "remaining_outcomes", "remaining_files",
+    "remaining_tests", "uncertainty", "scope_delta", "bounded_options",
+    "recommendation", "cumulative_usage",
+}
+NEEDS_REPLAN_REASONS = {
+    "hidden-coupling", "scope-growth", "unexpected-reasoning",
+    "decision-uncertainty", "environment",
+}
+NEEDS_REPLAN_DECISIONS = {"pm-refine", "architect-reasoning", "reassign-spark"}
+NEEDS_REPLAN_ROUTES = NEEDS_REPLAN_DECISIONS | {"protected-stop"}
+
+
+def _valid_string_list(value: Any, *, nonempty: bool = False) -> bool:
+    return (
+        isinstance(value, list)
+        and (bool(value) or not nonempty)
+        and all(isinstance(item, str) and bool(item.strip()) for item in value)
+    )
+
+
+def _nonnegative_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def validate_needs_replan_payload(value: Any) -> list[str]:
+    """Validate typed worker-to-PM evidence without authorizing a transition."""
+    if not isinstance(value, Mapping):
+        return ["replan must be an object"]
+    payload = dict(value)
+    if set(payload) != NEEDS_REPLAN_FIELDS:
+        return ["replan must contain exactly the required typed fields"]
+    errors: list[str] = []
+    if payload["reason_code"] not in NEEDS_REPLAN_REASONS:
+        errors.append("replan.reason_code is not recognized")
+    if not isinstance(payload["completed_evidence"], str) or not payload["completed_evidence"].strip():
+        errors.append("replan.completed_evidence must be a non-empty string")
+    for field in ("discovered_facts", "files_touched", "remaining_outcomes", "remaining_files", "remaining_tests"):
+        if not _valid_string_list(payload[field], nonempty=(field == "discovered_facts")):
+            errors.append(f"replan.{field} must be a list of non-empty strings")
+    if not any(payload[field] for field in ("remaining_outcomes", "remaining_files", "remaining_tests")):
+        errors.append("replan must declare remaining work")
+    if payload["mutation_state"] not in {"clean", "modified", "committed", "unknown"}:
+        errors.append("replan.mutation_state is invalid")
+    if payload["mutation_stopped"] is not True:
+        errors.append("replan.mutation_stopped must be true")
+
+    uncertainty = payload["uncertainty"]
+    if not isinstance(uncertainty, Mapping) or set(uncertainty) != {"class", "decision", "detail"}:
+        errors.append("replan.uncertainty has an invalid shape")
+    else:
+        if uncertainty["class"] not in {"bounded", "material", "architect"}:
+            errors.append("replan.uncertainty.class is not recognized")
+        if uncertainty["decision"] not in NEEDS_REPLAN_DECISIONS:
+            errors.append("replan.uncertainty.decision is not recognized")
+        if not isinstance(uncertainty["detail"], str) or not uncertainty["detail"].strip():
+            errors.append("replan.uncertainty.detail must be non-empty")
+        if uncertainty["class"] == "architect" and uncertainty["decision"] != "architect-reasoning":
+            errors.append("architect uncertainty requires architect-reasoning")
+
+    scope = payload["scope_delta"]
+    scope_fields = {"outcomes_added", "files_added", "tests_added", "within_original_objective", "within_aggregate_allowance"}
+    if not isinstance(scope, Mapping) or set(scope) != scope_fields:
+        errors.append("replan.scope_delta has an invalid shape")
+    else:
+        if not all(_nonnegative_int(scope[field]) for field in ("outcomes_added", "files_added", "tests_added")):
+            errors.append("replan.scope_delta counts must be non-negative integers")
+        if not all(isinstance(scope[field], bool) for field in ("within_original_objective", "within_aggregate_allowance")):
+            errors.append("replan.scope_delta boundary flags must be booleans")
+
+    options = payload["bounded_options"]
+    option_ids: list[str] = []
+    option_fields = {"option_id", "route", "description", "tool_calls_p90", "runtime_seconds_p90"}
+    if not isinstance(options, list) or not options:
+        errors.append("replan.bounded_options must be a non-empty list")
+    else:
+        for index, option in enumerate(options):
+            if not isinstance(option, Mapping) or set(option) != option_fields:
+                errors.append(f"replan.bounded_options[{index}] has an invalid shape")
+                continue
+            option_id = option["option_id"]
+            if not isinstance(option_id, str) or not option_id.strip() or option_id in option_ids:
+                errors.append(f"replan.bounded_options[{index}].option_id is invalid")
+            else:
+                option_ids.append(option_id)
+            if option["route"] not in NEEDS_REPLAN_ROUTES:
+                errors.append(f"replan.bounded_options[{index}].route is invalid")
+            if not isinstance(option["description"], str) or not option["description"].strip():
+                errors.append(f"replan.bounded_options[{index}].description is invalid")
+            if not all(_nonnegative_int(option[field]) for field in ("tool_calls_p90", "runtime_seconds_p90")):
+                errors.append(f"replan.bounded_options[{index}] budget is invalid")
+    if payload["recommendation"] not in option_ids:
+        errors.append("replan.recommendation must identify one bounded option")
+
+    usage = payload["cumulative_usage"]
+    usage_fields = {"tool_calls", "runtime_seconds", "context_compactions", "full_suite_runs"}
+    if not isinstance(usage, Mapping) or set(usage) != usage_fields or not all(_nonnegative_int(usage[field]) for field in usage_fields):
+        errors.append("replan.cumulative_usage has an invalid shape")
+    return errors
 
 
 def _extract_main_thread_turn_context(value: Any, *, path: str) -> Mapping[str, Any] | None:
@@ -1000,6 +1104,89 @@ def transition_replanning_state(
         next_state["cwo_native_replanning_receipt"] = _emit_receipt(
             state_before=current_state,
             state_after="architect-realignment",
+            event=normalized_event,
+            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            decision="replan",
+            reason_codes=next_state["reason_codes"],
+            state=next_state,
+        )
+        return next_state
+
+    if normalized_event == EVENT_NEEDS_REPLAN:
+        if current_state != "executing":
+            raise ValueError("malformed event: needs-replan is valid only from executing")
+        reasons: list[str] = []
+        if not _ensure_bool(evidence_payload.get("trusted_evidence", False), path="evidence.trusted_evidence"):
+            reasons.append("invalid-trusted-evidence")
+        if not _ensure_bool(evidence_payload.get("exact_model", next_state["model_match"]), path="evidence.exact_model"):
+            reasons.append("model-mismatch")
+            next_state["model_match"] = False
+        if not _ensure_bool(
+            evidence_payload.get("control_healthy", next_state["control_healthy"]),
+            path="evidence.control_healthy",
+        ):
+            reasons.append("control-loss")
+            next_state["control_healthy"] = False
+        if next_state["mutation"]["out_of_scope"]:
+            reasons.append("out-of-scope-mutation")
+        if next_state["mutation"]["tainted"]:
+            reasons.append("tainted-mutation")
+        if next_state["counters"]["context_compactions"] > next_state["aggregate_allowance"]["max_compactions"]:
+            reasons.append("compaction")
+
+        replan = evidence_payload.get("replan")
+        replan_errors = validate_needs_replan_payload(replan)
+        if replan_errors:
+            reasons.append("invalid-needs-replan-evidence")
+        if reasons:
+            return _to_protected_stop(next_state, list(dict.fromkeys(reasons)), normalized_event)
+
+        assert isinstance(replan, Mapping)
+        cumulative = replan["cumulative_usage"]
+        if (
+            cumulative["tool_calls"] != next_state["counters"]["tool_calls_used"]
+            or cumulative["runtime_seconds"] != next_state["counters"]["runtime_seconds_used"]
+            or cumulative["context_compactions"] != next_state["counters"]["context_compactions"]
+        ):
+            return _to_protected_stop(
+                next_state,
+                ["invalid-needs-replan-evidence"],
+                normalized_event,
+            )
+
+        scope_delta = replan["scope_delta"]
+        if not scope_delta["within_original_objective"]:
+            return _to_protected_stop(next_state, ["objective-change"], normalized_event)
+        if not scope_delta["within_aggregate_allowance"]:
+            return _to_protected_stop(next_state, ["aggregate-allowance-exhausted"], normalized_event)
+
+        calls_remaining, runtime_remaining = _remaining_allowance(next_state)
+        for option in replan["bounded_options"]:
+            if option["route"] == "protected-stop":
+                continue
+            if option["tool_calls_p90"] > calls_remaining or option["runtime_seconds_p90"] > runtime_remaining:
+                return _to_protected_stop(
+                    next_state,
+                    ["invalid-needs-replan-evidence"],
+                    normalized_event,
+                )
+
+        uncertainty = replan["uncertainty"]
+        reason_code = str(replan["reason_code"])
+        if uncertainty["decision"] == "architect-reasoning":
+            next_state["state"] = "architect-realignment"
+            next_state["next_action"] = "request-architect-refinement"
+            next_state["reason_codes"] = ["worker-needs-replan", reason_code, "architect-reasoning-required"]
+        else:
+            if next_state["counters"]["pm_replans_used"] >= policy_data["max_pm_replans"]:
+                return _to_protected_stop(next_state, ["pm-replan-exhausted"], normalized_event)
+            next_state["state"] = "pm-realignment"
+            next_state["counters"]["pm_replans_used"] += 1
+            next_state["next_action"] = "request-pm-refinement"
+            next_state["reason_codes"] = ["worker-needs-replan", reason_code]
+        next_state["cwo_native_replanning_receipt"] = _emit_receipt(
+            state_before=current_state,
+            state_after=next_state["state"],
             event=normalized_event,
             authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
             decision="replan",

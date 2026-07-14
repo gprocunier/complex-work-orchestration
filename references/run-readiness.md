@@ -72,7 +72,21 @@ python3 scripts/render_execution_status_report.py --format terminal
 python3 scripts/render_execution_status_report.py --format terminal --layout expanded
 python3 scripts/render_execution_status_report.py --format terminal --layout summary
 python3 scripts/render_execution_status_report.py --format json
+python3 scripts/replay_epic_convergence.py --input convergence-ledger.json > convergence-summary.json
+python3 scripts/render_execution_status_report.py --convergence-summary convergence-summary.json --format terminal
 ```
+
+Convergence replay is append-only: historical unknowns stay null rather than
+being inferred or rewritten. Status output reports absolute productive,
+validation, attestation, fit, monitoring, recovery, PM, architect, and unknown
+call counts together with replay-target results.
+
+Closure pressure begins when acceptance or independent validation starts. The
+current work unit must carry any routine correction and one explicit
+`retain`, `correct`, `quarantine`, `defer`, or `close` disposition; do not add a
+routine repair child. Main-thread model and effort recommendations are
+advisory. The user's selected effort remains authoritative and a recommendation
+mismatch does not stop or pivot execution.
 
 The machine-readable output is documented by
 `schemas/execution-status-report.schema.json`; telemetry sidecars are documented

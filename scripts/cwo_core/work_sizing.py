@@ -5,6 +5,7 @@ import json
 import re
 from collections.abc import Mapping
 from copy import deepcopy
+from fnmatch import fnmatch
 from math import isfinite
 from typing import Any
 
@@ -28,6 +29,15 @@ SEMANTIC_SURFACE_KEYS = (
 
 ROUTE_PRIORITY = {"spark": 0, "split": 1, "architect": 2}
 ROUTE_BY_PRIORITY = ["spark", "split", "architect"]
+TASK_CLASS_OPTIONS = (
+    "literal-command",
+    "read-only-validation",
+    "narrow-mechanical",
+    "bounded-implementation",
+    "diagnosis",
+    "architecture",
+)
+FIT_MODES = ("deterministic", "semantic", "architect")
 SEMANTIC_ESTIMATE_KEYS = (
     "estimated_diff_p50",
     "estimated_diff_p90",
@@ -64,6 +74,7 @@ SEMANTIC_ROUTE_REASONS = (
     "semantic-route-conflict",
     "semantic-estimate-variance",
     "semantic-read-mutation-split-trigger",
+    "task-profile-contradiction",
 )
 
 REQUIRED_SOURCE_FIELDS = (
@@ -86,6 +97,12 @@ REQUIRED_SOURCE_FIELDS = (
 )
 
 DERIVED_FIELDS = ("score_total", "route", "hard_gate_reasons", "aggregate_allowance")
+DERIVED_TASK_PROFILE_FIELDS = (
+    "task_class",
+    "fit_mode",
+    "protected_surface_matches",
+    "fit_evidence",
+)
 
 HARD_GATE_REASONS = (
     "unresolved-decisions",
@@ -102,6 +119,7 @@ HARD_GATE_REASONS = (
     "semantic-route-conflict",
     "semantic-estimate-variance",
     "semantic-read-mutation-split-trigger",
+    "task-profile-contradiction",
 )
 
 COMMITMENT_REQUIRED_FIELDS = (
@@ -292,6 +310,329 @@ def _ensure_estimate_mapping(value: Any, *, path: str) -> dict[str, Any]:
     return estimate
 
 
+def _sha256_hex(value: Any, *, path: str) -> str:
+    hash_value = _ensure_nonempty_str(value, path=path)
+    if len(hash_value) != 64 or any(char not in "0123456789abcdef" for char in hash_value):
+        raise ValueError(f"malformed source payload: {path} must be a lowercase SHA-256 hex digest")
+    return hash_value
+
+
+def _valid_protection_patch(
+    profile: Mapping[str, Any] | None,
+    *,
+    write_paths: list[str],
+    source_mutation_paths: list[str],
+    protected_surfaces: Mapping[str, list[str]],
+) -> bool:
+    if not isinstance(profile, Mapping):
+        return False
+    if set(profile) != {"path", "pre_patch_sha256", "post_patch_sha256"}:
+        return False
+    path = profile.get("path")
+    pre_patch = profile.get("pre_patch_sha256")
+    post_patch = profile.get("post_patch_sha256")
+    try:
+        patch_path = _ensure_nonempty_str(path, path="task_profile.architect_literal_patch.path")
+        _sha256_hex(pre_patch, path="task_profile.architect_literal_patch.pre_patch_sha256")
+        _sha256_hex(post_patch, path="task_profile.architect_literal_patch.post_patch_sha256")
+        if write_paths != [patch_path] or source_mutation_paths != [patch_path]:
+            return False
+        return any(
+            _path_matches_prefix(patch_path, pattern)
+            for patterns in protected_surfaces.values()
+            for pattern in patterns
+        )
+    except ValueError:
+        return False
+
+
+def _path_matches_prefix(path: str, pattern: str) -> bool:
+    if not path or not pattern:
+        return False
+    if "*" in pattern:
+        return fnmatch(path, pattern)
+    normalized_path = path.rstrip("/")
+    normalized_pattern = pattern.rstrip("/")
+    return normalized_path == normalized_pattern or normalized_path.startswith(f"{normalized_pattern}/")
+
+
+def _is_canonical_contract_path(path: str) -> bool:
+    if not path or path.startswith("/") or "\\" in path:
+        return False
+    return all(part not in {"", ".", ".."} for part in path.split("/"))
+
+
+def _task_class_policy(work_sizing: Mapping[str, Any]) -> Mapping[str, Any]:
+    foundation = _get_work_sizing_section(work_sizing)
+    if not isinstance(foundation, Mapping):
+        raise ValueError("malformed policy: enforcement.foundation-canary missing")
+    return _ensure_mapping(foundation.get("task_class_policy"), label="task_class_policy")
+
+
+def _protected_surface_groups(work_sizing: Mapping[str, Any]) -> Mapping[str, list[str]]:
+    foundation = _get_work_sizing_section(work_sizing)
+    if not isinstance(foundation, Mapping):
+        raise ValueError("malformed policy: enforcement.foundation-canary missing")
+    protected = _ensure_mapping(foundation.get("protected_surfaces"), label="protected_surfaces")
+    normalized: dict[str, list[str]] = {}
+    for group_name, patterns in protected.items():
+        normalized[group_name] = _ensure_list(patterns, path=f"protected_surfaces.{group_name}")
+    return normalized
+
+
+def _validate_command_entry(command: Any, idx: int) -> tuple[list[str], int]:
+    command_payload = _ensure_mapping_exact(
+        command,
+        path=f"task_profile.commands[{idx}]",
+        required_fields=("argv",),
+    )
+    argv = _ensure_list(command_payload["argv"], path=f"task_profile.commands[{idx}].argv")
+    for arg_idx, arg in enumerate(argv):
+        if not isinstance(arg, str):
+            raise ValueError(
+                f"malformed source payload: task_profile.commands[{idx}].argv[{arg_idx}] must be a string"
+            )
+    return argv, len(argv)
+
+
+def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
+    if task_profile is None:
+        return None
+
+    payload = _ensure_mapping(task_profile, label="task_profile")
+    required_keys = {
+        "task_class",
+        "declared_outcome_count",
+        "command_count",
+        "check_count",
+        "focused_test_count",
+        "full_suite_count",
+        "read_context_count",
+        "source_mutation_count",
+        "commands",
+    }
+    optional_keys = {"source_mutation_paths", "architect_literal_patch"}
+    payload_keys = set(payload.keys())
+    if missing := sorted(required_keys - payload_keys):
+        raise ValueError(f"malformed source payload: task_profile missing required field(s) {', '.join(missing)}")
+    if extras := sorted(payload_keys - (required_keys | optional_keys)):
+        raise ValueError(f"malformed source payload: task_profile has unknown field(s) {', '.join(extras)}")
+    payload = dict(payload)
+
+    _ensure_nonempty_str(payload["task_class"], path="task_profile.task_class")
+    _ensure_int(payload["declared_outcome_count"], path="task_profile.declared_outcome_count", minimum=0)
+    _ensure_int(payload["command_count"], path="task_profile.command_count", minimum=0)
+    _ensure_int(payload["check_count"], path="task_profile.check_count", minimum=0)
+    _ensure_int(payload["focused_test_count"], path="task_profile.focused_test_count", minimum=0)
+    _ensure_int(payload["full_suite_count"], path="task_profile.full_suite_count", minimum=0)
+    _ensure_int(payload["read_context_count"], path="task_profile.read_context_count", minimum=0)
+    _ensure_int(payload["source_mutation_count"], path="task_profile.source_mutation_count", minimum=0)
+
+    commands = _ensure_list(payload["commands"], path="task_profile.commands")
+    normalized_commands: list[list[str]] = []
+    for idx, command in enumerate(commands):
+        argv, _ = _validate_command_entry(command, idx)
+        if not argv:
+            raise ValueError(f"malformed source payload: task_profile.commands[{idx}].argv cannot be empty")
+        normalized_commands.append(argv)
+    if payload["command_count"] != len(normalized_commands):
+        raise ValueError("malformed source payload: task_profile.command_count must equal len(task_profile.commands)")
+
+    if "source_mutation_paths" in payload:
+        mutation_paths = _ensure_list(payload["source_mutation_paths"], path="task_profile.source_mutation_paths")
+        payload["source_mutation_paths"] = [
+            _ensure_nonempty_str(item, path=f"task_profile.source_mutation_paths[{idx}]") for idx, item in enumerate(mutation_paths)
+        ]
+    if "architect_literal_patch" in payload:
+        patch = _ensure_mapping_exact(
+            payload["architect_literal_patch"],
+            path="task_profile.architect_literal_patch",
+            required_fields=("path", "pre_patch_sha256", "post_patch_sha256"),
+        )
+        _ensure_nonempty_str(patch["path"], path="task_profile.architect_literal_patch.path")
+        _sha256_hex(patch["pre_patch_sha256"], path="task_profile.architect_literal_patch.pre_patch_sha256")
+        _sha256_hex(patch["post_patch_sha256"], path="task_profile.architect_literal_patch.post_patch_sha256")
+        payload["architect_literal_patch"] = patch
+
+    return payload
+
+
+def _derive_protected_surface_matches(
+    write_paths: list[str],
+    source_mutation_paths: list[str],
+    protected_surfaces: Mapping[str, list[str]],
+) -> list[str]:
+    candidate_paths = list(dict.fromkeys(write_paths + source_mutation_paths))
+    matches: list[str] = []
+    for group_name, patterns in protected_surfaces.items():
+        for pattern in patterns:
+            _ensure_nonempty_str(pattern, path=f"protected_surfaces.{group_name}")
+            for candidate in candidate_paths:
+                if _path_matches_prefix(candidate, pattern):
+                    matches.append(group_name)
+                    break
+            if group_name in matches:
+                break
+    return matches
+
+
+def _evaluate_task_profile_fit(
+    source: Mapping[str, Any],
+    semantic_payload: dict[str, Any] | None,
+    task_profile: Mapping[str, Any] | None,
+    task_class_policy: Mapping[str, Any],
+    protected_surface_matches: list[str],
+    protected_surfaces: Mapping[str, list[str]],
+) -> tuple[str, str, dict[str, Any], list[str]]:
+    default_task_class = "bounded-implementation"
+    fit_evidence: dict[str, Any] = {
+        "task_profile_class": default_task_class,
+        "source": "default",
+        "checks": ["default-bounded-implementation-fit"],
+        "policy_caps": {},
+        "contradictions": [],
+    }
+
+    if task_profile is None:
+        return default_task_class, "semantic", fit_evidence, protected_surface_matches
+
+    task_class = _ensure_nonempty_str(task_profile["task_class"], path="task_profile.task_class")
+    declared_outcomes = int(task_profile["declared_outcome_count"])
+    command_count = int(task_profile["command_count"])
+    check_count = int(task_profile["check_count"])
+    focused_test_count = int(task_profile["focused_test_count"])
+    full_suite_count = int(task_profile["full_suite_count"])
+    read_context_count = int(task_profile["read_context_count"])
+    source_mutation_count = int(task_profile["source_mutation_count"])
+    commands = task_profile["commands"]
+    source_mutation_paths = _ensure_list(task_profile.get("source_mutation_paths", []), path="task_profile.source_mutation_paths")
+
+    fit_evidence["task_profile_class"] = task_class
+    fit_evidence["source"] = "task-profile"
+    fit_evidence["checks"] = ["task_profile_present"]
+
+    if task_class not in TASK_CLASS_OPTIONS:
+        fit_evidence["contradictions"].append("task_profile.task_class must be recognized")
+        return "architecture", "architect", fit_evidence, []
+
+    declared_class_profile = _ensure_mapping(
+        task_class_policy.get(task_class),
+        label=f"task_class_policy.{task_class}",
+    )
+    policy_fit_mode = _ensure_nonempty_str(
+        declared_class_profile.get("fit_mode"),
+        path=f"task_class_policy.{task_class}.fit_mode",
+    )
+    if policy_fit_mode not in FIT_MODES:
+        raise ValueError(f"malformed policy: task_class_policy.{task_class}.fit_mode must be deterministic, semantic, or architect")
+
+    contradictions: list[str] = []
+    checks = fit_evidence["checks"]
+    fit_evidence["policy_caps"] = dict(declared_class_profile)
+
+    contract_paths = list(source["write_paths"]) + source_mutation_paths
+    if any(not _is_canonical_contract_path(path) for path in contract_paths):
+        contradictions.append("task profile paths must be canonical repository-relative paths")
+
+    max_outcomes = int(declared_class_profile.get("max_task_outcomes", 2_147_483_647))
+    max_paths = int(declared_class_profile.get("max_source_paths", 2_147_483_647))
+    max_mutations = int(declared_class_profile.get("max_source_mutation_count", 2_147_483_647))
+    max_context_reads = int(declared_class_profile.get("max_read_context_count", 2_147_483_647))
+    max_focused_tests = int(declared_class_profile.get("max_focused_test_count", 2_147_483_647))
+    max_command_count = int(declared_class_profile.get("max_command_count", 2_147_483_647))
+    max_check_count = int(declared_class_profile.get("max_check_count", 2_147_483_647))
+    max_full_suite_count = int(declared_class_profile.get("max_full_suite_count", 2_147_483_647))
+
+    if len(source["write_paths"]) > max_paths:
+        contradictions.append("write_path_count exceeds class cap")
+    if declared_outcomes > max_outcomes:
+        contradictions.append("declared_outcome_count exceeds class cap")
+    if source_mutation_count > max_mutations:
+        contradictions.append("source_mutation_count exceeds class cap")
+    if source_mutation_paths and source_mutation_count != len(source_mutation_paths):
+        contradictions.append("source_mutation_count must equal len(source_mutation_paths)")
+    if source_mutation_count and not source_mutation_paths:
+        contradictions.append("source_mutation_paths required when source_mutation_count is non-zero")
+    if any(path not in source["write_paths"] for path in source_mutation_paths):
+        contradictions.append("source_mutation_paths must be contained in write_paths")
+    if read_context_count != len(source["context_manifest"]):
+        contradictions.append("read_context_count must equal len(context_manifest)")
+    if read_context_count > max_context_reads:
+        contradictions.append("read_context_count exceeds class cap")
+    if focused_test_count > max_focused_tests:
+        contradictions.append("focused_test_count exceeds class cap")
+    if command_count > max_command_count:
+        contradictions.append("command_count exceeds class cap")
+    if check_count > max_check_count:
+        contradictions.append("check_count exceeds class cap")
+    if full_suite_count > max_full_suite_count:
+        contradictions.append("full_suite_count exceeds class cap")
+
+    requires_argv = bool(declared_class_profile.get("requires_exact_argv", False))
+    if requires_argv:
+        checks.append(f"requires_exact_argv={requires_argv}")
+        if not commands:
+            contradictions.append("exact argv required but no commands were declared")
+        for idx, command_argv in enumerate(commands):
+            if not command_argv:
+                contradictions.append(f"task_profile.commands[{idx}] must include non-empty argv")
+
+    if task_class == "narrow-mechanical":
+        max_diff_p90 = int(declared_class_profile.get("max_estimated_diff_p90", 2_147_483_647))
+        checks.append("narrow-mechanical class")
+        if declared_outcomes != 1:
+            contradictions.append("narrow-mechanical requires exactly one outcome")
+        if semantic_payload is None or int(semantic_payload["estimated_diff_p90"]) > max_diff_p90:
+            contradictions.append("narrow-mechanical requires low semantic diff")
+
+    if task_class == "read-only-validation":
+        checks.append("read-only-validation class")
+        if source_mutation_count != 0:
+            contradictions.append("read-only-validation requires source_mutation_count == 0")
+        if source["write_paths"]:
+            contradictions.append("read-only-validation requires zero write_paths")
+
+    if task_class == "literal-command":
+        checks.append("literal-command class")
+        if declared_outcomes != 1:
+            contradictions.append("literal-command requires exactly one outcome")
+        if source_mutation_count != 0 or source["write_paths"]:
+            contradictions.append("literal-command requires zero source mutation and write_paths")
+
+    if task_class == "diagnosis":
+        checks.append("diagnosis class")
+        if source_mutation_count != 0 or source["write_paths"]:
+            contradictions.append("diagnosis requires zero source mutation and write_paths")
+
+    if task_class == "architecture":
+        checks.append("architecture class")
+
+    if contradictions:
+        fit_evidence["contradictions"] = contradictions
+        fit_evidence["checks"].append("task-profile-contradiction")
+        return "architecture", "architect", fit_evidence, protected_surface_matches
+
+    if task_class == "architecture":
+        return task_class, "architect", fit_evidence, protected_surface_matches
+
+    fit_mode = policy_fit_mode
+    if policy_fit_mode == "deterministic" and protected_surface_matches:
+        if not _valid_protection_patch(
+            task_profile.get("architect_literal_patch"),
+            write_paths=list(source["write_paths"]),
+            source_mutation_paths=source_mutation_paths,
+            protected_surfaces=protected_surfaces,
+        ):
+            fit_mode = "semantic"
+            fit_evidence["checks"].append("protected-surface-requires-path-bound-literal-patch")
+        else:
+            fit_evidence["checks"].append("protected-path-bound-literal-patch-verified")
+
+    if fit_mode == "deterministic":
+        checks.append("deterministic-fit-selected")
+    return task_class, fit_mode, fit_evidence, protected_surface_matches
+
+
 def _semantic_routing_policy(work_sizing: Mapping[str, Any]) -> Mapping[str, Any]:
     foundation = _get_work_sizing_section(work_sizing)
     if not isinstance(foundation, Mapping):
@@ -464,6 +805,9 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
     if estimate_contract_version == 2 and semantic_payload is None:
         raise ValueError("malformed source payload: semantic_estimate required for estimate_contract_version 2")
+    task_profile = _validate_task_profile(payload.get("task_profile"))
+    if task_profile is not None and estimate_contract_version != 2:
+        raise ValueError("malformed source payload: task_profile requires estimate_contract_version 2")
     if estimate_payload := semantic_payload:
         bounded_complexity_keys = {
             "self_hosting_risk",
@@ -552,6 +896,7 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
             if payload.get("domain_expert_estimate")
             else None
         ),
+        "task_profile": task_profile,
     }
 
 
@@ -707,6 +1052,8 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     hard_caps = _hard_caps(work_sizing)
     architect_gates = _architect_gates(work_sizing)
     replanning = _autonomous_replanning(work_sizing)
+    task_class_policy = _task_class_policy(work_sizing)
+    protected_surfaces = _protected_surface_groups(work_sizing)
     scores = normalized["scores"]
     estimates = normalized["estimates"]
     score_total = sum(int(scores[dimension]) for dimension in DIMENSIONS)
@@ -796,6 +1143,50 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     else:
         route = v1_route
 
+    task_profile = normalized["task_profile"]
+    source_mutation_paths = (
+        list(task_profile.get("source_mutation_paths", []))
+        if isinstance(task_profile, Mapping)
+        else []
+    )
+    protected_surface_matches = _derive_protected_surface_matches(
+        list(source["write_paths"]),
+        source_mutation_paths,
+        protected_surfaces,
+    )
+    task_class, fit_mode, fit_evidence, protected_surface_matches = _evaluate_task_profile_fit(
+        source,
+        normalized["semantic_estimate"],
+        task_profile,
+        task_class_policy,
+        protected_surface_matches,
+        protected_surfaces,
+    )
+
+    profile_contradiction = bool(fit_evidence.get("contradictions"))
+    authority_reasons = {
+        "unresolved-decisions",
+        "reasoning-uncertainty-architect",
+        "contract-risk-architect",
+        "semantic-authority-uncertainty",
+    }
+    if profile_contradiction:
+        hard_gate_reasons.append("task-profile-contradiction")
+        route = "architect"
+        route_axes = {"authority_route": "architect", "operative_route": "architect"}
+    elif fit_mode == "architect":
+        route = "architect"
+        route_axes = {"authority_route": "architect", "operative_route": "architect"}
+    elif fit_mode == "deterministic":
+        retained_authority_reasons = [reason for reason in hard_gate_reasons if reason in authority_reasons]
+        hard_gate_reasons = retained_authority_reasons
+        if retained_authority_reasons:
+            route = "architect"
+            route_axes = {"authority_route": "architect", "operative_route": "spark"}
+        else:
+            route = "spark"
+            route_axes = {"authority_route": "spark", "operative_route": "spark"}
+
     # Ensure stable ordering and no duplicates for reporting.
     hard_gate_reasons = sorted(set(hard_gate_reasons), key=HARD_GATE_REASONS.index)
 
@@ -809,6 +1200,21 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
         "tool_calls_hard": int(estimates["tool_calls_p90"]) + int(replanning.get("tool_calls_extra", 0)),
         "runtime_seconds_hard": int(estimates["runtime_seconds_p90"]) + int(replanning.get("runtime_seconds_extra", 0)),
     }
+    if fit_mode == "deterministic" and route == "spark":
+        class_policy = _ensure_mapping(
+            task_class_policy.get(task_class),
+            label=f"task_class_policy.{task_class}",
+        )
+        aggregate_allowance["tool_calls_hard"] = _ensure_int(
+            class_policy.get("tool_calls_hard"),
+            path=f"task_class_policy.{task_class}.tool_calls_hard",
+            minimum=1,
+        )
+        aggregate_allowance["runtime_seconds_hard"] = _ensure_int(
+            class_policy.get("runtime_seconds_hard"),
+            path=f"task_class_policy.{task_class}.runtime_seconds_hard",
+            minimum=1,
+        )
 
     estimate: dict[str, Any] = deepcopy(source)
     if estimate_contract_version >= 2:
@@ -824,6 +1230,10 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     estimate["route"] = route
     estimate["hard_gate_reasons"] = hard_gate_reasons
     estimate["aggregate_allowance"] = aggregate_allowance
+    estimate["task_class"] = task_class
+    estimate["fit_mode"] = fit_mode
+    estimate["protected_surface_matches"] = protected_surface_matches
+    estimate["fit_evidence"] = fit_evidence
     return estimate
 
 
@@ -843,6 +1253,11 @@ def validate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
         if field not in source:
             errors.append(f"malformed source payload: missing enriched field {field}")
 
+    if "task_profile" in source:
+        for field in DERIVED_TASK_PROFILE_FIELDS:
+            if field not in source:
+                errors.append(f"malformed source payload: missing enriched field {field}")
+
     if errors:
         return errors
 
@@ -854,6 +1269,9 @@ def validate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
         errors.append("derived check failed: hard_gate_reasons must equal computed hard_gate_reasons")
     if source["aggregate_allowance"] != computed["aggregate_allowance"]:
         errors.append("derived check failed: aggregate_allowance must equal computed aggregate_allowance")
+    for field in DERIVED_TASK_PROFILE_FIELDS:
+        if field in source and source.get(field) != computed.get(field):
+            errors.append(f"derived check failed: {field} must equal computed {field}")
     if int(source.get("estimate_contract_version", 1)) >= 2:
         for field in (
             "semantic_scores",
@@ -873,6 +1291,86 @@ def validate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
 def canonical_work_estimate_sha256(work_estimate: Any) -> str:
     canonical = json.dumps(_ensure_mapping(work_estimate, label="work_estimate"), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def build_policy_fit_commitment(
+    work_estimate: Any,
+    *,
+    session_id: str,
+    attested_model: str,
+    policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a zero-tool commitment only for a deterministic policy fit."""
+    estimate_errors = validate_work_estimate(work_estimate, policy=policy)
+    if estimate_errors:
+        raise ValueError("invalid work_estimate: " + "; ".join(estimate_errors))
+    estimate = deepcopy(_ensure_mapping(work_estimate, label="work_estimate"))
+    trusted_session = _ensure_nonempty_str(session_id, path="session_id")
+    trusted_model = _ensure_nonempty_str(attested_model, path="attested_model")
+    requested_model = _ensure_nonempty_str(estimate.get("requested_model"), path="work_estimate.requested_model")
+    if requested_model != "gpt-5.3-codex-spark":
+        raise ValueError("policy-derived commitment requires requested_model gpt-5.3-codex-spark")
+    if trusted_model != requested_model:
+        raise ValueError("attested_model must exactly match work_estimate.requested_model")
+    if estimate.get("fit_mode") != "deterministic":
+        raise ValueError("policy-derived commitment requires work_estimate.fit_mode deterministic")
+    if any(estimate.get(field) != "spark" for field in ("route", "authority_route", "operative_route")):
+        raise ValueError("policy-derived commitment requires Spark route and authority axes")
+
+    work_sizing = _load_work_sizing_policy(policy)
+    task_class = _ensure_nonempty_str(estimate.get("task_class"), path="work_estimate.task_class")
+    class_policy = _ensure_mapping(
+        _task_class_policy(work_sizing).get(task_class),
+        label=f"task_class_policy.{task_class}",
+    )
+    estimates = {
+        "tool_calls_p50": _ensure_int(
+            class_policy.get("tool_calls_p50"),
+            path=f"task_class_policy.{task_class}.tool_calls_p50",
+            minimum=1,
+        ),
+        "tool_calls_p90": _ensure_int(
+            class_policy.get("tool_calls_p90"),
+            path=f"task_class_policy.{task_class}.tool_calls_p90",
+            minimum=1,
+        ),
+        "runtime_seconds_p50": _ensure_int(
+            class_policy.get("runtime_seconds_p50"),
+            path=f"task_class_policy.{task_class}.runtime_seconds_p50",
+            minimum=1,
+        ),
+        "runtime_seconds_p90": _ensure_int(
+            class_policy.get("runtime_seconds_p90"),
+            path=f"task_class_policy.{task_class}.runtime_seconds_p90",
+            minimum=1,
+        ),
+    }
+    commitment = {
+        "commitment_type": "cwo-native-worker-fit-commitment",
+        "version": 1,
+        "work_unit_id": estimate["work_unit_id"],
+        "bead_id": estimate["bead_id"],
+        "requested_model": requested_model,
+        "session_id": trusted_session,
+        "attestation_source": "trusted-session-jsonl",
+        "attested_model": trusted_model,
+        "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
+        "decision": "accept",
+        "confidence": 1.0,
+        "estimates": estimates,
+        "tool_calls_before_commitment": 0,
+        "context_compactions_before_commitment": 0,
+        "reason": f"deterministic {task_class} fit derived from native worker policy",
+    }
+    commitment_errors = validate_worker_commitment(
+        commitment,
+        estimate,
+        policy=policy,
+        dispatchable=True,
+    )
+    if commitment_errors:
+        raise ValueError("invalid policy-derived commitment: " + "; ".join(commitment_errors))
+    return commitment
 
 
 def validate_worker_commitment(

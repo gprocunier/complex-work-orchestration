@@ -16,6 +16,7 @@ from cwo_core.coach import (
     prompt_coach_level,
     prompt_coach_parallel_workerbee_signal,
 )
+from cwo_core.epic_convergence import CLOSURE_DISPOSITIONS, evaluate_closure_pressure
 from cwo_core.errors import CWOError
 from cwo_core.routing import (
     classify_work,
@@ -305,7 +306,42 @@ def _lane_metadata(
 ) -> dict[str, Any]:
     merged = dict(metadata or {})
     merged.update(_route_planned_workerbee_delegation(route, lane))
+    closure_pressure = route.get("closure_pressure")
+    if not isinstance(closure_pressure, dict):
+        closure_pressure = {}
+    merged["closure_pressure"] = closure_pressure
+    merged["closure_pressure_active"] = bool(closure_pressure.get("active"))
+    merged["routine_repair_child_forbidden"] = bool(closure_pressure.get("active"))
     return merged
+
+
+def _normalize_closure_pressure(route: dict[str, Any]) -> dict[str, Any]:
+    source = route.get("closure_pressure")
+    if source is None:
+        source = {}
+    if not isinstance(source, dict):
+        raise TypeError("route['closure_pressure'] must be a mapping when set")
+
+    raw_active = source.get("active", False)
+    if not isinstance(raw_active, bool):
+        raise TypeError("route['closure_pressure'].active must be boolean when set")
+    active = bool(raw_active)
+    action = source.get("action") or "scaffold-workgraph"
+    if not isinstance(action, str) or not action.strip():
+        raise TypeError("route['closure_pressure'].action must be a non-empty string when set")
+    action = action.strip()
+    raw_disposition = source.get("disposition")
+    if raw_disposition is not None and not isinstance(raw_disposition, str):
+        raise TypeError(
+            "route['closure_pressure'].disposition must be canonical string when set"
+        )
+    disposition = raw_disposition
+    decision = evaluate_closure_pressure(active, action, disposition)
+    return {
+        **decision,
+        "closure_pressure_active": bool(decision["active"]),
+        "routine_repair_child_forbidden": bool(decision["active"]),
+    }
 
 
 def _lane_labels(route: dict[str, Any], lane: str, labels: list[str]) -> list[str]:
@@ -532,6 +568,10 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
     if scaffold_size not in {"full", "tight"}:
         raise ValueError("scaffold_size must be 'full' or 'tight'")
     route = {**route, "scaffold_size": scaffold_size}
+    closure_pressure = _normalize_closure_pressure(route)
+    if not closure_pressure["allowed"]:
+        raise ValueError(f"closure-pressure blocked: {closure_pressure['reason']}")
+    route = {**route, "closure_pressure": closure_pressure}
     expert_items: list[dict[str, Any]] = []
     acceptance_review_lanes: list[str] = []
     implementation_blocker_lanes: list[str] = []
@@ -579,7 +619,12 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             "title": title,
             "type": "epic",
             "labels": ["orchestration", "policy-routed"],
-            "metadata": {"orchestration_route": route},
+            "metadata": {
+                "orchestration_route": route,
+                "closure_pressure": closure_pressure,
+                "closure_pressure_active": bool(closure_pressure.get("active")),
+                "routine_repair_child_forbidden": bool(closure_pressure.get("active")),
+            },
             "skills": ["complex-work-orchestration", "architecture", "project-management", "beads", "validation"],
             "acceptance": "All lane work is complete, validated, evaluated, adjudicated, and ready for handoff.",
             "design": "Policy-routed epic that coordinates architect, PM, workerbee, review, validation, and handoff lanes through Beads.",
@@ -1116,6 +1161,17 @@ def main() -> None:
             "'markdown-workgraph' is a reduced-durability fallback."
         ),
     )
+    parser.add_argument("--closure-pressure-active", action="store_true")
+    parser.add_argument(
+        "--closure-action",
+        default="scaffold-workgraph",
+        help="Use when closure-pressure should be enforced.",
+    )
+    parser.add_argument(
+        "--closure-disposition",
+        choices=CLOSURE_DISPOSITIONS,
+        help="Closure disposition required when closure-pressure is active.",
+    )
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
     require_waiver_reason(args, ["allow_disclosure_escalation"])
@@ -1138,11 +1194,23 @@ def main() -> None:
         )
     except CWOError as exc:
         raise SystemExit(str(exc))
+    closure_pressure = _normalize_closure_pressure(
+        {
+            "closure_pressure": {
+                "active": bool(args.closure_pressure_active),
+                "action": args.closure_action,
+                "disposition": args.closure_disposition,
+            }
+        }
+    )
+    if not closure_pressure["allowed"]:
+        parser.error(f"closure-pressure blocked: {closure_pressure['reason']}")
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(context, prompt_coach_level(route, context), route)
     route = {
         **route,
         "workerbee_parallelism": workerbee_parallelism,
         "workerbee_planned_delegation": _normalize_workerbee_planned_delegation(workerbee_parallelism),
+        "closure_pressure": closure_pressure,
     }
     plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
     if args.dry_run:

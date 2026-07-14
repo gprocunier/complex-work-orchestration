@@ -3,6 +3,129 @@
   "title": "Native Worker Return",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "needsReplan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reason_code": {
+          "type": "string",
+          "enum": [
+            "hidden-coupling",
+            "scope-growth",
+            "unexpected-reasoning",
+            "decision-uncertainty",
+            "environment"
+          ]
+        },
+        "completed_evidence": {"type": "string", "minLength": 1},
+        "discovered_facts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "files_touched": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "mutation_state": {
+          "type": "string",
+          "enum": ["clean", "modified", "committed", "unknown"]
+        },
+        "mutation_stopped": {"const": true},
+        "remaining_outcomes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "remaining_files": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "remaining_tests": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "uncertainty": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "class": {"type": "string", "enum": ["bounded", "material", "architect"]},
+            "decision": {
+              "type": "string",
+              "enum": ["pm-refine", "architect-reasoning", "reassign-spark"]
+            },
+            "detail": {"type": "string", "minLength": 1}
+          },
+          "required": ["class", "decision", "detail"]
+        },
+        "scope_delta": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outcomes_added": {"type": "integer", "minimum": 0},
+            "files_added": {"type": "integer", "minimum": 0},
+            "tests_added": {"type": "integer", "minimum": 0},
+            "within_original_objective": {"type": "boolean"},
+            "within_aggregate_allowance": {"type": "boolean"}
+          },
+          "required": [
+            "outcomes_added",
+            "files_added",
+            "tests_added",
+            "within_original_objective",
+            "within_aggregate_allowance"
+          ]
+        },
+        "bounded_options": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "option_id": {"type": "string", "minLength": 1},
+              "route": {
+                "type": "string",
+                "enum": ["pm-refine", "architect-reasoning", "reassign-spark", "protected-stop"]
+              },
+              "description": {"type": "string", "minLength": 1},
+              "tool_calls_p90": {"type": "integer", "minimum": 0},
+              "runtime_seconds_p90": {"type": "integer", "minimum": 0}
+            },
+            "required": ["option_id", "route", "description", "tool_calls_p90", "runtime_seconds_p90"]
+          }
+        },
+        "recommendation": {"type": "string", "minLength": 1},
+        "cumulative_usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool_calls": {"type": "integer", "minimum": 0},
+            "runtime_seconds": {"type": "integer", "minimum": 0},
+            "context_compactions": {"type": "integer", "minimum": 0},
+            "full_suite_runs": {"type": "integer", "minimum": 0}
+          },
+          "required": ["tool_calls", "runtime_seconds", "context_compactions", "full_suite_runs"]
+        }
+      },
+      "required": [
+        "reason_code",
+        "completed_evidence",
+        "discovered_facts",
+        "files_touched",
+        "mutation_state",
+        "mutation_stopped",
+        "remaining_outcomes",
+        "remaining_files",
+        "remaining_tests",
+        "uncertainty",
+        "scope_delta",
+        "bounded_options",
+        "recommendation",
+        "cumulative_usage"
+      ]
+    }
+  },
   "required": [
     "return_type",
     "version",
@@ -57,6 +180,7 @@
       "enum": [
         "completed",
         "blocked",
+        "needs-replan",
         "needs-architect-realignment",
         "budget-exhausted",
         "model-mismatch"
@@ -198,6 +322,9 @@
         "minLength": 1
       }
     },
+    "replan": {
+      "$ref": "#/$defs/needsReplan"
+    },
     "session_disposition": {
       "type": "string",
       "enum": ["accepted", "accepted-with-warning", "quarantined"]
@@ -224,7 +351,7 @@
       "if": {
         "properties": {
           "status": {
-            "const": "completed"
+            "enum": ["completed", "needs-replan"]
           }
         },
         "required": ["status"]
@@ -251,6 +378,7 @@
         "properties": {
           "status": {
             "enum": [
+              "needs-replan",
               "needs-architect-realignment",
               "budget-exhausted",
               "model-mismatch"
@@ -288,6 +416,15 @@
     },
     {
       "if": {
+        "properties": {"status": {"const": "needs-replan"}},
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["replan"]
+      }
+    },
+    {
+      "if": {
         "properties": {
           "status": {
             "const": "model-mismatch"
@@ -307,7 +444,7 @@
     {
       "if": {
         "properties": {
-          "status": {"const": "completed"},
+          "status": {"enum": ["completed", "needs-replan"]},
           "requested_model": {"const": "gpt-5.3-codex-spark"}
         },
         "required": ["status", "requested_model"]
@@ -321,7 +458,7 @@
     {
       "if": {
         "properties": {
-          "status": {"const": "completed"},
+          "status": {"enum": ["completed", "needs-replan"]},
           "requested_model": {"const": "gpt-5.6-luna"}
         },
         "required": ["status", "requested_model"]

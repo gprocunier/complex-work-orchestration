@@ -11,6 +11,44 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ImportExecutionTelemetryTests(unittest.TestCase):
+    def _run_sidecar(
+        self,
+        temp: Path,
+        record: dict[str, object],
+    ) -> tuple[subprocess.CompletedProcess[str], Path]:
+        dispatch_id = str(record.get("dispatch_id") or "dispatch-convergence")
+        bead_id = str(record.get("bead_id") or "cwo-convergence")
+        audit = temp / "audit.jsonl"
+        audit.write_text(
+            json.dumps(
+                {
+                    "event_type": "dispatch",
+                    "dispatch_id": dispatch_id,
+                    "bead_id": bead_id,
+                    "event_hash": "target-hash",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        sidecar = temp / "telemetry.json"
+        sidecar.write_text(json.dumps(record), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "import_execution_telemetry.py"),
+                "--file",
+                str(sidecar),
+                "--audit-file",
+                str(audit),
+                "--json",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        return result, audit
+
     def test_cli_imports_usage_sidecar_as_sanitized_audit_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             temp = Path(tmp)
@@ -73,7 +111,106 @@ class ImportExecutionTelemetryTests(unittest.TestCase):
             self.assertEqual(imported["telemetry_source"], "operator-sidecar")
             self.assertEqual(imported["telemetry_target_event_hash"], "target-hash")
             self.assertEqual(imported["total_tokens"], 15)
-            self.assertNotIn("usage", imported)
+            self.assertEqual(imported["usage"], {"prompt_tokens": 10, "completion_tokens": 5})
+
+    def test_cli_imports_convergence_telemetry_without_synthesizing_unknowns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, audit = self._run_sidecar(
+                Path(tmp),
+                {
+                    "dispatch_id": "dispatch-convergence",
+                    "epic_id": "epic-1",
+                    "work_unit_id": "work-1",
+                    "packet_id": "packet-1",
+                    "session_id": "session-1",
+                    "phase": "implementation",
+                    "event": "worker-completed",
+                    "call_category": "productive",
+                    "usage": {
+                        "tool_calls": 7,
+                        "runtime_seconds": 12.5,
+                        "context_compactions": None,
+                        "full_suite_runs": 0,
+                    },
+                    "graph_counters": {
+                        "beads_total": 3,
+                        "worker_sessions": None,
+                    },
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            imported = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()][1]
+            self.assertEqual(imported["epic_id"], "epic-1")
+            self.assertEqual(imported["work_unit_id"], "work-1")
+            self.assertEqual(imported["call_category"], "productive")
+            self.assertEqual(imported["agent_model_calls"], 7)
+            self.assertEqual(imported["elapsed_seconds"], 12.5)
+            self.assertIsNone(imported["usage"]["context_compactions"])
+            self.assertIsNone(imported["graph_counters"]["worker_sessions"])
+            self.assertNotIn("beads_open", imported["graph_counters"])
+            self.assertNotIn("input_tokens", imported)
+
+    def test_cli_prefers_explicit_top_level_usage_values(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, audit = self._run_sidecar(
+                Path(tmp),
+                {
+                    "dispatch_id": "dispatch-precedence",
+                    "agent_model_calls": 2,
+                    "elapsed_seconds": 3.0,
+                    "usage": {"tool_calls": 7, "runtime_seconds": 12.5},
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            imported = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()][1]
+            self.assertEqual(imported["agent_model_calls"], 2)
+            self.assertEqual(imported["elapsed_seconds"], 3)
+            self.assertEqual(imported["usage"]["tool_calls"], 7)
+            self.assertEqual(imported["usage"]["runtime_seconds"], 12.5)
+
+    def test_cli_preserves_nested_nulls_and_omits_unsupported_top_level_nulls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, audit = self._run_sidecar(
+                Path(tmp),
+                {
+                    "dispatch_id": "dispatch-null",
+                    "epic_id": None,
+                    "call_category": None,
+                    "usage": {"tool_calls": None, "runtime_seconds": None},
+                    "graph_counters": {"beads_total": None},
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            imported = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()][1]
+            self.assertNotIn("epic_id", imported)
+            self.assertNotIn("call_category", imported)
+            self.assertNotIn("agent_model_calls", imported)
+            self.assertNotIn("elapsed_seconds", imported)
+            self.assertIsNone(imported["usage"]["tool_calls"])
+            self.assertIsNone(imported["graph_counters"]["beads_total"])
+
+    def test_cli_rejects_invalid_convergence_telemetry(self) -> None:
+        cases = {
+            "invalid-category": {"call_category": "not-canonical", "usage": {"tool_calls": 1}},
+            "boolean-counter": {"graph_counters": {"beads_total": True}},
+            "fractional-counter": {"graph_counters": {"beads_total": 1.5}},
+            "negative-counter": {"graph_counters": {"beads_total": -1}},
+            "unknown-counter": {"graph_counters": {"unexpected": 1}},
+            "unknown-usage": {"usage": {"unexpected": 1}},
+            "fractional-tool-calls": {"usage": {"tool_calls": 1.5}},
+            "non-string-identity": {"epic_id": 7, "usage": {"tool_calls": 1}},
+        }
+        for name, telemetry in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                result, audit = self._run_sidecar(
+                    Path(tmp),
+                    {"dispatch_id": f"dispatch-{name}", **telemetry},
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(len(audit.read_text(encoding="utf-8").splitlines()), 1)
 
     def test_cli_rejects_sensitive_sidecar_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
