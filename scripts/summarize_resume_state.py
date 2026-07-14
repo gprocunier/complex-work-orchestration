@@ -12,6 +12,7 @@ from cwo_core.workgraph_markdown import (
     FIELD_DEPENDS_ON_LANES,
     FIELD_LABELS,
     FIELD_LANE,
+    FIELD_STATUS,
     FIELD_TYPE,
     WORKGRAPH_FALLBACK_MARKER,
     WORKGRAPH_ITEMS_HEADING,
@@ -98,6 +99,8 @@ def parse_markdown_workgraph(path: Path) -> list[dict[str, Any]]:
             current["labels"] = markdown_values(value)
         elif name == normalize_field_label(FIELD_TYPE):
             current["type"] = ", ".join(markdown_values(value)) or value
+        elif name == normalize_field_label(FIELD_STATUS):
+            current["status"] = ", ".join(markdown_values(value)) or value
         elif name == normalize_field_label(FIELD_LANE):
             current["lane"] = ", ".join(markdown_values(value)) or value
         elif name == normalize_field_label(FIELD_DEPENDS_ON_LANES):

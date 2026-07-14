@@ -11,15 +11,17 @@ from pathlib import Path
 
 
 FIELD_ALIASES = {
+    "Recommended operator action": ["recommended operator action", "operator action"],
+    "Action to send": ["action to send", "message to send"],
     "Next executable Bead": ["next executable bead", "next executable issue"],
     "Why it is next": ["why it is next", "why next"],
-    "Exact command/resume": ["exact command resume", "exact command", "resume command"],
-    "Execution prompt": ["execution prompt"],
     "What must NOT run yet": ["what must not run yet", "must not run yet"],
     "Commit/push status": ["commit push status", "commit status", "push status"],
     "Validation status": ["validation status"],
     "Escalation rule": ["escalation rule", "escalation rules"],
 }
+
+OPERATOR_ACTIONS = {"CONTINUE", "EXECUTE", "GO_REQUIRED", "DECIDE", "PIVOT", "STOP"}
 
 PLACEHOLDER_VALUES = {
     "",
@@ -114,16 +116,27 @@ def validate_text(text: str) -> list[str]:
             errors.append(f"missing field: {field}")
         elif not meaningful(fields[field]):
             errors.append(f"field has no meaningful value: {field}")
+    action = unstyle_value(fields.get("Recommended operator action", "")).upper()
+    if meaningful(fields.get("Recommended operator action")) and action not in OPERATOR_ACTIONS:
+        errors.append(
+            "Recommended operator action must be exactly one of: "
+            + ", ".join(sorted(OPERATOR_ACTIONS))
+        )
+    next_bead = normalize(unstyle_value(fields.get("Next executable Bead", "")))
+    if action == "STOP" and next_bead and not next_bead.startswith("none"):
+        errors.append("STOP requires Next executable Bead to be none")
+    if action in {"CONTINUE", "EXECUTE", "GO_REQUIRED", "PIVOT"} and next_bead.startswith("none"):
+        errors.append(f"{action} requires a next executable Bead")
     return errors
 
 
 def self_test() -> int:
     good = """# Operator Handoff Packet
 
+- Recommended operator action: CONTINUE
+- Action to send: Use $complex-work-orchestration to continue from Bead cwo-123.
 - Next executable Bead: cwo-123
 - Why it is next: it is the highest priority ready issue and unblocks validation
-- Exact command/resume: python3 scripts/cwo.py continue --epic cwo-epic
-- Execution prompt: Continue cwo-123 only and stop before any blocked lane.
 - What must NOT run yet: no contractor-only or no-codex-exec lanes
 - Commit/push status: committed and pushed, remote HEAD verified
 - Validation status: repository validation and unit tests passed
@@ -135,10 +148,10 @@ def self_test() -> int:
 """
     placeholder = """# Operator Handoff Packet
 
+- Recommended operator action: `<CONTINUE|EXECUTE|GO_REQUIRED|DECIDE|PIVOT|STOP>`
+- Action to send: `<exact message>`
 - Next executable Bead: `<bead-id>`
 - Why it is next: `<why>`
-- Exact command/resume: `<copy-paste command>`
-- Execution prompt: `<prompt>`
 - What must NOT run yet: `<blocked>`
 - Commit/push status: `<status>`
 - Validation status: `<status>`

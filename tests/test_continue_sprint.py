@@ -183,9 +183,10 @@ class ContinueSprintTests(unittest.TestCase):
             "architect Architect Frame",
         )
         self.assertEqual(
-            result["operator_handoff_packet"]["exact_command_resume"],
-            "python3 scripts/cwo.py continue --epic epic --markdown-workgraph <path>",
+            result["operator_handoff_packet"]["recommended_operator_action"],
+            "CONTINUE",
         )
+        self.assertIn("continue from Bead architect", result["operator_handoff_packet"]["action_to_send"])
 
     def test_cli_json_uses_markdown_workgraph_without_bd(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -235,10 +236,8 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual(result["recommended_next_issue"]["id"], "pm")
         self.assertEqual(result["durability"], "reduced")
         self.assertIn("operator_handoff_packet", result)
-        self.assertEqual(
-            result["operator_handoff_packet"]["exact_command_resume"],
-            f"python3 scripts/cwo.py continue --epic epic --markdown-workgraph {path}",
-        )
+        self.assertEqual(result["version"], 2)
+        self.assertEqual(result["operator_handoff_packet"]["recommended_operator_action"], "CONTINUE")
 
     def test_cwo_entrypoint_runs_continue_text_mode(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -283,8 +282,74 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIn("Sprint Continuation Brief", output)
         self.assertIn("validation Validate Example", output)
         self.assertIn("Operator Handoff Packet", output)
-        self.assertIn(f"Exact command/resume: python3 scripts/cwo.py continue --epic epic --markdown-workgraph {path}", output)
+        self.assertIn("Recommended operator action: CONTINUE", output)
+        self.assertIn("Action to send: Use $complex-work-orchestration to continue from Bead validation", output)
+        self.assertNotIn("Exact command/resume", output)
+        self.assertNotIn("## Resume Commands", output)
         self.assertIn(MODELING_NOTE, output)
+
+    def test_blocked_only_work_requests_operator_decision(self) -> None:
+        items = [
+            {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
+            {
+                "id": "guarded",
+                "title": "Guarded lane",
+                "status": "open",
+                "labels": ["no-codex-exec"],
+            },
+        ]
+
+        packet = build_continuation_brief(items, epic_id="epic")["operator_handoff_packet"]
+
+        self.assertEqual(packet["recommended_operator_action"], "DECIDE")
+        self.assertEqual(packet["next_executable_bead"], "none - blocked")
+
+    def test_completed_graph_recommends_stop(self) -> None:
+        items = [
+            {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
+            {"id": "done", "title": "Done", "status": "closed"},
+        ]
+
+        packet = build_continuation_brief(items, epic_id="epic")["operator_handoff_packet"]
+
+        self.assertEqual(packet["recommended_operator_action"], "STOP")
+        self.assertEqual(packet["next_executable_bead"], "none - stop condition met")
+
+    def test_completed_markdown_graph_recommends_stop(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(
+                """# Example
+
+> Reduced durability fallback: Beads is unavailable or not in use.
+
+## Work Items
+
+### epic: Example
+
+- Type: `epic`
+- Status: `open`
+- Lane: `epic`
+- Labels: `orchestration`
+- Depends on lanes: none
+
+### done: Finished Work
+
+- Type: `task`
+- Status: `completed`
+- Lane: `validation`
+- Labels: `validation`
+- Depends on lanes: none
+""",
+                encoding="utf-8",
+            )
+
+            items = load_markdown_items(path, "epic")
+            packet = build_continuation_brief(
+                items, epic_id="epic", source="markdown-workgraph"
+            )["operator_handoff_packet"]
+
+        self.assertEqual(packet["recommended_operator_action"], "STOP")
 
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_cwo_continue_reads_real_bd_dependency_objects(self) -> None:

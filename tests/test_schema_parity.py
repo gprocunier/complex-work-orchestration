@@ -309,10 +309,10 @@ class SchemaParityTests(unittest.TestCase):
             self.assertIn(field, properties)
         operator_packet = properties["operator_handoff_packet"]
         for field in [
+            "recommended_operator_action",
+            "action_to_send",
             "next_executable_bead",
             "why_it_is_next",
-            "exact_command_resume",
-            "execution_prompt",
             "what_must_not_run_yet",
             "commit_push_status",
             "validation_status",
@@ -320,6 +320,11 @@ class SchemaParityTests(unittest.TestCase):
         ]:
             self.assertIn(field, operator_packet["required"])
             self.assertIn(field, operator_packet["properties"])
+        self.assertEqual(
+            set(operator_packet["properties"]["recommended_operator_action"]["enum"]),
+            {"CONTINUE", "EXECUTE", "GO_REQUIRED", "DECIDE", "PIVOT", "STOP"},
+        )
+        self.assertEqual(schema["properties"]["version"]["const"], 2)
         self.assertEqual(
             schema["properties"]["continuation_result_type"]["const"],
             "complex-work-orchestration-sprint-continuation",

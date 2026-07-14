@@ -81,6 +81,31 @@ Done.
 
         self.assertIn("not a CWO Markdown workgraph fallback", str(context.exception))
 
+    def test_parse_markdown_workgraph_preserves_explicit_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(
+                """# Example
+
+> Reduced durability fallback: Beads is unavailable or not in use.
+
+## Work Items
+
+### done: Finished Work
+
+- Type: `task`
+- Status: `completed`
+- Lane: `validation`
+- Labels: `validation`
+- Depends on lanes: none
+""",
+                encoding="utf-8",
+            )
+
+            items = parse_markdown_workgraph(path)
+
+        self.assertEqual(items[0]["status"], "completed")
+
     def test_cli_uses_markdown_workgraph_when_bd_is_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "workgraph.md"

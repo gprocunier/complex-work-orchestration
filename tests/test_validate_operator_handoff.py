@@ -16,10 +16,10 @@ class ValidateOperatorHandoffTests(unittest.TestCase):
     def test_accepts_meaningful_packet(self) -> None:
         text = """# Operator Handoff Packet
 
+- Recommended operator action: CONTINUE
+- Action to send: Use $complex-work-orchestration to continue from Bead cwo-123.
 - Next executable Bead: cwo-123
 - Why it is next: highest priority ready validation issue
-- Exact command/resume: python3 scripts/cwo.py continue --epic cwo-epic
-- Execution prompt: Continue cwo-123 only and stop before blocked work.
 - What must NOT run yet: no contractor-only lanes
 - Commit/push status: committed and pushed, remote HEAD verified
 - Validation status: repository validation passed
@@ -31,10 +31,10 @@ class ValidateOperatorHandoffTests(unittest.TestCase):
     def test_rejects_markdown_wrapped_placeholders(self) -> None:
         text = """# Operator Handoff Packet
 
+- Recommended operator action: `<CONTINUE|EXECUTE|GO_REQUIRED|DECIDE|PIVOT|STOP>`
+- Action to send: `<exact message>`
 - Next executable Bead: `<bead-id>`
 - Why it is next: `<why>`
-- Exact command/resume: `<copy-paste command>`
-- Execution prompt: `<prompt>`
 - What must NOT run yet: `<blocked>`
 - Commit/push status: `<status>`
 - Validation status: `<status>`
@@ -44,8 +44,41 @@ class ValidateOperatorHandoffTests(unittest.TestCase):
         errors = validate_text(text)
 
         self.assertIn("field has no meaningful value: Next executable Bead", errors)
-        self.assertIn("field has no meaningful value: Exact command/resume", errors)
+        self.assertIn("field has no meaningful value: Action to send", errors)
         self.assertIn("field has no meaningful value: Escalation rule", errors)
+
+    def test_rejects_unknown_or_ambiguous_action(self) -> None:
+        text = """# Operator Handoff Packet
+
+- Recommended operator action: CONTINUE or PIVOT
+- Action to send: Continue from Bead cwo-123.
+- Next executable Bead: cwo-123
+- Why it is next: highest priority ready issue
+- What must NOT run yet: blocked lanes
+- Commit/push status: not requested
+- Validation status: repository validation passed
+- Escalation rule: stop if validation cannot run
+"""
+
+        self.assertIn(
+            "Recommended operator action must be exactly one of: CONTINUE, DECIDE, EXECUTE, GO_REQUIRED, PIVOT, STOP",
+            validate_text(text),
+        )
+
+    def test_stop_requires_no_next_bead(self) -> None:
+        text = """# Operator Handoff Packet
+
+- Recommended operator action: STOP
+- Action to send: No action. Stop condition met.
+- Next executable Bead: cwo-123
+- Why it is next: stop condition met
+- What must NOT run yet: all work
+- Commit/push status: not requested
+- Validation status: repository validation passed
+- Escalation rule: reopen only for new evidence
+"""
+
+        self.assertIn("STOP requires Next executable Bead to be none", validate_text(text))
 
     def test_cli_rejects_template_packet(self) -> None:
         result = subprocess.run(

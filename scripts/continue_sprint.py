@@ -368,7 +368,7 @@ def build_continuation_brief(
         warnings.append("No ready issue is available; resolve the first blocker before implementation.")
     result = {
         "continuation_result_type": RESULT_TYPE,
-        "version": 1,
+        "version": 2,
         "source": source,
         "durability": durability,
         "epic_id": epic_id,
@@ -397,26 +397,33 @@ def build_continuation_brief(
 
 def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
     recommended = result.get("recommended_next_issue")
-    resume_commands = result.get("resume_commands") or []
-    resume = resume_commands[0] if resume_commands else "bd ready --json"
     if recommended:
         next_bead = f"{recommended['id']} {recommended['title']}".strip()
-        execution_prompt = (
-            "Use $complex-work-orchestration to continue "
-            f"{recommended['id']} under epic {result['epic_id']}; start with "
-            f"`{resume}` and execute only that bounded lane."
+        action = "CONTINUE"
+        action_to_send = (
+            "Use $complex-work-orchestration to continue from Bead "
+            f"{recommended['id']} under its recorded scope and authority. Apply any "
+            "domain skill named by the Bead, use the smallest appropriate execution "
+            "shape, skip coach unless execution is genuinely ambiguous, and stop at a "
+            "recorded escalation boundary."
+        )
+    elif result.get("blocked_issues"):
+        next_bead = "none - blocked"
+        action = "DECIDE"
+        action_to_send = (
+            f"Review the blockers under epic {result['epic_id']} and present the one "
+            "operator decision needed to unblock the highest-value Bead. Do not start "
+            "implementation."
         )
     else:
-        next_bead = "none - stop condition met" if not result.get("blocked_issues") else "none - blocked"
-        execution_prompt = (
-            f"Use $complex-work-orchestration to continue epic {result['epic_id']}; "
-            "resolve the first blocker before implementation."
-        )
+        next_bead = "none - stop condition met"
+        action = "STOP"
+        action_to_send = "No action. The epic has no ready or blocked work."
     return {
+        "recommended_operator_action": action,
+        "action_to_send": action_to_send,
         "next_executable_bead": next_bead,
         "why_it_is_next": result.get("why_next") or "No ready work item is available.",
-        "exact_command_resume": resume,
-        "execution_prompt": execution_prompt,
         "what_must_not_run_yet": (
             "Do not run blocked, contractor-only, local-worker-only, no-codex-exec, "
             "unsafe, or unapproved lanes until their guard clears."
@@ -479,15 +486,12 @@ def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None
     print("\n## Evidence Expectations")
     for item in result.get("evidence_expectations", []):
         print(f"- {item}")
-    print("\n## Resume Commands")
-    for item in result.get("resume_commands", []):
-        print(f"- `{item}`")
     packet = result.get("operator_handoff_packet") or {}
     print("\n## Operator Handoff Packet")
+    print(f"- Recommended operator action: {packet.get('recommended_operator_action', '')}")
+    print(f"- Action to send: {packet.get('action_to_send', '')}")
     print(f"- Next executable Bead: {packet.get('next_executable_bead', '')}")
     print(f"- Why it is next: {packet.get('why_it_is_next', '')}")
-    print(f"- Exact command/resume: {packet.get('exact_command_resume', '')}")
-    print(f"- Execution prompt: {packet.get('execution_prompt', '')}")
     print(f"- What must NOT run yet: {packet.get('what_must_not_run_yet', '')}")
     print(f"- Commit/push status: {packet.get('commit_push_status', '')}")
     print(f"- Validation status: {packet.get('validation_status', '')}")

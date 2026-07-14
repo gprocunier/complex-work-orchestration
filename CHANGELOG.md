@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Replace operator resume commands and generic execution prompts with one
+  enumerated recommended action and one exact message to send. Sprint
+  continuation results now use contract version 2, and Markdown fallbacks retain
+  explicit work-item status when selecting that action.
 - Restrict `--snippet-file` contractor-packet inputs to repository-safe files.
   Outside-repository absolute paths are now rejected; use a repo-local ignored
   work-packet file for external review snippets.

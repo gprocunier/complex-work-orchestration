@@ -4,6 +4,7 @@ WORKGRAPH_FALLBACK_MARKER = "Reduced durability fallback"
 WORKGRAPH_ITEMS_HEADING = "## Work Items"
 
 FIELD_TYPE = "Type"
+FIELD_STATUS = "Status"
 FIELD_LANE = "Lane"
 FIELD_LABELS = "Labels"
 FIELD_DEPENDS_ON_LANES = "Depends on lanes"

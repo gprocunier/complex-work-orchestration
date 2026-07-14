@@ -25,7 +25,7 @@
   ],
   "properties": {
     "continuation_result_type": {"const": "complex-work-orchestration-sprint-continuation"},
-    "version": {"type": "integer"},
+    "version": {"const": 2},
     "source": {"enum": ["beads", "markdown-workgraph"]},
     "durability": {"enum": ["durable", "reduced"]},
     "epic_id": {"type": "string"},
@@ -54,20 +54,22 @@
     "operator_handoff_packet": {
       "type": "object",
       "required": [
+        "recommended_operator_action",
+        "action_to_send",
         "next_executable_bead",
         "why_it_is_next",
-        "exact_command_resume",
-        "execution_prompt",
         "what_must_not_run_yet",
         "commit_push_status",
         "validation_status",
         "escalation_rule"
       ],
       "properties": {
+        "recommended_operator_action": {
+          "enum": ["CONTINUE", "EXECUTE", "GO_REQUIRED", "DECIDE", "PIVOT", "STOP"]
+        },
+        "action_to_send": {"type": "string", "minLength": 1},
         "next_executable_bead": {"type": "string", "minLength": 1},
         "why_it_is_next": {"type": "string", "minLength": 1},
-        "exact_command_resume": {"type": "string", "minLength": 1},
-        "execution_prompt": {"type": "string", "minLength": 1},
         "what_must_not_run_yet": {"type": "string", "minLength": 1},
         "commit_push_status": {"type": "string", "minLength": 1},
         "validation_status": {"type": "string", "minLength": 1},

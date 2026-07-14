@@ -1,4 +1,4 @@
 interface:
   display_name: "Complex Work Orchestration"
   short_description: "Policy-routed MoE harness for large work"
-  default_prompt: "Use $complex-work-orchestration to classify this complex project, scaffold Beads lanes, route work through the policy control plane, and end closeout with a user-visible operator handoff packet naming the next executable Bead, resume command, execution prompt, blocked lanes, validation, escalation, and commit/push status."
+  default_prompt: "Use $complex-work-orchestration to classify this complex project, scaffold Beads lanes, route work through the policy control plane, and end closeout with a user-visible operator handoff packet that selects one recommended action, provides the exact message to send, and names the next executable Bead, blocked lanes, validation, escalation, and commit/push status."

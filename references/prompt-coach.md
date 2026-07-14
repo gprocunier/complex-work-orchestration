@@ -174,7 +174,7 @@ python3 scripts/cwo.py continue --epic <epic-id>
 Pass `--markdown-workgraph <path>` only when Beads state is unavailable. The
 result is a read-only continuation brief: one recommended next issue, why it is
 next, blockers and unblock steps, Definition of Ready and Done checks,
-evidence expectations, and resume commands. Beads has native epics and issues,
+evidence expectations, and an operator action. Beads has native epics and issues,
 not native stories or sprints; sprint state remains issue metadata, labels,
 dependencies, descriptions, closure notes, and process artifacts.
 
@@ -344,10 +344,14 @@ output when the user did not explicitly ask for coach options.
 
 When CWO was used, the final answer must include a compact operator handoff
 packet even after implementation, commit, push, PR update, or publication work.
-Include the next executable Bead, why it is next, exact command/resume,
-execution prompt, what must not run yet, commit/push status, validation status,
-and escalation rule. This is separate from Beads closure-memory comments; the
-final answer still needs to tell the operator how to continue.
+Select exactly one recommended action from `CONTINUE`, `EXECUTE`, `GO_REQUIRED`,
+`DECIDE`, `PIVOT`, or `STOP`; provide one exact message the operator can send;
+and include the next executable Bead, why it is next, what must not run yet,
+commit/push status, validation status, and the escalation rule. The continuation
+helper may infer only `CONTINUE`, `DECIDE`, or `STOP` because it cannot inspect
+runtime authority. Present choices only when genuine adjudication is required,
+with the recommended choice first. This is separate from Beads closure-memory
+comments; the final answer still needs to tell the operator how to continue.
 
 ## Examples
 

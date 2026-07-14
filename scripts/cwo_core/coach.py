@@ -796,7 +796,7 @@ def selection_before_plan_gate(text: str, interactive_questions: list[dict[str, 
     elif execution_approved:
         reason = (
             "The user already requested execution; apply conservative defaults or accepted flags, then include "
-            "the operator handoff packet with next steps and resume commands."
+            "the operator handoff packet with one selected action and the exact message to send."
         )
     elif question_ids:
         reason = (

@@ -210,8 +210,15 @@ themselves; the final TUI response must include the packet. Use
 python3 scripts/validate_operator_handoff.py <handoff.md>
 ```
 
+For active research, keep one runtime frontier, prefer two and cap three offline
+source candidates, and keep one validation or disclosure activity; leave the
+rest unclaimed. Use the coach only for genuine ambiguity; routine continuation
+uses the smallest appropriate execution shape.
+
 For closeout and resume guidance, use the existing continuation format in
 `references/run-readiness.md`.
 
-For closeout/handoff, retain the required fields:
-`Next executable Bead`, `Commit/push status`, and `Execution prompt`.
+Required fields include `Recommended operator action` with exactly one of
+`CONTINUE`, `EXECUTE`, `GO_REQUIRED`, `DECIDE`, `PIVOT`, or `STOP`; one exact
+`Action to send`; `Next executable Bead`; value, boundaries, validation,
+publication status, and escalation. Show alternatives only for adjudication.
