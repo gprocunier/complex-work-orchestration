@@ -200,25 +200,17 @@ Before closing meaningful Beads, add a compact closure-memory comment. Prefer:
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition completed --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful --close
 ```
 
-Before the final user-visible response for any CWO closeout, pushed commit,
-parked sprint, blocked sprint, or carry-forward handoff, produce an operator
-continuation packet. Artifacts and Beads comments do not satisfy this by
-themselves; the final TUI response must include the packet. Use
-`templates/operator-handoff-packet.md` and, when drafting to a file, validate it:
+Every CWO closeout, push, park, block, or handoff needs the TUI operator
+continuation packet in
+`templates/operator-handoff-packet.md`; Beads and artifacts do not substitute.
+Validate drafted files:
 
 ```bash
 python3 scripts/validate_operator_handoff.py <handoff.md>
 ```
 
-For active research, keep one runtime frontier, prefer two and cap three offline
-source candidates, and keep one validation or disclosure activity; leave the
-rest unclaimed. Use the coach only for genuine ambiguity; routine continuation
-uses the smallest appropriate execution shape.
-
-For closeout and resume guidance, use the existing continuation format in
-`references/run-readiness.md`.
-
-Required fields include `Recommended operator action` with exactly one of
-`CONTINUE`, `EXECUTE`, `GO_REQUIRED`, `DECIDE`, `PIVOT`, or `STOP`; one exact
-`Action to send`; `Next executable Bead`; value, boundaries, validation,
-publication status, and escalation. Show alternatives only for adjudication.
+Research WIP: one runtime, two to three offline-source, and one
+validation/disclosure lane; leave others unclaimed. Coach only for ambiguity.
+Use `references/run-readiness.md`. Required fields are `Recommended operator
+action` (`CONTINUE|EXECUTE|GO_REQUIRED|DECIDE|PIVOT|STOP`), `Action to send`,
+`Next executable Bead`, value, boundaries, validation, publication, escalation.
