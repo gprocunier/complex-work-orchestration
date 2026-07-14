@@ -226,15 +226,27 @@ def tool_record(
     item_type: str = "function_call",
     name: str = "exec_command",
     workdir: str | None = str(ROOT),
+    call_id: str | None = None,
 ) -> dict:
     arguments = {"cmd": command}
     if workdir is not None:
         arguments["workdir"] = workdir
+    item = {
+        "type": item_type,
+        "name": name,
+        "arguments": json.dumps(arguments),
+    }
+    if call_id is not None:
+        item["call_id"] = call_id
+    return {"response_item": item}
+
+
+def tool_output(call_id: str, output: object, *, custom: bool = False) -> dict:
     return {
         "response_item": {
-            "type": item_type,
-            "name": name,
-            "arguments": json.dumps(arguments),
+            "type": "custom_tool_call_output" if custom else "function_call_output",
+            "call_id": call_id,
+            "output": output,
         }
     }
 
@@ -263,6 +275,14 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             "source_mutation_count": 0,
             "source_mutation_paths": [],
             "commands": [{"argv": argv} for argv in commands],
+        }
+        return packet
+
+    def evidence_packet(self, commands: list[list[str]]) -> dict:
+        packet = self.validation_packet(commands)
+        packet["work_plan"]["task_profile"]["execution_contract"] = {
+            "mode": "direct",
+            "checked_command_specs": [],
         }
         return packet
 
@@ -722,6 +742,170 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertEqual(activity["category_counts"]["unrelated"], 2)
         self.assertEqual(activity["category_counts"]["focused-validation"], 1)
 
+    def test_command_evidence_orders_direct_commands_and_blocks_publication_after_failure(self) -> None:
+        commands = [
+            ["git", "add", "file"],
+            ["git", "diff", "--cached", "--check"],
+            ["git", "commit", "-m", "publish"],
+            ["git", "push", "origin", "main"],
+        ]
+        packet = self.evidence_packet(commands)
+        success: list[dict] = []
+        for index, argv in enumerate(commands):
+            custom = index % 2 == 1
+            success.extend(
+                [
+                    tool_record(" ".join(argv), item_type="custom_tool_call" if custom else "function_call", call_id=f"call-{index}"),
+                    tool_output(f"call-{index}", {"exit_code": 0}, custom=custom),
+                ]
+            )
+        evidence = supervisor._analyze_command_evidence(success, packet, task_complete=True)
+        self.assertEqual(evidence["violations"], [])
+        self.assertEqual(evidence["completed_count"], 4)
+
+        failed = [
+            tool_record("git add file", call_id="add"),
+            tool_output("add", '{"exit_code":0}'),
+            tool_record("git diff --cached --check", call_id="check"),
+            tool_output("check", "Process exited with code 1\nOutput:\ninvalid whitespace"),
+            tool_record("git commit -m publish", call_id="commit"),
+            tool_output("commit", {"exit_code": 0}),
+            tool_record("git push origin main", call_id="push"),
+            tool_output("push", {"exit_code": 0}),
+            tool_record("sed -n 1,2p file", call_id="read"),
+            tool_output("read", {"exit_code": 0}),
+        ]
+        evidence = supervisor._analyze_command_evidence(failed, packet, task_complete=True)
+        self.assertIn("declared-command-nonzero-exit", evidence["violations"])
+        self.assertIn("command-after-terminal-failure", evidence["violations"])
+        self.assertEqual(evidence["failed_command_index"], 1)
+
+    def test_command_evidence_fails_closed_on_pairing_exit_and_pty_defects(self) -> None:
+        packet = self.evidence_packet([["python3", "scripts/validate_repository.py"]])
+        cases = {
+            "missing": [tool_record("python3 scripts/validate_repository.py", call_id="run")],
+            "boolean": [
+                tool_record("python3 scripts/validate_repository.py", call_id="run"),
+                tool_output("run", {"exit_code": True}),
+            ],
+            "orphan": [tool_output("orphan", {"exit_code": 0})],
+            "duplicate": [
+                tool_record("python3 scripts/validate_repository.py", call_id="run"),
+                tool_output("run", {"exit_code": 0}),
+                tool_output("run", {"exit_code": 0}),
+            ],
+        }
+        expected = {
+            "missing": "command-terminal-evidence-missing",
+            "boolean": "command-terminal-evidence-invalid",
+            "orphan": "command-output-orphan",
+            "duplicate": "command-output-duplicate",
+        }
+        for name, records in cases.items():
+            with self.subTest(name=name):
+                evidence = supervisor._analyze_command_evidence(records, packet, task_complete=True)
+                self.assertIn(expected[name], evidence["violations"])
+
+        running = tool_record("python3 scripts/validate_repository.py", call_id="run")
+        poll = {
+            "response_item": {
+                "type": "function_call",
+                "name": "write_stdin",
+                "call_id": "poll",
+                "arguments": json.dumps({"session_id": 51986, "chars": ""}),
+            }
+        }
+        evidence = supervisor._analyze_command_evidence(
+            [
+                running,
+                tool_output("run", "Process running with session ID 51986"),
+                poll,
+                tool_output("poll", "Process exited with code 0"),
+            ],
+            packet,
+            task_complete=True,
+        )
+        self.assertEqual(evidence["violations"], [])
+        self.assertEqual(evidence["completed_count"], 1)
+
+    def test_checked_sequence_evidence_requires_bound_passed_result(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="cwo-sequence-evidence-") as temporary:
+            output_path = Path(temporary) / "result.json"
+            runner = ["python3", "scripts/run_checked_command_sequence.py", "spec.json"]
+            packet = self.evidence_packet([runner])
+            packet["packet_id"] = "packet-sequence-evidence"
+            spec = {
+                "sequence_id": "sequence-evidence",
+                "packet_id": packet["packet_id"],
+                "work_plan_sha256": "a" * 64,
+                "workdir": str(ROOT),
+                "commands": [{"command_id": "one"}],
+            }
+            packet["work_plan"]["task_profile"]["execution_contract"]["mode"] = "checked-sequence-v1"
+            packet["checked_command_sequence"] = {
+                "runner_argv": runner,
+                "spec": spec,
+                "spec_sha256": "b" * 64,
+                "output_path": str(output_path),
+            }
+            result = {
+                "result_type": "cwo-checked-command-sequence-result",
+                "version": 1,
+                "sequence_id": spec["sequence_id"],
+                "packet_id": packet["packet_id"],
+                "work_plan_sha256": spec["work_plan_sha256"],
+                "spec_sha256": "b" * 64,
+                "workdir": str(ROOT),
+                "status": "passed",
+                "completed_count": 1,
+                "failed_command_id": None,
+                "failure_class": None,
+                "command_results": [{"command_id": "one", "execution_status": "passed", "exit_code": 0}],
+            }
+            output_path.write_text(json.dumps(result), encoding="utf-8")
+            records = [tool_record(" ".join(runner), call_id="sequence"), tool_output("sequence", {"exit_code": 0})]
+            evidence = supervisor._analyze_command_evidence(records, packet, task_complete=True)
+            self.assertEqual(evidence["violations"], [])
+            self.assertEqual(evidence["sequence_result"], "passed")
+            result["status"] = "failed"
+            output_path.write_text(json.dumps(result), encoding="utf-8")
+            evidence = supervisor._analyze_command_evidence(records, packet, task_complete=True)
+            self.assertIn("checked-sequence-result-invalid", evidence["violations"])
+
+    def test_compact_projection_is_deterministic_valid_and_bounded(self) -> None:
+        activity = supervisor._empty_activity()
+        activity["violations"] = ["x" * 400 for _ in range(200)]
+        state = {
+            "state_id": "state",
+            "packet_id": "packet",
+            "session_id": "session",
+            "status": "interrupt-pending",
+            "decision": "interrupt",
+            "reasons": ["reason" * 100 for _ in range(200)],
+            "control_action_required": True,
+            "observed": {
+                "tool_calls": 7,
+                "elapsed_seconds": 8.5,
+                "context_compactions": 0,
+                "full_suite_runs": 0,
+                "activity": activity,
+                "workspace_report": {"mutation_detected": True, "mutation_categories": {"scoped": [str(i) for i in range(1000)]}},
+                "command_evidence": {"enabled": True, "mode": "direct", "violations": ["bad" * 200 for _ in range(100)]},
+            },
+            "control_timing": {"late_poll_count": 0},
+            "session_disposition": "quarantined",
+            "artifact_disposition": "architect-adjudication-required",
+            "started_at": "2026-07-11T00:00:00Z",
+            "updated_at": "2026-07-11T00:00:01Z",
+            "finalized_at": None,
+        }
+        compact = supervisor._compact_projection(state)
+        rendered = json.dumps(compact, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        self.assertLessEqual(len(rendered), 4096)
+        self.assertEqual(json.loads(rendered)["decision"], "interrupt")
+        self.assertEqual(compact["reason_evidence"]["count"], 200)
+        self.assertEqual(compact["mutation"]["category_counts"]["scoped"], 1000)
+
     def test_workspace_new_owned_file_is_scoped_but_unplanned_file_is_hard(self) -> None:
         before = {
             "cwd": str(ROOT),
@@ -758,6 +942,50 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         ):
             report = supervisor._compare_live_workspace({})
         self.assertIn("unexpected-untracked-mutation", supervisor._workspace_hard_reasons(report))
+
+    def test_workspace_baseline_authorizes_writes_not_read_only_context(self) -> None:
+        packet = self.packet()
+        read_only_path = "README.md"
+        read_only_bytes = (ROOT / read_only_path).read_bytes()
+        packet["scope"]["allowed_paths"].append(read_only_path)
+        packet["work_plan"]["context_manifest"].append(
+            {
+                "path": read_only_path,
+                "selector": "whole-file",
+                "purpose": "read-only context for implementation",
+                "bytes": len(read_only_bytes),
+                "sha256": hashlib.sha256(read_only_bytes).hexdigest(),
+            }
+        )
+
+        readiness, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        self.assertEqual(readiness["decision"], "operative-ready")
+        self.assertEqual(len(units), 2)
+
+        baseline = {
+            "cwd": str(ROOT),
+            "allowed_paths": packet["work_plan"]["write_paths"],
+            "include_untracked": True,
+            "tracked_status": [],
+            "preexisting_dirty_paths": [],
+            "content_fingerprints": {},
+            "baseline_complete": True,
+            "incomplete": False,
+            "caps": {"max_files": 100, "max_bytes": 10000, "max_seconds": 1.0},
+        }
+        with mock.patch.object(
+            supervisor,
+            "capture_workspace_baseline",
+            return_value=baseline,
+        ) as capture:
+            metadata = supervisor._persist_workspace_baseline(packet, "read-only-context-test")
+
+        self.assertEqual(
+            capture.call_args.kwargs["allowed_paths"],
+            packet["work_plan"]["write_paths"],
+        )
+        self.assertNotIn(read_only_path, metadata["allowed_paths"])
+        Path(metadata["path"]).unlink(missing_ok=True)
 
 
 class NativeWorkerSupervisorTests(unittest.TestCase):
@@ -859,10 +1087,16 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         dispatched = self.mark_dispatched(dispatch_at)
         self.assertEqual(dispatched.returncode, 0, dispatched.stderr)
 
-    def check(self, now: str, *, control_turn: str = CONTROL_TURN) -> subprocess.CompletedProcess[str]:
+    def check(
+        self,
+        now: str,
+        *,
+        control_turn: str = CONTROL_TURN,
+        projection: str = "full",
+    ) -> subprocess.CompletedProcess[str]:
         if not self.activated:
             self.activate_before(now)
-        return run_cli(
+        arguments = [
             "check",
             "--state-file",
             str(self.state_file),
@@ -870,8 +1104,11 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
             control_turn,
             "--now",
             now,
+            "--projection",
+            projection,
             "--json",
-        )
+        ]
+        return run_cli(*arguments)
 
     def finalize(self, action: str) -> subprocess.CompletedProcess[str]:
         return run_cli(
@@ -1063,6 +1300,27 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         payload = json.loads(checked.stdout)
         self.assertEqual(payload["decision"], "complete")
         self.assertFalse(payload["control_action_required"])
+
+    def test_check_compact_projection_preserves_full_state_and_stays_bounded(self) -> None:
+        self.assertEqual(self.start().returncode, 0)
+        records = [
+            session_meta(self.session_id),
+            event("2026-07-11T00:00:01Z", self.session_id, "task_started"),
+            event("2026-07-11T00:00:02Z", self.session_id, "task_complete"),
+        ]
+        write_records(self.session_file, records)
+        full = self.check("2026-07-11T00:00:03Z")
+        self.assertEqual(full.returncode, 0, full.stderr)
+        full_state = self.state_file.read_bytes()
+        compact = self.check("2026-07-11T00:00:04Z", projection="compact")
+        self.assertEqual(compact.returncode, 0, compact.stderr)
+        self.assertLessEqual(len(compact.stdout.encode("utf-8")), 4096)
+        payload = json.loads(compact.stdout)
+        self.assertEqual(payload["decision"], "complete")
+        self.assertIn("usage", payload)
+        self.assertIn("command_evidence", payload)
+        self.assertNotEqual(full_state, b"")
+        self.assertIn("workspace_report", json.loads(self.state_file.read_text(encoding="utf-8"))["observed"])
 
     def test_hard_activity_violation_wins_over_trusted_completion(self) -> None:
         self.assertEqual(self.start().returncode, 0)

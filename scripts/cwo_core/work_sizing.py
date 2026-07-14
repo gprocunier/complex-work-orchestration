@@ -395,6 +395,61 @@ def _validate_command_entry(command: Any, idx: int) -> tuple[list[str], int]:
     return argv, len(argv)
 
 
+def _validate_execution_contract(
+    value: Any,
+    *,
+    task_class: str,
+    normalized_commands: list[list[str]],
+) -> dict[str, Any]:
+    contract = _ensure_mapping_exact(
+        value,
+        path="task_profile.execution_contract",
+        required_fields=("mode", "checked_command_specs"),
+    )
+    mode = _ensure_nonempty_str(contract["mode"], path="task_profile.execution_contract.mode")
+    if mode not in {"direct", "checked-sequence-v1"}:
+        raise ValueError("malformed source payload: task_profile.execution_contract.mode must be direct or checked-sequence-v1")
+
+    raw_specs = _ensure_list(
+        contract["checked_command_specs"],
+        path="task_profile.execution_contract.checked_command_specs",
+    )
+    if mode == "direct":
+        if raw_specs:
+            raise ValueError("malformed source payload: direct execution_contract requires empty checked_command_specs")
+        return {"mode": mode, "checked_command_specs": []}
+
+    if task_class != "bounded-implementation":
+        raise ValueError("malformed source payload: checked-sequence-v1 requires bounded-implementation task_class")
+    if not raw_specs:
+        raise ValueError("malformed source payload: checked-sequence-v1 requires checked_command_specs")
+
+    from cwo_core.checked_command import normalize_command_spec
+
+    normalized_specs: list[dict[str, Any]] = []
+    command_ids: set[str] = set()
+    resolved_workdirs: set[str] = set()
+    for idx, raw_spec in enumerate(raw_specs):
+        path = f"task_profile.execution_contract.checked_command_specs[{idx}]"
+        try:
+            spec = normalize_command_spec(raw_spec)
+        except ValueError as exc:
+            raise ValueError(f"malformed source payload: {path} is invalid: {exc}") from exc
+        if spec["mode"] != "argv":
+            raise ValueError(f"malformed source payload: {path}.mode must be argv")
+        if spec["command_id"] in command_ids:
+            raise ValueError("malformed source payload: checked_command_specs command_id values must be unique")
+        command_ids.add(spec["command_id"])
+        resolved_workdirs.add(spec["cwd"])
+        normalized_specs.append(spec)
+
+    if len(resolved_workdirs) != 1:
+        raise ValueError("malformed source payload: checked-sequence-v1 requires one resolved cwd")
+    if [spec["argv"] for spec in normalized_specs] != normalized_commands:
+        raise ValueError("malformed source payload: checked_command_specs argv must exactly match task_profile.commands in order")
+    return {"mode": mode, "checked_command_specs": normalized_specs}
+
+
 def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
     if task_profile is None:
         return None
@@ -411,7 +466,7 @@ def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
         "source_mutation_count",
         "commands",
     }
-    optional_keys = {"source_mutation_paths", "architect_literal_patch"}
+    optional_keys = {"source_mutation_paths", "architect_literal_patch", "execution_contract"}
     payload_keys = set(payload.keys())
     if missing := sorted(required_keys - payload_keys):
         raise ValueError(f"malformed source payload: task_profile missing required field(s) {', '.join(missing)}")
@@ -437,6 +492,13 @@ def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
         normalized_commands.append(argv)
     if payload["command_count"] != len(normalized_commands):
         raise ValueError("malformed source payload: task_profile.command_count must equal len(task_profile.commands)")
+
+    if "execution_contract" in payload:
+        payload["execution_contract"] = _validate_execution_contract(
+            payload["execution_contract"],
+            task_class=payload["task_class"],
+            normalized_commands=normalized_commands,
+        )
 
     if "source_mutation_paths" in payload:
         mutation_paths = _ensure_list(payload["source_mutation_paths"], path="task_profile.source_mutation_paths")
@@ -1217,6 +1279,8 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
         )
 
     estimate: dict[str, Any] = deepcopy(source)
+    if task_profile is not None:
+        estimate["task_profile"] = deepcopy(task_profile)
     if estimate_contract_version >= 2:
         estimate["estimate_contract_version"] = estimate_contract_version
         estimate["semantic_scores"] = semantic_scores

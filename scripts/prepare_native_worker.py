@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import hashlib
 import json
 import math
 from pathlib import Path
 import shlex
 from typing import Any
 
-from cwo_core.paths import assert_safe_output_path
+from cwo_core.checked_command_sequence import normalize_sequence_spec
+from cwo_core.paths import assert_safe_output_path, cwo_temp_dir, is_cwo_temp_path
 from cwo_core.native_disposition import DISPOSITION_FIELDS, validate_disposition
 from cwo_core.native_recovery import verify_native_worker_semantics
 from cwo_core.native_worker_contracts import (
@@ -17,6 +19,7 @@ from cwo_core.native_worker_contracts import (
     ALLOWED_ATTESTATION_STATUSES,
     ALLOWED_BUDGET_FIELDS,
     ALLOWED_BUDGET_PROVENANCE_FIELDS,
+    ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS,
     ALLOWED_COMMAND_CONTRACT_FIELDS,
     ALLOWED_ESCALATION_COMPACTION_FIELDS,
     ALLOWED_ESCALATION_HARD_LIMIT_FIELDS,
@@ -44,6 +47,7 @@ from cwo_core.policy import load_policy
 from cwo_core.util import atomic_write_text, make_dispatch_id
 from cwo_core.work_sizing import (
     build_policy_fit_commitment,
+    canonical_work_estimate_sha256,
     validate_work_estimate,
     validate_worker_commitment,
 )
@@ -412,6 +416,66 @@ def _read_only_work_plan(work_plan: Any) -> bool:
     )
 
 
+def _execution_contract(work_plan: Any) -> dict[str, Any] | None:
+    if not isinstance(work_plan, dict):
+        return None
+    task_profile = work_plan.get("task_profile")
+    if not isinstance(task_profile, dict):
+        return None
+    contract = task_profile.get("execution_contract")
+    return contract if isinstance(contract, dict) else None
+
+
+def _canonical_json_sha256(value: Any) -> str:
+    rendered = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+
+
+def _build_checked_command_sequence(
+    *,
+    packet_id: str,
+    work_plan: dict[str, Any],
+    workdir: Path,
+) -> dict[str, Any] | None:
+    contract = _execution_contract(work_plan)
+    if not contract or contract.get("mode") != "checked-sequence-v1":
+        return None
+
+    artifact_dir = cwo_temp_dir(purpose=f"checked-sequence-{packet_id}")
+    spec_path = artifact_dir / "sequence-spec.json"
+    state_path = artifact_dir / "sequence-state.json"
+    output_path = artifact_dir / "sequence-result.json"
+    spec = normalize_sequence_spec(
+        {
+            "spec_type": "cwo-checked-command-sequence-spec",
+            "version": 1,
+            "sequence_id": f"sequence-{packet_id}",
+            "packet_id": packet_id,
+            "work_plan_sha256": canonical_work_estimate_sha256(work_plan),
+            "workdir": str(workdir),
+            "commands": contract.get("checked_command_specs"),
+        }
+    )
+    atomic_write_text(spec_path, json.dumps(spec, indent=2, sort_keys=True) + "\n")
+    return {
+        "mode": "checked-sequence-v1",
+        "spec": spec,
+        "spec_path": str(spec_path),
+        "spec_sha256": _canonical_json_sha256(spec),
+        "state_path": str(state_path),
+        "output_path": str(output_path),
+        "runner_argv": [
+            "python3",
+            "scripts/run_checked_command_sequence.py",
+            str(spec_path),
+            "--state",
+            str(state_path),
+            "--output",
+            str(output_path),
+        ],
+    }
+
+
 def build_native_worker_packet(
     *,
     bead_id: str,
@@ -552,6 +616,13 @@ def build_native_worker_packet(
     if work_plan is not None and worker_commitment is not None:
         packet["work_plan"] = deepcopy(work_plan)
         packet["worker_commitment"] = deepcopy(worker_commitment)
+        checked_sequence = _build_checked_command_sequence(
+            packet_id=packet_id,
+            work_plan=packet["work_plan"],
+            workdir=workdir_path,
+        )
+        if checked_sequence is not None:
+            packet["checked_command_sequence"] = checked_sequence
     if packet_version == 3:
         selected_phase = phase or lane
         if selected_phase not in PACKET_V3_PHASES:
@@ -574,6 +645,115 @@ def build_native_worker_packet(
     if errors:
         raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
     return packet
+
+
+def _validate_checked_command_sequence_receipt(
+    payload: dict[str, Any],
+    work_plan: Any,
+) -> list[str]:
+    errors: list[str] = []
+    contract = _execution_contract(work_plan)
+    sequence_required = bool(contract and contract.get("mode") == "checked-sequence-v1")
+    receipt = payload.get("checked_command_sequence")
+    if not sequence_required:
+        if receipt is not None:
+            errors.append("checked_command_sequence is forbidden unless work_plan selects checked-sequence-v1")
+        return errors
+    if receipt is None:
+        return ["checked-sequence-v1 work_plan requires checked_command_sequence"]
+    if not isinstance(receipt, dict):
+        return ["checked_command_sequence must be an object"]
+    errors.extend(
+        _reject_unknown_fields(
+            receipt,
+            "checked_command_sequence",
+            ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS,
+        )
+    )
+    missing = sorted(ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS - set(receipt))
+    if missing:
+        errors.append(f"checked_command_sequence missing required field(s) {', '.join(missing)}")
+        return errors
+    if receipt.get("mode") != "checked-sequence-v1":
+        errors.append("checked_command_sequence.mode must be checked-sequence-v1")
+
+    embedded = receipt.get("spec")
+    normalized_spec: dict[str, Any] | None = None
+    try:
+        normalized_spec = normalize_sequence_spec(embedded)
+    except (TypeError, ValueError) as exc:
+        errors.append(f"checked_command_sequence.spec is invalid: {exc}")
+    if normalized_spec is not None and embedded != normalized_spec:
+        errors.append("checked_command_sequence.spec must be normalized")
+
+    if normalized_spec is not None and isinstance(work_plan, dict):
+        if normalized_spec.get("packet_id") != payload.get("packet_id"):
+            errors.append("checked_command_sequence.spec.packet_id must match packet_id")
+        if normalized_spec.get("work_plan_sha256") != canonical_work_estimate_sha256(work_plan):
+            errors.append("checked_command_sequence.spec.work_plan_sha256 must match work_plan")
+        scope = payload.get("scope")
+        workdir = scope.get("workdir") if isinstance(scope, dict) else None
+        if normalized_spec.get("workdir") != workdir:
+            errors.append("checked_command_sequence.spec.workdir must match packet scope.workdir")
+        expected_commands = contract.get("checked_command_specs") if contract else None
+        if normalized_spec.get("commands") != expected_commands:
+            errors.append("checked_command_sequence.spec.commands must match work_plan execution contract")
+
+    spec_hash = receipt.get("spec_sha256")
+    if normalized_spec is not None and spec_hash != _canonical_json_sha256(normalized_spec):
+        errors.append("checked_command_sequence.spec_sha256 must match normalized spec")
+
+    path_fields = ("spec_path", "state_path", "output_path")
+    paths: dict[str, Path] = {}
+    for field in path_fields:
+        raw = receipt.get(field)
+        path = Path(raw) if isinstance(raw, str) and raw else None
+        if path is None or not path.is_absolute():
+            errors.append(f"checked_command_sequence.{field} must be an absolute path")
+            continue
+        if not is_cwo_temp_path(path):
+            errors.append(f"checked_command_sequence.{field} must be under a CWO temp root")
+            continue
+        if path.is_symlink():
+            errors.append(f"checked_command_sequence.{field} must not be a symlink")
+            continue
+        paths[field] = path
+    if len(paths) == len(path_fields):
+        if len({path.parent for path in paths.values()}) != 1:
+            errors.append("checked_command_sequence paths must be siblings")
+        expected_names = {
+            "spec_path": "sequence-spec.json",
+            "state_path": "sequence-state.json",
+            "output_path": "sequence-result.json",
+        }
+        for field, name in expected_names.items():
+            if paths[field].name != name:
+                errors.append(f"checked_command_sequence.{field} must end with {name}")
+
+        try:
+            persisted_spec = json.loads(paths["spec_path"].read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            errors.append("checked_command_sequence.spec_path must contain readable JSON")
+        else:
+            if persisted_spec != normalized_spec:
+                errors.append("checked_command_sequence persisted spec must match embedded spec")
+            if _canonical_json_sha256(persisted_spec) != spec_hash:
+                errors.append("checked_command_sequence persisted spec hash must match spec_sha256")
+
+        expected_runner = [
+            "python3",
+            "scripts/run_checked_command_sequence.py",
+            str(paths["spec_path"]),
+            "--state",
+            str(paths["state_path"]),
+            "--output",
+            str(paths["output_path"]),
+        ]
+        if receipt.get("runner_argv") != expected_runner:
+            errors.append("checked_command_sequence.runner_argv must exactly match sequence artifact paths")
+    elif not isinstance(receipt.get("runner_argv"), list):
+        errors.append("checked_command_sequence.runner_argv must be a list")
+    return errors
 
 
 def validate_native_worker_packet(
@@ -776,6 +956,13 @@ def validate_native_worker_packet(
             errors.append("worker_commitment must be an object")
     elif dispatchable and version == 2:
         errors.append("dispatchable packet requires work_plan and worker_commitment")
+
+    errors.extend(
+        _validate_checked_command_sequence_receipt(
+            payload,
+            payload.get("work_plan"),
+        )
+    )
 
     policy_budgets = _policy_budgets_for_lane(lane) if isinstance(lane, str) else None
     budget = payload.get("budget")
@@ -1324,7 +1511,15 @@ def _render_prompt(payload: dict[str, Any]) -> str:
     work_plan = payload.get("work_plan")
     task_profile = work_plan.get("task_profile") if isinstance(work_plan, dict) else None
     task_class = task_profile.get("task_class") if isinstance(task_profile, dict) else None
+    checked_sequence = payload.get("checked_command_sequence")
+    sequence_argv = (
+        checked_sequence.get("runner_argv")
+        if isinstance(checked_sequence, dict) and isinstance(checked_sequence.get("runner_argv"), list)
+        else None
+    )
     exact_argv = (
+        sequence_argv is None
+        and
         isinstance(work_plan, dict)
         and work_plan.get("fit_mode") == "deterministic"
         and task_class in {"literal-command", "read-only-validation"}
@@ -1355,9 +1550,13 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         "completed_evidence": "<why this is complete>",
         "files_touched": [] if read_only else ["<relative/path.ext>"],
         "mutation_state": "clean" if read_only else "modified",
-        "commands_run": [shlex.join(command["argv"]) for command in declared_commands]
-        if exact_argv
-        else ["<command>"],
+        "commands_run": (
+            [shlex.join(sequence_argv)]
+            if sequence_argv is not None
+            else [shlex.join(command["argv"]) for command in declared_commands]
+            if exact_argv
+            else ["<command>"]
+        ),
         "validation": {"status": "pass"},
         "decision_required": [],
         "bounded_options": [],
@@ -1411,6 +1610,15 @@ def _render_prompt(payload: dict[str, Any]) -> str:
             ]
             if exact_argv
             else [
+                "Checked sequence execution contract:",
+                "- Run exactly one outer sequence runner command from the packet workdir.",
+                "- Do not run, rewrite, combine, or bypass any inner command directly.",
+                "- The sequence runner persists terminal state and stops after the first nonzero command.",
+                "Declared outer runner command:",
+                f"1. {shlex.join(sequence_argv)}",
+            ]
+            if sequence_argv is not None
+            else [
                 "Checked command execution:",
                 f"- Wrapper: {payload['command_contract']['wrapper']}",
                 f"- Typed modes: {', '.join(payload['command_contract']['modes'])}",
@@ -1428,7 +1636,7 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         "- Stay within packet scope",
         "- Do not resume prior sessions",
         "- Do not report completion until attestation is trusted",
-        *( ["- Do not send acknowledgments or progress messages; run the declared commands, then return the artifact"] if exact_argv else [] ),
+        *( ["- Do not send acknowledgments or progress messages; run the declared command, then return the artifact"] if exact_argv or sequence_argv is not None else [] ),
         "- Return exactly one compliant cwo-native-worker-return artifact",
         "",
         "Return skeleton (required fields):",

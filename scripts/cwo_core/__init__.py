@@ -8,6 +8,7 @@ __all__ = [
     "access_profiles",
     "audit",
     "checked_command",
+    "checked_command_sequence",
     "beads",
     "chatgpt_urls",
     "coach",

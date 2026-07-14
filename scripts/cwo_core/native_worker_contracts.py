@@ -35,6 +35,16 @@ ALLOWED_PACKET_FIELDS = {
     "work_plan",
     "worker_commitment",
     "command_contract",
+    "checked_command_sequence",
+}
+ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS = {
+    "mode",
+    "spec",
+    "spec_path",
+    "spec_sha256",
+    "state_path",
+    "output_path",
+    "runner_argv",
 }
 ALLOWED_SESSION_POLICY_FIELDS = {
     "fresh_session_required",

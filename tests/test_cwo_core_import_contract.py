@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 ALLOWED_IMPORTS = {
     "access_profiles": {"policy"},
     "checked_command": set(),
+    "checked_command_sequence": {"checked_command"},
     "paths": set(),
     "util": set(),
     "chatgpt_urls": set(),
@@ -49,7 +50,7 @@ ALLOWED_IMPORTS = {
     "native_worker_contracts": {"native_disposition"},
     "execution_enhancement_metrics": set(),
     "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths"},
-    "work_sizing": {"policy"},
+    "work_sizing": {"checked_command", "policy"},
     "public_copy": set(),
     "errors": set(),
     "types": set(),

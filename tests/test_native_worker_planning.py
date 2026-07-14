@@ -1,7 +1,11 @@
 import copy
+import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -15,6 +19,10 @@ from cwo_core.work_sizing import (
     canonical_work_estimate_sha256,
     evaluate_work_estimate,
     normalize_worker_commitment_response,
+)
+from cwo_core.native_worker_contracts import (  # noqa: E402
+    ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS,
+    ALLOWED_PACKET_FIELDS,
 )
 
 PATHS = ["tests/test_native_worker_planning.py"]
@@ -135,12 +143,157 @@ def planned(decision: str = "accept", budget: dict = None) -> dict:
     )
 
 
+def checked_plan() -> dict:
+    value = plan()
+    commands = [
+        ["python3", "-m", "unittest", "tests.test_native_worker_planning", "-v"],
+        ["git", "diff", "--check"],
+    ]
+    specs = []
+    for index, argv in enumerate(commands):
+        specs.append(
+            {
+                "spec_type": "cwo-checked-command-spec",
+                "version": 1,
+                "command_id": f"checked-{index}",
+                "mode": "argv",
+                "argv": argv,
+                "cwd": str(ROOT),
+                "env": {},
+                "inherit_environment": True,
+                "stdin": None,
+                "source": None,
+                "preflights": [],
+                "mutation_intent": "none",
+                "allowed_paths": [],
+                "timeout_seconds": 60,
+            }
+        )
+    value["task_profile"] = {
+        "task_class": "bounded-implementation",
+        "declared_outcome_count": 1,
+        "command_count": len(commands),
+        "check_count": len(commands),
+        "focused_test_count": 1,
+        "full_suite_count": 0,
+        "read_context_count": 0,
+        "source_mutation_count": len(PATHS),
+        "commands": [{"argv": argv} for argv in commands],
+        "source_mutation_paths": PATHS,
+        "execution_contract": {"mode": "checked-sequence-v1", "checked_command_specs": specs},
+    }
+    return evaluate_work_estimate(value)
+
+
+def checked_packet() -> dict:
+    value = checked_plan()
+    return build_native_worker_packet(
+        bead_id="bead-plan",
+        lane="implementation",
+        workdir=str(ROOT),
+        allowed_paths=PATHS,
+        acceptance_checks=CHECKS,
+        work_plan=value,
+        worker_commitment=commitment(value),
+        budget_overrides=BUDGET,
+        requested_model="gpt-5.3-codex-spark",
+        packet_id="checked-packet",
+    )
+
+
 def _contains(errors, text):
     lowered = text.lower()
     return any(lowered in err.lower() for err in errors)
 
 
 class TestNativeWorkerPlanning(unittest.TestCase):
+    def test_checked_sequence_packet_builds_strict_bound_receipt(self):
+        with tempfile.TemporaryDirectory() as temp_root, mock.patch.dict(
+            os.environ, {"CWO_TEMP_ROOT": temp_root}
+        ):
+            packet = checked_packet()
+            receipt = packet["checked_command_sequence"]
+            self.assertEqual(set(receipt), ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS)
+            self.assertEqual(receipt["spec"]["packet_id"], packet["packet_id"])
+            self.assertEqual(receipt["spec"]["commands"], packet["work_plan"]["task_profile"]["execution_contract"]["checked_command_specs"])
+            self.assertEqual(Path(receipt["spec_path"]).parent, Path(receipt["state_path"]).parent)
+            self.assertEqual(Path(receipt["spec_path"]).parent, Path(receipt["output_path"]).parent)
+            self.assertEqual(json.loads(Path(receipt["spec_path"]).read_text(encoding="utf-8")), receipt["spec"])
+            self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+
+            schema = json.loads((ROOT / "schemas" / "native-worker-packet.schema.json").read_text(encoding="utf-8"))
+            self.assertEqual(set(schema["properties"]), ALLOWED_PACKET_FIELDS)
+            self.assertEqual(
+                set(schema["properties"]["checked_command_sequence"]["properties"]),
+                ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS,
+            )
+
+    def test_checked_sequence_render_is_outer_only_and_direct_stays_direct(self):
+        with tempfile.TemporaryDirectory() as temp_root, mock.patch.dict(
+            os.environ, {"CWO_TEMP_ROOT": temp_root}
+        ):
+            packet = checked_packet()
+            rendered = _render_prompt(packet)
+            runner = " ".join(packet["checked_command_sequence"]["runner_argv"])
+            self.assertIn("Run exactly one outer sequence runner command", rendered)
+            self.assertIn(runner, rendered)
+            self.assertNotIn("1. python3 -m unittest tests.test_native_worker_planning -v", rendered)
+            self.assertEqual(rendered.count(runner), 2)
+
+        direct = _render_prompt(planned())
+        self.assertNotIn("Checked sequence execution contract", direct)
+        self.assertNotIn("checked_command_sequence", planned())
+
+    def test_checked_sequence_validation_rejects_missing_and_direct_receipts(self):
+        with tempfile.TemporaryDirectory() as temp_root, mock.patch.dict(
+            os.environ, {"CWO_TEMP_ROOT": temp_root}
+        ):
+            packet = checked_packet()
+            missing = copy.deepcopy(packet)
+            missing.pop("checked_command_sequence")
+            self.assertTrue(_contains(validate_native_worker_packet(missing), "requires checked_command_sequence"))
+
+            direct = planned()
+            direct["checked_command_sequence"] = copy.deepcopy(packet["checked_command_sequence"])
+            self.assertTrue(_contains(validate_native_worker_packet(direct), "is forbidden"))
+
+    def test_checked_sequence_validation_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as temp_root, mock.patch.dict(
+            os.environ, {"CWO_TEMP_ROOT": temp_root}
+        ):
+            packet = checked_packet()
+            cases = []
+            embedded = copy.deepcopy(packet)
+            embedded["checked_command_sequence"]["spec"]["packet_id"] = "other"
+            cases.append((embedded, "packet_id"))
+            digest = copy.deepcopy(packet)
+            digest["checked_command_sequence"]["spec_sha256"] = "0" * 64
+            cases.append((digest, "spec_sha256"))
+            runner = copy.deepcopy(packet)
+            runner["checked_command_sequence"]["runner_argv"][0] = "python"
+            cases.append((runner, "runner_argv"))
+            sibling = copy.deepcopy(packet)
+            sibling["checked_command_sequence"]["state_path"] = str(
+                Path(packet["checked_command_sequence"]["state_path"]).parent.parent
+                / "other-sequence"
+                / "state.json"
+            )
+            cases.append((sibling, "siblings"))
+            work_plan = copy.deepcopy(packet)
+            work_plan["work_plan"]["primary_outcome"] = "tampered"
+            cases.append((work_plan, "work_plan_sha256"))
+            for candidate, expected in cases:
+                with self.subTest(expected=expected):
+                    self.assertTrue(_contains(validate_native_worker_packet(candidate), expected))
+
+            spec_path = Path(packet["checked_command_sequence"]["spec_path"])
+            original = spec_path.read_text(encoding="utf-8")
+            spec_path.write_text("{}\n", encoding="utf-8")
+            try:
+                self.assertTrue(_contains(validate_native_worker_packet(packet), "persisted spec"))
+            finally:
+                spec_path.write_text(original, encoding="utf-8")
+
     def test_draft_validation_modes(self):
         non_dispatch_errors = validate_native_worker_packet(draft(), dispatchable=False)
         self.assertEqual(non_dispatch_errors, [])

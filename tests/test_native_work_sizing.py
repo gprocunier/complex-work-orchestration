@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -162,6 +163,44 @@ def _narrow_profile_payload(path: str = "tests/test_native_work_sizing.py"):
         "commands": [],
         "source_mutation_paths": [path],
     }
+    return payload
+
+
+def _checked_command_spec(cwd: str, command_id: str, argv: list[str]):
+    return {
+        "spec_type": "cwo-checked-command-spec",
+        "version": 1,
+        "command_id": command_id,
+        "mode": "argv",
+        "argv": argv,
+        "cwd": cwd,
+        "env": {},
+        "inherit_environment": True,
+        "stdin": None,
+        "source": None,
+        "preflights": [],
+        "mutation_intent": "none",
+        "allowed_paths": [],
+        "timeout_seconds": 30,
+    }
+
+
+def _checked_sequence_payload(cwd: str):
+    payload = _narrow_profile_payload()
+    commands = [["python3", "-m", "unittest", "tests.test_native_work_sizing"], ["git", "diff", "--check"]]
+    payload["task_profile"].update(
+        {
+            "task_class": "bounded-implementation",
+            "command_count": len(commands),
+            "commands": [{"argv": argv} for argv in commands],
+            "execution_contract": {
+                "mode": "checked-sequence-v1",
+                "checked_command_specs": [
+                    _checked_command_spec(cwd, f"check-{idx}", argv) for idx, argv in enumerate(commands)
+                ],
+            },
+        }
+    )
     return payload
 
 
@@ -612,6 +651,82 @@ class NativeWorkSizingTest(unittest.TestCase):
         result = evaluate_work_estimate(_valid_v2_payload())
         self.assertEqual(result["task_class"], "bounded-implementation")
         self.assertEqual(result["fit_mode"], "semantic")
+
+    def test_execution_contract_absent_remains_backward_compatible(self):
+        result = evaluate_work_estimate(_narrow_profile_payload())
+        self.assertNotIn("execution_contract", result["task_profile"])
+
+    def test_direct_execution_contract_requires_empty_specs(self):
+        payload = _literal_command_payload()
+        payload["task_profile"]["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["task_profile"]["execution_contract"], {"mode": "direct", "checked_command_specs": []})
+
+        payload["task_profile"]["execution_contract"]["checked_command_specs"] = [{}]
+        with self.assertRaisesRegex(ValueError, "direct execution_contract requires empty"):
+            evaluate_work_estimate(payload)
+
+    def test_checked_sequence_execution_contract_is_normalized_and_preserved(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            payload = _checked_sequence_payload(cwd)
+            result = evaluate_work_estimate(payload)
+            contract = result["task_profile"]["execution_contract"]
+            self.assertEqual(contract["mode"], "checked-sequence-v1")
+            self.assertEqual([spec["command_id"] for spec in contract["checked_command_specs"]], ["check-0", "check-1"])
+            self.assertEqual({spec["cwd"] for spec in contract["checked_command_specs"]}, {str(Path(cwd).resolve())})
+            self.assertEqual(validate_work_estimate(result), [])
+
+    def test_checked_sequence_rejects_invalid_mode_empty_specs_and_wrong_task_class(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            cases = []
+            unknown = _checked_sequence_payload(cwd)
+            unknown["task_profile"]["execution_contract"]["mode"] = "automatic"
+            cases.append((unknown, "must be direct or checked-sequence-v1"))
+            empty = _checked_sequence_payload(cwd)
+            empty["task_profile"]["execution_contract"]["checked_command_specs"] = []
+            cases.append((empty, "requires checked_command_specs"))
+            wrong_class = _checked_sequence_payload(cwd)
+            wrong_class["task_profile"]["task_class"] = "read-only-validation"
+            cases.append((wrong_class, "requires bounded-implementation"))
+            for payload, message in cases:
+                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                    evaluate_work_estimate(payload)
+
+    def test_checked_sequence_rejects_non_argv_duplicate_ids_and_mixed_cwd(self):
+        with tempfile.TemporaryDirectory() as cwd, tempfile.TemporaryDirectory() as other_cwd:
+            non_argv = _checked_sequence_payload(cwd)
+            spec = non_argv["task_profile"]["execution_contract"]["checked_command_specs"][0]
+            spec.update({"mode": "shell-source", "argv": [], "source": "true"})
+
+            duplicate = _checked_sequence_payload(cwd)
+            duplicate["task_profile"]["execution_contract"]["checked_command_specs"][1]["command_id"] = "check-0"
+
+            mixed_cwd = _checked_sequence_payload(cwd)
+            mixed_cwd["task_profile"]["execution_contract"]["checked_command_specs"][1]["cwd"] = other_cwd
+
+            cases = (
+                (non_argv, "mode must be argv"),
+                (duplicate, "command_id values must be unique"),
+                (mixed_cwd, "requires one resolved cwd"),
+            )
+            for payload, message in cases:
+                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                    evaluate_work_estimate(payload)
+
+    def test_checked_sequence_rejects_argv_order_mismatch(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            payload = _checked_sequence_payload(cwd)
+            payload["task_profile"]["execution_contract"]["checked_command_specs"].reverse()
+            with self.assertRaisesRegex(ValueError, "argv must exactly match"):
+                evaluate_work_estimate(payload)
+
+    def test_execution_contract_schema_is_closed_and_strict(self):
+        schema = json.loads((ROOT / "schemas" / "native-work-estimate.schema.json").read_text(encoding="utf-8"))
+        contract = schema["$defs"]["taskProfile"]["properties"]["execution_contract"]
+        self.assertFalse(contract["additionalProperties"])
+        spec = contract["properties"]["checked_command_specs"]["items"]
+        self.assertFalse(spec["additionalProperties"])
+        self.assertEqual(spec["properties"]["mode"]["const"], "argv")
 
     def test_v2_semantic_score_floors_are_deterministic(self):
         cases = (

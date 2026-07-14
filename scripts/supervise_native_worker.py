@@ -276,7 +276,10 @@ def _persist_workspace_baseline(
     session_id: str,
 ) -> dict[str, Any]:
     workdir = Path(str(packet["scope"]["workdir"])).resolve()
-    allowed_paths = [str(value) for value in packet["scope"].get("allowed_paths", [])]
+    work_plan = packet.get("work_plan")
+    if not isinstance(work_plan, dict) or not isinstance(work_plan.get("write_paths"), list):
+        _fail("control-lost: work plan mutation scope is missing")
+    allowed_paths = [str(value) for value in work_plan["write_paths"]]
     baseline = capture_workspace_baseline(
         workdir,
         allowed_paths=allowed_paths,
@@ -425,7 +428,7 @@ def _tool_name(item: dict[str, Any]) -> str:
 
 
 def _tool_arguments(item: dict[str, Any]) -> dict[str, Any] | None:
-    raw = item.get("arguments")
+    raw = item.get("arguments", item.get("input"))
     if isinstance(raw, dict):
         return raw
     if not isinstance(raw, str):
@@ -503,6 +506,15 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
     profile = work_plan.get("task_profile")
     if not isinstance(profile, dict):
         return frozenset()
+    contract = profile.get("execution_contract")
+    if isinstance(contract, dict) and contract.get("mode") == "checked-sequence-v1":
+        receipt = packet.get("checked_command_sequence")
+        runner = receipt.get("runner_argv") if isinstance(receipt, dict) else None
+        if not isinstance(runner, list) or not runner or not all(
+            isinstance(value, str) and value for value in runner
+        ):
+            return frozenset()
+        return frozenset({tuple(runner)})
     mutation_count = profile.get("source_mutation_count")
     mutation_paths = profile.get("source_mutation_paths")
     if not isinstance(mutation_count, int) or isinstance(mutation_count, bool):
@@ -714,6 +726,226 @@ def _authorized_continuation_calls(
                         active_sessions.discard(session_id)
 
     return frozenset(authorized_calls)
+
+
+def _execution_command_plan(
+    packet: dict[str, Any],
+) -> tuple[str | None, list[tuple[str, ...]], dict[str, Any] | None]:
+    work_plan = packet.get("work_plan")
+    profile = work_plan.get("task_profile") if isinstance(work_plan, dict) else None
+    contract = profile.get("execution_contract") if isinstance(profile, dict) else None
+    if not isinstance(contract, dict):
+        return None, [], None
+    mode = contract.get("mode")
+    if mode == "checked-sequence-v1":
+        receipt = packet.get("checked_command_sequence")
+        runner = receipt.get("runner_argv") if isinstance(receipt, dict) else None
+        if isinstance(runner, list) and runner and all(isinstance(v, str) and v for v in runner):
+            return mode, [tuple(runner)], receipt
+        return "invalid", [], None
+    if mode != "direct":
+        return "invalid", [], None
+    commands = profile.get("commands")
+    if not isinstance(commands, list):
+        return "invalid", [], None
+    declared: list[tuple[str, ...]] = []
+    for command in commands:
+        argv = command.get("argv") if isinstance(command, dict) else None
+        if not isinstance(argv, list) or not argv or not all(isinstance(v, str) and v for v in argv):
+            return "invalid", [], None
+        declared.append(tuple(argv))
+    return mode, declared, None
+
+
+def _native_output_evidence(value: Any) -> tuple[str, int | None, int | None]:
+    parsed = value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            parsed = None
+    if isinstance(parsed, dict):
+        if "exit_code" in parsed:
+            code = parsed.get("exit_code")
+            return ("terminal", code, None) if isinstance(code, int) and not isinstance(code, bool) else ("invalid", None, None)
+        session_id = _continuation_session_id(parsed)
+        return ("running", None, session_id) if session_id is not None else ("invalid", None, None)
+    if not isinstance(value, str):
+        return "invalid", None, None
+    envelope = value.split("\nOutput:\n", 1)[0]
+    match = re.search(r"(?m)^Process exited with code\s+(-?\d+)\s*$", envelope)
+    if match:
+        return "terminal", int(match.group(1)), None
+    session_id = _continuation_session_id(value)
+    return ("running", None, session_id) if session_id is not None else ("invalid", None, None)
+
+
+def _checked_sequence_result_valid(packet: dict[str, Any], receipt: dict[str, Any]) -> bool:
+    spec = receipt.get("spec")
+    output_path = receipt.get("output_path")
+    if not isinstance(spec, dict) or not isinstance(output_path, str):
+        return False
+    try:
+        result = json.loads(Path(output_path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    commands = spec.get("commands")
+    command_results = result.get("command_results") if isinstance(result, dict) else None
+    expected = {
+        "result_type": "cwo-checked-command-sequence-result",
+        "version": 1,
+        "sequence_id": spec.get("sequence_id"),
+        "packet_id": packet.get("packet_id"),
+        "work_plan_sha256": spec.get("work_plan_sha256"),
+        "spec_sha256": receipt.get("spec_sha256"),
+        "workdir": spec.get("workdir"),
+        "status": "passed",
+        "failed_command_id": None,
+        "failure_class": None,
+    }
+    if not isinstance(result, dict) or any(result.get(key) != value for key, value in expected.items()):
+        return False
+    if not isinstance(commands, list) or not isinstance(command_results, list):
+        return False
+    if result.get("completed_count") != len(commands) or len(command_results) != len(commands):
+        return False
+    return all(
+        isinstance(actual, dict)
+        and isinstance(declared, dict)
+        and actual.get("command_id") == declared.get("command_id")
+        and actual.get("execution_status") == "passed"
+        and actual.get("exit_code") == 0
+        for declared, actual in zip(commands, command_results)
+    )
+
+
+def _analyze_command_evidence(
+    records: list[dict[str, Any]],
+    packet: dict[str, Any],
+    *,
+    task_complete: bool,
+) -> dict[str, Any]:
+    mode, declared, receipt = _execution_command_plan(packet)
+    evidence: dict[str, Any] = {
+        "enabled": mode is not None,
+        "mode": mode,
+        "declared_count": len(declared),
+        "observed_count": 0,
+        "completed_count": 0,
+        "paired_output_count": 0,
+        "active_session_count": 0,
+        "failed_command_index": None,
+        "failed_exit_code": None,
+        "sequence_result": None,
+        "violations": [],
+    }
+    if mode is None:
+        return evidence
+    violations: set[str] = set()
+    if mode == "invalid" or not declared:
+        violations.add("command-contract-invalid")
+    calls: dict[str, tuple[str, str]] = {}
+    commands: dict[str, dict[str, Any]] = {}
+    command_states = ["unseen"] * len(declared)
+    active_sessions: dict[int, str] = {}
+    failed = False
+    output_seen: set[str] = set()
+
+    for record in records:
+        for item in _normalize_response_items(record):
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type")
+            call_id = _tool_call_id(item)
+            if item_type in {"function_call", "custom_tool_call"}:
+                name = _tool_name(item).lower()
+                if failed:
+                    violations.add("command-after-terminal-failure")
+                if call_id is not None:
+                    if call_id in calls:
+                        violations.add("command-call-id-duplicate")
+                    calls[call_id] = (str(item_type), name)
+                if name == "exec_command":
+                    command = _extract_command(item) or ""
+                    try:
+                        argv = tuple(shlex.split(command))
+                    except ValueError:
+                        argv = ()
+                    if argv not in declared:
+                        continue
+                    index = declared.index(argv)
+                    if call_id is None:
+                        violations.add("declared-command-call-id-missing")
+                        continue
+                    if index != evidence["observed_count"] or (index and command_states[index - 1] != "passed"):
+                        violations.add("declared-command-order-invalid")
+                    evidence["observed_count"] = max(int(evidence["observed_count"]), index + 1)
+                    command_states[index] = "pending"
+                    commands[call_id] = {"index": index, "session_id": None, "parent": None}
+                elif name == "write_stdin":
+                    arguments = _tool_arguments(item)
+                    session_id = arguments.get("session_id") if isinstance(arguments, dict) else None
+                    chars = arguments.get("chars", "") if isinstance(arguments, dict) else None
+                    parent = active_sessions.get(session_id) if isinstance(session_id, int) and not isinstance(session_id, bool) else None
+                    if call_id is None or chars != "" or parent is None:
+                        violations.add("pty-continuation-invalid")
+                    else:
+                        commands[call_id] = {"index": commands[parent]["index"], "session_id": session_id, "parent": parent}
+            elif item_type in {"function_call_output", "custom_tool_call_output"}:
+                if call_id is None or call_id not in calls:
+                    violations.add("command-output-orphan")
+                    continue
+                expected_type = "function_call_output" if calls[call_id][0] == "function_call" else "custom_tool_call_output"
+                if item_type != expected_type:
+                    violations.add("command-output-type-mismatch")
+                if call_id in output_seen:
+                    violations.add("command-output-duplicate")
+                    continue
+                output_seen.add(call_id)
+                command = commands.get(call_id)
+                if command is None:
+                    continue
+                evidence["paired_output_count"] = int(evidence["paired_output_count"]) + 1
+                status, exit_code, session_id = _native_output_evidence(item.get("output"))
+                parent_id = command.get("parent") or call_id
+                parent = commands[parent_id]
+                index = int(parent["index"])
+                if status == "running" and session_id is not None:
+                    previous_session = parent.get("session_id")
+                    if previous_session not in {None, session_id}:
+                        violations.add("pty-session-mismatch")
+                    parent["session_id"] = session_id
+                    active_sessions[session_id] = parent_id
+                elif status == "terminal" and exit_code is not None:
+                    bound_session = parent.get("session_id")
+                    if bound_session is not None:
+                        active_sessions.pop(bound_session, None)
+                    if exit_code == 0:
+                        if command_states[index] != "passed":
+                            command_states[index] = "passed"
+                            evidence["completed_count"] = int(evidence["completed_count"]) + 1
+                        if mode == "checked-sequence-v1":
+                            valid = isinstance(receipt, dict) and _checked_sequence_result_valid(packet, receipt)
+                            evidence["sequence_result"] = "passed" if valid else "invalid"
+                            if not valid:
+                                violations.add("checked-sequence-result-invalid")
+                    else:
+                        command_states[index] = "failed"
+                        failed = True
+                        evidence["failed_command_index"] = index
+                        evidence["failed_exit_code"] = exit_code
+                        violations.add("declared-command-nonzero-exit")
+                else:
+                    violations.add("command-terminal-evidence-invalid")
+
+    if task_complete:
+        if any(state == "pending" for state in command_states):
+            violations.add("command-terminal-evidence-missing")
+        if any(state == "unseen" for state in command_states):
+            violations.add("declared-command-missing")
+    evidence["active_session_count"] = len(active_sessions)
+    evidence["violations"] = sorted(violations)
+    return evidence
 
 
 def _classify_native_activity(
@@ -976,6 +1208,86 @@ def _decision(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _bounded_strings(values: Any, *, limit: int = 8, width: int = 120) -> tuple[list[str], int, str]:
+    normalized = [str(value) for value in values] if isinstance(values, list) else []
+    digest = hashlib.sha256(json.dumps(normalized, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return [value[:width] for value in normalized[:limit]], len(normalized), digest
+
+
+def _compact_projection(state: dict[str, Any]) -> dict[str, Any]:
+    observed = state.get("observed") if isinstance(state.get("observed"), dict) else {}
+    activity = observed.get("activity") if isinstance(observed.get("activity"), dict) else {}
+    command = observed.get("command_evidence") if isinstance(observed.get("command_evidence"), dict) else {}
+    workspace = observed.get("workspace_report") if isinstance(observed.get("workspace_report"), dict) else {}
+    categories = workspace.get("mutation_categories") if isinstance(workspace.get("mutation_categories"), dict) else {}
+    reasons, reason_count, reason_sha256 = _bounded_strings(state.get("reasons"))
+    violations, violation_count, violation_sha256 = _bounded_strings(activity.get("violations"))
+    warnings, warning_count, warning_sha256 = _bounded_strings(activity.get("warnings"))
+    command_violations, command_count, command_sha256 = _bounded_strings(command.get("violations"))
+    compact = {
+        "result_type": DECISION_TYPE,
+        "version": 1,
+        "state_id": str(state.get("state_id", ""))[:160],
+        "packet_id": str(state.get("packet_id", ""))[:160],
+        "session_id": str(state.get("session_id", ""))[:160],
+        "status": state.get("status"),
+        "decision": state.get("decision"),
+        "reasons": reasons,
+        "reason_evidence": {"count": reason_count, "sha256": reason_sha256},
+        "control_action_required": bool(state.get("control_action_required")),
+        "usage": {
+            "tool_calls": observed.get("tool_calls", 0),
+            "elapsed_seconds": observed.get("elapsed_seconds", 0),
+            "context_compactions": observed.get("context_compactions", 0),
+            "full_suite_runs": observed.get("full_suite_runs", 0),
+        },
+        "activity": {
+            "category_counts": activity.get("category_counts", {}),
+            "violations": violations,
+            "violation_evidence": {"count": violation_count, "sha256": violation_sha256},
+            "warnings": warnings,
+            "warning_evidence": {"count": warning_count, "sha256": warning_sha256},
+        },
+        "control_timing": state.get("control_timing", {}),
+        "mutation": {
+            "detected": bool(workspace.get("mutation_detected")),
+            "unexpected": bool(workspace.get("unexpected_mutation_detected")),
+            "incomplete": bool(workspace.get("incomplete")),
+            "attribution_ambiguous": bool(workspace.get("attribution_ambiguous")),
+            "category_counts": {
+                name: len(value) if isinstance(value, list) else 0
+                for name, value in sorted(categories.items())
+            },
+        },
+        "command_evidence": {
+            key: command.get(key)
+            for key in (
+                "enabled", "mode", "declared_count", "observed_count", "completed_count",
+                "paired_output_count", "active_session_count", "failed_command_index",
+                "failed_exit_code", "sequence_result",
+            )
+        } | {
+            "violations": command_violations,
+            "violation_evidence": {"count": command_count, "sha256": command_sha256},
+        },
+        "session_disposition": state.get("session_disposition"),
+        "artifact_disposition": state.get("artifact_disposition"),
+        "started_at": state.get("started_at"),
+        "updated_at": state.get("updated_at"),
+        "finalized_at": state.get("finalized_at"),
+    }
+    rendered = json.dumps(compact, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    if len(rendered) > 4096:
+        compact["reasons"] = []
+        compact["activity"]["violations"] = []
+        compact["activity"]["warnings"] = []
+        compact["command_evidence"]["violations"] = []
+        compact["projection_truncated"] = True
+    if len(json.dumps(compact, sort_keys=True, separators=(",", ":")).encode("utf-8")) > 4096:
+        _fail("control-lost: compact projection exceeds 4096 bytes")
+    return compact
+
+
 def _audit_event(
     state: dict[str, Any],
     event_type: str,
@@ -1046,6 +1358,7 @@ def _audit_event(
             "observed_runtime_seconds": observed.get("elapsed_seconds", 0),
             "observed_context_compactions": observed.get("context_compactions", 0),
             "observed_full_suite_runs": observed.get("full_suite_runs", 0),
+            "native_command_evidence": observed.get("command_evidence"),
             "validation_lineage_attempt": state["validation_lineage"]["attempt"],
             "agent_model_calls": observed.get("tool_calls", 0) if include_usage else None,
             "elapsed_seconds": observed.get("elapsed_seconds", 0) if include_usage else None,
@@ -1420,6 +1733,11 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             policy=policy,
             packet=packet,
         )
+        command_evidence = _analyze_command_evidence(
+            records,
+            packet,
+            task_complete=bool(selected.get("complete")),
+        )
         observed = dict(previous_observed)
         observed.update(
             {
@@ -1429,6 +1747,7 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "full_suite_runs": int(selected["full_suite_runs"]),
                 "workspace_report": workspace_report,
                 "activity": activity,
+                "command_evidence": command_evidence,
             }
         )
         hard_reasons: list[str] = []
@@ -1440,6 +1759,7 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             hard_reasons.append("full-suite-limit")
         hard_reasons.extend(_workspace_hard_reasons(workspace_report))
         hard_reasons.extend(str(reason) for reason in activity.get("violations", []))
+        hard_reasons.extend(str(reason) for reason in command_evidence.get("violations", []))
 
         reserve_reasons: list[str] = []
         if observed["tool_calls"] >= state["interrupt_thresholds"]["tool_calls"]:
@@ -1683,6 +2003,7 @@ def parse_args() -> argparse.Namespace:
     check_cmd.add_argument("--state-file", required=True)
     check_cmd.add_argument("--control-turn-id", required=True)
     check_cmd.add_argument("--now")
+    check_cmd.add_argument("--projection", choices=["full", "compact"], default="full")
     check_cmd.add_argument("--json", action="store_true")
     finalize_cmd = commands.add_parser("finalize")
     finalize_cmd.add_argument("--state-file", required=True)
@@ -1719,6 +2040,8 @@ def main() -> int:
         result, code = mark_dispatched(args)
     elif args.command == "check":
         result, code = check(args)
+        if args.projection == "compact":
+            result = _compact_projection(_load_json(Path(args.state_file).expanduser().resolve(), "supervision state"))
     elif args.command == "finalize":
         result, code = finalize(args), 0
     elif args.command == "assess-retry":
@@ -1728,7 +2051,10 @@ def main() -> int:
     else:
         _fail(f"unsupported command {args.command!r}")
     if getattr(args, "json", False):
-        print(json.dumps(result, indent=2, sort_keys=True))
+        if args.command == "check" and args.projection == "compact":
+            print(json.dumps(result, sort_keys=True, separators=(",", ":")), end="")
+        else:
+            print(json.dumps(result, indent=2, sort_keys=True))
     else:
         print(f"{args.command}: {result.get('decision', result.get('status'))}")
         if result.get("state_file"):
