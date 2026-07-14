@@ -82,6 +82,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_session": {"native_disposition"},
     "native_worker_contracts": {"native_disposition"},
     "native_capability": set(),
+    "proportional_execution": {"native_capability"},
     "native_recovery": set(),
     "native_retry": set(),
     "native_control": set(),

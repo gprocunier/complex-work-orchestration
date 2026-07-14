@@ -42,6 +42,43 @@ REQUIRED_CONTRACT_FIELDS = {
     "contract_sha256",
 }
 VALID_DECISIONS = {"continue", "warn", "complete", "interrupt", "control-lost"}
+_DECISION_ALIASES = {
+    "completed": "complete",
+    "worker-completed": "complete",
+    "task_complete": "complete",
+    "task-complete": "complete",
+}
+
+
+def normalize_terminal_state(value: Any) -> str:
+    if value is None:
+        raise ValueError("terminal state is required")
+    if isinstance(value, str):
+        state = value.strip().lower().replace("_", "-")
+        if state in {"complete", "completed", "worker-completed", "task-complete"}:
+            return "completed"
+        if state in {"closed", "control-failed"}:
+            return state
+    raise ValueError("terminal state is invalid")
+
+
+def normalize_control_acknowledgement(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        normalized = value.strip()
+        return normalized if normalized else None
+    if isinstance(value, Mapping):
+        for field in ("ack", "acknowledgement", "status", "state", "control_action"):
+            candidate = value.get(field)
+            if isinstance(candidate, str):
+                normalized = candidate.strip()
+                if normalized:
+                    return normalized
+        if "decision" in value and isinstance(value["decision"], str):
+            normalized = value["decision"].strip()
+            return normalized if normalized else None
+    raise ValueError("control callback acknowledgement must be text, mapping, or null")
 
 
 def _canonical_sha256(value: Mapping[str, Any]) -> str:
@@ -160,11 +197,29 @@ def _submission_id(value: Any) -> str:
 
 
 def _decision(value: Any) -> str:
+    if value is None:
+        raise ValueError("check returned missing decision evidence")
     if isinstance(value, Mapping):
-        value = value.get("decision")
-    if value not in VALID_DECISIONS:
+        if "decision" in value:
+            value = value.get("decision")
+        elif "control_action" in value:
+            value = value.get("control_action")
+        elif "ack" in value:
+            value = value.get("ack")
+        elif "acknowledgement" in value:
+            value = value.get("acknowledgement")
+        elif "state" in value:
+            value = value.get("state")
+        else:
+            raise ValueError("check returned an invalid decision")
+    if isinstance(value, Mapping):
         raise ValueError("check returned an invalid decision")
-    return str(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower().replace("_", "-")
+        normalized = _DECISION_ALIASES.get(normalized, normalized)
+        if normalized in VALID_DECISIONS:
+            return normalized
+    raise ValueError("check returned an invalid decision")
 
 
 class NativeControlTurn:
@@ -244,7 +299,10 @@ class NativeControlTurn:
 
         def invoke(name: str, label: str | None = None, **kwargs: Any) -> Any:
             actions.append(label or name.replace("_", "-"))
-            return self.callbacks[name](**kwargs)
+            result = self.callbacks[name](**kwargs)
+            if name in {"arm", "mark_dispatched", "finalize", "close", "interrupt"}:
+                normalize_control_acknowledgement(result)
+            return result
 
         try:
             invoke("arm", state_file=state_file, control_turn_id=control_turn_id)

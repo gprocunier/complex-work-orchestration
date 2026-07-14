@@ -52,6 +52,194 @@
     "close",
     "wait"
   ],
+  "proportional_execution_fast_path": {
+    "enabled": true,
+    "route": "native-productive-fast-path",
+    "version": 1,
+    "eligibility": {
+      "brief_type": "cwo-proportional-execution-brief",
+      "version": 1,
+      "identity_required": true,
+      "tool_surface_required": true,
+      "model_surface_required": true,
+      "single_output_artifact_required": true,
+      "allowed_output_classifications": [
+        "ignored",
+        "ephemeral",
+        "non-publishable"
+      ],
+      "max_estimated_lines": 500,
+      "max_estimated_tool_calls": 12,
+      "max_estimated_runtime_seconds": 600,
+      "mutation_boundaries_required_false": [
+        "tracked_source",
+        "policy",
+        "schema",
+        "credential",
+        "beads_database",
+        "production"
+      ],
+      "access_boundaries_required_false": [
+        "privileged_access",
+        "secrets",
+        "external_disclosure",
+        "network"
+      ],
+      "required_unresolved_decisions_empty": [
+        "architecture",
+        "security",
+        "policy"
+      ],
+      "deterministic_checks_required": true,
+      "usage_buckets": [
+        "productive-artifact",
+        "validation",
+        "orchestration-setup",
+        "harness-recovery"
+      ],
+      "required_worker_capabilities": [
+        "text",
+        "json"
+      ],
+      "allowed_worker_capability_source": "brief-available_worker_capabilities"
+    },
+    "receipt": {
+      "valid_receipt_reuse": true,
+      "no-repeated-canary": true,
+      "tool_surface": "native-productive-fast-path"
+    },
+    "required_steps": [
+      "validate-proportional-brief",
+      "evaluate-required-boundaries",
+      "evaluate-usage-breakdown",
+      "evaluate-visual-adjudication",
+      "emit-immutable-task-evidence"
+    ],
+    "skipped_heavy_gates": [
+      "scheduler-delay-canary",
+      "tool-use-canary",
+      "non-essential-policy-checks"
+    ],
+    "terminal_precedence": {
+      "completion_vs_late_poll": "completion-wins",
+      "hard_reasons_vs_completion": "hard-wins",
+      "late_poll_decision": "warn",
+      "startup_grace_late_poll": "warn"
+    },
+    "scheduler_delay": {
+      "as_control_lost": false,
+      "warn_reason": "poll-latency-observed"
+    },
+    "pm_visual_adjudication": {
+      "owner": "pm",
+      "trusted_screenshots_only": true,
+      "image_input_required_when_owner_worker": true,
+      "correction_cap": "bounded",
+      "bounded_corrections": 1
+    }
+  },
+  "operative_packet_readiness": {
+    "version": 2,
+    "required_marker": "operative-readiness:v2",
+    "decisions": [
+      "operative-ready",
+      "architect-resolution-required",
+      "split-required"
+    ],
+    "selector_grammar": [
+      "whole-file",
+      "lines:<start>-<end>"
+    ],
+    "semantic_unit_identity": "context-manifest-path-selector-sha256",
+    "max_chunks_per_unit": 4,
+    "limits": {
+      "max_behavior_clusters": 1,
+      "max_source_files": 4,
+      "max_focused_test_modules": 2,
+      "max_expected_diff_lines": 250,
+      "max_tool_calls_p90": 18,
+      "max_runtime_seconds_p90": 300,
+      "max_compactions": 0,
+      "max_implementation_full_suite_runs": 0
+    },
+    "required_frozen_decision_markers": [
+      "behavior-cluster:",
+      "input-contract:",
+      "output-contract:",
+      "state-transitions:",
+      "positive-tests:",
+      "negative-tests:",
+      "authority:"
+    ],
+    "unresolved_decisions_required_empty": true,
+    "result_fields": [
+      "decision",
+      "reasons",
+      "open_decisions",
+      "owned_files",
+      "owned_symbols",
+      "test_matrix",
+      "context_unit_allowance",
+      "pre_mutation_read_call_allowance",
+      "total_call_allowance",
+      "total_runtime_allowance"
+    ]
+  },
+  "operative_activity_controls": {
+    "version": 2,
+    "categories": [
+      "targeted-read",
+      "broad-scan",
+      "memory-read",
+      "mutation",
+      "focused-validation",
+      "unrelated"
+    ],
+    "semantic_unit_identity": "context-manifest-path-selector-sha256",
+    "mutation_authority": "content-aware-workspace-baseline-v2",
+    "max_chunks_per_unit": 4,
+    "warning": {
+      "semantic_units": 3,
+      "pre_mutation_read_calls": 6
+    },
+    "needs_replan_before": {
+      "semantic_unit": 4,
+      "pre_mutation_read_call": 11
+    },
+    "broad_scan": "deny",
+    "memory_read": "exact-context-manifest-path-only",
+    "recovery": {
+      "pm_refinements": 1,
+      "automatic_sol_replans": 1,
+      "final_attempts_after_sol_replan": 1,
+      "operator_approval_for_healthy_packet_correction": false,
+      "aggregate_budget_shared": true,
+      "budget_reset": false,
+      "recursive_salvage": false
+    },
+    "protected_stops": [
+      "model-mismatch",
+      "context-compaction",
+      "control-loss",
+      "telemetry-unavailable",
+      "security-violation",
+      "authority-violation",
+      "out-of-scope-mutation",
+      "mutation-attribution-ambiguity",
+      "incomplete-mutation-evidence",
+      "contradictory-validation",
+      "aggregate-budget-exhausted"
+    ],
+    "prohibitions": [
+      "call-ordinal-first-mutation-gate",
+      "recursive-salvage",
+      "budget-reset",
+      "operative-agent-resume",
+      "non-native-bridge",
+      "model-substitution",
+      "sol-operative-substitution"
+    ]
+  },
   "missing_telemetry_control": "stop-before-dispatch",
   "validation_attempt_limit": 1,
   "recursive_validation_forbidden": true,

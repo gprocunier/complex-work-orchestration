@@ -38,6 +38,7 @@ ALLOWED_IMPORTS = {
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
     "native_capability": set(),
+    "proportional_execution": {"native_capability"},
     "native_control": set(),
     "native_disposition": set(),
     "native_progress": {"policy"},

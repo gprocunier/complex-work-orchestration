@@ -28,6 +28,7 @@ __all__ = [
     "packets",
     "paths",
     "policy",
+    "proportional_execution",
     "public_copy",
     "return_boundary",
     "return_common",

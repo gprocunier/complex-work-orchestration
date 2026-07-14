@@ -16,6 +16,7 @@ from cwo_core.native_control import (  # noqa: E402
     ALLOWED_ACTIONS,
     NativeControlTurn,
     build_control_turn_contract,
+    normalize_terminal_state,
     run_control_turn,
     validate_control_callbacks,
     validate_control_turn_contract,
@@ -227,6 +228,31 @@ class NativeControlTest(unittest.TestCase):
         malformed = self.run_renderer("{")
         self.assertNotEqual(malformed.returncode, 0)
         self.assertIn("malformed-state-json", malformed.stderr)
+
+    def test_control_aliases_and_text_or_none_acknowledgements_do_not_crash(self) -> None:
+        for alias in ("complete", "completed", "worker-completed", "task_complete"):
+            self.assertEqual(normalize_terminal_state(alias), "completed")
+
+        text_alias = {
+            "arm": lambda **kwargs: None,
+            "send_input": lambda **kwargs: {"submission_id": "submission-1"},
+            "mark_dispatched": lambda **kwargs: None,
+            "check": lambda **kwargs: "task_complete",
+            "interrupt": lambda **kwargs: self.fail("interrupt should not be used for complete alias"),
+            "close": lambda **kwargs: None,
+            "finalize": lambda **kwargs: None,
+            "sleep": lambda **kwargs: None,
+        }
+        result = run_control_turn(contract(), TASK, text_alias)
+        self.assertEqual(result["terminal_state"], "completed")
+
+        mixed = dict(text_alias)
+        mixed["check"] = lambda **kwargs: None
+        result2 = run_control_turn(contract(), TASK, mixed)
+        self.assertEqual(result2["terminal_state"], "control-failed")
+        self.assertTrue(
+            any("check returned missing decision evidence" in error for error in result2["errors"])
+        )
 
 
 if __name__ == "__main__":

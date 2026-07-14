@@ -39,6 +39,66 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             {"emitted": 2, "historical": [1], "dispatchable": [2]},
         )
 
+    def test_semantic_operative_packet_readiness_contract(self) -> None:
+        readiness = self.__class__.policy["operative_packet_readiness"]
+        self.assertEqual(readiness["version"], 2)
+        self.assertEqual(readiness["required_marker"], "operative-readiness:v2")
+        self.assertEqual(
+            readiness["decisions"],
+            ["operative-ready", "architect-resolution-required", "split-required"],
+        )
+        self.assertEqual(readiness["selector_grammar"], ["whole-file", "lines:<start>-<end>"])
+        self.assertEqual(readiness["semantic_unit_identity"], "context-manifest-path-selector-sha256")
+        self.assertEqual(readiness["max_chunks_per_unit"], 4)
+        self.assertEqual(
+            readiness["limits"],
+            {
+                "max_behavior_clusters": 1,
+                "max_source_files": 4,
+                "max_focused_test_modules": 2,
+                "max_expected_diff_lines": 250,
+                "max_tool_calls_p90": 18,
+                "max_runtime_seconds_p90": 300,
+                "max_compactions": 0,
+                "max_implementation_full_suite_runs": 0,
+            },
+        )
+        self.assertTrue(readiness["unresolved_decisions_required_empty"])
+        self.assertEqual(len(readiness["required_frozen_decision_markers"]), 7)
+        self.assertIn("context_unit_allowance", readiness["result_fields"])
+
+    def test_semantic_activity_and_autonomous_replan_contract(self) -> None:
+        controls = self.__class__.policy["operative_activity_controls"]
+        self.assertEqual(controls["version"], 2)
+        self.assertEqual(
+            controls["categories"],
+            ["targeted-read", "broad-scan", "memory-read", "mutation", "focused-validation", "unrelated"],
+        )
+        self.assertEqual(controls["semantic_unit_identity"], "context-manifest-path-selector-sha256")
+        self.assertEqual(controls["mutation_authority"], "content-aware-workspace-baseline-v2")
+        self.assertEqual(controls["max_chunks_per_unit"], 4)
+        self.assertEqual(controls["warning"], {"semantic_units": 3, "pre_mutation_read_calls": 6})
+        self.assertEqual(controls["needs_replan_before"], {"semantic_unit": 4, "pre_mutation_read_call": 11})
+        self.assertEqual(controls["broad_scan"], "deny")
+        self.assertEqual(controls["memory_read"], "exact-context-manifest-path-only")
+        self.assertEqual(
+            controls["recovery"],
+            {
+                "pm_refinements": 1,
+                "automatic_sol_replans": 1,
+                "final_attempts_after_sol_replan": 1,
+                "operator_approval_for_healthy_packet_correction": False,
+                "aggregate_budget_shared": True,
+                "budget_reset": False,
+                "recursive_salvage": False,
+            },
+        )
+        self.assertIn("control-loss", controls["protected_stops"])
+        self.assertIn("aggregate-budget-exhausted", controls["protected_stops"])
+        self.assertIn("call-ordinal-first-mutation-gate", controls["prohibitions"])
+        self.assertIn("recursive-salvage", controls["prohibitions"])
+        self.assertIn("budget-reset", controls["prohibitions"])
+
     def test_bootstrap_roles_and_attestation_invariants(self) -> None:
         policy = self.__class__.policy
         self.assertEqual(policy["governance"]["sol"]["role"], "architecture-and-adjudication-only")

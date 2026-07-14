@@ -3,14 +3,18 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
-import os
+import re
+import shlex
 from pathlib import Path
 from typing import Any
 
 from cwo_core.native_session import (
     SEGMENT_START_EVENT,
     _evaluate_records,
+    _extract_command,
+    _normalize_response_items,
     _is_user_boundary_record,
     _normalize_event_msg,
     _normalize_turn_context,
@@ -27,6 +31,7 @@ from cwo_core.native_retry import (
 from cwo_core.policy import load_policy
 from cwo_core.paths import AUDIT_LOG, cwo_temp_path, is_cwo_temp_path
 from cwo_core.util import artifact_hash, atomic_write_text, make_dispatch_id
+from cwo_core.workspace import capture_workspace_baseline, compare_workspace_baseline
 from prepare_native_worker import validate_native_worker_packet
 
 
@@ -36,6 +41,7 @@ STATE_SCHEMA = "schemas/native-supervision-state.schema.json"
 DECISION_SCHEMA = "schemas/native-supervision-decision.schema.json"
 FINAL_STATES = {"completed", "closed", "control-failed"}
 EMPTY_USAGE = {"tool_calls": 0, "runtime_seconds": 0}
+OPERATIVE_READINESS_CONTRACT = "operative-readiness:v2"
 
 
 def _fail(message: str) -> None:
@@ -54,6 +60,766 @@ def _iso_now(value: str | None = None) -> dt.datetime:
 
 def _iso(value: dt.datetime) -> str:
     return value.astimezone(dt.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _policy_mapping(policy: dict[str, Any], key: str) -> dict[str, Any]:
+    value = policy.get(key)
+    if not isinstance(value, dict):
+        _fail(f"control-lost: {key} policy is missing or invalid")
+    return value
+
+
+def _scope_relative(workdir: Path, value: str) -> tuple[str, Path] | None:
+    candidate = Path(value)
+    resolved = candidate.resolve() if candidate.is_absolute() else (workdir / candidate).resolve()
+    try:
+        relative = resolved.relative_to(workdir).as_posix()
+    except ValueError:
+        return None
+    return relative, resolved
+
+
+def _path_is_allowed(relative: str, allowed_paths: list[str]) -> bool:
+    return any(
+        relative == allowed.rstrip("/") or relative.startswith(allowed.rstrip("/") + "/")
+        for allowed in allowed_paths
+        if allowed
+    )
+
+
+def _context_manifest(
+    packet: dict[str, Any],
+    work_plan: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    workdir = Path(str(packet["scope"]["workdir"])).resolve()
+    raw_allowed = packet["scope"].get("allowed_paths", [])
+    allowed_paths: list[str] = []
+    errors: list[str] = []
+    for raw in raw_allowed if isinstance(raw_allowed, list) else []:
+        if not isinstance(raw, str) or not raw:
+            errors.append("scope.allowed_paths contains an invalid path")
+            continue
+        scoped = _scope_relative(workdir, raw)
+        if scoped is None:
+            errors.append(f"scope path escapes workdir: {raw}")
+            continue
+        allowed_paths.append(scoped[0])
+
+    manifest = work_plan.get("context_manifest")
+    if not isinstance(manifest, list) or not manifest:
+        return [], [*errors, "context_manifest must contain at least one semantic unit"]
+
+    units: list[dict[str, Any]] = []
+    identities: set[str] = set()
+    for index, item in enumerate(manifest):
+        prefix = f"context_manifest[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        raw_path = item.get("path")
+        selector = item.get("selector")
+        sha256 = item.get("sha256")
+        if not isinstance(raw_path, str) or not raw_path or Path(raw_path).is_absolute():
+            errors.append(f"{prefix}.path must be a relative path")
+            continue
+        scoped = _scope_relative(workdir, raw_path)
+        if scoped is None or not _path_is_allowed(scoped[0], allowed_paths):
+            errors.append(f"{prefix}.path is outside packet scope")
+            continue
+        if selector != "whole-file":
+            match = re.fullmatch(r"lines:(\d+)-(\d+)", str(selector))
+            if not match or int(match.group(1)) > int(match.group(2)):
+                errors.append(f"{prefix}.selector is invalid")
+                continue
+        if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+            errors.append(f"{prefix}.sha256 must be lowercase sha256")
+            continue
+        relative, resolved = scoped
+        try:
+            actual_sha256 = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        except OSError:
+            errors.append(f"{prefix}.path is unreadable")
+            continue
+        if actual_sha256 != sha256:
+            errors.append(f"{prefix}.sha256 does not match current content")
+            continue
+        identity = f"{relative}::{selector}::{sha256}"
+        if identity in identities:
+            errors.append(f"{prefix} duplicates semantic unit {identity}")
+            continue
+        identities.add(identity)
+        units.append(
+            {
+                "identity": identity,
+                "path": relative,
+                "absolute_path": str(resolved),
+                "selector": selector,
+                "sha256": sha256,
+            }
+        )
+    return units, errors
+
+
+def _evaluate_operative_readiness(
+    packet: dict[str, Any],
+    policy: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    config = _policy_mapping(policy, "operative_packet_readiness")
+    limits = config.get("limits")
+    if not isinstance(limits, dict):
+        _fail("control-lost: operative_packet_readiness.limits is invalid")
+
+    reasons: list[str] = []
+    open_decisions: list[str] = []
+    work_plan = packet.get("work_plan")
+    if not isinstance(work_plan, dict):
+        work_plan = {}
+        reasons.append("missing-work-plan")
+
+    frozen = work_plan.get("frozen_decisions")
+    frozen_decisions = [value for value in frozen if isinstance(value, str)] if isinstance(frozen, list) else []
+    if config.get("required_marker") not in frozen_decisions:
+        reasons.append("missing-operative-readiness-marker")
+
+    required_markers = config.get("required_frozen_decision_markers")
+    if not isinstance(required_markers, list):
+        _fail("control-lost: required_frozen_decision_markers is invalid")
+    for required in required_markers:
+        if not isinstance(required, str) or not any(value.startswith(required) for value in frozen_decisions):
+            open_decisions.append(str(required))
+    if open_decisions:
+        reasons.append("missing-frozen-decision-markers")
+
+    unresolved = work_plan.get("unresolved_decisions")
+    if not isinstance(unresolved, list):
+        reasons.append("unresolved-decisions-invalid")
+        open_decisions.append("unresolved-decisions-shape")
+    elif unresolved:
+        reasons.append("unresolved-decisions-present")
+        open_decisions.extend(str(value) for value in unresolved)
+
+    behavior_clusters = [value for value in frozen_decisions if value.startswith("behavior-cluster:")]
+    if len(behavior_clusters) != int(limits.get("max_behavior_clusters", 1)):
+        reasons.append("behavior-cluster-count-invalid")
+
+    write_paths = work_plan.get("write_paths")
+    owned_files = [value for value in write_paths if isinstance(value, str)] if isinstance(write_paths, list) else []
+    if not owned_files:
+        reasons.append("missing-write-paths")
+    if len(set(owned_files)) > int(limits.get("max_source_files", 4)):
+        reasons.append("source-file-limit-exceeded")
+
+    context_units, context_errors = _context_manifest(packet, work_plan)
+    reasons.extend(context_errors)
+    focused_modules = sorted(
+        {
+            unit["path"]
+            for unit in context_units
+            if Path(unit["path"]).name.startswith("test_") and unit["path"].endswith(".py")
+        }
+    )
+    if len(focused_modules) > int(limits.get("max_focused_test_modules", 2)):
+        reasons.append("focused-test-module-limit-exceeded")
+
+    semantic = work_plan.get("semantic_estimate")
+    semantic = semantic if isinstance(semantic, dict) else {}
+    if int(semantic.get("estimated_diff_p90", 0) or 0) > int(limits.get("max_expected_diff_lines", 250)):
+        reasons.append("expected-diff-limit-exceeded")
+
+    estimates = work_plan.get("estimates")
+    estimates = estimates if isinstance(estimates, dict) else {}
+    if int(estimates.get("tool_calls_p90", 0) or 0) > int(limits.get("max_tool_calls_p90", 18)):
+        reasons.append("tool-call-estimate-limit-exceeded")
+    if int(estimates.get("runtime_seconds_p90", 0) or 0) > int(limits.get("max_runtime_seconds_p90", 300)):
+        reasons.append("runtime-estimate-limit-exceeded")
+
+    budget = packet.get("budget")
+    budget = budget if isinstance(budget, dict) else {}
+    if int(budget.get("max_compactions", -1)) != int(limits.get("max_compactions", 0)):
+        reasons.append("compaction-limit-invalid")
+    if int(budget.get("max_full_suite_runs", -1)) != int(
+        limits.get("max_implementation_full_suite_runs", 0)
+    ):
+        reasons.append("implementation-full-suite-limit-invalid")
+
+    if open_decisions:
+        decision = "architect-resolution-required"
+    elif reasons:
+        decision = "split-required"
+    else:
+        decision = "operative-ready"
+
+    activity = _policy_mapping(policy, "operative_activity_controls")
+    needs_replan = activity.get("needs_replan_before")
+    needs_replan = needs_replan if isinstance(needs_replan, dict) else {}
+    result = {
+        "decision": decision,
+        "reasons": sorted(set(reasons)),
+        "open_decisions": sorted(set(open_decisions)),
+        "owned_files": owned_files,
+        "owned_symbols": [],
+        "test_matrix": list(work_plan.get("acceptance_checks", []))
+        if isinstance(work_plan.get("acceptance_checks"), list)
+        else [],
+        "context_unit_allowance": int(limits.get("max_source_files", 4)),
+        "pre_mutation_read_call_allowance": max(
+            0, int(needs_replan.get("pre_mutation_read_call", 11)) - 1
+        ),
+        "total_call_allowance": int(budget.get("tool_calls_hard", 0) or 0),
+        "total_runtime_allowance": int(budget.get("runtime_seconds_hard", 0) or 0),
+    }
+    return result, context_units
+
+
+def _persist_workspace_baseline(
+    packet: dict[str, Any],
+    session_id: str,
+) -> dict[str, Any]:
+    workdir = Path(str(packet["scope"]["workdir"])).resolve()
+    allowed_paths = [str(value) for value in packet["scope"].get("allowed_paths", [])]
+    baseline = capture_workspace_baseline(
+        workdir,
+        allowed_paths=allowed_paths,
+        include_untracked=True,
+    )
+    if baseline.get("incomplete") or not baseline.get("baseline_complete"):
+        _fail("control-lost: workspace baseline evidence is incomplete")
+    payload = json.dumps(baseline, indent=2, sort_keys=True) + "\n"
+    path = cwo_temp_path(
+        f"{packet['packet_id']}-{session_id}-workspace-baseline.json",
+        purpose="native-supervision",
+    ).resolve()
+    atomic_write_text(path, payload)
+    return {
+        "path": str(path),
+        "sha256": artifact_hash(payload),
+        "baseline_complete": True,
+        "allowed_paths": allowed_paths,
+    }
+
+
+def _load_workspace_baseline(metadata: Any) -> dict[str, Any]:
+    if not isinstance(metadata, dict):
+        _fail("control-lost: workspace baseline metadata is missing")
+    path_value = metadata.get("path")
+    expected_sha256 = metadata.get("sha256")
+    if not isinstance(path_value, str) or not isinstance(expected_sha256, str):
+        _fail("control-lost: workspace baseline metadata is invalid")
+    path = Path(path_value).expanduser().resolve()
+    if not is_cwo_temp_path(path):
+        _fail("control-lost: workspace baseline is outside CWO temporary state")
+    try:
+        payload = path.read_text(encoding="utf-8")
+        baseline = json.loads(payload)
+    except (OSError, json.JSONDecodeError) as exc:
+        _fail(f"control-lost: workspace baseline is unreadable: {exc}")
+    if artifact_hash(payload) != expected_sha256 or not isinstance(baseline, dict):
+        _fail("control-lost: workspace baseline hash mismatch")
+    if baseline.get("incomplete") or not baseline.get("baseline_complete"):
+        _fail("control-lost: workspace baseline evidence is incomplete")
+    return baseline
+
+
+def _compare_live_workspace(metadata: dict[str, Any]) -> dict[str, Any]:
+    before = _load_workspace_baseline(metadata)
+    caps = before.get("caps")
+    caps = caps if isinstance(caps, dict) else {}
+    after = capture_workspace_baseline(
+        Path(str(before["cwd"])),
+        allowed_paths=list(before.get("allowed_paths", [])),
+        include_untracked=bool(before.get("include_untracked", True)),
+        max_files=int(caps.get("max_files", 10000)),
+        max_bytes=int(caps.get("max_bytes", 50_000_000)),
+        max_seconds=float(caps.get("max_seconds", 5.0)),
+    )
+    report = compare_workspace_baseline(
+        before,
+        after,
+        allowed_paths=list(before.get("allowed_paths", [])),
+    )
+    allowed_paths = list(before.get("allowed_paths", []))
+    mutations = report.get("mutations")
+    if isinstance(mutations, list):
+        for mutation in mutations:
+            if (
+                isinstance(mutation, dict)
+                and mutation.get("category") == "untracked"
+                and _path_is_allowed(str(mutation.get("path", "")), allowed_paths)
+            ):
+                mutation["category"] = "scoped"
+        category_names = (
+            "scoped",
+            "out-of-scope",
+            "untracked",
+            "unchanged-dirty",
+            "attribution-ambiguous",
+        )
+        categories = {
+            name: sorted(
+                str(item["path"])
+                for item in mutations
+                if isinstance(item, dict) and item.get("category") == name
+            )
+            for name in category_names
+        }
+        categories["unchanged-dirty"] = sorted(
+            set(categories["unchanged-dirty"]) | set(report.get("unchanged_dirty", []))
+        )
+        unexpected = [
+            item
+            for item in mutations
+            if isinstance(item, dict)
+            and item.get("category") in {"out-of-scope", "untracked", "attribution-ambiguous"}
+        ]
+        report["mutation_categories"] = categories
+        report["allowed_mutations"] = [
+            item for item in mutations if isinstance(item, dict) and item.get("category") == "scoped"
+        ]
+        report["unexpected_mutations"] = unexpected
+        report["unexpected_mutation_detected"] = bool(unexpected)
+        report["attribution_ambiguous"] = bool(categories["attribution-ambiguous"])
+    return report
+
+
+def _workspace_hard_reasons(report: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    categories = report.get("mutation_categories")
+    categories = categories if isinstance(categories, dict) else {}
+    if report.get("incomplete"):
+        reasons.append("incomplete-mutation-evidence")
+    if report.get("attribution_ambiguous") or categories.get("attribution-ambiguous"):
+        reasons.append("mutation-attribution-ambiguity")
+    if categories.get("out-of-scope"):
+        reasons.append("out-of-scope-mutation")
+    if categories.get("untracked"):
+        reasons.append("unexpected-untracked-mutation")
+    return reasons
+
+
+def _empty_activity() -> dict[str, Any]:
+    return {
+        "processed_items": 0,
+        "category_counts": {
+            "targeted-read": 0,
+            "broad-scan": 0,
+            "memory-read": 0,
+            "mutation": 0,
+            "focused-validation": 0,
+            "unrelated": 0,
+        },
+        "semantic_units": {},
+        "pre_mutation_read_calls": 0,
+        "pre_mutation_semantic_units": [],
+        "mutation_started": False,
+        "warnings": [],
+        "violations": [],
+    }
+
+
+def _tool_name(item: dict[str, Any]) -> str:
+    for key in ("name", "tool_name"):
+        value = item.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return str(item.get("type") or "")
+
+
+def _tool_arguments(item: dict[str, Any]) -> dict[str, Any] | None:
+    raw = item.get("arguments")
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _tool_call_id(item: dict[str, Any]) -> str | None:
+    value = item.get("call_id")
+    return value if isinstance(value, str) and value else None
+
+
+def _continuation_session_id(value: Any) -> int | None:
+    if isinstance(value, dict):
+        candidate = value.get("session_id")
+        if isinstance(candidate, int) and not isinstance(candidate, bool) and candidate > 0:
+            return candidate
+        return None
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, dict):
+        candidate = _continuation_session_id(parsed)
+        if candidate is not None:
+            return candidate
+    envelope = value.split("\nOutput:\n", 1)[0]
+    match = re.search(
+        r"(?m)^Process running with session ID\s+([1-9]\d*)\s*$",
+        envelope,
+    )
+    return int(match.group(1)) if match else None
+
+
+def _continuation_is_terminal(value: Any) -> bool:
+    if isinstance(value, dict):
+        exit_code = value.get("exit_code")
+        if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+            return True
+        return False
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, dict) and _continuation_is_terminal(parsed):
+        return True
+    lower = value.split("\nOutput:\n", 1)[0].lower()
+    return any(
+        marker in lower
+        for marker in (
+            "process exited with code",
+            "unknown process id",
+            "aborted by user",
+        )
+    )
+
+
+def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str, ...]]:
+    lane = packet.get("lane")
+    if lane not in {"implementation", "validation"}:
+        return frozenset()
+    scope = packet.get("scope")
+    work_plan = packet.get("work_plan")
+    if not isinstance(scope, dict) or not isinstance(work_plan, dict):
+        return frozenset()
+
+    profile = work_plan.get("task_profile")
+    if not isinstance(profile, dict):
+        return frozenset()
+    mutation_count = profile.get("source_mutation_count")
+    mutation_paths = profile.get("source_mutation_paths")
+    if not isinstance(mutation_count, int) or isinstance(mutation_count, bool):
+        return frozenset()
+    if not isinstance(mutation_paths, list):
+        return frozenset()
+    if lane == "validation":
+        prohibited = scope.get("prohibited_actions")
+        if not isinstance(prohibited, list) or "source-mutation" not in prohibited:
+            return frozenset()
+        if work_plan.get("write_paths") != []:
+            return frozenset()
+        if profile.get("task_class") != "read-only-validation":
+            return frozenset()
+        if mutation_count != 0 or mutation_paths != []:
+            return frozenset()
+    else:
+        allowed = scope.get("allowed_actions")
+        if not isinstance(allowed, list) or "run-tests-in-scope" not in allowed:
+            return frozenset()
+        if profile.get("task_class") not in {"narrow-mechanical", "bounded-implementation"}:
+            return frozenset()
+    command_count = profile.get("command_count")
+    commands = profile.get("commands")
+    if (
+        not isinstance(command_count, int)
+        or isinstance(command_count, bool)
+        or not isinstance(commands, list)
+        or command_count != len(commands)
+    ):
+        return frozenset()
+
+    declared: list[tuple[str, ...]] = []
+    for command in commands:
+        if not isinstance(command, dict) or set(command) != {"argv"}:
+            return frozenset()
+        argv = command.get("argv")
+        if not isinstance(argv, list) or not argv:
+            return frozenset()
+        normalized: list[str] = []
+        for value in argv:
+            if not isinstance(value, str) or not value:
+                return frozenset()
+            normalized.append(value)
+        declared.append(tuple(normalized))
+    if len(declared) != len(set(declared)):
+        return frozenset()
+    return frozenset(declared)
+
+
+def _exec_command_workdir_violation(
+    item: dict[str, Any],
+    packet: dict[str, Any],
+) -> str | None:
+    if _tool_name(item).lower() != "exec_command":
+        return None
+    scope = packet.get("scope")
+    expected_raw = scope.get("workdir") if isinstance(scope, dict) else None
+    if not isinstance(expected_raw, str) or not expected_raw:
+        return "exec-command-workdir-authority-invalid"
+    arguments = _tool_arguments(item)
+    observed_raw = arguments.get("workdir") if arguments is not None else None
+    if not isinstance(observed_raw, str) or not observed_raw:
+        return "exec-command-workdir-missing"
+    try:
+        expected = Path(expected_raw).expanduser().resolve()
+        observed = Path(observed_raw).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return "exec-command-workdir-mismatch"
+    if observed != expected:
+        return "exec-command-workdir-mismatch"
+    return None
+
+
+def _command_tokens(command: str) -> list[str]:
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return command.split()
+
+
+def _selector_matches(command: str, selector: str) -> bool:
+    if selector == "whole-file":
+        return True
+    match = re.fullmatch(r"lines:(\d+)-(\d+)", selector)
+    if not match:
+        return False
+    start, end = match.groups()
+    return re.search(rf"(?:^|\s|['\"]){start}\s*,\s*{end}p(?:['\"]|\s|$)", command) is not None
+
+
+def _referenced_units(command: str, units: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for unit in units:
+        if (
+            unit["path"] in command or unit["absolute_path"] in command
+        ) and _selector_matches(command, unit["selector"]):
+            result.append(unit)
+    return result
+
+
+def _activity_category(
+    item: dict[str, Any],
+    command: str,
+    units: list[dict[str, Any]],
+    declared_validation_commands: frozenset[tuple[str, ...]],
+    authorized_continuation_calls: frozenset[str] = frozenset(),
+) -> tuple[str, list[dict[str, Any]], bool]:
+    name = _tool_name(item).lower()
+    lower = command.lower()
+    tokens = _command_tokens(command)
+    executables = {Path(token).name for token in tokens if token and not token.startswith("-")}
+    referenced = _referenced_units(command, units)
+
+    if "apply_patch" in name:
+        return "mutation", [], False
+    if name == "write_stdin":
+        call_id = _tool_call_id(item)
+        if call_id is not None and call_id in authorized_continuation_calls:
+            return "focused-validation", [], False
+        return "unrelated", [], False
+    if ".codex/memories" in lower or "/memories/" in lower:
+        return "memory-read", [], False
+    if (
+        "rg --files" in lower
+        or "git grep" in lower
+        or "ls -r" in lower
+        or "find" in executables
+    ):
+        return "broad-scan", [], False
+    if executables & {"cp", "mv", "rm", "install", "mkdir", "touch"} or re.search(
+        r"(?:^|\s)(?:>>?|tee)(?:\s|$)", command
+    ):
+        return "mutation", [], False
+    try:
+        exact_argv = tuple(shlex.split(command))
+    except ValueError:
+        exact_argv = ()
+    if exact_argv and exact_argv in declared_validation_commands:
+        return "focused-validation", [], False
+    if (
+        "python -m unittest" in lower
+        or "python3 -m unittest" in lower
+        or "compileall" in lower
+        or "git diff --check" in lower
+    ):
+        return "focused-validation", [], False
+
+    readers = executables & {"sed", "cat", "head", "tail", "nl", "rg", "wc"}
+    if readers:
+        if not referenced:
+            return "broad-scan", [], False
+        content_chunk = bool(readers & {"sed", "cat", "head", "tail", "nl"})
+        return "targeted-read", referenced, content_chunk
+    return "unrelated", [], False
+
+
+def _authorized_continuation_calls(
+    records: list[dict[str, Any]],
+    packet: dict[str, Any],
+    declared_validation_commands: frozenset[tuple[str, ...]],
+) -> frozenset[str]:
+    declared_exec_calls: set[str] = set()
+    active_sessions: set[int] = set()
+    continuation_sessions: dict[str, int] = {}
+    authorized_calls: set[str] = set()
+
+    for record in records:
+        for item in _normalize_response_items(record):
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type")
+            call_id = _tool_call_id(item)
+            if item_type in {"function_call", "custom_tool_call"}:
+                name = _tool_name(item).lower()
+                if name == "exec_command" and call_id is not None:
+                    command = _extract_command(item) or ""
+                    category, _, _ = _activity_category(
+                        item,
+                        command,
+                        [],
+                        declared_validation_commands,
+                    )
+                    if (
+                        category == "focused-validation"
+                        and _exec_command_workdir_violation(item, packet) is None
+                    ):
+                        declared_exec_calls.add(call_id)
+                elif name == "write_stdin" and call_id is not None:
+                    arguments = _tool_arguments(item)
+                    session_id = arguments.get("session_id") if arguments is not None else None
+                    chars = arguments.get("chars", "") if arguments is not None else None
+                    if (
+                        isinstance(session_id, int)
+                        and not isinstance(session_id, bool)
+                        and session_id in active_sessions
+                        and chars == ""
+                    ):
+                        authorized_calls.add(call_id)
+                        continuation_sessions[call_id] = session_id
+            elif item_type in {"function_call_output", "custom_tool_call_output"}:
+                if call_id in declared_exec_calls:
+                    session_id = _continuation_session_id(item.get("output"))
+                    if session_id is not None:
+                        active_sessions.add(session_id)
+                elif call_id in continuation_sessions:
+                    session_id = continuation_sessions[call_id]
+                    if _continuation_is_terminal(item.get("output")):
+                        active_sessions.discard(session_id)
+
+    return frozenset(authorized_calls)
+
+
+def _classify_native_activity(
+    records: list[dict[str, Any]],
+    context_units: list[dict[str, Any]],
+    previous: Any,
+    *,
+    scoped_mutation: bool,
+    policy: dict[str, Any],
+    packet: dict[str, Any],
+) -> dict[str, Any]:
+    activity = json.loads(json.dumps(previous)) if isinstance(previous, dict) else _empty_activity()
+    items = [
+        item
+        for record in records
+        for item in _normalize_response_items(record)
+        if isinstance(item, dict)
+        and item.get("type") in {"function_call", "custom_tool_call"}
+    ]
+    processed = int(activity.get("processed_items", 0) or 0)
+    violations = set(str(value) for value in activity.get("violations", []))
+    warnings = set(str(value) for value in activity.get("warnings", []))
+    if processed > len(items):
+        violations.add("native-activity-telemetry-truncated")
+        processed = len(items)
+
+    controls = _policy_mapping(policy, "operative_activity_controls")
+    max_chunks = int(controls.get("max_chunks_per_unit", 4))
+    warning = controls.get("warning")
+    warning = warning if isinstance(warning, dict) else {}
+    replan = controls.get("needs_replan_before")
+    replan = replan if isinstance(replan, dict) else {}
+
+    mutation_already_started = bool(activity.get("mutation_started"))
+    semantic_units = activity.setdefault("semantic_units", {})
+    pre_units = set(str(value) for value in activity.get("pre_mutation_semantic_units", []))
+    category_counts = activity.setdefault("category_counts", _empty_activity()["category_counts"])
+    declared_validation_commands = _declared_validation_commands(packet)
+    authorized_continuation_calls = _authorized_continuation_calls(
+        records,
+        packet,
+        declared_validation_commands,
+    )
+
+    for item in items[processed:]:
+        command = _extract_command(item) or ""
+        workdir_violation = _exec_command_workdir_violation(item, packet)
+        if workdir_violation is not None:
+            category_counts["unrelated"] = int(category_counts.get("unrelated", 0)) + 1
+            violations.add(workdir_violation)
+            continue
+        category, referenced, content_chunk = _activity_category(
+            item,
+            command,
+            context_units,
+            declared_validation_commands,
+            authorized_continuation_calls,
+        )
+        category_counts[category] = int(category_counts.get(category, 0)) + 1
+
+        if category == "targeted-read" and not mutation_already_started:
+            activity["pre_mutation_read_calls"] = int(
+                activity.get("pre_mutation_read_calls", 0)
+            ) + 1
+            for unit in referenced:
+                identity = unit["identity"]
+                pre_units.add(identity)
+                unit_state = semantic_units.setdefault(
+                    identity,
+                    {
+                        "path": unit["path"],
+                        "selector": unit["selector"],
+                        "sha256": unit["sha256"],
+                        "chunks": 0,
+                        "read_calls": 0,
+                    },
+                )
+                unit_state["read_calls"] = int(unit_state.get("read_calls", 0)) + 1
+                if content_chunk:
+                    unit_state["chunks"] = int(unit_state.get("chunks", 0)) + 1
+                    if unit_state["chunks"] > max_chunks:
+                        violations.add("read-unit-chunk-limit-exceeded")
+        elif category == "broad-scan":
+            violations.add("broad-scan-denied")
+        elif category == "memory-read":
+            violations.add("unauthorized-memory-read")
+        elif category == "unrelated":
+            violations.add("unrelated-activity-denied")
+
+    activity["processed_items"] = len(items)
+    activity["pre_mutation_semantic_units"] = sorted(pre_units)
+    read_calls = int(activity.get("pre_mutation_read_calls", 0))
+    unit_count = len(pre_units)
+    if unit_count >= int(replan.get("semantic_unit", 4)):
+        violations.add("needs-replan-semantic-unit-limit")
+    if read_calls >= int(replan.get("pre_mutation_read_call", 11)):
+        violations.add("needs-replan-pre-mutation-read-limit")
+    if unit_count >= int(warning.get("semantic_units", 3)):
+        warnings.add("semantic-unit-warning")
+    if read_calls >= int(warning.get("pre_mutation_read_calls", 6)):
+        warnings.add("pre-mutation-read-warning")
+
+    activity["mutation_started"] = mutation_already_started or scoped_mutation
+    activity["warnings"] = sorted(warnings)
+    activity["violations"] = sorted(violations)
+    return activity
 
 
 def _elapsed_ms(start: str, end: dt.datetime) -> int:
@@ -322,6 +1088,11 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
     requested_model = str(packet["requested_model"])
     if models != {requested_model}:
         _fail(f"control-lost: trusted attestation mismatch: expected {requested_model!r}, observed {sorted(models)!r}")
+    policy = load_policy("native-worker-execution")
+    readiness, context_units = _evaluate_operative_readiness(packet, policy)
+    if packet.get("lane") == "implementation" and readiness["decision"] != "operative-ready":
+        details = ", ".join([*readiness["reasons"], *readiness["open_decisions"]])
+        _fail(f"implementation packet not ready: {readiness['decision']}: {details}")
     path = _state_path(packet, args.session_id, args.state_file)
     if path.exists():
         previous = _load_json(path, "supervision state")
@@ -329,6 +1100,7 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
             _fail("duplicate active supervision state for packet/session")
         _fail("finalized supervision state cannot be reopened")
     now = _iso_now(args.now)
+    baseline = _persist_workspace_baseline(packet, args.session_id)
     clean_budget = {key: int(value) for key, value in packet["budget"].items()}
     disposition = derive_disposition(
         status="within-budget",
@@ -395,7 +1167,17 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
         "reasons": [],
         "control_action_required": False,
         "control_receipts": [],
-        "observed": {"tool_calls": 0, "elapsed_seconds": 0, "context_compactions": 0, "full_suite_runs": 0},
+        "observed": {
+            "tool_calls": 0,
+            "elapsed_seconds": 0.0,
+            "context_compactions": 0,
+            "full_suite_runs": 0,
+            "operative_readiness": readiness,
+            "context_units": context_units,
+            "workspace_baseline": baseline,
+            "workspace_report": None,
+            "activity": _empty_activity(),
+        },
         "session_disposition": disposition["session_disposition"],
         "artifact_disposition": disposition["artifact_disposition"],
         "artifact_validation": disposition["artifact_validation"],
@@ -571,10 +1353,17 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         _fail("check requires a marked-dispatched supervision state")
     now = _iso_now(args.now)
     previous_audited_decision = state.get("last_audited_decision")
-    poll_latency_exceeded = _record_poll_timing(state, now)
     try:
+        packet_file = state.get("packet_file")
+        if not isinstance(packet_file, str) or not packet_file:
+            _fail("control-lost: supervision state has no packet binding")
+        packet = _load_json(Path(packet_file).expanduser().resolve(), "packet")
+        if artifact_hash(json.dumps(packet, sort_keys=True)) != state.get("packet_sha256"):
+            _fail("control-lost: bound packet artifact changed after supervision started")
+        policy = load_policy("native-worker-execution")
         all_records, trailing = _read_session(Path(state["session_file"]))
         baseline_record_count = state["baseline_record_count"]
+        poll_latency_exceeded = _record_poll_timing(state, now)
         if len(all_records) < baseline_record_count:
             _fail("control-lost: session log was truncated below the supervision watermark")
         records = all_records[baseline_record_count:]
@@ -585,16 +1374,18 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if isinstance(record, dict)
         )
         if not has_boundary:
-            if poll_latency_exceeded:
-                _fail("control-lost: poll latency exceeded the configured interval and tolerance")
             dispatched_at = _iso_now(state["control_timing"]["dispatched_at"])
             elapsed = max(0.0, (now - dispatched_at).total_seconds())
             if elapsed <= state["segment_start_grace_seconds"]:
+                reasons = ["awaiting-task-boundary"]
+                decision = "warn" if poll_latency_exceeded else "continue"
+                if poll_latency_exceeded:
+                    reasons.append("poll-latency-observed")
                 state.update(
                     {
-                        "decision": "continue",
+                        "decision": decision,
                         "status": "running",
-                        "reasons": ["awaiting-task-boundary"],
+                        "reasons": reasons,
                         "control_action_required": False,
                         "trailing_partial_record_ignored": trailing,
                         "updated_at": _iso(now),
@@ -611,52 +1402,105 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         )
         _ = segments
         _ = aggregate
-        observed = {
-            "tool_calls": int(selected["tool_calls"]),
-            "elapsed_seconds": float(selected["runtime_seconds"]),
-            "context_compactions": int(selected["context_compactions"]),
-            "full_suite_runs": int(selected["full_suite_runs"]),
-        }
-        state["observed"] = observed
-        if poll_latency_exceeded:
-            _fail("control-lost: poll latency exceeded the configured interval and tolerance")
-        reasons: list[str] = []
+        previous_observed = state.get("observed")
+        if not isinstance(previous_observed, dict):
+            _fail("control-lost: supervision state observed evidence is invalid")
+        baseline = previous_observed.get("workspace_baseline")
+        context_units = previous_observed.get("context_units")
+        if not isinstance(baseline, dict) or not isinstance(context_units, list):
+            _fail("control-lost: supervision state is missing baseline or context evidence")
+        workspace_report = _compare_live_workspace(baseline)
+        categories = workspace_report.get("mutation_categories")
+        categories = categories if isinstance(categories, dict) else {}
+        activity = _classify_native_activity(
+            records,
+            context_units,
+            previous_observed.get("activity"),
+            scoped_mutation=bool(categories.get("scoped")),
+            policy=policy,
+            packet=packet,
+        )
+        observed = dict(previous_observed)
+        observed.update(
+            {
+                "tool_calls": int(selected["tool_calls"]),
+                "elapsed_seconds": float(selected["runtime_seconds"]),
+                "context_compactions": int(selected["context_compactions"]),
+                "full_suite_runs": int(selected["full_suite_runs"]),
+                "workspace_report": workspace_report,
+                "activity": activity,
+            }
+        )
+        hard_reasons: list[str] = []
         if overall_status == "model-mismatch":
-            reasons.append("model-mismatch")
+            hard_reasons.append("model-mismatch")
         if observed["context_compactions"] > state["budget"]["max_compactions"]:
-            reasons.append("context-compaction")
+            hard_reasons.append("context-compaction")
         if observed["full_suite_runs"] > state["budget"]["max_full_suite_runs"]:
-            reasons.append("full-suite-limit")
+            hard_reasons.append("full-suite-limit")
+        hard_reasons.extend(_workspace_hard_reasons(workspace_report))
+        hard_reasons.extend(str(reason) for reason in activity.get("violations", []))
+
+        reserve_reasons: list[str] = []
         if observed["tool_calls"] >= state["interrupt_thresholds"]["tool_calls"]:
-            reasons.append("tool-call-interrupt-threshold")
+            reserve_reasons.append("tool-call-interrupt-threshold")
         if observed["elapsed_seconds"] >= state["interrupt_thresholds"]["runtime_seconds"]:
-            reasons.append("runtime-interrupt-threshold")
+            reserve_reasons.append("runtime-interrupt-threshold")
+
+        warning_reasons = [str(reason) for reason in activity.get("warnings", [])]
+        if poll_latency_exceeded:
+            warning_reasons.append("poll-latency-observed")
+        if observed["tool_calls"] > state["budget"]["tool_calls_soft"]:
+            warning_reasons.append("tool-call-soft-limit")
+        if observed["elapsed_seconds"] > state["budget"]["runtime_seconds_soft"]:
+            warning_reasons.append("runtime-soft-limit")
+
         complete = bool(selected.get("complete"))
-        if reasons:
+        if hard_reasons:
             decision = "interrupt"
+            reasons = list(dict.fromkeys(hard_reasons))
         elif complete:
             decision = "complete"
-        elif observed["tool_calls"] > state["budget"]["tool_calls_soft"] or observed["elapsed_seconds"] > state["budget"]["runtime_seconds_soft"]:
+            reasons = []
+        elif reserve_reasons:
+            decision = "interrupt"
+            reasons = list(dict.fromkeys(reserve_reasons))
+        elif warning_reasons:
             decision = "warn"
+            reasons = list(dict.fromkeys(warning_reasons))
         else:
             decision = "continue"
+            reasons = []
         disposition = {
             "session_disposition": selected["session_disposition"],
             "artifact_disposition": selected["artifact_disposition"],
             "artifact_validation": selected["artifact_validation"],
         }
         if decision == "interrupt" and disposition["session_disposition"] != "quarantined":
-            disposition = {
-                "session_disposition": "quarantined",
-                "artifact_disposition": "independent-validation-required",
-                "artifact_validation": {
-                    "eligible": True,
-                    "max_attempts": 1,
-                    "attempts_used": 0,
-                    "outcome": "not-run",
-                    "reason": "reserved live budget threshold reached",
-                },
-            }
+            if hard_reasons:
+                disposition = {
+                    "session_disposition": "quarantined",
+                    "artifact_disposition": "architect-adjudication-required",
+                    "artifact_validation": {
+                        "eligible": False,
+                        "max_attempts": 1,
+                        "attempts_used": 0,
+                        "outcome": "not-run",
+                        "reason": "protected live execution boundary reached",
+                    },
+                }
+            else:
+                disposition = {
+                    "session_disposition": "quarantined",
+                    "artifact_disposition": "independent-validation-required",
+                    "artifact_validation": {
+                        "eligible": True,
+                        "max_attempts": 1,
+                        "attempts_used": 0,
+                        "outcome": "not-run",
+                        "reason": "reserved live budget threshold reached",
+                    },
+                }
         state.update(
             {
                 "decision": decision,
