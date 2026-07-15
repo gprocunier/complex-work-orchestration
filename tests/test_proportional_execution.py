@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import unittest
+from unittest import mock
 
 from cwo_core.native_capability import build_native_capability_receipt
 from cwo_core.proportional_execution import (
@@ -115,6 +116,14 @@ def _zero_usage() -> dict:
 
 
 class ProportionalExecutionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        patcher = mock.patch(
+            "cwo_core.proportional_execution.containment_error",
+            return_value="",
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_ignored_html_with_receipt_selects_fast_path(self) -> None:
         brief = _brief()
         result = _evaluate(brief)

@@ -38,6 +38,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             architect_row["enterprise_profiles"],
             [
                 "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8",
+                "rhoai-architect-glm-5-2-bf16-256k-thinking",
                 "rhoai-architect-glm-5-2-bf16-thinking",
                 "rhoai-architect-glm-5-2-fp8",
             ],

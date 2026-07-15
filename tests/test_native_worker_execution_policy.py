@@ -30,6 +30,21 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(policy["tool_reserve"], {"ratio": 0.10, "floor": 3})
         self.assertEqual(policy["runtime_reserve"], {"ratio": 0.10, "floor": 5})
         self.assertEqual(policy["required_control_adapter"], "native-multi-agent-v1")
+
+    def test_precommit_supervision_policy_keeps_candidate_dispatch_contained(self) -> None:
+        policy = self.__class__.policy
+        precommit = policy["precommit_supervision"]
+        self.assertEqual(precommit["version"], 2)
+        self.assertEqual(precommit["required_model"], "gpt-5.3-codex-spark")
+        self.assertEqual(precommit["attestation_source"], "trusted-control-plane-session-metadata")
+        self.assertEqual(precommit["packet_stage"], "precommit-validated")
+        self.assertFalse(precommit["operative_dispatch_authorized"])
+        self.assertEqual(precommit["release_requires"], "complex-work-orchestration-fsh.3")
+        containment = policy["precommit_containment"]
+        self.assertTrue(containment["active"])
+        self.assertEqual(containment["release_requires"], "complex-work-orchestration-fsh.3.5")
+        self.assertEqual(containment["maximum_release_state"], "operative-authorized")
+        self.assertTrue(containment["operative_dispatch_authorized"])
         self.assertEqual(policy["required_capabilities"], ["interrupt", "close", "wait"])
         self.assertEqual(policy["missing_telemetry_control"], "stop-before-dispatch")
         self.assertEqual(policy["validation_attempt_limit"], 1)

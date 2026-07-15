@@ -8,11 +8,20 @@ import json
 import math
 from pathlib import Path
 import shlex
+import uuid
 from typing import Any
 
 from cwo_core.checked_command_sequence import normalize_sequence_spec
 from cwo_core.paths import assert_safe_output_path, cwo_temp_dir, is_cwo_temp_path
 from cwo_core.native_disposition import DISPOSITION_FIELDS, validate_disposition
+from cwo_core.native_containment import containment_error, require_native_operative_dispatch
+from cwo_core.native_precommit import (
+    commit_precommit_receipt_reservation,
+    release_precommit_receipt_reservation,
+    reserve_precommit_receipt,
+    validate_precommit_receipt,
+)
+from cwo_core.native_release import validate_native_release_evidence
 from cwo_core.native_recovery import verify_native_worker_semantics
 from cwo_core.native_worker_contracts import (
     ALLOWED_ATTESTATION_FIELDS,
@@ -47,6 +56,7 @@ from cwo_core.policy import load_policy
 from cwo_core.util import atomic_write_text, make_dispatch_id
 from cwo_core.work_sizing import (
     build_policy_fit_commitment,
+    build_worker_commitment_from_receipt,
     canonical_work_estimate_sha256,
     validate_work_estimate,
     validate_worker_commitment,
@@ -58,6 +68,8 @@ NATIVE_WORKER_PACKET_SCHEMA = "schemas/native-worker-packet.schema.json"
 NATIVE_WORKER_RETURN_SCHEMA = "schemas/native-worker-return.schema.json"
 NATIVE_WORK_PLAN_SCHEMA = "schemas/native-work-estimate.schema.json"
 NATIVE_WORKER_COMMITMENT_SCHEMA = "schemas/native-worker-commitment.schema.json"
+NATIVE_PRECOMMIT_STATE_SCHEMA = "schemas/native-precommit-state.schema.json"
+NATIVE_PRECOMMIT_RECEIPT_SCHEMA = "schemas/native-precommit-receipt.schema.json"
 
 
 def _required_string_list(
@@ -476,7 +488,7 @@ def _build_checked_command_sequence(
     }
 
 
-def build_native_worker_packet(
+def _build_native_worker_packet_unreserved(
     *,
     bead_id: str,
     lane: str,
@@ -485,6 +497,7 @@ def build_native_worker_packet(
     acceptance_checks: list[str],
     work_plan: dict[str, Any] | None = None,
     worker_commitment: dict[str, Any] | None = None,
+    precommit_receipt: dict[str, Any] | None = None,
     trusted_session_id: str | None = None,
     attested_model: str | None = None,
     packet_id: str | None = None,
@@ -512,27 +525,44 @@ def build_native_worker_packet(
         raise SystemExit("at least one --acceptance-check is required")
     if any(not check.strip() for check in acceptance_checks):
         raise SystemExit("acceptance_check values must be non-empty")
-    if work_plan is None and (
-        worker_commitment is not None or trusted_session_id is not None or attested_model is not None
+    if any(
+        value is not None
+        for value in (work_plan, worker_commitment, precommit_receipt, trusted_session_id, attested_model)
     ):
-        raise SystemExit("worker commitment or trusted attestation requires a work_plan")
+        if work_plan is None or precommit_receipt is None:
+            raise SystemExit("planned candidate packet build requires a trusted precommit receipt")
+    if work_plan is None and (
+        worker_commitment is not None
+        or precommit_receipt is not None
+        or trusted_session_id is not None
+        or attested_model is not None
+    ):
+        raise SystemExit("worker commitment, precommit receipt, or trusted attestation requires a work_plan")
+    if trusted_session_id is not None or attested_model is not None:
+        raise SystemExit("session and model identity must be derived exclusively from a trusted precommit receipt")
     if work_plan is not None and worker_commitment is None:
-        if not trusted_session_id or not attested_model:
-            raise SystemExit(
-                "work_plan without worker_commitment requires trusted_session_id and attested_model for deterministic policy fit"
-            )
         try:
-            worker_commitment = build_policy_fit_commitment(
-                work_plan,
-                session_id=trusted_session_id,
-                attested_model=attested_model,
-            )
+            if work_plan.get("fit_mode") == "deterministic":
+                worker_commitment = build_policy_fit_commitment(
+                    work_plan,
+                    precommit_receipt=precommit_receipt,
+                )
+            else:
+                worker_commitment = build_worker_commitment_from_receipt(
+                    work_plan,
+                    precommit_receipt,
+                )
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
-    elif worker_commitment is not None and (trusted_session_id is not None or attested_model is not None):
-        raise SystemExit("trusted attestation arguments cannot accompany an explicit worker_commitment")
+    elif worker_commitment is not None and precommit_receipt is None:
+        raise SystemExit("explicit worker commitment requires its bound precommit receipt")
     workdir_path = _normalize_workdir(workdir)
     normalized_paths = _normalize_allowed_paths(allowed_paths, workdir_path)
+    if precommit_receipt is not None:
+        receipt_packet_id = str(precommit_receipt.get("packet_id") or "")
+        if packet_id is not None and packet_id != receipt_packet_id:
+            raise SystemExit("packet_id must match the preallocated precommit receipt packet_id")
+        packet_id = receipt_packet_id
     packet_id = packet_id or make_dispatch_id(bead_id)
     selected_model = _policy_model(requested_model)
     budget, overridden_fields = _effective_budget(lane, budget_overrides)
@@ -555,6 +585,16 @@ def build_native_worker_packet(
         raise SystemExit("validation attempt 1 parent packet id must equal root packet id")
     if validation_attempt == 1 and packet_id in {root_packet_id, validation_parent_packet_id}:
         raise SystemExit("validation attempt 1 cannot reference itself")
+    if work_plan is not None and precommit_receipt is not None:
+        receipt_errors = validate_precommit_receipt(
+            precommit_receipt,
+            work_plan,
+            expected_packet_id=packet_id,
+            live=True,
+            require_accepting=True,
+        )
+        if receipt_errors:
+            raise SystemExit("precommit receipt validation failed:\n- " + "\n- ".join(receipt_errors))
     packet = {
         "packet_type": "cwo-native-worker-packet",
         "version": packet_version,
@@ -616,6 +656,11 @@ def build_native_worker_packet(
     if work_plan is not None and worker_commitment is not None:
         packet["work_plan"] = deepcopy(work_plan)
         packet["worker_commitment"] = deepcopy(worker_commitment)
+        packet["stage"] = "precommit-validated"
+        packet["operative_dispatch_authorized"] = False
+        packet["release_requires"] = "complex-work-orchestration-fsh.3"
+        packet["precommit_receipt"] = deepcopy(precommit_receipt)
+        packet["precommit_receipt_sha256"] = precommit_receipt["receipt_sha256"]
         checked_sequence = _build_checked_command_sequence(
             packet_id=packet_id,
             work_plan=packet["work_plan"],
@@ -645,6 +690,56 @@ def build_native_worker_packet(
     if errors:
         raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
     return packet
+
+
+def build_native_worker_packet(**kwargs: Any) -> dict[str, Any]:
+    precommit_receipt = kwargs.get("precommit_receipt")
+    if precommit_receipt is None:
+        return _build_native_worker_packet_unreserved(**kwargs)
+    if not isinstance(precommit_receipt, dict):
+        raise SystemExit("precommit receipt must be an object")
+    initial_errors = validate_precommit_receipt(
+        precommit_receipt,
+        kwargs.get("work_plan"),
+        expected_packet_id=kwargs.get("packet_id") or precommit_receipt.get("packet_id"),
+        live=True,
+        require_accepting=True,
+    )
+    if initial_errors:
+        raise SystemExit("precommit receipt validation failed:\n- " + "\n- ".join(initial_errors))
+    packet_build_id = f"packet-build-{uuid.uuid4().hex}"
+    try:
+        reservation_id = reserve_precommit_receipt(precommit_receipt, packet_build_id)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    try:
+        packet = _build_native_worker_packet_unreserved(**kwargs)
+        final_errors = validate_precommit_receipt(
+            precommit_receipt,
+            kwargs.get("work_plan"),
+            expected_packet_id=packet.get("packet_id"),
+            live=True,
+            require_accepting=True,
+        )
+        if final_errors:
+            raise SystemExit(
+                "precommit receipt changed during candidate packet construction:\n- "
+                + "\n- ".join(final_errors)
+            )
+        commit_precommit_receipt_reservation(
+            precommit_receipt,
+            reservation_id,
+            _canonical_json_sha256(packet),
+        )
+        return packet
+    except BaseException as exc:
+        try:
+            release_precommit_receipt_reservation(precommit_receipt, reservation_id)
+        except ValueError as release_exc:
+            raise SystemExit(
+                f"candidate packet construction failed closed and reservation release was refused: {release_exc}"
+            ) from exc
+        raise
 
 
 def _validate_checked_command_sequence_receipt(
@@ -766,13 +861,31 @@ def validate_native_worker_packet(
     errors: list[str] = []
     if not isinstance(payload, dict):
         return ["packet is not a JSON object"]
+    if dispatchable:
+        work_plan_binding = payload.get("work_plan")
+        if containment := containment_error(
+            "dispatchable-packet-validation",
+            release_evidence=payload.get("release_evidence") if isinstance(payload.get("release_evidence"), dict) else None,
+            expected_packet_id=str(payload.get("packet_id") or ""),
+            expected_work_plan_sha256=(
+                canonical_work_estimate_sha256(work_plan_binding)
+                if isinstance(work_plan_binding, dict)
+                else None
+            ),
+            expected_precommit_receipt_sha256=(
+                str(payload.get("precommit_receipt_sha256"))
+                if isinstance(payload.get("precommit_receipt_sha256"), str)
+                else None
+            ),
+        ):
+            errors.append(containment)
     if allow_experimental_v3 is not None:
         experimental = allow_experimental_v3
     version = payload.get("version")
     allowed_packet_fields = ALLOWED_PACKET_V3_FIELDS if version == 3 else ALLOWED_PACKET_FIELDS
-    errors.extend(_reject_unknown_fields(payload, "packet", allowed_packet_fields))
-    if len(errors) > 0:
-        return errors
+    field_errors = _reject_unknown_fields(payload, "packet", allowed_packet_fields)
+    if field_errors:
+        return [*errors, *field_errors]
 
     if (value := _required_nonempty_str(payload.get("packet_type"), "packet_type")) is not None:
         errors.append(value)
@@ -785,6 +898,8 @@ def validate_native_worker_packet(
         errors.append("packet version 3 requires explicit experimental validation")
     if dispatchable and version != 2:
         errors.append(f"packet version {version} is dispatch-forbidden")
+    if dispatchable and payload.get("operative_dispatch_authorized") is not True:
+        errors.append("packet release state is operative-dispatch-forbidden")
 
     if (error := _required_nonempty_str(payload.get("packet_id"), "packet_id")) is not None:
         errors.append(error)
@@ -911,6 +1026,71 @@ def validate_native_worker_packet(
     elif has_work_plan and has_worker_commitment:
         work_plan = payload.get("work_plan")
         worker_commitment = payload.get("worker_commitment")
+        precommit_receipt = payload.get("precommit_receipt")
+        if version == 2:
+            stage = payload.get("stage")
+            release_evidence = payload.get("release_evidence")
+            release_evidence_sha256 = payload.get("release_evidence_sha256")
+            if stage == "precommit-validated":
+                expected_contract = {
+                    "operative_dispatch_authorized": False,
+                    "release_requires": "complex-work-orchestration-fsh.3",
+                }
+                if release_evidence is not None or release_evidence_sha256 is not None:
+                    errors.append("precommit-validated packet must not contain release evidence")
+            elif stage in {"canary-authorized", "operative-authorized"}:
+                expected_contract = {
+                    "operative_dispatch_authorized": stage == "operative-authorized",
+                    "release_requires": "complex-work-orchestration-fsh.3.5",
+                }
+                if not isinstance(release_evidence, dict):
+                    errors.append(f"{stage} packet requires embedded release_evidence")
+                else:
+                    errors.extend(
+                        "release_evidence: " + error
+                        for error in validate_native_release_evidence(
+                            release_evidence,
+                            expected_packet_id=str(payload.get("packet_id") or ""),
+                            expected_work_plan_sha256=(
+                                canonical_work_estimate_sha256(work_plan)
+                                if isinstance(work_plan, dict)
+                                else None
+                            ),
+                            expected_precommit_receipt_sha256=(
+                                str(payload.get("precommit_receipt_sha256"))
+                                if stage == "operative-authorized"
+                                and isinstance(payload.get("precommit_receipt_sha256"), str)
+                                else None
+                            ),
+                            live=dispatchable,
+                        )
+                    )
+                    if release_evidence.get("release_state") != stage:
+                        errors.append("packet stage must match release_evidence.release_state")
+                    if release_evidence_sha256 != release_evidence.get("evidence_sha256"):
+                        errors.append("release_evidence_sha256 must match embedded release evidence")
+            else:
+                expected_contract = {}
+                errors.append("planned packet stage must be a known release state")
+            for field, expected in expected_contract.items():
+                if payload.get(field) != expected:
+                    errors.append(f"release-state packet {field} must equal {expected!r}")
+            if not isinstance(precommit_receipt, dict):
+                errors.append("candidate packet requires an embedded precommit_receipt")
+            else:
+                errors.extend(
+                    "precommit_receipt: " + error
+                    for error in validate_precommit_receipt(
+                        precommit_receipt,
+                        work_plan if isinstance(work_plan, dict) else None,
+                        expected_packet_id=str(payload.get("packet_id") or ""),
+                        require_accepting=True,
+                    )
+                )
+                if payload.get("precommit_receipt_sha256") != precommit_receipt.get("receipt_sha256"):
+                    errors.append("precommit_receipt_sha256 must match embedded precommit receipt")
+            if isinstance(worker_commitment, dict) and worker_commitment.get("decision") != "accept":
+                errors.append("precommit-validated candidate packet requires worker_commitment.decision accept")
         errors.extend("work_plan: " + error for error in validate_work_estimate(work_plan))
         errors.extend(
             "worker_commitment: " + error
@@ -918,6 +1098,7 @@ def validate_native_worker_packet(
                 worker_commitment,
                 work_plan,
                 dispatchable=dispatchable,
+                precommit_receipt=precommit_receipt if isinstance(precommit_receipt, dict) else None,
             )
         )
         scope_allowed_paths = scope.get("allowed_paths") if isinstance(scope, dict) else None
@@ -956,6 +1137,18 @@ def validate_native_worker_packet(
             errors.append("worker_commitment must be an object")
     elif dispatchable and version == 2:
         errors.append("dispatchable packet requires work_plan and worker_commitment")
+    elif version == 2:
+        for field in (
+            "stage",
+            "operative_dispatch_authorized",
+            "release_requires",
+            "precommit_receipt",
+            "precommit_receipt_sha256",
+            "release_evidence",
+            "release_evidence_sha256",
+        ):
+            if field in payload:
+                errors.append(f"draft packet without a work plan must not contain {field}")
 
     errors.extend(
         _validate_checked_command_sequence_receipt(
@@ -1651,6 +1844,8 @@ def validate_schema_files() -> list[str]:
         NATIVE_WORKER_RETURN_SCHEMA,
         NATIVE_WORK_PLAN_SCHEMA,
         NATIVE_WORKER_COMMITMENT_SCHEMA,
+        NATIVE_PRECOMMIT_STATE_SCHEMA,
+        NATIVE_PRECOMMIT_RECEIPT_SCHEMA,
     ]:
         path = Path(relative)
         try:
@@ -1674,6 +1869,7 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--acceptance-check", action="append", required=True, dest="acceptance_checks")
     build.add_argument("--work-plan")
     build.add_argument("--worker-commitment")
+    build.add_argument("--precommit-receipt")
     build.add_argument("--trusted-session-id")
     build.add_argument("--attested-model")
     build.add_argument("--requested-model")
@@ -1713,6 +1909,7 @@ def main() -> None:
         }
         work_plan = _load_json_payload(args.work_plan) if args.work_plan else None
         worker_commitment = _load_json_payload(args.worker_commitment) if args.worker_commitment else None
+        precommit_receipt = _load_json_payload(args.precommit_receipt) if args.precommit_receipt else None
         packet = build_native_worker_packet(
             bead_id=args.bead_id,
             lane=args.lane,
@@ -1721,6 +1918,7 @@ def main() -> None:
             acceptance_checks=args.acceptance_checks,
             work_plan=work_plan,
             worker_commitment=worker_commitment,
+            precommit_receipt=precommit_receipt,
             trusted_session_id=args.trusted_session_id,
             attested_model=args.attested_model,
             budget_overrides=overrides,
@@ -1742,6 +1940,26 @@ def main() -> None:
 
     if args.command == "render":
         packet = _load_json_payload(args.packet)
+        work_plan = packet.get("work_plan")
+        require_native_operative_dispatch(
+            "operative-prompt-render",
+            release_evidence=(
+                packet.get("release_evidence")
+                if isinstance(packet.get("release_evidence"), dict)
+                else None
+            ),
+            expected_packet_id=str(packet.get("packet_id") or ""),
+            expected_work_plan_sha256=(
+                canonical_work_estimate_sha256(work_plan)
+                if isinstance(work_plan, dict)
+                else None
+            ),
+            expected_precommit_receipt_sha256=(
+                str(packet.get("precommit_receipt_sha256"))
+                if isinstance(packet.get("precommit_receipt_sha256"), str)
+                else None
+            ),
+        )
         errors = validate_native_worker_packet(packet, dispatchable=True)
         if errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))

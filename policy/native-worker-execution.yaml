@@ -33,6 +33,91 @@
   },
   "rollout_mode": "canary-then-enforce",
   "enforcement_mode": "fail-closed",
+  "precommit_containment": {
+    "version": 2,
+    "active": true,
+    "status": "operative-authorized",
+    "scope": "native-operative-dispatch",
+    "reason": "fsh.3-operative-release-gate",
+    "decision": "evidence-gated",
+    "authority": "policy/native-worker-execution.yaml",
+    "release_requires": "complex-work-orchestration-fsh.3.5",
+    "release_state_order": [
+      "precommit-validated",
+      "canary-authorized",
+      "operative-authorized"
+    ],
+    "maximum_release_state": "operative-authorized",
+    "operative_dispatch_authorized": true,
+    "canary_operations": [
+      "supervised-worker-fit-request"
+    ],
+    "allowed_non_operative_operations": [
+      "policy-schema-validation",
+      "trusted-session-inspection",
+      "historical-packet-inspection",
+      "structurally-nondispatchable-preview",
+      "external-read-only-critic-review",
+      "supervised-worker-fit-request",
+      "receipt-bound-candidate-packet-build"
+    ],
+    "blocked_operations": [
+      "worker-fit-request",
+      "deterministic-fit-commitment",
+      "planned-packet-build",
+      "dispatchable-packet-validation",
+      "operative-prompt-render",
+      "supervision-start",
+      "supervision-arm",
+      "native-dispatch",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch"
+    ]
+  },
+  "native_release_evidence": {
+    "version": 1,
+    "schema": "schemas/native-release-evidence.schema.json",
+    "authority": "cwo-native-release-supervisor",
+    "required_model": "gpt-5.3-codex-spark",
+    "canary_bead": "complex-work-orchestration-fsh.3.5",
+    "operative_adjudication_bead": "complex-work-orchestration-fsh.3.5",
+    "max_ttl_seconds": 3600,
+    "canary_operation_class": "supervised-zero-tool-fit-canary",
+    "canary_authorized_operations": [
+      "supervised-worker-fit-request"
+    ],
+    "operative_authorized_operations": [
+      "dispatchable-packet-validation",
+      "operative-prompt-render",
+      "supervision-start",
+      "supervision-arm",
+      "native-dispatch",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch"
+    ],
+    "canary_repository_work_authorized": false,
+    "canary_source_mutation_authorized": false,
+    "canary_workspace_scope": "cwo-temp-only",
+    "operative_release_enabled": true,
+    "operative_release_requires": "complex-work-orchestration-fsh.3.5"
+  },
+  "precommit_supervision": {
+    "version": 2,
+    "state_schema": "schemas/native-precommit-state.schema.json",
+    "receipt_schema": "schemas/native-precommit-receipt.schema.json",
+    "validation_rule_version": "native-precommit-receipt:v2",
+    "required_model": "gpt-5.3-codex-spark",
+    "attestation_source": "trusted-control-plane-session-metadata",
+    "poll_interval_ms": 1000,
+    "poll_lag_tolerance_ms": 500,
+    "arm_to_dispatch_max_ms": 5000,
+    "packet_stage": "precommit-validated",
+    "operative_dispatch_authorized": false,
+    "release_requires": "complex-work-orchestration-fsh.3",
+    "control_topology": "single-host-process-v1"
+  },
   "poll_interval_ms": 1000,
   "poll_lag_tolerance_ms": 1500,
   "arm_to_dispatch_max_ms": 5000,
@@ -610,17 +695,21 @@
         "commitment": {
           "required_for_dispatch": true,
           "receipt_type": "cwo-native-worker-fit-commitment",
-          "version": 1,
+          "version": 2,
+          "historical_versions": [
+            1
+          ],
+          "candidate_version": 2,
           "decisions": [
             "accept",
             "pm-realignment",
             "architect-realignment"
           ],
           "dispatchable_decision": "accept",
-          "min_confidence": 0.75,
-          "precommitment_tool_calls": 0,
-          "precommitment_compactions": 0,
-          "attestation_source": "trusted-session-jsonl",
+          "precommit_receipt_type": "cwo-native-precommit-receipt",
+          "identity_source": "validated-precommit-receipt",
+          "activity_source": "validated-precommit-receipt",
+          "historical_v1_min_confidence": 0.75,
           "positive_estimates_required": true,
           "estimate_bound": "within-work-plan-aggregate-hard-allowance",
           "normalization": {

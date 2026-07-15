@@ -193,6 +193,7 @@ class RouteResult(TypedDict, total=False):
     primary_architect_executor: str | None
     architecture_counter_review_executor: str | None
     architecture_authority: str
+    native_operative_dispatch: dict[str, Any]
     external_opt_in: bool
     disclosure_escalation_approved: bool
     external_contract_allowed: bool

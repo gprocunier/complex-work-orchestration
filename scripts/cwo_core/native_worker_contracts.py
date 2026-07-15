@@ -36,6 +36,13 @@ ALLOWED_PACKET_FIELDS = {
     "worker_commitment",
     "command_contract",
     "checked_command_sequence",
+    "stage",
+    "operative_dispatch_authorized",
+    "release_requires",
+    "precommit_receipt",
+    "precommit_receipt_sha256",
+    "release_evidence",
+    "release_evidence_sha256",
 }
 ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS = {
     "mode",

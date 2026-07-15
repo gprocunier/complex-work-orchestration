@@ -411,7 +411,10 @@ class NativeWorkSizingTest(unittest.TestCase):
         work_estimate = evaluate_work_estimate(_valid_raw_payload())
         commitment = _valid_commitment_payload(work_estimate)
         self.assertEqual(validate_worker_commitment(commitment, work_estimate), [])
-        self.assertEqual(validate_worker_commitment(commitment, work_estimate, dispatchable=True), [])
+        self.assertIn(
+            "historical-inspection-only",
+            " ".join(validate_worker_commitment(commitment, work_estimate, dispatchable=True)),
+        )
 
     def test_native_commitment_validation_realignment_modes(self):
         work_estimate = evaluate_work_estimate(_valid_raw_payload())
@@ -628,23 +631,13 @@ class NativeWorkSizingTest(unittest.TestCase):
         self.assertIn("task-profile-contradiction", result["hard_gate_reasons"])
         self.assertTrue(result["fit_evidence"]["contradictions"])
 
-    def test_policy_fit_commitment_is_trusted_zero_tool_and_hash_bound(self):
+    def test_policy_fit_commitment_rejects_static_identity_without_receipt(self):
         estimate = evaluate_work_estimate(_literal_command_payload())
-        commitment = build_policy_fit_commitment(
-            estimate,
-            session_id="spark-session-1",
-            attested_model="gpt-5.3-codex-spark",
-        )
-        self.assertEqual(commitment["decision"], "accept")
-        self.assertEqual(commitment["tool_calls_before_commitment"], 0)
-        self.assertEqual(commitment["context_compactions_before_commitment"], 0)
-        self.assertEqual(commitment["estimates"]["tool_calls_p90"], 2)
-        self.assertEqual(validate_worker_commitment(commitment, estimate, dispatchable=True), [])
-        with self.assertRaisesRegex(ValueError, "exactly match"):
+        with self.assertRaisesRegex(ValueError, "trusted precommit receipt"):
             build_policy_fit_commitment(
                 estimate,
                 session_id="spark-session-1",
-                attested_model="gpt-5.6-sol",
+                attested_model="gpt-5.3-codex-spark",
             )
 
     def test_estimate_without_task_profile_remains_semantic_bounded_implementation(self):

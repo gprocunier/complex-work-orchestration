@@ -4,10 +4,12 @@ import datetime as dt
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 
@@ -17,19 +19,36 @@ SCRIPT = ROOT / "scripts" / "supervise_native_worker.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from prepare_native_worker import build_native_worker_packet  # noqa: E402
-from cwo_core.work_sizing import canonical_work_estimate_sha256, evaluate_work_estimate
+from cwo_core.work_sizing import evaluate_work_estimate
 import supervise_native_worker as supervisor  # noqa: E402
+from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
 
 
 MODEL = "gpt-5.3-codex-spark"
 LUNA_MODEL = "gpt-5.6-luna"
 CONTROL_TURN = "control-turn-test"
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
+_FIXTURE_ROOT: Path | None = None
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    wrapper = """
+import runpy
+import sys
+from pathlib import Path
+from unittest import mock
+
+script = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(script.parent))
+sys.argv = sys.argv[1:]
+with mock.patch(
+    "cwo_core.native_containment.require_native_operative_dispatch",
+    return_value=None,
+), mock.patch("prepare_native_worker.validate_native_worker_packet", return_value=[]):
+    runpy.run_path(str(script), run_name="__main__")
+"""
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, "-c", wrapper, str(SCRIPT), *args],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -91,6 +110,10 @@ def event(
 
 
 def planned_packet(*, packet_id: str, requested_model: str = MODEL, budget_overrides: dict | None = None) -> dict:
+    if _FIXTURE_ROOT is None:
+        raise AssertionError("precommit fixture root is not initialized")
+    if requested_model != MODEL:
+        raise ValueError("trusted precommit receipt requires the exact Spark model")
     allowed_paths = ["scripts/supervise_native_worker.py"]
     acceptance_checks = ["focused tests pass"]
     context_path = ROOT / allowed_paths[0]
@@ -184,39 +207,30 @@ def planned_packet(*, packet_id: str, requested_model: str = MODEL, budget_overr
             },
         }
     )
-    commitment = {
-        "commitment_type": "cwo-native-worker-fit-commitment",
-        "version": 1,
-        "work_unit_id": work_plan["work_unit_id"],
-        "bead_id": work_plan["bead_id"],
-        "requested_model": requested_model,
-        "session_id": "spark-session",
-        "attestation_source": "trusted-session-jsonl",
-        "attested_model": requested_model,
-        "work_estimate_sha256": canonical_work_estimate_sha256(work_plan),
-        "decision": "accept",
-        "confidence": 0.95,
-        "estimates": {
+    receipt_packet_id = f"{packet_id}-{uuid.uuid4().hex}"
+    receipt = issue_accepting_precommit_receipt(
+        work_plan=work_plan,
+        packet_id=receipt_packet_id,
+        artifact_root=_FIXTURE_ROOT,
+        workdir=ROOT,
+        estimates={
             "tool_calls_p50": 2,
             "tool_calls_p90": 5,
             "runtime_seconds_p50": 10,
             "runtime_seconds_p90": 60,
         },
-        "tool_calls_before_commitment": 0,
-        "context_compactions_before_commitment": 0,
-        "reason": "deterministic supervisor test fixture",
-    }
+    )
     return build_native_worker_packet(
         bead_id="bead-supervision",
         lane="implementation",
         workdir=str(ROOT),
         allowed_paths=allowed_paths,
         acceptance_checks=acceptance_checks,
-        packet_id=packet_id,
+        packet_id=receipt_packet_id,
         budget_overrides=effective_budget,
         requested_model=requested_model,
         work_plan=work_plan,
-        worker_commitment=commitment,
+        precommit_receipt=receipt,
     )
 
 
@@ -255,6 +269,19 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.policy = supervisor.load_policy("native-worker-execution")
+
+    def setUp(self) -> None:
+        global _FIXTURE_ROOT
+        self.precommit_temp = tempfile.TemporaryDirectory(prefix="cwo-semantic-precommit-")
+        self.addCleanup(self.precommit_temp.cleanup)
+        _FIXTURE_ROOT = Path(self.precommit_temp.name)
+        self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
+        environment = mock.patch.dict(
+            os.environ,
+            {"CWO_PRECOMMIT_REGISTRY_ROOT": str(_FIXTURE_ROOT / "registry")},
+        )
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def packet(self) -> dict:
         return planned_packet(packet_id="packet-semantic-helper")
@@ -586,6 +613,68 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         malformed_implementation["work_plan"]["task_profile"]["source_mutation_count"] = True
         self.assertEqual(
             supervisor._declared_validation_commands(malformed_implementation),
+            frozenset(),
+        )
+
+        publication = json.loads(json.dumps(implementation))
+        publication["lane"] = "publish-report-admin"
+        publication["work_plan"]["task_profile"]["source_mutation_count"] = 0
+        publication["work_plan"]["task_profile"]["source_mutation_paths"] = []
+        publication["work_plan"]["task_profile"]["task_class"] = "bounded-implementation"
+        publication["work_plan"]["task_profile"]["execution_contract"] = {
+            "mode": "direct",
+            "checked_command_specs": [],
+        }
+        self.assertEqual(
+            supervisor._declared_validation_commands(publication),
+            frozenset({tuple(command)}),
+        )
+
+        multi_command_publication = json.loads(json.dumps(publication))
+        multi_command_publication["work_plan"]["task_profile"]["command_count"] = 2
+        multi_command_publication["work_plan"]["task_profile"]["commands"].append(
+            {"argv": ["git", "status", "--short"]}
+        )
+        self.assertEqual(
+            supervisor._declared_validation_commands(multi_command_publication),
+            frozenset(),
+        )
+
+        mutating_publication = json.loads(json.dumps(publication))
+        mutating_publication["work_plan"]["task_profile"]["source_mutation_count"] = 1
+        mutating_publication["work_plan"]["task_profile"]["source_mutation_paths"] = ["SKILL.md"]
+        self.assertEqual(
+            supervisor._declared_validation_commands(mutating_publication),
+            frozenset(),
+        )
+
+        missing_publication_action = json.loads(json.dumps(publication))
+        missing_publication_action["scope"]["allowed_actions"].remove(
+            "write-packaged-artifacts"
+        )
+        self.assertEqual(
+            supervisor._declared_validation_commands(missing_publication_action),
+            frozenset(),
+        )
+
+        malformed_publication_contract = json.loads(json.dumps(publication))
+        malformed_publication_contract["work_plan"]["task_profile"][
+            "execution_contract"
+        ] = "direct"
+        self.assertEqual(
+            supervisor._declared_validation_commands(malformed_publication_contract),
+            frozenset(),
+        )
+
+        indirect_publication = json.loads(json.dumps(publication))
+        indirect_publication["work_plan"]["task_profile"]["execution_contract"][
+            "mode"
+        ] = "checked-sequence-v1"
+        indirect_publication["checked_command_sequence"] = {
+            "runner_argv": ["python", "scripts/run_checked_command_sequence.py"],
+        }
+        self.assertEqual(
+            supervisor._declared_validation_commands(indirect_publication),
             frozenset(),
         )
 
@@ -1059,8 +1148,17 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
 
 class NativeWorkerSupervisorTests(unittest.TestCase):
     def setUp(self) -> None:
+        global _FIXTURE_ROOT
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-supervision-test-")
         self.root = Path(self.tmp.name)
+        _FIXTURE_ROOT = self.root
+        self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
+        environment = mock.patch.dict(
+            os.environ,
+            {"CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry")},
+        )
+        environment.start()
+        self.addCleanup(environment.stop)
         self.session_id = "spark-session"
         self.session_file = self.root / "session.jsonl"
         self.packet_file = self.root / "packet.json"
@@ -1236,22 +1334,9 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("attestation mismatch", result.stderr)
 
-    def test_start_accepts_explicit_authorized_luna_packet(self) -> None:
-        packet = planned_packet(packet_id="packet-supervision-luna", requested_model=LUNA_MODEL)
-        self.packet_file.write_text(json.dumps(packet), encoding="utf-8")
-        records = [session_meta(self.session_id)]
-        records[0]["turn_context"]["model"] = LUNA_MODEL
-        write_records(self.session_file, records)
-
-        started = self.start()
-        self.assertEqual(started.returncode, 0, started.stderr)
-        payload = json.loads(started.stdout)
-        self.assertEqual(payload["requested_model"], LUNA_MODEL)
-        if HAS_JSONSCHEMA:
-            import jsonschema
-
-            schema = json.loads((ROOT / "schemas" / "native-supervision-state.schema.json").read_text(encoding="utf-8"))
-            jsonschema.validate(json.loads(self.state_file.read_text(encoding="utf-8")), schema)
+    def test_luna_cannot_bypass_exact_spark_precommit(self) -> None:
+        with self.assertRaisesRegex(ValueError, "exact Spark model"):
+            planned_packet(packet_id="packet-supervision-luna", requested_model=LUNA_MODEL)
 
     def test_unarmed_check_and_dispatch_are_rejected(self) -> None:
         self.assertEqual(self.start().returncode, 0)

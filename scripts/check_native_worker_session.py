@@ -159,7 +159,9 @@ def main() -> int:
             packet = json.loads(packet_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             _error(f"could not load packet {packet_path}: {exc}")
-        packet_errors = validate_native_worker_packet(packet, dispatchable=True)
+        # This helper is retrospective evidence inspection. Dispatch authority
+        # belongs exclusively to the live supervisor and remains contained.
+        packet_errors = validate_native_worker_packet(packet, dispatchable=False)
         if packet_errors:
             _error("packet validation failed: " + "; ".join(packet_errors))
         requested_model = str(packet["requested_model"])

@@ -22,6 +22,8 @@ from cwo_core.native_session import (
 )
 from cwo_core.audit import acquire_audit_lock, record_audit_event, release_audit_lock
 from cwo_core.native_disposition import derive_disposition
+from cwo_core.native_containment import require_native_operative_dispatch
+from cwo_core.native_precommit import canonical_sha256
 from cwo_core.native_retry import (
     build_retry_authorization,
     canonical_work_sha256,
@@ -530,7 +532,7 @@ def _continuation_is_terminal(value: Any) -> bool:
 
 def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str, ...]]:
     lane = packet.get("lane")
-    if lane not in {"implementation", "validation"}:
+    if lane not in {"implementation", "validation", "publish-report-admin"}:
         return frozenset()
     scope = packet.get("scope")
     work_plan = packet.get("work_plan")
@@ -542,6 +544,8 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
         return frozenset()
     contract = profile.get("execution_contract")
     if isinstance(contract, dict) and contract.get("mode") == "checked-sequence-v1":
+        if lane == "publish-report-admin":
+            return frozenset()
         receipt = packet.get("checked_command_sequence")
         runner = receipt.get("runner_argv") if isinstance(receipt, dict) else None
         if not isinstance(runner, list) or not runner or not all(
@@ -565,12 +569,27 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
             return frozenset()
         if mutation_count != 0 or mutation_paths != []:
             return frozenset()
-    else:
+    elif lane == "implementation":
         allowed = scope.get("allowed_actions")
         if not isinstance(allowed, list) or "run-tests-in-scope" not in allowed:
             return frozenset()
         if profile.get("task_class") not in {"narrow-mechanical", "bounded-implementation"}:
             return frozenset()
+    elif lane == "publish-report-admin":
+        allowed = scope.get("allowed_actions")
+        contract = profile.get("execution_contract")
+        if (
+            not isinstance(allowed, list)
+            or "write-packaged-artifacts" not in allowed
+            or profile.get("task_class") != "bounded-implementation"
+            or mutation_count != 0
+            or mutation_paths != []
+            or not isinstance(contract, dict)
+            or contract.get("mode") != "direct"
+        ):
+            return frozenset()
+    else:
+        return frozenset()
     command_count = profile.get("command_count")
     commands = profile.get("commands")
     if (
@@ -579,6 +598,8 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
         or not isinstance(commands, list)
         or command_count != len(commands)
     ):
+        return frozenset()
+    if lane == "publish-report-admin" and command_count != 1:
         return frozenset()
 
     declared: list[tuple[str, ...]] = []
@@ -1439,6 +1460,7 @@ def _audit_event(
 def start(args: argparse.Namespace) -> dict[str, Any]:
     packet_path = Path(args.packet).expanduser().resolve()
     packet = _load_json(packet_path, "packet")
+    _require_packet_release(packet, "supervision-start")
     errors = validate_native_worker_packet(packet, dispatchable=True)
     if errors:
         _fail("packet validation failed: " + "; ".join(errors))
@@ -1575,6 +1597,52 @@ def _load_control_state(path_value: str) -> tuple[Path, dict[str, Any]]:
     return path, _load_json(path, "supervision state")
 
 
+def _require_packet_release(packet: dict[str, Any], operation: str) -> None:
+    work_plan = packet.get("work_plan")
+    require_native_operative_dispatch(
+        operation,
+        release_evidence=(
+            packet.get("release_evidence")
+            if isinstance(packet.get("release_evidence"), dict)
+            else None
+        ),
+        expected_packet_id=str(packet.get("packet_id") or ""),
+        expected_work_plan_sha256=(
+            canonical_sha256(work_plan) if isinstance(work_plan, dict) else None
+        ),
+        expected_precommit_receipt_sha256=(
+            str(packet.get("precommit_receipt_sha256"))
+            if isinstance(packet.get("precommit_receipt_sha256"), str)
+            else None
+        ),
+    )
+
+
+def _require_direct_release(args: argparse.Namespace, operation: str) -> dict[str, Any] | None:
+    evidence = None
+    path_value = getattr(args, "release_evidence", None)
+    if isinstance(path_value, str) and path_value:
+        evidence = _load_json(Path(path_value).expanduser().resolve(), "native release evidence")
+    require_native_operative_dispatch(operation, release_evidence=evidence)
+    return evidence
+
+
+def _require_state_release(
+    state: dict[str, Any],
+    operation: str,
+    supplied_evidence: dict[str, Any] | None = None,
+) -> None:
+    packet_file = state.get("packet_file")
+    if not isinstance(packet_file, str) or not packet_file:
+        _fail("control-lost: supervision state is missing its packet binding")
+    packet = _load_json(Path(packet_file).expanduser().resolve(), "bound packet")
+    if artifact_hash(json.dumps(packet, sort_keys=True)) != state.get("packet_sha256"):
+        _fail("control-lost: bound packet changed after supervision start")
+    if supplied_evidence is not None and packet.get("release_evidence") != supplied_evidence:
+        _fail("control-lost: supplied release evidence does not match the bound packet")
+    _require_packet_release(packet, operation)
+
+
 def _control_turn(value: str) -> str:
     control_turn_id = str(value or "").strip()
     if not control_turn_id:
@@ -1617,7 +1685,9 @@ def _set_control_lost(
 
 
 def arm(args: argparse.Namespace) -> dict[str, Any]:
+    release_evidence = _require_direct_release(args, "supervision-arm")
     path, state = _load_control_state(args.state_file)
+    _require_state_release(state, "supervision-arm", release_evidence)
     if state.get("status") != "created":
         _fail("arm requires a newly created supervision state")
     now = _iso_now(args.now)
@@ -1631,7 +1701,9 @@ def arm(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def mark_dispatched(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    release_evidence = _require_direct_release(args, "native-dispatch")
     path, state = _load_control_state(args.state_file)
+    _require_state_release(state, "native-dispatch", release_evidence)
     if state.get("status") != "armed":
         _fail("mark-dispatched requires an armed supervision state")
     supplied_control_turn = _control_turn(args.control_turn_id)
@@ -1977,7 +2049,9 @@ def assess_retry(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def authorize_retry(args: argparse.Namespace) -> dict[str, Any]:
+    release_evidence = _require_direct_release(args, "native-retry")
     path, state = _load_control_state(args.state_file)
+    _require_state_release(state, "native-retry", release_evidence)
     _require_control_turn(state, args.control_turn_id)
     _require_closed_for_retry(state)
     _require_native_retry_decision(state)
@@ -2040,12 +2114,14 @@ def parse_args() -> argparse.Namespace:
     arm_cmd = commands.add_parser("arm")
     arm_cmd.add_argument("--state-file", required=True)
     arm_cmd.add_argument("--control-turn-id", required=True)
+    arm_cmd.add_argument("--release-evidence")
     arm_cmd.add_argument("--now")
     arm_cmd.add_argument("--json", action="store_true")
     dispatched_cmd = commands.add_parser("mark-dispatched")
     dispatched_cmd.add_argument("--state-file", required=True)
     dispatched_cmd.add_argument("--control-turn-id", required=True)
     dispatched_cmd.add_argument("--submission-id", required=True)
+    dispatched_cmd.add_argument("--release-evidence")
     dispatched_cmd.add_argument("--now")
     dispatched_cmd.add_argument("--json", action="store_true")
     check_cmd = commands.add_parser("check")
@@ -2074,6 +2150,7 @@ def parse_args() -> argparse.Namespace:
     authorize_cmd.add_argument("--fresh-attestation", required=True)
     authorize_cmd.add_argument("--workspace-report", required=True)
     authorize_cmd.add_argument("--semantic-result", required=True)
+    authorize_cmd.add_argument("--release-evidence")
     authorize_cmd.add_argument("--now")
     authorize_cmd.add_argument("--json", action="store_true")
     return parser.parse_args()

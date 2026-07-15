@@ -323,19 +323,19 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertFalse(executor["supports_shell"])
         self.assertFalse(executor["supports_web"])
 
-    def test_explicit_glm_architecture_critic_routes_to_local_executor(self) -> None:
+    def test_explicit_hardened_glm_architecture_critic_routes_to_local_executor(self) -> None:
         route = classify_work(
-            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            "Use GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion.",
             local_ok=True,
-            local_profile="openshift-ai-vllm",
+            local_profile="openshift-ai-glm-256k",
             requested_roles=["architecture"],
         )
 
         self.assertEqual(route["route"], "local-worker")
-        self.assertEqual(route["recommended_executor"], "rhoai_glm_architecture_critic")
-        self.assertEqual(route["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
+        self.assertEqual(route["recommended_executor"], "rhoai_glm_hardened_architecture_critic")
+        self.assertEqual(route["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-256k-thinking")
         self.assertIn(
-            "rhoai_glm_architecture_critic",
+            "rhoai_glm_hardened_architecture_critic",
             route["requested_architecture_critic_executors"],
         )
 

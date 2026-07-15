@@ -3,12 +3,15 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import importlib
+import tests.test_supervise_native_worker as supervisor_fixtures
 from tests.test_supervise_native_worker import (  # noqa: E402
     CONTROL_TURN,
     MODEL,
@@ -62,6 +65,12 @@ class NativeRetrySupervisionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-native-retry-supervision-")
         self.root = Path(self.tmp.name)
+        supervisor_fixtures._FIXTURE_ROOT = self.root
+        self.environment = mock.patch.dict(
+            os.environ,
+            {"CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry")},
+        )
+        self.environment.start()
         self.session_id = "spark-session"
         self.session_file = self.root / "session.jsonl"
         self.packet_file = self.root / "packet.json"
@@ -81,6 +90,8 @@ class NativeRetrySupervisionTests(unittest.TestCase):
         write_records(self.session_file, [session_meta(self.session_id)])
 
     def tearDown(self) -> None:
+        self.environment.stop()
+        supervisor_fixtures._FIXTURE_ROOT = None
         self.tmp.cleanup()
 
     def _reset_workflow_artifacts(self) -> None:
@@ -471,15 +482,17 @@ class NativeRetrySupervisionTests(unittest.TestCase):
             altered_packet = copy.deepcopy(self.parent_packet)
             altered_packet["acceptance_checks"] = ["altered-check"]
             self.packet_file.write_text(json.dumps(altered_packet), encoding="utf-8")
-            failed = self._authorize(
-                retry_packet=retry_packet,
-                workspace=workspace,
-                semantic=semantic,
-                fresh_attestation=attestation,
-            )
-            self.assertNotEqual(failed.returncode, 0)
-            self.assertIn("retry lifecycle requires preserved immutable work hash", failed.stderr)
-            self.packet_file.write_text(json.dumps(self.parent_packet), encoding="utf-8")
+            try:
+                failed = self._authorize(
+                    retry_packet=retry_packet,
+                    workspace=workspace,
+                    semantic=semantic,
+                    fresh_attestation=attestation,
+                )
+                self.assertNotEqual(failed.returncode, 0)
+                self.assertIn("control-lost: bound packet changed after supervision start", failed.stderr)
+            finally:
+                self.packet_file.write_text(json.dumps(self.parent_packet), encoding="utf-8")
 
         with self.subTest(change="model"):
             failed = self._authorize(
