@@ -38,16 +38,18 @@
     "active": true,
     "status": "contained",
     "scope": "native-operative-dispatch",
-    "reason": "fsh.1-precommit-control-gap",
+    "reason": "fsh.2-dispatch-release-pending",
     "decision": "hard-stop",
     "authority": "policy/native-worker-execution.yaml",
-    "release_requires": "complex-work-orchestration-fsh.2",
+    "release_requires": "complex-work-orchestration-fsh.3",
     "allowed_non_operative_operations": [
       "policy-schema-validation",
       "trusted-session-inspection",
       "historical-packet-inspection",
       "structurally-nondispatchable-preview",
-      "external-read-only-critic-review"
+      "external-read-only-critic-review",
+      "supervised-worker-fit-request",
+      "receipt-bound-candidate-packet-build"
     ],
     "blocked_operations": [
       "worker-fit-request",
@@ -62,6 +64,20 @@
       "native-resume",
       "native-replay-dispatch"
     ]
+  },
+  "precommit_supervision": {
+    "version": 1,
+    "state_schema": "schemas/native-precommit-state.schema.json",
+    "receipt_schema": "schemas/native-precommit-receipt.schema.json",
+    "validation_rule_version": "native-precommit-receipt:v1",
+    "required_model": "gpt-5.3-codex-spark",
+    "attestation_source": "trusted-control-plane-session-metadata",
+    "poll_interval_ms": 1000,
+    "poll_lag_tolerance_ms": 500,
+    "arm_to_dispatch_max_ms": 5000,
+    "packet_stage": "precommit-validated",
+    "operative_dispatch_authorized": false,
+    "release_requires": "complex-work-orchestration-fsh.3"
   },
   "poll_interval_ms": 1000,
   "poll_lag_tolerance_ms": 1500,
@@ -640,17 +656,21 @@
         "commitment": {
           "required_for_dispatch": true,
           "receipt_type": "cwo-native-worker-fit-commitment",
-          "version": 1,
+          "version": 2,
+          "historical_versions": [
+            1
+          ],
+          "candidate_version": 2,
           "decisions": [
             "accept",
             "pm-realignment",
             "architect-realignment"
           ],
           "dispatchable_decision": "accept",
-          "min_confidence": 0.75,
-          "precommitment_tool_calls": 0,
-          "precommitment_compactions": 0,
-          "attestation_source": "trusted-session-jsonl",
+          "precommit_receipt_type": "cwo-native-precommit-receipt",
+          "identity_source": "validated-precommit-receipt",
+          "activity_source": "validated-precommit-receipt",
+          "historical_v1_min_confidence": 0.75,
           "positive_estimates_required": true,
           "estimate_bound": "within-work-plan-aggregate-hard-allowance",
           "normalization": {

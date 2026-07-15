@@ -393,6 +393,23 @@
       "type": "object",
       "minProperties": 1
     },
+    "stage": {
+      "const": "precommit-validated"
+    },
+    "operative_dispatch_authorized": {
+      "const": false
+    },
+    "release_requires": {
+      "const": "complex-work-orchestration-fsh.3"
+    },
+    "precommit_receipt": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "precommit_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "checked_command_sequence": {
       "type": "object",
       "additionalProperties": false,

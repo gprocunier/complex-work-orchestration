@@ -1959,7 +1959,7 @@ def prompt_coach_warnings(
             if status == "hard-stop":
                 if workerbee_parallelism.get("hard_stop_reason") == "native_precommit_containment":
                     warnings.append(
-                        "Native operative dispatch is contained until fsh.2 provides trusted precommit supervision; "
+                        "Native operative dispatch remains contained until fsh.3 releases validated precommit supervision; "
                         "do not substitute another operative model."
                     )
                 else:

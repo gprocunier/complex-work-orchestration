@@ -6,8 +6,8 @@ from typing import Any, Mapping
 from .policy import load_policy
 
 
-CONTAINMENT_REASON = "fsh.1-precommit-control-gap"
-CONTAINMENT_RELEASE = "complex-work-orchestration-fsh.2"
+CONTAINMENT_REASON = "fsh.2-dispatch-release-pending"
+CONTAINMENT_RELEASE = "complex-work-orchestration-fsh.3"
 CONTAINMENT_AUTHORITY = "policy/native-worker-execution.yaml"
 CONTAINMENT_ERROR = "native-precommit-containment-active"
 

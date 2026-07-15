@@ -49,8 +49,10 @@ class NativePrecommitContainmentTests(unittest.TestCase):
         state = native_operative_containment()
         self.assertEqual(state["status"], "contained")
         self.assertFalse(state["dispatch_authorized"])
-        self.assertEqual(state["reason"], "fsh.1-precommit-control-gap")
-        self.assertEqual(state["release_requires"], "complex-work-orchestration-fsh.2")
+        self.assertEqual(state["reason"], "fsh.2-dispatch-release-pending")
+        self.assertEqual(state["release_requires"], "complex-work-orchestration-fsh.3")
+        self.assertIn("supervised-worker-fit-request", state["allowed_non_operative_operations"])
+        self.assertIn("receipt-bound-candidate-packet-build", state["allowed_non_operative_operations"])
 
         policy = json.loads(
             (ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8")
@@ -84,7 +86,7 @@ class NativePrecommitContainmentTests(unittest.TestCase):
         self.assertEqual(planned["spark_dispatch"]["failed_native_capability_check"], "")
         self.assertNotIn("native_precommit_containment", coached["route"]["hard_stops"])
         self.assertTrue(
-            any("contained until fsh.2" in warning for warning in coached["warnings"])
+            any("contained until fsh.3" in warning for warning in coached["warnings"])
         )
         graph = planned_graph("contained graph", coached["route"], "tight")
         self.assertTrue(graph)
@@ -102,7 +104,7 @@ class NativePrecommitContainmentTests(unittest.TestCase):
 
     def test_planned_build_and_dispatchable_validation_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
-            with self.assertRaisesRegex(SystemExit, CONTAINMENT_ERROR):
+            with self.assertRaisesRegex(SystemExit, "trusted precommit receipt"):
                 build_native_worker_packet(
                     bead_id="containment-test",
                     lane="implementation",

@@ -120,7 +120,7 @@ Implementation packets use `operative-readiness:v2`: hashed path/selector contex
 - Healthy packet-contract failures allow one PM refinement and one bounded Sol replan within the original budget; recursive salvage and budget reset remain forbidden.
 - `interrupt` or `control-lost` requires native interrupt, close, and receipts.
 - Before packet build, evaluate operative work with semantic work-estimate contract v2. The estimate separates architect authority from operative routing and includes diff, behavior, state/schema, self-hosting/live-control, contract/CLI/policy/telemetry surfaces, test construction, command complexity, expected reads, mutations, and their ratio.
-- Require a zero-tool fit commitment bound to the evaluated work-plan hash and trusted worker attestation. Invalid or ambiguous commitments route to PM realignment without repeated formatting retries.
+- Before packet build, use the trusted precommit supervisor and receipt-derived commitment v2; FSH.2 candidates remain non-operative until FSH.3. See `references/execution-environments.md`.
 - During execution, use `scripts/cwo_core/native_progress.py` to compare planned and observed calls, runtime, tokens, reads, mutations, tests, and artifacts. Retained productive artifacts are not pure waste.
 - The PM may autonomously refine a packet, ask the current architect one bounded reasoning question, or split material work within the original objective and aggregate allowance. These routine corrections do not require operator approval.
 - Packet `scope.workdir` governs commands, mutation baselines, and receipts; ignore inherited worker cwd.
