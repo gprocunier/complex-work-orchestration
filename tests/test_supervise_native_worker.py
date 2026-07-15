@@ -262,8 +262,10 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
     def validation_packet(self, commands: list[list[str]]) -> dict:
         packet = self.packet()
         packet["lane"] = "validation"
+        packet["budget"]["max_full_suite_runs"] = 1
         packet["scope"]["prohibited_actions"].append("source-mutation")
         packet["work_plan"]["write_paths"] = []
+        packet["work_plan"]["task_class"] = "read-only-validation"
         packet["work_plan"]["task_profile"] = {
             "task_class": "read-only-validation",
             "declared_outcome_count": 1,
@@ -291,8 +293,54 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertEqual(readiness["decision"], "operative-ready")
         self.assertEqual(readiness["reasons"], [])
         self.assertEqual(readiness["open_decisions"], [])
+        self.assertEqual(readiness["context_unit_allowance"], 3)
         self.assertEqual(len(units), 1)
         self.assertEqual(units[0]["selector"], "whole-file")
+
+    def test_readiness_enforces_read_only_validation_contract(self) -> None:
+        packet = self.validation_packet([["python3", "scripts/validate_repository.py"]])
+        readiness, _ = supervisor._evaluate_operative_readiness(packet, self.policy)
+        self.assertEqual(readiness["decision"], "operative-ready")
+        self.assertNotIn("missing-write-paths", readiness["reasons"])
+
+        writable = json.loads(json.dumps(packet))
+        writable["work_plan"]["write_paths"] = ["scripts/validate_repository.py"]
+        readiness, _ = supervisor._evaluate_operative_readiness(writable, self.policy)
+        self.assertIn("read-only-validation-contract-invalid", readiness["reasons"])
+
+        mutating = json.loads(json.dumps(packet))
+        mutating["work_plan"]["task_profile"]["source_mutation_count"] = 1
+        mutating["work_plan"]["task_profile"]["source_mutation_paths"] = [
+            "scripts/validate_repository.py"
+        ]
+        readiness, _ = supervisor._evaluate_operative_readiness(mutating, self.policy)
+        self.assertIn("read-only-validation-contract-invalid", readiness["reasons"])
+
+        implementation = self.packet()
+        implementation["work_plan"]["write_paths"] = []
+        readiness, _ = supervisor._evaluate_operative_readiness(implementation, self.policy)
+        self.assertIn("missing-write-paths", readiness["reasons"])
+
+    def test_readiness_uses_lane_specific_full_suite_limits(self) -> None:
+        implementation = self.packet()
+        implementation["budget"]["max_full_suite_runs"] = 1
+        readiness, _ = supervisor._evaluate_operative_readiness(implementation, self.policy)
+        self.assertIn("lane-full-suite-limit-invalid", readiness["reasons"])
+
+        validation = self.validation_packet([["python3", "scripts/validate_repository.py"]])
+        readiness, _ = supervisor._evaluate_operative_readiness(validation, self.policy)
+        self.assertNotIn("lane-full-suite-limit-invalid", readiness["reasons"])
+
+        for invalid in (0, 2):
+            malformed = json.loads(json.dumps(validation))
+            malformed["budget"]["max_full_suite_runs"] = invalid
+            readiness, _ = supervisor._evaluate_operative_readiness(malformed, self.policy)
+            self.assertIn("lane-full-suite-limit-invalid", readiness["reasons"])
+
+        unknown = self.packet()
+        unknown["lane"] = "unknown"
+        readiness, _ = supervisor._evaluate_operative_readiness(unknown, self.policy)
+        self.assertIn("lane-full-suite-limit-invalid", readiness["reasons"])
 
     def test_readiness_routes_open_decisions_and_invalid_context(self) -> None:
         packet = self.packet()
@@ -479,6 +527,27 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertIn("unauthorized-memory-read", activity["violations"])
         self.assertIn("unrelated-activity-denied", activity["violations"])
         self.assertIn("read-unit-chunk-limit-exceeded", activity["violations"])
+
+    def test_line_selectors_accept_only_one_contained_sed_range(self) -> None:
+        selector = "lines:895-1245"
+        path = "scripts/supervise_native_worker.py"
+        self.assertTrue(supervisor._selector_matches(f"sed -n '895,1245p' {path}", selector))
+        self.assertTrue(supervisor._selector_matches(f"sed -n '940,1035p' {path}", selector))
+
+        denied = [
+            f"sed -n '894,1245p' {path}",
+            f"sed -n '1200,1300p' {path}",
+            f"sed -n '940,1300p' {path}",
+            f"sed -n '1035,940p' {path}",
+            f"sed -n '-1,1035p' {path}",
+            f"sed -n 'nine,1035p' {path}",
+            f"sed -n '940,1035' {path}",
+            f"sed -n '940,1035p' -e '1000,1100p' {path}",
+            f"cat {path} 940,1035p",
+        ]
+        for command in denied:
+            with self.subTest(command=command):
+                self.assertFalse(supervisor._selector_matches(command, selector))
 
     def test_declared_validation_commands_require_exact_valid_profile(self) -> None:
         command = ["python", "scripts/validate_repository.py"]

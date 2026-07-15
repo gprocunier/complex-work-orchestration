@@ -643,6 +643,16 @@ python3 scripts/build_contractor_packet.py \
    use `--no-audit` only for test rehearsals that must not consume quota.
    If the profile is intentionally omitted, the build command must include
    `--no-include-expert-profile --degraded-context-justification "<reason>"`.
+
+   For `repo-readonly` and `patch-branch` summaries, the packet helper projects each
+   top-level dependency to only `id`, `title`, `status`, and `dependency_type`.
+   Missing scalar values are represented as JSON `null`, while nested
+   dependencies and all nonselected fields are omitted.
+   The full canonical summary is hard-capped at 32 KiB (32,768 UTF-8 bytes).
+   Malformed or oversized summaries fail before quota reservation, audit output,
+   or packet output. Packet validation independently rechecks both the projected
+   dependency shape and summary-size cap. `redacted-packet` behavior is
+   unchanged.
 6. PM gives the contractor `references/contractor-brief.md`, the packet, and
    the bead assignment.
 7. PM generates a manual dispatch prompt. Dispatch revalidates the packet hash,

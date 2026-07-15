@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import importlib
 import sys
 import tempfile
@@ -7,13 +8,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import cwo_core.policy
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import cwo_core.policy  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
 from build_contractor_packet import extract_labels  # noqa: E402
+from cwo_core.errors import CWOPolicyError  # noqa: E402
 from cwo_core.util import artifact_hash, packet_payload_hash  # noqa: E402
 from cwo_core.policy import load_policy  # noqa: E402
 import cwo_core.packets as packet_module  # noqa: E402
@@ -48,6 +49,17 @@ def base_packet() -> dict:
 def rehash(packet: dict) -> dict:
     packet["packet_sha256"] = packet_payload_hash(packet)
     return packet
+
+
+def canonical_json_bytes(value: object) -> int:
+    return len(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+    )
 
 
 def policy_sensitive_field_aliases() -> list[str]:
@@ -289,6 +301,122 @@ class PacketValidationTests(unittest.TestCase):
         )
         self.assertNotIn("metadata", summary)
 
+    def test_sanitize_bead_projects_dependencies(self) -> None:
+        summary = sanitize_bead(
+            {
+                "id": "cwo-1",
+                "title": "Dependency check",
+                "dependencies": [
+                    "raw-dependency-id",
+                    {
+                        "id": "task-001",
+                        "title": "Parent task",
+                        "status": "open",
+                        "dependency_type": "blocks",
+                        "secret_payload": {"token": "redact-me"},
+                    },
+                    {
+                        "id": "task-002",
+                        "depends_on_id": "fallback-id",
+                        "issue_id": "fallback-issue-id",
+                        "dependency_type": "related",
+                        "type": "fallback-type",
+                    },
+                ],
+            },
+            "repo-readonly",
+        )
+        self.assertEqual(
+            summary["dependencies"],
+            [
+                {
+                    "id": "raw-dependency-id",
+                    "title": None,
+                    "status": None,
+                    "dependency_type": None,
+                },
+                {
+                    "id": "task-001",
+                    "title": "Parent task",
+                    "status": "open",
+                    "dependency_type": "blocks",
+                },
+                {
+                    "id": "task-002",
+                    "title": None,
+                    "status": None,
+                    "dependency_type": "related",
+                },
+            ],
+        )
+
+    def test_sanitize_bead_drops_nested_dependency_fields(self) -> None:
+        summary = sanitize_bead(
+            {
+                "id": "cwo-1",
+                "title": "Dependency check",
+                "dependencies": [
+                    {
+                        "id": "task-001",
+                        "title": "Parent task",
+                        "status": "open",
+                        "dependency_type": "blocks",
+                        "metadata": {"extra": "nested"},
+                    }
+                ],
+            },
+            "repo-readonly",
+        )
+        self.assertEqual(summary["dependencies"][0].keys(), {"id", "title", "status", "dependency_type"})
+        self.assertNotIn("metadata", summary["dependencies"][0])
+
+    def test_sanitize_bead_rejects_malformed_dependency_inputs(self) -> None:
+        invalid_dependencies = [
+            "not-a-list",
+            [123],
+            [{"id": 123}],
+            [{"id": "task-001", "title": ["not", "a", "string"]}],
+        ]
+        for dependencies in invalid_dependencies:
+            with self.subTest(dependencies=dependencies):
+                with self.assertRaises(CWOPolicyError):
+                    sanitize_bead(
+                        {
+                            "id": "cwo-1",
+                            "title": "Dependency check",
+                            "dependencies": dependencies,
+                        },
+                        "repo-readonly",
+                    )
+
+    def test_redacted_boundary_still_excludes_malformed_dependencies(self) -> None:
+        summary = sanitize_bead(
+            {
+                "id": "cwo-1",
+                "title": "Dependency check",
+                "dependencies": "not-a-list",
+            },
+            "redacted-packet",
+        )
+        self.assertNotIn("dependencies", summary)
+
+    def test_sanitize_bead_enforces_exact_canonical_byte_cap(self) -> None:
+        cap = 32768
+        raw = {
+            "id": "cwo-1",
+            "title": "Dependency check",
+            "labels": [],
+            "description": "",
+        }
+        empty_summary = sanitize_bead(raw, "repo-readonly")
+        raw["description"] = "x" * (cap - canonical_json_bytes(empty_summary))
+        at_cap = sanitize_bead(raw, "repo-readonly")
+        self.assertEqual(canonical_json_bytes(at_cap), cap)
+
+        raw["description"] += "x"
+        with self.assertRaisesRegex(CWOPolicyError, "exceeds boundary cap"):
+            sanitize_bead(raw, "repo-readonly")
+
     def test_sanitize_bead_reaches_fixed_point_for_nested_boundary_values(self) -> None:
         payload = {
             "id": "cwo-1",
@@ -320,6 +448,55 @@ class PacketValidationTests(unittest.TestCase):
         ]
         errors = validate_contractor_packet(rehash(packet))
         self.assertTrue(any("mandatory exclusions" in error for error in errors))
+
+    def test_rejects_malformed_dependency_shape(self) -> None:
+        packet = base_packet()
+        packet["bead_summary"]["dependencies"] = "not-a-list"
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("dependencies must be a list" in error for error in errors))
+        packet["bead_summary"]["dependencies"] = [123]
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("must be a shallow projection object" in error for error in errors))
+        packet["bead_summary"]["dependencies"] = [{"id": 123, "title": "task", "status": "open", "dependency_type": "blocks"}]
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("must be a string or null" in error for error in errors))
+
+    def test_rejects_dependency_with_extra_fields(self) -> None:
+        packet = base_packet()
+        packet["bead_summary"]["dependencies"] = [
+            {
+                "id": "task-001",
+                "title": "Parent task",
+                "status": "open",
+                "dependency_type": "blocks",
+                "extra": "not-allowed",
+            },
+        ]
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("must contain exactly id, title, status, and dependency_type" in error for error in errors))
+
+    def test_rejects_bead_summary_cap_overflow(self) -> None:
+        packet = base_packet()
+        packet["share_boundary"] = "repo-readonly"
+        packet["disclosure_stage"] = "repo-readonly"
+        packet["disclosure_escalation_approved"] = True
+        filler = "x" * 32800
+        packet["bead_summary"]["padding"] = filler
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertTrue(any("bead_summary size" in error and "exceeds boundary cap" in error for error in errors))
+
+    def test_allows_bead_summary_at_cap_edge(self) -> None:
+        packet = base_packet()
+        packet["share_boundary"] = "repo-readonly"
+        packet["disclosure_stage"] = "repo-readonly"
+        packet["disclosure_escalation_approved"] = True
+        packet["bead_summary"].pop("padding", None)
+        packet["bead_summary"]["padding"] = ""
+        empty_size = canonical_json_bytes(packet["bead_summary"])
+        packet["bead_summary"]["padding"] = "x" * (32768 - empty_size)
+        self.assertEqual(canonical_json_bytes(packet["bead_summary"]), 32768)
+        errors = validate_contractor_packet(rehash(packet))
+        self.assertFalse(any("bead_summary size" in error for error in errors))
 
     def test_rejects_snippet_over_boundary_limit(self) -> None:
         packet = base_packet()

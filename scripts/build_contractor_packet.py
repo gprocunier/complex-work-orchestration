@@ -492,6 +492,14 @@ def main() -> None:
         epic_id=effective_epic_id,
         allow_disclosure_escalation=args.allow_disclosure_escalation,
     )
+    try:
+        sanitize_bead(
+            bead_json,
+            args.share_boundary,
+            require_policy_patterns=True,
+        )
+    except (CWOPolicyError, SystemExit) as exc:
+        raise SystemExit(f"contractor packet preflight failed: {exc}") from exc
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead)
     quota_info = enforce_contracting_quota(
         effective_epic_id,

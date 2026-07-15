@@ -204,7 +204,29 @@ def _evaluate_operative_readiness(
 
     write_paths = work_plan.get("write_paths")
     owned_files = [value for value in write_paths if isinstance(value, str)] if isinstance(write_paths, list) else []
-    if not owned_files:
+    lane = packet.get("lane")
+    profile = work_plan.get("task_profile")
+    profile = profile if isinstance(profile, dict) else {}
+    scope = packet.get("scope")
+    scope = scope if isinstance(scope, dict) else {}
+    prohibited_actions = scope.get("prohibited_actions")
+    mutation_count = profile.get("source_mutation_count")
+    read_only_validation = (
+        lane == "validation"
+        and work_plan.get("task_class") == "read-only-validation"
+        and profile.get("task_class") == "read-only-validation"
+        and write_paths == []
+        and isinstance(mutation_count, int)
+        and not isinstance(mutation_count, bool)
+        and mutation_count == 0
+        and profile.get("source_mutation_paths") == []
+        and isinstance(prohibited_actions, list)
+        and "source-mutation" in prohibited_actions
+    )
+    if lane == "validation":
+        if not read_only_validation:
+            reasons.append("read-only-validation-contract-invalid")
+    elif not owned_files:
         reasons.append("missing-write-paths")
     if len(set(owned_files)) > int(limits.get("max_source_files", 4)):
         reasons.append("source-file-limit-exceeded")
@@ -237,10 +259,20 @@ def _evaluate_operative_readiness(
     budget = budget if isinstance(budget, dict) else {}
     if int(budget.get("max_compactions", -1)) != int(limits.get("max_compactions", 0)):
         reasons.append("compaction-limit-invalid")
-    if int(budget.get("max_full_suite_runs", -1)) != int(
-        limits.get("max_implementation_full_suite_runs", 0)
+    lane_budgets = policy.get("lane_budgets")
+    lane_budget = lane_budgets.get(lane) if isinstance(lane_budgets, dict) else None
+    declared_full_suite_runs = budget.get("max_full_suite_runs")
+    expected_full_suite_runs = (
+        lane_budget.get("max_full_suite_runs") if isinstance(lane_budget, dict) else None
+    )
+    if (
+        not isinstance(declared_full_suite_runs, int)
+        or isinstance(declared_full_suite_runs, bool)
+        or not isinstance(expected_full_suite_runs, int)
+        or isinstance(expected_full_suite_runs, bool)
+        or declared_full_suite_runs != expected_full_suite_runs
     ):
-        reasons.append("implementation-full-suite-limit-invalid")
+        reasons.append("lane-full-suite-limit-invalid")
 
     if open_decisions:
         decision = "architect-resolution-required"
@@ -261,7 +293,9 @@ def _evaluate_operative_readiness(
         "test_matrix": list(work_plan.get("acceptance_checks", []))
         if isinstance(work_plan.get("acceptance_checks"), list)
         else [],
-        "context_unit_allowance": int(limits.get("max_source_files", 4)),
+        "context_unit_allowance": max(
+            0, int(needs_replan.get("semantic_unit", 4)) - 1
+        ),
         "pre_mutation_read_call_allowance": max(
             0, int(needs_replan.get("pre_mutation_read_call", 11)) - 1
         ),
@@ -602,8 +636,23 @@ def _selector_matches(command: str, selector: str) -> bool:
     match = re.fullmatch(r"lines:(\d+)-(\d+)", selector)
     if not match:
         return False
-    start, end = match.groups()
-    return re.search(rf"(?:^|\s|['\"]){start}\s*,\s*{end}p(?:['\"]|\s|$)", command) is not None
+    authorized_start, authorized_end = (int(value) for value in match.groups())
+    tokens = _command_tokens(command)
+    if "sed" not in {Path(token).name for token in tokens}:
+        return False
+    requested_ranges: list[tuple[int, int]] = []
+    for token in tokens:
+        requested = re.fullmatch(r"(\d+)\s*,\s*(\d+)p", token)
+        if requested is not None:
+            requested_ranges.append(tuple(int(value) for value in requested.groups()))
+    if len(requested_ranges) != 1:
+        return False
+    requested_start, requested_end = requested_ranges[0]
+    return (
+        requested_start <= requested_end
+        and authorized_start <= requested_start
+        and requested_end <= authorized_end
+    )
 
 
 def _referenced_units(command: str, units: list[dict[str, Any]]) -> list[dict[str, Any]]:

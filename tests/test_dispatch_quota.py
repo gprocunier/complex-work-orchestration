@@ -345,6 +345,120 @@ class DispatchQuotaTests(unittest.TestCase):
                 sys.argv = original_argv
                 lib.AUDIT_LOG = original_audit
 
+    def test_malformed_bead_preflight_does_not_reach_quota(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output_path = Path(tmp) / "packet.json"
+            bead_json = [
+                {
+                    "id": "cwo-review-1",
+                    "title": "Outside review",
+                    "labels": [
+                        "contractor-only",
+                        "no-codex-exec",
+                        "contract-jd-security-reasoning",
+                    ],
+                    "dependencies": "not-a-list",
+                }
+            ]
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "cwo-review-1",
+                    "--executor",
+                    "claude_code_manual",
+                    "--share-boundary",
+                    "repo-readonly",
+                    "--allow-disclosure-escalation",
+                    "--waiver-reason",
+                    "focused preflight test",
+                    "--external-ok",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output_path),
+                ]
+                with (
+                    patch.object(
+                        build_contractor_packet,
+                        "show_bead_json",
+                        return_value=bead_json,
+                    ),
+                    patch.object(
+                        build_contractor_packet,
+                        "enforce_contracting_quota",
+                    ) as quota_mock,
+                    self.assertRaisesRegex(SystemExit, "contractor packet preflight failed"),
+                ):
+                    build_contractor_packet.main()
+
+                quota_mock.assert_not_called()
+                self.assertFalse(output_path.exists())
+                self.assertEqual(lib.iter_audit_events(lib.AUDIT_LOG), [])
+            finally:
+                sys.argv = original_argv
+                lib.AUDIT_LOG = original_audit
+
+    def test_oversized_bead_preflight_does_not_reach_quota(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            output_path = Path(tmp) / "packet.json"
+            bead_json = [
+                {
+                    "id": "cwo-review-1",
+                    "title": "Outside review",
+                    "description": "x" * 33000,
+                    "labels": [
+                        "contractor-only",
+                        "no-codex-exec",
+                        "contract-jd-security-reasoning",
+                    ],
+                }
+            ]
+            try:
+                sys.argv = [
+                    "build_contractor_packet.py",
+                    "--bead",
+                    "cwo-review-1",
+                    "--executor",
+                    "claude_code_manual",
+                    "--share-boundary",
+                    "repo-readonly",
+                    "--allow-disclosure-escalation",
+                    "--waiver-reason",
+                    "focused preflight test",
+                    "--external-ok",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(output_path),
+                ]
+                with (
+                    patch.object(
+                        build_contractor_packet,
+                        "show_bead_json",
+                        return_value=bead_json,
+                    ),
+                    patch.object(
+                        build_contractor_packet,
+                        "enforce_contracting_quota",
+                    ) as quota_mock,
+                    self.assertRaisesRegex(SystemExit, "exceeds boundary cap"),
+                ):
+                    build_contractor_packet.main()
+
+                quota_mock.assert_not_called()
+                self.assertFalse(output_path.exists())
+                self.assertEqual(lib.iter_audit_events(lib.AUDIT_LOG), [])
+            finally:
+                sys.argv = original_argv
+                lib.AUDIT_LOG = original_audit
+
     def test_epic_inference_supports_nested_parent_and_dependency_parent(self) -> None:
         self.assertEqual(
             build_contractor_packet.infer_epic_id_from_bead(
