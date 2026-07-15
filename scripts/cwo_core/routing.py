@@ -12,6 +12,7 @@ from .access_profiles import (
     sanitized_access_profile,
 )
 from .errors import CWOPolicyError, CWOValidationError
+from .native_containment import native_operative_containment
 from .policy import (
     EDITOR_GATE_EXPERT,
     EXTERNAL_GUARD_LABELS,
@@ -927,6 +928,7 @@ def classify_work(
     data_sensitivity: str | None = None,
     execution_environment: str | None = None,
 ) -> RouteResult:
+    native_dispatch = native_operative_containment()
     routing = load_policy("routing-policy")
     expert_registry = load_policy("expert-registry")
     execution_environment_key, execution_environment_config = resolve_execution_environment(execution_environment)
@@ -1217,6 +1219,7 @@ def classify_work(
             if execution_environment_key == GLM_PRIMARY_EXECUTION_ENVIRONMENT
             else "codex-frontier-architect"
         ),
+        "native_operative_dispatch": native_dispatch,
         "external_opt_in": external_ok,
         "disclosure_escalation_approved": allow_disclosure_escalation,
         "external_contract_allowed": route == "external-contract" and not hard_stops,

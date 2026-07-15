@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,14 @@ class NativeWorkerPacketTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.policy = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
+
+    def setUp(self) -> None:
+        patcher = mock.patch(
+            "cwo_core.native_containment.native_operative_containment",
+            return_value={"status": "available", "dispatch_authorized": True},
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_schemas_are_loadable(self) -> None:
         for schema in [
@@ -467,7 +476,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             packet_path.write_text(json.dumps(packet), encoding="utf-8")
             rendered = run_cli("render", str(packet_path))
             self.assertNotEqual(rendered.returncode, 0)
-            self.assertIn("dispatch-forbidden", rendered.stderr)
+            self.assertIn("native-precommit-containment-active", rendered.stderr)
 
     def test_validation_lineage_allows_one_attempt_and_forbids_recursion(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
@@ -535,7 +544,7 @@ class NativeWorkerPacketTests(unittest.TestCase):
             packet_path.write_text(json.dumps(packet), encoding="utf-8")
             result = run_cli("render", str(packet_path))
             self.assertNotEqual(result.returncode, 0, result.stderr)
-            self.assertIn("dispatchable packet requires work_plan and worker_commitment", result.stderr)
+            self.assertIn("native-precommit-containment-active", result.stderr)
 
     def test_validate_native_worker_packet_helpers(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

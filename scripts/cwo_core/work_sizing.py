@@ -10,6 +10,7 @@ from math import isfinite
 from typing import Any
 
 from cwo_core.policy import load_policy
+from cwo_core.native_containment import containment_error, require_native_operative_dispatch
 
 DIMENSIONS = (
     "reasoning_uncertainty",
@@ -1365,6 +1366,7 @@ def build_policy_fit_commitment(
     policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a zero-tool commitment only for a deterministic policy fit."""
+    require_native_operative_dispatch("deterministic-fit-commitment")
     estimate_errors = validate_work_estimate(work_estimate, policy=policy)
     if estimate_errors:
         raise ValueError("invalid work_estimate: " + "; ".join(estimate_errors))
@@ -1664,6 +1666,11 @@ def normalize_worker_commitment_response(
     session_id: str,
     attested_model: str,
 ) -> dict[str, Any]:
+    if containment := containment_error("worker-fit-commitment-normalization"):
+        return _commitment_normalization_failure([containment])
+    # The trusted telemetry-bound production flow is restored by fsh.2. The
+    # dormant implementation below remains directly testable under a mocked
+    # non-contained policy state.
     if not isinstance(session_id, str) or not session_id:
         return _commitment_normalization_failure(["trusted session_id is required"])
     if not isinstance(attested_model, str) or not attested_model:

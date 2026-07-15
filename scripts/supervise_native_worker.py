@@ -22,6 +22,7 @@ from cwo_core.native_session import (
 )
 from cwo_core.audit import acquire_audit_lock, record_audit_event, release_audit_lock
 from cwo_core.native_disposition import derive_disposition
+from cwo_core.native_containment import require_native_operative_dispatch
 from cwo_core.native_retry import (
     build_retry_authorization,
     canonical_work_sha256,
@@ -1437,6 +1438,7 @@ def _audit_event(
 
 
 def start(args: argparse.Namespace) -> dict[str, Any]:
+    require_native_operative_dispatch("supervision-start")
     packet_path = Path(args.packet).expanduser().resolve()
     packet = _load_json(packet_path, "packet")
     errors = validate_native_worker_packet(packet, dispatchable=True)
@@ -1617,6 +1619,7 @@ def _set_control_lost(
 
 
 def arm(args: argparse.Namespace) -> dict[str, Any]:
+    require_native_operative_dispatch("supervision-arm")
     path, state = _load_control_state(args.state_file)
     if state.get("status") != "created":
         _fail("arm requires a newly created supervision state")
@@ -1631,6 +1634,7 @@ def arm(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def mark_dispatched(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    require_native_operative_dispatch("native-dispatch")
     path, state = _load_control_state(args.state_file)
     if state.get("status") != "armed":
         _fail("mark-dispatched requires an armed supervision state")
@@ -1977,6 +1981,7 @@ def assess_retry(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def authorize_retry(args: argparse.Namespace) -> dict[str, Any]:
+    require_native_operative_dispatch("native-retry")
     path, state = _load_control_state(args.state_file)
     _require_control_turn(state, args.control_turn_id)
     _require_closed_for_retry(state)

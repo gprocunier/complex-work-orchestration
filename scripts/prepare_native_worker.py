@@ -13,6 +13,7 @@ from typing import Any
 from cwo_core.checked_command_sequence import normalize_sequence_spec
 from cwo_core.paths import assert_safe_output_path, cwo_temp_dir, is_cwo_temp_path
 from cwo_core.native_disposition import DISPOSITION_FIELDS, validate_disposition
+from cwo_core.native_containment import containment_error, require_native_operative_dispatch
 from cwo_core.native_recovery import verify_native_worker_semantics
 from cwo_core.native_worker_contracts import (
     ALLOWED_ATTESTATION_FIELDS,
@@ -512,6 +513,11 @@ def build_native_worker_packet(
         raise SystemExit("at least one --acceptance-check is required")
     if any(not check.strip() for check in acceptance_checks):
         raise SystemExit("acceptance_check values must be non-empty")
+    if any(
+        value is not None
+        for value in (work_plan, worker_commitment, trusted_session_id, attested_model)
+    ):
+        require_native_operative_dispatch("planned-packet-build")
     if work_plan is None and (
         worker_commitment is not None or trusted_session_id is not None or attested_model is not None
     ):
@@ -764,6 +770,9 @@ def validate_native_worker_packet(
     allow_experimental_v3: bool | None = None,
 ) -> list[str]:
     errors: list[str] = []
+    if dispatchable:
+        if containment := containment_error("dispatchable-packet-validation"):
+            errors.append(containment)
     if not isinstance(payload, dict):
         return ["packet is not a JSON object"]
     if allow_experimental_v3 is not None:
@@ -1741,6 +1750,7 @@ def main() -> None:
         return
 
     if args.command == "render":
+        require_native_operative_dispatch("operative-prompt-render")
         packet = _load_json_payload(args.packet)
         errors = validate_native_worker_packet(packet, dispatchable=True)
         if errors:

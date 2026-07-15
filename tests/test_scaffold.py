@@ -22,6 +22,14 @@ from scaffold_workgraph import (  # noqa: E402
 
 
 class ScaffoldTests(unittest.TestCase):
+    def setUp(self) -> None:
+        patcher = patch(
+            "cwo_core.routing.native_operative_containment",
+            return_value={"status": "available", "dispatch_authorized": True},
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def assert_native_fields(self, item: dict[str, object]) -> None:
         self.assertTrue(item.get("skills"), item.get("title"))
         self.assertTrue(item.get("acceptance"), item.get("title"))

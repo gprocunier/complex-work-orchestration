@@ -900,7 +900,34 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         "failed_native_capability_check_justification": "",
     }
 
-    if registry_tool_mismatch or native_tool_absent or model_rejected or model_unavailable:
+    native_dispatch = route.get("native_operative_dispatch")
+    native_precommit_contained = bool(
+        isinstance(native_dispatch, dict)
+        and native_dispatch.get("status") == "contained"
+        and native_dispatch.get("dispatch_authorized") is False
+    )
+
+    if native_precommit_contained:
+        mode = "blocked"
+        hard_stop = True
+        suggested_lanes = []
+        hard_stop_reason = "native_precommit_containment"
+        failed_check = ""
+        failed_check_justification = (
+            "Native operative dispatch is contained by policy until "
+            f"{native_dispatch.get('release_requires', 'trusted precommit supervision is available')}."
+        )
+        spark_dispatch.update(
+            {
+                "status": "hard-stop",
+                "requested_model": SPARK_MODEL_ALIAS,
+                "requested_route": mode,
+                "failed_native_capability_check": failed_check,
+                "failed_native_capability_check_justification": failed_check_justification,
+            }
+        )
+        rationale.append(failed_check_justification)
+    elif registry_tool_mismatch or native_tool_absent or model_rejected or model_unavailable:
         mode = "blocked"
         hard_stop = True
         suggested_lanes = []
@@ -1930,7 +1957,15 @@ def prompt_coach_warnings(
         if isinstance(spark_dispatch, dict):
             status = str(spark_dispatch.get("status") or "")
             if status == "hard-stop":
-                warnings.append("Native Spark is hard-stopped; do not substitute Sol or another model unless native capability is re-proven.")
+                if workerbee_parallelism.get("hard_stop_reason") == "native_precommit_containment":
+                    warnings.append(
+                        "Native operative dispatch is contained until fsh.2 provides trusted precommit supervision; "
+                        "do not substitute another operative model."
+                    )
+                else:
+                    warnings.append(
+                        "Native Spark is hard-stopped; do not substitute Sol or another model unless native capability is re-proven."
+                    )
     if route.get("provider_conflict_detected"):
         warnings.append("Provider conflict detected; keep peer review and architect adjudication in the flow.")
     if route.get("peer_review_required"):
@@ -2258,7 +2293,10 @@ def coach_orchestration_prompt(
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
-    if workerbee_parallelism.get("hard_stop_reason"):
+    if (
+        workerbee_parallelism.get("hard_stop_reason")
+        and workerbee_parallelism.get("hard_stop_reason") != "native_precommit_containment"
+    ):
         hard_stops = list(route.get("hard_stops", []))
         hard_stop_reason = str(workerbee_parallelism.get("hard_stop_reason"))
         if hard_stop_reason and hard_stop_reason not in hard_stops:

@@ -9,6 +9,7 @@ from pathlib import PurePosixPath
 from typing import Any, Mapping
 
 from cwo_core.native_capability import capability_receipt_applies
+from cwo_core.native_containment import containment_error
 
 
 BRIEF_TYPE = "cwo-proportional-execution-brief"
@@ -447,6 +448,8 @@ def evaluate_proportional_execution(
     at: Any = None,
 ) -> dict[str, Any]:
     reasons = validate_proportional_brief(brief)
+    if containment := containment_error("proportional-native-fast-path"):
+        reasons.append(containment)
     selected = len(reasons) == 0
     usage_breakdown = brief.get("usage_breakdown")
     usage_valid = not validate_usage_breakdown(usage_breakdown)

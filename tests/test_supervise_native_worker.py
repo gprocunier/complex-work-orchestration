@@ -28,8 +28,23 @@ HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    wrapper = """
+import runpy
+import sys
+from pathlib import Path
+from unittest import mock
+
+script = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(script.parent))
+sys.argv = sys.argv[1:]
+with mock.patch(
+    "cwo_core.native_containment.native_operative_containment",
+    return_value={"status": "available", "dispatch_authorized": True},
+):
+    runpy.run_path(str(script), run_name="__main__")
+"""
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, "-c", wrapper, str(SCRIPT), *args],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -255,6 +270,14 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.policy = supervisor.load_policy("native-worker-execution")
+
+    def setUp(self) -> None:
+        patcher = mock.patch(
+            "cwo_core.native_containment.native_operative_containment",
+            return_value={"status": "available", "dispatch_authorized": True},
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def packet(self) -> dict:
         return planned_packet(packet_id="packet-semantic-helper")
@@ -1059,6 +1082,12 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
 
 class NativeWorkerSupervisorTests(unittest.TestCase):
     def setUp(self) -> None:
+        patcher = mock.patch(
+            "cwo_core.native_containment.native_operative_containment",
+            return_value={"status": "available", "dispatch_authorized": True},
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-supervision-test-")
         self.root = Path(self.tmp.name)
         self.session_id = "spark-session"

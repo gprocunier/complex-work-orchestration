@@ -33,6 +33,36 @@
   },
   "rollout_mode": "canary-then-enforce",
   "enforcement_mode": "fail-closed",
+  "precommit_containment": {
+    "version": 1,
+    "active": true,
+    "status": "contained",
+    "scope": "native-operative-dispatch",
+    "reason": "fsh.1-precommit-control-gap",
+    "decision": "hard-stop",
+    "authority": "policy/native-worker-execution.yaml",
+    "release_requires": "complex-work-orchestration-fsh.2",
+    "allowed_non_operative_operations": [
+      "policy-schema-validation",
+      "trusted-session-inspection",
+      "historical-packet-inspection",
+      "structurally-nondispatchable-preview",
+      "external-read-only-critic-review"
+    ],
+    "blocked_operations": [
+      "worker-fit-request",
+      "deterministic-fit-commitment",
+      "planned-packet-build",
+      "dispatchable-packet-validation",
+      "operative-prompt-render",
+      "supervision-start",
+      "supervision-arm",
+      "native-dispatch",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch"
+    ]
+  },
   "poll_interval_ms": 1000,
   "poll_lag_tolerance_ms": 1500,
   "arm_to_dispatch_max_ms": 5000,
