@@ -129,8 +129,6 @@ def containment_error(
         state = native_operative_containment(policy)
     except (SystemExit, ValueError) as exc:
         return f"{CONTAINMENT_ERROR}: containment policy unavailable or invalid: {exc}"
-    if state.get("dispatch_authorized") is True and state.get("evidence_required") is not True:
-        return ""
     if release_evidence is not None:
         evidence_errors = validate_native_release_evidence(
             release_evidence,

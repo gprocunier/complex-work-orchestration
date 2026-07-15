@@ -6,7 +6,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +14,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 from cwo_core.native_containment import (  # noqa: E402
     CONTAINMENT_ERROR,
+    containment_error,
     native_operative_containment,
 )
 from cwo_core.proportional_execution import evaluate_proportional_execution  # noqa: E402
@@ -27,21 +27,14 @@ from prepare_native_worker import (  # noqa: E402
 from scaffold_workgraph import planned_graph  # noqa: E402
 
 
-AVAILABLE = {"status": "available", "dispatch_authorized": True}
-
-
 def _draft(workdir: str) -> dict:
-    with mock.patch(
-        "cwo_core.native_containment.native_operative_containment",
-        return_value=AVAILABLE,
-    ):
-        return build_native_worker_packet(
-            bead_id="containment-test",
-            lane="implementation",
-            workdir=workdir,
-            allowed_paths=["tests"],
-            acceptance_checks=["focused tests pass"],
-        )
+    return build_native_worker_packet(
+        bead_id="containment-test",
+        lane="implementation",
+        workdir=workdir,
+        allowed_paths=["tests"],
+        acceptance_checks=["focused tests pass"],
+    )
 
 
 class NativePrecommitContainmentTests(unittest.TestCase):
@@ -56,6 +49,7 @@ class NativePrecommitContainmentTests(unittest.TestCase):
         self.assertEqual(state["maximum_release_state"], "operative-authorized")
         self.assertIn("supervised-worker-fit-request", state["allowed_non_operative_operations"])
         self.assertIn("receipt-bound-candidate-packet-build", state["allowed_non_operative_operations"])
+        self.assertIn(CONTAINMENT_ERROR, containment_error("native-dispatch"))
 
         policy = json.loads(
             (ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8")
@@ -122,11 +116,7 @@ class NativePrecommitContainmentTests(unittest.TestCase):
                     for error in validate_native_worker_packet(packet, dispatchable=True)
                 )
             )
-            with mock.patch(
-                "cwo_core.native_containment.native_operative_containment",
-                return_value=AVAILABLE,
-            ):
-                latent_errors = validate_native_worker_packet(packet, dispatchable=True)
+            latent_errors = validate_native_worker_packet(packet, dispatchable=True)
             self.assertIn(
                 "dispatchable packet requires work_plan and worker_commitment",
                 latent_errors,
