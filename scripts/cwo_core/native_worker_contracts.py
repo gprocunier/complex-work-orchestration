@@ -41,6 +41,8 @@ ALLOWED_PACKET_FIELDS = {
     "release_requires",
     "precommit_receipt",
     "precommit_receipt_sha256",
+    "release_evidence",
+    "release_evidence_sha256",
 }
 ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS = {
     "mode",

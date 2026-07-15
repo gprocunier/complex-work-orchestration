@@ -34,14 +34,24 @@
   "rollout_mode": "canary-then-enforce",
   "enforcement_mode": "fail-closed",
   "precommit_containment": {
-    "version": 1,
+    "version": 2,
     "active": true,
-    "status": "contained",
+    "status": "canary-authorized",
     "scope": "native-operative-dispatch",
-    "reason": "fsh.2-dispatch-release-pending",
-    "decision": "hard-stop",
+    "reason": "fsh.3-canary-release-gate",
+    "decision": "evidence-gated",
     "authority": "policy/native-worker-execution.yaml",
-    "release_requires": "complex-work-orchestration-fsh.3",
+    "release_requires": "complex-work-orchestration-fsh.3.5",
+    "release_state_order": [
+      "precommit-validated",
+      "canary-authorized",
+      "operative-authorized"
+    ],
+    "maximum_release_state": "canary-authorized",
+    "operative_dispatch_authorized": false,
+    "canary_operations": [
+      "supervised-worker-fit-request"
+    ],
     "allowed_non_operative_operations": [
       "policy-schema-validation",
       "trusted-session-inspection",
@@ -64,6 +74,34 @@
       "native-resume",
       "native-replay-dispatch"
     ]
+  },
+  "native_release_evidence": {
+    "version": 1,
+    "schema": "schemas/native-release-evidence.schema.json",
+    "authority": "cwo-native-release-supervisor",
+    "required_model": "gpt-5.3-codex-spark",
+    "canary_bead": "complex-work-orchestration-fsh.3.5",
+    "operative_adjudication_bead": "complex-work-orchestration-fsh.3.5",
+    "max_ttl_seconds": 3600,
+    "canary_operation_class": "supervised-zero-tool-fit-canary",
+    "canary_authorized_operations": [
+      "supervised-worker-fit-request"
+    ],
+    "operative_authorized_operations": [
+      "dispatchable-packet-validation",
+      "operative-prompt-render",
+      "supervision-start",
+      "supervision-arm",
+      "native-dispatch",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch"
+    ],
+    "canary_repository_work_authorized": false,
+    "canary_source_mutation_authorized": false,
+    "canary_workspace_scope": "cwo-temp-only",
+    "operative_release_enabled": false,
+    "operative_release_requires": "complex-work-orchestration-fsh.3.5"
   },
   "precommit_supervision": {
     "version": 2,

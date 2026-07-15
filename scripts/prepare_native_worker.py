@@ -21,6 +21,7 @@ from cwo_core.native_precommit import (
     reserve_precommit_receipt,
     validate_precommit_receipt,
 )
+from cwo_core.native_release import validate_native_release_evidence
 from cwo_core.native_recovery import verify_native_worker_semantics
 from cwo_core.native_worker_contracts import (
     ALLOWED_ATTESTATION_FIELDS,
@@ -858,11 +859,26 @@ def validate_native_worker_packet(
     allow_experimental_v3: bool | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    if dispatchable:
-        if containment := containment_error("dispatchable-packet-validation"):
-            errors.append(containment)
     if not isinstance(payload, dict):
         return ["packet is not a JSON object"]
+    if dispatchable:
+        work_plan_binding = payload.get("work_plan")
+        if containment := containment_error(
+            "dispatchable-packet-validation",
+            release_evidence=payload.get("release_evidence") if isinstance(payload.get("release_evidence"), dict) else None,
+            expected_packet_id=str(payload.get("packet_id") or ""),
+            expected_work_plan_sha256=(
+                canonical_work_estimate_sha256(work_plan_binding)
+                if isinstance(work_plan_binding, dict)
+                else None
+            ),
+            expected_precommit_receipt_sha256=(
+                str(payload.get("precommit_receipt_sha256"))
+                if isinstance(payload.get("precommit_receipt_sha256"), str)
+                else None
+            ),
+        ):
+            errors.append(containment)
     if allow_experimental_v3 is not None:
         experimental = allow_experimental_v3
     version = payload.get("version")
@@ -882,8 +898,8 @@ def validate_native_worker_packet(
         errors.append("packet version 3 requires explicit experimental validation")
     if dispatchable and version != 2:
         errors.append(f"packet version {version} is dispatch-forbidden")
-    if dispatchable and payload.get("operative_dispatch_authorized") is False:
-        errors.append("precommit-validated candidate packet is operative-dispatch-forbidden until complex-work-orchestration-fsh.3")
+    if dispatchable and payload.get("operative_dispatch_authorized") is not True:
+        errors.append("packet release state is operative-dispatch-forbidden")
 
     if (error := _required_nonempty_str(payload.get("packet_id"), "packet_id")) is not None:
         errors.append(error)
@@ -1012,14 +1028,53 @@ def validate_native_worker_packet(
         worker_commitment = payload.get("worker_commitment")
         precommit_receipt = payload.get("precommit_receipt")
         if version == 2:
-            expected_contract = {
-                "stage": "precommit-validated",
-                "operative_dispatch_authorized": False,
-                "release_requires": "complex-work-orchestration-fsh.3",
-            }
+            stage = payload.get("stage")
+            release_evidence = payload.get("release_evidence")
+            release_evidence_sha256 = payload.get("release_evidence_sha256")
+            if stage == "precommit-validated":
+                expected_contract = {
+                    "operative_dispatch_authorized": False,
+                    "release_requires": "complex-work-orchestration-fsh.3",
+                }
+                if release_evidence is not None or release_evidence_sha256 is not None:
+                    errors.append("precommit-validated packet must not contain release evidence")
+            elif stage in {"canary-authorized", "operative-authorized"}:
+                expected_contract = {
+                    "operative_dispatch_authorized": stage == "operative-authorized",
+                    "release_requires": "complex-work-orchestration-fsh.3.5",
+                }
+                if not isinstance(release_evidence, dict):
+                    errors.append(f"{stage} packet requires embedded release_evidence")
+                else:
+                    errors.extend(
+                        "release_evidence: " + error
+                        for error in validate_native_release_evidence(
+                            release_evidence,
+                            expected_packet_id=str(payload.get("packet_id") or ""),
+                            expected_work_plan_sha256=(
+                                canonical_work_estimate_sha256(work_plan)
+                                if isinstance(work_plan, dict)
+                                else None
+                            ),
+                            expected_precommit_receipt_sha256=(
+                                str(payload.get("precommit_receipt_sha256"))
+                                if stage == "operative-authorized"
+                                and isinstance(payload.get("precommit_receipt_sha256"), str)
+                                else None
+                            ),
+                            live=dispatchable,
+                        )
+                    )
+                    if release_evidence.get("release_state") != stage:
+                        errors.append("packet stage must match release_evidence.release_state")
+                    if release_evidence_sha256 != release_evidence.get("evidence_sha256"):
+                        errors.append("release_evidence_sha256 must match embedded release evidence")
+            else:
+                expected_contract = {}
+                errors.append("planned packet stage must be a known release state")
             for field, expected in expected_contract.items():
                 if payload.get(field) != expected:
-                    errors.append(f"candidate packet {field} must equal {expected!r}")
+                    errors.append(f"release-state packet {field} must equal {expected!r}")
             if not isinstance(precommit_receipt, dict):
                 errors.append("candidate packet requires an embedded precommit_receipt")
             else:
@@ -1089,6 +1144,8 @@ def validate_native_worker_packet(
             "release_requires",
             "precommit_receipt",
             "precommit_receipt_sha256",
+            "release_evidence",
+            "release_evidence_sha256",
         ):
             if field in payload:
                 errors.append(f"draft packet without a work plan must not contain {field}")
@@ -1882,8 +1939,27 @@ def main() -> None:
         return
 
     if args.command == "render":
-        require_native_operative_dispatch("operative-prompt-render")
         packet = _load_json_payload(args.packet)
+        work_plan = packet.get("work_plan")
+        require_native_operative_dispatch(
+            "operative-prompt-render",
+            release_evidence=(
+                packet.get("release_evidence")
+                if isinstance(packet.get("release_evidence"), dict)
+                else None
+            ),
+            expected_packet_id=str(packet.get("packet_id") or ""),
+            expected_work_plan_sha256=(
+                canonical_work_estimate_sha256(work_plan)
+                if isinstance(work_plan, dict)
+                else None
+            ),
+            expected_precommit_receipt_sha256=(
+                str(packet.get("precommit_receipt_sha256"))
+                if isinstance(packet.get("precommit_receipt_sha256"), str)
+                else None
+            ),
+        )
         errors = validate_native_worker_packet(packet, dispatchable=True)
         if errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))

@@ -255,7 +255,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("Executor:", result.stdout)
         self.assertIn("Execution gate:", result.stdout)
         self.assertIn("Coach options:", result.stdout)
-        self.assertIn("Native operative dispatch is contained until fsh.2", result.stdout)
+        self.assertIn("Native operative dispatch remains contained until fsh.3", result.stdout)
         self.assertNotIn("Should CWO parallelize this work with subagent lanes?", result.stdout)
         self.assertNotIn("Recommended launch prompt:", result.stdout)
 

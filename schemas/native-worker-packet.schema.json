@@ -394,19 +394,27 @@
       "minProperties": 1
     },
     "stage": {
-      "const": "precommit-validated"
+      "enum": ["precommit-validated", "canary-authorized", "operative-authorized"]
     },
     "operative_dispatch_authorized": {
-      "const": false
+      "type": "boolean"
     },
     "release_requires": {
-      "const": "complex-work-orchestration-fsh.3"
+      "enum": ["complex-work-orchestration-fsh.3", "complex-work-orchestration-fsh.3.5"]
     },
     "precommit_receipt": {
       "type": "object",
       "minProperties": 1
     },
     "precommit_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "release_evidence": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "release_evidence_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },

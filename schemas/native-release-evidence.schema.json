@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Native Release Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "required": [
+    "evidence_type", "version", "schema", "evidence_id", "release_state",
+    "authority", "authority_bead", "adjudication_bead", "packet_id",
+    "attempt_nonce", "requested_model", "work_plan_sha256", "fit_prompt_sha256",
+    "precommit_receipt_sha256", "canary_receipt_sha256", "adjudication_sha256",
+    "operation_class", "authorized_operations", "workdir",
+    "repository_work_authorized", "source_mutation_authorized",
+    "issued_at", "expires_at", "release_requires", "evidence_sha256"
+  ],
+  "properties": {
+    "evidence_type": {"const": "cwo-native-release-evidence"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-release-evidence.schema.json"},
+    "evidence_id": {"type": "string", "minLength": 1},
+    "release_state": {"enum": ["canary-authorized", "operative-authorized"]},
+    "authority": {"const": "cwo-native-release-supervisor"},
+    "authority_bead": {"const": "complex-work-orchestration-fsh.3"},
+    "adjudication_bead": {"const": "complex-work-orchestration-fsh.3.5"},
+    "packet_id": {"type": "string", "minLength": 1},
+    "attempt_nonce": {"type": "string", "minLength": 1},
+    "requested_model": {"const": "gpt-5.3-codex-spark"},
+    "work_plan_sha256": {"$ref": "#/$defs/hash"},
+    "fit_prompt_sha256": {"$ref": "#/$defs/hash"},
+    "precommit_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+    "canary_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+    "adjudication_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+    "operation_class": {"enum": ["supervised-zero-tool-fit-canary", "native-operative-release"]},
+    "authorized_operations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "workdir": {"type": "string", "minLength": 1},
+    "repository_work_authorized": {"type": "boolean"},
+    "source_mutation_authorized": {"type": "boolean"},
+    "issued_at": {"type": "string", "minLength": 1},
+    "expires_at": {"type": "string", "minLength": 1},
+    "release_requires": {"const": "complex-work-orchestration-fsh.3.5"},
+    "evidence_sha256": {"$ref": "#/$defs/hash"}
+  }
+}

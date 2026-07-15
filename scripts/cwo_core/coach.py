@@ -903,7 +903,6 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     native_dispatch = route.get("native_operative_dispatch")
     native_precommit_contained = bool(
         isinstance(native_dispatch, dict)
-        and native_dispatch.get("status") == "contained"
         and native_dispatch.get("dispatch_authorized") is False
     )
 

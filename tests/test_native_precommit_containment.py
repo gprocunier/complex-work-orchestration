@@ -47,10 +47,12 @@ def _draft(workdir: str) -> dict:
 class NativePrecommitContainmentTests(unittest.TestCase):
     def test_policy_state_is_strict_and_dispatch_forbidden(self) -> None:
         state = native_operative_containment()
-        self.assertEqual(state["status"], "contained")
+        self.assertEqual(state["status"], "canary-authorized")
+        self.assertTrue(state["canary_authorized"])
         self.assertFalse(state["dispatch_authorized"])
-        self.assertEqual(state["reason"], "fsh.2-dispatch-release-pending")
-        self.assertEqual(state["release_requires"], "complex-work-orchestration-fsh.3")
+        self.assertEqual(state["reason"], "fsh.3-canary-release-gate")
+        self.assertEqual(state["release_requires"], "complex-work-orchestration-fsh.3.5")
+        self.assertEqual(state["maximum_release_state"], "canary-authorized")
         self.assertIn("supervised-worker-fit-request", state["allowed_non_operative_operations"])
         self.assertIn("receipt-bound-candidate-packet-build", state["allowed_non_operative_operations"])
 
