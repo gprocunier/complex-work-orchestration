@@ -7,7 +7,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
 from typing import Any
 
@@ -53,14 +52,6 @@ class NativeWorkerPacketTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.policy = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
-
-    def setUp(self) -> None:
-        patcher = mock.patch(
-            "cwo_core.native_containment.native_operative_containment",
-            return_value={"status": "available", "dispatch_authorized": True},
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def test_schemas_are_loadable(self) -> None:
         for schema in [

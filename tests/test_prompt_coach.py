@@ -6,7 +6,6 @@ import sys
 import unittest
 from pathlib import Path
 from typing import Any
-from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -145,14 +144,6 @@ def _schema_accepts(instance: Any, schema: dict[str, Any], root: dict[str, Any],
 
 
 class PromptCoachTests(unittest.TestCase):
-    def setUp(self) -> None:
-        patcher = mock.patch(
-            "cwo_core.routing.native_operative_containment",
-            return_value={"status": "available", "dispatch_authorized": True},
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
     def test_unknown_execution_environment_raises_typed_policy_error(self) -> None:
         with self.assertRaisesRegex(CWOPolicyError, "unknown execution environment: missing-env"):
             coach_orchestration_prompt("Review the architecture plan.", execution_environment="missing-env")
@@ -255,8 +246,8 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("Executor:", result.stdout)
         self.assertIn("Execution gate:", result.stdout)
         self.assertIn("Coach options:", result.stdout)
-        self.assertIn("Native operative dispatch remains contained until fsh.3", result.stdout)
-        self.assertNotIn("Should CWO parallelize this work with subagent lanes?", result.stdout)
+        self.assertNotIn("Native operative dispatch remains contained until fsh.3", result.stdout)
+        self.assertIn("Should CWO parallelize this work with subagent lanes?", result.stdout)
         self.assertNotIn("Recommended launch prompt:", result.stdout)
 
     def test_multi_session_work_recommends_lightweight_beads(self) -> None:

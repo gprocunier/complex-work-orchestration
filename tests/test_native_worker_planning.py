@@ -270,12 +270,6 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         )
         environment.start()
         self.addCleanup(environment.stop)
-        patcher = mock.patch(
-            "cwo_core.native_containment.native_operative_containment",
-            return_value={"status": "available", "dispatch_authorized": True},
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def test_checked_sequence_packet_builds_strict_bound_receipt(self):
         with tempfile.TemporaryDirectory(), mock.patch.dict(

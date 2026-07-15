@@ -1822,9 +1822,10 @@ def normalize_worker_commitment_response(
     _ = raw_commitment
     if precommit_receipt is None:
         containment = containment_error("worker-fit-commitment-normalization")
-        return _commitment_normalization_failure(
-            [containment or "trusted precommit receipt is required"]
-        )
+        errors = ["trusted precommit receipt is required"]
+        if containment:
+            errors.append(containment)
+        return _commitment_normalization_failure(errors)
     if session_id is not None or attested_model is not None:
         return _commitment_normalization_failure(
             ["session and model identity must be derived exclusively from the precommit receipt"]

@@ -118,8 +118,8 @@ def _zero_usage() -> dict:
 class ProportionalExecutionTests(unittest.TestCase):
     def setUp(self) -> None:
         patcher = mock.patch(
-            "cwo_core.native_containment.native_operative_containment",
-            return_value={"status": "available", "dispatch_authorized": True},
+            "cwo_core.proportional_execution.containment_error",
+            return_value="",
         )
         patcher.start()
         self.addCleanup(patcher.stop)

@@ -42,8 +42,8 @@ script = Path(sys.argv[1]).resolve()
 sys.path.insert(0, str(script.parent))
 sys.argv = sys.argv[1:]
 with mock.patch(
-    "cwo_core.native_containment.native_operative_containment",
-    return_value={"status": "available", "dispatch_authorized": True},
+    "cwo_core.native_containment.require_native_operative_dispatch",
+    return_value=None,
 ), mock.patch("prepare_native_worker.validate_native_worker_packet", return_value=[]):
     runpy.run_path(str(script), run_name="__main__")
 """
@@ -282,12 +282,6 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         )
         environment.start()
         self.addCleanup(environment.stop)
-        patcher = mock.patch(
-            "cwo_core.native_containment.native_operative_containment",
-            return_value={"status": "available", "dispatch_authorized": True},
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def packet(self) -> dict:
         return planned_packet(packet_id="packet-semantic-helper")
@@ -1093,12 +1087,6 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
 class NativeWorkerSupervisorTests(unittest.TestCase):
     def setUp(self) -> None:
         global _FIXTURE_ROOT
-        patcher = mock.patch(
-            "cwo_core.native_containment.native_operative_containment",
-            return_value={"status": "available", "dispatch_authorized": True},
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-supervision-test-")
         self.root = Path(self.tmp.name)
         _FIXTURE_ROOT = self.root

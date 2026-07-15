@@ -6,7 +6,6 @@ import sys
 import tempfile
 from pathlib import Path
 import unittest
-from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -233,12 +232,6 @@ def _valid_commitment_payload(work_estimate):
 class NativeWorkSizingTest(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
-        patcher = mock.patch(
-            "cwo_core.native_containment.native_operative_containment",
-            return_value={"status": "available", "dispatch_authorized": True},
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def test_route_spark_for_low_score(self):
         payload = _valid_raw_payload()
