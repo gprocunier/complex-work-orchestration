@@ -544,6 +544,8 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
         return frozenset()
     contract = profile.get("execution_contract")
     if isinstance(contract, dict) and contract.get("mode") == "checked-sequence-v1":
+        if lane == "publish-report-admin":
+            return frozenset()
         receipt = packet.get("checked_command_sequence")
         runner = receipt.get("runner_argv") if isinstance(receipt, dict) else None
         if not isinstance(runner, list) or not runner or not all(
@@ -573,7 +575,7 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
             return frozenset()
         if profile.get("task_class") not in {"narrow-mechanical", "bounded-implementation"}:
             return frozenset()
-    else:
+    elif lane == "publish-report-admin":
         allowed = scope.get("allowed_actions")
         contract = profile.get("execution_contract")
         if (
@@ -586,6 +588,8 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
             or contract.get("mode") != "direct"
         ):
             return frozenset()
+    else:
+        return frozenset()
     command_count = profile.get("command_count")
     commands = profile.get("commands")
     if (

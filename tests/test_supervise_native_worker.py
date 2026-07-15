@@ -648,6 +648,36 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             frozenset(),
         )
 
+        missing_publication_action = json.loads(json.dumps(publication))
+        missing_publication_action["scope"]["allowed_actions"].remove(
+            "write-packaged-artifacts"
+        )
+        self.assertEqual(
+            supervisor._declared_validation_commands(missing_publication_action),
+            frozenset(),
+        )
+
+        malformed_publication_contract = json.loads(json.dumps(publication))
+        malformed_publication_contract["work_plan"]["task_profile"][
+            "execution_contract"
+        ] = "direct"
+        self.assertEqual(
+            supervisor._declared_validation_commands(malformed_publication_contract),
+            frozenset(),
+        )
+
+        indirect_publication = json.loads(json.dumps(publication))
+        indirect_publication["work_plan"]["task_profile"]["execution_contract"][
+            "mode"
+        ] = "checked-sequence-v1"
+        indirect_publication["checked_command_sequence"] = {
+            "runner_argv": ["python", "scripts/run_checked_command_sequence.py"],
+        }
+        self.assertEqual(
+            supervisor._declared_validation_commands(indirect_publication),
+            frozenset(),
+        )
+
     def test_declared_validation_command_is_focused_and_undeclared_is_denied(self) -> None:
         command = ["python", "scripts/validate_repository.py"]
         packet = self.validation_packet([command])
