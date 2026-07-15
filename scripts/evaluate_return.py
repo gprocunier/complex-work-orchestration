@@ -201,6 +201,12 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
             if isinstance(local_response.get("reasoning_malformed"), bool)
             else False
         ),
+        "local_completion_status": _as_str(local_response.get("completion_status")),
+        "local_usable_final_content": (
+            bool(local_response.get("usable_final_content"))
+            if isinstance(local_response.get("usable_final_content"), bool)
+            else None
+        ),
     }
 
 
@@ -316,6 +322,8 @@ def main() -> None:
     local_response_truncated = bool(local_dispatch_metadata.get("local_response_truncated", False))
     local_finish_reasons = local_dispatch_metadata.get("local_finish_reasons")
     local_reasoning_malformed = bool(local_dispatch_metadata.get("local_reasoning_malformed", False))
+    local_completion_status = local_dispatch_metadata.get("local_completion_status")
+    local_usable_final_content = local_dispatch_metadata.get("local_usable_final_content")
 
     result = make_acceptance_decision(
         Path(args.file).read_text(encoding="utf-8"),
@@ -344,6 +352,12 @@ def main() -> None:
         local_response_truncated=local_response_truncated,
         local_finish_reasons=local_finish_reasons if isinstance(local_finish_reasons, list) else None,
         local_reasoning_malformed=local_reasoning_malformed,
+        local_completion_status=(
+            local_completion_status if isinstance(local_completion_status, str) else None
+        ),
+        local_usable_final_content=(
+            local_usable_final_content if isinstance(local_usable_final_content, bool) else None
+        ),
     )
     if args.audit:
         audit_path = Path(args.audit_file) if args.audit_file else None

@@ -3,10 +3,14 @@ from __future__ import annotations
 import os
 import json
 import socket
+import subprocess
 import sys
+import tempfile
+import threading
 import unittest
 from argparse import Namespace
 from io import BytesIO
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 from pathlib import Path
 from urllib.error import HTTPError
@@ -16,9 +20,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from dispatch_work import (  # noqa: E402
     build_local_envelope,
+    compact_local_response,
     execute_local_envelope,
     local_response_telemetry,
     pinned_local_endpoint_address,
+    sanitize_local_response_payload,
     validate_local_endpoint_base_url,
 )
 from cwo_core.routing import classify_work  # noqa: E402
@@ -77,6 +83,53 @@ class FakeTruncatedPayloadOpener(FakePayloadOpener):
         return FakeTruncatedThinkingResponse()
 
 
+class FakeModelsResponse(FakeResponse):
+    def read(self) -> bytes:
+        return b'{"object":"list","data":[{"id":"glm-5.2-bf16-256k","object":"model"}]}'
+
+
+class FakeWrongModelsResponse(FakeResponse):
+    def read(self) -> bytes:
+        return b'{"object":"list","data":[{"id":"glm-5.2-bf16-128k","object":"model"}]}'
+
+
+class FakeHardenedThinkingResponse(FakeResponse):
+    def read(self) -> bytes:
+        return (
+            b'{"model":"glm-5.2-bf16-256k","choices":[{"finish_reason":"stop",'
+            b'"message":{"content":"useful final","reasoning_content":"private separate reasoning"}}],'
+            b'"usage":{"prompt_tokens":31,"completion_tokens":17,"total_tokens":48}}'
+        )
+
+
+class FakeReasoningOnlyResponse(FakeResponse):
+    def read(self) -> bytes:
+        return (
+            b'{"model":"glm-5.2-bf16-256k","choices":[{"finish_reason":"stop",'
+            b'"message":{"content":null,"reasoning_content":"private reasoning only"}}],'
+            b'"usage":{"prompt_tokens":31,"completion_tokens":8192,"total_tokens":8223}}'
+        )
+
+
+class FakeHardenedOpener:
+    def __init__(self, *, wrong_model: bool = False, reasoning_only: bool = False) -> None:
+        self.wrong_model = wrong_model
+        self.reasoning_only = reasoning_only
+        self.chat_called = False
+        self.payload: dict[str, object] | None = None
+        self.correlation_ids: list[str | None] = []
+
+    def open(self, req: object, **kwargs: object) -> FakeResponse:
+        headers = {str(key).lower(): str(value) for key, value in req.header_items()}  # type: ignore[attr-defined]
+        self.correlation_ids.append(headers.get("x-cwo-dispatch-id"))
+        url = str(getattr(req, "full_url", ""))
+        if url.endswith("/v1/models"):
+            return FakeWrongModelsResponse() if self.wrong_model else FakeModelsResponse()
+        self.chat_called = True
+        self.payload = json.loads(req.data.decode("utf-8"))  # type: ignore[attr-defined]
+        return FakeReasoningOnlyResponse() if self.reasoning_only else FakeHardenedThinkingResponse()
+
+
 class FakeHTTPErrorOpener:
     def open(self, *args: object, **kwargs: object) -> FakeResponse:
         raise HTTPError(
@@ -88,7 +141,77 @@ class FakeHTTPErrorOpener:
         )
 
 
+class FakeRedirectResponse(FakeResponse):
+    status = 302
+
+    def read(self) -> bytes:
+        return b'{"choices":[{"message":{"content":"redirected content"}}]}'
+
+
+class FakeRedirectOpener:
+    def open(self, *args: object, **kwargs: object) -> FakeRedirectResponse:
+        return FakeRedirectResponse()
+
+
+class HardenedGLMHTTPHandler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args: object) -> None:
+        return None
+
+    def _send(self, payload: dict[str, object]) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:
+        self._send({"object": "list", "data": [{"id": "glm-5.2-bf16-256k"}]})
+
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", "0"))
+        _ = self.rfile.read(length)
+        self._send(
+            {
+                "model": "glm-5.2-bf16-256k",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": "compact final",
+                            "reasoning_content": "never retain this reasoning",
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 7, "completion_tokens": 5, "total_tokens": 12},
+            }
+        )
+
+
 class LocalDispatchTests(unittest.TestCase):
+    def _hardened_glm_route(self) -> dict[str, object]:
+        return classify_work(
+            "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-glm-256k",
+            requested_roles=["architecture"],
+        )
+
+    def _hardened_glm_args(self) -> Namespace:
+        return Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            local_max_tokens=None,
+            local_thinking="default",
+            allow_offline_access_profile=True,
+            execute_local=True,
+        )
+
     def test_openshift_profile_routes_to_openshift_executor(self) -> None:
         route = classify_work(
             "Documentation review for internal example notes.",
@@ -352,6 +475,36 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertNotIn("plain-secret", rendered)
         self.assertNotIn("Status: injected", rendered)
 
+    def test_execute_local_rejects_non_200_response_without_body(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model="test-model",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Documentation review for internal example notes.",
+            route=route,
+            dispatch_id="dispatch-local-redirect",
+            bead_id="cwo-local",
+            epic_id=None,
+            args=args,
+        )
+        with patch("dispatch_work.request.build_opener", return_value=FakeRedirectOpener()):
+            with self.assertRaises(SystemExit) as context:
+                execute_local_envelope(envelope, route["selected_executor"], args)
+        rendered = str(context.exception)
+        self.assertIn("did not return HTTP 200", rendered)
+        self.assertNotIn("redirected content", rendered)
+
     def test_glm_envelope_carries_thinking_options_and_tls_metadata(self) -> None:
         route = classify_work(
             "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
@@ -393,6 +546,301 @@ class LocalDispatchTests(unittest.TestCase):
         )
         self.assertEqual(envelope["thinking_parser"], "glm-think-tags")
         self.assertEqual(envelope["response_sanitization"], "strip-raw-thinking")
+
+    def test_hardened_glm_profile_is_exact_and_bounded(self) -> None:
+        route = self._hardened_glm_route()
+        self.assertEqual(route["recommended_executor"], "rhoai_glm_hardened_architecture_critic")
+        args = self._hardened_glm_args()
+        args.execute_local = False
+        envelope = build_local_envelope(
+            task="Compact independent architecture review.",
+            route=route,
+            dispatch_id="dispatch-glm-256k",
+            bead_id="cwo-glm-256k",
+            epic_id=None,
+            args=args,
+        )
+        self.assertEqual(envelope["model"], "glm-5.2-bf16-256k")
+        self.assertEqual(envelope["local_profile"], "openshift-ai-glm-256k")
+        self.assertEqual(envelope["model_profile"], "rhoai-architect-glm-5-2-bf16-256k-thinking")
+        self.assertEqual(envelope["timeout_seconds"], 900)
+        self.assertEqual(envelope["max_input_chars"], 24000)
+        self.assertEqual(envelope["target_input_chars"], 14000)
+        self.assertEqual(envelope["request_options"]["max_tokens"], 8192)
+        self.assertTrue(envelope["model_preflight_required"])
+        self.assertEqual(envelope["required_finish_reason"], "stop")
+        self.assertTrue(envelope["response_model_required"])
+
+    def test_hardened_glm_preflight_strips_separate_reasoning_and_completes(self) -> None:
+        route = self._hardened_glm_route()
+        args = self._hardened_glm_args()
+        envelope = build_local_envelope(
+            task="Compact independent architecture review.",
+            route=route,
+            dispatch_id="dispatch-glm-256k",
+            bead_id="cwo-glm-256k",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeHardenedOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            response = execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertTrue(opener.chat_called)
+        self.assertEqual(opener.payload["model"], "glm-5.2-bf16-256k")
+        self.assertEqual(opener.payload["max_tokens"], 8192)
+        self.assertEqual(response["model_preflight"]["status"], "passed")
+        self.assertLessEqual(response["model_preflight"]["to_post_ms"], 1000)
+        self.assertEqual(opener.correlation_ids, ["dispatch-glm-256k", "dispatch-glm-256k"])
+        self.assertEqual(response["response_model_status"], "matched")
+        self.assertEqual(response["completion_status"], "completed")
+        self.assertTrue(response["usable_final_content"])
+        self.assertEqual(response["final_content"], "useful final")
+        self.assertTrue(response["reasoning_stripped"])
+        self.assertNotIn("reasoning_content", json.dumps(response))
+        self.assertNotIn("private separate reasoning", json.dumps(response))
+
+        telemetry = local_response_telemetry(response)
+        self.assertEqual(telemetry["agent_model_calls"], 1)
+        self.assertEqual(telemetry["attempted_model_calls"], 1)
+        self.assertEqual(telemetry["incomplete_model_calls"], 0)
+        self.assertEqual(telemetry["completion_status"], "completed")
+        self.assertEqual(telemetry["preflight_attempts"], 1)
+        self.assertEqual(telemetry["preflight_successes"], 1)
+        self.assertEqual(telemetry["post_attempts"], 1)
+        self.assertEqual(telemetry["usable_post_responses"], 1)
+        self.assertEqual(telemetry["incomplete_post_responses"], 0)
+        compact = compact_local_response(response)
+        self.assertNotIn("response", compact)
+        self.assertEqual(compact["final_content"], "useful final")
+
+    def test_hardened_glm_reasoning_only_is_incomplete_and_not_counted(self) -> None:
+        route = self._hardened_glm_route()
+        args = self._hardened_glm_args()
+        envelope = build_local_envelope(
+            task="Compact independent architecture review.",
+            route=route,
+            dispatch_id="dispatch-glm-256k-reasoning-only",
+            bead_id="cwo-glm-256k",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeHardenedOpener(reasoning_only=True)
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            response = execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertEqual(response["completion_status"], "empty-final-content")
+        self.assertFalse(response["usable_final_content"])
+        self.assertEqual(response["final_content"], "")
+        self.assertNotIn("private reasoning only", json.dumps(response))
+        telemetry = local_response_telemetry(response)
+        self.assertEqual(telemetry["agent_model_calls"], 0)
+        self.assertEqual(telemetry["attempted_model_calls"], 1)
+        self.assertEqual(telemetry["incomplete_model_calls"], 1)
+        self.assertEqual(telemetry["telemetry_status"], "failed")
+
+    def test_hardened_glm_reasoning_only_length_is_output_budget_exhausted(self) -> None:
+        sanitized, metadata = sanitize_local_response_payload(
+            {
+                "model": "glm-5.2-bf16-256k",
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {
+                            "content": None,
+                            "reasoning_content": "private budget-exhausted reasoning",
+                        },
+                    }
+                ],
+            },
+            "glm-think-tags",
+            required_finish_reason="stop",
+        )
+        self.assertEqual(metadata["completion_status"], "output-budget-exhausted")
+        self.assertFalse(metadata["usable_final_content"])
+        self.assertTrue(metadata["response_truncated"])
+        self.assertNotIn("private budget-exhausted reasoning", json.dumps(sanitized))
+
+    def test_hardened_glm_preflight_model_mismatch_blocks_chat(self) -> None:
+        route = self._hardened_glm_route()
+        args = self._hardened_glm_args()
+        envelope = build_local_envelope(
+            task="Compact independent architecture review.",
+            route=route,
+            dispatch_id="dispatch-glm-256k-wrong-model",
+            bead_id="cwo-glm-256k",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeHardenedOpener(wrong_model=True)
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            with self.assertRaises(SystemExit) as context:
+                execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertIn("exact requested model", str(context.exception))
+        self.assertFalse(opener.chat_called)
+
+    def test_hardened_glm_expired_preflight_blocks_chat(self) -> None:
+        route = self._hardened_glm_route()
+        args = self._hardened_glm_args()
+        envelope = build_local_envelope(
+            task="Compact independent architecture review.",
+            route=route,
+            dispatch_id="dispatch-glm-256k-expired",
+            bead_id="cwo-glm-256k",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeHardenedOpener()
+        monotonic_values = [0.0, 0.1, 0.2, 0.2, 1.5]
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            with patch("dispatch_work.time.monotonic", side_effect=monotonic_values):
+                with self.assertRaises(SystemExit) as context:
+                    execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertIn("preflight expired", str(context.exception))
+        self.assertFalse(opener.chat_called)
+
+    def test_hardened_glm_malformed_think_tag_is_not_usable(self) -> None:
+        payload = {
+            "model": "glm-5.2-bf16-256k",
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": "<think>private unfinished"}}
+            ],
+        }
+        sanitized, metadata = sanitize_local_response_payload(
+            payload,
+            "glm-think-tags",
+            required_finish_reason="stop",
+        )
+        self.assertEqual(metadata["completion_status"], "malformed-response")
+        self.assertFalse(metadata["usable_final_content"])
+        self.assertNotIn("private unfinished", json.dumps(sanitized))
+
+    def test_hardened_glm_unicode_reasoning_key_is_removed(self) -> None:
+        payload = {
+            "model": "glm-5.2-bf16-256k",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": "useful final",
+                        "ｒｅａｓｏｎｉｎｇ＿ｃｏｎｔｅｎｔ": "private unicode-key reasoning",
+                    },
+                }
+            ],
+        }
+        sanitized, metadata = sanitize_local_response_payload(
+            payload,
+            "glm-think-tags",
+            required_finish_reason="stop",
+        )
+        self.assertEqual(metadata["completion_status"], "completed")
+        self.assertTrue(metadata["reasoning_stripped"])
+        self.assertNotIn("private unicode-key reasoning", json.dumps(sanitized))
+
+    def test_hardened_glm_tool_payload_is_removed_and_fails_closed(self) -> None:
+        payload = {
+            "model": "glm-5.2-bf16-256k",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": "apparently useful final",
+                        "tool_calls": [
+                            {"function": {"name": "x", "arguments": "private tool reasoning"}}
+                        ],
+                    },
+                }
+            ],
+        }
+        sanitized, metadata = sanitize_local_response_payload(
+            payload,
+            "glm-think-tags",
+            required_finish_reason="stop",
+        )
+        self.assertEqual(metadata["completion_status"], "malformed-response")
+        self.assertFalse(metadata["usable_final_content"])
+        self.assertEqual(metadata["forbidden_response_fields"], ["tool_calls"])
+        self.assertNotIn("private tool reasoning", json.dumps(sanitized))
+
+    def test_hardened_glm_requires_exactly_one_choice(self) -> None:
+        for choices in ([], [{"finish_reason": "stop", "message": {"content": "one"}}, {"finish_reason": "stop", "message": {"content": "two"}}]):
+            with self.subTest(choice_count=len(choices)):
+                _, metadata = sanitize_local_response_payload(
+                    {"model": "glm-5.2-bf16-256k", "choices": choices},
+                    "glm-think-tags",
+                    required_finish_reason="stop",
+                )
+                self.assertEqual(metadata["completion_status"], "malformed-response")
+                self.assertFalse(metadata["usable_final_content"])
+
+    def test_hardened_glm_top_level_error_is_hashed_not_retained(self) -> None:
+        sanitized, metadata = sanitize_local_response_payload(
+            {
+                "error": {"message": "private provider error detail"},
+                "choices": [{"finish_reason": "stop", "message": {"content": "misleading final"}}],
+            },
+            "glm-think-tags",
+            required_finish_reason="stop",
+        )
+        self.assertTrue(metadata["provider_error_present"])
+        self.assertIsNotNone(metadata["provider_error_sha256"])
+        self.assertEqual(metadata["completion_status"], "malformed-response")
+        self.assertNotIn("private provider error detail", json.dumps(sanitized))
+
+    def test_hardened_glm_compact_cli_emits_only_final_and_telemetry(self) -> None:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), HardenedGLMHTTPHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8") as task_file:
+                task_file.write(
+                    "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion."
+                )
+                task_file.flush()
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-B",
+                        str(ROOT / "scripts" / "dispatch_work.py"),
+                        "--file",
+                        task_file.name,
+                        "--local-ok",
+                        "--local-profile",
+                        "openshift-ai-glm-256k",
+                        "--local-base-url",
+                        f"http://127.0.0.1:{server.server_port}",
+                        "--execute-local",
+                        "--allow-offline-access-profile",
+                        "--waiver-reason",
+                        "focused compact CLI test",
+                        "--no-audit",
+                        "--rehearsal",
+                        "--requested-role",
+                        "architecture",
+                        "--local-result-view",
+                        "compact",
+                        "--json",
+                    ],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=20,
+                )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        artifact = json.loads(result.stdout)
+        self.assertEqual(artifact["local_response"]["final_content"], "compact final")
+        self.assertNotIn("response", artifact["local_response"])
+        self.assertNotIn("messages", artifact["local_envelope"])
+        self.assertEqual(artifact["local_telemetry"]["completion_status"], "completed")
+        rendered = json.dumps(artifact)
+        self.assertNotIn("never retain this reasoning", rendered)
+        self.assertNotIn("reasoning_content", rendered)
 
     def test_glm_offline_access_profile_fails_closed_without_override(self) -> None:
         route = classify_work(

@@ -10,6 +10,8 @@ import re
 import socket
 import ssl
 import time
+import unicodedata
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib import request
@@ -59,6 +61,25 @@ ALLOWED_LOCAL_API_KEY_ENV_NAMES = {
     "LOCAL_VLLM_API_KEY",
     "VLLM_API_KEY",
 }
+LOCAL_COMPLETION_STATUSES = {
+    "completed",
+    "output-budget-exhausted",
+    "empty-final-content",
+    "malformed-response",
+}
+RAW_REASONING_FIELDS = {
+    "chain_of_thought",
+    "internal_reasoning",
+    "reasoning",
+    "reasoning_content",
+    "reasoning_text",
+    "reflection",
+    "thinking_content",
+    "thought",
+    "thoughts",
+    "tool_reasoning",
+}
+FORBIDDEN_LOCAL_RESPONSE_FIELDS = {"delta", "function_call", "tool_calls"}
 
 
 def _truthy(value: Any) -> bool:
@@ -310,6 +331,9 @@ def local_transport(selected_executor: dict[str, Any], args: argparse.Namespace)
     if getattr(args, "local_api_key_env", None):
         transport["api_key_env"] = args.local_api_key_env
     if getattr(args, "local_timeout", None):
+        maximum_timeout = transport.get("max_timeout_seconds")
+        if isinstance(maximum_timeout, int) and args.local_timeout > maximum_timeout:
+            raise SystemExit(f"--local-timeout must not exceed profile maximum {maximum_timeout}")
         transport["timeout_seconds"] = args.local_timeout
     if getattr(args, "local_allow_private_dns", False):
         transport["allow_private_dns"] = True
@@ -341,6 +365,9 @@ def local_request_options_override(transport: dict[str, Any], args: argparse.Nam
     if local_max_tokens is not None:
         if not isinstance(local_max_tokens, int) or local_max_tokens <= 0:
             raise SystemExit("--local-max-tokens must be a positive integer")
+        maximum = transport.get("max_output_tokens")
+        if isinstance(maximum, int) and local_max_tokens > maximum:
+            raise SystemExit(f"--local-max-tokens must not exceed profile maximum {maximum}")
         request_options["max_tokens"] = local_max_tokens
     local_thinking = str(getattr(args, "local_thinking", "default")).strip().lower()
     if local_thinking in {"on", "off"}:
@@ -353,15 +380,32 @@ def local_request_options_override(transport: dict[str, Any], args: argparse.Nam
             raise SystemExit("--local-thinking requires chat_template_kwargs to be an object in request options")
         chat_template_kwargs["enable_thinking"] = local_thinking == "on"
         request_options["chat_template_kwargs"] = chat_template_kwargs
+    if transport.get("thinking_required") is True:
+        thinking = request_options.get("chat_template_kwargs")
+        if not isinstance(thinking, dict) or thinking.get("enable_thinking") is not True:
+            raise SystemExit("selected local executor requires thinking to remain enabled")
     return request_options
 
 
 def _split_thinking_content(content: str) -> dict[str, Any]:
-    if "</think>" in content.lower():
-        parts = re.split(r"(?is)</think>", content, maxsplit=1)
-        reasoning = parts[0]
-        final = parts[1] if len(parts) > 1 else ""
-        reasoning = re.sub(r"(?is)^.*?<think>", "", reasoning, count=1).strip()
+    opening = re.match(r"(?is)^\s*<(think|analysis|reasoning)>", content)
+    if opening:
+        tag = opening.group(1)
+        closing = re.search(rf"(?is)</{re.escape(tag)}>", content[opening.end():])
+        if closing:
+            reasoning_start = opening.end()
+            reasoning_end = reasoning_start + closing.start()
+            final_start = reasoning_start + closing.end()
+            reasoning = content[reasoning_start:reasoning_end].strip()
+            final = content[final_start:]
+        else:
+            return {
+                "content": "",
+                "reasoning_stripped": True,
+                "reasoning_chars": len(content),
+                "reasoning_sha256": artifact_hash(content),
+                "reasoning_malformed": True,
+            }
         return {
             "content": final.strip(),
             "reasoning_stripped": True,
@@ -369,7 +413,7 @@ def _split_thinking_content(content: str) -> dict[str, Any]:
             "reasoning_sha256": artifact_hash(reasoning),
             "reasoning_malformed": False,
         }
-    if re.search(r"(?is)<think>", content):
+    if re.search(r"(?is)</?(think|analysis|reasoning)>", content):
         return {
             "content": "",
             "reasoning_stripped": True,
@@ -386,7 +430,49 @@ def _split_thinking_content(content: str) -> dict[str, Any]:
     }
 
 
-def sanitize_local_response_payload(payload: Any, thinking_parser: str | None) -> tuple[Any, dict[str, Any]]:
+def _record_reasoning_digest(metadata: dict[str, Any], digest: str, chars: int) -> None:
+    previous = metadata.get("reasoning_sha256")
+    metadata["reasoning_sha256"] = digest if not previous else artifact_hash(f"{previous}:{digest}")
+    metadata["reasoning_chars"] = int(metadata.get("reasoning_chars") or 0) + chars
+    metadata["reasoning_stripped"] = True
+
+
+def _record_reasoning_fragment(metadata: dict[str, Any], value: Any) -> None:
+    if value is None:
+        return
+    if isinstance(value, str):
+        rendered = value
+    else:
+        rendered = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    _record_reasoning_digest(metadata, artifact_hash(rendered), len(rendered))
+
+
+def _strip_raw_reasoning_fields(value: Any, metadata: dict[str, Any]) -> None:
+    if isinstance(value, dict):
+        for key in list(value):
+            normalized_key = unicodedata.normalize("NFKC", str(key)).strip().casefold()
+            if normalized_key in RAW_REASONING_FIELDS:
+                _record_reasoning_fragment(metadata, value.pop(key))
+                continue
+            if normalized_key in FORBIDDEN_LOCAL_RESPONSE_FIELDS:
+                removed = value.pop(key)
+                rendered = json.dumps(removed, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                metadata["forbidden_response_fields"].append(normalized_key)
+                metadata["forbidden_response_sha256"] = artifact_hash(rendered)
+                metadata["reasoning_malformed"] = True
+                continue
+            _strip_raw_reasoning_fields(value[key], metadata)
+    elif isinstance(value, list):
+        for item in value:
+            _strip_raw_reasoning_fields(item, metadata)
+
+
+def sanitize_local_response_payload(
+    payload: Any,
+    thinking_parser: str | None,
+    *,
+    required_finish_reason: str | None = None,
+) -> tuple[Any, dict[str, Any]]:
     metadata = {
         "thinking_parser": thinking_parser,
         "reasoning_stripped": False,
@@ -395,6 +481,15 @@ def sanitize_local_response_payload(payload: Any, thinking_parser: str | None) -
         "reasoning_sha256": None,
         "response_truncated": False,
         "finish_reasons": [],
+        "completion_status": "malformed-response",
+        "usable_final_content": False,
+        "final_content": "",
+        "final_content_sha256": artifact_hash(""),
+        "final_content_chars": 0,
+        "forbidden_response_fields": [],
+        "forbidden_response_sha256": None,
+        "provider_error_present": False,
+        "provider_error_sha256": None,
     }
     if isinstance(payload, dict):
         choices = payload.get("choices")
@@ -408,27 +503,73 @@ def sanitize_local_response_payload(payload: Any, thinking_parser: str | None) -
                     metadata["finish_reasons"].append(reason)
                     if reason == "length":
                         metadata["response_truncated"] = True
-    if thinking_parser != "glm-think-tags" or not isinstance(payload, dict):
-        return payload, metadata
-
     sanitized = json.loads(json.dumps(payload))
-    for choice in sanitized.get("choices", []) if isinstance(sanitized.get("choices"), list) else []:
+    if isinstance(sanitized, dict) and "error" in sanitized:
+        provider_error = sanitized.pop("error")
+        rendered_error = json.dumps(provider_error, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        metadata["provider_error_present"] = True
+        metadata["provider_error_sha256"] = artifact_hash(rendered_error)
+        metadata["reasoning_malformed"] = True
+    _strip_raw_reasoning_fields(sanitized, metadata)
+    if not isinstance(sanitized, dict):
+        return sanitized, metadata
+    choices = sanitized.get("choices")
+    if not isinstance(choices, list) or len(choices) != 1:
+        metadata["reasoning_malformed"] = True
+    final_contents: list[str] = []
+    for choice in choices if isinstance(choices, list) else []:
+        if not isinstance(choice, dict) or (
+            required_finish_reason and not isinstance(choice.get("finish_reason"), str)
+        ):
+            metadata["reasoning_malformed"] = True
         message = choice.get("message") if isinstance(choice, dict) else None
-        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+        if not isinstance(message, dict):
+            metadata["reasoning_malformed"] = True
             continue
-        split = _split_thinking_content(message["content"])
-        if not split["reasoning_stripped"]:
-            continue
-        message["content"] = split["content"]
-        message["reasoning_content_stripped"] = True
-        message["reasoning_content_sha256"] = split["reasoning_sha256"]
-        message["reasoning_content_chars"] = split["reasoning_chars"]
-        if split["reasoning_malformed"]:
-            message["reasoning_content_malformed"] = True
-        metadata["reasoning_stripped"] = True
-        metadata["reasoning_malformed"] = bool(metadata["reasoning_malformed"] or split["reasoning_malformed"])
-        metadata["reasoning_chars"] = int(metadata["reasoning_chars"]) + int(split["reasoning_chars"])
-        metadata["reasoning_sha256"] = split["reasoning_sha256"]
+        content = message.get("content")
+        if content is None:
+            message["content"] = ""
+            content = ""
+        if not isinstance(content, str):
+            metadata["reasoning_malformed"] = True
+            message["content"] = ""
+            content = ""
+        if thinking_parser == "glm-think-tags":
+            split = _split_thinking_content(content)
+            if split["reasoning_stripped"]:
+                message["content"] = split["content"]
+                if split["reasoning_sha256"] is not None:
+                    _record_reasoning_digest(
+                        metadata,
+                        str(split["reasoning_sha256"]),
+                        int(split["reasoning_chars"]),
+                    )
+                metadata["reasoning_malformed"] = bool(
+                    metadata["reasoning_malformed"] or split["reasoning_malformed"]
+                )
+                content = split["content"]
+        clean = str(message.get("content") or "").strip()
+        if clean:
+            final_contents.append(clean)
+    final_content = final_contents[0] if final_contents else ""
+    metadata["final_content"] = final_content
+    metadata["final_content_sha256"] = artifact_hash(final_content)
+    metadata["final_content_chars"] = len(final_content)
+    finish_reasons = [str(item).strip().lower() for item in metadata["finish_reasons"]]
+    if metadata["reasoning_malformed"]:
+        completion_status = "malformed-response"
+    elif metadata["response_truncated"] or any(item in {"length", "max_tokens"} for item in finish_reasons):
+        completion_status = "output-budget-exhausted"
+    elif not final_content:
+        completion_status = "empty-final-content"
+    elif required_finish_reason and (
+        not finish_reasons or any(item != required_finish_reason.strip().lower() for item in finish_reasons)
+    ):
+        completion_status = "malformed-response"
+    else:
+        completion_status = "completed"
+    metadata["completion_status"] = completion_status
+    metadata["usable_final_content"] = completion_status == "completed"
     return sanitized, metadata
 
 
@@ -449,8 +590,15 @@ def build_local_envelope(
     transport = local_transport(selected, args)
     tls = local_tls_settings(transport, args)
     max_input_chars = int(transport["max_input_chars"])
+    model = str(transport.get("model") or "")
+    required_model = transport.get("required_model")
+    if isinstance(required_model, str) and required_model and model != required_model:
+        raise SystemExit(
+            f"selected local executor requires exact model {required_model!r}; got {model!r}"
+        )
     if len(task) > max_input_chars:
         raise SystemExit(f"local dispatch task exceeds max_input_chars={max_input_chars}")
+    request_options = local_request_options_override(transport, args)
     constraints = (
         "local-only, evaluator review required, architect adjudication required, "
         "no web, no shell, no repo write; repo read only when executor policy explicitly allows it"
@@ -497,17 +645,23 @@ def build_local_envelope(
         "base_url_configured": bool(transport.get("base_url")),
         "api_key_env": transport.get("api_key_env"),
         "model_env": transport.get("model_env"),
-        "model": transport.get("model"),
+        "model": model,
         "endpoint_path": transport.get("endpoint_path"),
         "timeout_seconds": transport.get("timeout_seconds"),
         "max_input_chars": max_input_chars,
+        "target_input_chars": transport.get("target_input_chars"),
+        "model_preflight_required": bool(transport.get("model_preflight_required")),
+        "model_preflight_endpoint_path": transport.get("model_preflight_endpoint_path"),
+        "required_model": required_model,
+        "required_finish_reason": transport.get("required_finish_reason"),
+        "response_model_required": bool(transport.get("response_model_required")),
         "allow_private_dns": bool(transport.get("allow_private_dns")),
         "tls_verify": bool(tls["tls_verify"]),
         "tls_verify_source": tls["tls_verify_source"],
         "tls_ca_bundle_env": tls["tls_ca_bundle_env"],
         "tls_ca_bundle_configured": bool(tls["tls_ca_bundle_configured"]),
         "allow_insecure_tls": bool(tls["allow_insecure_tls"]),
-        "request_options": local_request_options_override(transport, args),
+        "request_options": request_options,
         "thinking_parser": transport.get("thinking_parser"),
         "response_sanitization": transport.get("response_sanitization"),
         "constraints": constraints,
@@ -530,6 +684,68 @@ def require_access_profile_online_for_execution(envelope: dict[str, Any], args: 
     )
 
 
+def _build_local_opener(
+    base_url: str,
+    transport: dict[str, Any],
+    args: argparse.Namespace,
+    pinned_address: str | None,
+) -> Any:
+    opener_handlers: list[Any] = [NoRedirectHandler, request.ProxyHandler({})]
+    context = local_ssl_context(base_url, transport, args)
+    scheme = urlparse(base_url).scheme
+    if pinned_address and scheme == "https":
+        opener_handlers.append(PinnedHTTPSHandler(pinned_address, context=context))
+    elif pinned_address and scheme == "http":
+        opener_handlers.append(PinnedHTTPHandler(pinned_address))
+    elif context is not None:
+        opener_handlers.append(request.HTTPSHandler(context=context))
+    return request.build_opener(*opener_handlers)
+
+
+def _preflight_local_model(
+    opener: Any,
+    *,
+    base_url: str,
+    transport: dict[str, Any],
+    headers: dict[str, str],
+    model: str,
+) -> dict[str, Any]:
+    endpoint_path = str(transport.get("model_preflight_endpoint_path", "/v1/models"))
+    req = request.Request(endpoint_url(base_url, endpoint_path), headers=headers, method="GET")
+    started = time.monotonic()
+    with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
+        raw = response.read().decode("utf-8")
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                "local model preflight returned malformed JSON; body omitted "
+                f"(sha256={artifact_hash(raw)}, chars={len(raw)})"
+            ) from exc
+        data = payload.get("data") if isinstance(payload, dict) else None
+        model_ids = [
+            str(item.get("id"))
+            for item in data or []
+            if isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("id")
+        ] if isinstance(data, list) else []
+        if getattr(response, "status", None) != 200 or model not in model_ids:
+            raise SystemExit(
+                "local model preflight did not attest the exact requested model; "
+                f"status={getattr(response, 'status', None)!r}, model={model!r}, "
+                f"response_sha256={artifact_hash(raw)}"
+            )
+        return {
+            "status": "passed",
+            "status_code": 200,
+            "required_model": model,
+            "observed_model_count": len(model_ids),
+            "response_sha256": artifact_hash(raw),
+            "response_chars": len(raw),
+            "elapsed_ms": max(0, int((time.monotonic() - started) * 1000)),
+            "_completed_monotonic": time.monotonic(),
+        }
+
+
 def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     require_access_profile_online_for_execution(envelope, args)
     transport = local_transport(selected_executor, args)
@@ -541,6 +757,11 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     model = transport.get("model")
     if not model:
         raise SystemExit(f"--execute-local requires --local-model or ${transport.get('model_env')}")
+    required_model = transport.get("required_model")
+    if isinstance(required_model, str) and required_model and model != required_model:
+        raise SystemExit(
+            f"selected local executor requires exact model {required_model!r}; got {model!r}"
+        )
     pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
     api_key_env = str(transport.get("api_key_env") or "")
     validate_local_api_key_env_name(api_key_env)
@@ -556,6 +777,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         payload.update(local_request_options_override(transport, args))
     body = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json"}
+    headers["X-CWO-Dispatch-ID"] = str(envelope.get("dispatch_id") or uuid.uuid4())
     api_key = os.environ.get(api_key_env)
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -567,29 +789,64 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     )
     started = time.monotonic()
     try:
-        opener_handlers: list[Any] = [NoRedirectHandler, request.ProxyHandler({})]
-        context = local_ssl_context(str(base_url), transport, args)
-        scheme = urlparse(str(base_url)).scheme
-        if pinned_address and scheme == "https":
-            opener_handlers.append(PinnedHTTPSHandler(pinned_address, context=context))
-        elif pinned_address and scheme == "http":
-            opener_handlers.append(PinnedHTTPHandler(pinned_address))
-        elif context is not None:
-            opener_handlers.append(request.HTTPSHandler(context=context))
-        opener = request.build_opener(*opener_handlers)
+        opener = _build_local_opener(str(base_url), transport, args, pinned_address)
+        model_preflight = None
+        if transport.get("model_preflight_required") is True:
+            model_preflight = _preflight_local_model(
+                opener,
+                base_url=str(base_url),
+                transport=transport,
+                headers=headers,
+                model=str(model),
+            )
+            completed_monotonic = float(model_preflight.pop("_completed_monotonic"))
+            preflight_to_post_ms = max(0, int((time.monotonic() - completed_monotonic) * 1000))
+            model_preflight["to_post_ms"] = preflight_to_post_ms
+            maximum_gap = int(transport.get("max_preflight_to_post_ms", 1000))
+            if preflight_to_post_ms > maximum_gap:
+                raise SystemExit(
+                    "local model preflight expired before POST; "
+                    f"gap_ms={preflight_to_post_ms}, maximum_ms={maximum_gap}"
+                )
         with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
             raw = response.read().decode("utf-8")
+            if getattr(response, "status", None) != 200:
+                raise SystemExit(
+                    "local endpoint did not return HTTP 200; response body omitted "
+                    f"(status={getattr(response, 'status', None)!r}, "
+                    f"sha256={artifact_hash(raw)}, chars={len(raw)})"
+                )
             try:
                 parsed: Any = json.loads(raw)
             except json.JSONDecodeError:
-                parsed = {"raw": raw}
-            sanitized, response_metadata = sanitize_local_response_payload(parsed, transport.get("thinking_parser"))
+                parsed = {
+                    "malformed_response_sha256": artifact_hash(raw),
+                    "malformed_response_chars": len(raw),
+                }
+            sanitized, response_metadata = sanitize_local_response_payload(
+                parsed,
+                transport.get("thinking_parser"),
+                required_finish_reason=(
+                    str(transport.get("required_finish_reason"))
+                    if transport.get("required_finish_reason")
+                    else None
+                ),
+            )
+            response_model = parsed.get("model") if isinstance(parsed, dict) else None
+            response_model_status = "not-required"
+            if transport.get("response_model_required") is True:
+                response_model_status = "matched" if response_model == model else "mismatch"
+                if response_model_status != "matched":
+                    response_metadata["completion_status"] = "malformed-response"
+                    response_metadata["usable_final_content"] = False
             return {
                 "status_code": response.status,
                 "response": sanitized,
                 "elapsed_seconds": round(time.monotonic() - started, 3),
                 "raw_response_sha256": artifact_hash(raw),
                 "raw_response_chars": len(raw),
+                "model_preflight": model_preflight,
+                "response_model_status": response_model_status,
                 **response_metadata,
             }
     except HTTPError as exc:
@@ -604,12 +861,8 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
 
 
 def _debug_local_http_excerpt(body: str) -> str:
-    if os.environ.get("CWO_DEBUG_LOCAL_HTTP_BODY", "").strip().lower() not in {"1", "true", "yes", "on"}:
-        return ""
-    safe = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "?", body)
-    if len(safe) > 240:
-        safe = safe[:240] + "...[truncated]"
-    return f"; sanitized excerpt={safe!r}"
+    _ = body
+    return ""
 
 
 def local_response_telemetry(local_response: dict[str, Any] | None) -> dict[str, Any]:
@@ -618,9 +871,19 @@ def local_response_telemetry(local_response: dict[str, Any] | None) -> dict[str,
     response_payload = local_response.get("response")
     rendered = json.dumps(response_payload, sort_keys=True) if isinstance(response_payload, (dict, list)) else str(response_payload or "")
     usage = response_payload.get("usage") if isinstance(response_payload, dict) and isinstance(response_payload.get("usage"), dict) else {}
+    completion_status = str(local_response.get("completion_status") or "malformed-response")
+    if completion_status not in LOCAL_COMPLETION_STATUSES:
+        completion_status = "malformed-response"
+    usable = completion_status == "completed" and local_response.get("usable_final_content") is True
+    preflight = local_response.get("model_preflight") if isinstance(local_response.get("model_preflight"), dict) else {}
     return telemetry_fields(
-        telemetry_status="completed",
-        agent_model_calls=1,
+        telemetry_status="completed" if usable else "failed",
+        telemetry_missing_reason=None if usable else f"local-response-{completion_status}",
+        completion_status=completion_status,
+        agent_model_calls=1 if usable else 0,
+        attempted_model_calls=1,
+        usable_model_calls=1 if usable else 0,
+        incomplete_model_calls=0 if usable else 1,
         retry_count=0,
         input_tokens=usage.get("prompt_tokens") or usage.get("input_tokens"),
         output_tokens=usage.get("completion_tokens") or usage.get("output_tokens"),
@@ -638,7 +901,110 @@ def local_response_telemetry(local_response: dict[str, Any] | None) -> dict[str,
         reasoning_sha256=local_response.get("reasoning_sha256"),
         response_truncated=local_response.get("response_truncated"),
         finish_reasons=local_response.get("finish_reasons"),
+        usable_final_content=local_response.get("usable_final_content"),
+        final_content_sha256=local_response.get("final_content_sha256"),
+        final_content_chars=local_response.get("final_content_chars"),
+        response_model_status=local_response.get("response_model_status"),
+        model_preflight_status=preflight.get("status"),
+        model_preflight_required_model=preflight.get("required_model"),
+        model_preflight_response_sha256=preflight.get("response_sha256"),
+        model_preflight_response_chars=preflight.get("response_chars"),
+        model_preflight_observed_model_count=preflight.get("observed_model_count"),
+        model_preflight_elapsed_ms=preflight.get("elapsed_ms"),
+        preflight_to_post_ms=preflight.get("to_post_ms"),
+        preflight_attempts=1 if preflight else 0,
+        preflight_successes=1 if preflight.get("status") == "passed" else 0,
+        post_attempts=1,
+        usable_post_responses=1 if usable else 0,
+        incomplete_post_responses=0 if usable else 1,
+        forbidden_response_fields=local_response.get("forbidden_response_fields"),
+        forbidden_response_sha256=local_response.get("forbidden_response_sha256"),
+        provider_error_present=local_response.get("provider_error_present"),
+        provider_error_sha256=local_response.get("provider_error_sha256"),
     )
+
+
+def compact_local_response(local_response: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(local_response, dict):
+        return None
+    fields = (
+        "status_code",
+        "completion_status",
+        "usable_final_content",
+        "final_content",
+        "final_content_sha256",
+        "final_content_chars",
+        "elapsed_seconds",
+        "raw_response_sha256",
+        "raw_response_chars",
+        "thinking_parser",
+        "reasoning_stripped",
+        "reasoning_malformed",
+        "reasoning_chars",
+        "reasoning_sha256",
+        "response_truncated",
+        "finish_reasons",
+        "response_model_status",
+        "model_preflight",
+        "forbidden_response_fields",
+        "forbidden_response_sha256",
+        "provider_error_present",
+        "provider_error_sha256",
+    )
+    return {key: local_response.get(key) for key in fields if key in local_response}
+
+
+def compact_local_envelope(envelope: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(envelope, dict):
+        return None
+    fields = (
+        "envelope_type",
+        "version",
+        "dispatch_id",
+        "bead_id",
+        "epic_id",
+        "executor_key",
+        "provider_key",
+        "provider_trust_tier",
+        "access_profile",
+        "local_profile",
+        "model_profile",
+        "model",
+        "endpoint_path",
+        "timeout_seconds",
+        "max_input_chars",
+        "thinking_parser",
+        "response_sanitization",
+        "tls_verify",
+        "tls_verify_source",
+        "execution_enabled",
+    )
+    return {key: envelope.get(key) for key in fields if key in envelope}
+
+
+def compact_local_route(route: dict[str, Any]) -> dict[str, Any]:
+    selected = route.get("selected_executor") if isinstance(route.get("selected_executor"), dict) else {}
+    return {
+        "route": route.get("route"),
+        "task_class": route.get("task_class"),
+        "risk_level": route.get("risk_level"),
+        "share_boundary": route.get("share_boundary"),
+        "recommended_executor": route.get("recommended_executor"),
+        "selected_executor": {
+            key: selected.get(key)
+            for key in (
+                "key",
+                "display_name",
+                "provider_key",
+                "provider_trust_tier",
+                "dispatch_mode",
+                "access_profile",
+                "local_profile",
+                "model_profile",
+            )
+            if key in selected
+        },
+    }
 
 
 def main() -> None:
@@ -706,6 +1072,12 @@ def main() -> None:
         help="Lab-only: disable TLS verification when the selected local executor profile explicitly allows it.",
     )
     parser.add_argument("--execute-local", action="store_true", help="Actually POST a local-worker envelope to the endpoint.")
+    parser.add_argument(
+        "--local-result-view",
+        choices=["full", "compact"],
+        default="full",
+        help="Emit the historical full sanitized local result or a compact final-content and telemetry view.",
+    )
     parser.add_argument(
         "--allow-offline-access-profile",
         action="store_true",
@@ -946,10 +1318,26 @@ def main() -> None:
                 **base_telemetry,
             }
         )
+    rendered_artifact = artifact
+    if args.local_result_view == "compact" and local_envelope is not None:
+        rendered_artifact = {
+            "dispatch_id": dispatch_id,
+            "bead_id": args.bead,
+            "epic_id": args.epic,
+            "dispatch_mode": artifact["dispatch_mode"],
+            "route": compact_local_route(route),
+            "local_envelope": compact_local_envelope(local_envelope),
+            "local_response": compact_local_response(local_response),
+            "local_telemetry": local_response_telemetry(local_response),
+            **quota_info,
+        }
     if args.json:
-        print(json.dumps(artifact, indent=2, sort_keys=True))
+        print(json.dumps(rendered_artifact, indent=2, sort_keys=True))
     else:
-        print(artifact["manual_prompt"] or json.dumps(artifact["local_envelope"] or artifact["route"], indent=2, sort_keys=True))
+        print(
+            rendered_artifact.get("manual_prompt")
+            or json.dumps(rendered_artifact.get("local_envelope") or rendered_artifact.get("route"), indent=2, sort_keys=True)
+        )
 
 
 if __name__ == "__main__":

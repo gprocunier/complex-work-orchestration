@@ -33,7 +33,7 @@ STATE_TYPE = "cwo-native-precommit-state"
 RECEIPT_TYPE = "cwo-native-precommit-receipt"
 STATE_SCHEMA = "schemas/native-precommit-state.schema.json"
 RECEIPT_SCHEMA = "schemas/native-precommit-receipt.schema.json"
-VALIDATION_RULE_VERSION = "native-precommit-receipt:v1"
+VALIDATION_RULE_VERSION = "native-precommit-receipt:v2"
 TRUSTED_ATTESTATION_SOURCE = "trusted-control-plane-session-metadata"
 REQUIRED_MODEL = "gpt-5.3-codex-spark"
 FINAL_STATE = "closed"
@@ -103,6 +103,9 @@ STATE_FIELDS = {
     "baseline",
     "terminal",
     "owner_pid",
+    "owner_identity",
+    "control_execution_handle",
+    "control_topology",
     "control_turn_id",
     "submission_id",
     "status",
@@ -142,6 +145,9 @@ RECEIPT_FIELDS = {
     "requested_model",
     "attested_model",
     "attestation_source",
+    "owner_identity",
+    "control_execution_handle",
+    "control_topology",
     "control_turn_id",
     "submission_id",
     "work_plan_sha256",
@@ -192,8 +198,23 @@ POLLING_FIELDS = {
 }
 POLL_CONFIG_FIELDS = {"interval_ms", "lag_tolerance_ms", "arm_to_dispatch_max_ms"}
 WORKSPACE_BASELINE_FIELDS = {"path", "sha256", "workdir"}
-CONTROL_RECEIPT_FIELDS = {"action", "control_turn_id", "submission_id", "at", "receipt_id"}
+CONTROL_RECEIPT_FIELDS = {
+    "action",
+    "control_turn_id",
+    "control_execution_handle",
+    "submission_id",
+    "at",
+    "receipt_id",
+}
 PROVENANCE_FIELDS = {"issuer", "threat_model", "integrity"}
+OWNER_IDENTITY_FIELDS = {
+    "pid",
+    "start_time_ticks",
+    "process_group_id",
+    "session_id",
+    "boot_id_sha256",
+    "execution_handle",
+}
 FIRST_FORBIDDEN_FIELDS = {"kind", "record_index"}
 FIT_RESULT_FIELDS = {"decision", "estimates"}
 ESTIMATE_FIELDS = set(FIT_ESTIMATE_FIELDS)
@@ -273,10 +294,11 @@ def _policy() -> dict[str, Any]:
         "packet_stage",
         "operative_dispatch_authorized",
         "release_requires",
+        "control_topology",
     }
     source = _require_exact_fields(value, required, "precommit_supervision policy")
     expected = {
-        "version": 1,
+        "version": 2,
         "state_schema": STATE_SCHEMA,
         "receipt_schema": RECEIPT_SCHEMA,
         "validation_rule_version": VALIDATION_RULE_VERSION,
@@ -285,6 +307,7 @@ def _policy() -> dict[str, Any]:
         "packet_stage": "precommit-validated",
         "operative_dispatch_authorized": False,
         "release_requires": "complex-work-orchestration-fsh.3",
+        "control_topology": "single-host-process-v1",
     }
     for field, expected_value in expected.items():
         if source.get(field) != expected_value:
@@ -394,6 +417,29 @@ def _state_sidecar(path: Path) -> Path:
     return path.with_name(path.name + ".sha256")
 
 
+@contextmanager
+def _state_lock(path_value: str | Path) -> Iterator[Path]:
+    path = _secure_output_path(path_value, packet_id="state", purpose="state")
+    lock_path = path.with_name(path.name + ".lock")
+    flags = os.O_RDWR | os.O_CREAT
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError as exc:
+        raise ValueError(f"precommit state lock must be a current-user regular non-symlink file: {exc}") from exc
+    with os.fdopen(descriptor, "a+", encoding="utf-8") as handle:
+        metadata = os.fstat(handle.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+            raise ValueError("precommit state lock must be owned by the current user")
+        os.fchmod(handle.fileno(), 0o600)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield path
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def _write_state(path: Path, state: Mapping[str, Any]) -> None:
     errors = validate_precommit_state(state)
     if errors:
@@ -404,8 +450,7 @@ def _write_state(path: Path, state: Mapping[str, Any]) -> None:
     sidecar.chmod(0o600)
 
 
-def _load_state(path_value: str | Path) -> tuple[Path, dict[str, Any]]:
-    path = _secure_output_path(path_value, packet_id="state", purpose="state")
+def _load_state_unlocked(path: Path) -> tuple[Path, dict[str, Any]]:
     try:
         state = json.loads(path.read_text(encoding="utf-8"))
         expected = _state_sidecar(path).read_text(encoding="utf-8").strip()
@@ -417,6 +462,11 @@ def _load_state(path_value: str | Path) -> tuple[Path, dict[str, Any]]:
     if expected != canonical_sha256(state):
         raise ValueError("precommit state canonical hash sidecar mismatch")
     return path, state
+
+
+def _load_state(path_value: str | Path) -> tuple[Path, dict[str, Any]]:
+    with _state_lock(path_value) as path:
+        return _load_state_unlocked(path)
 
 
 def _token_snapshot(records: list[dict[str, Any]]) -> dict[str, int] | None:
@@ -609,6 +659,83 @@ def _process_alive(pid: int) -> bool:
     return True
 
 
+def _boot_id_sha256() -> str:
+    try:
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise ValueError(f"control-plane boot identity is unavailable: {exc}") from exc
+    if not boot_id:
+        raise ValueError("control-plane boot identity is empty")
+    return _text_sha256(boot_id)
+
+
+def _process_stat_identity(pid: int) -> tuple[int, int, int]:
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"control-plane process identity is unavailable: {exc}") from exc
+    close = raw.rfind(")")
+    if close < 0:
+        raise ValueError("control-plane process identity record is malformed")
+    fields = raw[close + 1 :].split()
+    if len(fields) <= 19:
+        raise ValueError("control-plane process identity record is incomplete")
+    try:
+        process_group_id = int(fields[2])
+        session_id = int(fields[3])
+        start_time_ticks = int(fields[19])
+    except ValueError as exc:
+        raise ValueError("control-plane process identity record is malformed") from exc
+    if min(process_group_id, session_id, start_time_ticks) <= 0:
+        raise ValueError("control-plane process identity values must be positive")
+    return start_time_ticks, process_group_id, session_id
+
+
+def _capture_owner_identity(pid: int, execution_handle: str) -> dict[str, Any]:
+    if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0 or not _process_alive(pid):
+        raise ValueError("owner_pid must identify a live control-plane process")
+    handle = _require_string(execution_handle, "control_execution_handle")
+    start_time_ticks, process_group_id, session_id = _process_stat_identity(pid)
+    return {
+        "pid": pid,
+        "start_time_ticks": start_time_ticks,
+        "process_group_id": process_group_id,
+        "session_id": session_id,
+        "boot_id_sha256": _boot_id_sha256(),
+        "execution_handle": handle,
+    }
+
+
+def _validate_owner_identity_shape(value: Any, field: str = "owner_identity") -> dict[str, Any]:
+    identity = _require_exact_fields(value, OWNER_IDENTITY_FIELDS, field)
+    for key in ("pid", "start_time_ticks", "process_group_id", "session_id"):
+        current = identity.get(key)
+        if isinstance(current, bool) or not isinstance(current, int) or current <= 0:
+            raise ValueError(f"{field}.{key} must be a positive integer")
+    _require_hash(identity.get("boot_id_sha256"), f"{field}.boot_id_sha256")
+    _require_string(identity.get("execution_handle"), f"{field}.execution_handle")
+    return identity
+
+
+def _owner_identity_matches(value: Any) -> bool:
+    try:
+        expected = _validate_owner_identity_shape(value)
+        actual = _capture_owner_identity(int(expected["pid"]), str(expected["execution_handle"]))
+    except ValueError:
+        return False
+    return actual == expected
+
+
+def _require_live_owner_identity(state: Mapping[str, Any]) -> None:
+    identity = _validate_owner_identity_shape(state.get("owner_identity"))
+    if state.get("owner_pid") != identity["pid"]:
+        raise ValueError("owner_pid contradicts strong control-plane process identity")
+    if state.get("control_execution_handle") != identity["execution_handle"]:
+        raise ValueError("control execution handle contradicts strong process identity")
+    if not _owner_identity_matches(identity):
+        raise ValueError("control-plane process identity or topology changed")
+
+
 def _paths_overlap(first: str, second: str) -> bool:
     left = Path(first).resolve()
     right = Path(second).resolve()
@@ -617,7 +744,8 @@ def _paths_overlap(first: str, second: str) -> bool:
 
 def _terminal_state_file(path_value: str) -> bool:
     try:
-        _, state = _load_state(path_value)
+        path = _secure_output_path(path_value, packet_id="state", purpose="state")
+        _, state = _load_state_unlocked(path)
     except ValueError:
         return False
     return state.get("status") == FINAL_STATE
@@ -641,11 +769,11 @@ def _register_identity_and_lease(state: Mapping[str, Any]) -> None:
         for entry in leases:
             if not isinstance(entry, dict):
                 raise ValueError("precommit lease registry is malformed")
-            pid = entry.get("owner_pid")
+            identity = entry.get("owner_identity")
             state_file = entry.get("state_file")
-            if not isinstance(pid, int) or not isinstance(state_file, str):
+            if not isinstance(identity, dict) or not isinstance(state_file, str):
                 raise ValueError("precommit lease registry is malformed")
-            alive = _process_alive(pid)
+            alive = _owner_identity_matches(identity)
             terminal = _terminal_state_file(state_file)
             if not alive and terminal:
                 continue
@@ -667,6 +795,9 @@ def _register_identity_and_lease(state: Mapping[str, Any]) -> None:
                 "session_file": state["session_file"],
                 "workdir": state["workdir"],
                 "owner_pid": state["owner_pid"],
+                "owner_identity": dict(state["owner_identity"]),
+                "control_execution_handle": state["control_execution_handle"],
+                "control_topology": state["control_topology"],
                 "status": state["status"],
             }
         )
@@ -695,20 +826,113 @@ def _update_lease_state(state: Mapping[str, Any]) -> None:
         _registry_write(path, entries)
 
 
-def consume_precommit_receipt(receipt: Mapping[str, Any]) -> None:
+def _reservation_owner_is_current(identity: Any) -> bool:
+    try:
+        owner = _validate_owner_identity_shape(identity, "reservation.owner_identity")
+    except ValueError:
+        return False
+    return owner["pid"] == os.getpid() and _owner_identity_matches(owner)
+
+
+def reserve_precommit_receipt(receipt: Mapping[str, Any], packet_build_id: str) -> str:
+    receipt_errors = validate_precommit_receipt(receipt, require_accepting=True)
+    if receipt_errors:
+        raise ValueError("invalid precommit receipt reservation: " + "; ".join(receipt_errors))
     receipt_sha256 = _require_hash(receipt.get("receipt_sha256"), "receipt_sha256")
+    build_id = _require_string(packet_build_id, "packet_build_id")
+    reservation_id = f"precommit-reservation-{uuid.uuid4().hex}"
+    owner_identity = _capture_owner_identity(os.getpid(), reservation_id)
     with _registry_lock() as root:
-        path = root / "consumed-receipts.json"
-        consumed = _load_json_default(path, {})
-        if not isinstance(consumed, dict):
-            raise ValueError("precommit receipt consumption registry is malformed")
+        consumed_path = root / "consumed-receipts.json"
+        reservations_path = root / "receipt-reservations.json"
+        consumed = _load_json_default(consumed_path, {})
+        reservations = _load_json_default(reservations_path, {})
+        if not isinstance(consumed, dict) or not isinstance(reservations, dict):
+            raise ValueError("precommit receipt registry is malformed")
         if receipt_sha256 in consumed:
             raise ValueError("precommit receipt replay detected")
+        existing = reservations.get(receipt_sha256)
+        if existing is not None:
+            if not isinstance(existing, dict):
+                raise ValueError("precommit receipt reservation registry is malformed")
+            existing_owner = existing.get("owner_identity")
+            if _owner_identity_matches(existing_owner):
+                raise ValueError("precommit receipt already has an active packet-build reservation")
+            state_file = existing.get("state_file")
+            if not isinstance(state_file, str) or not _terminal_state_file(state_file):
+                raise ValueError("stale receipt reservation owner is dead but state is non-terminal")
+            del reservations[receipt_sha256]
+        reservations[receipt_sha256] = {
+            "reservation_id": reservation_id,
+            "packet_build_id": build_id,
+            "packet_id": receipt.get("packet_id"),
+            "attempt_nonce": receipt.get("attempt_nonce"),
+            "state_id": receipt.get("state_id"),
+            "state_file": receipt.get("state_file"),
+            "owner_identity": owner_identity,
+        }
+        _registry_write(reservations_path, reservations)
+    return reservation_id
+
+
+def commit_precommit_receipt_reservation(
+    receipt: Mapping[str, Any],
+    reservation_id: str,
+    packet_sha256: str,
+) -> None:
+    receipt_sha256 = _require_hash(receipt.get("receipt_sha256"), "receipt_sha256")
+    reservation = _require_string(reservation_id, "reservation_id")
+    packet_hash = _require_hash(packet_sha256, "packet_sha256")
+    with _registry_lock() as root:
+        consumed_path = root / "consumed-receipts.json"
+        reservations_path = root / "receipt-reservations.json"
+        consumed = _load_json_default(consumed_path, {})
+        reservations = _load_json_default(reservations_path, {})
+        if not isinstance(consumed, dict) or not isinstance(reservations, dict):
+            raise ValueError("precommit receipt registry is malformed")
+        if receipt_sha256 in consumed:
+            raise ValueError("precommit receipt replay detected")
+        current = reservations.get(receipt_sha256)
+        if not isinstance(current, dict) or current.get("reservation_id") != reservation:
+            raise ValueError("precommit receipt reservation is missing or mismatched")
+        if not _reservation_owner_is_current(current.get("owner_identity")):
+            raise ValueError("precommit receipt reservation owner identity changed")
+        for field in ("packet_id", "attempt_nonce", "state_id"):
+            if current.get(field) != receipt.get(field):
+                raise ValueError(f"precommit receipt reservation {field} binding changed")
         consumed[receipt_sha256] = {
             "packet_id": receipt.get("packet_id"),
             "attempt_nonce": receipt.get("attempt_nonce"),
+            "state_id": receipt.get("state_id"),
+            "reservation_id": reservation,
+            "packet_build_id": current.get("packet_build_id"),
+            "packet_sha256": packet_hash,
         }
-        _registry_write(path, consumed)
+        del reservations[receipt_sha256]
+        _registry_write(consumed_path, consumed)
+        _registry_write(reservations_path, reservations)
+
+
+def release_precommit_receipt_reservation(receipt: Mapping[str, Any], reservation_id: str) -> None:
+    receipt_sha256 = _require_hash(receipt.get("receipt_sha256"), "receipt_sha256")
+    reservation = _require_string(reservation_id, "reservation_id")
+    with _registry_lock() as root:
+        path = root / "receipt-reservations.json"
+        reservations = _load_json_default(path, {})
+        if not isinstance(reservations, dict):
+            raise ValueError("precommit receipt reservation registry is malformed")
+        current = reservations.get(receipt_sha256)
+        if not isinstance(current, dict) or current.get("reservation_id") != reservation:
+            raise ValueError("precommit receipt reservation is missing or mismatched")
+        if not _reservation_owner_is_current(current.get("owner_identity")):
+            raise ValueError("precommit receipt reservation owner identity changed")
+        del reservations[receipt_sha256]
+        _registry_write(path, reservations)
+
+
+def consume_precommit_receipt(receipt: Mapping[str, Any]) -> None:
+    reservation_id = reserve_precommit_receipt(receipt, f"legacy-consume-{uuid.uuid4().hex}")
+    commit_precommit_receipt_reservation(receipt, reservation_id, canonical_sha256(dict(receipt)))
 
 
 def _audit(state: dict[str, Any], event_type: str) -> None:
@@ -735,6 +959,7 @@ def _control_receipt(state: dict[str, Any], action: str, now: dt.datetime) -> No
         {
             "action": action,
             "control_turn_id": state["control_turn_id"],
+            "control_execution_handle": state["control_execution_handle"],
             "submission_id": state.get("submission_id"),
             "at": _iso(now),
             "receipt_id": f"control-{uuid.uuid4().hex}",
@@ -883,6 +1108,7 @@ def create_precommit_state(
     state_file: str | Path | None = None,
     attempt_nonce: str | None = None,
     owner_pid: int | None = None,
+    control_execution_handle: str | None = None,
     requested_model: str = REQUIRED_MODEL,
     audit_file: str | Path | None = None,
     now: str | None = None,
@@ -914,11 +1140,14 @@ def create_precommit_state(
         raise ValueError("precommit audit file must be under a CWO-owned temporary directory")
     current = _iso_now(now)
     owner = owner_pid if owner_pid is not None else os.getppid()
-    if isinstance(owner, bool) or not isinstance(owner, int) or owner <= 0 or not _process_alive(owner):
-        raise ValueError("owner_pid must identify a live control-plane process")
+    execution_handle = _require_string(
+        control_execution_handle or f"control-execution-{uuid.uuid4().hex}",
+        "control_execution_handle",
+    )
+    owner_identity = _capture_owner_identity(owner, execution_handle)
     state: dict[str, Any] = {
         "state_type": STATE_TYPE,
-        "version": 1,
+        "version": 2,
         "schema": STATE_SCHEMA,
         "validation_rule_version": VALIDATION_RULE_VERSION,
         "state_id": f"precommit-state-{uuid.uuid4().hex}",
@@ -941,6 +1170,9 @@ def create_precommit_state(
         "baseline": boundary,
         "terminal": None,
         "owner_pid": owner,
+        "owner_identity": owner_identity,
+        "control_execution_handle": execution_handle,
+        "control_topology": policy["control_topology"],
         "control_turn_id": None,
         "submission_id": None,
         "status": "created",
@@ -986,37 +1218,42 @@ def create_precommit_state(
         "updated_at": _iso(current),
         "closed_at": None,
     }
-    state["workspace_baseline"] = _workspace_artifact(state_path, packet_id, workspace)
-    _register_identity_and_lease(state)
-    _audit(state, "native_precommit_created")
-    _write_state(state_path, state)
+    with _state_lock(state_path) as locked_path:
+        if locked_path.exists() or _state_sidecar(locked_path).exists():
+            raise ValueError("precommit state artifact already exists")
+        state["workspace_baseline"] = _workspace_artifact(locked_path, packet_id, workspace)
+        _register_identity_and_lease(state)
+        _audit(state, "native_precommit_created")
+        _write_state(locked_path, state)
     result = dict(state)
     result["state_sha256"] = canonical_sha256(state)
     return result
 
 
 def arm_precommit(state_file: str | Path, control_turn_id: str, *, now: str | None = None) -> dict[str, Any]:
-    path, state = _load_state(state_file)
-    if state["status"] != "created":
-        raise ValueError("arm requires a created precommit state")
-    boundary, records = _boundary(Path(state["session_file"]), state["session_id"])
-    _prefix_is_intact(Path(state["session_file"]), state["baseline"])
-    if not _same_boundary(state["baseline"], boundary):
-        raise ValueError("session changed between precommit creation and arming")
-    _verify_exact_attestation(records, state["requested_model"])
-    report = _workspace_report(state["workspace_baseline"])
-    if report.get("mutation_detected"):
-        raise ValueError("workspace changed between precommit creation and arming")
-    current = _iso_now(now)
-    state["control_turn_id"] = _require_string(control_turn_id, "control_turn_id")
-    state["status"] = "armed"
-    state["polling"]["armed_at"] = _iso(current)
-    state["updated_at"] = _iso(current)
-    _control_receipt(state, "arm", current)
-    _audit(state, "native_precommit_armed")
-    _write_state(path, state)
-    _update_lease_state(state)
-    return state
+    with _state_lock(state_file) as path:
+        _, state = _load_state_unlocked(path)
+        _require_live_owner_identity(state)
+        if state["status"] != "created":
+            raise ValueError("arm requires a created precommit state")
+        boundary, records = _boundary(Path(state["session_file"]), state["session_id"])
+        _prefix_is_intact(Path(state["session_file"]), state["baseline"])
+        if not _same_boundary(state["baseline"], boundary):
+            raise ValueError("session changed between precommit creation and arming")
+        _verify_exact_attestation(records, state["requested_model"])
+        report = _workspace_report(state["workspace_baseline"])
+        if report.get("mutation_detected"):
+            raise ValueError("workspace changed between precommit creation and arming")
+        current = _iso_now(now)
+        state["control_turn_id"] = _require_string(control_turn_id, "control_turn_id")
+        state["status"] = "armed"
+        state["polling"]["armed_at"] = _iso(current)
+        state["updated_at"] = _iso(current)
+        _control_receipt(state, "arm", current)
+        _audit(state, "native_precommit_armed")
+        _write_state(path, state)
+        _update_lease_state(state)
+        return state
 
 
 def mark_fit_dispatched(
@@ -1026,26 +1263,28 @@ def mark_fit_dispatched(
     *,
     now: str | None = None,
 ) -> tuple[dict[str, Any], int]:
-    path, state = _load_state(state_file)
-    if state["status"] != "armed":
-        raise ValueError("mark-dispatched requires an armed precommit state")
-    current = _iso_now(now)
-    supplied = _require_string(control_turn_id, "control_turn_id")
-    state["submission_id"] = _require_string(submission_id, "submission_id")
-    state["polling"]["dispatched_at"] = _iso(current)
-    state["updated_at"] = _iso(current)
-    if state["control_turn_id"] != supplied:
-        _set_control_failed(state, "control-turn-mismatch-after-native-send", current)
-    elif _elapsed_ms(state["polling"]["armed_at"], current) > state["poll_config"]["arm_to_dispatch_max_ms"]:
-        _set_control_failed(state, "arm-to-dispatch-latency-exceeded", current)
-    else:
-        state["status"] = "fit-dispatched"
-        _control_receipt(state, "native-send-input", current)
-        _control_receipt(state, "dispatch-marked", current)
-    _audit(state, "native_precommit_fit_dispatched")
-    _write_state(path, state)
-    _update_lease_state(state)
-    return state, 2 if state["status"] == "control-failed" else 0
+    with _state_lock(state_file) as path:
+        _, state = _load_state_unlocked(path)
+        _require_live_owner_identity(state)
+        if state["status"] != "armed":
+            raise ValueError("mark-dispatched requires an armed precommit state")
+        current = _iso_now(now)
+        supplied = _require_string(control_turn_id, "control_turn_id")
+        state["submission_id"] = _require_string(submission_id, "submission_id")
+        state["polling"]["dispatched_at"] = _iso(current)
+        state["updated_at"] = _iso(current)
+        if state["control_turn_id"] != supplied:
+            _set_control_failed(state, "control-turn-mismatch-after-native-send", current)
+        elif _elapsed_ms(state["polling"]["armed_at"], current) > state["poll_config"]["arm_to_dispatch_max_ms"]:
+            _set_control_failed(state, "arm-to-dispatch-latency-exceeded", current)
+        else:
+            state["status"] = "fit-dispatched"
+            _control_receipt(state, "native-send-input", current)
+            _control_receipt(state, "dispatch-marked", current)
+        _audit(state, "native_precommit_fit_dispatched")
+        _write_state(path, state)
+        _update_lease_state(state)
+        return state, 2 if state["status"] == "control-failed" else 0
 
 
 def check_precommit(
@@ -1054,76 +1293,78 @@ def check_precommit(
     *,
     now: str | None = None,
 ) -> tuple[dict[str, Any], int]:
-    path, state = _load_state(state_file)
-    try:
-        _require_control_turn(state, control_turn_id)
-    except ValueError:
+    with _state_lock(state_file) as path:
+        _, state = _load_state_unlocked(path)
+        _require_live_owner_identity(state)
+        try:
+            _require_control_turn(state, control_turn_id)
+        except ValueError:
+            current = _iso_now(now)
+            _set_control_failed(state, "control-turn-mismatch-during-precommit-monitoring", current)
+            _audit(state, "native_precommit_control_lost")
+            _write_state(path, state)
+            _update_lease_state(state)
+            return state, 2
+        if state["status"] == FINAL_STATE:
+            return state, 2 if state["closure_outcome"] != "completed" else 0
+        if state["status"] not in {"fit-dispatched", "completed", "interrupt-pending", "control-failed"}:
+            raise ValueError("check requires a fit-dispatched precommit state")
         current = _iso_now(now)
-        _set_control_failed(state, "control-turn-mismatch-during-precommit-monitoring", current)
-        _audit(state, "native_precommit_control_lost")
+        if state["status"] == "fit-dispatched":
+            _record_poll(state, current)
+        try:
+            session_path = Path(state["session_file"])
+            _prefix_is_intact(session_path, state["baseline"])
+            boundary, records = _boundary(session_path, state["session_id"])
+            delta = records[int(state["baseline"]["record_count"]):]
+            models, attestation_errors = _trusted_models(delta)
+            if attestation_errors or (models and models != {state["requested_model"]}):
+                raise ValueError("trusted model attestation changed during precommit fit")
+            activity = _activity(delta)
+            report = _workspace_report(state["workspace_baseline"])
+            activity["workspace_mutations"] = len(report.get("mutations", []))
+            activity["workspace_evidence_sha256"] = canonical_sha256(report)
+            if report.get("mutation_detected"):
+                activity["forbidden_events"].append("workspace-mutation")
+                activity["first_forbidden_event"] = activity["first_forbidden_event"] or {
+                    "kind": "workspace-mutation",
+                    "record_index": None,
+                }
+            activity["forbidden_events"] = list(dict.fromkeys(activity["forbidden_events"]))
+            state["observed"] = activity
+            state["terminal"] = boundary
+            forbidden = bool(activity["forbidden_events"])
+            if state["status"] == "control-failed":
+                state["interrupt_requested"] = True
+            elif state["interrupt_requested"] or forbidden:
+                state["status"] = "interrupt-pending"
+                state["decision"] = "interrupt"
+                state["interrupt_requested"] = True
+                state["reasons"] = list(activity["forbidden_events"]) or state["reasons"]
+            elif activity["task_complete_observed"]:
+                response = _final_response(delta)
+                state["final_response_sha256"] = _text_sha256(response or "")
+                try:
+                    state["fit_result"] = parse_fit_result(response or "")
+                    state["semantic_status"] = "valid"
+                    state["decision"] = state["fit_result"]["decision"]
+                    state["reasons"] = []
+                except ValueError as exc:
+                    state["fit_result"] = None
+                    state["semantic_status"] = "invalid"
+                    state["decision"] = "reject"
+                    state["reasons"] = [str(exc)]
+                state["status"] = "completed"
+            else:
+                state["decision"] = "continue"
+                state["reasons"] = []
+        except ValueError as exc:
+            _set_control_failed(state, str(exc), current)
+        state["updated_at"] = _iso(current)
+        _audit(state, "native_precommit_checked")
         _write_state(path, state)
         _update_lease_state(state)
-        return state, 2
-    if state["status"] == FINAL_STATE:
-        return state, 2 if state["closure_outcome"] != "completed" else 0
-    if state["status"] not in {"fit-dispatched", "completed", "interrupt-pending", "control-failed"}:
-        raise ValueError("check requires a fit-dispatched precommit state")
-    current = _iso_now(now)
-    if state["status"] == "fit-dispatched":
-        _record_poll(state, current)
-    try:
-        session_path = Path(state["session_file"])
-        _prefix_is_intact(session_path, state["baseline"])
-        boundary, records = _boundary(session_path, state["session_id"])
-        delta = records[int(state["baseline"]["record_count"]):]
-        models, attestation_errors = _trusted_models(delta)
-        if attestation_errors or (models and models != {state["requested_model"]}):
-            raise ValueError("trusted model attestation changed during precommit fit")
-        activity = _activity(delta)
-        report = _workspace_report(state["workspace_baseline"])
-        activity["workspace_mutations"] = len(report.get("mutations", []))
-        activity["workspace_evidence_sha256"] = canonical_sha256(report)
-        if report.get("mutation_detected"):
-            activity["forbidden_events"].append("workspace-mutation")
-            activity["first_forbidden_event"] = activity["first_forbidden_event"] or {
-                "kind": "workspace-mutation",
-                "record_index": None,
-            }
-        activity["forbidden_events"] = list(dict.fromkeys(activity["forbidden_events"]))
-        state["observed"] = activity
-        state["terminal"] = boundary
-        forbidden = bool(activity["forbidden_events"])
-        if state["status"] == "control-failed":
-            state["interrupt_requested"] = True
-        elif state["interrupt_requested"] or forbidden:
-            state["status"] = "interrupt-pending"
-            state["decision"] = "interrupt"
-            state["interrupt_requested"] = True
-            state["reasons"] = list(activity["forbidden_events"]) or state["reasons"]
-        elif activity["task_complete_observed"]:
-            response = _final_response(delta)
-            state["final_response_sha256"] = _text_sha256(response or "")
-            try:
-                state["fit_result"] = parse_fit_result(response or "")
-                state["semantic_status"] = "valid"
-                state["decision"] = state["fit_result"]["decision"]
-                state["reasons"] = []
-            except ValueError as exc:
-                state["fit_result"] = None
-                state["semantic_status"] = "invalid"
-                state["decision"] = "reject"
-                state["reasons"] = [str(exc)]
-            state["status"] = "completed"
-        else:
-            state["decision"] = "continue"
-            state["reasons"] = []
-    except ValueError as exc:
-        _set_control_failed(state, str(exc), current)
-    state["updated_at"] = _iso(current)
-    _audit(state, "native_precommit_checked")
-    _write_state(path, state)
-    _update_lease_state(state)
-    return state, 2 if state["status"] in {"interrupt-pending", "control-failed"} else 0
+        return state, 2 if state["status"] in {"interrupt-pending", "control-failed"} else 0
 
 
 def finalize_precommit(
@@ -1133,56 +1374,58 @@ def finalize_precommit(
     *,
     now: str | None = None,
 ) -> dict[str, Any]:
-    path, state = _load_state(state_file)
-    try:
-        _require_control_turn(state, control_turn_id)
-    except ValueError:
+    with _state_lock(state_file) as path:
+        _, state = _load_state_unlocked(path)
+        _require_live_owner_identity(state)
+        try:
+            _require_control_turn(state, control_turn_id)
+        except ValueError:
+            current = _iso_now(now)
+            _set_control_failed(state, "control-turn-mismatch-during-precommit-finalization", current)
+            _audit(state, "native_precommit_control_lost")
+            _write_state(path, state)
+            _update_lease_state(state)
+            return state
+        if control_action not in COMPLETION_ACTIONS:
+            raise ValueError("unknown precommit control action")
+        if state["status"] == FINAL_STATE:
+            raise ValueError("closed precommit state cannot be reopened")
         current = _iso_now(now)
-        _set_control_failed(state, "control-turn-mismatch-during-precommit-finalization", current)
-        _audit(state, "native_precommit_control_lost")
+        if control_action == "worker-completed":
+            if state["status"] != "completed" or state["interrupt_requested"]:
+                raise ValueError("worker-completed requires unambiguous clean completion")
+            _control_receipt(state, control_action, current)
+        elif control_action == "interrupt-confirmed":
+            if not state["interrupt_requested"] and state["status"] not in {"interrupt-pending", "control-failed"}:
+                raise ValueError("interrupt-confirmed requires a prior interrupt request")
+            state["interrupt_requested"] = True
+            _control_receipt(state, control_action, current)
+        elif control_action == "control-failed":
+            _set_control_failed(state, "control-plane-reported-failure", current)
+            _control_receipt(state, control_action, current)
+        elif control_action == "close-confirmed":
+            actions = [item.get("action") for item in state["control_receipts"]]
+            if state["status"] == "completed" and not state["interrupt_requested"]:
+                if "worker-completed" not in actions:
+                    raise ValueError("clean close requires a worker-completed control receipt")
+                outcome = "completed"
+            elif state["status"] == "control-failed":
+                if "interrupt-confirmed" not in actions:
+                    raise ValueError("control-failed close requires interrupt confirmation")
+                outcome = "control-failed"
+            else:
+                if "interrupt-confirmed" not in actions:
+                    raise ValueError("interrupted close requires interrupt confirmation")
+                outcome = "interrupted"
+            _control_receipt(state, control_action, current)
+            state["closure_outcome"] = outcome
+            state["status"] = FINAL_STATE
+            state["closed_at"] = _iso(current)
+        state["updated_at"] = _iso(current)
+        _audit(state, "native_precommit_control_receipt")
         _write_state(path, state)
         _update_lease_state(state)
         return state
-    if control_action not in COMPLETION_ACTIONS:
-        raise ValueError("unknown precommit control action")
-    if state["status"] == FINAL_STATE:
-        raise ValueError("closed precommit state cannot be reopened")
-    current = _iso_now(now)
-    if control_action == "worker-completed":
-        if state["status"] != "completed" or state["interrupt_requested"]:
-            raise ValueError("worker-completed requires unambiguous clean completion")
-        _control_receipt(state, control_action, current)
-    elif control_action == "interrupt-confirmed":
-        if not state["interrupt_requested"] and state["status"] not in {"interrupt-pending", "control-failed"}:
-            raise ValueError("interrupt-confirmed requires a prior interrupt request")
-        state["interrupt_requested"] = True
-        _control_receipt(state, control_action, current)
-    elif control_action == "control-failed":
-        _set_control_failed(state, "control-plane-reported-failure", current)
-        _control_receipt(state, control_action, current)
-    elif control_action == "close-confirmed":
-        actions = [item.get("action") for item in state["control_receipts"]]
-        if state["status"] == "completed" and not state["interrupt_requested"]:
-            if "worker-completed" not in actions:
-                raise ValueError("clean close requires a worker-completed control receipt")
-            outcome = "completed"
-        elif state["status"] == "control-failed":
-            if "interrupt-confirmed" not in actions:
-                raise ValueError("control-failed close requires interrupt confirmation")
-            outcome = "control-failed"
-        else:
-            if "interrupt-confirmed" not in actions:
-                raise ValueError("interrupted close requires interrupt confirmation")
-            outcome = "interrupted"
-        _control_receipt(state, control_action, current)
-        state["closure_outcome"] = outcome
-        state["status"] = FINAL_STATE
-        state["closed_at"] = _iso(current)
-    state["updated_at"] = _iso(current)
-    _audit(state, "native_precommit_control_receipt")
-    _write_state(path, state)
-    _update_lease_state(state)
-    return state
 
 
 def _token_telemetry(baseline: Mapping[str, Any], terminal: Mapping[str, Any]) -> dict[str, Any]:
@@ -1225,7 +1468,18 @@ def issue_precommit_receipt(
     *,
     receipt_file: str | Path | None = None,
 ) -> dict[str, Any]:
-    state_path, state = _load_state(state_file)
+    with _state_lock(state_file) as state_path:
+        _, state = _load_state_unlocked(state_path)
+        _require_live_owner_identity(state)
+        return _issue_precommit_receipt_locked(state_path, state, receipt_file=receipt_file)
+
+
+def _issue_precommit_receipt_locked(
+    state_path: Path,
+    state: dict[str, Any],
+    *,
+    receipt_file: str | Path | None = None,
+) -> dict[str, Any]:
     if state["status"] != FINAL_STATE:
         raise ValueError("precommit receipt requires a closed state")
     current_boundary, _ = _boundary(Path(state["session_file"]), state["session_id"])
@@ -1240,7 +1494,7 @@ def issue_precommit_receipt(
         observed["forbidden_events"] = list(dict.fromkeys([*observed["forbidden_events"], "workspace-mutation"]))
     receipt: dict[str, Any] = {
         "receipt_type": RECEIPT_TYPE,
-        "version": 1,
+        "version": 2,
         "schema": RECEIPT_SCHEMA,
         "receipt_id": f"precommit-receipt-{uuid.uuid4().hex}",
         "state_id": state["state_id"],
@@ -1256,6 +1510,9 @@ def issue_precommit_receipt(
         "requested_model": state["requested_model"],
         "attested_model": state["attested_model"],
         "attestation_source": state["attestation_source"],
+        "owner_identity": dict(state["owner_identity"]),
+        "control_execution_handle": state["control_execution_handle"],
+        "control_topology": state["control_topology"],
         "control_turn_id": state["control_turn_id"],
         "submission_id": state["submission_id"],
         "work_plan_sha256": state["work_plan_sha256"],
@@ -1388,16 +1645,23 @@ def _validate_polling_shape(value: Any, field: str) -> dict[str, Any]:
     return polling
 
 
-def _validate_control_receipts(value: Any, field: str, control_turn_id: Any) -> list[dict[str, Any]]:
+def _validate_control_receipts(
+    value: Any,
+    field: str,
+    control_turn_id: Any,
+    control_execution_handle: Any,
+) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         raise ValueError(f"{field} must be a list")
     receipts: list[dict[str, Any]] = []
     for index, item in enumerate(value):
         receipt = _require_exact_fields(item, CONTROL_RECEIPT_FIELDS, f"{field}[{index}]")
-        for key in ("action", "control_turn_id", "at", "receipt_id"):
+        for key in ("action", "control_turn_id", "control_execution_handle", "at", "receipt_id"):
             _require_string(receipt.get(key), f"{field}[{index}].{key}")
         if control_turn_id is not None and receipt.get("control_turn_id") != control_turn_id:
             raise ValueError(f"{field}[{index}].control_turn_id contradicts state binding")
+        if receipt.get("control_execution_handle") != control_execution_handle:
+            raise ValueError(f"{field}[{index}].control_execution_handle contradicts state binding")
         if receipt.get("submission_id") is not None and not isinstance(receipt.get("submission_id"), str):
             raise ValueError(f"{field}[{index}].submission_id must be a string or null")
         receipts.append(receipt)
@@ -1408,7 +1672,7 @@ def validate_precommit_state(value: Any) -> list[str]:
     errors: list[str] = []
     try:
         state = _require_exact_fields(value, STATE_FIELDS, "precommit state")
-        if state.get("state_type") != STATE_TYPE or state.get("version") != 1 or state.get("schema") != STATE_SCHEMA:
+        if state.get("state_type") != STATE_TYPE or state.get("version") != 2 or state.get("schema") != STATE_SCHEMA:
             raise ValueError("precommit state type, version, or schema is invalid")
         if state.get("validation_rule_version") != VALIDATION_RULE_VERSION:
             raise ValueError("precommit state validation rule version is invalid")
@@ -1427,6 +1691,8 @@ def validate_precommit_state(value: Any) -> list[str]:
             "requested_model",
             "attested_model",
             "attestation_source",
+            "control_execution_handle",
+            "control_topology",
             "workdir",
             "audit_file",
             "created_at",
@@ -1435,6 +1701,13 @@ def validate_precommit_state(value: Any) -> list[str]:
             _require_string(state.get(field), field)
         _require_hash(state.get("work_plan_sha256"), "work_plan_sha256")
         _require_hash(state.get("fit_prompt_sha256"), "fit_prompt_sha256")
+        owner_identity = _validate_owner_identity_shape(state.get("owner_identity"))
+        if state.get("owner_pid") != owner_identity["pid"]:
+            raise ValueError("owner_pid contradicts owner_identity.pid")
+        if state.get("control_execution_handle") != owner_identity["execution_handle"]:
+            raise ValueError("control_execution_handle contradicts owner identity")
+        if state.get("control_topology") != "single-host-process-v1":
+            raise ValueError("control_topology is invalid")
         _validate_boundary_shape(state.get("baseline"), "baseline")
         if state.get("terminal") is not None:
             _validate_boundary_shape(state.get("terminal"), "terminal")
@@ -1451,7 +1724,12 @@ def validate_precommit_state(value: Any) -> list[str]:
         _validate_polling_shape(state.get("polling"), "polling")
         if state.get("fit_result") is not None:
             _validate_fit_result_shape(state.get("fit_result"), "fit_result")
-        _validate_control_receipts(state.get("control_receipts"), "control_receipts", state.get("control_turn_id"))
+        _validate_control_receipts(
+            state.get("control_receipts"),
+            "control_receipts",
+            state.get("control_turn_id"),
+            state.get("control_execution_handle"),
+        )
         audit_hashes = state.get("audit_event_hashes")
         if not isinstance(audit_hashes, list):
             raise ValueError("audit_event_hashes must be a list")
@@ -1504,7 +1782,7 @@ def validate_precommit_receipt(
     errors: list[str] = []
     try:
         receipt = _require_exact_fields(value, RECEIPT_FIELDS, "precommit receipt")
-        if receipt.get("receipt_type") != RECEIPT_TYPE or receipt.get("version") != 1 or receipt.get("schema") != RECEIPT_SCHEMA:
+        if receipt.get("receipt_type") != RECEIPT_TYPE or receipt.get("version") != 2 or receipt.get("schema") != RECEIPT_SCHEMA:
             raise ValueError("precommit receipt type, version, or schema is invalid")
         if receipt.get("validation_rule_version") != VALIDATION_RULE_VERSION:
             raise ValueError("precommit receipt validation rule version is invalid")
@@ -1522,6 +1800,8 @@ def validate_precommit_receipt(
             "requested_model",
             "attested_model",
             "attestation_source",
+            "control_execution_handle",
+            "control_topology",
             "control_turn_id",
             "submission_id",
             "closure_outcome",
@@ -1531,6 +1811,11 @@ def validate_precommit_receipt(
             _require_string(receipt.get(field), field)
         for field in ("state_sha256", "work_plan_sha256", "fit_prompt_sha256", "final_response_sha256", "receipt_sha256"):
             _require_hash(receipt.get(field), field)
+        owner_identity = _validate_owner_identity_shape(receipt.get("owner_identity"))
+        if receipt.get("control_execution_handle") != owner_identity["execution_handle"]:
+            raise ValueError("receipt control_execution_handle contradicts owner identity")
+        if receipt.get("control_topology") != "single-host-process-v1":
+            raise ValueError("receipt control_topology is invalid")
         if receipt["receipt_sha256"] != _receipt_hash(receipt):
             raise ValueError("precommit receipt canonical hash mismatch")
         baseline = _validate_boundary_shape(receipt.get("baseline"), "baseline")
@@ -1550,7 +1835,12 @@ def validate_precommit_receipt(
         _validate_polling_shape(receipt.get("polling"), "polling")
         if receipt.get("fit_result") is not None:
             _validate_fit_result_shape(receipt.get("fit_result"), "fit_result")
-        _validate_control_receipts(receipt.get("control_receipts"), "control_receipts", receipt.get("control_turn_id"))
+        _validate_control_receipts(
+            receipt.get("control_receipts"),
+            "control_receipts",
+            receipt.get("control_turn_id"),
+            receipt.get("control_execution_handle"),
+        )
         hashes = receipt.get("audit_event_hashes")
         if not isinstance(hashes, list) or not hashes:
             raise ValueError("audit_event_hashes must contain direct supervisor provenance")
@@ -1587,9 +1877,21 @@ def validate_precommit_receipt(
         if live:
             state_path, state = _load_state(receipt["state_file"])
             _ = state_path
+            _require_live_owner_identity(state)
             if canonical_sha256(state) != receipt["state_sha256"]:
                 raise ValueError("receipt state binding changed after issuance")
-            for field in ("state_id", "packet_id", "attempt_nonce", "session_id", "agent_id", "control_turn_id", "submission_id"):
+            for field in (
+                "state_id",
+                "packet_id",
+                "attempt_nonce",
+                "session_id",
+                "agent_id",
+                "control_turn_id",
+                "control_execution_handle",
+                "control_topology",
+                "owner_identity",
+                "submission_id",
+            ):
                 if state.get(field) != receipt.get(field):
                     raise ValueError(f"receipt {field} no longer matches bound state")
             session_path = _secure_input_file(receipt["session_file"], "receipt session file")
@@ -1620,6 +1922,7 @@ def make_deterministic_receipt(
     receipt_file: str | Path | None = None,
     attempt_nonce: str | None = None,
     owner_pid: int | None = None,
+    control_execution_handle: str | None = None,
     audit_file: str | Path | None = None,
     now: str | None = None,
 ) -> dict[str, Any]:
@@ -1639,32 +1942,35 @@ def make_deterministic_receipt(
         state_file=state_file,
         attempt_nonce=attempt_nonce,
         owner_pid=owner_pid,
+        control_execution_handle=control_execution_handle,
         audit_file=audit_file,
         now=now,
     )
-    state_path, state = _load_state(state_result["state_file"])
-    current = _iso_now(now)
-    state["control_turn_id"] = _require_string(control_turn_id, "control_turn_id")
-    state["submission_id"] = "deterministic-policy"
-    state["status"] = "completed"
-    state["decision"] = normalized["decision"]
-    state["terminal"] = dict(state["baseline"])
-    state["semantic_status"] = "valid"
-    state["fit_result"] = normalized
-    state["final_response_sha256"] = _text_sha256("")
-    state["polling"]["armed_at"] = _iso(current)
-    state["polling"]["dispatched_at"] = _iso(current)
-    _control_receipt(state, "arm", current)
-    _control_receipt(state, "deterministic-fit", current)
-    _control_receipt(state, "worker-completed", current)
-    _control_receipt(state, "close-confirmed", current)
-    state["closure_outcome"] = "completed"
-    state["status"] = FINAL_STATE
-    state["closed_at"] = _iso(current)
-    state["updated_at"] = _iso(current)
-    _audit(state, "native_precommit_deterministic_closed")
-    _write_state(state_path, state)
-    _update_lease_state(state)
+    with _state_lock(state_result["state_file"]) as state_path:
+        _, state = _load_state_unlocked(state_path)
+        _require_live_owner_identity(state)
+        current = _iso_now(now)
+        state["control_turn_id"] = _require_string(control_turn_id, "control_turn_id")
+        state["submission_id"] = "deterministic-policy"
+        state["status"] = "completed"
+        state["decision"] = normalized["decision"]
+        state["terminal"] = dict(state["baseline"])
+        state["semantic_status"] = "valid"
+        state["fit_result"] = normalized
+        state["final_response_sha256"] = _text_sha256("")
+        state["polling"]["armed_at"] = _iso(current)
+        state["polling"]["dispatched_at"] = _iso(current)
+        _control_receipt(state, "arm", current)
+        _control_receipt(state, "deterministic-fit", current)
+        _control_receipt(state, "worker-completed", current)
+        _control_receipt(state, "close-confirmed", current)
+        state["closure_outcome"] = "completed"
+        state["status"] = FINAL_STATE
+        state["closed_at"] = _iso(current)
+        state["updated_at"] = _iso(current)
+        _audit(state, "native_precommit_deterministic_closed")
+        _write_state(state_path, state)
+        _update_lease_state(state)
     receipt = issue_precommit_receipt(state_path, receipt_file=receipt_file)
     payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
     errors = validate_precommit_receipt(

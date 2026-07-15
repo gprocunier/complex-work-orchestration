@@ -330,6 +330,50 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(report["evidence_disposition_summary"]["accepted_findings"], 1)
         self.assertEqual(report["evidence_disposition_summary"]["rejected_findings"], 1)
 
+    def test_incomplete_local_review_is_excluded_from_productive_call_total(self) -> None:
+        report = build_execution_status_report(
+            audit_events=[
+                {
+                    "dispatch_id": "glm-usable",
+                    "event_type": "dispatch_prepared",
+                    "timestamp": "2026-07-15T20:00:00Z",
+                    "bead_id": "cwo-glm",
+                    "executor_key": "rhoai_glm_hardened_architecture_critic",
+                    "provider_key": "openshift_ai_vllm",
+                    "agent_model_calls": 1,
+                    "attempted_model_calls": 1,
+                    "usable_model_calls": 1,
+                    "incomplete_model_calls": 0,
+                    "completion_status": "completed",
+                    "input_tokens": 10,
+                    "output_tokens": 20,
+                    "total_tokens": 30,
+                    "telemetry_status": "completed",
+                },
+                {
+                    "dispatch_id": "glm-reasoning-only",
+                    "event_type": "dispatch_prepared",
+                    "timestamp": "2026-07-15T20:01:00Z",
+                    "bead_id": "cwo-glm",
+                    "executor_key": "rhoai_glm_hardened_architecture_critic",
+                    "provider_key": "openshift_ai_vllm",
+                    "agent_model_calls": 0,
+                    "attempted_model_calls": 1,
+                    "usable_model_calls": 0,
+                    "incomplete_model_calls": 1,
+                    "completion_status": "empty-final-content",
+                    "input_tokens": 10,
+                    "output_tokens": 8192,
+                    "total_tokens": 8202,
+                    "telemetry_status": "failed",
+                },
+            ]
+        )
+        summary = report["executive_summary"]
+        self.assertEqual(summary["agent_model_calls"], "1")
+        self.assertEqual(summary["completed"], 1)
+        self.assertEqual(summary["failed"], 1)
+
     def test_process_holds_are_reported_separately_from_quarantine_and_reject(self) -> None:
         report = build_execution_status_report(
             acceptance_decisions=[

@@ -5,6 +5,19 @@
   "additionalProperties": false,
   "$defs": {
     "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ownerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_time_ticks", "process_group_id", "session_id", "boot_id_sha256", "execution_handle"],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "start_time_ticks": {"type": "integer", "minimum": 1},
+        "process_group_id": {"type": "integer", "minimum": 1},
+        "session_id": {"type": "integer", "minimum": 1},
+        "boot_id_sha256": {"$ref": "#/$defs/hash"},
+        "execution_handle": {"type": "string", "minLength": 1}
+      }
+    },
     "boundary": {
       "type": "object",
       "additionalProperties": false,
@@ -94,10 +107,11 @@
     "controlReceipt": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["action", "control_turn_id", "submission_id", "at", "receipt_id"],
+      "required": ["action", "control_turn_id", "control_execution_handle", "submission_id", "at", "receipt_id"],
       "properties": {
         "action": {"type": "string", "minLength": 1},
         "control_turn_id": {"type": "string", "minLength": 1},
+        "control_execution_handle": {"type": "string", "minLength": 1},
         "submission_id": {"type": ["string", "null"]},
         "at": {"type": "string", "minLength": 1},
         "receipt_id": {"type": "string", "minLength": 1}
@@ -128,7 +142,7 @@
   "required": [
     "receipt_type", "version", "schema", "receipt_id", "state_id", "state_file", "state_sha256",
     "packet_id", "work_unit_id", "bead_id", "attempt_nonce", "session_id", "session_file", "agent_id",
-    "requested_model", "attested_model", "attestation_source", "control_turn_id", "submission_id",
+    "requested_model", "attested_model", "attestation_source", "owner_identity", "control_execution_handle", "control_topology", "control_turn_id", "submission_id",
     "work_plan_sha256", "fit_prompt_sha256", "workspace_baseline", "baseline", "terminal",
     "token_telemetry", "observed", "polling", "control_receipts", "audit_event_hashes",
     "final_response_sha256", "semantic_status", "fit_result", "closure_outcome", "disposition",
@@ -136,7 +150,7 @@
   ],
   "properties": {
     "receipt_type": {"const": "cwo-native-precommit-receipt"},
-    "version": {"const": 1},
+    "version": {"const": 2},
     "schema": {"const": "schemas/native-precommit-receipt.schema.json"},
     "receipt_id": {"type": "string", "minLength": 1},
     "state_id": {"type": "string", "minLength": 1},
@@ -152,6 +166,9 @@
     "requested_model": {"const": "gpt-5.3-codex-spark"},
     "attested_model": {"const": "gpt-5.3-codex-spark"},
     "attestation_source": {"const": "trusted-control-plane-session-metadata"},
+    "owner_identity": {"$ref": "#/$defs/ownerIdentity"},
+    "control_execution_handle": {"type": "string", "minLength": 1},
+    "control_topology": {"const": "single-host-process-v1"},
     "control_turn_id": {"type": "string", "minLength": 1},
     "submission_id": {"type": "string", "minLength": 1},
     "work_plan_sha256": {"$ref": "#/$defs/hash"},
@@ -169,7 +186,7 @@
     "fit_result": {"oneOf": [{"$ref": "#/$defs/fitResult"}, {"type": "null"}]},
     "closure_outcome": {"enum": ["completed", "interrupted", "control-failed"]},
     "disposition": {"enum": ["accept", "reject", "quarantine"]},
-    "validation_rule_version": {"const": "native-precommit-receipt:v1"},
+    "validation_rule_version": {"const": "native-precommit-receipt:v2"},
     "provenance": {"$ref": "#/$defs/provenance"},
     "accepting": {"type": "boolean"},
     "receipt_sha256": {"$ref": "#/$defs/hash"}

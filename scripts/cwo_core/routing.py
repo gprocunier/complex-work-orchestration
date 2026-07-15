@@ -134,7 +134,7 @@ CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
 
 DEFAULT_EXECUTION_ENVIRONMENT = "connected-codex"
 GLM_PRIMARY_EXECUTION_ENVIRONMENT = "connected-codex-glm-primary"
-GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_architecture_critic"
+GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_hardened_architecture_critic"
 GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "rhoai_glm_primary_architect"
 CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_architecture_critic"
 LOCAL_DISPATCH_MODES = {"local_openai_compatible", "local_secure_review"}
@@ -805,7 +805,7 @@ def score_executors(
         if is_architecture_review_task and key == "claude_architecture_critic" and explicit_claude_architect_critique_requested(text):
             score += 32
             reasons.append("explicit Claude Opus architect critique request")
-        if is_architecture_review_task and key == "rhoai_glm_architecture_critic" and explicit_glm_architect_critique_requested(text):
+        if is_architecture_review_task and key == GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR and explicit_glm_architect_critique_requested(text):
             score += 34
             reasons.append("explicit GLM-5.2 BF16 architect critique request")
         if key == "chatgpt_pro_browser_master_reviewer" and explicit_chatgpt_master_plan_review_requested(text):
@@ -1106,7 +1106,7 @@ def classify_work(
             contract["claude_effort"] = claude_effort
             if default_command:
                 contract["manual_command"] = command_with_claude_effort(default_command, claude_effort)
-        elif key == "rhoai_glm_architecture_critic":
+        elif key == GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR:
             contract["local_profile"] = candidate.get("local_profile")
             contract["model_profile"] = candidate.get("model_profile")
         elif default_command:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -20,7 +21,10 @@ from cwo_core.native_precommit import (  # noqa: E402
     issue_precommit_receipt,
     mark_fit_dispatched,
     create_precommit_state,
+    release_precommit_receipt_reservation,
+    reserve_precommit_receipt,
 )
+import cwo_core.native_precommit as native_precommit  # noqa: E402
 from cwo_core.work_sizing import (  # noqa: E402
     build_worker_commitment_from_receipt,
     canonical_work_estimate_sha256,
@@ -231,6 +235,54 @@ class NativePrecommitPacketTests(unittest.TestCase):
                 precommit_receipt=self.receipt,
                 packet_id=self.packet_id,
             )
+
+    def test_concurrent_packet_builders_allow_exactly_one_consumption(self) -> None:
+        def build_once() -> tuple[str, str]:
+            try:
+                packet = self.build()
+            except SystemExit as exc:
+                return "rejected", str(exc)
+            return "built", packet["packet_id"]
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: build_once(), range(2)))
+        self.assertEqual(sum(status == "built" for status, _ in results), 1)
+        rejected = [message for status, message in results if status == "rejected"]
+        self.assertEqual(len(rejected), 1)
+        self.assertRegex(rejected[0], "active packet-build reservation|replay detected")
+
+    def test_failed_packet_build_releases_receipt_reservation(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "unknown lane"):
+            build_native_worker_packet(
+                bead_id=self.plan["bead_id"],
+                lane="unknown-lane",
+                workdir=str(ROOT),
+                allowed_paths=self.plan["write_paths"],
+                acceptance_checks=self.plan["acceptance_checks"],
+                work_plan=self.plan,
+                precommit_receipt=self.receipt,
+                packet_id=self.packet_id,
+            )
+        self.assertEqual(self.build()["packet_id"], self.packet_id)
+
+    def test_stale_reservation_cleanup_requires_dead_owner_and_terminal_state(self) -> None:
+        reservation_id = reserve_precommit_receipt(self.receipt, "stale-build")
+        sleeper = subprocess.Popen(["sleep", "30"])
+        self.addCleanup(lambda: sleeper.poll() is None and sleeper.terminate())
+        registry_path = self.registry / "receipt-reservations.json"
+        reservations = json.loads(registry_path.read_text(encoding="utf-8"))
+        reservations[self.receipt["receipt_sha256"]]["owner_identity"] = native_precommit._capture_owner_identity(
+            sleeper.pid,
+            reservation_id,
+        )
+        registry_path.write_text(
+            json.dumps(reservations, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        sleeper.terminate()
+        sleeper.wait(timeout=5)
+        replacement = reserve_precommit_receipt(self.receipt, "replacement-build")
+        release_precommit_receipt_reservation(self.receipt, replacement)
 
     def test_render_and_native_supervisor_reject_candidate(self) -> None:
         packet = self.build()

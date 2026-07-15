@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import json
 import os
@@ -344,20 +345,12 @@ class NativePrecommitTests(unittest.TestCase):
                 session_file=other_session,
                 state_file=self.root / "other-state.json",
             )
-        sleeper.terminate()
-        sleeper.wait(timeout=5)
-        with self.assertRaisesRegex(ValueError, "owner is dead.*non-terminal"):
-            self.create(
-                packet_id="third-packet",
-                attempt_nonce="third-nonce",
-                session_id="other-session",
-                session_file=other_session,
-                state_file=self.root / "third-state.json",
-            )
         arm_precommit(self.state_file, CONTROL_TURN, now="2026-07-15T00:00:00.100Z")
         finalize_precommit(self.state_file, CONTROL_TURN, "control-failed", now="2026-07-15T00:00:00.200Z")
         finalize_precommit(self.state_file, CONTROL_TURN, "interrupt-confirmed", now="2026-07-15T00:00:00.300Z")
         finalize_precommit(self.state_file, CONTROL_TURN, "close-confirmed", now="2026-07-15T00:00:00.400Z")
+        sleeper.terminate()
+        sleeper.wait(timeout=5)
         created = self.create(
             packet_id="terminal-cleanup-packet",
             attempt_nonce="terminal-cleanup-nonce",
@@ -367,6 +360,36 @@ class NativePrecommitTests(unittest.TestCase):
         )
         self.assertEqual(created["status"], "created")
 
+        dead_owner = subprocess.Popen(["sleep", "30"])
+        self.addCleanup(lambda: dead_owner.poll() is None and dead_owner.terminate())
+        second_state = self.root / "dead-owner-state.json"
+        second_session = self.root / "dead-owner-session.jsonl"
+        dead_owner_worktree = self.root / "dead-owner-worktree"
+        dead_owner_worktree.mkdir()
+        write_records(second_session, [session_record("dead-owner-session")])
+        self.create(
+            packet_id="dead-owner-packet",
+            attempt_nonce="dead-owner-nonce",
+            session_id="dead-owner-session",
+            session_file=second_session,
+            workdir=dead_owner_worktree,
+            state_file=second_state,
+            owner_pid=dead_owner.pid,
+        )
+        dead_owner.terminate()
+        dead_owner.wait(timeout=5)
+        third_session = self.root / "third-session.jsonl"
+        write_records(third_session, [session_record("third-session")])
+        with self.assertRaisesRegex(ValueError, "owner is dead.*non-terminal"):
+            self.create(
+                packet_id="third-packet",
+                attempt_nonce="third-nonce",
+                session_id="third-session",
+                session_file=third_session,
+                workdir=dead_owner_worktree,
+                state_file=self.root / "third-state.json",
+            )
+
     def test_failed_workspace_comparison_fails_closed(self) -> None:
         self.create()
         self.dispatch()
@@ -375,6 +398,46 @@ class NativePrecommitTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(state["status"], "control-failed")
         self.assertIn("comparison failed", state["reasons"])
+
+    def test_state_transition_lock_serializes_concurrent_writers(self) -> None:
+        self.create()
+
+        def arm_once() -> str:
+            try:
+                arm_precommit(self.state_file, CONTROL_TURN, now="2026-07-15T00:00:00.100Z")
+            except ValueError as exc:
+                return str(exc)
+            return "armed"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: arm_once(), range(2)))
+        self.assertEqual(results.count("armed"), 1)
+        self.assertEqual(sum("requires a created" in result for result in results), 1)
+        state = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertEqual(state["status"], "armed")
+        self.assertEqual(native_precommit.validate_precommit_state(state), [])
+
+    def test_pid_birth_and_topology_identity_changes_fail_closed(self) -> None:
+        for field in ("start_time_ticks", "process_group_id", "session_id"):
+            with self.subTest(field=field):
+                os.environ["CWO_PRECOMMIT_REGISTRY_ROOT"] = str(self.root / f"{field}-registry")
+                state_path = self.root / f"{field}-state.json"
+                self.create(
+                    packet_id=f"{field}-packet",
+                    attempt_nonce=f"{field}-nonce",
+                    state_file=state_path,
+                )
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+                state["owner_identity"][field] += 1
+                native_precommit._write_state(state_path, state)
+                with self.assertRaisesRegex(ValueError, "identity or topology changed"):
+                    arm_precommit(state_path, CONTROL_TURN, now="2026-07-15T00:00:00.100Z")
+
+    def test_state_lock_symlink_is_rejected(self) -> None:
+        lock_path = self.state_file.with_name(self.state_file.name + ".lock")
+        lock_path.symlink_to(self.root / "elsewhere.lock")
+        with self.assertRaisesRegex(ValueError, "lock must be a current-user regular non-symlink file"):
+            self.create()
 
     def test_late_first_poll_fails_closed(self) -> None:
         self.create()

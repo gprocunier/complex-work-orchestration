@@ -441,6 +441,8 @@ def make_acceptance_decision(
     local_response_truncated: bool = False,
     local_finish_reasons: list[str] | None = None,
     local_reasoning_malformed: bool = False,
+    local_completion_status: str | None = None,
+    local_usable_final_content: bool | None = None,
 ) -> AcceptanceDecision:
     policy = load_policy("acceptance-policy")
     provenance = return_provenance(
@@ -490,16 +492,28 @@ def make_acceptance_decision(
         reason.strip().lower() for reason in local_finish_reasons
     }
     local_reasoning_malformed = bool(local_reasoning_malformed)
+    local_completion_status = str(local_completion_status or "").strip().lower() or None
     local_response_truncated_by_length = bool(
         local_response_truncated
         or "length" in local_completion_reason_lengths
     )
-    local_completion_incomplete = bool(local_response_truncated_by_length or local_reasoning_malformed)
+    local_completion_incomplete = bool(
+        local_response_truncated_by_length
+        or local_reasoning_malformed
+        or (local_completion_status is not None and local_completion_status != "completed")
+        or local_usable_final_content is False
+    )
 
     if local_response_truncated_by_length:
         penalty_reasons.append("local response truncation detected; requires confirmation of completeness")
     if local_reasoning_malformed:
         penalty_reasons.append("local reasoning content malformed; extracted reasoning should be manually reviewed")
+    if local_completion_status is not None and local_completion_status != "completed":
+        penalty_reasons.append(
+            f"local completion status {local_completion_status!r} is incomplete and cannot support a verdict"
+        )
+    if local_usable_final_content is False:
+        penalty_reasons.append("local dispatch did not produce usable final content")
 
     if missing:
         score -= penalties.get("missing_required_section", 20) * len(missing)
@@ -778,6 +792,8 @@ def make_acceptance_decision(
         "human_adjudication_required": human_adjudication_required,
         "recommended_disposition": recommended_disposition,
         "recommended_synthesis_use": recommended_synthesis_use,
+        "local_completion_status": local_completion_status,
+        "local_usable_final_content": local_usable_final_content,
         "quarantine_recommended": bool(sabotage["quarantine_recommended"] or workspace_quarantine),
         "escalation_flagged": bool(escalation),
         "architect_review_required": True,

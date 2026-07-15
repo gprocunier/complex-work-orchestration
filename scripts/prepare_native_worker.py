@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import shlex
+import uuid
 from typing import Any
 
 from cwo_core.checked_command_sequence import normalize_sequence_spec
@@ -15,7 +16,9 @@ from cwo_core.paths import assert_safe_output_path, cwo_temp_dir, is_cwo_temp_pa
 from cwo_core.native_disposition import DISPOSITION_FIELDS, validate_disposition
 from cwo_core.native_containment import containment_error, require_native_operative_dispatch
 from cwo_core.native_precommit import (
-    consume_precommit_receipt,
+    commit_precommit_receipt_reservation,
+    release_precommit_receipt_reservation,
+    reserve_precommit_receipt,
     validate_precommit_receipt,
 )
 from cwo_core.native_recovery import verify_native_worker_semantics
@@ -484,7 +487,7 @@ def _build_checked_command_sequence(
     }
 
 
-def build_native_worker_packet(
+def _build_native_worker_packet_unreserved(
     *,
     bead_id: str,
     lane: str,
@@ -685,12 +688,57 @@ def build_native_worker_packet(
     errors = validate_native_worker_packet(packet, experimental=(packet_version == 3))
     if errors:
         raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
-    if work_plan is not None and precommit_receipt is not None:
-        try:
-            consume_precommit_receipt(precommit_receipt)
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from exc
     return packet
+
+
+def build_native_worker_packet(**kwargs: Any) -> dict[str, Any]:
+    precommit_receipt = kwargs.get("precommit_receipt")
+    if precommit_receipt is None:
+        return _build_native_worker_packet_unreserved(**kwargs)
+    if not isinstance(precommit_receipt, dict):
+        raise SystemExit("precommit receipt must be an object")
+    initial_errors = validate_precommit_receipt(
+        precommit_receipt,
+        kwargs.get("work_plan"),
+        expected_packet_id=kwargs.get("packet_id") or precommit_receipt.get("packet_id"),
+        live=True,
+        require_accepting=True,
+    )
+    if initial_errors:
+        raise SystemExit("precommit receipt validation failed:\n- " + "\n- ".join(initial_errors))
+    packet_build_id = f"packet-build-{uuid.uuid4().hex}"
+    try:
+        reservation_id = reserve_precommit_receipt(precommit_receipt, packet_build_id)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    try:
+        packet = _build_native_worker_packet_unreserved(**kwargs)
+        final_errors = validate_precommit_receipt(
+            precommit_receipt,
+            kwargs.get("work_plan"),
+            expected_packet_id=packet.get("packet_id"),
+            live=True,
+            require_accepting=True,
+        )
+        if final_errors:
+            raise SystemExit(
+                "precommit receipt changed during candidate packet construction:\n- "
+                + "\n- ".join(final_errors)
+            )
+        commit_precommit_receipt_reservation(
+            precommit_receipt,
+            reservation_id,
+            _canonical_json_sha256(packet),
+        )
+        return packet
+    except BaseException as exc:
+        try:
+            release_precommit_receipt_reservation(precommit_receipt, reservation_id)
+        except ValueError as release_exc:
+            raise SystemExit(
+                f"candidate packet construction failed closed and reservation release was refused: {release_exc}"
+            ) from exc
+        raise
 
 
 def _validate_checked_command_sequence_receipt(

@@ -47,6 +47,7 @@ def _common_create(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--workdir", required=True)
     parser.add_argument("--state-file")
     parser.add_argument("--owner-pid", type=int)
+    parser.add_argument("--control-execution-handle")
     parser.add_argument("--audit-file")
     parser.add_argument("--now")
 
@@ -118,6 +119,7 @@ def main() -> int:
                 workdir=args.workdir,
                 state_file=args.state_file,
                 owner_pid=args.owner_pid,
+                control_execution_handle=args.control_execution_handle,
                 audit_file=args.audit_file,
                 now=args.now,
             )
@@ -182,6 +184,7 @@ def main() -> int:
                 state_file=args.state_file,
                 receipt_file=args.receipt_file,
                 owner_pid=args.owner_pid,
+                control_execution_handle=args.control_execution_handle,
                 audit_file=args.audit_file,
                 now=args.now,
             )

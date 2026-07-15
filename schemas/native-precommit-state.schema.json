@@ -5,6 +5,19 @@
   "additionalProperties": false,
   "$defs": {
     "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ownerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_time_ticks", "process_group_id", "session_id", "boot_id_sha256", "execution_handle"],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "start_time_ticks": {"type": "integer", "minimum": 1},
+        "process_group_id": {"type": "integer", "minimum": 1},
+        "session_id": {"type": "integer", "minimum": 1},
+        "boot_id_sha256": {"$ref": "#/$defs/hash"},
+        "execution_handle": {"type": "string", "minLength": 1}
+      }
+    },
     "boundary": {
       "type": "object",
       "additionalProperties": false,
@@ -104,10 +117,11 @@
     "controlReceipt": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["action", "control_turn_id", "submission_id", "at", "receipt_id"],
+      "required": ["action", "control_turn_id", "control_execution_handle", "submission_id", "at", "receipt_id"],
       "properties": {
         "action": {"type": "string", "minLength": 1},
         "control_turn_id": {"type": "string", "minLength": 1},
+        "control_execution_handle": {"type": "string", "minLength": 1},
         "submission_id": {"type": ["string", "null"]},
         "at": {"type": "string", "minLength": 1},
         "receipt_id": {"type": "string", "minLength": 1}
@@ -119,16 +133,16 @@
     "packet_id", "work_unit_id", "bead_id", "attempt_nonce", "session_id", "session_file",
     "agent_id", "requested_model", "attested_model", "attestation_source", "work_plan_sha256",
     "fit_prompt", "fit_prompt_sha256", "workdir", "workspace_baseline", "baseline", "terminal",
-    "owner_pid", "control_turn_id", "submission_id", "status", "decision", "reasons",
+    "owner_pid", "owner_identity", "control_execution_handle", "control_topology", "control_turn_id", "submission_id", "status", "decision", "reasons",
     "interrupt_requested", "closure_outcome", "poll_config", "polling", "observed",
     "final_response_sha256", "semantic_status", "fit_result", "control_receipts",
     "audit_event_hashes", "audit_file", "created_at", "updated_at", "closed_at"
   ],
   "properties": {
     "state_type": {"const": "cwo-native-precommit-state"},
-    "version": {"const": 1},
+    "version": {"const": 2},
     "schema": {"const": "schemas/native-precommit-state.schema.json"},
-    "validation_rule_version": {"const": "native-precommit-receipt:v1"},
+    "validation_rule_version": {"const": "native-precommit-receipt:v2"},
     "state_id": {"type": "string", "minLength": 1},
     "state_file": {"type": "string", "minLength": 1},
     "packet_id": {"type": "string", "minLength": 1},
@@ -149,6 +163,9 @@
     "baseline": {"$ref": "#/$defs/boundary"},
     "terminal": {"oneOf": [{"$ref": "#/$defs/boundary"}, {"type": "null"}]},
     "owner_pid": {"type": "integer", "minimum": 1},
+    "owner_identity": {"$ref": "#/$defs/ownerIdentity"},
+    "control_execution_handle": {"type": "string", "minLength": 1},
+    "control_topology": {"const": "single-host-process-v1"},
     "control_turn_id": {"type": ["string", "null"]},
     "submission_id": {"type": ["string", "null"]},
     "status": {"enum": ["created", "armed", "fit-dispatched", "completed", "interrupt-pending", "control-failed", "closed"]},
