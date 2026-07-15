@@ -616,6 +616,38 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             frozenset(),
         )
 
+        publication = json.loads(json.dumps(implementation))
+        publication["lane"] = "publish-report-admin"
+        publication["work_plan"]["task_profile"]["source_mutation_count"] = 0
+        publication["work_plan"]["task_profile"]["source_mutation_paths"] = []
+        publication["work_plan"]["task_profile"]["task_class"] = "bounded-implementation"
+        publication["work_plan"]["task_profile"]["execution_contract"] = {
+            "mode": "direct",
+            "checked_command_specs": [],
+        }
+        self.assertEqual(
+            supervisor._declared_validation_commands(publication),
+            frozenset({tuple(command)}),
+        )
+
+        multi_command_publication = json.loads(json.dumps(publication))
+        multi_command_publication["work_plan"]["task_profile"]["command_count"] = 2
+        multi_command_publication["work_plan"]["task_profile"]["commands"].append(
+            {"argv": ["git", "status", "--short"]}
+        )
+        self.assertEqual(
+            supervisor._declared_validation_commands(multi_command_publication),
+            frozenset(),
+        )
+
+        mutating_publication = json.loads(json.dumps(publication))
+        mutating_publication["work_plan"]["task_profile"]["source_mutation_count"] = 1
+        mutating_publication["work_plan"]["task_profile"]["source_mutation_paths"] = ["SKILL.md"]
+        self.assertEqual(
+            supervisor._declared_validation_commands(mutating_publication),
+            frozenset(),
+        )
+
     def test_declared_validation_command_is_focused_and_undeclared_is_denied(self) -> None:
         command = ["python", "scripts/validate_repository.py"]
         packet = self.validation_packet([command])

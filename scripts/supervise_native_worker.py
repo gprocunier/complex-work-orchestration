@@ -532,7 +532,7 @@ def _continuation_is_terminal(value: Any) -> bool:
 
 def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str, ...]]:
     lane = packet.get("lane")
-    if lane not in {"implementation", "validation"}:
+    if lane not in {"implementation", "validation", "publish-report-admin"}:
         return frozenset()
     scope = packet.get("scope")
     work_plan = packet.get("work_plan")
@@ -567,11 +567,24 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
             return frozenset()
         if mutation_count != 0 or mutation_paths != []:
             return frozenset()
-    else:
+    elif lane == "implementation":
         allowed = scope.get("allowed_actions")
         if not isinstance(allowed, list) or "run-tests-in-scope" not in allowed:
             return frozenset()
         if profile.get("task_class") not in {"narrow-mechanical", "bounded-implementation"}:
+            return frozenset()
+    else:
+        allowed = scope.get("allowed_actions")
+        contract = profile.get("execution_contract")
+        if (
+            not isinstance(allowed, list)
+            or "write-packaged-artifacts" not in allowed
+            or profile.get("task_class") != "bounded-implementation"
+            or mutation_count != 0
+            or mutation_paths != []
+            or not isinstance(contract, dict)
+            or contract.get("mode") != "direct"
+        ):
             return frozenset()
     command_count = profile.get("command_count")
     commands = profile.get("commands")
@@ -581,6 +594,8 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
         or not isinstance(commands, list)
         or command_count != len(commands)
     ):
+        return frozenset()
+    if lane == "publish-report-admin" and command_count != 1:
         return frozenset()
 
     declared: list[tuple[str, ...]] = []
