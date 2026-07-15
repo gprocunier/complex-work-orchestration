@@ -7,7 +7,7 @@ from .native_release import RELEASE_STATES, validate_native_release_evidence
 from .policy import load_policy
 
 
-CONTAINMENT_REASON = "fsh.3-canary-release-gate"
+CONTAINMENT_REASON = "fsh.3-operative-release-gate"
 CONTAINMENT_RELEASE = "complex-work-orchestration-fsh.3.5"
 CONTAINMENT_AUTHORITY = "policy/native-worker-execution.yaml"
 CONTAINMENT_ERROR = "native-precommit-containment-active"
@@ -65,14 +65,14 @@ def native_operative_containment(
     expected = {
         "version": 2,
         "active": True,
-        "status": "canary-authorized",
+        "status": "operative-authorized",
         "scope": "native-operative-dispatch",
         "reason": CONTAINMENT_REASON,
         "decision": "evidence-gated",
         "authority": CONTAINMENT_AUTHORITY,
         "release_requires": CONTAINMENT_RELEASE,
-        "maximum_release_state": "canary-authorized",
-        "operative_dispatch_authorized": False,
+        "maximum_release_state": "operative-authorized",
+        "operative_dispatch_authorized": True,
     }
     for field, expected_value in expected.items():
         if value.get(field) != expected_value:

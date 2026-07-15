@@ -43,8 +43,8 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         containment = policy["precommit_containment"]
         self.assertTrue(containment["active"])
         self.assertEqual(containment["release_requires"], "complex-work-orchestration-fsh.3.5")
-        self.assertEqual(containment["maximum_release_state"], "canary-authorized")
-        self.assertFalse(containment["operative_dispatch_authorized"])
+        self.assertEqual(containment["maximum_release_state"], "operative-authorized")
+        self.assertTrue(containment["operative_dispatch_authorized"])
         self.assertEqual(policy["required_capabilities"], ["interrupt", "close", "wait"])
         self.assertEqual(policy["missing_telemetry_control"], "stop-before-dispatch")
         self.assertEqual(policy["validation_attempt_limit"], 1)

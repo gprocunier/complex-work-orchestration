@@ -25,6 +25,7 @@ from cwo_core.native_precommit import (  # noqa: E402
     reserve_precommit_receipt,
 )
 import cwo_core.native_precommit as native_precommit  # noqa: E402
+from cwo_core.native_release import authorize_operative_packet  # noqa: E402
 from cwo_core.work_sizing import (  # noqa: E402
     build_worker_commitment_from_receipt,
     canonical_work_estimate_sha256,
@@ -32,11 +33,35 @@ from cwo_core.work_sizing import (  # noqa: E402
     validate_worker_commitment,
 )
 from prepare_native_worker import build_native_worker_packet, validate_native_worker_packet  # noqa: E402
+from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
 from tests.test_native_work_sizing import _valid_v2_payload  # noqa: E402
 
 
 MODEL = "gpt-5.3-codex-spark"
 CONTROL = "packet-precommit-control-turn"
+
+
+def canary_work_plan() -> dict:
+    return {
+        "work_unit_id": "fsh3-positive-canary",
+        "bead_id": "complex-work-orchestration-fsh.3.5",
+        "requested_model": MODEL,
+        "task_class": "bounded-implementation",
+        "scores": {
+            "reasoning_uncertainty": 0,
+            "subsystem_coupling": 0,
+            "contract_risk": 0,
+            "diagnostic_uncertainty": 0,
+            "context_breadth": 0,
+            "validation_breadth": 0,
+        },
+        "aggregate_allowance": {
+            "tool_calls_soft": 1,
+            "tool_calls_hard": 1,
+            "runtime_seconds_soft": 30,
+            "runtime_seconds_hard": 120,
+        },
+    }
 
 
 def session_meta(session_id: str) -> dict:
@@ -149,7 +174,13 @@ class NativePrecommitPacketTests(unittest.TestCase):
         issue_precommit_receipt(self.state_file, receipt_file=self.receipt_file)
         return json.loads(self.receipt_file.read_text(encoding="utf-8"))
 
-    def build(self, *, receipt: dict | None = None, commitment: dict | None = None) -> dict:
+    def build(
+        self,
+        *,
+        receipt: dict | None = None,
+        commitment: dict | None = None,
+        budget_overrides: dict | None = None,
+    ) -> dict:
         selected = receipt or self.receipt
         return build_native_worker_packet(
             bead_id=self.plan["bead_id"],
@@ -161,6 +192,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
             worker_commitment=commitment,
             precommit_receipt=selected,
             packet_id=self.packet_id,
+            budget_overrides=budget_overrides,
         )
 
     def test_commitment_v2_derives_identity_and_activity_authority_from_receipt(self) -> None:
@@ -205,6 +237,118 @@ class NativePrecommitPacketTests(unittest.TestCase):
         self.assertEqual(validate_native_worker_packet(packet), [])
         dispatch_errors = validate_native_worker_packet(packet, dispatchable=True)
         self.assertTrue(any("operative-dispatch-forbidden" in error for error in dispatch_errors))
+
+    def test_adjudicated_packet_is_dispatchable_only_with_bound_release_evidence(self) -> None:
+        canary_workspace = self.root / "canary-workspace"
+        canary_workspace.mkdir()
+        canary_receipt = issue_accepting_precommit_receipt(
+            work_plan=canary_work_plan(),
+            packet_id="packet-canary-proof",
+            artifact_root=self.root / "canary-receipt",
+            workdir=canary_workspace,
+            estimates={
+                "tool_calls_p50": 1,
+                "tool_calls_p90": 1,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 20,
+            },
+        )
+        canary_hash = canary_receipt["receipt_sha256"]
+        allowance = self.plan["aggregate_allowance"]
+        candidate = self.build(
+            budget_overrides={
+                "tool_calls_soft": allowance["tool_calls_hard"],
+                "tool_calls_hard": allowance["tool_calls_hard"],
+                "runtime_seconds_soft": allowance["runtime_seconds_hard"],
+                "runtime_seconds_hard": allowance["runtime_seconds_hard"],
+            },
+        )
+        packet = authorize_operative_packet(
+            candidate_packet=candidate,
+            adjudication={
+                "adjudication_type": "cwo-native-operative-release-adjudication",
+                "version": 1,
+                "bead_id": "complex-work-orchestration-fsh.3.5",
+                "decision": "GO",
+                "accepted_high_severity_findings": 0,
+                "validation_sha256": "3" * 64,
+                "critic_evidence_sha256": "4" * 64,
+                "canary_receipt_sha256": canary_hash,
+            },
+            canary_receipt=canary_receipt,
+        )
+        self.assertEqual(packet["stage"], "operative-authorized")
+        self.assertTrue(packet["operative_dispatch_authorized"])
+        self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
+        tampered = copy.deepcopy(packet)
+        tampered["release_evidence_sha256"] = "0" * 64
+        self.assertTrue(validate_native_worker_packet(tampered, dispatchable=True))
+
+    def test_release_cli_writes_private_dispatchable_packet(self) -> None:
+        allowance = self.plan["aggregate_allowance"]
+        candidate = self.build(
+            budget_overrides={
+                "tool_calls_soft": allowance["tool_calls_hard"],
+                "tool_calls_hard": allowance["tool_calls_hard"],
+                "runtime_seconds_soft": allowance["runtime_seconds_hard"],
+                "runtime_seconds_hard": allowance["runtime_seconds_hard"],
+            },
+        )
+        canary_workspace = self.root / "cli-canary-workspace"
+        canary_workspace.mkdir()
+        canary_receipt = issue_accepting_precommit_receipt(
+            work_plan=canary_work_plan(),
+            packet_id="packet-cli-canary-proof",
+            artifact_root=self.root / "cli-canary-receipt",
+            workdir=canary_workspace,
+            estimates={
+                "tool_calls_p50": 1,
+                "tool_calls_p90": 1,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 20,
+            },
+        )
+        canary_hash = canary_receipt["receipt_sha256"]
+        adjudication = {
+            "adjudication_type": "cwo-native-operative-release-adjudication",
+            "version": 1,
+            "bead_id": "complex-work-orchestration-fsh.3.5",
+            "decision": "GO",
+            "accepted_high_severity_findings": 0,
+            "validation_sha256": "3" * 64,
+            "critic_evidence_sha256": "4" * 64,
+            "canary_receipt_sha256": canary_hash,
+        }
+        candidate_path = self.root / "candidate.json"
+        canary_path = self.root / "canary.json"
+        adjudication_path = self.root / "adjudication.json"
+        output_path = self.root / "authorized.json"
+        candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
+        canary_path.write_text(json.dumps(canary_receipt), encoding="utf-8")
+        adjudication_path.write_text(json.dumps(adjudication), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "manage_native_release.py"),
+                "authorize-packet",
+                "--candidate-packet",
+                str(candidate_path),
+                "--adjudication",
+                str(adjudication_path),
+                "--canary-receipt",
+                str(canary_path),
+                "--output",
+                str(output_path),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output_path.stat().st_mode & 0o777, 0o600)
+        packet = json.loads(output_path.read_text(encoding="utf-8"))
+        self.assertEqual(validate_native_worker_packet(packet, dispatchable=True), [])
 
     def test_receipt_replay_changed_plan_and_intervening_session_are_rejected(self) -> None:
         self.build()

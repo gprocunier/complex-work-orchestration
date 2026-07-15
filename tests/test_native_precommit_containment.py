@@ -45,14 +45,15 @@ def _draft(workdir: str) -> dict:
 
 
 class NativePrecommitContainmentTests(unittest.TestCase):
-    def test_policy_state_is_strict_and_dispatch_forbidden(self) -> None:
+    def test_policy_state_is_strict_and_requires_packet_bound_evidence(self) -> None:
         state = native_operative_containment()
-        self.assertEqual(state["status"], "canary-authorized")
+        self.assertEqual(state["status"], "operative-authorized")
         self.assertTrue(state["canary_authorized"])
-        self.assertFalse(state["dispatch_authorized"])
-        self.assertEqual(state["reason"], "fsh.3-canary-release-gate")
+        self.assertTrue(state["dispatch_authorized"])
+        self.assertTrue(state["evidence_required"])
+        self.assertEqual(state["reason"], "fsh.3-operative-release-gate")
         self.assertEqual(state["release_requires"], "complex-work-orchestration-fsh.3.5")
-        self.assertEqual(state["maximum_release_state"], "canary-authorized")
+        self.assertEqual(state["maximum_release_state"], "operative-authorized")
         self.assertIn("supervised-worker-fit-request", state["allowed_non_operative_operations"])
         self.assertIn("receipt-bound-candidate-packet-build", state["allowed_non_operative_operations"])
 
@@ -73,23 +74,22 @@ class NativePrecommitContainmentTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "malformed policy"):
                 native_operative_containment(malformed)
 
-    def test_route_coach_and_scaffold_hard_stop_native_lanes(self) -> None:
+    def test_route_coach_and_scaffold_offer_native_lanes_after_release(self) -> None:
         prompt = "Use Sol as architect and Spark for implementation, tests, validation, docs, and reporting."
         route = classify_work(prompt)
-        self.assertFalse(route["native_operative_dispatch"]["dispatch_authorized"])
+        self.assertTrue(route["native_operative_dispatch"]["dispatch_authorized"])
+        self.assertTrue(route["native_operative_dispatch"]["evidence_required"])
         coached = coach_orchestration_prompt(prompt)
         planned = coached["workerbee_planned_delegation"]
-        self.assertEqual(planned["mode"], "blocked")
-        self.assertIsNone(planned["model"])
-        self.assertEqual(planned["lanes"], [])
-        self.assertTrue(planned["hard_stop"])
-        self.assertEqual(planned["hard_stop_reason"], "native_precommit_containment")
-        self.assertEqual(planned["spark_dispatch"]["status"], "hard-stop")
+        self.assertEqual(planned["mode"], "review-only")
+        self.assertEqual(planned["model"], "gpt-5.3-codex-spark")
+        self.assertTrue(planned["lanes"])
+        self.assertFalse(planned["hard_stop"])
+        self.assertEqual(planned["hard_stop_reason"], "")
+        self.assertEqual(planned["spark_dispatch"]["status"], "native-first")
         self.assertEqual(planned["spark_dispatch"]["failed_native_capability_check"], "")
         self.assertNotIn("native_precommit_containment", coached["route"]["hard_stops"])
-        self.assertTrue(
-            any("contained until fsh.3" in warning for warning in coached["warnings"])
-        )
+        self.assertFalse(any("contained until fsh.3" in warning for warning in coached["warnings"]))
         graph = planned_graph("contained graph", coached["route"], "tight")
         self.assertTrue(graph)
         root_items = [item for item in graph if item.get("lane") is None]
@@ -99,10 +99,9 @@ class NativePrecommitContainmentTests(unittest.TestCase):
             if item.get("lane") is None:
                 continue
             self.assertIn("workerbee_planned_mode", metadata)
-            self.assertEqual(metadata.get("workerbee_planned_mode"), "blocked")
-            self.assertEqual(metadata.get("workerbee_planned_model"), "")
-            self.assertEqual(metadata.get("workerbee_planned_lanes"), [])
-            self.assertEqual(metadata.get("workerbee_operational_owner"), "")
+            self.assertNotEqual(metadata.get("workerbee_planned_mode"), "blocked")
+            self.assertEqual(metadata.get("workerbee_planned_model"), "gpt-5.3-codex-spark")
+            self.assertEqual(metadata.get("workerbee_planned_lanes"), planned["lanes"])
 
     def test_planned_build_and_dispatchable_validation_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

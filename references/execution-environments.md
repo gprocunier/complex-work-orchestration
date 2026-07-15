@@ -340,10 +340,12 @@ Commitment v2 and the candidate packet derive identity and activity authority
 only from that receipt. Any PM work-plan change requires a fresh worker, nonce,
 prompt, and receipt.
 
-During fsh.2, the resulting candidate packet is explicitly
-`precommit-validated` and structurally reviewable but has
-`operative_dispatch_authorized=false`; all operative entry points continue to
-reject it until `complex-work-orchestration-fsh.3`.
+The resulting candidate packet is explicitly `precommit-validated`,
+structurally reviewable, and has `operative_dispatch_authorized=false`.
+Operative entry points accept it only after `complex-work-orchestration-fsh.3`
+adjudication is bound through a short-lived `operative-authorized` evidence
+object for that exact packet, work plan, precommit receipt, and positive canary
+receipt. A policy release never makes an unbound candidate dispatchable.
 
 During execution, `scripts/cwo_core/native_progress.py` compares the commitment
 with observed calls, runtime, tokens, reads, mutations, tests, and artifacts.

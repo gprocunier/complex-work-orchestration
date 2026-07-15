@@ -36,9 +36,9 @@
   "precommit_containment": {
     "version": 2,
     "active": true,
-    "status": "canary-authorized",
+    "status": "operative-authorized",
     "scope": "native-operative-dispatch",
-    "reason": "fsh.3-canary-release-gate",
+    "reason": "fsh.3-operative-release-gate",
     "decision": "evidence-gated",
     "authority": "policy/native-worker-execution.yaml",
     "release_requires": "complex-work-orchestration-fsh.3.5",
@@ -47,8 +47,8 @@
       "canary-authorized",
       "operative-authorized"
     ],
-    "maximum_release_state": "canary-authorized",
-    "operative_dispatch_authorized": false,
+    "maximum_release_state": "operative-authorized",
+    "operative_dispatch_authorized": true,
     "canary_operations": [
       "supervised-worker-fit-request"
     ],
@@ -100,7 +100,7 @@
     "canary_repository_work_authorized": false,
     "canary_source_mutation_authorized": false,
     "canary_workspace_scope": "cwo-temp-only",
-    "operative_release_enabled": false,
+    "operative_release_enabled": true,
     "operative_release_requires": "complex-work-orchestration-fsh.3.5"
   },
   "precommit_supervision": {

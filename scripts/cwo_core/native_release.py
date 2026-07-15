@@ -9,10 +9,16 @@ import re
 import stat
 import uuid
 from contextlib import contextmanager
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
-from .native_precommit import REQUIRED_MODEL, canonical_sha256, render_fit_prompt
+from .native_precommit import (
+    REQUIRED_MODEL,
+    canonical_sha256,
+    render_fit_prompt,
+    validate_precommit_receipt,
+)
 from .paths import is_cwo_temp_path
 from .policy import load_policy
 from .util import atomic_write_text
@@ -149,7 +155,7 @@ def _policy(source: Mapping[str, Any] | None = None) -> dict[str, Any]:
         "canary_source_mutation_authorized": False,
         "canary_workspace_scope": "cwo-temp-only",
         "operative_release_requires": ADJUDICATION_BEAD,
-        "operative_release_enabled": False,
+        "operative_release_enabled": True,
     }
     for field, expected_value in expected.items():
         if value.get(field) != expected_value:
@@ -307,14 +313,14 @@ def build_operative_release_evidence(
     *,
     candidate_packet: Mapping[str, Any],
     adjudication: Mapping[str, Any],
-    canary_receipt_sha256: str,
+    canary_receipt: Mapping[str, Any],
     ttl_seconds: int = 900,
     now: str | None = None,
     policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     release_policy = _policy(policy)
     if release_policy["operative_release_enabled"] is not True:
-        raise ValueError("operative release evidence is disabled pending Sprint 5 adjudication")
+        raise ValueError("operative release evidence is disabled by policy")
     packet = dict(candidate_packet)
     if packet.get("stage") != "precommit-validated" or packet.get("operative_dispatch_authorized") is not False:
         raise ValueError("operative release requires a precommit-validated candidate packet")
@@ -325,7 +331,13 @@ def build_operative_release_evidence(
     receipt_hash = _require_hash(packet.get("precommit_receipt_sha256"), "precommit_receipt_sha256")
     if receipt.get("receipt_sha256") != receipt_hash:
         raise ValueError("operative release candidate precommit receipt hash is inconsistent")
-    canary_hash = _require_hash(canary_receipt_sha256, "canary_receipt_sha256")
+    canary = dict(canary_receipt)
+    canary_errors = validate_precommit_receipt(canary, require_accepting=True)
+    if canary_errors:
+        raise ValueError("canary receipt is invalid: " + "; ".join(canary_errors))
+    if canary.get("bead_id") != ADJUDICATION_BEAD:
+        raise ValueError("canary receipt must belong to the operative adjudication Bead")
+    canary_hash = _require_hash(canary.get("receipt_sha256"), "canary_receipt_sha256")
     decision = _require_exact_fields(
         adjudication,
         {
@@ -335,7 +347,7 @@ def build_operative_release_evidence(
             "decision",
             "accepted_high_severity_findings",
             "validation_sha256",
-            "critic_synthesis_sha256",
+            "critic_evidence_sha256",
             "canary_receipt_sha256",
         },
         "operative adjudication",
@@ -352,7 +364,7 @@ def build_operative_release_evidence(
         if decision.get(field) != expected:
             raise ValueError(f"operative adjudication {field} must equal {expected!r}")
     _require_hash(decision.get("validation_sha256"), "operative adjudication validation_sha256")
-    _require_hash(decision.get("critic_synthesis_sha256"), "operative adjudication critic_synthesis_sha256")
+    _require_hash(decision.get("critic_evidence_sha256"), "operative adjudication critic_evidence_sha256")
     if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or not 60 <= ttl_seconds <= int(release_policy["max_ttl_seconds"]):
         raise ValueError("ttl_seconds is outside the native release policy range")
     issued = _parse_time(now, "now") if now else dt.datetime.now(dt.timezone.utc)
@@ -388,6 +400,38 @@ def build_operative_release_evidence(
     if errors:
         raise ValueError("invalid operative release evidence: " + "; ".join(errors))
     return evidence
+
+
+def authorize_operative_packet(
+    *,
+    candidate_packet: Mapping[str, Any],
+    adjudication: Mapping[str, Any],
+    canary_receipt: Mapping[str, Any],
+    ttl_seconds: int = 900,
+    now: str | None = None,
+    policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Attach short-lived adjudicated evidence to one precommit candidate."""
+
+    evidence = build_operative_release_evidence(
+        candidate_packet=candidate_packet,
+        adjudication=adjudication,
+        canary_receipt=canary_receipt,
+        ttl_seconds=ttl_seconds,
+        now=now,
+        policy=policy,
+    )
+    authorized = deepcopy(dict(candidate_packet))
+    authorized.update(
+        {
+            "stage": "operative-authorized",
+            "operative_dispatch_authorized": True,
+            "release_requires": ADJUDICATION_BEAD,
+            "release_evidence": evidence,
+            "release_evidence_sha256": evidence["evidence_sha256"],
+        }
+    )
+    return authorized
 
 
 def validate_native_release_evidence(
@@ -475,7 +519,7 @@ def validate_native_release_evidence(
             if any(evidence[field] is None for field in ("precommit_receipt_sha256", "canary_receipt_sha256", "adjudication_sha256")):
                 raise ValueError("operative release evidence requires precommit, canary, and adjudication hashes")
             if release_policy["operative_release_enabled"] is not True:
-                raise ValueError("operative release evidence is disabled pending Sprint 5 adjudication")
+                raise ValueError("operative release evidence is disabled by policy")
     except (OSError, SystemExit, ValueError) as exc:
         errors.append(str(exc))
     return errors

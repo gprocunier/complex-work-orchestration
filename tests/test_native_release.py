@@ -19,11 +19,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.native_containment import CONTAINMENT_ERROR, containment_error  # noqa: E402
 from cwo_core.native_precommit import canonical_sha256  # noqa: E402
 from cwo_core.native_release import (  # noqa: E402
+    authorize_operative_packet,
     build_canary_release_evidence,
     build_operative_release_evidence,
     validate_native_release_evidence,
     write_release_evidence,
 )
+from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
 
 
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -52,6 +54,35 @@ def canary_plan() -> dict:
     }
 
 
+def candidate_packet(workdir: Path) -> dict:
+    return {
+        "stage": "precommit-validated",
+        "operative_dispatch_authorized": False,
+        "packet_id": "fsh3-operative-packet",
+        "work_plan": canary_plan(),
+        "precommit_receipt_sha256": "1" * 64,
+        "precommit_receipt": {
+            "receipt_sha256": "1" * 64,
+            "attempt_nonce": "fsh3-operative-attempt",
+            "fit_prompt_sha256": "2" * 64,
+        },
+        "scope": {"workdir": str(workdir)},
+    }
+
+
+def operative_adjudication(canary_receipt_sha256: str = "5" * 64) -> dict:
+    return {
+        "adjudication_type": "cwo-native-operative-release-adjudication",
+        "version": 1,
+        "bead_id": "complex-work-orchestration-fsh.3.5",
+        "decision": "GO",
+        "accepted_high_severity_findings": 0,
+        "validation_sha256": "3" * 64,
+        "critic_evidence_sha256": "4" * 64,
+        "canary_receipt_sha256": canary_receipt_sha256,
+    }
+
+
 class NativeReleaseTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="cwo-native-release-test-")
@@ -60,7 +91,10 @@ class NativeReleaseTests(unittest.TestCase):
         self.registry = self.root / "registry"
         self.env = mock.patch.dict(
             os.environ,
-            {"CWO_NATIVE_RELEASE_REGISTRY_ROOT": str(self.registry)},
+            {
+                "CWO_NATIVE_RELEASE_REGISTRY_ROOT": str(self.registry),
+                "CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry"),
+            },
         )
         self.env.start()
         self.addCleanup(self.env.stop)
@@ -78,6 +112,22 @@ class NativeReleaseTests(unittest.TestCase):
         }
         values.update(overrides)
         return build_canary_release_evidence(**values)
+
+    def accepting_canary_receipt(self) -> dict:
+        workspace = self.root / "canary-workspace"
+        workspace.mkdir(exist_ok=True)
+        return issue_accepting_precommit_receipt(
+            work_plan=canary_plan(),
+            packet_id="fsh3-positive-canary-proof",
+            artifact_root=self.root / "canary-receipt",
+            workdir=workspace,
+            estimates={
+                "tool_calls_p50": 1,
+                "tool_calls_p90": 1,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 20,
+            },
+        )
 
     def test_canary_evidence_is_strict_bounded_and_nonoperative(self) -> None:
         evidence = self.build()
@@ -148,12 +198,66 @@ class NativeReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate native release attempt_nonce"):
             self.build(packet_id="different-packet")
 
-    def test_operative_evidence_cannot_issue_before_sprint5(self) -> None:
-        with self.assertRaisesRegex(ValueError, "disabled pending Sprint 5"):
+    def test_operative_evidence_requires_strict_go_and_authorizes_exact_packet(self) -> None:
+        canary_receipt = self.accepting_canary_receipt()
+        canary_hash = canary_receipt["receipt_sha256"]
+        candidate = candidate_packet(self.root)
+        packet = authorize_operative_packet(
+            candidate_packet=candidate,
+            adjudication=operative_adjudication(canary_hash),
+            canary_receipt=canary_receipt,
+            now=self.now,
+        )
+        evidence = packet["release_evidence"]
+        self.assertEqual(packet["stage"], "operative-authorized")
+        self.assertTrue(packet["operative_dispatch_authorized"])
+        self.assertEqual(packet["release_evidence_sha256"], evidence["evidence_sha256"])
+        self.assertEqual(validate_native_release_evidence(evidence, now=self.now_dt), [])
+        for operation in evidence["authorized_operations"]:
+            with self.subTest(operation=operation):
+                self.assertEqual(
+                    containment_error(
+                        operation,
+                        release_evidence=evidence,
+                        expected_packet_id=candidate["packet_id"],
+                        expected_work_plan_sha256=canonical_sha256(canary_plan()),
+                        expected_precommit_receipt_sha256="1" * 64,
+                    ),
+                    "",
+                )
+
+        no_go = operative_adjudication(canary_hash)
+        no_go["decision"] = "NO-GO"
+        with self.assertRaisesRegex(ValueError, "decision must equal 'GO'"):
             build_operative_release_evidence(
-                candidate_packet={},
-                adjudication={},
-                canary_receipt_sha256="0" * 64,
+                candidate_packet=candidate,
+                adjudication=no_go,
+                canary_receipt=canary_receipt,
+                now=self.now,
+            )
+        synthesis_field = operative_adjudication(canary_hash)
+        synthesis_field["critic_synthesis_sha256"] = synthesis_field.pop("critic_evidence_sha256")
+        with self.assertRaisesRegex(ValueError, "operative adjudication fields are invalid"):
+            build_operative_release_evidence(
+                candidate_packet=candidate,
+                adjudication=synthesis_field,
+                canary_receipt=canary_receipt,
+                now=self.now,
+            )
+        with self.assertRaisesRegex(ValueError, "canary_receipt_sha256"):
+            build_operative_release_evidence(
+                candidate_packet=candidate,
+                adjudication=operative_adjudication("6" * 64),
+                canary_receipt=canary_receipt,
+                now=self.now,
+            )
+        tampered_canary = copy.deepcopy(canary_receipt)
+        tampered_canary["observed"]["function_calls"] = 1
+        with self.assertRaisesRegex(ValueError, "canary receipt is invalid"):
+            build_operative_release_evidence(
+                candidate_packet=candidate,
+                adjudication=operative_adjudication(canary_hash),
+                canary_receipt=tampered_canary,
                 now=self.now,
             )
 
