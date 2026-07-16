@@ -56,26 +56,40 @@ def _sha256_canonical(payload: dict[str, object], *, skip: str | None = None) ->
 
 
 def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPT_PATH),
-            "--json",
-            "--corpus",
-            str(CORPUS_PATH),
-            "--contract",
-            str(CONTRACT_PATH),
-            *args,
-        ],
-        cwd=ROOT,
-        text=True,
-        check=False,
-        capture_output=True,
-        env={**os.environ, "PYTHONPATH": str(ROOT / "scripts")},
-    )
+    with tempfile.TemporaryDirectory() as directory:
+        report_path = Path(directory) / "skl-return-language-calibration-report-latest.json"
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_PATH),
+                "--json",
+                "--corpus",
+                str(CORPUS_PATH),
+                "--contract",
+                str(CONTRACT_PATH),
+                "--report",
+                str(report_path),
+                *args,
+            ],
+            cwd=ROOT,
+            text=True,
+            check=False,
+            capture_output=True,
+            env={**os.environ, "PYTHONPATH": str(ROOT / "scripts")},
+        )
 
 
 class ReturnLanguageCalibrationTests(unittest.TestCase):
+    def assert_cli_does_not_mutate_tracked_report(self, *args: str) -> subprocess.CompletedProcess[str]:
+        before = REPORT_PATH.read_bytes()
+        before_hash = sha256(before).hexdigest()
+        result = _run_cli(*args)
+        after = REPORT_PATH.read_bytes()
+        after_hash = sha256(after).hexdigest()
+        self.assertEqual(before_hash, after_hash)
+        self.assertEqual(before, after)
+        return result
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
@@ -152,7 +166,9 @@ class ReturnLanguageCalibrationTests(unittest.TestCase):
         )
 
     def test_baseline_calibration_report_is_clean(self) -> None:
-        report = run_calibration(corpus_path=CORPUS_PATH, contract_path=CONTRACT_PATH, report_path=REPORT_PATH)
+        tracked_report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
+        report = run_calibration(corpus_path=CORPUS_PATH, contract_path=CONTRACT_PATH)
+        self.assertEqual(tracked_report, report)
         self.assertEqual(report["status"], "pass")
         self.assertEqual(report["case_count"], self.corpus["case_count"])
         self.assertEqual(report["mismatch_count"], 0)
@@ -372,12 +388,14 @@ class ReturnLanguageCalibrationTests(unittest.TestCase):
         self.assertIn("coverage", str(context.exception))
 
     def test_threshold_override_rejects_relaxation(self) -> None:
-        result = _run_cli("--analyzer-min-recall", "0.90")
+        result = self.assert_cli_does_not_mutate_tracked_report("--analyzer-min-recall", "0.90")
         self.assertEqual(result.returncode, 1)
         self.assertIn("threshold relaxation rejected", result.stdout + result.stderr)
 
     def test_threshold_override_accepts_tightening(self) -> None:
-        result = _run_cli("--analyzer-min-recall", "0.99", "--pipeline-min-recall", "0.99")
+        result = self.assert_cli_does_not_mutate_tracked_report(
+            "--analyzer-min-recall", "0.99", "--pipeline-min-recall", "0.99"
+        )
         self.assertEqual(result.returncode, 0)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["status"], "pass")

@@ -5710,14 +5710,14 @@
         "maximum_false_positive_rate": 0.05,
         "minimum_exact_status_accuracy": 0.9,
         "minimum_precision": 0.95,
-        "minimum_recall": 0.99,
+        "minimum_recall": 0.95,
         "status": "pass"
       },
       "pipeline": {
         "maximum_false_positive_rate": 0.05,
         "minimum_exact_status_accuracy": 0.9,
         "minimum_precision": 0.95,
-        "minimum_recall": 0.99,
+        "minimum_recall": 0.95,
         "status": "pass"
       }
     }
@@ -6469,7 +6469,7 @@
       }
     }
   },
-  "report_sha256": "fb7869acc673e2bb95666ee68cc25ad06e5b706752f1ced3690c6992423a9096",
+  "report_sha256": "7d0793bbec72162b2ce90920d38cdb14ea07e45f49db073371a531624040a129",
   "status": "pass",
   "version": 1
 }
