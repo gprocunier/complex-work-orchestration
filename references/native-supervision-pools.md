@@ -19,6 +19,39 @@ The public contract is deliberately small:
   `complex-work-orchestration-18w.6` records successful live canaries and the
   policy release marker changes. Structural support is not operative release.
 
+## Trusted Live Canary Gate
+
+The release canary is a separate, single-shot controller:
+`scripts/run_native_pool_live_canaries.py`. It requires the immutable full-auto
+authorization plus independently adjudicated pre-mutation and pre-live Sol
+steering receipts. Each receipt is validated against trusted session JSONL,
+consumed once under a private process lock, and cannot authorize repository
+work by itself.
+
+Calibration runs exactly `sleep 20`. App-server `inProgress` is only a hint:
+the controller waits up to ten seconds for a complete current-turn
+`turn_context` with the exact model and effort and an agent-origin
+`commandExecution` that remains `inProgress` across two complete observations
+at least one second apart. It polls no slower than 250 ms, excludes terminal,
+failed, declined, rerouted, compacted, malformed, duplicate, truncated, or
+rewritten telemetry, then immediately revalidates before interrupt. The same
+turn must confirm interruption within five seconds.
+
+Materialization evidence contains only identities, fresh nonces, timestamps,
+status classes, record/item indices, counts, offsets, and domain-separated
+hashes. Raw prompts, commands, output, responses, reasoning, content, paths,
+and path hashes are forbidden. The authorization latch is mode 0600 and
+monotonic. A protected fault durably changes `active` to `containment-only`
+before returning; only interrupt, close, sanitized evidence, reserved steering,
+Beads updates, local checkpoint, pickup, and handoff remain possible.
+
+The campaign has exactly seven fresh turn starts: capability interruption, two
+concurrent read-only workers, two concurrent disjoint mutable workers in
+disposable worktrees, and an interrupted worker while its peer completes. No
+turn is resumed or salvaged. The policy remains
+`cap_two_operative_release=false` until this evidence is accepted and the
+release sprint changes it explicitly.
+
 ## Topology
 
 Every mutable child needs a distinct clean Git worktree and non-overlapping

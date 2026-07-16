@@ -68,6 +68,19 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(pool["scheduler"]["poll_lag_tolerance_ms"], 1500)
         self.assertFalse(pool["scheduler"]["hot_admission_allowed"])
         self.assertFalse(pool["scheduler"]["threads_allowed"])
+        live = pool["trusted_live_canary"]
+        self.assertEqual(live["runner"], "scripts/run_native_pool_live_canaries.py")
+        self.assertEqual(live["exact_model"], "gpt-5.3-codex-spark")
+        self.assertEqual(live["calibration_command"], "sleep 20")
+        self.assertEqual(live["materialization_deadline_seconds"], 10)
+        self.assertEqual(live["poll_interval_max_ms"], 250)
+        self.assertEqual(live["liveness_observations"], 2)
+        self.assertEqual(live["liveness_separation_min_ms"], 1000)
+        self.assertEqual(live["interrupt_confirmation_deadline_seconds"], 5)
+        self.assertEqual(live["successful_turn_starts_exact"], 7)
+        self.assertEqual(live["prestart_zero_artifact_relaunch_max"], 1)
+        self.assertTrue(live["no_resume_or_salvage"])
+        self.assertTrue(live["release_on_acceptance_only"])
         for surface in (
             "precommit-supervision",
             "candidate-packet-construction",

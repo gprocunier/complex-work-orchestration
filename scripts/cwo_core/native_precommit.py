@@ -21,7 +21,11 @@ from .native_session import (
     _normalize_event_msg,
     _normalize_response_items,
     _normalize_turn_context,
-    _record_token_snapshot,
+)
+from .native_session_boundary import (
+    assert_prefix_intact as _prefix_is_intact,
+    capture_boundary as _boundary,
+    same_boundary as _same_boundary,
 )
 from .paths import cwo_temp_path, is_cwo_temp_path
 from .policy import load_policy
@@ -469,64 +473,6 @@ def _load_state(path_value: str | Path) -> tuple[Path, dict[str, Any]]:
         return _load_state_unlocked(path)
 
 
-def _token_snapshot(records: list[dict[str, Any]]) -> dict[str, int] | None:
-    latest = None
-    for record in records:
-        snapshot = _record_token_snapshot(record)
-        if snapshot is not None:
-            latest = {key: int(value) for key, value in snapshot.items()}
-    return latest
-
-
-def _boundary(path: Path, session_id: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    raw = path.read_bytes()
-    if not raw:
-        raise ValueError("session file has no complete records")
-    if not raw.endswith(b"\n"):
-        raise ValueError("session file has a trailing partial record")
-    records: list[dict[str, Any]] = []
-    for number, line in enumerate(raw.splitlines(keepends=True), 1):
-        if not line.strip():
-            continue
-        try:
-            decoded = line.decode("utf-8")
-            value = json.loads(decoded)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ValueError(f"session record {number} is invalid: {exc}") from exc
-        if not isinstance(value, dict):
-            raise ValueError(f"session record {number} is not an object")
-        explicit = value.get("session_id")
-        if isinstance(explicit, str) and explicit and explicit != session_id:
-            raise ValueError("session identity changed inside JSONL boundary")
-        if value.get("type") == "session_meta":
-            payload = value.get("payload")
-            if isinstance(payload, dict) and isinstance(payload.get("id"), str) and payload["id"] != session_id:
-                raise ValueError("session_meta identity does not match requested session")
-        records.append(value)
-    if not records:
-        raise ValueError("session file has no complete object records")
-    identity_seen = any(
-        record.get("session_id") == session_id
-        or (
-            record.get("type") == "session_meta"
-            and isinstance(record.get("payload"), dict)
-            and record["payload"].get("id") == session_id
-        )
-        for record in records
-    )
-    if not identity_seen:
-        raise ValueError("trusted session identity is missing from JSONL boundary")
-    return (
-        {
-            "record_count": len(records),
-            "byte_offset": len(raw),
-            "boundary_sha256": hashlib.sha256(raw).hexdigest(),
-            "token_snapshot": _token_snapshot(records),
-        },
-        records,
-    )
-
-
 def _trusted_models(records: list[dict[str, Any]]) -> tuple[set[str], list[str]]:
     models: set[str] = set()
     errors: list[str] = []
@@ -553,21 +499,6 @@ def _verify_exact_attestation(records: list[dict[str, Any]], requested_model: st
         raise ValueError("trusted control-plane model attestation is missing")
     if models != {requested_model}:
         raise ValueError("trusted control-plane model attestation does not exactly match requested model")
-
-
-def _same_boundary(expected: Mapping[str, Any], actual: Mapping[str, Any]) -> bool:
-    return all(actual.get(field) == expected.get(field) for field in BOUNDARY_FIELDS)
-
-
-def _prefix_is_intact(path: Path, baseline: Mapping[str, Any]) -> None:
-    raw = path.read_bytes()
-    offset = baseline.get("byte_offset")
-    if not isinstance(offset, int) or offset < 0:
-        raise ValueError("baseline byte offset is invalid")
-    if len(raw) < offset:
-        raise ValueError("session JSONL was truncated below the baseline byte offset")
-    if hashlib.sha256(raw[:offset]).hexdigest() != baseline.get("boundary_sha256"):
-        raise ValueError("session JSONL prefix was rewritten after baseline capture")
 
 
 def _workspace_artifact(state_path: Path, packet_id: str, workdir: Path) -> dict[str, Any]:

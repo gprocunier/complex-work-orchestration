@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-session-materialization-evidence.schema.json",
+  "title": "CWO native session materialization evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_type", "version", "schema", "evidence_id", "run_nonce", "attempt_nonce", "phase_nonce", "session_id", "turn_id", "requested_model", "attested_model", "attested_effort", "attestation_source", "command_sha256", "baseline", "liveness_observations", "pre_interrupt_observation", "interrupt", "terminal", "status", "disposition", "evidence_sha256"],
+  "properties": {
+    "evidence_type": {"const": "cwo-native-session-materialization-evidence:v1"}, "version": {"const": 1},
+    "schema": {"const": "schemas/native-session-materialization-evidence.schema.json"},
+    "evidence_id": {"type": "string", "minLength": 1}, "run_nonce": {"$ref": "#/$defs/uuid"}, "attempt_nonce": {"$ref": "#/$defs/uuid"}, "phase_nonce": {"$ref": "#/$defs/uuid"},
+    "session_id": {"type": "string", "minLength": 1}, "turn_id": {"type": "string", "minLength": 1},
+    "requested_model": {"type": "string", "minLength": 1}, "attested_model": {"type": "string", "minLength": 1}, "attested_effort": {"type": "string", "minLength": 1},
+    "attestation_source": {"type": "string", "minLength": 1}, "command_sha256": {"$ref": "#/$defs/hash"},
+    "baseline": {"$ref": "#/$defs/boundary"},
+    "liveness_observations": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/observation"}},
+    "pre_interrupt_observation": {"$ref": "#/$defs/observation"},
+    "interrupt": {
+      "type": "object", "additionalProperties": false, "required": ["requested_at", "confirmed_at", "session_id", "turn_id", "outcome"],
+      "properties": {"requested_at": {"type": "string", "format": "date-time"}, "confirmed_at": {"type": "string", "format": "date-time"}, "session_id": {"type": "string", "minLength": 1}, "turn_id": {"type": "string", "minLength": 1}, "outcome": {"const": "interrupt-confirmed"}}
+    },
+    "terminal": {"$ref": "#/$defs/boundary"}, "status": {"enum": ["interrupt-confirmed", "nonaccepting"]}, "disposition": {"enum": ["accepted", "quarantined", "rejected"]},
+    "evidence_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "uuid": {"type": "string", "format": "uuid"},
+    "boundary": {
+      "type": "object", "additionalProperties": false, "required": ["record_count", "byte_offset", "boundary_sha256", "invalid_record_count", "trailing_partial"],
+      "properties": {"record_count": {"type": "integer", "minimum": 0}, "byte_offset": {"type": "integer", "minimum": 0}, "boundary_sha256": {"$ref": "#/$defs/hash"}, "invalid_record_count": {"const": 0}, "trailing_partial": {"const": false}}
+    },
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observed_at", "boundary", "turn_context_record_index", "command_item_index", "command_origin", "command_status", "terminal_event_count", "failed_event_count", "declined_event_count", "ambiguous_event_count"],
+      "properties": {"observed_at": {"type": "string", "format": "date-time"}, "boundary": {"$ref": "#/$defs/boundary"}, "turn_context_record_index": {"type": "integer", "minimum": 0}, "command_item_index": {"type": "integer", "minimum": 0}, "command_origin": {"const": "agent"}, "command_status": {"const": "inProgress"}, "terminal_event_count": {"const": 0}, "failed_event_count": {"const": 0}, "declined_event_count": {"const": 0}, "ambiguous_event_count": {"const": 0}}
+    }
+  }
+}

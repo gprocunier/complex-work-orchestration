@@ -141,6 +141,23 @@
       "hot_admission_allowed": false,
       "threads_allowed": false
     },
+    "trusted_live_canary": {
+      "runner": "scripts/run_native_pool_live_canaries.py",
+      "steering_receipt_schema": "schemas/native-steering-receipt.schema.json",
+      "materialization_evidence_schema": "schemas/native-session-materialization-evidence.schema.json",
+      "authorization_state_schema": "schemas/native-canary-authorization-state.schema.json",
+      "exact_model": "gpt-5.3-codex-spark",
+      "calibration_command": "sleep 20",
+      "materialization_deadline_seconds": 10,
+      "poll_interval_max_ms": 250,
+      "liveness_observations": 2,
+      "liveness_separation_min_ms": 1000,
+      "interrupt_confirmation_deadline_seconds": 5,
+      "successful_turn_starts_exact": 7,
+      "prestart_zero_artifact_relaunch_max": 1,
+      "no_resume_or_salvage": true,
+      "release_on_acceptance_only": true
+    },
     "single_flight_surfaces": [
       "precommit-supervision",
       "candidate-packet-construction",

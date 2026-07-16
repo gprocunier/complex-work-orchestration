@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-steering-receipt.schema.json",
+  "title": "CWO trusted steering receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "gate", "bead_id", "authorization_id", "authorization_sha256", "control_turn_id", "submission_id", "client_user_message_id", "session_id", "agent", "model", "effort", "attestation_source", "model_discovery", "input", "boundary", "observed_activity", "guard", "opinion", "final_response_sha256", "started_at", "completed_at", "closure_outcome", "disposition", "canonical_receipt_sha256"],
+  "properties": {
+    "schema": {"const": "cwo-steering-receipt:v1"},
+    "gate": {"type": "string", "minLength": 1},
+    "bead_id": {"type": "string", "minLength": 1},
+    "authorization_id": {"type": "string", "minLength": 1},
+    "authorization_sha256": {"$ref": "#/$defs/hash"},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "submission_id": {"type": "string", "minLength": 1},
+    "client_user_message_id": {"type": "string", "minLength": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "agent": {"type": "string", "minLength": 1},
+    "model": {"const": "gpt-5.6-sol"},
+    "effort": {"const": "max"},
+    "attestation_source": {"const": "initialized-codex-home-session-jsonl-turn-context"},
+    "model_discovery": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "model", "display_name", "default_reasoning_effort", "supported_reasoning_efforts_sha256", "model_record_sha256"],
+      "properties": {
+        "id": {"const": "gpt-5.6-sol"}, "model": {"const": "gpt-5.6-sol"},
+        "display_name": {"type": ["string", "null"]}, "default_reasoning_effort": {"type": ["string", "null"]},
+        "supported_reasoning_efforts_sha256": {"$ref": "#/$defs/hash"}, "model_record_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "input": {
+      "type": "object", "additionalProperties": false,
+      "required": ["brief_sha256", "recovery_plan_sha256", "pickup_sha256"],
+      "properties": {"brief_sha256": {"$ref": "#/$defs/hash"}, "recovery_plan_sha256": {"$ref": "#/$defs/hash"}, "pickup_sha256": {"$ref": "#/$defs/hash"}}
+    },
+    "boundary": {
+      "type": "object", "additionalProperties": false, "required": ["baseline", "terminal"],
+      "properties": {"baseline": {"$ref": "#/$defs/baseline"}, "terminal": {"$ref": "#/$defs/terminal"}}
+    },
+    "observed_activity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["function_calls", "custom_tool_calls", "tool_item_types", "compactions", "workspace_mutations"],
+      "properties": {
+        "function_calls": {"const": 0}, "custom_tool_calls": {"const": 0}, "tool_item_types": {"type": "array", "maxItems": 0},
+        "compactions": {"const": 0}, "workspace_mutations": {"const": 0}
+      }
+    },
+    "guard": {
+      "type": "object", "additionalProperties": false, "required": ["before", "after"],
+      "properties": {"before": {"$ref": "#/$defs/guard"}, "after": {"$ref": "#/$defs/guard"}}
+    },
+    "opinion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conditions", "confidence", "findings", "recommendation", "steering_summary"],
+      "properties": {
+        "conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+        "recommendation": {"enum": ["go", "conditional-go", "stop"]},
+        "steering_summary": {"type": "string", "minLength": 1}
+      }
+    },
+    "final_response_sha256": {"$ref": "#/$defs/hash"},
+    "started_at": {"type": "string", "format": "date-time"}, "completed_at": {"type": "string", "format": "date-time"},
+    "closure_outcome": {"const": "completed-and-archived"}, "disposition": {"enum": ["accepting", "conditional", "rejected"]},
+    "canonical_receipt_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["availability", "record_count", "byte_offset", "boundary_sha256", "path_sha256", "invalid_record_count", "trailing_partial"],
+      "properties": {"availability": {"enum": ["available", "not-yet-materialized"]}, "record_count": {"type": "integer", "minimum": 0}, "byte_offset": {"type": "integer", "minimum": 0}, "boundary_sha256": {"$ref": "#/$defs/hash"}, "path_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}, "invalid_record_count": {"const": 0}, "trailing_partial": {"const": false}}
+    },
+    "terminal": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_count", "byte_offset", "boundary_sha256", "path_sha256", "invalid_record_count", "trailing_partial"],
+      "properties": {"record_count": {"type": "integer", "minimum": 1}, "byte_offset": {"type": "integer", "minimum": 1}, "boundary_sha256": {"$ref": "#/$defs/hash"}, "path_sha256": {"$ref": "#/$defs/hash"}, "invalid_record_count": {"const": 0}, "trailing_partial": {"const": false}}
+    },
+    "guard": {
+      "type": "object", "additionalProperties": false, "required": ["repo_head", "repo_status_sha256", "primary_diff_sha256"],
+      "properties": {"repo_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "repo_status_sha256": {"$ref": "#/$defs/hash"}, "primary_diff_sha256": {"$ref": "#/$defs/hash"}}
+    },
+    "finding": {
+      "type": "object", "additionalProperties": false, "required": ["code", "finding", "severity"],
+      "properties": {"code": {"type": "string", "minLength": 1}, "finding": {"type": "string", "minLength": 1}, "severity": {"enum": ["high", "medium", "low"]}}
+    }
+  }
+}
