@@ -54,8 +54,8 @@ def canary_plan() -> dict:
     }
 
 
-def candidate_packet(workdir: Path) -> dict:
-    return {
+def candidate_packet(workdir: Path, version: object | None = 2) -> dict:
+    packet = {
         "stage": "precommit-validated",
         "operative_dispatch_authorized": False,
         "packet_id": "fsh3-operative-packet",
@@ -68,6 +68,9 @@ def candidate_packet(workdir: Path) -> dict:
         },
         "scope": {"workdir": str(workdir)},
     }
+    if version is not None:
+        packet["version"] = version
+    return packet
 
 
 def operative_adjudication(canary_receipt_sha256: str = "5" * 64) -> dict:
@@ -202,12 +205,15 @@ class NativeReleaseTests(unittest.TestCase):
         canary_receipt = self.accepting_canary_receipt()
         canary_hash = canary_receipt["receipt_sha256"]
         candidate = candidate_packet(self.root)
+        original_candidate = copy.deepcopy(candidate)
+        self.assertEqual(candidate.get("version"), 2)
         packet = authorize_operative_packet(
             candidate_packet=candidate,
             adjudication=operative_adjudication(canary_hash),
             canary_receipt=canary_receipt,
             now=self.now,
         )
+        self.assertEqual(candidate, original_candidate)
         evidence = packet["release_evidence"]
         self.assertEqual(packet["stage"], "operative-authorized")
         self.assertTrue(packet["operative_dispatch_authorized"])
@@ -260,6 +266,44 @@ class NativeReleaseTests(unittest.TestCase):
                 canary_receipt=tampered_canary,
                 now=self.now,
             )
+
+    def test_operative_release_rejects_non_v2_candidate_packets(self) -> None:
+        canary_receipt = self.accepting_canary_receipt()
+        canary_hash = canary_receipt["receipt_sha256"]
+        adjudication = operative_adjudication(canary_hash)
+        missing = object()
+        invalid_versions = (
+            ("version-1", 1),
+            ("version-3", 3),
+            ("version-string", "2"),
+            ("version-bool-false", False),
+            ("version-bool-true", True),
+            ("version-null", None),
+            ("version-missing", missing),
+        )
+
+        for label, version in invalid_versions:
+            with self.subTest(label=label):
+                if version is None:
+                    candidate = candidate_packet(self.root)
+                    candidate["version"] = None
+                elif version is missing:
+                    candidate = candidate_packet(self.root)
+                    candidate.pop("version", None)
+                else:
+                    candidate = candidate_packet(self.root, version)
+                for operation in (
+                    build_operative_release_evidence,
+                    authorize_operative_packet,
+                ):
+                    with self.subTest(operation=operation.__name__):
+                        with self.assertRaisesRegex(ValueError, "candidate packet version must be integer 2"):
+                            operation(
+                                candidate_packet=candidate,
+                                adjudication=adjudication,
+                                canary_receipt=canary_receipt,
+                                now=self.now,
+                            )
 
     def test_cli_issues_private_canary_artifact(self) -> None:
         plan_file = self.root / "plan.json"

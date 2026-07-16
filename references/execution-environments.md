@@ -160,9 +160,22 @@ python3 scripts/prepare_native_worker.py build \
 ```
 
 Packet version 1 is historical-inspection-only. Rendering or dispatching it
-fails closed. Packet version 2 records the effective budget, its policy
-provenance, reserve-derived interrupt thresholds, required control adapter, and
-single-attempt validation lineage.
+fails closed. Commitment version 1 is historical-inspection-only; commitment v2
+is the production precommit authority contract.
+
+Native worker packet version 2 is the production packet contract used at the
+precommit and operative-release boundaries. It records effective budget, policy
+provenance, reserve-derived interrupt thresholds, required control adapter,
+validation lineage, and adjudication binding.
+
+Packet version 3 is explicitly experimental and test-only. It adds `phase`,
+`phase_contract`, `recovery_contract`, and `lineage_contract` framing. It is
+never dispatchable in this release.
+
+Promotion of packet v3 requires a future explicit policy migration:
+precommit compatibility, operative-release compatibility, recovery compatibility,
+and rollback compatibility evidence must be equivalent and reviewed before any
+deployment. This sprint does not promote packet v3.
 
 After the fresh native worker passes its no-tools trusted attestation, create and
 arm the supervisor before sending the operative task:

@@ -180,6 +180,12 @@ def _evidence_hash(value: Mapping[str, Any]) -> str:
     return canonical_sha256({key: item for key, item in value.items() if key != "evidence_sha256"})
 
 
+def _require_candidate_packet_version_2(candidate_packet: Mapping[str, Any]) -> None:
+    version = candidate_packet.get("version")
+    if isinstance(version, bool) or not isinstance(version, int) or version != 2:
+        raise ValueError("candidate packet version must be integer 2")
+
+
 def _registry_root() -> Path:
     configured = os.environ.get("CWO_NATIVE_RELEASE_REGISTRY_ROOT")
     path = Path(configured).expanduser() if configured else Path("/tmp/cwo-native-release-v1")
@@ -322,6 +328,7 @@ def build_operative_release_evidence(
     if release_policy["operative_release_enabled"] is not True:
         raise ValueError("operative release evidence is disabled by policy")
     packet = dict(candidate_packet)
+    _require_candidate_packet_version_2(packet)
     if packet.get("stage") != "precommit-validated" or packet.get("operative_dispatch_authorized") is not False:
         raise ValueError("operative release requires a precommit-validated candidate packet")
     work_plan = packet.get("work_plan")
@@ -413,6 +420,7 @@ def authorize_operative_packet(
 ) -> dict[str, Any]:
     """Attach short-lived adjudicated evidence to one precommit candidate."""
 
+    _require_candidate_packet_version_2(dict(candidate_packet))
     evidence = build_operative_release_evidence(
         candidate_packet=candidate_packet,
         adjudication=adjudication,

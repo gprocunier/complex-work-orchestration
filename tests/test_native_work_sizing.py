@@ -9,6 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+import cwo_core.work_sizing as work_sizing  # noqa: E402
 
 from cwo_core.work_sizing import DIMENSIONS, evaluate_work_estimate, validate_work_estimate  # noqa: E402
 from cwo_core.work_sizing import (  # noqa: E402
@@ -415,6 +416,11 @@ class NativeWorkSizingTest(unittest.TestCase):
             "historical-inspection-only",
             " ".join(validate_worker_commitment(commitment, work_estimate, dispatchable=True)),
         )
+
+    def test_commitment_required_alias_is_removed(self) -> None:
+        self.assertFalse(hasattr(work_sizing, "COMMITMENT_REQUIRED_FIELDS"))
+        self.assertTrue(hasattr(work_sizing, "COMMITMENT_V1_REQUIRED_FIELDS"))
+        self.assertTrue(hasattr(work_sizing, "COMMITMENT_V2_REQUIRED_FIELDS"))
 
     def test_native_commitment_validation_realignment_modes(self):
         work_estimate = evaluate_work_estimate(_valid_raw_payload())

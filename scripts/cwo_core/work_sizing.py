@@ -160,8 +160,6 @@ COMMITMENT_V2_REQUIRED_FIELDS = (
     "precommit_receipt_sha256",
 )
 
-COMMITMENT_REQUIRED_FIELDS = COMMITMENT_V1_REQUIRED_FIELDS
-
 COMMITMENT_DECISIONS = ("accept", "pm-realignment", "architect-realignment")
 COMMITMENT_ESTIMATE_KEYS = ("tool_calls_p50", "tool_calls_p90", "runtime_seconds_p50", "runtime_seconds_p90")
 
