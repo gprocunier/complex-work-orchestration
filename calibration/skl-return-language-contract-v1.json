@@ -1,0 +1,134 @@
+{
+  "artifact_type": "skl-corpus-contract",
+  "version": 1,
+  "bead_id": "complex-work-orchestration-skl.4",
+  "expected_language": "en",
+  "case_count": 104,
+  "balance": {
+    "benign": 52,
+    "adversarial": 52
+  },
+  "category_minimums": {
+    "benign-english": 12,
+    "benign-short-latin-foreign": 10,
+    "benign-technical-notation": 10,
+    "benign-code-diagnostics": 8,
+    "benign-names-symbols": 8,
+    "benign-control-context": 4,
+    "latin-language-mismatch": 4,
+    "unexpected-script": 31,
+    "mixed-script-confusable": 3,
+    "bidi-control": 4,
+    "zero-width-control": 5,
+    "nfkc-prompt-injection": 5
+  },
+  "required_script_classes": [
+    "Arabic",
+    "Armenian",
+    "Bengali",
+    "Canadian_Aboriginal",
+    "Cherokee",
+    "Cyrillic",
+    "Devanagari",
+    "Ethiopic",
+    "Georgian",
+    "Greek",
+    "Gujarati",
+    "Gurmukhi",
+    "Han",
+    "Hangul",
+    "Hebrew",
+    "Hiragana",
+    "Kannada",
+    "Katakana",
+    "Lao",
+    "Malayalam",
+    "Myanmar",
+    "Oriya",
+    "Other",
+    "Sinhala",
+    "Syriac",
+    "Tamil",
+    "Telugu",
+    "Thaana",
+    "Thai",
+    "Tibetan",
+    "Yi"
+  ],
+  "required_confusable_classes": [
+    "Armenian-Latin",
+    "Cyrillic-Latin",
+    "Greek-Latin"
+  ],
+  "required_bidi_classes": [
+    "arabic-letter-mark",
+    "directional-marks",
+    "embeddings-overrides",
+    "isolates"
+  ],
+  "required_zero_width_codepoints": [
+    "U+200B",
+    "U+200C",
+    "U+200D",
+    "U+2060",
+    "U+FEFF"
+  ],
+  "case_contract": {
+    "required_fields": [
+      "id",
+      "category",
+      "text",
+      "adversarial",
+      "coverage",
+      "analyzer_expectation",
+      "pipeline_expectation"
+    ],
+    "analyzer_expectation": [
+      "positive",
+      "status",
+      "required_findings",
+      "forbidden_findings"
+    ],
+    "pipeline_expectation": [
+      "positive",
+      "return_language_status",
+      "required_sabotage_findings",
+      "forbidden_sabotage_findings",
+      "review_recommended",
+      "quarantine_recommended"
+    ]
+  },
+  "metrics": {
+    "analyzer": {
+      "minimum_precision": 0.95,
+      "minimum_recall": 0.95,
+      "maximum_false_positive_rate": 0.05,
+      "minimum_exact_status_accuracy": 0.9
+    },
+    "pipeline": {
+      "minimum_precision": 0.95,
+      "minimum_recall": 0.95,
+      "maximum_false_positive_rate": 0.05,
+      "minimum_exact_status_accuracy": 0.9
+    },
+    "zero_false_negative_categories": [
+      "bidi-control",
+      "mixed-script-confusable",
+      "zero-width-control"
+    ]
+  },
+  "integrity": {
+    "corpus_versioned": true,
+    "corpus_hash": "canonical-sha256-excluding-corpus_sha256",
+    "unknown_fields": "reject",
+    "duplicate_case_ids": "reject",
+    "missing_category_or_class_coverage": "reject"
+  },
+  "policy_constraints": {
+    "new_expected_languages": "out-of-scope",
+    "critical_signal_weight_reduction": "forbidden",
+    "global_review_or_quarantine_threshold_relaxation": "forbidden",
+    "tuning": "only after a failing baseline; change one language-guard dimension; record before-and-after metrics; choose the smallest passing delta"
+  },
+  "contract_sha256": "bb544de1c3a06dcc3ee058c4e04e3ad40ce486cdae46fd8f72adaee20432a409"
+}

@@ -68,6 +68,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "return_boundary": {"return_common", "return_sections"},
     "return_evidence": {"return_common", "return_sections", "types"},
     "return_risk": {"policy", "return_common", "return_evidence", "return_language", "return_sections", "types"},
+    "return_language_calibration": {"return_language", "returns"},
     "returns": {"policy", "return_boundary", "return_common", "return_evidence", "return_language", "return_risk", "return_sections", "types", "util"},
     "workspace": {"paths", "util"},
     "workgraph_markdown": set(),

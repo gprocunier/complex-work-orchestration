@@ -228,7 +228,7 @@ install_skill() {
   local backup_root
   local prev_dir
   local backed_up=0
-  local items="README.md LICENSE SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts"
+  local items="README.md LICENSE SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts calibration"
 
   backup_root="$(backup_root_for_skills_dir "$skills_dir")"
   prev_dir="$(backup_path_for_skill "$skills_dir")"

@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Return Language Calibration Contract",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "version",
+    "bead_id",
+    "expected_language",
+    "case_count",
+    "balance",
+    "case_contract",
+    "category_minimums",
+    "required_script_classes",
+    "required_confusable_classes",
+    "required_bidi_classes",
+    "required_zero_width_codepoints",
+    "metrics",
+    "integrity",
+    "policy_constraints",
+    "contract_sha256"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "artifact_type": {
+      "const": "skl-corpus-contract"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected_language": {
+      "const": "en"
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "balance": {
+      "type": "object",
+      "required": ["benign", "adversarial"],
+      "additionalProperties": false,
+      "properties": {
+        "benign": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "adversarial": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "case_contract": {
+      "type": "object",
+      "required": ["required_fields", "analyzer_expectation", "pipeline_expectation"],
+      "additionalProperties": false,
+      "properties": {
+        "required_fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "analyzer_expectation": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "pipeline_expectation": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "category_minimums": {
+      "type": "object",
+      "required": [
+        "benign-english",
+        "benign-short-latin-foreign",
+        "benign-technical-notation",
+        "benign-code-diagnostics",
+        "benign-names-symbols",
+        "benign-control-context",
+        "latin-language-mismatch",
+        "unexpected-script",
+        "mixed-script-confusable",
+        "bidi-control",
+        "zero-width-control",
+        "nfkc-prompt-injection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "benign-english": {"type": "integer", "minimum": 1},
+        "benign-short-latin-foreign": {"type": "integer", "minimum": 1},
+        "benign-technical-notation": {"type": "integer", "minimum": 1},
+        "benign-code-diagnostics": {"type": "integer", "minimum": 1},
+        "benign-names-symbols": {"type": "integer", "minimum": 1},
+        "benign-control-context": {"type": "integer", "minimum": 1},
+        "latin-language-mismatch": {"type": "integer", "minimum": 1},
+        "unexpected-script": {"type": "integer", "minimum": 1},
+        "mixed-script-confusable": {"type": "integer", "minimum": 1},
+        "bidi-control": {"type": "integer", "minimum": 1},
+        "zero-width-control": {"type": "integer", "minimum": 1},
+        "nfkc-prompt-injection": {"type": "integer", "minimum": 1}
+      }
+    },
+    "required_script_classes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "required_confusable_classes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "required_bidi_classes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "required_zero_width_codepoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["analyzer", "pipeline", "zero_false_negative_categories"],
+      "additionalProperties": false,
+      "properties": {
+        "analyzer": {
+          "$ref": "#/$defs/layer_thresholds"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/layer_thresholds"
+        },
+        "zero_false_negative_categories": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": [
+        "corpus_versioned",
+        "corpus_hash",
+        "unknown_fields",
+        "duplicate_case_ids",
+        "missing_category_or_class_coverage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "corpus_versioned": {"type": "boolean"},
+        "corpus_hash": {"type": "string", "pattern": "^canonical-sha256-excluding-corpus_sha256$"},
+        "unknown_fields": {"type": "string", "minLength": 1},
+        "duplicate_case_ids": {"type": "string", "minLength": 1},
+        "missing_category_or_class_coverage": {"type": "string", "minLength": 1}
+      }
+    },
+    "policy_constraints": {
+      "type": "object",
+      "required": [
+        "new_expected_languages",
+        "critical_signal_weight_reduction",
+        "global_review_or_quarantine_threshold_relaxation",
+        "tuning"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "new_expected_languages": {"type": "string", "minLength": 1},
+        "critical_signal_weight_reduction": {"type": "string", "minLength": 1},
+        "global_review_or_quarantine_threshold_relaxation": {"type": "string", "minLength": 1},
+        "tuning": {"type": "string", "minLength": 1}
+      }
+    },
+    "contract_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "layer_thresholds": {
+      "type": "object",
+      "required": [
+        "minimum_precision",
+        "minimum_recall",
+        "maximum_false_positive_rate",
+        "minimum_exact_status_accuracy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "minimum_precision": {"type": "number", "minimum": 0, "maximum": 1},
+        "minimum_recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "maximum_false_positive_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "minimum_exact_status_accuracy": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}

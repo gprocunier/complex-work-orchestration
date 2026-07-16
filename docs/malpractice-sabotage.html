@@ -285,6 +285,16 @@
               quarantined. The result is a review signal, not a claim about the
               model's intent, and the architect remains the decision owner.
             </p>
+            <p>
+              SKL return-language calibration runs the strict synthetic corpus in
+              <code>calibration/skl-return-language-corpus-v1.json</code> against
+              the contract in <code>calibration/skl-return-language-contract-v1.json</code>.
+              It executes both analyzer and pipeline scoring paths, records
+              per-layer confusion matrices, and fails closed when metrics, hash,
+              fields, coverage, or category constraints are not met. New
+              expected-return languages are still unsupported and remain fail
+              closed.
+            </p>
           </section>
 
           <section id="work-rerouting">

@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Return Language Calibration Report",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "version",
+    "status",
+    "expected_language",
+    "case_count",
+    "balance",
+    "corpus_path",
+    "contract_path",
+    "corpus_sha256",
+    "contract_sha256",
+    "case_results",
+    "metrics",
+    "per_category_results",
+    "failure_reasons",
+    "mismatch_count",
+    "report_sha256"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "artifact_type": {
+      "const": "skl-return-language-calibration-report"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pass", "fail"]
+    },
+    "expected_language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "balance": {
+      "type": "object",
+      "required": ["benign", "adversarial"],
+      "additionalProperties": false,
+      "properties": {
+        "benign": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "adversarial": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "corpus_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "corpus_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "contract_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "case_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "adversarial", "mismatch_count", "analyzer", "pipeline"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "adversarial": {
+            "type": "boolean"
+          },
+          "mismatch_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "analyzer": {"$ref": "#/$defs/layer_case_result"},
+          "pipeline": {"$ref": "#/$defs/layer_case_result"}
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["analyzer", "pipeline", "thresholds"],
+      "additionalProperties": false,
+      "properties": {
+        "analyzer": {"$ref": "#/$defs/layer_metrics"},
+        "pipeline": {"$ref": "#/$defs/layer_metrics"},
+        "thresholds": {
+          "type": "object",
+          "required": ["analyzer", "pipeline"],
+          "additionalProperties": false,
+          "properties": {
+            "analyzer": {"$ref": "#/$defs/threshold_summary"},
+            "pipeline": {"$ref": "#/$defs/threshold_summary"}
+          }
+        }
+      }
+    },
+    "per_category_results": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["analyzer", "pipeline"],
+        "additionalProperties": false,
+        "properties": {
+          "analyzer": {"$ref": "#/$defs/layer_metrics"},
+          "pipeline": {"$ref": "#/$defs/layer_metrics"}
+        }
+      }
+    },
+    "mismatch_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failure_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "report_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "layer_case_result": {
+      "type": "object",
+      "required": [
+        "expected_status",
+        "predicted_status",
+        "expected_positive",
+        "predicted_positive",
+        "expected_review_recommended",
+        "predicted_review_recommended",
+        "expected_quarantine_recommended",
+        "predicted_quarantine_recommended",
+        "expected_findings",
+        "forbidden_findings",
+        "predicted_findings",
+        "status_ok",
+        "findings_ok",
+        "status_match",
+        "findings_match",
+        "mismatch_reasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "expected_status": {"type": "string", "enum": ["clear", "review", "quarantine"]},
+        "predicted_status": {"type": "string", "enum": ["clear", "review", "quarantine"]},
+        "expected_positive": {"type": "boolean"},
+        "predicted_positive": {"type": "boolean"},
+        "expected_review_recommended": {"type": "boolean"},
+        "predicted_review_recommended": {"type": "boolean"},
+        "expected_quarantine_recommended": {"type": "boolean"},
+        "predicted_quarantine_recommended": {"type": "boolean"},
+        "expected_findings": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "forbidden_findings": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "predicted_findings": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "status_ok": {"type": "boolean"},
+        "findings_ok": {"type": "boolean"},
+        "status_match": {"type": "boolean"},
+        "findings_match": {"type": "boolean"},
+        "mismatch_reasons": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "status_matrix": {
+      "type": "object",
+      "required": ["clear", "review", "quarantine"],
+      "additionalProperties": false,
+      "properties": {
+        "clear": {"type": "integer", "minimum": 0},
+        "review": {"type": "integer", "minimum": 0},
+        "quarantine": {"type": "integer", "minimum": 0}
+      }
+    },
+    "layer_metrics": {
+      "type": "object",
+      "required": [
+        "cases",
+        "positive_expected",
+        "positive_predicted",
+        "true_positive",
+        "false_positive",
+        "true_negative",
+        "false_negative",
+        "precision",
+        "recall",
+        "false_positive_rate",
+        "exact_status_accuracy",
+        "status_confusion_matrix"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cases": {"type": "integer", "minimum": 0},
+        "positive_expected": {"type": "integer", "minimum": 0},
+        "positive_predicted": {"type": "integer", "minimum": 0},
+        "true_positive": {"type": "integer", "minimum": 0},
+        "false_positive": {"type": "integer", "minimum": 0},
+        "true_negative": {"type": "integer", "minimum": 0},
+        "false_negative": {"type": "integer", "minimum": 0},
+        "precision": {"type": "number", "minimum": 0, "maximum": 1},
+        "recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "false_positive_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "exact_status_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "status_confusion_matrix": {
+          "type": "object",
+          "required": ["clear", "review", "quarantine"],
+          "additionalProperties": false,
+          "properties": {
+            "clear": {"$ref": "#/$defs/status_matrix"},
+            "review": {"$ref": "#/$defs/status_matrix"},
+            "quarantine": {"$ref": "#/$defs/status_matrix"}
+          }
+        }
+      }
+    },
+    "threshold_summary": {
+      "type": "object",
+      "required": [
+        "minimum_precision",
+        "minimum_recall",
+        "maximum_false_positive_rate",
+        "minimum_exact_status_accuracy",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "minimum_precision": {"type": "number", "minimum": 0, "maximum": 1},
+        "minimum_recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "maximum_false_positive_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "minimum_exact_status_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "status": {"type": "string", "enum": ["pass", "fail"]}
+      }
+    }
+  }
+}

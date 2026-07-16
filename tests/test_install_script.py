@@ -88,6 +88,22 @@ class InstallScriptTests(unittest.TestCase):
             self.assertFalse((skills_dir / "complex-work-orchestration").exists())
             self.assertIn("Would create staging install", dry_run.stdout)
 
+    def test_installer_copies_calibration_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skills_dir = Path(tmpdir) / "skills"
+            install = self.run_installer("--skills-dir", str(skills_dir), "--yes")
+            self.assertEqual(install.returncode, 0, install.stderr or install.stdout)
+
+            target = skills_dir / "complex-work-orchestration" / "calibration"
+            self.assertTrue(target.is_dir())
+            for filename in [
+                "skl-return-language-contract-v1.json",
+                "skl-return-language-corpus-v1.json",
+                "skl-return-language-tuning-v1.json",
+                "skl-return-language-calibration-report-latest.json",
+            ]:
+                self.assertTrue((target / filename).is_file())
+
     def test_uninstall_dry_run_keeps_active_install(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             skills_dir = Path(tmpdir) / "skills"

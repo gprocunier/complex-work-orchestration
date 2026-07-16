@@ -30,6 +30,7 @@ INSTALL_ITEMS = (
     "examples",
     "docs",
     "scripts",
+    "calibration",
 )
 IGNORED_DIR_NAMES = {"__pycache__"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
@@ -106,6 +107,23 @@ def build_manifest(root: Path, items: tuple[str, ...] = INSTALL_ITEMS) -> dict[s
     }
 
 
+def _calibration_artifacts(root: Path) -> dict[str, Any]:
+    return {
+        "contract": file_sha256(root / "calibration/skl-return-language-contract-v1.json")
+        if (root / "calibration/skl-return-language-contract-v1.json").is_file()
+        else None,
+        "corpus": file_sha256(root / "calibration/skl-return-language-corpus-v1.json")
+        if (root / "calibration/skl-return-language-corpus-v1.json").is_file()
+        else None,
+        "tuning": file_sha256(root / "calibration/skl-return-language-tuning-v1.json")
+        if (root / "calibration/skl-return-language-tuning-v1.json").is_file()
+        else None,
+        "latest_report": file_sha256(root / "calibration/skl-return-language-calibration-report-latest.json")
+        if (root / "calibration/skl-return-language-calibration-report-latest.json").is_file()
+        else None,
+    }
+
+
 def compare_manifests(source: dict[str, Any], installed: dict[str, Any]) -> dict[str, Any]:
     source_files = {item["path"]: item for item in source.get("files", [])}
     installed_files = {item["path"]: item for item in installed.get("files", [])}
@@ -158,6 +176,10 @@ def installed_status(source_dir: Path, target_dir: Path) -> dict[str, Any]:
         "skill_name": SKILL_NAME,
         "source_dir": str(source_dir),
         "installed_dir": str(target_dir),
+        "calibration_artifacts": {
+            "source": _calibration_artifacts(source_dir),
+            "installed": _calibration_artifacts(target_dir),
+        },
     }
     if not target_dir.exists():
         result.update(
@@ -169,6 +191,10 @@ def installed_status(source_dir: Path, target_dir: Path) -> dict[str, Any]:
                 "installed_content_sha256": None,
                 "source_file_count": source_manifest.get("file_count"),
                 "installed_file_count": 0,
+                "calibration_artifacts": {
+                    "source": _calibration_artifacts(source_dir),
+                    "installed": {},
+                },
                 "missing_files": [item["path"] for item in source_manifest.get("files", [])],
                 "extra_files": [],
                 "changed_files": [],
@@ -194,6 +220,7 @@ def write_install_manifest(target_dir: Path, status: dict[str, Any]) -> Path:
         "installed_content_sha256": status.get("installed_content_sha256"),
         "source_file_count": status.get("source_file_count"),
         "installed_file_count": status.get("installed_file_count"),
+        "calibration_artifacts": status.get("calibration_artifacts"),
     }
     atomic_write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return manifest_path
