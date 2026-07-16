@@ -90,6 +90,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_recovery": set(),
     "native_retry": set(),
     "native_control": set(),
+    "native_pool_contracts": set(),
     "native_replanning": {"policy"},
     "native_progress": {"policy"},
     "checked_command": set(),

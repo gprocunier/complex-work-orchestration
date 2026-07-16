@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Supervision Adapter Capability Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_type", "version", "schema", "adapter_id", "adapter_version",
+    "execution_surface", "host_identity", "control_turn_id", "measured_at",
+    "expires_at", "sample_count", "requested_cap", "clock", "callbacks",
+    "scheduler_overhead", "capabilities", "attestation_source",
+    "validation_outcome", "receipt_sha256"
+  ],
+  "properties": {
+    "receipt_type": {"const": "cwo-native-supervision-adapter-capability-receipt"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-supervision-adapter-capability-receipt.schema.json"},
+    "adapter_id": {"type": "string", "minLength": 1},
+    "adapter_version": {"type": "string", "minLength": 1},
+    "execution_surface": {"type": "string", "minLength": 1},
+    "host_identity": {"$ref": "#/$defs/owner"},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "measured_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "sample_count": {"type": "integer", "minimum": 1},
+    "requested_cap": {"const": 2},
+    "clock": {"const": "monotonic_ns"},
+    "callbacks": {
+      "type": "object", "additionalProperties": false,
+      "required": ["arm", "send_input", "mark_dispatched", "check", "interrupt", "close", "finalize"],
+      "properties": {
+        "arm": {"$ref": "#/$defs/stats"},
+        "send_input": {"$ref": "#/$defs/stats"},
+        "mark_dispatched": {"$ref": "#/$defs/stats"},
+        "check": {"$ref": "#/$defs/check_stats"},
+        "interrupt": {"$ref": "#/$defs/stats"},
+        "close": {"$ref": "#/$defs/stats"},
+        "finalize": {"$ref": "#/$defs/stats"}
+      }
+    },
+    "scheduler_overhead": {"$ref": "#/$defs/stats"},
+    "capabilities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["interrupt", "close", "wait", "trusted_telemetry"],
+      "properties": {
+        "interrupt": {"const": true},
+        "close": {"const": true},
+        "wait": {"const": true},
+        "trusted_telemetry": {"const": true}
+      }
+    },
+    "attestation_source": {"const": "trusted-control-plane-session-metadata"},
+    "validation_outcome": {"const": "accepted"},
+    "receipt_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "owner": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pid", "start_ticks", "boot_id_sha256"],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "start_ticks": {"type": "integer", "minimum": 1},
+        "boot_id_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "stats": {
+      "type": "object", "additionalProperties": false,
+      "required": ["p50_ms", "p90_ms", "p99_ms", "max_ms"],
+      "properties": {
+        "p50_ms": {"type": "number", "minimum": 0},
+        "p90_ms": {"type": "number", "minimum": 0},
+        "p99_ms": {"type": "number", "minimum": 0},
+        "max_ms": {"type": "number", "minimum": 0}
+      }
+    },
+    "check_stats": {
+      "type": "object", "additionalProperties": false,
+      "required": ["p50_ms", "p90_ms", "p99_ms", "max_ms"],
+      "properties": {
+        "p50_ms": {"type": "number", "minimum": 0, "maximum": 400},
+        "p90_ms": {"type": "number", "minimum": 0, "maximum": 400},
+        "p99_ms": {"type": "number", "minimum": 0, "maximum": 400},
+        "max_ms": {"type": "number", "minimum": 0, "maximum": 400}
+      }
+    }
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "fixture_type": "cwo-native-control-legacy-receipts",
+  "version": 1,
+  "baseline_commit": "01780916148e2fad7bf96023c445718e19539052",
+  "cases": {
+    "complete": {
+      "canonical_sha256": "fdd81ee974d695a499f9114a89b0ea73c0a64c42baf3159ae041189b0482c9ad",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": "submission-1",
+        "actions": ["arm", "send-input", "mark-dispatched", "check", "sleep", "check", "sleep", "check", "finalize:worker-completed", "close"],
+        "decisions": ["continue", "warn", "complete"],
+        "poll_count": 3,
+        "terminal_state": "completed",
+        "errors": []
+      }
+    },
+    "interrupt": {
+      "canonical_sha256": "49f172075341844f0356e99ceb20274147c4e071a1a19a4fc840fb04b62ec0af",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": "submission-1",
+        "actions": ["arm", "send-input", "mark-dispatched", "check", "interrupt", "finalize:interrupt-confirmed", "close", "finalize:close-confirmed"],
+        "decisions": ["interrupt"],
+        "poll_count": 1,
+        "terminal_state": "closed",
+        "errors": []
+      }
+    },
+    "control-lost": {
+      "canonical_sha256": "dda39279868887c4e5aa97e24a36eda108c0345d9417c8187811abc5d435cdee",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": "submission-1",
+        "actions": ["arm", "send-input", "mark-dispatched", "check", "interrupt", "finalize:interrupt-confirmed", "close", "finalize:close-confirmed"],
+        "decisions": ["control-lost"],
+        "poll_count": 1,
+        "terminal_state": "closed",
+        "errors": []
+      }
+    },
+    "invalid-input": {
+      "canonical_sha256": "544df9b519ebf80b9fbb23c2fb4c5254daaa836cdeea45eaf610d3b450e77a70",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": null,
+        "actions": [],
+        "decisions": [],
+        "poll_count": 0,
+        "terminal_state": "control-failed",
+        "errors": ["task-input-must-be-string"]
+      }
+    },
+    "callback-failure": {
+      "canonical_sha256": "35ee4f05147dc0f6a57998b2b7ff8097023990d61b3d68e4d69354980778ff86",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": "submission-1",
+        "actions": ["arm", "send-input", "mark-dispatched", "check", "finalize:control-failed"],
+        "decisions": [],
+        "poll_count": 0,
+        "terminal_state": "control-failed",
+        "errors": ["callback-failed:RuntimeError:check failed"]
+      }
+    },
+    "sleep-failure": {
+      "canonical_sha256": "8b35ec6c7e2643d98ba4f8923cf39a1a4ceaea76554876d4855890c5a15051d3",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": "submission-1",
+        "actions": ["arm", "send-input", "mark-dispatched", "check", "sleep", "finalize:control-failed"],
+        "decisions": ["continue"],
+        "poll_count": 1,
+        "terminal_state": "control-failed",
+        "errors": ["callback-failed:RuntimeError:sleep failed"]
+      }
+    },
+    "finalizer-failure": {
+      "canonical_sha256": "81e09d88bbee46b3eefd03363780209c509466a09e7930d6bee13d8da4e93d63",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": "submission-1",
+        "actions": ["arm", "send-input", "mark-dispatched", "check", "finalize:worker-completed", "finalize:control-failed"],
+        "decisions": ["complete"],
+        "poll_count": 1,
+        "terminal_state": "control-failed",
+        "errors": ["callback-failed:RuntimeError:finalize failed", "control-failed-receipt-failed:RuntimeError:finalize failed"]
+      }
+    },
+    "duplicate-run": {
+      "canonical_sha256": "a6df7052e71bb692e0f1ad0b58c5f2981dca865ff6f469e50a1c214d5f190d27",
+      "receipt": {
+        "receipt_type": "cwo-native-control-turn-receipt",
+        "version": 1,
+        "contract_sha256": "6912d3c1212646a34c498a43b144bda4e22252487c14d105d138e9bf93d50f13",
+        "task_sha256": "b0e23ff955daffad249949e0ac722035286e3ddec9ce90b076a703e8672df1f5",
+        "submission_id": null,
+        "actions": [],
+        "decisions": [],
+        "poll_count": 0,
+        "terminal_state": "control-failed",
+        "errors": ["control-turn-already-dispatched"]
+      }
+    }
+  }
+}

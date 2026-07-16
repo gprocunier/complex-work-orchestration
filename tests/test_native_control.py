@@ -24,6 +24,16 @@ from cwo_core.native_control import (  # noqa: E402
 
 
 TASK = "perform bounded work"
+LEGACY_FIXTURE = json.loads(
+    (ROOT / "tests" / "fixtures" / "native-control-legacy-receipts-v1.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
+def canonical_sha256(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def contract() -> dict:
@@ -253,6 +263,134 @@ class NativeControlTest(unittest.TestCase):
         self.assertTrue(
             any("check returned missing decision evidence" in error for error in result2["errors"])
         )
+
+    def test_step_is_one_callback_at_a_time_and_never_sleeps(self) -> None:
+        adapter = FakeAdapter(["continue", "complete"])
+        runner = NativeControlTurn(contract(), adapter.callbacks())
+        progress = runner.step(TASK)
+        self.assertEqual([name for name, _ in adapter.calls], ["arm"])
+        self.assertFalse(progress["wait_required"])
+
+        while not progress["wait_required"]:
+            before = len(adapter.calls)
+            progress = runner.step()
+            self.assertLessEqual(len(adapter.calls) - before, 1)
+        self.assertEqual(progress["phase"], "waiting")
+        self.assertNotIn("sleep", [name for name, _ in adapter.calls])
+
+        before = len(adapter.calls)
+        self.assertEqual(runner.step(), progress)
+        self.assertEqual(len(adapter.calls), before)
+        resumed = runner.resume_after_wait()
+        self.assertEqual(len(adapter.calls), before)
+        self.assertEqual(resumed["phase"], "check")
+
+        while runner.step()["status"] != "terminal":
+            pass
+        self.assertNotIn("sleep", [name for name, _ in adapter.calls])
+
+    def test_two_turns_can_wait_and_resume_independently(self) -> None:
+        first_adapter = FakeAdapter(["continue", "complete"])
+        second_adapter = FakeAdapter(["warn", "complete"])
+        first = NativeControlTurn(contract(), first_adapter.callbacks())
+        second_contract = build_control_turn_contract(
+            state_file="/tmp/cwo-supervision-state-2.json",
+            agent_id="agent-2",
+            control_turn_id="turn-2",
+            task_sha256=hashlib.sha256(TASK.encode("utf-8")).hexdigest(),
+            poll_interval_ms=1000,
+        )
+        second = NativeControlTurn(second_contract, second_adapter.callbacks())
+
+        first_progress = first.step(TASK)
+        second_progress = second.step(TASK)
+        while not first_progress["wait_required"]:
+            first_progress = first.step()
+        while not second_progress["wait_required"]:
+            second_progress = second.step()
+        self.assertTrue(first_progress["wait_required"])
+        self.assertTrue(second_progress["wait_required"])
+        first_count = len(first_adapter.calls)
+        second_count = len(second_adapter.calls)
+        first.resume_after_wait()
+        self.assertEqual(len(first_adapter.calls), first_count)
+        self.assertEqual(len(second_adapter.calls), second_count)
+        self.assertTrue(second.step()["wait_required"])
+
+    def test_invalid_start_and_invalid_resume_use_zero_callbacks(self) -> None:
+        adapter = FakeAdapter(["complete"])
+        runner = NativeControlTurn(contract(), adapter.callbacks())
+        progress = runner.step()
+        self.assertEqual(progress["status"], "terminal")
+        self.assertEqual(adapter.calls, [])
+        self.assertEqual(progress["receipt"]["errors"], ["task-input-must-be-string"])
+
+        adapter2 = FakeAdapter(["complete"])
+        runner2 = NativeControlTurn(contract(), adapter2.callbacks())
+        with self.assertRaisesRegex(ValueError, "not waiting"):
+            runner2.resume_after_wait()
+        self.assertEqual(adapter2.calls, [])
+
+    def test_callback_failure_defers_control_failed_finalize(self) -> None:
+        adapter = FakeAdapter(["complete"], fail="check")
+        runner = NativeControlTurn(contract(), adapter.callbacks())
+        progress = runner.step(TASK)
+        while progress["phase"] != "finalize-control-failed":
+            progress = runner.step()
+        self.assertEqual([name for name, _ in adapter.calls][-1], "check")
+        before = len(adapter.calls)
+        terminal = runner.step()
+        self.assertEqual(len(adapter.calls) - before, 1)
+        self.assertEqual(terminal["status"], "terminal")
+        self.assertEqual([name for name, _ in adapter.calls][-1], "finalize")
+
+    def test_terminal_step_is_idempotent(self) -> None:
+        adapter = FakeAdapter(["complete"])
+        runner = NativeControlTurn(contract(), adapter.callbacks())
+        progress = runner.step(TASK)
+        while progress["status"] != "terminal":
+            progress = runner.step()
+        calls = list(adapter.calls)
+        self.assertEqual(runner.step(), progress)
+        self.assertEqual(adapter.calls, calls)
+
+    def test_legacy_receipts_match_frozen_canonical_fixtures(self) -> None:
+        complete = run_control_turn(
+            contract(), TASK, FakeAdapter(["continue", "warn", "complete"]).callbacks()
+        )
+        interrupt = run_control_turn(contract(), TASK, FakeAdapter(["interrupt"]).callbacks())
+        control_lost = run_control_turn(contract(), TASK, FakeAdapter(["control-lost"]).callbacks())
+        invalid_input = run_control_turn(contract(), None, FakeAdapter(["complete"]).callbacks())
+        callback_failure = run_control_turn(
+            contract(), TASK, FakeAdapter(["complete"], fail="check").callbacks()
+        )
+        sleep_failure = run_control_turn(
+            contract(), TASK, FakeAdapter(["continue"], fail="sleep").callbacks()
+        )
+        finalizer_failure = run_control_turn(
+            contract(), TASK, FakeAdapter(["complete"], fail="finalize").callbacks()
+        )
+        duplicate_adapter = FakeAdapter(["complete"])
+        duplicate_runner = NativeControlTurn(contract(), duplicate_adapter.callbacks())
+        duplicate_runner.run(TASK)
+        duplicate_run = duplicate_runner.run(TASK)
+
+        observed = {
+            "complete": complete,
+            "interrupt": interrupt,
+            "control-lost": control_lost,
+            "invalid-input": invalid_input,
+            "callback-failure": callback_failure,
+            "sleep-failure": sleep_failure,
+            "finalizer-failure": finalizer_failure,
+            "duplicate-run": duplicate_run,
+        }
+        self.assertEqual(LEGACY_FIXTURE["baseline_commit"], "01780916148e2fad7bf96023c445718e19539052")
+        for case, receipt in observed.items():
+            with self.subTest(case=case):
+                expected = LEGACY_FIXTURE["cases"][case]
+                self.assertEqual(receipt, expected["receipt"])
+                self.assertEqual(canonical_sha256(receipt), expected["canonical_sha256"])
 
 
 if __name__ == "__main__":

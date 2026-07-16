@@ -1,0 +1,467 @@
+from __future__ import annotations
+
+import copy
+import datetime as dt
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from cwo_core.native_pool_contracts import (  # noqa: E402
+    CAPABILITY_RECEIPT_SCHEMA,
+    CAPABILITY_RECEIPT_TYPE,
+    LEASE_SCHEMA,
+    LEASE_TYPE,
+    POOL_ALLOWED_ACTIONS,
+    POOL_CONTRACT_SCHEMA,
+    POOL_CONTRACT_TYPE,
+    POOL_DECISION_SCHEMA,
+    POOL_DECISION_TYPE,
+    POOL_RECEIPT_SCHEMA,
+    POOL_RECEIPT_TYPE,
+    POOL_STATE_SCHEMA,
+    POOL_STATE_TYPE,
+    VERSION,
+    artifact_sha256,
+    canonical_sha256,
+    seal_artifact,
+    validate_capability_receipt,
+    validate_lease,
+    validate_pool_artifact,
+    validate_pool_contract,
+    validate_pool_decision,
+    validate_pool_receipt,
+    validate_pool_state,
+    write_private_artifact,
+    zero_usage,
+)
+
+
+HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
+
+
+def sha(label: str) -> str:
+    return canonical_sha256({"label": label})
+
+
+def owner() -> dict:
+    return {"pid": 1234, "start_ticks": 5678, "boot_id_sha256": sha("boot")}
+
+
+def identity(label: str) -> dict:
+    return {
+        "canonical_path_sha256": sha(f"path:{label}"),
+        "git_common_dir_sha256": sha(f"git:{label}"),
+        "device": 10,
+        "inode": 100 + len(label),
+        "baseline_sha256": sha(f"baseline:{label}"),
+    }
+
+
+def child(index: int, *, isolation: str = "mutable-isolated") -> dict:
+    read_only = isolation == "read-only-shared"
+    target = [] if read_only else [f"scripts/child_{index}.py"]
+    return {
+        "ordinal": index,
+        "child_id": f"child-{index}",
+        "packet_id": f"packet-{index}",
+        "attempt_nonce": f"nonce-{index}",
+        "session_id": f"session-{index}",
+        "agent_id": f"agent-{index}",
+        "control_turn_id": f"child-turn-{index}",
+        "packet_sha256": sha(f"packet:{index}"),
+        "control_contract_sha256": sha(f"control:{index}"),
+        "state_file": f"/tmp/cwo-child-{index}.json",
+        "worktree_identity": identity("shared" if read_only else f"worktree:{index}"),
+        "isolation_class": isolation,
+        "declared_write_paths": target,
+        "integration_target_paths": target,
+        "lease_id": f"lease-{index}",
+    }
+
+
+def capability_payload() -> dict:
+    stats = {"p50_ms": 20, "p90_ms": 40, "p99_ms": 80, "max_ms": 100}
+    callbacks = {
+        name: dict(stats)
+        for name in ("arm", "send_input", "mark_dispatched", "check", "interrupt", "close", "finalize")
+    }
+    return {
+        "receipt_type": CAPABILITY_RECEIPT_TYPE,
+        "version": VERSION,
+        "schema": CAPABILITY_RECEIPT_SCHEMA,
+        "adapter_id": "native-multi-agent-v1",
+        "adapter_version": "1",
+        "execution_surface": "connected-codex",
+        "host_identity": owner(),
+        "control_turn_id": "pool-turn",
+        "measured_at": "2026-07-16T00:00:00Z",
+        "expires_at": "2026-07-16T00:30:00Z",
+        "sample_count": 20,
+        "requested_cap": 2,
+        "clock": "monotonic_ns",
+        "callbacks": callbacks,
+        "scheduler_overhead": {"p50_ms": 10, "p90_ms": 20, "p99_ms": 30, "max_ms": 50},
+        "capabilities": {"interrupt": True, "close": True, "wait": True, "trusted_telemetry": True},
+        "attestation_source": "trusted-control-plane-session-metadata",
+        "validation_outcome": "accepted",
+    }
+
+
+def pool_contract(*, cap: int = 2, read_only: bool = False) -> tuple[dict, dict | None]:
+    capability = seal_artifact(capability_payload(), "receipt_sha256") if cap == 2 else None
+    isolation = "read-only-shared" if read_only else "mutable-isolated"
+    children = [child(index, isolation=isolation) for index in range(cap)]
+    payload = {
+        "contract_type": POOL_CONTRACT_TYPE,
+        "version": VERSION,
+        "schema": POOL_CONTRACT_SCHEMA,
+        "pool_id": "pool-1",
+        "pool_epoch": "epoch-1",
+        "control_turn_id": "pool-turn",
+        "created_at": "2026-07-16T00:00:00Z",
+        "owner": owner(),
+        "children": children,
+        "max_active_workers": cap,
+        "scheduler": {
+            "kind": "earliest-deadline-rotating-v1",
+            "poll_interval_ms": 1000,
+            "poll_lag_tolerance_ms": 1500,
+            "certified_max_check_ms": 100 if cap == 2 else None,
+            "certified_max_scheduler_overhead_ms": 50 if cap == 2 else None,
+        },
+        "aggregate_hard_budget": {
+            "tool_calls": 56,
+            "runtime_seconds": 1440,
+            "compactions": 0,
+            "full_suite_runs": 0,
+            "mutations": 4,
+        },
+        "topology": {
+            "integration_root_identity": identity("integration"),
+            "shared_read_only_worktree": read_only,
+        },
+        "allowed_actions": list(POOL_ALLOWED_ACTIONS),
+        "capability_receipt_sha256": capability["receipt_sha256"] if capability else None,
+    }
+    return seal_artifact(payload, "contract_sha256"), capability
+
+
+def released_lease(contract: dict, index: int) -> dict:
+    child_value = contract["children"][index]
+    return seal_artifact(
+        {
+            "lease_type": LEASE_TYPE,
+            "version": VERSION,
+            "schema": LEASE_SCHEMA,
+            "lease_id": child_value["lease_id"],
+            "pool_id": contract["pool_id"],
+            "child_id": child_value["child_id"],
+            "pool_epoch": contract["pool_epoch"],
+            "integration_root_identity": contract["topology"]["integration_root_identity"],
+            "worktree_identity": child_value["worktree_identity"],
+            "target_paths": child_value["integration_target_paths"],
+            "owner": contract["owner"],
+            "lifecycle_state": "released",
+            "acquired_at": "2026-07-16T00:00:01Z",
+            "updated_at": "2026-07-16T00:05:00Z",
+            "terminal_evidence_sha256": sha(f"terminal:{index}"),
+            "release_reason": "pool-closed",
+        },
+        "lease_sha256",
+    )
+
+
+def closed_state(contract: dict, leases: list[dict]) -> dict:
+    children = []
+    for index, child_value in enumerate(contract["children"]):
+        children.append(
+            {
+                "ordinal": index,
+                "child_id": child_value["child_id"],
+                "status": "closed",
+                "last_deadline_ns": 1_000_000_000 + index,
+                "next_deadline_ns": None,
+                "child_state_sha256": sha(f"child-state:{index}"),
+                "child_receipt_sha256": sha(f"child-receipt:{index}"),
+                "last_cumulative_usage": zero_usage(),
+                "lease_id": child_value["lease_id"],
+            }
+        )
+    return seal_artifact(
+        {
+            "state_type": POOL_STATE_TYPE,
+            "version": VERSION,
+            "schema": POOL_STATE_SCHEMA,
+            "pool_id": contract["pool_id"],
+            "pool_epoch": contract["pool_epoch"],
+            "contract_sha256": contract["contract_sha256"],
+            "state_sequence": 7,
+            "status": "closed",
+            "owner": contract["owner"],
+            "coordinator_epoch": 0,
+            "scheduler_cursor": 0,
+            "active_children": [],
+            "terminal_children": [child_value["child_id"] for child_value in contract["children"]],
+            "children": children,
+            "aggregate_usage": zero_usage(),
+            "pool_started_monotonic_ns": 1_000_000,
+            "pool_wall_seconds": 0,
+            "worker_seconds": 0,
+            "poll_overhead_seconds": 0,
+            "lease_bindings": [lease["lease_sha256"] for lease in leases],
+            "reasons": [],
+            "control_loss_scope": None,
+        },
+        "state_sha256",
+    )
+
+
+def complete_decision(contract: dict, state: dict) -> dict:
+    return seal_artifact(
+        {
+            "decision_type": POOL_DECISION_TYPE,
+            "version": VERSION,
+            "schema": POOL_DECISION_SCHEMA,
+            "pool_id": contract["pool_id"],
+            "pool_epoch": contract["pool_epoch"],
+            "contract_sha256": contract["contract_sha256"],
+            "state_sha256": state["state_sha256"],
+            "decision_sequence": state["state_sequence"],
+            "decision": "complete",
+            "selected_child_id": None,
+            "deadlines": [
+                {"child_id": child_value["child_id"], "next_deadline_ns": None}
+                for child_value in contract["children"]
+            ],
+            "observed_callback_latency_ms": 100,
+            "aggregate_usage": state["aggregate_usage"],
+            "reasons": [],
+            "required_control_actions": ["finalize"],
+        },
+        "decision_sha256",
+    )
+
+
+def accepting_receipt(contract: dict, state: dict, leases: list[dict]) -> dict:
+    child_ids = [child_value["child_id"] for child_value in contract["children"]]
+    mutation = {
+        "integration_root_clean": True,
+        "shared_read_only_clean": True,
+        "child_worktrees_clean": True,
+    }
+    return seal_artifact(
+        {
+            "receipt_type": POOL_RECEIPT_TYPE,
+            "version": VERSION,
+            "schema": POOL_RECEIPT_SCHEMA,
+            "pool_id": contract["pool_id"],
+            "pool_epoch": contract["pool_epoch"],
+            "contract_sha256": contract["contract_sha256"],
+            "terminal_state_sha256": state["state_sha256"],
+            "capability_receipt_sha256": contract["capability_receipt_sha256"],
+            "admission_order": child_ids,
+            "poll_order": child_ids,
+            "terminal_order": child_ids,
+            "timing": {
+                "max_callback_latency_ms": 100,
+                "max_poll_gap_ms": 1000,
+                "poll_interval_ms": 1000,
+                "poll_lag_tolerance_ms": 1500,
+            },
+            "child_terminal_receipts": [
+                {"child_id": child_value["child_id"], "receipt_sha256": state["children"][index]["child_receipt_sha256"]}
+                for index, child_value in enumerate(contract["children"])
+            ],
+            "final_aggregate_usage": state["aggregate_usage"],
+            "pool_wall_seconds": state["pool_wall_seconds"],
+            "worker_seconds": state["worker_seconds"],
+            "lease_evidence": [
+                {"lease_id": lease["lease_id"], "lease_sha256": lease["lease_sha256"], "lifecycle_state": "released"}
+                for lease in leases
+            ],
+            "mutation_evidence": {**mutation, "evidence_sha256": canonical_sha256(mutation)},
+            "reasons": [],
+            "child_dispositions": [
+                {"child_id": child_id, "session_disposition": "accepted", "artifact_disposition": "accepted"}
+                for child_id in child_ids
+            ],
+            "pool_disposition": "accepted",
+            "accepting": True,
+        },
+        "receipt_sha256",
+    )
+
+
+class NativePoolContractTest(unittest.TestCase):
+    def artifacts(self):
+        contract, capability = pool_contract()
+        self.assertIsNotNone(capability)
+        leases = [released_lease(contract, index) for index in range(2)]
+        state = closed_state(contract, leases)
+        decision = complete_decision(contract, state)
+        receipt = accepting_receipt(contract, state, leases)
+        return contract, capability, leases, state, decision, receipt
+
+    def test_valid_artifact_family_and_cross_field_bindings(self) -> None:
+        contract, capability, leases, state, decision, receipt = self.artifacts()
+        now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
+        self.assertEqual(validate_pool_contract(contract), [])
+        self.assertEqual(validate_capability_receipt(capability, expected_contract=contract, now=now), [])
+        for lease in leases:
+            self.assertEqual(validate_lease(lease, contract=contract), [])
+        self.assertEqual(validate_pool_state(state, contract=contract), [])
+        self.assertEqual(validate_pool_decision(decision, contract=contract, state=state), [])
+        self.assertEqual(validate_pool_receipt(receipt, contract=contract, terminal_state=state), [])
+        self.assertEqual(validate_pool_artifact(contract), [])
+
+    def test_missing_unknown_tamper_and_replay_fail(self) -> None:
+        contract, _, _, _, _, _ = self.artifacts()
+        missing = copy.deepcopy(contract)
+        missing.pop("owner")
+        self.assertTrue(any("missing-fields" in error for error in validate_pool_contract(missing)))
+        unknown = copy.deepcopy(contract)
+        unknown["unexpected"] = True
+        self.assertTrue(any("unknown-fields" in error for error in validate_pool_contract(unknown)))
+        tampered = copy.deepcopy(contract)
+        tampered["pool_id"] = "changed"
+        self.assertIn("contract-sha256-mismatch", validate_pool_contract(tampered))
+        self.assertIn(
+            "replay-detected",
+            validate_pool_contract(contract, seen_hashes={contract["contract_sha256"]}),
+        )
+        changed = copy.deepcopy(contract)
+        changed["aggregate_hard_budget"]["tool_calls"] += 1
+        self.assertNotEqual(artifact_sha256(changed, "contract_sha256"), contract["contract_sha256"])
+
+    def test_duplicate_identity_nonce_and_overlapping_targets_fail(self) -> None:
+        contract, _ = pool_contract()
+        duplicate = copy.deepcopy(contract)
+        duplicate["children"][1]["packet_id"] = duplicate["children"][0]["packet_id"]
+        duplicate["children"][1]["attempt_nonce"] = duplicate["children"][0]["attempt_nonce"]
+        duplicate["children"][1]["worktree_identity"] = duplicate["children"][0]["worktree_identity"]
+        duplicate["children"][1]["integration_target_paths"] = ["scripts/child_0.py/nested"]
+        duplicate = seal_artifact(duplicate, "contract_sha256")
+        errors = validate_pool_contract(duplicate)
+        self.assertIn("duplicate-child-packet-id", errors)
+        self.assertIn("duplicate-child-attempt-nonce", errors)
+        self.assertIn("duplicate-mutable-worktree-identity", errors)
+        self.assertTrue(any(error.startswith("cross-child-target-overlap") for error in errors))
+
+    def test_cap_one_requires_no_capability_and_preserves_strict_contract(self) -> None:
+        contract, capability = pool_contract(cap=1)
+        self.assertIsNone(capability)
+        self.assertEqual(validate_pool_contract(contract), [])
+        changed = copy.deepcopy(contract)
+        changed["capability_receipt_sha256"] = sha("unexpected")
+        changed = seal_artifact(changed, "contract_sha256")
+        self.assertIn("cap-one-capability-receipt-must-be-null", validate_pool_contract(changed))
+
+    def test_read_only_contract_rejects_any_declared_mutation(self) -> None:
+        contract, _ = pool_contract(read_only=True)
+        self.assertEqual(validate_pool_contract(contract), [])
+        changed = copy.deepcopy(contract)
+        changed["children"][0]["declared_write_paths"] = ["README.md"]
+        changed = seal_artifact(changed, "contract_sha256")
+        self.assertTrue(any("paths-must-be-empty" in error for error in validate_pool_contract(changed)))
+
+    def test_stale_capability_overrun_and_cross_bound_receipt_fail(self) -> None:
+        contract, capability, _, _, _, _ = self.artifacts()
+        stale_now = dt.datetime(2026, 7, 16, 1, 0, tzinfo=dt.timezone.utc)
+        self.assertIn(
+            "capability-receipt-stale",
+            validate_capability_receipt(capability, expected_contract=contract, now=stale_now),
+        )
+        overrun = copy.deepcopy(capability)
+        overrun["callbacks"]["check"] = {"p50_ms": 410, "p90_ms": 410, "p99_ms": 410, "max_ms": 410}
+        overrun = seal_artifact(overrun, "receipt_sha256")
+        self.assertIn(
+            "certified-check-ceiling-exceeded",
+            validate_capability_receipt(overrun, now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)),
+        )
+        mismatch = copy.deepcopy(capability)
+        mismatch["control_turn_id"] = "other"
+        mismatch = seal_artifact(mismatch, "receipt_sha256")
+        self.assertIn(
+            "capability-control-turn-mismatch",
+            validate_capability_receipt(mismatch, expected_contract=contract, now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)),
+        )
+
+    def test_state_decision_lease_and_receipt_cross_binding_fail_closed(self) -> None:
+        contract, _, leases, state, decision, receipt = self.artifacts()
+        state_reset = copy.deepcopy(state)
+        state_reset["children"][0]["last_cumulative_usage"]["tool_calls"] = 1
+        state_reset = seal_artifact(state_reset, "state_sha256")
+        self.assertIn("aggregate-usage-mismatch", validate_pool_state(state_reset, contract=contract))
+
+        decision_mismatch = copy.deepcopy(decision)
+        decision_mismatch["decision_sequence"] += 1
+        decision_mismatch = seal_artifact(decision_mismatch, "decision_sha256")
+        self.assertIn(
+            "decision-sequence-mismatch",
+            validate_pool_decision(decision_mismatch, contract=contract, state=state),
+        )
+
+        lease_mismatch = copy.deepcopy(leases[0])
+        lease_mismatch["pool_epoch"] = "other"
+        lease_mismatch = seal_artifact(lease_mismatch, "lease_sha256")
+        self.assertIn("lease-pool-epoch-mismatch", validate_lease(lease_mismatch, contract=contract))
+
+        receipt_mismatch = copy.deepcopy(receipt)
+        receipt_mismatch["terminal_state_sha256"] = sha("stale-state")
+        receipt_mismatch = seal_artifact(receipt_mismatch, "receipt_sha256")
+        self.assertIn(
+            "receipt-terminal-state-sha256-mismatch",
+            validate_pool_receipt(receipt_mismatch, contract=contract, terminal_state=state),
+        )
+
+    def test_accepting_receipt_requires_clean_released_accepted_evidence(self) -> None:
+        contract, _, leases, state, _, receipt = self.artifacts()
+        changed = copy.deepcopy(receipt)
+        changed["mutation_evidence"]["integration_root_clean"] = False
+        changed["lease_evidence"][0]["lifecycle_state"] = "release-pending"
+        changed["child_dispositions"][0]["artifact_disposition"] = "rejected"
+        changed = seal_artifact(changed, "receipt_sha256")
+        errors = validate_pool_receipt(changed, contract=contract, terminal_state=state)
+        self.assertIn("accepting-requires-clean-mutation-evidence", errors)
+        self.assertIn("accepting-requires-released-leases", errors)
+        self.assertIn("accepting-requires-accepted-children", errors)
+
+    def test_private_artifact_write_is_atomic_mode_0600(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "pool.json"
+            write_private_artifact(path, contract)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), contract)
+            self.assertFalse(any(item.name.endswith(".tmp") for item in path.parent.iterdir()))
+
+    @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
+    def test_artifacts_validate_against_strict_schemas(self) -> None:
+        import jsonschema
+
+        contract, capability, leases, state, decision, receipt = self.artifacts()
+        artifacts = [
+            (contract, POOL_CONTRACT_SCHEMA),
+            (capability, CAPABILITY_RECEIPT_SCHEMA),
+            (leases[0], LEASE_SCHEMA),
+            (state, POOL_STATE_SCHEMA),
+            (decision, POOL_DECISION_SCHEMA),
+            (receipt, POOL_RECEIPT_SCHEMA),
+        ]
+        for artifact, schema_name in artifacts:
+            with self.subTest(schema=schema_name):
+                schema = json.loads((ROOT / schema_name).read_text(encoding="utf-8"))
+                self.assertFalse(schema["additionalProperties"])
+                jsonschema.validate(artifact, schema)
+
+
+if __name__ == "__main__":
+    unittest.main()
