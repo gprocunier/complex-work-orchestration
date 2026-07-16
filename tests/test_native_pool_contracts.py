@@ -364,6 +364,31 @@ class NativePoolContractTest(unittest.TestCase):
         changed = seal_artifact(changed, "contract_sha256")
         self.assertIn("cap-one-capability-receipt-must-be-null", validate_pool_contract(changed))
 
+    def test_cap_must_equal_fixed_cohort_and_schema_matches(self) -> None:
+        contract, _ = pool_contract()
+        changed = copy.deepcopy(contract)
+        changed["children"].pop()
+        changed = seal_artifact(changed, "contract_sha256")
+        self.assertIn("max-active-workers-must-equal-fixed-cohort", validate_pool_contract(changed))
+        if HAS_JSONSCHEMA:
+            import jsonschema
+
+            schema = json.loads((ROOT / POOL_CONTRACT_SCHEMA).read_text(encoding="utf-8"))
+            with self.assertRaises(jsonschema.ValidationError):
+                jsonschema.validate(changed, schema)
+
+    def test_v1_poll_contract_is_exact_and_cap_one_has_no_certification(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        changed = copy.deepcopy(contract)
+        changed["scheduler"]["poll_interval_ms"] = 999
+        changed["scheduler"]["poll_lag_tolerance_ms"] = 1501
+        changed["scheduler"]["certified_max_check_ms"] = 100
+        changed = seal_artifact(changed, "contract_sha256")
+        errors = validate_pool_contract(changed)
+        self.assertIn("invalid-scheduler-poll-interval-ms", errors)
+        self.assertIn("invalid-scheduler-poll-lag-tolerance-ms", errors)
+        self.assertIn("cap-one-scheduler-certification-must-be-null", errors)
+
     def test_read_only_contract_rejects_any_declared_mutation(self) -> None:
         contract, _ = pool_contract(read_only=True)
         self.assertEqual(validate_pool_contract(contract), [])
@@ -371,6 +396,36 @@ class NativePoolContractTest(unittest.TestCase):
         changed["children"][0]["declared_write_paths"] = ["README.md"]
         changed = seal_artifact(changed, "contract_sha256")
         self.assertTrue(any("paths-must-be-empty" in error for error in validate_pool_contract(changed)))
+
+    def test_topology_flag_and_declared_write_coverage_are_cross_checked(self) -> None:
+        contract, _ = pool_contract()
+        shared_mutable = copy.deepcopy(contract)
+        shared_mutable["topology"]["shared_read_only_worktree"] = True
+        shared_mutable = seal_artifact(shared_mutable, "contract_sha256")
+        self.assertIn(
+            "shared-read-only-worktree-has-mutable-child",
+            validate_pool_contract(shared_mutable),
+        )
+
+        uncovered = copy.deepcopy(contract)
+        uncovered["children"][0]["declared_write_paths"] = ["README.md"]
+        uncovered = seal_artifact(uncovered, "contract_sha256")
+        self.assertTrue(
+            any(
+                error.startswith("child[0]-declared-write-outside-integration-target")
+                for error in validate_pool_contract(uncovered)
+            )
+        )
+
+    def test_worker_worktree_may_not_alias_integration_root(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        changed = copy.deepcopy(contract)
+        changed["children"][0]["worktree_identity"] = changed["topology"]["integration_root_identity"]
+        changed["children"][0]["worktree_identity"]["baseline_sha256"] = sha(
+            "different-baseline-same-physical-root"
+        )
+        changed = seal_artifact(changed, "contract_sha256")
+        self.assertIn("child[0]-worktree-aliases-integration-root", validate_pool_contract(changed))
 
     def test_stale_capability_overrun_and_cross_bound_receipt_fail(self) -> None:
         contract, capability, _, _, _, _ = self.artifacts()
@@ -430,9 +485,54 @@ class NativePoolContractTest(unittest.TestCase):
         changed["child_dispositions"][0]["artifact_disposition"] = "rejected"
         changed = seal_artifact(changed, "receipt_sha256")
         errors = validate_pool_receipt(changed, contract=contract, terminal_state=state)
+        self.assertIn("mutation-evidence-sha256-mismatch", errors)
         self.assertIn("accepting-requires-clean-mutation-evidence", errors)
         self.assertIn("accepting-requires-released-leases", errors)
         self.assertIn("accepting-requires-accepted-children", errors)
+
+    def test_nonaccepting_partial_admission_and_lease_evidence_are_strict_subsets(self) -> None:
+        contract, _, leases, state, _, receipt = self.artifacts()
+        changed = copy.deepcopy(receipt)
+        changed["admission_order"] = []
+        changed["poll_order"] = []
+        changed["lease_evidence"] = []
+        changed["reasons"] = ["lease-acquisition-failed"]
+        changed["pool_disposition"] = "quarantined"
+        changed["accepting"] = False
+        changed = seal_artifact(changed, "receipt_sha256")
+        self.assertEqual(validate_pool_receipt(changed, contract=contract, terminal_state=state), [])
+        if HAS_JSONSCHEMA:
+            import jsonschema
+
+            schema = json.loads((ROOT / POOL_RECEIPT_SCHEMA).read_text(encoding="utf-8"))
+            jsonschema.validate(changed, schema)
+
+        unknown = copy.deepcopy(changed)
+        unknown["admission_order"] = ["unknown-child"]
+        unknown = seal_artifact(unknown, "receipt_sha256")
+        self.assertIn(
+            "admission-order-child-unknown",
+            validate_pool_receipt(unknown, contract=contract, terminal_state=state),
+        )
+
+    def test_state_status_sets_and_release_pending_evidence_are_cross_checked(self) -> None:
+        contract, _, leases, state, _, _ = self.artifacts()
+        changed_state = copy.deepcopy(state)
+        changed_state["active_children"] = ["child-0"]
+        changed_state = seal_artifact(changed_state, "state_sha256")
+        self.assertIn(
+            "active-child-status-mismatch",
+            validate_pool_state(changed_state, contract=contract),
+        )
+
+        changed_lease = copy.deepcopy(leases[0])
+        changed_lease["lifecycle_state"] = "release-pending"
+        changed_lease["terminal_evidence_sha256"] = None
+        changed_lease["release_reason"] = None
+        changed_lease = seal_artifact(changed_lease, "lease_sha256")
+        errors = validate_lease(changed_lease, contract=contract)
+        self.assertIn("release-pending-lease-terminal-evidence-required", errors)
+        self.assertIn("release-pending-lease-reason-required", errors)
 
     def test_private_artifact_write_is_atomic_mode_0600(self) -> None:
         contract, _ = pool_contract(cap=1)

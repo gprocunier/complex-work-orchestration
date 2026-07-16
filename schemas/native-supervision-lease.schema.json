@@ -19,7 +19,7 @@
     "pool_epoch": {"type": "string", "minLength": 1},
     "integration_root_identity": {"$ref": "#/$defs/identity"},
     "worktree_identity": {"$ref": "#/$defs/identity"},
-    "target_paths": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "target_paths": {"type": "array", "minItems": 0, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "owner": {"$ref": "#/$defs/owner"},
     "lifecycle_state": {"enum": ["acquired", "held", "release-pending", "released", "orphaned-active"]},
     "acquired_at": {"type": "string", "format": "date-time"},
@@ -28,6 +28,27 @@
     "release_reason": {"type": ["string", "null"], "minLength": 1},
     "lease_sha256": {"$ref": "#/$defs/sha256"}
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": {"enum": ["released", "release-pending"]}
+        }
+      },
+      "then": {
+        "properties": {
+          "terminal_evidence_sha256": {"$ref": "#/$defs/sha256"},
+          "release_reason": {"type": "string", "minLength": 1}
+        }
+      },
+      "else": {
+        "properties": {
+          "terminal_evidence_sha256": {"type": "null"},
+          "release_reason": {"type": "null"}
+        }
+      }
+    }
+  ],
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "owner": {

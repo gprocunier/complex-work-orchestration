@@ -446,6 +446,21 @@ class NativeControlTurn:
         self._phase = "check"
         return self._progress()
 
+    def request_interrupt(self, reason: str = "pool-interrupt") -> dict[str, Any]:
+        """Give a trusted outer supervisor interrupt precedence without a callback."""
+        if self._terminal:
+            return self._progress()
+        if not self._started:
+            raise ValueError("control turn has not started")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("interrupt reason must be a nonempty string")
+        decision = f"interrupt:{reason.strip()}"
+        if not self._decisions or self._decisions[-1] != decision:
+            self._decisions.append(decision)
+        self._waiting = False
+        self._phase = "interrupt"
+        return self._progress()
+
     def run(self, task_input: str) -> dict[str, Any]:
         """Drive the cooperative machine with exact legacy blocking behavior."""
         if self._started or self._terminal:

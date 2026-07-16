@@ -68,6 +68,8 @@ REQUIRED_CAPABILITY_CALLBACKS = (
 MAX_ACTIVE_WORKERS = 2
 MAX_CAPABILITY_TTL_SECONDS = 3600
 MAX_CERTIFIED_CHECK_MS = 400
+POOL_POLL_INTERVAL_MS = 1000
+POOL_POLL_LAG_TOLERANCE_MS = 1500
 
 HASH_FIELDS = {
     POOL_CONTRACT_TYPE: "contract_sha256",
@@ -508,7 +510,19 @@ def _validate_stats(value: Any, prefix: str, errors: list[str]) -> Mapping[str, 
 
 
 def _identity_key(value: Any) -> str:
-    return canonical_sha256(value) if isinstance(value, Mapping) else ""
+    if not isinstance(value, Mapping):
+        return ""
+    return canonical_sha256(
+        {
+            field: value.get(field)
+            for field in (
+                "canonical_path_sha256",
+                "git_common_dir_sha256",
+                "device",
+                "inode",
+            )
+        }
+    )
 
 
 def validate_pool_contract(
@@ -579,6 +593,17 @@ def validate_pool_contract(
             )
             if isolation == "read-only-shared" and (write_paths or target_paths):
                 errors.append(f"read-only-child[{index}]-paths-must-be-empty")
+            if isolation == "mutable-isolated":
+                for write_path in write_paths:
+                    write_parts = PurePosixPath(write_path).parts
+                    if not any(
+                        PurePosixPath(target).parts
+                        == write_parts[: len(PurePosixPath(target).parts)]
+                        for target in target_paths
+                    ):
+                        errors.append(
+                            f"child[{index}]-declared-write-outside-integration-target:{write_path}"
+                        )
 
         for field in ("child_id", "packet_id", "attempt_nonce", "session_id", "agent_id", "control_turn_id", "lease_id"):
             values = [child.get(field) for child in normalized_children]
@@ -605,8 +630,8 @@ def validate_pool_contract(
     cap = contract.get("max_active_workers")
     if not _is_int(cap, 1) or cap > MAX_ACTIVE_WORKERS:
         errors.append("invalid-max-active-workers")
-    elif isinstance(children, list) and cap > len(children):
-        errors.append("max-active-workers-exceeds-cohort")
+    elif isinstance(children, list) and cap != len(children):
+        errors.append("max-active-workers-must-equal-fixed-cohort")
 
     scheduler = _strict(
         contract.get("scheduler"),
@@ -623,9 +648,9 @@ def validate_pool_contract(
     if scheduler is not None:
         if scheduler.get("kind") != "earliest-deadline-rotating-v1":
             errors.append("invalid-scheduler-kind")
-        if not _is_int(scheduler.get("poll_interval_ms"), 1):
+        if scheduler.get("poll_interval_ms") != POOL_POLL_INTERVAL_MS:
             errors.append("invalid-scheduler-poll-interval-ms")
-        if not _is_int(scheduler.get("poll_lag_tolerance_ms")):
+        if scheduler.get("poll_lag_tolerance_ms") != POOL_POLL_LAG_TOLERANCE_MS:
             errors.append("invalid-scheduler-poll-lag-tolerance-ms")
         for field in ("certified_max_check_ms", "certified_max_scheduler_overhead_ms"):
             item = scheduler.get(field)
@@ -633,6 +658,8 @@ def validate_pool_contract(
                 errors.append(f"invalid-scheduler-{field.replace('_', '-')}")
         check_ms = scheduler.get("certified_max_check_ms")
         overhead_ms = scheduler.get("certified_max_scheduler_overhead_ms")
+        if cap == 1 and (check_ms is not None or overhead_ms is not None):
+            errors.append("cap-one-scheduler-certification-must-be-null")
         if cap == 2:
             if not _is_number(check_ms) or check_ms > MAX_CERTIFIED_CHECK_MS:
                 errors.append("cap-two-check-certification-invalid")
@@ -666,6 +693,21 @@ def validate_pool_contract(
         _validate_identity(topology.get("integration_root_identity"), "integration-root", errors)
         if not isinstance(topology.get("shared_read_only_worktree"), bool):
             errors.append("invalid-shared-read-only-worktree")
+        integration_key = _identity_key(topology.get("integration_root_identity"))
+        for index, child in enumerate(normalized_children):
+            if integration_key and _identity_key(child.get("worktree_identity")) == integration_key:
+                errors.append(f"child[{index}]-worktree-aliases-integration-root")
+        shared = topology.get("shared_read_only_worktree")
+        child_worktree_keys = [
+            _identity_key(child.get("worktree_identity")) for child in normalized_children
+        ]
+        if shared is True:
+            if any(child.get("isolation_class") != "read-only-shared" for child in normalized_children):
+                errors.append("shared-read-only-worktree-has-mutable-child")
+            if child_worktree_keys and len(set(child_worktree_keys)) != 1:
+                errors.append("shared-read-only-worktree-identity-mismatch")
+        elif len(child_worktree_keys) != len(set(child_worktree_keys)):
+            errors.append("shared-worktree-requires-read-only-topology")
     if contract.get("allowed_actions") != list(POOL_ALLOWED_ACTIONS):
         errors.append("invalid-allowed-actions")
     capability_hash = contract.get("capability_receipt_sha256")
@@ -872,6 +914,21 @@ def validate_pool_state(
         errors.append("duplicate-child-id")
     if not set(active).issubset(set(child_ids)) or not set(terminal).issubset(set(child_ids)):
         errors.append("active-or-terminal-child-unknown")
+    expected_active = [
+        child.get("child_id")
+        for child in children
+        if child.get("status")
+        in {"armed", "running", "interrupt-pending", "interrupt-confirmed", "completed"}
+    ]
+    expected_terminal = [
+        child.get("child_id")
+        for child in children
+        if child.get("status") in {"closed", "control-failed"}
+    ]
+    if active != expected_active:
+        errors.append("active-child-status-mismatch")
+    if terminal != expected_terminal:
+        errors.append("terminal-child-status-mismatch")
     _validate_usage(state.get("aggregate_usage"), "aggregate-usage", errors)
     expected_usage = _usage_sum(children)
     if expected_usage is not None and state.get("aggregate_usage") != expected_usage:
@@ -902,6 +959,8 @@ def validate_pool_state(
         errors.append("completed-requires-terminal-cohort")
     if state.get("status") == "closed" and set(terminal) != set(child_ids):
         errors.append("closed-requires-terminal-cohort")
+    if state.get("status") == "control-failed" and set(terminal) != set(child_ids):
+        errors.append("control-failed-requires-terminal-cohort")
     if contract is not None:
         if state.get("pool_id") != contract.get("pool_id"):
             errors.append("state-pool-id-mismatch")
@@ -980,6 +1039,8 @@ def validate_pool_decision(
     actions = decision.get("required_control_actions")
     if not isinstance(actions, list) or any(item not in POOL_ALLOWED_ACTIONS for item in actions):
         errors.append("invalid-required-control-actions")
+    elif len(actions) != len(set(actions)):
+        errors.append("duplicate-required-control-action")
     if contract is not None:
         for field in ("pool_id", "pool_epoch", "contract_sha256"):
             if decision.get(field) != contract.get(field):
@@ -1025,7 +1086,10 @@ def validate_lease(
             errors.append(f"invalid-{field.replace('_', '-')}")
     _validate_identity(lease.get("integration_root_identity"), "integration-root", errors)
     _validate_identity(lease.get("worktree_identity"), "worktree", errors)
-    _validate_relative_paths(lease.get("target_paths"), "target-paths", allow_empty=False, errors=errors)
+    # Read-only shared children hold lifecycle leases without claiming mutable
+    # integration targets. Contract cross-binding still requires mutable
+    # children to carry their non-empty target list.
+    _validate_relative_paths(lease.get("target_paths"), "target-paths", allow_empty=True, errors=errors)
     _validate_owner(lease.get("owner"), "owner", errors)
     lifecycle = lease.get("lifecycle_state")
     if lifecycle not in {"acquired", "held", "release-pending", "released", "orphaned-active"}:
@@ -1040,15 +1104,16 @@ def validate_lease(
         errors.append("lease-time-regression")
     terminal_hash = lease.get("terminal_evidence_sha256")
     reason = lease.get("release_reason")
-    if lifecycle == "released":
+    if lifecycle in {"released", "release-pending"}:
         if not _is_sha256(terminal_hash):
-            errors.append("released-lease-terminal-evidence-required")
+            errors.append(f"{lifecycle}-lease-terminal-evidence-required")
         if not _nonempty(reason):
-            errors.append("released-lease-reason-required")
-    elif terminal_hash is not None and not _is_sha256(terminal_hash):
-        errors.append("invalid-terminal-evidence-sha256")
-    if reason is not None and not _nonempty(reason):
-        errors.append("invalid-release-reason")
+            errors.append(f"{lifecycle}-lease-reason-required")
+    else:
+        if terminal_hash is not None:
+            errors.append("nonterminal-lease-terminal-evidence-forbidden")
+        if reason is not None:
+            errors.append("nonterminal-lease-release-reason-forbidden")
     if contract is not None:
         for field in ("pool_id", "pool_epoch"):
             if lease.get(field) != contract.get(field):
@@ -1183,6 +1248,19 @@ def validate_pool_receipt(
                 errors.append(f"invalid-mutation-{field.replace('_', '-')}")
         if not _is_sha256(mutation.get("evidence_sha256")):
             errors.append("invalid-mutation-evidence-sha256")
+        else:
+            expected_mutation_hash = canonical_sha256(
+                {
+                    field: mutation.get(field)
+                    for field in (
+                        "integration_root_clean",
+                        "shared_read_only_clean",
+                        "child_worktrees_clean",
+                    )
+                }
+            )
+            if mutation.get("evidence_sha256") != expected_mutation_hash:
+                errors.append("mutation-evidence-sha256-mismatch")
     reasons = receipt.get("reasons")
     if not isinstance(reasons, list) or any(not _nonempty(item) for item in reasons):
         errors.append("invalid-reasons")
@@ -1224,8 +1302,13 @@ def validate_pool_receipt(
             if receipt.get(field) != contract.get(field):
                 errors.append(f"receipt-{field.replace('_', '-')}-mismatch")
         child_ids = [child.get("child_id") for child in contract.get("children", []) if isinstance(child, Mapping)]
-        if receipt.get("admission_order") != child_ids:
+        admission_ids = receipt.get("admission_order", [])
+        if not isinstance(admission_ids, list) or any(child_id not in child_ids for child_id in admission_ids):
+            errors.append("admission-order-child-unknown")
+        elif admission_ids != [child_id for child_id in child_ids if child_id in admission_ids]:
             errors.append("admission-order-mismatch")
+        if isinstance(poll_order, list) and any(child_id not in child_ids for child_id in poll_order):
+            errors.append("poll-order-child-unknown")
         if set(receipt.get("terminal_order", [])) != set(child_ids):
             errors.append("terminal-order-mismatch")
         if child_receipt_ids != child_ids:
@@ -1233,8 +1316,16 @@ def validate_pool_receipt(
         if disposition_ids != child_ids:
             errors.append("child-disposition-order-mismatch")
         expected_leases = [child.get("lease_id") for child in contract.get("children", []) if isinstance(child, Mapping)]
-        if lease_ids != expected_leases:
+        if any(lease_id not in expected_leases for lease_id in lease_ids):
+            errors.append("lease-evidence-id-unknown")
+        elif lease_ids != [lease_id for lease_id in expected_leases if lease_id in lease_ids]:
             errors.append("lease-evidence-order-mismatch")
+        if timing is not None:
+            scheduler = contract.get("scheduler", {})
+            if timing.get("poll_interval_ms") != scheduler.get("poll_interval_ms"):
+                errors.append("receipt-poll-interval-mismatch")
+            if timing.get("poll_lag_tolerance_ms") != scheduler.get("poll_lag_tolerance_ms"):
+                errors.append("receipt-poll-lag-tolerance-mismatch")
     if terminal_state is not None:
         if receipt.get("terminal_state_sha256") != terminal_state.get("state_sha256"):
             errors.append("receipt-terminal-state-sha256-mismatch")
@@ -1251,6 +1342,30 @@ def validate_pool_receipt(
             errors.append("accepting-requires-empty-reasons")
         if terminal_state is None or terminal_state.get("status") != "closed":
             errors.append("accepting-requires-closed-state")
+        if contract is not None:
+            child_ids = [
+                child.get("child_id")
+                for child in contract.get("children", [])
+                if isinstance(child, Mapping)
+            ]
+            expected_leases = [
+                child.get("lease_id")
+                for child in contract.get("children", [])
+                if isinstance(child, Mapping)
+            ]
+            if receipt.get("admission_order") != child_ids:
+                errors.append("accepting-requires-complete-admission")
+            if not isinstance(poll_order, list) or any(child_id not in poll_order for child_id in child_ids):
+                errors.append("accepting-requires-complete-poll-evidence")
+            if lease_ids != expected_leases:
+                errors.append("accepting-requires-complete-lease-evidence")
+            if timing is not None:
+                maximum_gap = (
+                    contract.get("scheduler", {}).get("poll_interval_ms", 0)
+                    + contract.get("scheduler", {}).get("poll_lag_tolerance_ms", 0)
+                )
+                if _is_number(timing.get("max_poll_gap_ms")) and timing["max_poll_gap_ms"] > maximum_gap:
+                    errors.append("accepting-receipt-poll-gap-exceeded")
         if isinstance(mutation, Mapping) and any(
             mutation.get(field) is not True
             for field in ("integration_root_clean", "shared_read_only_clean", "child_worktrees_clean")
@@ -1268,6 +1383,8 @@ def validate_pool_receipt(
             for item in dispositions
         ):
             errors.append("accepting-requires-accepted-children")
+    elif receipt.get("pool_disposition") == "accepted":
+        errors.append("accepted-disposition-requires-accepting-receipt")
     _validate_hash(receipt, "receipt_sha256", errors)
     _validate_replay(receipt, "receipt_sha256", seen_hashes, errors)
     return errors

@@ -317,6 +317,30 @@ class NativeControlTest(unittest.TestCase):
         self.assertEqual(len(second_adapter.calls), second_count)
         self.assertTrue(second.step()["wait_required"])
 
+    def test_outer_supervisor_interrupt_wins_wait_and_ambiguous_completion(self) -> None:
+        waiting_adapter = FakeAdapter(["continue"])
+        waiting = NativeControlTurn(contract(), waiting_adapter.callbacks())
+        progress = waiting.step(TASK)
+        while not progress["wait_required"]:
+            progress = waiting.step()
+        requested = waiting.request_interrupt("pool-protected-fault")
+        self.assertEqual(requested["phase"], "interrupt")
+        while requested["status"] != "terminal":
+            requested = waiting.step()
+        self.assertEqual(requested["receipt"]["terminal_state"], "closed")
+        self.assertIn("interrupt:pool-protected-fault", requested["receipt"]["decisions"])
+
+        complete_adapter = FakeAdapter(["complete"])
+        completing = NativeControlTurn(contract(), complete_adapter.callbacks())
+        progress = completing.step(TASK)
+        while progress["phase"] != "finalize-complete":
+            progress = completing.step()
+        progress = completing.request_interrupt("completion-race")
+        while progress["status"] != "terminal":
+            progress = completing.step()
+        self.assertEqual(progress["receipt"]["terminal_state"], "closed")
+        self.assertIn("interrupt:completion-race", progress["receipt"]["decisions"])
+
     def test_invalid_start_and_invalid_resume_use_zero_callbacks(self) -> None:
         adapter = FakeAdapter(["complete"])
         runner = NativeControlTurn(contract(), adapter.callbacks())

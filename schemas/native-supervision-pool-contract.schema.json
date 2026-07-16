@@ -33,11 +33,22 @@
   "allOf": [
     {
       "if": {"properties": {"max_active_workers": {"const": 1}}},
-      "then": {"properties": {"capability_receipt_sha256": {"type": "null"}}}
+      "then": {
+        "properties": {
+          "children": {"maxItems": 1},
+          "scheduler": {
+            "properties": {
+              "certified_max_check_ms": {"type": "null"},
+              "certified_max_scheduler_overhead_ms": {"type": "null"}
+            }
+          },
+          "capability_receipt_sha256": {"type": "null"}
+        }
+      }
     },
     {
       "if": {"properties": {"max_active_workers": {"const": 2}}},
-      "then": {"properties": {"capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}}
+      "then": {"properties": {"children": {"minItems": 2}, "capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}}
     }
   ],
   "$defs": {
@@ -93,8 +104,8 @@
       "required": ["kind", "poll_interval_ms", "poll_lag_tolerance_ms", "certified_max_check_ms", "certified_max_scheduler_overhead_ms"],
       "properties": {
         "kind": {"const": "earliest-deadline-rotating-v1"},
-        "poll_interval_ms": {"type": "integer", "minimum": 1},
-        "poll_lag_tolerance_ms": {"type": "integer", "minimum": 0},
+        "poll_interval_ms": {"const": 1000},
+        "poll_lag_tolerance_ms": {"const": 1500},
         "certified_max_check_ms": {"type": ["number", "null"], "minimum": 0, "maximum": 400},
         "certified_max_scheduler_overhead_ms": {"type": ["number", "null"], "minimum": 0}
       }
