@@ -147,6 +147,7 @@ rules.
 - ChatGPT Pro browser lane: `references/chatgpt-pro-browser.md`
 - Execution environments and local inference: `references/execution-environments.md`,
   `references/local-inference.md`
+- Native supervision pools: `references/native-supervision-pools.md`
 - Zero-trust consensus: `references/zero-trust-consensus.md`
 - Run readiness: `references/run-readiness.md`
 - Beads hook display: `references/codex-beads-hooks.md`

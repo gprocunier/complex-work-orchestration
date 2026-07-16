@@ -287,6 +287,7 @@ AUDIT_STRING_LIST_FIELDS = {
 }
 AUDIT_OBJECT_FIELDS = {
     "artifact_validation",
+    "native_pool_summary",
     "workspace_mutation",
 }
 TELEMETRY_OBJECT_FIELDS = {
@@ -344,6 +345,84 @@ WORKSPACE_MUTATION_CHANGE_FIELDS = {
     "after",
     "before",
     "path",
+}
+
+NATIVE_POOL_SUMMARY_FIELDS = {
+    "version",
+    "pool_id",
+    "pool_epoch",
+    "contract_sha256",
+    "state_sha256",
+    "receipt_sha256",
+    "status",
+    "max_active_workers",
+    "configured_workers",
+    "admitted_workers",
+    "executing_workers",
+    "terminal_workers",
+    "aggregate_tool_calls",
+    "aggregate_runtime_seconds",
+    "aggregate_compactions",
+    "aggregate_full_suite_runs",
+    "aggregate_mutations",
+    "pool_wall_seconds",
+    "worker_seconds",
+    "poll_overhead_seconds",
+    "lease_states",
+    "session_dispositions",
+    "artifact_dispositions",
+    "pool_disposition",
+    "accepting",
+}
+NATIVE_POOL_NUMERIC_FIELDS = {
+    "version",
+    "max_active_workers",
+    "configured_workers",
+    "admitted_workers",
+    "executing_workers",
+    "terminal_workers",
+    "aggregate_tool_calls",
+    "aggregate_runtime_seconds",
+    "aggregate_compactions",
+    "aggregate_full_suite_runs",
+    "aggregate_mutations",
+    "pool_wall_seconds",
+    "worker_seconds",
+    "poll_overhead_seconds",
+}
+NATIVE_POOL_STRING_FIELDS = {
+    "pool_id",
+    "pool_epoch",
+    "contract_sha256",
+    "state_sha256",
+    "receipt_sha256",
+    "status",
+    "pool_disposition",
+}
+NATIVE_POOL_STRING_LIST_FIELDS = {
+    "lease_states",
+    "session_dispositions",
+    "artifact_dispositions",
+}
+NATIVE_POOL_STATUSES = {
+    "created",
+    "capability-validated",
+    "admitting",
+    "running",
+    "draining",
+    "interrupt-pending",
+    "completed",
+    "closed",
+    "control-failed",
+}
+NATIVE_POOL_DISPOSITIONS = {None, "accepted", "partial", "quarantined", "rejected"}
+NATIVE_POOL_LEASE_STATES = {"active", "released", "release-pending", "orphaned-active"}
+NATIVE_POOL_SESSION_DISPOSITIONS = {"accepted", "accepted-with-warning", "quarantined"}
+NATIVE_POOL_ARTIFACT_DISPOSITIONS = {
+    "accepted",
+    "independent-validation-required",
+    "architect-adjudication-required",
+    "rejected",
 }
 
 SENSITIVE_AUDIT_FIELDS = {
@@ -513,6 +592,10 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
                 artifact_validation = sanitize_artifact_validation(value)
                 if artifact_validation is not None:
                     sanitized[key] = artifact_validation
+            elif key == "native_pool_summary":
+                native_pool_summary = sanitize_native_pool_summary(value)
+                if native_pool_summary is not None:
+                    sanitized[key] = native_pool_summary
             continue
 
     if "total_tokens" not in sanitized:
@@ -520,6 +603,49 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
         output_tokens = sanitized.get("output_tokens")
         if isinstance(input_tokens, (int, float)) and isinstance(output_tokens, (int, float)):
             sanitized["total_tokens"] = input_tokens + output_tokens
+    return sanitized
+
+
+def sanitize_native_pool_summary(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or set(value) != NATIVE_POOL_SUMMARY_FIELDS:
+        return None
+    sanitized: dict[str, Any] = {}
+    for field in NATIVE_POOL_NUMERIC_FIELDS:
+        numeric = normalize_nonnegative_number(value.get(field))
+        if numeric is None:
+            return None
+        sanitized[field] = numeric
+    for field in NATIVE_POOL_STRING_FIELDS:
+        candidate = value.get(field)
+        if candidate is None and field in {"receipt_sha256", "pool_disposition"}:
+            sanitized[field] = None
+            continue
+        text = normalize_short_text(candidate)
+        if text is None:
+            return None
+        sanitized[field] = text
+    for field in NATIVE_POOL_STRING_LIST_FIELDS:
+        candidate = value.get(field)
+        if not isinstance(candidate, list):
+            return None
+        strings = normalize_string_list(candidate)
+        if len(strings) != len(candidate):
+            return None
+        sanitized[field] = strings
+    accepting = value.get("accepting")
+    if accepting is not None and not isinstance(accepting, bool):
+        return None
+    sanitized["accepting"] = accepting
+    if sanitized["status"] not in NATIVE_POOL_STATUSES:
+        return None
+    if sanitized["pool_disposition"] not in NATIVE_POOL_DISPOSITIONS:
+        return None
+    if any(item not in NATIVE_POOL_LEASE_STATES for item in sanitized["lease_states"]):
+        return None
+    if any(item not in NATIVE_POOL_SESSION_DISPOSITIONS for item in sanitized["session_dispositions"]):
+        return None
+    if any(item not in NATIVE_POOL_ARTIFACT_DISPOSITIONS for item in sanitized["artifact_dispositions"]):
+        return None
     return sanitized
 
 

@@ -26,6 +26,8 @@ __all__ = [
     "native_pool_leases",
     "native_pool_workspace",
     "native_pool",
+    "native_pool_config",
+    "native_pool_reporting",
     "native_progress",
     "native_release",
     "native_disposition",

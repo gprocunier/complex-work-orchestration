@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import tempfile
 from typing import Any, Iterable, Mapping
 
@@ -15,6 +16,7 @@ VERSION = 1
 POOL_CONTRACT_TYPE = "cwo-native-supervision-pool-contract"
 POOL_STATE_TYPE = "cwo-native-supervision-pool-state"
 POOL_DECISION_TYPE = "cwo-native-supervision-pool-decision"
+POOL_CONTROL_REQUEST_TYPE = "cwo-native-supervision-pool-control-request"
 CAPABILITY_RECEIPT_TYPE = "cwo-native-supervision-adapter-capability-receipt"
 LEASE_TYPE = "cwo-native-supervision-lease"
 POOL_RECEIPT_TYPE = "cwo-native-supervision-pool-receipt"
@@ -22,6 +24,7 @@ POOL_RECEIPT_TYPE = "cwo-native-supervision-pool-receipt"
 POOL_CONTRACT_SCHEMA = "schemas/native-supervision-pool-contract.schema.json"
 POOL_STATE_SCHEMA = "schemas/native-supervision-pool-state.schema.json"
 POOL_DECISION_SCHEMA = "schemas/native-supervision-pool-decision.schema.json"
+POOL_CONTROL_REQUEST_SCHEMA = "schemas/native-supervision-pool-control-request.schema.json"
 CAPABILITY_RECEIPT_SCHEMA = "schemas/native-supervision-adapter-capability-receipt.schema.json"
 LEASE_SCHEMA = "schemas/native-supervision-lease.schema.json"
 POOL_RECEIPT_SCHEMA = "schemas/native-supervision-pool-receipt.schema.json"
@@ -75,6 +78,7 @@ HASH_FIELDS = {
     POOL_CONTRACT_TYPE: "contract_sha256",
     POOL_STATE_TYPE: "state_sha256",
     POOL_DECISION_TYPE: "decision_sha256",
+    POOL_CONTROL_REQUEST_TYPE: "request_sha256",
     CAPABILITY_RECEIPT_TYPE: "receipt_sha256",
     LEASE_TYPE: "lease_sha256",
     POOL_RECEIPT_TYPE: "receipt_sha256",
@@ -193,6 +197,21 @@ POOL_DECISION_FIELDS = {
     "reasons",
     "required_control_actions",
     "decision_sha256",
+}
+POOL_CONTROL_REQUEST_FIELDS = {
+    "request_type",
+    "version",
+    "schema",
+    "request_id",
+    "pool_id",
+    "pool_epoch",
+    "contract_sha256",
+    "observed_state_sequence",
+    "observed_state_sha256",
+    "action",
+    "reason",
+    "created_at",
+    "request_sha256",
 }
 CAPABILITY_FIELDS = {
     "receipt_type",
@@ -1064,6 +1083,65 @@ def validate_pool_decision(
     return errors
 
 
+def validate_pool_control_request(
+    value: Any,
+    *,
+    contract: Mapping[str, Any] | None = None,
+    state: Mapping[str, Any] | None = None,
+    seen_hashes: Iterable[str] | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    request = _strict(value, POOL_CONTROL_REQUEST_FIELDS, "pool-control-request", errors)
+    if request is None:
+        return errors
+    _validate_header(
+        request,
+        type_field="request_type",
+        expected_type=POOL_CONTROL_REQUEST_TYPE,
+        expected_schema=POOL_CONTROL_REQUEST_SCHEMA,
+        errors=errors,
+    )
+    for field in ("request_id", "pool_id", "pool_epoch", "reason"):
+        if not _nonempty(request.get(field)):
+            errors.append(f"invalid-{field.replace('_', '-')}")
+    request_id = request.get("request_id")
+    if isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", request_id) is None:
+        errors.append("invalid-request-id-format")
+    if isinstance(request.get("reason"), str) and len(request["reason"]) > 256:
+        errors.append("control-request-reason-too-long")
+    if request.get("action") != "interrupt":
+        errors.append("invalid-control-request-action")
+    if not _is_sha256(request.get("contract_sha256")):
+        errors.append("invalid-contract-sha256")
+    if not _is_int(request.get("observed_state_sequence")):
+        errors.append("invalid-observed-state-sequence")
+    if not _is_sha256(request.get("observed_state_sha256")):
+        errors.append("invalid-observed-state-sha256")
+    if _datetime(request.get("created_at")) is None:
+        errors.append("invalid-created-at")
+    if contract is not None:
+        for field in ("pool_id", "pool_epoch", "contract_sha256"):
+            if request.get(field) != contract.get(field):
+                errors.append(f"control-request-{field.replace('_', '-')}-mismatch")
+    if state is not None:
+        for field in ("pool_id", "pool_epoch", "contract_sha256"):
+            if request.get(field) != state.get(field):
+                errors.append(f"control-request-state-{field.replace('_', '-')}-mismatch")
+        observed_sequence = request.get("observed_state_sequence")
+        current_sequence = state.get("state_sequence")
+        if _is_int(observed_sequence) and _is_int(current_sequence):
+            if observed_sequence > current_sequence:
+                errors.append("control-request-state-sequence-from-future")
+            elif (
+                observed_sequence == current_sequence
+                and request.get("observed_state_sha256") != state.get("state_sha256")
+            ):
+                errors.append("control-request-state-sha256-mismatch")
+    _validate_hash(request, "request_sha256", errors)
+    _validate_replay(request, "request_sha256", seen_hashes, errors)
+    return errors
+
+
 def validate_lease(
     value: Any,
     *,
@@ -1393,7 +1471,14 @@ def validate_pool_receipt(
 def validate_pool_artifact(value: Any, **kwargs: Any) -> list[str]:
     if not isinstance(value, Mapping):
         return ["artifact-must-be-object"]
-    artifact_type = value.get("contract_type") or value.get("state_type") or value.get("decision_type") or value.get("lease_type") or value.get("receipt_type")
+    artifact_type = (
+        value.get("contract_type")
+        or value.get("state_type")
+        or value.get("decision_type")
+        or value.get("request_type")
+        or value.get("lease_type")
+        or value.get("receipt_type")
+    )
     if artifact_type == POOL_CONTRACT_TYPE:
         return validate_pool_contract(value, seen_hashes=kwargs.get("seen_hashes"))
     if artifact_type == POOL_STATE_TYPE:
@@ -1404,6 +1489,13 @@ def validate_pool_artifact(value: Any, **kwargs: Any) -> list[str]:
         )
     if artifact_type == POOL_DECISION_TYPE:
         return validate_pool_decision(
+            value,
+            contract=kwargs.get("contract"),
+            state=kwargs.get("state"),
+            seen_hashes=kwargs.get("seen_hashes"),
+        )
+    if artifact_type == POOL_CONTROL_REQUEST_TYPE:
+        return validate_pool_control_request(
             value,
             contract=kwargs.get("contract"),
             state=kwargs.get("state"),

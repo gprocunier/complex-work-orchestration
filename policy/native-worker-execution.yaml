@@ -118,6 +118,41 @@
     "release_requires": "complex-work-orchestration-fsh.3",
     "control_topology": "single-host-process-v1"
   },
+  "native_supervision_pool": {
+    "version": 1,
+    "enabled": true,
+    "status": "canary-gated",
+    "default_max_active_workers": 1,
+    "hard_max_active_workers": 2,
+    "cap_two_requires_explicit_opt_in": true,
+    "cap_two_requires_fresh_capability": true,
+    "cap_two_operative_release": false,
+    "release_requires": "complex-work-orchestration-18w.6",
+    "required_control_adapter": "native-multi-agent-v1",
+    "allowed_execution_surfaces": [
+      "connected-codex"
+    ],
+    "max_capability_ttl_seconds": 3600,
+    "max_certified_check_ms": 400,
+    "scheduler": {
+      "kind": "earliest-deadline-rotating-v1",
+      "poll_interval_ms": 1000,
+      "poll_lag_tolerance_ms": 1500,
+      "hot_admission_allowed": false,
+      "threads_allowed": false
+    },
+    "single_flight_surfaces": [
+      "precommit-supervision",
+      "candidate-packet-construction",
+      "operative-prompt-render",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch",
+      "outside-critic-review",
+      "integration",
+      "publication"
+    ]
+  },
   "poll_interval_ms": 1000,
   "poll_lag_tolerance_ms": 1500,
   "arm_to_dispatch_max_ms": 5000,

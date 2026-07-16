@@ -114,6 +114,14 @@ control or telemetry stops dispatch; another frontier model is not a silent
 substitute. Native dispatch and one-second monitoring remain in one uninterrupted
 control turn so worker execution cannot advance during a model round-trip.
 
+The bounded [native supervision pool](references/native-supervision-pools.md)
+adds fixed-cohort scheduling around that control turn. Capacity one is the
+default. Capacity two requires explicit opt-in, a fresh same-host capability
+receipt, isolated or strictly shared-read-only topology, aggregate budgets, and
+uninterrupted lease and mutation monitoring. Operative capacity-two release is
+canary-gated; precommit, packet construction, critics, integration, retry,
+replay, and publication remain single-flight.
+
 For automation or troubleshooting, the same coach can be run directly:
 
 ```bash

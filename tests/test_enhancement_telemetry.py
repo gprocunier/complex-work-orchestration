@@ -144,6 +144,43 @@ class EnhancementTelemetryTest(unittest.TestCase):
         self.assertEqual(command["checked_command_id"], "cmd-1")
         self.assertTrue(command["checked_command_quoting_error_prevented"])
 
+    def test_sanitizer_preserves_only_strict_path_free_native_pool_summary(self):
+        summary = {
+            "version": 1,
+            "pool_id": "pool-1",
+            "pool_epoch": "epoch-1",
+            "contract_sha256": "a" * 64,
+            "state_sha256": "b" * 64,
+            "receipt_sha256": None,
+            "status": "running",
+            "max_active_workers": 2,
+            "configured_workers": 2,
+            "admitted_workers": 2,
+            "executing_workers": 2,
+            "terminal_workers": 0,
+            "aggregate_tool_calls": 3,
+            "aggregate_runtime_seconds": 9,
+            "aggregate_compactions": 0,
+            "aggregate_full_suite_runs": 0,
+            "aggregate_mutations": 1,
+            "pool_wall_seconds": 5.5,
+            "worker_seconds": 9,
+            "poll_overhead_seconds": 0.2,
+            "lease_states": ["active", "active"],
+            "session_dispositions": [],
+            "artifact_dispositions": [],
+            "pool_disposition": None,
+            "accepting": None,
+        }
+        event = sanitize_audit_event({"event_type": "native_pool_status", "native_pool_summary": summary})
+        self.assertEqual(event["native_pool_summary"], summary)
+        invalid = dict(summary)
+        invalid["worktree"] = "/private/path"
+        self.assertNotIn(
+            "native_pool_summary",
+            sanitize_audit_event({"event_type": "native_pool_status", "native_pool_summary": invalid}),
+        )
+
     def test_report_and_dashboard_show_calibration_and_command_value(self):
         report = build_execution_status_report(audit_events=[
             {

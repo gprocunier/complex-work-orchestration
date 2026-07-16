@@ -19,10 +19,11 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     seal_artifact,
     validate_pool_receipt,
     validate_pool_state,
+    write_private_artifact,
     zero_usage,
 )
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
-from tests.test_native_pool_contracts import pool_contract, sha  # noqa: E402
+from tests.test_native_pool_contracts import control_request, pool_contract, sha  # noqa: E402
 
 
 class FakeClock:
@@ -101,6 +102,7 @@ class PoolHarness:
         dispositions_by_child: dict[str, tuple[str, str]] | None = None,
         budget_overrides: dict[str, int] | None = None,
         read_only: bool = False,
+        control_file: Path | None = None,
     ) -> None:
         self.clock = FakeClock()
         self.contract, self.capability = pool_contract(cap=cap, read_only=read_only)
@@ -149,6 +151,7 @@ class PoolHarness:
             owner_alive=lambda _owner: True,
             now=self.clock.now_utc,
         )
+        self.control_file = control_file
         self.coordinator = NativePoolCoordinator(
             self.contract,
             self.child_contracts,
@@ -165,6 +168,7 @@ class PoolHarness:
             capability_receipt=self.capability,
             state_file=Path(temporary) / "pool-state.json",
             decision_file=Path(temporary) / "pool-decision.json",
+            control_file=control_file,
         )
 
     def read_child_evidence(self, *, child_id: str, state_file: str) -> dict:
@@ -401,6 +405,81 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertIn("pool-state-watermark-mismatch", progress["state"]["reasons"])
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
+
+    def test_state_bound_control_request_interrupts_once_and_terminates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            control_path = Path(temporary) / "pool-control.json"
+            harness = PoolHarness(
+                temporary,
+                cap=1,
+                decisions=[["continue", "complete"]],
+                control_file=control_path,
+            )
+            progress = harness.coordinator.step()
+            while progress["status"] != "running":
+                progress = harness.coordinator.step()
+            request = control_request(harness.contract, progress["state"])
+            write_private_artifact(control_path, request)
+            before = len(harness.adapters["child-0"].calls)
+            interrupted = harness.coordinator.step()
+            self.assertEqual(len(harness.adapters["child-0"].calls), before)
+            self.assertTrue(any(reason.startswith("external-control-request:interrupt-1:") for reason in interrupted["state"]["reasons"]))
+            harness.coordinator.step()
+            self.assertEqual(
+                sum(reason.startswith("external-control-request:interrupt-1:") for reason in harness.coordinator.progress()["state"]["reasons"]),
+                1,
+            )
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+
+    def test_malformed_control_request_contains_once_instead_of_livelocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            control_path = Path(temporary) / "pool-control.json"
+            harness = PoolHarness(temporary, cap=1, control_file=control_path)
+            control_path.write_text("{}\n", encoding="utf-8")
+            control_path.chmod(0o600)
+            first = harness.coordinator.step()
+            self.assertTrue(any(reason.startswith("pool-control-request-failed:") for reason in first["state"]["reasons"]))
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+
+    def test_world_readable_or_future_control_request_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            control_path = Path(temporary) / "pool-control.json"
+            harness = PoolHarness(temporary, cap=1, control_file=control_path)
+            request = control_request(harness.contract, harness.coordinator.progress()["state"])
+            write_private_artifact(control_path, request)
+            control_path.chmod(0o644)
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+            self.assertTrue(any("permissions-invalid" in reason for reason in receipt["reasons"]))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            control_path = Path(temporary) / "pool-control.json"
+            harness = PoolHarness(temporary, cap=1, control_file=control_path)
+            state = harness.coordinator.progress()["state"]
+            request = control_request(harness.contract, state)
+            request["observed_state_sequence"] += 1
+            request = seal_artifact(request, "request_sha256")
+            write_private_artifact(control_path, request)
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+            self.assertTrue(any("state-sequence-from-future" in reason for reason in receipt["reasons"]))
+
+    def test_interrupt_request_after_completion_observation_wins_before_close(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            control_path = Path(temporary) / "pool-control.json"
+            harness = PoolHarness(temporary, cap=1, control_file=control_path)
+            progress = harness.coordinator.step()
+            while progress["status"] != "completed":
+                if progress["wait_required"]:
+                    harness.clock.sleep(seconds=progress["wait_seconds"])
+                progress = harness.coordinator.step()
+            write_private_artifact(control_path, control_request(harness.contract, progress["state"]))
+            harness.coordinator.step()
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+            self.assertTrue(any(reason.startswith("external-control-request:") for reason in receipt["reasons"]))
 
     def test_state_lock_rejects_duplicate_active_coordinator(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

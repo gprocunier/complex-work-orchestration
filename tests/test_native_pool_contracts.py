@@ -22,6 +22,8 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     POOL_ALLOWED_ACTIONS,
     POOL_CONTRACT_SCHEMA,
     POOL_CONTRACT_TYPE,
+    POOL_CONTROL_REQUEST_SCHEMA,
+    POOL_CONTROL_REQUEST_TYPE,
     POOL_DECISION_SCHEMA,
     POOL_DECISION_TYPE,
     POOL_RECEIPT_SCHEMA,
@@ -36,6 +38,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     validate_lease,
     validate_pool_artifact,
     validate_pool_contract,
+    validate_pool_control_request,
     validate_pool_decision,
     validate_pool_receipt,
     validate_pool_state,
@@ -300,6 +303,26 @@ def accepting_receipt(contract: dict, state: dict, leases: list[dict]) -> dict:
     )
 
 
+def control_request(contract: dict, state: dict, *, request_id: str = "interrupt-1") -> dict:
+    return seal_artifact(
+        {
+            "request_type": POOL_CONTROL_REQUEST_TYPE,
+            "version": VERSION,
+            "schema": POOL_CONTROL_REQUEST_SCHEMA,
+            "request_id": request_id,
+            "pool_id": contract["pool_id"],
+            "pool_epoch": contract["pool_epoch"],
+            "contract_sha256": contract["contract_sha256"],
+            "observed_state_sequence": state["state_sequence"],
+            "observed_state_sha256": state["state_sha256"],
+            "action": "interrupt",
+            "reason": "operator requested bounded stop",
+            "created_at": "2026-07-16T00:10:00Z",
+        },
+        "request_sha256",
+    )
+
+
 class NativePoolContractTest(unittest.TestCase):
     def artifacts(self):
         contract, capability = pool_contract()
@@ -340,6 +363,37 @@ class NativePoolContractTest(unittest.TestCase):
         changed = copy.deepcopy(contract)
         changed["aggregate_hard_budget"]["tool_calls"] += 1
         self.assertNotEqual(artifact_sha256(changed, "contract_sha256"), contract["contract_sha256"])
+
+    def test_control_request_is_strict_state_bound_and_replay_protected(self) -> None:
+        contract, _, leases, state, _, _ = self.artifacts()
+        request = control_request(contract, state)
+        self.assertEqual(validate_pool_control_request(request, contract=contract, state=state), [])
+        self.assertEqual(validate_pool_artifact(request, contract=contract, state=state), [])
+
+        future = copy.deepcopy(request)
+        future["observed_state_sequence"] = state["state_sequence"] + 1
+        future = seal_artifact(future, "request_sha256")
+        self.assertIn(
+            "control-request-state-sequence-from-future",
+            validate_pool_control_request(future, contract=contract, state=state),
+        )
+
+        mismatch = copy.deepcopy(request)
+        mismatch["observed_state_sha256"] = sha("other-state")
+        mismatch = seal_artifact(mismatch, "request_sha256")
+        self.assertIn(
+            "control-request-state-sha256-mismatch",
+            validate_pool_control_request(mismatch, contract=contract, state=state),
+        )
+
+        unsafe = copy.deepcopy(request)
+        unsafe["request_id"] = "unsafe\nidentifier"
+        unsafe = seal_artifact(unsafe, "request_sha256")
+        self.assertIn("invalid-request-id-format", validate_pool_control_request(unsafe))
+        self.assertIn(
+            "replay-detected",
+            validate_pool_control_request(request, seen_hashes={request["request_sha256"]}),
+        )
 
     def test_duplicate_identity_nonce_and_overlapping_targets_fail(self) -> None:
         contract, _ = pool_contract()
@@ -555,6 +609,7 @@ class NativePoolContractTest(unittest.TestCase):
             (state, POOL_STATE_SCHEMA),
             (decision, POOL_DECISION_SCHEMA),
             (receipt, POOL_RECEIPT_SCHEMA),
+            (control_request(contract, state), POOL_CONTROL_REQUEST_SCHEMA),
         ]
         for artifact, schema_name in artifacts:
             with self.subTest(schema=schema_name):

@@ -23,6 +23,7 @@ from .native_pool_contracts import (
     seal_artifact,
     validate_capability_receipt,
     validate_pool_contract,
+    validate_pool_control_request,
     validate_pool_decision,
     validate_pool_receipt,
     validate_pool_state,
@@ -148,6 +149,7 @@ class NativePoolCoordinator:
         capability_receipt: Mapping[str, Any] | None = None,
         state_file: Path | str | None = None,
         decision_file: Path | str | None = None,
+        control_file: Path | str | None = None,
     ) -> None:
         contract_errors = validate_pool_contract(contract)
         if contract_errors:
@@ -172,7 +174,10 @@ class NativePoolCoordinator:
         self.capability_receipt = dict(capability_receipt) if capability_receipt is not None else None
         self.state_file = Path(state_file).absolute() if state_file is not None else None
         self.decision_file = Path(decision_file).absolute() if decision_file is not None else None
+        self.control_file = Path(control_file).absolute() if control_file is not None else None
         self._state_lock_handle: Any = None
+        self._consumed_control_request_ids: set[str] = set()
+        self._control_request_seen = False
         self._task_inputs = dict(task_inputs)
         self._callback_count = 0
         self._last_callback_name: str | None = None
@@ -305,6 +310,47 @@ class NativePoolCoordinator:
             raise NativePoolError("pool-state-watermark-unreadable") from exc
         if current != self._state:
             raise NativePoolError("pool-state-watermark-mismatch")
+
+    def _consume_control_request(self) -> bool:
+        if self.control_file is None or self._control_request_seen or not self.control_file.exists():
+            return False
+        self._control_request_seen = True
+        try:
+            if self.control_file.is_symlink():
+                raise NativePoolError("pool-control-file-is-symlink")
+            stat = self.control_file.stat()
+            if stat.st_uid != os.geteuid() or stat.st_mode & 0o077:
+                raise NativePoolError("pool-control-file-permissions-invalid")
+            request = json.loads(self.control_file.read_text(encoding="utf-8"))
+            errors = validate_pool_control_request(
+                request,
+                contract=self.contract,
+                state=self._state,
+            )
+            if errors:
+                raise NativePoolError("pool-control-request-invalid:" + ";".join(errors))
+            request_id = str(request["request_id"])
+            if request_id in self._consumed_control_request_ids:
+                return False
+            self._consumed_control_request_ids.add(request_id)
+            reason_hash = canonical_sha256({"reason": request["reason"]})
+            self._enter_fault(
+                f"external-control-request:{request_id}:{reason_hash}",
+                control_failed=False,
+            )
+            return True
+        except NativePoolError as exc:
+            self._enter_fault(
+                f"pool-control-request-failed:{type(exc).__name__}:{exc}",
+                control_failed=False,
+            )
+            return True
+        except (OSError, json.JSONDecodeError, TypeError) as exc:
+            self._enter_fault(
+                f"pool-control-request-failed:{type(exc).__name__}",
+                control_failed=False,
+            )
+            return True
 
     def _monotonic_ns(self) -> int:
         value = self.pool_callbacks["monotonic_ns"]()
@@ -836,6 +882,14 @@ class NativePoolCoordinator:
             self._verify_state_watermark()
         except NativePoolError as exc:
             return self._contain_state_watermark_failure(exc)
+        if self._consume_control_request():
+            self._refresh_state(self._status_after_action())
+            self._decision_for(
+                decision="interrupt",
+                selected_child_id=None,
+                actions=["interrupt"],
+            )
+            return self.progress()
         step_started = self._monotonic_ns()
 
         if self._state["status"] == "created":
@@ -1011,6 +1065,7 @@ def run_native_pool(
     capability_receipt: Mapping[str, Any] | None = None,
     state_file: Path | str | None = None,
     decision_file: Path | str | None = None,
+    control_file: Path | str | None = None,
 ) -> dict[str, Any]:
     return NativePoolCoordinator(
         contract,
@@ -1022,4 +1077,5 @@ def run_native_pool(
         capability_receipt=capability_receipt,
         state_file=state_file,
         decision_file=decision_file,
+        control_file=control_file,
     ).run()
