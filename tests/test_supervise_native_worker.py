@@ -1685,6 +1685,23 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         self.assertEqual(closed_payload["status"], "closed")
         self.assertFalse(closed_payload["control_action_required"])
 
+    def test_tool_reserve_allows_six_calls_without_interrupt_threshold(self) -> None:
+        self.assertEqual(self.start().returncode, 0)
+        records = [session_meta(self.session_id), event("2026-07-11T00:00:01Z", self.session_id, "task_started")]
+        records.extend(
+            event(f"2026-07-11T00:00:{second:02d}Z", self.session_id, "assistant", tool=True)
+            for second in range(2, 8)
+        )
+        write_records(self.session_file, records)
+
+        checked = self.check("2026-07-11T00:00:08Z")
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        payload = json.loads(checked.stdout)
+        self.assertEqual(payload["decision"], "warn")
+        self.assertEqual(payload["observed"]["tool_calls"], 6)
+        self.assertIn("tool-call-soft-limit", payload["reasons"])
+        self.assertNotIn("tool-call-interrupt-threshold", payload["reasons"])
+
     def test_compaction_full_suite_mismatch_and_trailing_partial_fail_closed(self) -> None:
         cases = [
             (event("2026-07-11T00:00:02Z", self.session_id, "context_compacted"), "context-compaction"),

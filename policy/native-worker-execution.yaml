@@ -775,7 +775,7 @@
             "requires_exact_argv": true,
             "tool_calls_p50": 2,
             "tool_calls_p90": 4,
-            "tool_calls_hard": 8,
+            "tool_calls_hard": 10,
             "runtime_seconds_p50": 150,
             "runtime_seconds_p90": 300,
             "runtime_seconds_hard": 600

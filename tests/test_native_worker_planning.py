@@ -525,7 +525,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
             packet_id=packet_id,
             budget_overrides={
                 "tool_calls_soft": 4,
-                "tool_calls_hard": 8,
+                "tool_calls_hard": 10,
                 "runtime_seconds_soft": 300,
                 "runtime_seconds_hard": 600,
                 "max_compactions": 0,

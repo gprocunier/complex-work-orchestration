@@ -595,7 +595,56 @@ class NativeWorkSizingTest(unittest.TestCase):
         result = evaluate_work_estimate(payload)
         self.assertEqual(result["fit_mode"], "deterministic")
         self.assertEqual(result["route"], "spark")
-        self.assertEqual(result["aggregate_allowance"]["tool_calls_hard"], 8)
+        self.assertEqual(result["aggregate_allowance"]["tool_calls_hard"], 10)
+
+    def test_read_only_validation_command_count_boundary(self) -> None:
+        payload = _literal_command_payload()
+        commands = [
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_work_sizing"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_execution_policy"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_supervise_native_worker"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning", "--failfast"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_replanning"]},
+        ]
+        payload["task_profile"].update(
+            {
+                "task_class": "read-only-validation",
+                "command_count": 6,
+                "check_count": 6,
+                "focused_test_count": 1,
+                "full_suite_count": 1,
+                "read_context_count": 1,
+                "source_mutation_count": 0,
+                "source_mutation_paths": [],
+                "commands": commands,
+            }
+        )
+        payload["context_manifest"] = [
+            {"path": "tests/test_native_work_sizing.py", "selector": "file", "purpose": "validation", "bytes": 1, "sha256": "0" * 64}
+        ]
+        payload["semantic_estimate"]["expected_context_reads"] = 1
+        payload["semantic_estimate"]["expected_mutations"] = 1
+        payload["semantic_estimate"]["read_to_mutation_ratio"] = 1
+        six = evaluate_work_estimate(payload)
+        self.assertEqual(six["fit_mode"], "deterministic")
+        self.assertEqual(six["task_class"], "read-only-validation")
+        self.assertEqual(six["route"], "spark")
+        self.assertFalse(six["route_conflict"])
+
+        seven_payload = copy.deepcopy(payload)
+        seven_payload["task_profile"]["command_count"] = 7
+        seven_payload["task_profile"]["commands"] = payload["task_profile"]["commands"] + [
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_precommit"]}
+        ]
+        seven_payload["task_profile"]["check_count"] = 6
+        seven = evaluate_work_estimate(seven_payload)
+        self.assertEqual(seven["route"], "architect")
+        self.assertIn("task-profile-contradiction", seven["hard_gate_reasons"])
+        self.assertEqual(
+            seven["fit_evidence"]["contradictions"],
+            ["command_count exceeds class cap"],
+        )
 
     def test_protected_path_requires_path_bound_literal_patch(self):
         path = "policy/native-worker-execution.yaml"
