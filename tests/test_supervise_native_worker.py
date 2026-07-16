@@ -304,6 +304,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             "source_mutation_count": 0,
             "source_mutation_paths": [],
             "commands": [{"argv": argv} for argv in commands],
+            "execution_contract": {"mode": "direct", "checked_command_specs": []},
         }
         return packet
 
@@ -329,6 +330,22 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         readiness, _ = supervisor._evaluate_operative_readiness(packet, self.policy)
         self.assertEqual(readiness["decision"], "operative-ready")
         self.assertNotIn("missing-write-paths", readiness["reasons"])
+
+        invalid_contracts = (
+            None,
+            {"mode": "direct", "checked_command_specs": [{}]},
+            {"mode": "direct", "checked_command_specs": [], "unexpected": True},
+            {"mode": "checked-sequence-v1", "checked_command_specs": []},
+        )
+        for contract in invalid_contracts:
+            with self.subTest(contract=contract):
+                invalid = json.loads(json.dumps(packet))
+                if contract is None:
+                    invalid["work_plan"]["task_profile"].pop("execution_contract")
+                else:
+                    invalid["work_plan"]["task_profile"]["execution_contract"] = contract
+                readiness, _ = supervisor._evaluate_operative_readiness(invalid, self.policy)
+                self.assertIn("direct-execution-contract-invalid", readiness["reasons"])
 
         writable = json.loads(json.dumps(packet))
         writable["work_plan"]["write_paths"] = ["scripts/validate_repository.py"]
@@ -583,6 +600,24 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             supervisor._declared_validation_commands(packet),
             frozenset({tuple(command)}),
         )
+
+        for contract in (
+            None,
+            {"mode": "direct", "checked_command_specs": [{}]},
+            {"mode": "direct", "checked_command_specs": [], "unexpected": True},
+            {"mode": "checked-sequence-v1", "checked_command_specs": []},
+        ):
+            with self.subTest(contract=contract):
+                invalid = json.loads(json.dumps(packet))
+                if contract is None:
+                    invalid["work_plan"]["task_profile"].pop("execution_contract")
+                else:
+                    invalid["work_plan"]["task_profile"]["execution_contract"] = contract
+                self.assertEqual(supervisor._declared_validation_commands(invalid), frozenset())
+                self.assertEqual(
+                    supervisor._execution_command_plan(invalid),
+                    ("invalid", [], None),
+                )
 
         malformed = json.loads(json.dumps(packet))
         malformed["work_plan"]["task_profile"]["command_count"] = 2
@@ -992,6 +1027,8 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             runner = ["python3", "scripts/run_checked_command_sequence.py", "spec.json"]
             packet = self.evidence_packet([runner])
             packet["packet_id"] = "packet-sequence-evidence"
+            packet["work_plan"]["task_class"] = "bounded-implementation"
+            packet["work_plan"]["task_profile"]["task_class"] = "bounded-implementation"
             spec = {
                 "sequence_id": "sequence-evidence",
                 "packet_id": packet["packet_id"],
@@ -1333,6 +1370,28 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         result = self.start()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("attestation mismatch", result.stderr)
+
+    def test_start_rejects_missing_direct_authority_when_packet_validation_is_mocked(self) -> None:
+        packet = json.loads(self.packet_file.read_text(encoding="utf-8"))
+        packet["lane"] = "validation"
+        packet["budget"]["max_full_suite_runs"] = 1
+        packet["scope"]["prohibited_actions"].append("source-mutation")
+        packet["work_plan"]["write_paths"] = []
+        packet["work_plan"]["task_class"] = "read-only-validation"
+        packet["work_plan"]["task_profile"] = {
+            "task_class": "read-only-validation",
+            "command_count": 1,
+            "source_mutation_count": 0,
+            "source_mutation_paths": [],
+            "commands": [{"argv": ["python3", "scripts/validate_repository.py"]}],
+        }
+        self.packet_file.write_text(json.dumps(packet), encoding="utf-8")
+
+        result = self.start()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("direct execution authority is missing or invalid", result.stderr)
+        self.assertFalse(self.state_file.exists())
 
     def test_luna_cannot_bypass_exact_spark_precommit(self) -> None:
         with self.assertRaisesRegex(ValueError, "exact Spark model"):

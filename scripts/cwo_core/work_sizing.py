@@ -521,6 +521,8 @@ def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
             task_class=payload["task_class"],
             normalized_commands=normalized_commands,
         )
+    elif payload["task_class"] in {"literal-command", "read-only-validation"} and normalized_commands:
+        payload["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
 
     if "source_mutation_paths" in payload:
         mutation_paths = _ensure_list(payload["source_mutation_paths"], path="task_profile.source_mutation_paths")

@@ -44,6 +44,7 @@ DECISION_SCHEMA = "schemas/native-supervision-decision.schema.json"
 FINAL_STATES = {"completed", "closed", "control-failed"}
 EMPTY_USAGE = {"tool_calls": 0, "runtime_seconds": 0}
 OPERATIVE_READINESS_CONTRACT = "operative-readiness:v2"
+DIRECT_EXECUTION_CONTRACT = {"mode": "direct", "checked_command_specs": []}
 
 
 def _fail(message: str) -> None:
@@ -69,6 +70,21 @@ def _policy_mapping(policy: dict[str, Any], key: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         _fail(f"control-lost: {key} policy is missing or invalid")
     return value
+
+
+def _direct_execution_contract_invalid(work_plan: Any) -> bool:
+    if not isinstance(work_plan, dict):
+        return False
+    profile = work_plan.get("task_profile")
+    if not isinstance(profile, dict):
+        return False
+    commands = profile.get("commands")
+    required = (
+        profile.get("task_class") in {"literal-command", "read-only-validation"}
+        and isinstance(commands, list)
+        and bool(commands)
+    )
+    return required and profile.get("execution_contract") != DIRECT_EXECUTION_CONTRACT
 
 
 def _scope_relative(workdir: Path, value: str) -> tuple[str, Path] | None:
@@ -209,6 +225,8 @@ def _evaluate_operative_readiness(
     lane = packet.get("lane")
     profile = work_plan.get("task_profile")
     profile = profile if isinstance(profile, dict) else {}
+    if _direct_execution_contract_invalid(work_plan):
+        reasons.append("direct-execution-contract-invalid")
     scope = packet.get("scope")
     scope = scope if isinstance(scope, dict) else {}
     prohibited_actions = scope.get("prohibited_actions")
@@ -543,6 +561,8 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
     if not isinstance(profile, dict):
         return frozenset()
     contract = profile.get("execution_contract")
+    if _direct_execution_contract_invalid(work_plan):
+        return frozenset()
     if isinstance(contract, dict) and contract.get("mode") == "checked-sequence-v1":
         if lane == "publish-report-admin":
             return frozenset()
@@ -577,15 +597,13 @@ def _declared_validation_commands(packet: dict[str, Any]) -> frozenset[tuple[str
             return frozenset()
     elif lane == "publish-report-admin":
         allowed = scope.get("allowed_actions")
-        contract = profile.get("execution_contract")
         if (
             not isinstance(allowed, list)
             or "write-packaged-artifacts" not in allowed
             or profile.get("task_class") != "bounded-implementation"
             or mutation_count != 0
             or mutation_paths != []
-            or not isinstance(contract, dict)
-            or contract.get("mode") != "direct"
+            or contract != DIRECT_EXECUTION_CONTRACT
         ):
             return frozenset()
     else:
@@ -804,6 +822,8 @@ def _execution_command_plan(
     work_plan = packet.get("work_plan")
     profile = work_plan.get("task_profile") if isinstance(work_plan, dict) else None
     contract = profile.get("execution_contract") if isinstance(profile, dict) else None
+    if _direct_execution_contract_invalid(work_plan):
+        return "invalid", [], None
     if not isinstance(contract, dict):
         return None, [], None
     mode = contract.get("mode")
@@ -813,7 +833,7 @@ def _execution_command_plan(
         if isinstance(runner, list) and runner and all(isinstance(v, str) and v for v in runner):
             return mode, [tuple(runner)], receipt
         return "invalid", [], None
-    if mode != "direct":
+    if contract != DIRECT_EXECUTION_CONTRACT:
         return "invalid", [], None
     commands = profile.get("commands")
     if not isinstance(commands, list):
@@ -1464,6 +1484,8 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
     errors = validate_native_worker_packet(packet, dispatchable=True)
     if errors:
         _fail("packet validation failed: " + "; ".join(errors))
+    if _direct_execution_contract_invalid(packet.get("work_plan")):
+        _fail("packet direct execution authority is missing or invalid")
     session_file = Path(args.session_file).expanduser().resolve()
     if not session_file.is_file() or not _session_id_matches(session_file, args.session_id):
         _fail("control-lost: session file identity does not match --session-id")

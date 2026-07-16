@@ -438,6 +438,27 @@ def _execution_contract(work_plan: Any) -> dict[str, Any] | None:
     return contract if isinstance(contract, dict) else None
 
 
+def _direct_execution_contract_errors(work_plan: Any) -> list[str]:
+    if not isinstance(work_plan, dict):
+        return []
+    task_profile = work_plan.get("task_profile")
+    if not isinstance(task_profile, dict):
+        return []
+    commands = task_profile.get("commands")
+    if (
+        task_profile.get("task_class") not in {"literal-command", "read-only-validation"}
+        or not isinstance(commands, list)
+        or not commands
+    ):
+        return []
+    if _execution_contract(work_plan) != {"mode": "direct", "checked_command_specs": []}:
+        return [
+            "dispatchable literal-command and read-only-validation plans require "
+            "execution_contract mode direct with empty checked_command_specs"
+        ]
+    return []
+
+
 def _canonical_json_sha256(value: Any) -> str:
     rendered = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
@@ -1105,6 +1126,8 @@ def validate_native_worker_packet(
         if not isinstance(work_plan, dict):
             errors.append("work_plan must be an object")
         else:
+            if dispatchable:
+                errors.extend(_direct_execution_contract_errors(work_plan))
             if dispatchable and work_plan.get("estimate_contract_version") != 2:
                 errors.append("dispatchable work_plan requires estimate_contract_version 2; version 1 is historical-only")
             if dispatchable and work_plan.get("route") != "spark":
@@ -1704,6 +1727,7 @@ def _render_prompt(payload: dict[str, Any]) -> str:
     work_plan = payload.get("work_plan")
     task_profile = work_plan.get("task_profile") if isinstance(work_plan, dict) else None
     task_class = task_profile.get("task_class") if isinstance(task_profile, dict) else None
+    execution_contract = _execution_contract(work_plan)
     checked_sequence = payload.get("checked_command_sequence")
     sequence_argv = (
         checked_sequence.get("runner_argv")
@@ -1716,7 +1740,9 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         isinstance(work_plan, dict)
         and work_plan.get("fit_mode") == "deterministic"
         and task_class in {"literal-command", "read-only-validation"}
+        and execution_contract == {"mode": "direct", "checked_command_specs": []}
         and isinstance(task_profile.get("commands"), list)
+        and bool(task_profile.get("commands"))
     )
     declared_commands = task_profile.get("commands", []) if exact_argv else []
     command_lines = [

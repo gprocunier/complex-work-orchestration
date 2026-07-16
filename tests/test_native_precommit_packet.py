@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -32,7 +33,12 @@ from cwo_core.work_sizing import (  # noqa: E402
     evaluate_work_estimate,
     validate_worker_commitment,
 )
-from prepare_native_worker import build_native_worker_packet, validate_native_worker_packet  # noqa: E402
+from prepare_native_worker import (  # noqa: E402
+    _direct_execution_contract_errors,
+    _render_prompt,
+    build_native_worker_packet,
+    validate_native_worker_packet,
+)
 from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
 from tests.test_native_work_sizing import _valid_v2_payload  # noqa: E402
 
@@ -227,6 +233,77 @@ class NativePrecommitPacketTests(unittest.TestCase):
         }
         self.assertEqual(validate_worker_commitment(legacy, self.plan), [])
         self.assertIn("historical-inspection-only", " ".join(validate_worker_commitment(legacy, self.plan, dispatchable=True)))
+
+    def test_direct_execution_contract_requires_explicit_canonical_authority(self) -> None:
+        eligible = {
+            "task_profile": {
+                "task_class": "literal-command",
+                "commands": [{"argv": ["git", "status", "--short"]}],
+                "execution_contract": {"mode": "direct", "checked_command_specs": []},
+            }
+        }
+        self.assertEqual(_direct_execution_contract_errors(eligible), [])
+
+        for contract in (
+            None,
+            {"mode": "direct", "checked_command_specs": [{}]},
+            {"mode": "checked-sequence-v1", "checked_command_specs": []},
+            {"mode": "direct", "checked_command_specs": [], "unexpected": True},
+        ):
+            malformed = copy.deepcopy(eligible)
+            if contract is None:
+                malformed["task_profile"].pop("execution_contract")
+            else:
+                malformed["task_profile"]["execution_contract"] = contract
+            self.assertTrue(_direct_execution_contract_errors(malformed), contract)
+
+        noneligible = copy.deepcopy(eligible)
+        noneligible["task_profile"]["task_class"] = "bounded-implementation"
+        noneligible["task_profile"].pop("execution_contract")
+        self.assertEqual(_direct_execution_contract_errors(noneligible), [])
+
+        packet = self.build()
+        packet["work_plan"]["task_profile"] = copy.deepcopy(eligible["task_profile"])
+        packet["work_plan"]["task_profile"].pop("execution_contract")
+        errors = validate_native_worker_packet(packet, dispatchable=True)
+        self.assertTrue(any("execution_contract mode direct" in error for error in errors))
+        packet["work_plan"]["task_profile"]["execution_contract"] = {
+            "mode": "direct",
+            "checked_command_specs": [],
+        }
+        errors = validate_native_worker_packet(packet, dispatchable=True)
+        self.assertFalse(any("execution_contract mode direct" in error for error in errors))
+
+    def test_render_exact_argv_requires_direct_contract_and_uses_shell_quoting(self) -> None:
+        packet = self.build()
+        argv = ["python3", "-c", "print('hello world')"]
+        packet["work_plan"] = {
+            "fit_mode": "deterministic",
+            "task_class": "literal-command",
+            "write_paths": [],
+            "task_profile": {
+                "task_class": "literal-command",
+                "commands": [{"argv": argv}],
+                "execution_contract": {"mode": "direct", "checked_command_specs": []},
+            },
+        }
+        rendered = _render_prompt(packet)
+        self.assertIn("Deterministic execution contract:", rendered)
+        self.assertIn(f"1. {shlex.join(argv)}", rendered)
+        self.assertIn(f'"commands_run": [\n    "{shlex.join(argv).replace(chr(34), chr(92) + chr(34))}"', rendered)
+
+        packet["work_plan"]["task_profile"].pop("execution_contract")
+        rendered_without_authority = _render_prompt(packet)
+        self.assertNotIn("Deterministic execution contract:", rendered_without_authority)
+        self.assertNotIn(f"1. {shlex.join(argv)}", rendered_without_authority)
+        self.assertIn("Checked command execution:", rendered_without_authority)
+
+        packet["work_plan"]["task_profile"]["execution_contract"] = {
+            "mode": "direct",
+            "checked_command_specs": [],
+        }
+        packet["work_plan"]["task_profile"]["commands"] = []
+        self.assertNotIn("Deterministic execution contract:", _render_prompt(packet))
 
     def test_candidate_packet_is_structurally_valid_and_operatively_forbidden(self) -> None:
         packet = self.build()

@@ -289,6 +289,23 @@ state/schema and self-hosting risk, affected contract/CLI/policy/telemetry
 surfaces, regression and command complexity, and expected reads and mutations.
 Historical v1 estimates remain readable but are not dispatchable.
 
+Command-bearing `literal-command` and `read-only-validation` profiles receive a
+canonical direct-execution contract during work-plan enrichment, before the
+work-plan hash or precommit receipt is created:
+
+```json
+{"mode":"direct","checked_command_specs":[]}
+```
+
+That exact object is dispatch authority for the declared argv list. Packet
+validation, prompt rendering, operative readiness, and supervisor startup all
+fail closed when it is absent, altered, or carries checked-command specs. The
+worker prompt renders each argv with shell-safe quoting, and the supervisor
+accepts only the declared commands in order with paired terminal evidence and
+zero exit status. Complex or mutation-sensitive command sequences continue to
+use `checked-sequence-v1`; direct mode does not replace or bypass the checked
+sequence runner.
+
 Before packet construction, preallocate the packet ID and attempt nonce and run
 the numeric p50/p90 fit through the separate precommit supervisor. Its rendered
 prompt contains only the work-plan hash, task class, sanitized numeric
