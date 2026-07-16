@@ -21,6 +21,7 @@ __all__ = [
     "native_containment",
     "native_control",
     "native_precommit",
+    "native_pool_contracts",
     "native_progress",
     "native_release",
     "native_disposition",

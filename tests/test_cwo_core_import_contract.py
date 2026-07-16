@@ -43,6 +43,7 @@ ALLOWED_IMPORTS = {
     "proportional_execution": {"native_capability", "native_containment"},
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "paths", "policy", "util", "workspace"},
+    "native_pool_contracts": set(),
     "native_release": {"native_precommit", "paths", "policy", "util"},
     "native_control": set(),
     "native_disposition": set(),
