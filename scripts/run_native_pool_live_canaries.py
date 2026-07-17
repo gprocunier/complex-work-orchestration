@@ -81,6 +81,7 @@ from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E40
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
     NativeSessionBoundaryError,
+    capture_boundary,
     capture_unique_boundary,
     telemetry_markers,
     trusted_terminal_event,
@@ -196,6 +197,13 @@ def validate_full_auto_authorization(
     predecessor_authorization_raw_sha256: str | None = None,
     predecessor_manifest: Mapping[str, Any] | None = None,
     predecessor_manifest_raw_sha256: str | None = None,
+    predecessor_authorization_state: Mapping[str, Any] | None = None,
+    predecessor_authorization_state_raw_sha256: str | None = None,
+    predecessor_failure_evidence: Mapping[str, Any] | None = None,
+    predecessor_failure_evidence_raw_sha256: str | None = None,
+    predecessor_containment: Mapping[str, Any] | None = None,
+    predecessor_containment_raw_sha256: str | None = None,
+    cause_evidence: bytes | None = None,
     repo_root: Path,
 ) -> tuple[str, str]:
     errors = validate_full_auto_authorization_contract(
@@ -205,6 +213,13 @@ def validate_full_auto_authorization(
         predecessor_authorization_raw_sha256=predecessor_authorization_raw_sha256,
         predecessor_manifest=predecessor_manifest,
         predecessor_manifest_raw_sha256=predecessor_manifest_raw_sha256,
+        predecessor_authorization_state=predecessor_authorization_state,
+        predecessor_authorization_state_raw_sha256=predecessor_authorization_state_raw_sha256,
+        predecessor_failure_evidence=predecessor_failure_evidence,
+        predecessor_failure_evidence_raw_sha256=predecessor_failure_evidence_raw_sha256,
+        predecessor_containment=predecessor_containment,
+        predecessor_containment_raw_sha256=predecessor_containment_raw_sha256,
+        cause_evidence=cause_evidence,
         repo_root=repo_root,
     )
     if errors:
@@ -2456,6 +2471,124 @@ def load_private_json(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
+def load_private_bytes(path: Path, label: str) -> bytes:
+    if path.is_symlink() or not path.is_file():
+        raise AppServerError(f"{label}-file-invalid")
+    try:
+        info = path.stat()
+        if info.st_uid != os.geteuid() or info.st_mode & 0o077:
+            raise AppServerError(f"{label}-permissions-invalid")
+        value = path.read_bytes()
+    except OSError as exc:
+        raise AppServerError(f"{label}-file-unreadable") from exc
+    if not value:
+        raise AppServerError(f"{label}-file-empty")
+    return value
+
+
+def validate_independent_validation_session(
+    receipt: Mapping[str, Any],
+    session_path: Path,
+    *,
+    codex_home: Path | None = None,
+) -> str:
+    session_id = receipt.get("session_id")
+    turn_id = receipt.get("submission_id")
+    if not isinstance(session_id, str) or not isinstance(turn_id, str):
+        raise AppServerError("spark-validation-session-identity-invalid")
+    path = session_path.resolve()
+    trusted_home = (
+        codex_home
+        if codex_home is not None
+        else Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    ).resolve()
+    try:
+        relative = path.relative_to(trusted_home)
+    except ValueError as exc:
+        raise AppServerError("spark-validation-session-path-invalid") from exc
+    if (
+        len(relative.parts) != 2
+        or relative.parts[0] != "archived_sessions"
+        or session_id not in relative.name
+    ):
+        raise AppServerError("spark-validation-session-path-invalid")
+    try:
+        session_raw = path.read_bytes()
+    except OSError as exc:
+        raise AppServerError("spark-validation-session-file-unreadable") from exc
+    if not session_raw:
+        raise AppServerError("spark-validation-session-file-empty")
+    boundary_value = receipt.get("boundary")
+    expected_terminal = (
+        boundary_value.get("terminal") if isinstance(boundary_value, Mapping) else None
+    )
+    if not isinstance(expected_terminal, Mapping):
+        raise AppServerError("spark-validation-session-boundary-invalid")
+    try:
+        observed_boundary, records = capture_boundary(path, session_id)
+        trusted_turn_context(
+            records,
+            turn_id=turn_id,
+            model=EXACT_MODEL,
+            effort="low",
+        )
+        markers = telemetry_markers(records, turn_id=turn_id)
+        terminal = trusted_terminal_event(records, turn_id=turn_id)
+    except (OSError, NativeSessionBoundaryError) as exc:
+        raise AppServerError("spark-validation-session-telemetry-invalid") from exc
+    if (
+        sha256_text(str(path)) != expected_terminal.get("path_sha256")
+        or any(
+            observed_boundary.get(field) != expected_terminal.get(field)
+            for field in ("record_count", "byte_offset", "boundary_sha256")
+        )
+        or expected_terminal.get("invalid_record_count") != 0
+        or expected_terminal.get("trailing_partial") is not False
+        or sha256_bytes(session_raw) != observed_boundary.get("boundary_sha256")
+        or markers.get("compaction_indices")
+        or markers.get("reroute_indices")
+        or not isinstance(terminal, Mapping)
+        or terminal.get("status") != "completed"
+    ):
+        raise AppServerError("spark-validation-session-boundary-mismatch")
+    function_calls = 0
+    custom_tool_calls = 0
+    assistant_texts: list[str] = []
+    for record in records:
+        payload = record.get("payload") if isinstance(record.get("payload"), Mapping) else {}
+        payload_type = str(payload.get("type", ""))
+        if payload_type in {"function_call", "functionCall"}:
+            function_calls += 1
+        if payload_type in {"custom_tool_call", "customToolCall"}:
+            custom_tool_calls += 1
+        if (
+            record.get("type") == "response_item"
+            and payload_type == "message"
+            and payload.get("role") == "assistant"
+            and isinstance(payload.get("content"), list)
+        ):
+            for item in payload["content"]:
+                if (
+                    isinstance(item, Mapping)
+                    and item.get("type") == "output_text"
+                    and isinstance(item.get("text"), str)
+                ):
+                    assistant_texts.append(str(item["text"]))
+    if function_calls or custom_tool_calls or len(assistant_texts) != 1:
+        raise AppServerError("spark-validation-session-activity-invalid")
+    final_text = assistant_texts[0]
+    try:
+        final_opinion = json.loads(final_text)
+    except json.JSONDecodeError as exc:
+        raise AppServerError("spark-validation-session-final-json-invalid") from exc
+    if (
+        sha256_text(final_text) != receipt.get("final_response_sha256")
+        or final_opinion != receipt.get("opinion")
+    ):
+        raise AppServerError("spark-validation-session-final-binding-mismatch")
+    return str(observed_boundary["boundary_sha256"])
+
+
 def guarded_diff_sha256(repo_root: Path) -> str:
     try:
         completed = subprocess.run(
@@ -2516,6 +2649,14 @@ def validate_campaign_launch_bindings(
     predecessor_authorization_path: Path,
     predecessor_manifest: Mapping[str, Any],
     predecessor_manifest_path: Path,
+    predecessor_authorization_state: Mapping[str, Any],
+    predecessor_authorization_state_path: Path,
+    predecessor_failure_evidence: Mapping[str, Any],
+    predecessor_failure_evidence_path: Path,
+    predecessor_containment: Mapping[str, Any],
+    predecessor_containment_path: Path,
+    cause_evidence: bytes,
+    cause_evidence_path: Path,
     guarded_primary: Path,
     release_patch: Path,
     pre_mutation_receipt: Mapping[str, Any],
@@ -2530,7 +2671,11 @@ def validate_campaign_launch_bindings(
     opus_adjudication_path: Path,
     spark_validation_receipt: Mapping[str, Any],
     spark_validation_receipt_path: Path,
+    spark_validation_session_path: Path,
 ) -> dict[str, Any]:
+    spark_validation_session_file_sha256 = validate_independent_validation_session(
+        spark_validation_receipt, spark_validation_session_path
+    )
     primary_diff_sha256 = guarded_diff_sha256(guarded_primary)
     errors = validate_campaign_manifest(
         manifest,
@@ -2546,6 +2691,19 @@ def validate_campaign_launch_bindings(
         predecessor_manifest_raw_sha256=sha256_bytes(
             predecessor_manifest_path.read_bytes()
         ),
+        predecessor_authorization_state=predecessor_authorization_state,
+        predecessor_authorization_state_raw_sha256=sha256_bytes(
+            predecessor_authorization_state_path.read_bytes()
+        ),
+        predecessor_failure_evidence=predecessor_failure_evidence,
+        predecessor_failure_evidence_raw_sha256=sha256_bytes(
+            predecessor_failure_evidence_path.read_bytes()
+        ),
+        predecessor_containment=predecessor_containment,
+        predecessor_containment_raw_sha256=sha256_bytes(
+            predecessor_containment_path.read_bytes()
+        ),
+        cause_evidence=cause_evidence,
         independent_validation_receipt=spark_validation_receipt,
         independent_validation_receipt_raw_sha256=sha256_bytes(
             spark_validation_receipt_path.read_bytes()
@@ -2643,6 +2801,17 @@ def validate_campaign_launch_bindings(
         "predecessor_manifest_file_sha256": sha256_bytes(
             predecessor_manifest_path.read_bytes()
         ),
+        "predecessor_authorization_state_file_sha256": sha256_bytes(
+            predecessor_authorization_state_path.read_bytes()
+        ),
+        "predecessor_failure_evidence_file_sha256": sha256_bytes(
+            predecessor_failure_evidence_path.read_bytes()
+        ),
+        "predecessor_containment_file_sha256": sha256_bytes(
+            predecessor_containment_path.read_bytes()
+        ),
+        "cause_evidence_file_sha256": sha256_bytes(cause_evidence),
+        "spark_validation_session_file_sha256": spark_validation_session_file_sha256,
         "spark_validation_receipt_file_sha256": observed_reviews[
             "spark_validation_receipt_file_sha256"
         ],
@@ -2675,6 +2844,10 @@ def main() -> int:
     parser.add_argument("--outer-authority", type=Path, required=True)
     parser.add_argument("--predecessor-authorization", type=Path, required=True)
     parser.add_argument("--predecessor-manifest", type=Path, required=True)
+    parser.add_argument("--predecessor-authorization-state", type=Path, required=True)
+    parser.add_argument("--predecessor-failure-evidence", type=Path, required=True)
+    parser.add_argument("--predecessor-containment", type=Path, required=True)
+    parser.add_argument("--cause-evidence", type=Path, required=True)
     parser.add_argument("--guarded-primary", type=Path, required=True)
     parser.add_argument("--release-patch", type=Path, required=True)
     parser.add_argument("--pre-mutation-steering-receipt", type=Path, required=True)
@@ -2682,6 +2855,7 @@ def main() -> int:
     parser.add_argument("--opus-review-evidence", type=Path, required=True)
     parser.add_argument("--opus-adjudication", type=Path, required=True)
     parser.add_argument("--spark-validation-receipt", type=Path, required=True)
+    parser.add_argument("--spark-validation-session", type=Path, required=True)
     parser.add_argument("--pre-live-steering-receipt", type=Path, required=True)
     parser.add_argument("--pre-live-adjudication", type=Path, required=True)
     parser.add_argument("--campaign-nonce", required=True)
@@ -2708,12 +2882,30 @@ def main() -> int:
         authorization_sha256 = sha256_bytes(authorization_path.read_bytes())
         predecessor_authorization_path = args.predecessor_authorization.absolute()
         predecessor_manifest_path = args.predecessor_manifest.absolute()
+        predecessor_authorization_state_path = (
+            args.predecessor_authorization_state.absolute()
+        )
+        predecessor_failure_evidence_path = (
+            args.predecessor_failure_evidence.absolute()
+        )
+        predecessor_containment_path = args.predecessor_containment.absolute()
+        cause_evidence_path = args.cause_evidence.absolute()
         predecessor_authorization = load_private_json(
             predecessor_authorization_path, "predecessor-authorization"
         )
         predecessor_manifest = load_private_json(
             predecessor_manifest_path, "predecessor-manifest"
         )
+        predecessor_authorization_state = load_private_json(
+            predecessor_authorization_state_path, "predecessor-authorization-state"
+        )
+        predecessor_failure_evidence = load_private_json(
+            predecessor_failure_evidence_path, "predecessor-failure-evidence"
+        )
+        predecessor_containment = load_private_json(
+            predecessor_containment_path, "predecessor-containment"
+        )
+        cause_evidence = load_private_bytes(cause_evidence_path, "cause-evidence")
         authorization_id, repo_head = validate_full_auto_authorization(
             authorization,
             args.campaign_nonce,
@@ -2725,6 +2917,19 @@ def main() -> int:
             predecessor_manifest_raw_sha256=sha256_bytes(
                 predecessor_manifest_path.read_bytes()
             ),
+            predecessor_authorization_state=predecessor_authorization_state,
+            predecessor_authorization_state_raw_sha256=sha256_bytes(
+                predecessor_authorization_state_path.read_bytes()
+            ),
+            predecessor_failure_evidence=predecessor_failure_evidence,
+            predecessor_failure_evidence_raw_sha256=sha256_bytes(
+                predecessor_failure_evidence_path.read_bytes()
+            ),
+            predecessor_containment=predecessor_containment,
+            predecessor_containment_raw_sha256=sha256_bytes(
+                predecessor_containment_path.read_bytes()
+            ),
+            cause_evidence=cause_evidence,
             repo_root=ROOT,
         )
         manifest = load_private_json(manifest_path, "campaign-manifest")
@@ -2767,6 +2972,14 @@ def main() -> int:
             predecessor_authorization_path=predecessor_authorization_path,
             predecessor_manifest=predecessor_manifest,
             predecessor_manifest_path=predecessor_manifest_path,
+            predecessor_authorization_state=predecessor_authorization_state,
+            predecessor_authorization_state_path=predecessor_authorization_state_path,
+            predecessor_failure_evidence=predecessor_failure_evidence,
+            predecessor_failure_evidence_path=predecessor_failure_evidence_path,
+            predecessor_containment=predecessor_containment,
+            predecessor_containment_path=predecessor_containment_path,
+            cause_evidence=cause_evidence,
+            cause_evidence_path=cause_evidence_path,
             guarded_primary=args.guarded_primary.absolute(),
             release_patch=args.release_patch.absolute(),
             pre_mutation_receipt=pre_mutation_receipt,
@@ -2781,6 +2994,7 @@ def main() -> int:
             opus_adjudication_path=args.opus_adjudication.absolute(),
             spark_validation_receipt=spark_validation_receipt,
             spark_validation_receipt_path=args.spark_validation_receipt.absolute(),
+            spark_validation_session_path=args.spark_validation_session.absolute(),
         )
         state_path, registry_path, ledger_path = campaign_output_paths(
             output,
@@ -2840,6 +3054,14 @@ def main() -> int:
             predecessor_authorization_path=predecessor_authorization_path,
             predecessor_manifest=predecessor_manifest,
             predecessor_manifest_path=predecessor_manifest_path,
+            predecessor_authorization_state=predecessor_authorization_state,
+            predecessor_authorization_state_path=predecessor_authorization_state_path,
+            predecessor_failure_evidence=predecessor_failure_evidence,
+            predecessor_failure_evidence_path=predecessor_failure_evidence_path,
+            predecessor_containment=predecessor_containment,
+            predecessor_containment_path=predecessor_containment_path,
+            cause_evidence=cause_evidence,
+            cause_evidence_path=cause_evidence_path,
             guarded_primary=args.guarded_primary.absolute(),
             release_patch=args.release_patch.absolute(),
             pre_mutation_receipt=pre_mutation_receipt,
@@ -2854,6 +3076,7 @@ def main() -> int:
             opus_adjudication_path=args.opus_adjudication.absolute(),
             spark_validation_receipt=spark_validation_receipt,
             spark_validation_receipt_path=args.spark_validation_receipt.absolute(),
+            spark_validation_session_path=args.spark_validation_session.absolute(),
         )
         if refreshed_bindings != artifact_bindings:
             raise AppServerError("campaign-artifact-binding-changed-before-allocation")
@@ -2864,6 +3087,17 @@ def main() -> int:
             record_dir = temp_root / "capability-records"
             record_dir.mkdir(mode=0o700)
             server = AppServer()
+            if (
+                validate_independent_validation_session(
+                    spark_validation_receipt,
+                    args.spark_validation_session.absolute(),
+                    codex_home=server.codex_home,
+                )
+                != artifact_bindings["spark_validation_session_file_sha256"]
+            ):
+                raise AppServerError(
+                    "spark-validation-session-changed-before-allocation"
+                )
             discovery = server.model_discovery()
             owner = capture_owner_identity(os.getpid())
             authorization_bindings = authorization.get("bindings")
@@ -2885,6 +3119,18 @@ def main() -> int:
                 != artifact_bindings["predecessor_authorization_file_sha256"]
                 or sha256_bytes(predecessor_manifest_path.read_bytes())
                 != artifact_bindings["predecessor_manifest_file_sha256"]
+                or sha256_bytes(predecessor_authorization_state_path.read_bytes())
+                != artifact_bindings[
+                    "predecessor_authorization_state_file_sha256"
+                ]
+                or sha256_bytes(predecessor_failure_evidence_path.read_bytes())
+                != artifact_bindings["predecessor_failure_evidence_file_sha256"]
+                or sha256_bytes(predecessor_containment_path.read_bytes())
+                != artifact_bindings["predecessor_containment_file_sha256"]
+                or sha256_bytes(cause_evidence_path.read_bytes())
+                != artifact_bindings["cause_evidence_file_sha256"]
+                or sha256_bytes(args.spark_validation_session.absolute().read_bytes())
+                != artifact_bindings["spark_validation_session_file_sha256"]
                 or sha256_bytes(args.opus_review_evidence.absolute().read_bytes())
                 != artifact_bindings["opus_evidence_file_sha256"]
                 or sha256_bytes(
