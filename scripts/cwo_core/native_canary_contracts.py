@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 from typing import Any, Iterator, Mapping
 import uuid
 
@@ -17,7 +18,7 @@ from .util import atomic_write_text
 
 
 STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v1"
-MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v2"
+MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v3"
 CANARY_AUTHORIZATION_TYPE = "cwo-native-canary-authorization-state:v1"
 STEERING_RECEIPT_SCHEMA = "schemas/native-steering-receipt.schema.json"
 MATERIALIZATION_EVIDENCE_SCHEMA = "schemas/native-session-materialization-evidence.schema.json"
@@ -44,11 +45,17 @@ OBSERVATION_FIELDS = {
     "function_call_record_index",
     "command_item_id_sha256",
     "function_call_id_sha256",
-    "command_origin",
+    "rendered_command_sha256",
+    "execution_correlation_sha256",
+    "notification_command_semantic_match",
+    "notification_workspace_match",
+    "command_source",
     "command_status",
     "started_event_count",
+    "function_call_count",
     "completed_event_count",
     "paired_result_count",
+    "competing_call_count",
     "terminal_event_count",
     "failed_event_count",
     "declined_event_count",
@@ -59,6 +66,7 @@ INTERRUPT_FIELDS = {
     "request_accepted_at",
     "confirmed_at",
     "session_id",
+    "thread_id",
     "turn_id",
     "request_outcome",
     "outcome",
@@ -72,6 +80,7 @@ MATERIALIZATION_FIELDS = {
     "attempt_nonce",
     "phase_nonce",
     "session_id",
+    "thread_id",
     "turn_id",
     "requested_model",
     "attested_model",
@@ -183,6 +192,91 @@ def canonical_sha256(value: Any, *, domain: str) -> str:
     return hashlib.sha256(prefix + _canonical_bytes(value)).hexdigest()
 
 
+def length_framed_sha256(
+    *, domain: str, fields: tuple[tuple[str, str | int], ...]
+) -> str:
+    """Hash a fixed ordered, typed, length-framed UTF-8 field sequence."""
+
+    if not isinstance(domain, str) or not domain:
+        raise NativeCanaryContractError("length-framed-hash-domain-invalid")
+    preimage = bytearray(b"cwo-length-framed-sha256:v1\0")
+
+    def append_frame(value: bytes) -> None:
+        preimage.extend(len(value).to_bytes(8, "big"))
+        preimage.extend(value)
+
+    append_frame(domain.encode("utf-8"))
+    preimage.extend(len(fields).to_bytes(8, "big"))
+    seen: set[str] = set()
+    for label, value in fields:
+        if not isinstance(label, str) or not label or label in seen:
+            raise NativeCanaryContractError("length-framed-hash-label-invalid")
+        seen.add(label)
+        append_frame(label.encode("utf-8"))
+        if isinstance(value, str):
+            preimage.extend(b"s")
+            encoded = value.encode("utf-8")
+        elif isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            preimage.extend(b"u")
+            encoded = str(value).encode("ascii")
+        else:
+            raise NativeCanaryContractError("length-framed-hash-value-invalid")
+        append_frame(encoded)
+    return hashlib.sha256(bytes(preimage)).hexdigest()
+
+
+def validate_capability_rendered_command(rendered: Any, *, raw_command: str) -> str:
+    """Accept only the raw command or the one production-proven bash wrapper."""
+
+    if not isinstance(rendered, str) or not rendered:
+        raise NativeCanaryContractError("rendered-command-invalid")
+    if not isinstance(raw_command, str) or not raw_command:
+        raise NativeCanaryContractError("raw-command-invalid")
+    allowed = {raw_command, f"/bin/bash -lc {shlex.quote(raw_command)}"}
+    if rendered not in allowed:
+        raise NativeCanaryContractError("rendered-command-not-exact-wrapper")
+    return length_framed_sha256(
+        domain="native-capability-rendered-command",
+        fields=(("rendered_command", rendered),),
+    )
+
+
+def materialization_execution_correlation(
+    *,
+    connection_epoch_sha256: str,
+    session_id: str,
+    thread_id: str,
+    turn_id: str,
+    command_item_id_sha256: str,
+    function_call_id_sha256: str,
+    notification_sequence: int,
+    notification_received_monotonic_ns: int,
+    notification_started_at_ms: int,
+    turn_context_record_index: int,
+    function_call_record_index: int,
+    rendered_command_sha256: str,
+    raw_command_sha256: str,
+) -> str:
+    return length_framed_sha256(
+        domain="native-capability-execution-correlation",
+        fields=(
+            ("connection_epoch_sha256", connection_epoch_sha256),
+            ("session_id", session_id),
+            ("thread_id", thread_id),
+            ("turn_id", turn_id),
+            ("command_item_id_sha256", command_item_id_sha256),
+            ("function_call_id_sha256", function_call_id_sha256),
+            ("notification_sequence", notification_sequence),
+            ("notification_received_monotonic_ns", notification_received_monotonic_ns),
+            ("notification_started_at_ms", notification_started_at_ms),
+            ("turn_context_record_index", turn_context_record_index),
+            ("function_call_record_index", function_call_record_index),
+            ("rendered_command_sha256", rendered_command_sha256),
+            ("raw_command_sha256", raw_command_sha256),
+        ),
+    )
+
+
 def _legacy_sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
@@ -253,8 +347,10 @@ def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[di
         "turn_context_record_index",
         "function_call_record_index",
         "started_event_count",
+        "function_call_count",
         "completed_event_count",
         "paired_result_count",
+        "competing_call_count",
         "terminal_event_count",
         "failed_event_count",
         "declined_event_count",
@@ -268,16 +364,23 @@ def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[di
         "connection_epoch_sha256",
         "command_item_id_sha256",
         "function_call_id_sha256",
+        "rendered_command_sha256",
+        "execution_correlation_sha256",
     ):
         if not _is_hash(observation.get(field)):
             errors.append(f"{label}-{field}-invalid")
-    if observation.get("command_origin") != "agent":
-        errors.append(f"{label}-command-origin-invalid")
+    if observation.get("command_source") != "unifiedExecStartup":
+        errors.append(f"{label}-command-source-invalid")
+    if observation.get("notification_command_semantic_match") is not True:
+        errors.append(f"{label}-notification-command-semantic-match-invalid")
+    if observation.get("notification_workspace_match") is not True:
+        errors.append(f"{label}-notification-workspace-match-invalid")
     if observation.get("command_status") != "inProgress":
         errors.append(f"{label}-command-not-in-progress")
     for field in (
         "completed_event_count",
         "paired_result_count",
+        "competing_call_count",
         "terminal_event_count",
         "failed_event_count",
         "declined_event_count",
@@ -287,6 +390,8 @@ def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[di
             errors.append(f"{label}-{field}-nonzero")
     if observation.get("started_event_count") != 1:
         errors.append(f"{label}-started-event-count-invalid")
+    if observation.get("function_call_count") != 1:
+        errors.append(f"{label}-function-call-count-invalid")
     return observation, observed
 
 
@@ -302,7 +407,7 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
     evidence = _exact_fields(value, MATERIALIZATION_FIELDS, "materialization", errors)
     if evidence.get("evidence_type") != MATERIALIZATION_EVIDENCE_TYPE:
         errors.append("materialization-type-invalid")
-    if evidence.get("version") != 2 or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA:
+    if evidence.get("version") != 3 or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA:
         errors.append("materialization-header-invalid")
     for field in (
         "evidence_id",
@@ -310,6 +415,7 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         "attempt_nonce",
         "phase_nonce",
         "session_id",
+        "thread_id",
         "turn_id",
         "requested_model",
         "attested_model",
@@ -325,6 +431,8 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             errors.append(f"materialization-{field}-not-uuid")
     if evidence.get("requested_model") != evidence.get("attested_model"):
         errors.append("materialization-model-mismatch")
+    if evidence.get("session_id") != evidence.get("thread_id"):
+        errors.append("materialization-session-thread-mismatch")
     for field in ("connection_epoch_sha256", "command_sha256"):
         if not _is_hash(evidence.get(field)):
             errors.append(f"materialization-{field}-invalid")
@@ -356,6 +464,8 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             "function_call_record_index",
             "command_item_id_sha256",
             "function_call_id_sha256",
+            "rendered_command_sha256",
+            "execution_correlation_sha256",
         )
         if any(first.get(field) != second.get(field) for field in identity_fields):
             errors.append("materialization-liveness-identity-changed")
@@ -368,13 +478,41 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             for item, _time in (*parsed_observations, (pre_interrupt, pre_time))
         ):
             errors.append("materialization-connection-epoch-mismatch")
+        for index, (item, _time) in enumerate((*parsed_observations, (pre_interrupt, pre_time))):
+            try:
+                expected_correlation = materialization_execution_correlation(
+                    connection_epoch_sha256=str(item.get("connection_epoch_sha256")),
+                    session_id=str(evidence.get("session_id")),
+                    thread_id=str(evidence.get("thread_id")),
+                    turn_id=str(evidence.get("turn_id")),
+                    command_item_id_sha256=str(item.get("command_item_id_sha256")),
+                    function_call_id_sha256=str(item.get("function_call_id_sha256")),
+                    notification_sequence=item.get("notification_sequence"),
+                    notification_received_monotonic_ns=item.get(
+                        "notification_received_monotonic_ns"
+                    ),
+                    notification_started_at_ms=item.get("notification_started_at_ms"),
+                    turn_context_record_index=item.get("turn_context_record_index"),
+                    function_call_record_index=item.get("function_call_record_index"),
+                    rendered_command_sha256=str(item.get("rendered_command_sha256")),
+                    raw_command_sha256=str(evidence.get("command_sha256")),
+                )
+            except NativeCanaryContractError:
+                errors.append(f"materialization-observation-{index}-correlation-input-invalid")
+            else:
+                if item.get("execution_correlation_sha256") != expected_correlation:
+                    errors.append(f"materialization-observation-{index}-correlation-mismatch")
     interrupt = _exact_fields(evidence.get("interrupt"), INTERRUPT_FIELDS, "materialization-interrupt", errors)
     requested = _parse_time(interrupt.get("requested_at"), "materialization-interrupt-requested", errors)
     accepted = _parse_time(
         interrupt.get("request_accepted_at"), "materialization-interrupt-request-accepted", errors
     )
     confirmed = _parse_time(interrupt.get("confirmed_at"), "materialization-interrupt-confirmed", errors)
-    if interrupt.get("session_id") != evidence.get("session_id") or interrupt.get("turn_id") != evidence.get("turn_id"):
+    if (
+        interrupt.get("session_id") != evidence.get("session_id")
+        or interrupt.get("thread_id") != evidence.get("thread_id")
+        or interrupt.get("turn_id") != evidence.get("turn_id")
+    ):
         errors.append("materialization-interrupt-identity-mismatch")
     if interrupt.get("request_outcome") != "accepted":
         errors.append("materialization-interrupt-request-outcome-invalid")

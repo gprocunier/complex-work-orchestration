@@ -21,8 +21,11 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     MATERIALIZATION_EVIDENCE_TYPE,
     NativeCanaryContractError,
     consume_steering_receipt,
+    length_framed_sha256,
+    materialization_execution_correlation,
     new_authorization_state,
     seal_materialization_evidence,
+    validate_capability_rendered_command,
     validate_authorization_state,
     validate_materialization_evidence,
     validate_steering_receipt,
@@ -43,7 +46,34 @@ def boundary(label: str, count: int) -> dict:
     }
 
 
-def observation(second: int, label: str = "same") -> dict:
+def observation(
+    second: int,
+    label: str = "same",
+    *,
+    session: str = "session-one",
+    thread: str = "session-one",
+    turn: str = "turn-one",
+) -> dict:
+    command_item = hash_value("item")
+    function_call = hash_value("call")
+    rendered = validate_capability_rendered_command(
+        "/bin/bash -lc 'sleep 20'", raw_command="sleep 20"
+    )
+    correlation = materialization_execution_correlation(
+        connection_epoch_sha256=hash_value("connection"),
+        session_id=session,
+        thread_id=thread,
+        turn_id=turn,
+        command_item_id_sha256=command_item,
+        function_call_id_sha256=function_call,
+        notification_sequence=4,
+        notification_received_monotonic_ns=100,
+        notification_started_at_ms=42,
+        turn_context_record_index=2,
+        function_call_record_index=3,
+        rendered_command_sha256=rendered,
+        raw_command_sha256=hash_value("sleep 20"),
+    )
     return {
         "observed_at": f"2026-07-16T00:00:0{second}Z",
         "boundary": boundary(f"boundary-{second}", 4 + second),
@@ -54,13 +84,19 @@ def observation(second: int, label: str = "same") -> dict:
         "notification_started_at_ms": 42,
         "turn_context_record_index": 2,
         "function_call_record_index": 3,
-        "command_item_id_sha256": hash_value("item"),
-        "function_call_id_sha256": hash_value("call"),
-        "command_origin": "agent",
+        "command_item_id_sha256": command_item,
+        "function_call_id_sha256": function_call,
+        "rendered_command_sha256": rendered,
+        "execution_correlation_sha256": correlation,
+        "notification_command_semantic_match": True,
+        "notification_workspace_match": True,
+        "command_source": "unifiedExecStartup",
         "command_status": "inProgress",
         "started_event_count": 1,
+        "function_call_count": 1,
         "completed_event_count": 0,
         "paired_result_count": 0,
+        "competing_call_count": 0,
         "terminal_event_count": 0,
         "failed_event_count": 0,
         "declined_event_count": 0,
@@ -74,13 +110,14 @@ def materialization() -> dict:
     return seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 2,
+            "version": 3,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": "evidence-one",
             "run_nonce": str(uuid.uuid4()),
             "attempt_nonce": str(uuid.uuid4()),
             "phase_nonce": str(uuid.uuid4()),
             "session_id": session,
+            "thread_id": session,
             "turn_id": turn,
             "requested_model": "gpt-5.3-codex-spark",
             "attested_model": "gpt-5.3-codex-spark",
@@ -96,6 +133,7 @@ def materialization() -> dict:
                 "request_accepted_at": "2026-07-16T00:00:03.100Z",
                 "confirmed_at": "2026-07-16T00:00:04Z",
                 "session_id": session,
+                "thread_id": session,
                 "turn_id": turn,
                 "request_outcome": "accepted",
                 "outcome": "interrupt-confirmed",
@@ -185,6 +223,42 @@ def steering() -> dict:
 
 
 class NativeCanaryContractTests(unittest.TestCase):
+    def test_rendered_command_requires_exact_production_wrapper(self) -> None:
+        expected = validate_capability_rendered_command(
+            "/bin/bash -lc 'sleep 20'", raw_command="sleep 20"
+        )
+        self.assertEqual(len(expected), 64)
+        self.assertNotEqual(
+            expected,
+            validate_capability_rendered_command("sleep 20", raw_command="sleep 20"),
+        )
+        rejected = (
+            "sleep 20 # ignored",
+            "sleep 20; touch extra",
+            "sleep 20 && true",
+            "sleep 20 >/tmp/out",
+            "/bin/bash -lc 'sleep 20; true'",
+            '/bin/bash -lc "sleep 20"',
+            "bash -lc 'sleep 20'",
+        )
+        for rendered in rejected:
+            with self.subTest(rendered=rendered), self.assertRaisesRegex(
+                NativeCanaryContractError, "rendered-command-not-exact-wrapper"
+            ):
+                validate_capability_rendered_command(rendered, raw_command="sleep 20")
+
+    def test_length_framed_hash_binds_domain_order_type_and_value(self) -> None:
+        base = length_framed_sha256(
+            domain="test", fields=(("a", "1"), ("b", 2))
+        )
+        variants = (
+            length_framed_sha256(domain="other", fields=(("a", "1"), ("b", 2))),
+            length_framed_sha256(domain="test", fields=(("b", 2), ("a", "1"))),
+            length_framed_sha256(domain="test", fields=(("a", 1), ("b", 2))),
+            length_framed_sha256(domain="test", fields=(("a", "1"), ("b", 3))),
+        )
+        self.assertTrue(all(value != base for value in variants))
+
     def test_materialization_accepting_happy_path(self) -> None:
         self.assertEqual(validate_materialization_evidence(materialization(), require_accepting=True), [])
 
@@ -214,6 +288,26 @@ class NativeCanaryContractTests(unittest.TestCase):
         value = materialization()
         value["pre_interrupt_observation"]["completed_event_count"] = 1
         cases.append((value, "completed_event_count"))
+        value = materialization()
+        value["liveness_observations"][0]["command_source"] = "agent"
+        cases.append((value, "command-source"))
+        value = materialization()
+        value["liveness_observations"][0]["function_call_count"] = 2
+        cases.append((value, "function-call-count"))
+        value = materialization()
+        value["pre_interrupt_observation"]["execution_correlation_sha256"] = hash_value(
+            "other-correlation"
+        )
+        cases.append((value, "correlation"))
+        value = materialization()
+        value["liveness_observations"][1]["rendered_command_sha256"] = hash_value(
+            "changed-rendering"
+        )
+        cases.append((value, "identity"))
+        value = materialization()
+        value["thread_id"] = "other-thread"
+        value["interrupt"]["thread_id"] = "other-thread"
+        cases.append((value, "session-thread"))
         value = materialization()
         value["liveness_observations"][0]["connection_epoch_sha256"] = hash_value("other-connection")
         cases.append((value, "connection-epoch"))

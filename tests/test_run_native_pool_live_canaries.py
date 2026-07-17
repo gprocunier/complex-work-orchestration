@@ -28,10 +28,12 @@ class FakeCalibrationServer:
         *,
         early_status: str | None = None,
         command_status: str = "inProgress",
-        command_source: str | None = "agent",
+        command_source: str | None = "unifiedExecStartup",
+        omit_command_source: bool = False,
         notification_item_type: str = "commandExecution",
-        notification_command: str = "sleep 20",
+        notification_command: str = "/bin/bash -lc 'sleep 20'",
         function_command: str = "sleep 20",
+        notification_workspace_mismatch: bool = False,
         missing_start: bool = False,
         duplicate_start: bool = False,
         cross_turn_start: bool = False,
@@ -41,6 +43,7 @@ class FakeCalibrationServer:
         duplicate_function_call: bool = False,
         competing_function_call: bool = False,
         replace_source_at_read: int | None = None,
+        replace_notification_at_read: int | None = None,
     ) -> None:
         self.codex_home = root / "codex-home"
         self.active = self.codex_home / "sessions" / "2026" / "07"
@@ -55,9 +58,11 @@ class FakeCalibrationServer:
         self.early_status = early_status
         self.command_status = command_status
         self.command_source = command_source
+        self.omit_command_source = omit_command_source
         self.notification_item_type = notification_item_type
         self.notification_command = notification_command
         self.function_command = function_command
+        self.notification_workspace_mismatch = notification_workspace_mismatch
         self.missing_start = missing_start
         self.duplicate_start = duplicate_start
         self.cross_turn_start = cross_turn_start
@@ -67,6 +72,8 @@ class FakeCalibrationServer:
         self.duplicate_function_call = duplicate_function_call
         self.competing_function_call = competing_function_call
         self.replace_source_at_read = replace_source_at_read
+        self.replace_notification_at_read = replace_notification_at_read
+        self.started_cwd: Path | None = None
         self.connection_epoch_sha256 = "b" * 64
         self._notifications: list[tuple[int, dict]] = []
         self.rpc_latencies = {}
@@ -76,6 +83,7 @@ class FakeCalibrationServer:
 
     def start_thread(self, _cwd: Path, *, mutable: bool) -> tuple[dict, float]:
         self.assert_false(mutable)
+        self.started_cwd = _cwd.resolve()
         return {
             "model": LIVE.EXACT_MODEL,
             "modelProvider": "trusted",
@@ -167,15 +175,21 @@ class FakeCalibrationServer:
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write("".join(json.dumps(item) + "\n" for item in records))
         if not self.missing_start:
+            if self.started_cwd is None:
+                raise AssertionError("thread cwd missing")
+            notification_cwd = self.started_cwd
+            if self.notification_workspace_mismatch:
+                notification_cwd = self.codex_home.resolve()
             item = {
                 "id": "command-one",
                 "type": self.notification_item_type,
                 "command": self.notification_command,
                 "commandActions": [],
-                "cwd": "/private",
-                "source": self.command_source,
+                "cwd": str(notification_cwd),
                 "status": self.command_status,
             }
+            if not self.omit_command_source:
+                item["source"] = self.command_source
             params = {
                 "threadId": "other-thread" if self.cross_thread_start else self.thread_id,
                 "turnId": "other-turn" if self.cross_turn_start else self.turn_id,
@@ -222,6 +236,8 @@ class FakeCalibrationServer:
             replacement = self.path.with_suffix(".replacement")
             replacement.write_bytes(self.path.read_bytes())
             replacement.replace(self.path)
+        if self.replace_notification_at_read == self.read_count and self._notifications:
+            self._notifications[0][1]["params"]["item"]["command"] = "sleep 20"
         return self._thread(), 1.0
 
     def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
@@ -303,13 +319,22 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertGreaterEqual(server.read_count, 8)
             materialization = evidence["materialization_evidence"]
             self.assertEqual(materialization["disposition"], "accepted")
-            self.assertEqual(materialization["version"], 2)
+            self.assertEqual(materialization["version"], 3)
+            self.assertEqual(materialization["thread_id"], server.thread_id)
             self.assertEqual(
                 materialization["connection_epoch_sha256"], server.connection_epoch_sha256
             )
             first, second = materialization["liveness_observations"]
             self.assertEqual(first["command_item_id_sha256"], second["command_item_id_sha256"])
             self.assertEqual(first["function_call_id_sha256"], second["function_call_id_sha256"])
+            self.assertEqual(
+                first["execution_correlation_sha256"],
+                second["execution_correlation_sha256"],
+            )
+            self.assertEqual(first["rendered_command_sha256"], second["rendered_command_sha256"])
+            self.assertEqual(first["command_source"], "unifiedExecStartup")
+            self.assertTrue(first["notification_command_semantic_match"])
+            self.assertTrue(first["notification_workspace_match"])
             self.assertEqual(first["session_source_identity_sha256"], second["session_source_identity_sha256"])
             self.assertEqual(first["started_event_count"], 1)
             self.assertEqual(first["completed_event_count"], 0)
@@ -347,15 +372,25 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             ({"cross_thread_start": True}, "materialization-deadline"),
             ({"notification_item_type": "agentMessage"}, "materialization-deadline"),
             ({"duplicate_start": True}, "command-start-not-singular"),
-            ({"command_source": "user"}, "command-origin-invalid"),
-            ({"command_source": None}, "command-origin-invalid"),
-            ({"notification_command": "sleep 19"}, "command-digest-mismatch"),
+            ({"command_source": "agent"}, "command-source-invalid"),
+            ({"command_source": "userShell"}, "command-source-invalid"),
+            ({"command_source": "unifiedExecInteraction"}, "command-source-invalid"),
+            ({"command_source": None}, "command-source-invalid"),
+            ({"command_source": "unknown"}, "command-source-invalid"),
+            ({"omit_command_source": True}, "command-source-missing"),
+            ({"notification_command": "sleep 19"}, "rendered-command-not-exact-wrapper"),
+            ({"notification_command": "sleep 20; true"}, "rendered-command-not-exact-wrapper"),
+            ({"notification_command": "sleep 20 # ignored"}, "rendered-command-not-exact-wrapper"),
+            ({"notification_command": "sleep 20 >/tmp/out"}, "rendered-command-not-exact-wrapper"),
+            ({"notification_command": '/bin/bash -lc "sleep 20"'}, "rendered-command-not-exact-wrapper"),
+            ({"notification_workspace_mismatch": True}, "notification-workspace-mismatch"),
             ({"function_command": "sleep 19"}, "function-call-command-digest-mismatch"),
             ({"completed_before_interrupt": True}, "command-completed-before-interrupt"),
             ({"output_before_interrupt": True}, "function-output-before-interrupt"),
             ({"duplicate_function_call": True}, "function-call-not-singular"),
             ({"competing_function_call": True}, "function-call-not-singular"),
             ({"replace_source_at_read": 6}, "session-source-identity-changed"),
+            ({"replace_notification_at_read": 6}, "materialization-deadline"),
         )
         for options, expected in cases:
             with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:

@@ -34,10 +34,13 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     CanaryAuthorizationStore,
     MATERIALIZATION_EVIDENCE_SCHEMA,
     MATERIALIZATION_EVIDENCE_TYPE,
+    NativeCanaryContractError,
     canonical_sha256 as domain_sha256,
     consume_steering_receipt,
+    materialization_execution_correlation,
     new_authorization_state,
     seal_materialization_evidence,
+    validate_capability_rendered_command,
     validate_materialization_evidence,
 )
 from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402
@@ -949,10 +952,10 @@ def calibration(
         item_id = command.get("id")
         if not isinstance(item_id, str) or not item_id:
             raise AppServerError("capability-command-item-identity-invalid")
-        if command.get("source") != "agent":
-            raise AppServerError("capability-command-origin-invalid")
-        if sha256_text(str(command.get("command", ""))) != sha256_text("sleep 20"):
-            raise AppServerError("capability-command-digest-mismatch")
+        if "source" not in command:
+            raise AppServerError("capability-command-source-missing")
+        if command.get("source") != "unifiedExecStartup":
+            raise AppServerError("capability-command-source-invalid")
         if command.get("status") in {"completed", "failed", "declined"}:
             raise AppServerError(
                 f"capability-command-terminal-before-interrupt:{command.get('status')}"
@@ -998,6 +1001,46 @@ def calibration(
             raise AppServerError("capability-function-call-command-missing")
         if sha256_text(str(parsed_arguments["cmd"])) != sha256_text("sleep 20"):
             raise AppServerError("capability-function-call-command-digest-mismatch")
+        try:
+            rendered_command_sha256 = validate_capability_rendered_command(
+                command.get("command"), raw_command=str(parsed_arguments["cmd"])
+            )
+        except NativeCanaryContractError as exc:
+            raise AppServerError(f"capability-{exc}") from exc
+        command_cwd = command.get("cwd")
+        if not isinstance(command_cwd, str) or not command_cwd:
+            raise AppServerError("capability-notification-workspace-missing")
+        try:
+            notification_workspace = Path(command_cwd).resolve(strict=True)
+            expected_workspace = cwd.resolve(strict=True)
+        except OSError as exc:
+            raise AppServerError("capability-notification-workspace-unresolvable") from exc
+        if notification_workspace != expected_workspace:
+            raise AppServerError("capability-notification-workspace-mismatch")
+        command_item_id_sha256 = domain_sha256(
+            {"item_id": item_id}, domain="app-server-command-item-id"
+        )
+        function_call_id_sha256 = domain_sha256(
+            {"call_id": call_id}, domain="session-exec-command-call-id"
+        )
+        raw_command_sha256 = sha256_text(str(parsed_arguments["cmd"]))
+        execution_correlation_sha256 = materialization_execution_correlation(
+            connection_epoch_sha256=str(start_event["connection_epoch_sha256"]),
+            session_id=thread_id,
+            thread_id=thread_id,
+            turn_id=turn_id,
+            command_item_id_sha256=command_item_id_sha256,
+            function_call_id_sha256=function_call_id_sha256,
+            notification_sequence=int(start_event["sequence"]),
+            notification_received_monotonic_ns=int(
+                start_event["received_monotonic_ns"]
+            ),
+            notification_started_at_ms=started_at_ms,
+            turn_context_record_index=context_index,
+            function_call_record_index=function_call_index,
+            rendered_command_sha256=rendered_command_sha256,
+            raw_command_sha256=raw_command_sha256,
+        )
         return thread, {
             "observed_at": iso(),
             "boundary": public_boundary(boundary),
@@ -1010,17 +1053,19 @@ def calibration(
             "notification_started_at_ms": started_at_ms,
             "turn_context_record_index": context_index,
             "function_call_record_index": function_call_index,
-            "command_item_id_sha256": domain_sha256(
-                {"item_id": item_id}, domain="app-server-command-item-id"
-            ),
-            "function_call_id_sha256": domain_sha256(
-                {"call_id": call_id}, domain="session-exec-command-call-id"
-            ),
-            "command_origin": "agent",
+            "command_item_id_sha256": command_item_id_sha256,
+            "function_call_id_sha256": function_call_id_sha256,
+            "rendered_command_sha256": rendered_command_sha256,
+            "execution_correlation_sha256": execution_correlation_sha256,
+            "notification_command_semantic_match": True,
+            "notification_workspace_match": True,
+            "command_source": "unifiedExecStartup",
             "command_status": "inProgress",
             "started_event_count": 1,
+            "function_call_count": 1,
             "completed_event_count": 0,
             "paired_result_count": 0,
+            "competing_call_count": 0,
             "terminal_event_count": 0,
             "failed_event_count": 0,
             "declined_event_count": 0,
@@ -1066,6 +1111,8 @@ def calibration(
                             "function_call_record_index",
                             "command_item_id_sha256",
                             "function_call_id_sha256",
+                            "rendered_command_sha256",
+                            "execution_correlation_sha256",
                         )
                     ):
                         raise AppServerError("capability-observation-identity-changed")
@@ -1100,6 +1147,8 @@ def calibration(
             "function_call_record_index",
             "command_item_id_sha256",
             "function_call_id_sha256",
+            "rendered_command_sha256",
+            "execution_correlation_sha256",
         )
     ):
         raise AppServerError("capability-immediate-revalidation-failed")
@@ -1156,13 +1205,14 @@ def calibration(
     materialization = seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 2,
+            "version": 3,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": f"materialization-{uuid.uuid4()}",
             "run_nonce": run_nonce,
             "attempt_nonce": attempt_nonce,
             "phase_nonce": phase_nonce,
             "session_id": thread_id,
+            "thread_id": thread_id,
             "turn_id": turn_id,
             "requested_model": EXACT_MODEL,
             "attested_model": EXACT_MODEL,
@@ -1180,6 +1230,7 @@ def calibration(
                 "request_accepted_at": interrupt_request_accepted_at,
                 "confirmed_at": interrupt_confirmed_at,
                 "session_id": thread_id,
+                "thread_id": thread_id,
                 "turn_id": turn_id,
                 "request_outcome": "accepted",
                 "outcome": "interrupt-confirmed",
