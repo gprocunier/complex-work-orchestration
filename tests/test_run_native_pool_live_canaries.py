@@ -424,6 +424,9 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
 
 
 class FullAutoAuthorizationLauncherTests(unittest.TestCase):
+    def test_launcher_root_is_repository_root(self) -> None:
+        self.assertEqual(LIVE.ROOT, ROOT)
+
     def make_repo(self, root: Path) -> tuple[str, str]:
         subprocess.run(["git", "init", "-q"], cwd=root, check=True, stdout=subprocess.DEVNULL)
         subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)

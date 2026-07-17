@@ -27,7 +27,7 @@ from typing import Any, Callable, Mapping
 import uuid
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_control import build_control_turn_contract  # noqa: E402
