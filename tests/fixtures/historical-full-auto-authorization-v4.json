@@ -1,0 +1,171 @@
+{
+  "authorization_type": "cwo-full-auto-run-authorization",
+  "version": 4,
+  "schema": "schemas/full-auto-run-authorization.schema.json",
+  "authorization_id": "c9fff203-a535-48f4-9a7d-80f450ce108f",
+  "run_generation": 10,
+  "live_generation": 5,
+  "predecessor_live_generation": 4,
+  "issued_at": "2026-07-17T13:49:37Z",
+  "issued_by": "current-codex-main-thread-under-operator-full-auto",
+  "operator_authority": "current-interaction:fresh-full-auto-generation-5-publication",
+  "initial_state": "active",
+  "scope": {
+    "epic_id": "complex-work-orchestration-18w",
+    "parent_work_unit_id": "complex-work-orchestration-18w.6",
+    "ordered_work_units": [
+      "complex-work-orchestration-18w.6.15",
+      "complex-work-orchestration-18w.6.16",
+      "complex-work-orchestration-18w.6.17",
+      "complex-work-orchestration-18w.6.18",
+      "complex-work-orchestration-18w.6.19",
+      "complex-work-orchestration-18w.7"
+    ]
+  },
+  "bindings": {
+    "checkpoint_commit": "1e71595e02ce09bd7159c124d5db2b3bfc0c3b67",
+    "checkpoint_tree": "d9b87248cb1dee82958c4493670c606f3b1cbf80",
+    "origin_main_commit": "01780916148e2fad7bf96023c445718e19539052",
+    "guarded_primary_diff_sha256": "2b4b28c157ad681343ec2347ba62bd7c7766738bb82ea37f848881bd46e9249c",
+    "pickup_path": "work-packets/18w/pickup-6.md",
+    "pickup_sha256": "f2b90be8ec72790948f8c7e790a19fdc243ba4a230a342fcfafb8d8db7635064",
+    "recovery_plan_path": "work-packets/18w/recovery-plan-v10.md",
+    "recovery_plan_sha256": "2408c47820e8edacd149c104f1533e558651e7f201bf8e10e3cbe8a8cd674529",
+    "campaign_nonce": "7122d201-0448-4aca-b8a6-ba323510454b",
+    "predecessor_authorization_id": "307b7273-f97e-4f57-8aa3-95c4bdd27147",
+    "predecessor_failure_evidence_file_sha256": "58c3faf4cd04cc1c3b100ace1789197358e3253c9adf4cf41d9e65056003a29a",
+    "predecessor_failure_evidence_canonical_sha256": "3150756e827bf455a77033ae4fa204562a593de02bc3e0964c5407387b1e41c3",
+    "predecessor_containment_file_sha256": "a163ad39c8b5bbac2bf31a5003c9d476be169d13abe98a4e4372862aff8c76ea",
+    "predecessor_containment_canonical_sha256": "c9c0b3fc40b3d3601cce53d56b166b09004d4efc204eeed63c11558cf7d4f9e1",
+    "backup_ref": "refs/heads/backup/supervisor-concurrency-pre-gen5-20260717T134937Z"
+  },
+  "supersession": {
+    "prior_authorization_id": "307b7273-f97e-4f57-8aa3-95c4bdd27147",
+    "prior_terminal_state": "containment-only",
+    "prior_live_generation": 4,
+    "prior_allocations": 1,
+    "prior_ambiguities": 0,
+    "prior_allowed_actions": 0,
+    "reuse_resume_retry_substitution_salvage_bridge": false
+  },
+  "executors": {
+    "final_architect": "current-codex-main-thread",
+    "steering": {
+      "model": "gpt-5.6-sol",
+      "effort": "max",
+      "surface": "codex-app-server-stdio",
+      "authority": "read-only-evidence"
+    },
+    "operative": {
+      "model": "gpt-5.3-codex-spark",
+      "effort": "low",
+      "surface": "codex-app-server-stdio",
+      "session_policy": "fresh-nonresumable-nonsalvageable"
+    },
+    "outside_critic": {
+      "model": "claude-opus-4-6",
+      "effort": "max",
+      "surface": "claude-cli-as-greg",
+      "authority": "evidence-only"
+    }
+  },
+  "budgets": {
+    "sol_consultations_observed_before_v10": 16,
+    "sol_consultations_added": 3,
+    "sol_consultations_global_hard": 19,
+    "opus_reviews_observed_before_v10": 7,
+    "opus_reviews_added": 2,
+    "opus_reviews_global_hard": 9,
+    "live_generations_consumed_before_current": 4,
+    "live_generations_global_hard": 5,
+    "live_generations_remaining_exact": 1,
+    "spark_live_turn_starts_per_generation_exact": 7,
+    "spark_read_only_validation_sessions_hard": 2,
+    "spark_compactions_hard": 0,
+    "full_repository_suites_observed_before_v10": 4,
+    "full_repository_suites_added": 3,
+    "full_repository_suites_global_hard": 7,
+    "focused_validation_bundles_hard": 4,
+    "implementation_correction_sprints_hard": 1,
+    "origin_reconciliation_cycles_hard": 1,
+    "primary_checkout_mutations_hard": 0
+  },
+  "mandatory_gates": {
+    "strict_authorization_v4": true,
+    "contained_prior_generation_proof": true,
+    "fresh_exact_sol_pre_mutation_receipt": true,
+    "successor_contract_validation": true,
+    "frozen_release_patch": true,
+    "fresh_opus_candidate_review": true,
+    "fresh_exact_sol_pre_live_receipt": true,
+    "campaign_manifest_v1": true,
+    "single_shot_per_generation_live_campaign": true,
+    "main_thread_adjudication_each_gate": true,
+    "guarded_primary_diff_stability": true,
+    "staging_ci_before_main": true,
+    "published_install_parity": true
+  },
+  "persistence": {
+    "run_level_full_auto_survives_recoverable_failure": true,
+    "operator_recheck_required_for_routine_recovery": false,
+    "evidence_bearing_live_failure_becomes_terminal": true,
+    "fresh_successor_requires_new_authorization_id_nonce_receipts_sessions_and_paths": true,
+    "combined_confidence_formula": "min(main,sol) when sol-used else main",
+    "combined_confidence_minimum": 0.5,
+    "operator_stop_conditions": [
+      "containment-unproven",
+      "protected-primary-changed",
+      "authority-or-model-ambiguous",
+      "contradictory-validation-unresolved",
+      "remote-main-drift-after-authority",
+      "accepted-high-finding-after-correction-budget",
+      "release-patch-mismatch",
+      "publication-ambiguous",
+      "combined-steering-confidence-below-0.50"
+    ]
+  },
+  "forbidden": {
+    "glm_5_2": true,
+    "model_synthesis": true,
+    "primary_checkout_mutation": true,
+    "prior_authorization_reuse": true,
+    "prior_nonce_session_receipt_registry_state_output_ledger_or_path_reuse": true,
+    "worker_resume": true,
+    "worker_salvage": true,
+    "model_substitution": true,
+    "evidence_bearing_live_retry": true,
+    "generation_6": true,
+    "sol_target_checkout_mutation": true,
+    "release_before_live_acceptance": true,
+    "force_push": true,
+    "git_tag": true,
+    "github_release": true
+  },
+  "live_relaunch_rule": {
+    "pre_rpc_zero_artifact_relaunch_max": 1,
+    "requires_no_thread_start_request": true,
+    "requires_no_allocation_intent": true,
+    "requires_no_session_identity": true,
+    "requires_no_audit_event": true,
+    "requires_no_campaign_artifact": true
+  },
+  "release": {
+    "authorized_only_after_accepting_live_evidence_and_main_go": true,
+    "frozen_delta_required": true,
+    "version_remains": "0.2.0-dev",
+    "tag_or_github_release": false,
+    "actions_after_gate": [
+      "apply-exact-frozen-release-patch",
+      "final-validation",
+      "local-release-commit",
+      "non-force-staging-branch-push",
+      "exact-sha-staging-ci",
+      "plain-fast-forward-main-push",
+      "main-ci-and-pages-verification",
+      "clean-worktree-install",
+      "installed-parity-verification",
+      "beads-closure"
+    ]
+  },
+  "canonical_authorization_sha256": "359a9885772c24abd8bce1db6d49aca405c84226428c65bc7cd6e1a6f0054c4b"
+}

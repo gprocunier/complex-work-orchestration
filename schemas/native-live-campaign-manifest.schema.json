@@ -81,7 +81,9 @@
         "candidate_tree", "lineage_sha256", "authorization_state_file_sha256",
         "authorization_state_canonical_sha256", "failure_evidence_file_sha256",
         "failure_evidence_canonical_sha256", "containment_file_sha256",
-        "containment_canonical_sha256"
+        "containment_canonical_sha256", "original_containment_file_sha256",
+        "original_containment_canonical_sha256", "allocation_ledger_file_sha256",
+        "allocation_ledger_state_sha256", "allocation_audit_file_sha256"
       ],
       "properties": {
         "authorization_id": {"$ref": "#/$defs/uuid"},
@@ -97,7 +99,12 @@
         "failure_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
         "failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
         "containment_file_sha256": {"$ref": "#/$defs/sha256"},
-        "containment_canonical_sha256": {"$ref": "#/$defs/sha256"}
+        "containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "original_containment_file_sha256": {"$ref": "#/$defs/sha256"},
+        "original_containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "allocation_ledger_file_sha256": {"$ref": "#/$defs/sha256"},
+        "allocation_ledger_state_sha256": {"$ref": "#/$defs/sha256"},
+        "allocation_audit_file_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "outer_authority": {

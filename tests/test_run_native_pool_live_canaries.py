@@ -1141,59 +1141,198 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
     def predecessor_artifacts(
         self,
+        root: Path,
         predecessor_authorization_id: str,
         candidate_commit: str,
         candidate_tree: str,
     ) -> dict[str, object]:
+        cache_key = (
+            str(root.resolve()),
+            predecessor_authorization_id,
+            candidate_commit,
+            candidate_tree,
+        )
+        cache = getattr(self, "_predecessor_artifact_cache", {})
+        if cache_key in cache:
+            return cache[cache_key]
+
         def seal(value: dict, field: str) -> dict:
+            value.pop(field, None)
             value[field] = LIVE.sha256_bytes(
                 json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
             )
             return value
 
+        def raw(value: dict) -> tuple[bytes, str]:
+            payload = json.dumps(
+                value, sort_keys=True, separators=(",", ":")
+            ).encode()
+            return payload, LIVE.sha256_bytes(payload)
+
         campaign_nonce = str(
             uuid.uuid5(uuid.UUID(predecessor_authorization_id), "campaign")
         )
-        predecessor_authorization = {
-            "authorization_type": "cwo-full-auto-run-authorization",
-            "version": 4,
-            "schema": "schemas/full-auto-run-authorization.schema.json",
-            "authorization_id": predecessor_authorization_id,
-            "live_generation": 5,
-            "predecessor_live_generation": 4,
-            "bindings": {"campaign_nonce": campaign_nonce},
-        }
+        historical_predecessor_id = str(
+            uuid.uuid5(uuid.UUID(predecessor_authorization_id), "generation-4")
+        )
+        try:
+            historical_checkpoint = LIVE.run_git(
+                root, "rev-parse", f"{candidate_commit}^"
+            )
+        except subprocess.CalledProcessError:
+            historical_checkpoint = candidate_commit
+        historical_checkpoint_tree = LIVE.run_git(
+            root, "rev-parse", f"{historical_checkpoint}^{{tree}}"
+        )
+        origin_main = LIVE.run_git(root, "rev-parse", "origin/main")
+        guarded_diff = LIVE.sha256_bytes(b"")
+
+        predecessor_authorization = json.loads(
+            (
+                ROOT
+                / "tests"
+                / "fixtures"
+                / "historical-full-auto-authorization-v4.json"
+            ).read_text(encoding="utf-8")
+        )
+        predecessor_authorization.update(
+            {
+                "authorization_id": predecessor_authorization_id,
+                "issued_at": "2026-07-17T10:00:00Z",
+                "issued_by": "test-operator",
+            }
+        )
+        predecessor_authorization["bindings"].update(
+            {
+                "checkpoint_commit": historical_checkpoint,
+                "checkpoint_tree": historical_checkpoint_tree,
+                "origin_main_commit": origin_main,
+                "guarded_primary_diff_sha256": guarded_diff,
+                "campaign_nonce": campaign_nonce,
+                "predecessor_authorization_id": historical_predecessor_id,
+            }
+        )
+        predecessor_authorization["supersession"][
+            "prior_authorization_id"
+        ] = historical_predecessor_id
         seal(predecessor_authorization, "canonical_authorization_sha256")
-        predecessor_authorization_bytes = json.dumps(
-            predecessor_authorization, sort_keys=True, separators=(",", ":")
-        ).encode()
-        predecessor_authorization_raw_sha256 = LIVE.sha256_bytes(
-            predecessor_authorization_bytes
+        (
+            predecessor_authorization_bytes,
+            predecessor_authorization_raw_sha256,
+        ) = raw(predecessor_authorization)
+
+        predecessor_manifest = json.loads(
+            (
+                ROOT
+                / "tests"
+                / "fixtures"
+                / "historical-live-campaign-manifest-v1.json"
+            ).read_text(encoding="utf-8")
         )
-        predecessor_manifest = {
-            "manifest_type": "cwo-native-live-campaign-manifest",
-            "version": 1,
-            "schema": "schemas/native-live-campaign-manifest.schema.json",
-            "authorization_id": predecessor_authorization_id,
-            "authorization_raw_sha256": predecessor_authorization_raw_sha256,
-            "authorization_canonical_sha256": predecessor_authorization[
-                "canonical_authorization_sha256"
-            ],
-            "live_generation": 5,
-            "predecessor_live_generation": 4,
-            "candidate": {
-                "commit": candidate_commit,
-                "tree": candidate_tree,
-            },
+        predecessor_manifest.update(
+            {
+                "manifest_id": str(uuid.uuid4()),
+                "created_at": "2026-07-17T10:01:00Z",
+                "authorization_id": predecessor_authorization_id,
+                "authorization_raw_sha256": predecessor_authorization_raw_sha256,
+                "authorization_canonical_sha256": predecessor_authorization[
+                    "canonical_authorization_sha256"
+                ],
+                "campaign_nonce": campaign_nonce,
+            }
+        )
+        predecessor_manifest["candidate"] = {
+            "commit": candidate_commit,
+            "tree": candidate_tree,
+            "origin_main_commit": origin_main,
+            "guarded_primary_diff_sha256": guarded_diff,
         }
+        predecessor_manifest["predecessor"] = {
+            "authorization_id": historical_predecessor_id,
+            "failure_evidence_canonical_sha256": predecessor_authorization[
+                "bindings"
+            ]["predecessor_failure_evidence_canonical_sha256"],
+            "containment_canonical_sha256": predecessor_authorization["bindings"][
+                "predecessor_containment_canonical_sha256"
+            ],
+        }
+        predecessor_manifest["release"]["candidate_tree"] = candidate_tree
+        predecessor_manifest["release"]["prospective_tree"] = candidate_tree
         seal(predecessor_manifest, "manifest_sha256")
-        predecessor_manifest_raw_sha256 = LIVE.sha256_bytes(
-            json.dumps(
-                predecessor_manifest,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode()
+        predecessor_manifest_bytes, predecessor_manifest_raw_sha256 = raw(
+            predecessor_manifest
         )
+
+        ledger_directory = root / (
+            ".test-predecessor-ledger-" + uuid.uuid4().hex
+        )
+        ledger = LIVE.NativeLiveAllocationLedgerStore(ledger_directory)
+        reviews = predecessor_manifest["reviews"]
+        release = predecessor_manifest["release"]
+        ledger.initialize(
+            {
+                "bead_id": "complex-work-orchestration-18w",
+                "work_unit_id": "complex-work-orchestration-18w.6.19",
+                "authorization_id": predecessor_authorization_id,
+                "authorization_raw_sha256": predecessor_authorization_raw_sha256,
+                "authorization_canonical_sha256": predecessor_authorization[
+                    "canonical_authorization_sha256"
+                ],
+                "campaign_manifest_sha256": predecessor_manifest["manifest_sha256"],
+                "campaign_nonce": campaign_nonce,
+                "live_generation": 5,
+                "predecessor_generation": 4,
+                "candidate_commit": candidate_commit,
+                "candidate_tree": candidate_tree,
+                "origin_main_commit": origin_main,
+                "guarded_primary_diff_sha256": guarded_diff,
+                "predecessor_containment_sha256": predecessor_authorization[
+                    "bindings"
+                ]["predecessor_containment_canonical_sha256"],
+                "frozen_release_patch_sha256": release["patch_file_sha256"],
+                "pre_mutation_steering_receipt_sha256": reviews[
+                    "pre_mutation_receipt_canonical_sha256"
+                ],
+                "pre_live_steering_receipt_sha256": reviews[
+                    "pre_live_receipt_canonical_sha256"
+                ],
+                "opus_review_sha256": reviews["opus_evidence_file_sha256"],
+                "certification_policy_sha256": "c" * 64,
+                "controller_identity": {
+                    "pid": 1,
+                    "start_ticks": 1,
+                    "boot_id_sha256": "d" * 64,
+                },
+                "connection_epoch_sha256": "e" * 64,
+                "retention_class": "private-local-until-bead-closure",
+                "expected_roles": list(LIVE.EXPECTED_ROLES),
+            },
+            version=2,
+        )
+        allocation_intent_id = ledger.allocation_intent(
+            "capability-calibration"
+        )
+        thread_id = str(uuid.uuid4())
+        turn_id = str(uuid.uuid4())
+        ledger.bind_thread(allocation_intent_id, thread_id)
+        turn_intent_id = ledger.turn_intent(thread_id)
+        ledger.bind_turn(thread_id, turn_intent_id, turn_id)
+        ledger.record_lifecycle(
+            thread_id, "interrupt-observed", "interrupt-request-accepted"
+        )
+        ledger.record_lifecycle(
+            thread_id, "archive-observed", "archive-request-accepted"
+        )
+        ledger.record_containment_audit(
+            thread_id, outcome="contained", evidence={"contained": True}
+        )
+        predecessor_allocation_ledger = ledger.load()
+        ledger_path = ledger.path
+        audit_path = ledger.audit_file
+        ledger_raw_sha256 = LIVE.sha256_bytes(ledger_path.read_bytes())
+        audit_raw_sha256 = LIVE.sha256_bytes(audit_path.read_bytes())
+        ledger_summary = ledger.summary()
+
         predecessor_state = {
             "authorization_type": "cwo-native-canary-authorization-state:v1",
             "version": 1,
@@ -1228,16 +1367,15 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         predecessor_state["state_sha256"] = LIVE.domain_sha256(
             predecessor_state, domain="native-canary-authorization"
         )
-        predecessor_state_raw_sha256 = LIVE.sha256_bytes(
-            json.dumps(
-                predecessor_state, sort_keys=True, separators=(",", ":")
-            ).encode()
+        predecessor_state_bytes, predecessor_state_raw_sha256 = raw(
+            predecessor_state
         )
         predecessor_failure = seal(
             {
                 "authorization_state_sha256": predecessor_state["state_sha256"],
                 "release_gate_passed": False,
                 "validation_outcome": "rejected",
+                "allocation_ledger": {"available": True, **ledger_summary},
                 "campaign_bindings": {
                     "authorization_raw_sha256": predecessor_authorization_raw_sha256,
                     "manifest_file_sha256": predecessor_manifest_raw_sha256,
@@ -1246,6 +1384,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     "candidate_tree": candidate_tree,
                 },
                 "containment": {
+                    "allocated_count": 1,
                     "all_contained": True,
                     "ambiguous_count": 0,
                     "ledger_consistent": True,
@@ -1255,58 +1394,245 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             },
             "evidence_sha256",
         )
-        predecessor_failure_raw_sha256 = LIVE.sha256_bytes(
-            json.dumps(
-                predecessor_failure, sort_keys=True, separators=(",", ":")
-            ).encode()
+        predecessor_failure_bytes, predecessor_failure_raw_sha256 = raw(
+            predecessor_failure
+        )
+
+        malformed_authorization_id = (
+            predecessor_authorization_id[:24]
+            + predecessor_authorization_id[25:]
+        )
+        original_failed_evidence = {
+            "file_sha256": predecessor_failure_raw_sha256,
+            "canonical_sha256": predecessor_failure["evidence_sha256"],
+            "authorization_state_file_sha256": predecessor_state_raw_sha256,
+            "authorization_state_canonical_sha256": predecessor_state[
+                "state_sha256"
+            ],
+        }
+        original_reclassification = {
+            "global_live_generation_ordinal": 5,
+            "global_live_generation_hard_cap": 5,
+            "remaining_generations_exact": 0,
+            "allocated_count": 1,
+            "calibration_turns_started": 1,
+            "pool_turns_started": 0,
+            "pool_tool_calls": 0,
+            "external_interrupt_count_proven": 0,
+            "harness_containment_interrupt_count": 1,
+            "status_projection_flip_observed": True,
+            "contained_count": 1,
+            "ambiguous_count": 0,
+            "all_contained": True,
+            "release_gate_passed": False,
+            "failed_authorization_terminal": True,
+            "operator_stop_condition": "synthetic-terminal",
+            "reuse_resume_retry_substitution_salvage_bridge": False,
+        }
+        original_control = {
+            "campaign_process_alive": False,
+            "controller_pid": 1,
+            "controller_pid_alive": False,
+            "disposable_workspace_present": False,
+            "protected_primary_diff_sha256": guarded_diff,
+            "isolated_checkout_head": candidate_commit,
+            "isolated_checkout_tree": candidate_tree,
+            "isolated_checkout_tracked_clean": True,
+            "origin_main_commit": origin_main,
+            "release_policy_status": "canary-gated",
+            "operative_dispatch_authorized": False,
+            "authorization_state_validation_errors": [],
+            "ledger_validation_errors": [],
+            "evidence_canonical_hash_valid": True,
+        }
+        predecessor_original_containment = seal(
+            {
+                "schema": "cwo-live-canary-containment-recovery:v1",
+                "bead_id": "complex-work-orchestration-18w",
+                "recorded_at": "2026-07-17T11:01:00Z",
+                "failed_authorization_id": malformed_authorization_id,
+                "failed_campaign_nonce": campaign_nonce,
+                "failed_manifest": {
+                    "file_sha256": predecessor_manifest_raw_sha256,
+                    "canonical_sha256": predecessor_manifest["manifest_sha256"],
+                    "live_generation": 5,
+                    "predecessor_live_generation": 4,
+                },
+                "failed_evidence": original_failed_evidence,
+                "root_cause": {},
+                "session_accounting": [{"role": "capability-calibration"}],
+                "allocation_ledger": {
+                    "ledger_type": ledger_summary["ledger_type"],
+                    "version": ledger_summary["version"],
+                    "ledger_id": ledger_summary["ledger_id"],
+                    "ledger_file_sha256": ledger_raw_sha256,
+                    "audit_file_sha256": audit_raw_sha256,
+                    "state_sha256": ledger_summary["state_sha256"],
+                    "head_entry_sha256": ledger_summary["head_entry_sha256"],
+                    "sequence": ledger_summary["sequence"],
+                    "allocation_intent_count": 1,
+                    "thread_bound_count": 1,
+                    "turn_intent_count": 1,
+                    "turn_bound_count": 1,
+                    "unresolved_allocation_intent_count": 0,
+                    "unresolved_turn_intent_count": 0,
+                    "validation_errors": [],
+                },
+                "steering_consumption": {},
+                "control_plane_recheck": original_control,
+                "reclassification": original_reclassification,
+            },
+            "canonical_recovery_sha256",
+        )
+        (
+            predecessor_original_containment_bytes,
+            predecessor_original_containment_raw_sha256,
+        ) = raw(predecessor_original_containment)
+
+        correction_reclassification_fields = (
+            "global_live_generation_ordinal",
+            "allocated_count",
+            "calibration_turns_started",
+            "pool_turns_started",
+            "pool_tool_calls",
+            "contained_count",
+            "ambiguous_count",
+            "all_contained",
+            "release_gate_passed",
+            "failed_authorization_terminal",
+            "reuse_resume_retry_substitution_salvage_bridge",
+        )
+        correction_control_fields = (
+            "campaign_process_alive",
+            "disposable_workspace_present",
+            "protected_primary_diff_sha256",
+            "isolated_checkout_head",
+            "isolated_checkout_tree",
+            "isolated_checkout_tracked_clean",
+            "origin_main_commit",
+            "release_policy_status",
+            "operative_dispatch_authorized",
+            "authorization_state_validation_errors",
+            "evidence_canonical_hash_valid",
         )
         predecessor_containment = seal(
             {
+                "schema": "cwo-live-containment-identity-correction:v1",
+                "recorded_at": "2026-07-17T11:02:00Z",
                 "failed_authorization_id": predecessor_authorization_id,
                 "failed_campaign_nonce": campaign_nonce,
-                "failed_evidence": {
-                    "file_sha256": predecessor_failure_raw_sha256,
-                    "canonical_sha256": predecessor_failure["evidence_sha256"],
-                    "authorization_state_file_sha256": predecessor_state_raw_sha256,
-                    "authorization_state_canonical_sha256": predecessor_state[
-                        "state_sha256"
-                    ],
-                },
+                "failed_evidence": original_failed_evidence,
                 "reclassification": {
-                    "ambiguous_count": 0,
-                    "all_contained": True,
-                    "release_gate_passed": False,
-                    "failed_authorization_terminal": True,
-                    "reuse_resume_retry_substitution_salvage_bridge": False,
+                    field: original_reclassification[field]
+                    for field in correction_reclassification_fields
                 },
                 "control_plane_recheck": {
-                    "isolated_checkout_tracked_clean": True,
-                    "release_policy_status": "canary-gated",
-                    "operative_dispatch_authorized": False,
+                    field: original_control[field]
+                    for field in correction_control_fields
+                },
+                "correction": {
+                    "kind": "legacy-containment-identifier-length-correction",
+                    "original_artifact_file_sha256": predecessor_original_containment_raw_sha256,
+                    "original_artifact_canonical_sha256": predecessor_original_containment[
+                        "canonical_recovery_sha256"
+                    ],
+                    "original_recorded_authorization_id": malformed_authorization_id,
+                    "corrected_authorization_id": predecessor_authorization_id,
+                    "identity_authority": {
+                        "authorization_file_sha256": predecessor_authorization_raw_sha256,
+                        "authorization_canonical_sha256": predecessor_authorization[
+                            "canonical_authorization_sha256"
+                        ],
+                        "manifest_file_sha256": predecessor_manifest_raw_sha256,
+                        "manifest_canonical_sha256": predecessor_manifest[
+                            "manifest_sha256"
+                        ],
+                        "authorization_state_file_sha256": predecessor_state_raw_sha256,
+                        "authorization_state_canonical_sha256": predecessor_state[
+                            "state_sha256"
+                        ],
+                        "failure_evidence_file_sha256": predecessor_failure_raw_sha256,
+                        "failure_evidence_canonical_sha256": predecessor_failure[
+                            "evidence_sha256"
+                        ],
+                    },
+                    "evidence_or_disposition_changed": False,
+                    "main_architect_disposition": "correct identifier transcription only; preserve terminal containment and all original evidence hashes",
                 },
             },
             "canonical_recovery_sha256",
         )
-        predecessor_containment_raw_sha256 = LIVE.sha256_bytes(
-            json.dumps(
-                predecessor_containment, sort_keys=True, separators=(",", ":")
-            ).encode()
+        predecessor_containment_bytes, predecessor_containment_raw_sha256 = raw(
+            predecessor_containment
         )
         cause_evidence = (
             f"exact-turn-status-corroboration:{candidate_commit}:{candidate_tree}"
         ).encode()
-        return {
+        result = {
             "authorization": predecessor_authorization,
+            "authorization_bytes": predecessor_authorization_bytes,
             "authorization_raw_sha256": predecessor_authorization_raw_sha256,
             "manifest": predecessor_manifest,
+            "manifest_bytes": predecessor_manifest_bytes,
             "manifest_raw_sha256": predecessor_manifest_raw_sha256,
             "state": predecessor_state,
+            "state_bytes": predecessor_state_bytes,
             "state_raw_sha256": predecessor_state_raw_sha256,
             "failure": predecessor_failure,
+            "failure_bytes": predecessor_failure_bytes,
             "failure_raw_sha256": predecessor_failure_raw_sha256,
+            "original_containment": predecessor_original_containment,
+            "original_containment_bytes": predecessor_original_containment_bytes,
+            "original_containment_raw_sha256": predecessor_original_containment_raw_sha256,
             "containment": predecessor_containment,
+            "containment_bytes": predecessor_containment_bytes,
             "containment_raw_sha256": predecessor_containment_raw_sha256,
+            "ledger": predecessor_allocation_ledger,
+            "ledger_path": ledger_path,
+            "ledger_raw_sha256": ledger_raw_sha256,
+            "audit_path": audit_path,
+            "audit_raw_sha256": audit_raw_sha256,
             "cause_evidence": cause_evidence,
+        }
+        cache[cache_key] = result
+        self._predecessor_artifact_cache = cache
+        return result
+
+    def predecessor_contract_kwargs(self, predecessor: dict) -> dict:
+        return {
+            "predecessor_authorization": predecessor["authorization"],
+            "predecessor_authorization_raw_sha256": predecessor[
+                "authorization_raw_sha256"
+            ],
+            "predecessor_manifest": predecessor["manifest"],
+            "predecessor_manifest_raw_sha256": predecessor["manifest_raw_sha256"],
+            "predecessor_authorization_state": predecessor["state"],
+            "predecessor_authorization_state_raw_sha256": predecessor[
+                "state_raw_sha256"
+            ],
+            "predecessor_failure_evidence": predecessor["failure"],
+            "predecessor_failure_evidence_raw_sha256": predecessor[
+                "failure_raw_sha256"
+            ],
+            "predecessor_original_containment": predecessor[
+                "original_containment"
+            ],
+            "predecessor_original_containment_raw_sha256": predecessor[
+                "original_containment_raw_sha256"
+            ],
+            "predecessor_containment": predecessor["containment"],
+            "predecessor_containment_raw_sha256": predecessor[
+                "containment_raw_sha256"
+            ],
+            "predecessor_allocation_ledger": predecessor["ledger"],
+            "predecessor_allocation_ledger_raw_sha256": predecessor[
+                "ledger_raw_sha256"
+            ],
+            "predecessor_allocation_audit_path": predecessor["audit_path"],
+            "predecessor_allocation_audit_raw_sha256": predecessor[
+                "audit_raw_sha256"
+            ],
+            "cause_evidence": predecessor["cause_evidence"],
         }
 
     def authorization(self, root: Path, checkpoint: str) -> dict:
@@ -1316,6 +1642,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             root, "rev-parse", f"{checkpoint}^^{{tree}}"
         )
         predecessor = self.predecessor_artifacts(
+            root,
             predecessor_authorization_id,
             predecessor_candidate_commit,
             predecessor_candidate_tree,
@@ -1384,6 +1711,21 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "predecessor_containment_canonical_sha256": predecessor[
                     "containment"
                 ]["canonical_recovery_sha256"],
+                "predecessor_original_containment_file_sha256": predecessor[
+                    "original_containment_raw_sha256"
+                ],
+                "predecessor_original_containment_canonical_sha256": predecessor[
+                    "original_containment"
+                ]["canonical_recovery_sha256"],
+                "predecessor_allocation_ledger_file_sha256": predecessor[
+                    "ledger_raw_sha256"
+                ],
+                "predecessor_allocation_ledger_state_sha256": predecessor[
+                    "ledger"
+                ]["state_sha256"],
+                "predecessor_allocation_audit_file_sha256": predecessor[
+                    "audit_raw_sha256"
+                ],
                 "backup_ref": "refs/heads/backup/test-generation",
                 "outer_authority_id": str(uuid.uuid4()),
                 "outer_authority_canonical_sha256": "7" * 64,
@@ -1532,9 +1874,20 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "failure_evidence_canonical_sha256": predecessor["failure"][
                 "evidence_sha256"
             ],
+            "failure_evidence_file_sha256": predecessor["failure_raw_sha256"],
             "containment_canonical_sha256": predecessor["containment"][
                 "canonical_recovery_sha256"
             ],
+            "containment_file_sha256": predecessor["containment_raw_sha256"],
+            "original_containment_file_sha256": predecessor[
+                "original_containment_raw_sha256"
+            ],
+            "original_containment_canonical_sha256": predecessor[
+                "original_containment"
+            ]["canonical_recovery_sha256"],
+            "allocation_ledger_file_sha256": predecessor["ledger_raw_sha256"],
+            "allocation_ledger_state_sha256": predecessor["ledger"]["state_sha256"],
+            "allocation_audit_file_sha256": predecessor["audit_raw_sha256"],
         }
         value["progress_gate"]["predecessor_lineage_sha256"] = LIVE.sha256_bytes(
             json.dumps(
@@ -1600,8 +1953,29 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                         "failure_evidence_canonical_sha256": bindings.get(
                             "predecessor_failure_evidence_canonical_sha256"
                         ),
+                        "failure_evidence_file_sha256": bindings.get(
+                            "predecessor_failure_evidence_file_sha256"
+                        ),
                         "containment_canonical_sha256": bindings.get(
                             "predecessor_containment_canonical_sha256"
+                        ),
+                        "containment_file_sha256": bindings.get(
+                            "predecessor_containment_file_sha256"
+                        ),
+                        "original_containment_file_sha256": bindings.get(
+                            "predecessor_original_containment_file_sha256"
+                        ),
+                        "original_containment_canonical_sha256": bindings.get(
+                            "predecessor_original_containment_canonical_sha256"
+                        ),
+                        "allocation_ledger_file_sha256": bindings.get(
+                            "predecessor_allocation_ledger_file_sha256"
+                        ),
+                        "allocation_ledger_state_sha256": bindings.get(
+                            "predecessor_allocation_ledger_state_sha256"
+                        ),
+                        "allocation_audit_file_sha256": bindings.get(
+                            "predecessor_allocation_audit_file_sha256"
                         ),
                     },
                     sort_keys=True,
@@ -1713,6 +2087,21 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 ],
                 "containment_canonical_sha256": bindings[
                     "predecessor_containment_canonical_sha256"
+                ],
+                "original_containment_file_sha256": bindings[
+                    "predecessor_original_containment_file_sha256"
+                ],
+                "original_containment_canonical_sha256": bindings[
+                    "predecessor_original_containment_canonical_sha256"
+                ],
+                "allocation_ledger_file_sha256": bindings[
+                    "predecessor_allocation_ledger_file_sha256"
+                ],
+                "allocation_ledger_state_sha256": bindings[
+                    "predecessor_allocation_ledger_state_sha256"
+                ],
+                "allocation_audit_file_sha256": bindings[
+                    "predecessor_allocation_audit_file_sha256"
                 ],
             },
             "outer_authority": {
@@ -1871,6 +2260,10 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         records = [
             {"type": "session_meta", "payload": {"id": session_id}},
             {
+                "type": "event_msg",
+                "payload": {"type": "task_started", "turn_id": turn_id},
+            },
+            {
                 "type": "turn_context",
                 "payload": {
                     "turn_id": turn_id,
@@ -1892,10 +2285,19 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         records.extend(
             [
                 {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "agent_message",
+                        "phase": "final_answer",
+                        "message": final_text,
+                    },
+                },
+                {
                     "type": "response_item",
                     "payload": {
                         "type": "message",
                         "role": "assistant",
+                        "phase": "final_answer",
                         "content": [{"type": "output_text", "text": final_text}],
                     },
                 },
@@ -1970,6 +2372,58 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 ):
                     LIVE.validate_independent_validation_session(receipt, path)
 
+    def test_independent_validation_session_rejects_cross_turn_assistant_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt, path = self.validation_session(root)
+            records = [json.loads(line) for line in path.read_text().splitlines()]
+            records.insert(
+                -1,
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "role": "assistant",
+                        "phase": "final_answer",
+                        "content": [{"type": "output_text", "text": "{}"}],
+                    },
+                },
+            )
+            path.write_text("".join(json.dumps(item) + "\n" for item in records))
+            boundary, _ = LIVE.capture_boundary(path, receipt["session_id"])
+            receipt["boundary"]["terminal"].update(boundary)
+            with mock.patch.dict("os.environ", {"CODEX_HOME": str(root)}):
+                with self.assertRaisesRegex(LIVE.AppServerError, "activity-invalid"):
+                    LIVE.validate_independent_validation_session(receipt, path)
+
+    def test_independent_validation_session_rejects_symlink_and_unknown_activity(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt, path = self.validation_session(root)
+            link = path.with_name("linked-" + path.name)
+            link.symlink_to(path)
+            with mock.patch.dict("os.environ", {"CODEX_HOME": str(root)}):
+                with self.assertRaisesRegex(LIVE.AppServerError, "path-invalid"):
+                    LIVE.validate_independent_validation_session(receipt, link)
+            linked_archive = root / "linked-archive"
+            linked_archive.symlink_to(path.parent, target_is_directory=True)
+            with mock.patch.dict("os.environ", {"CODEX_HOME": str(root)}):
+                with self.assertRaisesRegex(LIVE.AppServerError, "path-invalid"):
+                    LIVE.validate_independent_validation_session(
+                        receipt, linked_archive / path.name
+                    )
+            records = [json.loads(line) for line in path.read_text().splitlines()]
+            records.insert(
+                -1,
+                {"type": "response_item", "payload": {"type": "fileChange"}},
+            )
+            path.write_text("".join(json.dumps(item) + "\n" for item in records))
+            boundary, _ = LIVE.capture_boundary(path, receipt["session_id"])
+            receipt["boundary"]["terminal"].update(boundary)
+            with mock.patch.dict("os.environ", {"CODEX_HOME": str(root)}):
+                with self.assertRaisesRegex(LIVE.AppServerError, "activity-invalid"):
+                    LIVE.validate_independent_validation_session(receipt, path)
+
     def reseal_manifest(self, value: dict) -> None:
         value.pop("manifest_sha256", None)
         value["manifest_sha256"] = LIVE.sha256_bytes(
@@ -2023,6 +2477,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             manifest = self.manifest(authorization, head, tree)
             outer_authority = self.outer_authority(authorization)
             predecessor = self.predecessor_artifacts(
+                root,
                 authorization["bindings"]["predecessor_authorization_id"],
                 authorization["progress_gate"]["predecessor_candidate_commit"],
                 authorization["progress_gate"]["predecessor_candidate_tree"],
@@ -2052,9 +2507,23 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     predecessor_failure_evidence_raw_sha256=predecessor[
                         "failure_raw_sha256"
                     ],
+                    predecessor_original_containment=predecessor[
+                        "original_containment"
+                    ],
+                    predecessor_original_containment_raw_sha256=predecessor[
+                        "original_containment_raw_sha256"
+                    ],
                     predecessor_containment=predecessor["containment"],
                     predecessor_containment_raw_sha256=predecessor[
                         "containment_raw_sha256"
+                    ],
+                    predecessor_allocation_ledger=predecessor["ledger"],
+                    predecessor_allocation_ledger_raw_sha256=predecessor[
+                        "ledger_raw_sha256"
+                    ],
+                    predecessor_allocation_audit_path=predecessor["audit_path"],
+                    predecessor_allocation_audit_raw_sha256=predecessor[
+                        "audit_raw_sha256"
                     ],
                     cause_evidence=predecessor["cause_evidence"],
                     independent_validation_receipt=spark_receipt,
@@ -2182,6 +2651,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 LIVE.run_git(root, "rev-parse", "HEAD^{tree}"),
             )
             predecessor = self.predecessor_artifacts(
+                root,
                 authorization["bindings"]["predecessor_authorization_id"],
                 authorization["progress_gate"]["predecessor_candidate_commit"],
                 authorization["progress_gate"]["predecessor_candidate_tree"],
@@ -2215,7 +2685,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 LIVE.run_git(root, "rev-parse", "HEAD^{tree}"),
             )
             self.assertIn(
-                "campaign-manifest-authorization:authorization-predecessor-manifest-binding-invalid",
+                "campaign-manifest-authorization:authorization-predecessor-historical-binding-invalid",
                 LIVE.validate_campaign_manifest(
                     arbitrary_manifest,
                     authorization=arbitrary_ancestor,
@@ -2235,6 +2705,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     predecessor_failure_evidence_raw_sha256=predecessor[
                         "failure_raw_sha256"
                     ],
+                    predecessor_original_containment=predecessor["original_containment"],
+                    predecessor_original_containment_raw_sha256=predecessor["original_containment_raw_sha256"],
+                    predecessor_allocation_ledger=predecessor["ledger"],
+                    predecessor_allocation_ledger_raw_sha256=predecessor["ledger_raw_sha256"],
+                    predecessor_allocation_audit_path=predecessor["audit_path"],
+                    predecessor_allocation_audit_raw_sha256=predecessor["audit_raw_sha256"],
                     predecessor_containment=predecessor["containment"],
                     predecessor_containment_raw_sha256=predecessor[
                         "containment_raw_sha256"
@@ -2246,7 +2722,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             wrong_identity = json.loads(json.dumps(predecessor["authorization"]))
             wrong_identity["authorization_id"] = str(uuid.uuid4())
             self.assertIn(
-                "authorization-predecessor-authorization-binding-invalid",
+                "authorization-predecessor-historical-binding-invalid",
                 LIVE.validate_full_auto_authorization_contract(
                     authorization,
                     predecessor_authorization=wrong_identity,
@@ -2265,6 +2741,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     predecessor_failure_evidence_raw_sha256=predecessor[
                         "failure_raw_sha256"
                     ],
+                    predecessor_original_containment=predecessor["original_containment"],
+                    predecessor_original_containment_raw_sha256=predecessor["original_containment_raw_sha256"],
+                    predecessor_allocation_ledger=predecessor["ledger"],
+                    predecessor_allocation_ledger_raw_sha256=predecessor["ledger_raw_sha256"],
+                    predecessor_allocation_audit_path=predecessor["audit_path"],
+                    predecessor_allocation_audit_raw_sha256=predecessor["audit_raw_sha256"],
                     predecessor_containment=predecessor["containment"],
                     predecessor_containment_raw_sha256=predecessor[
                         "containment_raw_sha256"
@@ -2291,7 +2773,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     "containment",
                     "failed_campaign_nonce",
                     str(uuid.uuid4()),
-                    "containment-binding",
+                    "containment-correction-binding",
                 ),
             )
             for artifact_name, field, changed, expected in tamper_cases:
@@ -2319,6 +2801,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                         predecessor_failure_evidence_raw_sha256=artifacts[
                             "failure_raw_sha256"
                         ],
+                        predecessor_original_containment=artifacts["original_containment"],
+                        predecessor_original_containment_raw_sha256=artifacts["original_containment_raw_sha256"],
+                        predecessor_allocation_ledger=artifacts["ledger"],
+                        predecessor_allocation_ledger_raw_sha256=artifacts["ledger_raw_sha256"],
+                        predecessor_allocation_audit_path=artifacts["audit_path"],
+                        predecessor_allocation_audit_raw_sha256=artifacts["audit_raw_sha256"],
                         predecessor_containment=artifacts["containment"],
                         predecessor_containment_raw_sha256=artifacts[
                             "containment_raw_sha256"
@@ -2346,6 +2834,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     predecessor_failure_evidence_raw_sha256=predecessor[
                         "failure_raw_sha256"
                     ],
+                    predecessor_original_containment=predecessor["original_containment"],
+                    predecessor_original_containment_raw_sha256=predecessor["original_containment_raw_sha256"],
+                    predecessor_allocation_ledger=predecessor["ledger"],
+                    predecessor_allocation_ledger_raw_sha256=predecessor["ledger_raw_sha256"],
+                    predecessor_allocation_audit_path=predecessor["audit_path"],
+                    predecessor_allocation_audit_raw_sha256=predecessor["audit_raw_sha256"],
                     predecessor_containment=predecessor["containment"],
                     predecessor_containment_raw_sha256=predecessor[
                         "containment_raw_sha256"
@@ -2354,7 +2848,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 ),
             )
             self.assertIn(
-                "authorization-predecessor-authorization-binding-invalid",
+                "authorization-predecessor-historical-binding-invalid",
                 LIVE.validate_full_auto_authorization_contract(
                     authorization,
                     predecessor_authorization=predecessor["authorization"],
@@ -2371,12 +2865,120 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     predecessor_failure_evidence_raw_sha256=predecessor[
                         "failure_raw_sha256"
                     ],
+                    predecessor_original_containment=predecessor["original_containment"],
+                    predecessor_original_containment_raw_sha256=predecessor["original_containment_raw_sha256"],
+                    predecessor_allocation_ledger=predecessor["ledger"],
+                    predecessor_allocation_ledger_raw_sha256=predecessor["ledger_raw_sha256"],
+                    predecessor_allocation_audit_path=predecessor["audit_path"],
+                    predecessor_allocation_audit_raw_sha256=predecessor["audit_raw_sha256"],
                     predecessor_containment=predecessor["containment"],
                     predecessor_containment_raw_sha256=predecessor[
                         "containment_raw_sha256"
                     ],
                     cause_evidence=predecessor["cause_evidence"],
                 ),
+            )
+
+    def test_predecessor_proof_graph_rejects_structural_ledger_and_correction_tamper(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            head, _orphan = self.make_repo(root)
+            authorization = self.authorization(root, head)
+            predecessor = self.predecessor_artifacts(
+                root,
+                authorization["bindings"]["predecessor_authorization_id"],
+                authorization["progress_gate"]["predecessor_candidate_commit"],
+                authorization["progress_gate"]["predecessor_candidate_tree"],
+            )
+            base_kwargs = self.predecessor_contract_kwargs(predecessor)
+            self.assertEqual(
+                LIVE.validate_full_auto_authorization_contract(
+                    authorization, repo_root=root, **base_kwargs
+                ),
+                [],
+            )
+
+            cases = []
+            historical_authorization = json.loads(
+                json.dumps(predecessor["authorization"])
+            )
+            historical_authorization["unexpected"] = True
+            cases.append(
+                (
+                    {"predecessor_authorization": historical_authorization},
+                    "historical-authorization-fields-invalid",
+                )
+            )
+            historical_manifest = json.loads(json.dumps(predecessor["manifest"]))
+            historical_manifest["unexpected"] = True
+            cases.append(
+                (
+                    {"predecessor_manifest": historical_manifest},
+                    "historical-manifest-fields-invalid",
+                )
+            )
+            ledger = json.loads(json.dumps(predecessor["ledger"]))
+            ledger["entries"][0]["outcome"] = "bound"
+            cases.append(
+                (
+                    {"predecessor_allocation_ledger": ledger},
+                    "allocation-ledger",
+                )
+            )
+            failure = json.loads(json.dumps(predecessor["failure"]))
+            failure["allocation_ledger"]["allocation_intent_count"] = 2
+            cases.append(
+                (
+                    {"predecessor_failure_evidence": failure},
+                    "failure-binding",
+                )
+            )
+            original = json.loads(json.dumps(predecessor["original_containment"]))
+            original["failed_authorization_id"] = "different-malformed-id"
+            cases.append(
+                (
+                    {"predecessor_original_containment": original},
+                    "original-containment-binding",
+                )
+            )
+            correction = json.loads(json.dumps(predecessor["containment"]))
+            correction["correction"]["evidence_or_disposition_changed"] = True
+            cases.append(
+                (
+                    {"predecessor_containment": correction},
+                    "containment-correction-binding",
+                )
+            )
+            for overrides, expected in cases:
+                with self.subTest(expected=expected):
+                    kwargs = {**base_kwargs, **overrides}
+                    errors = LIVE.validate_full_auto_authorization_contract(
+                        authorization, **kwargs
+                    )
+                    self.assertTrue(any(expected in item for item in errors), errors)
+
+            tampered_audit = predecessor["audit_path"].with_name(
+                "tampered-audit.jsonl"
+            )
+            tampered_audit.write_bytes(
+                predecessor["audit_path"].read_bytes() + b"{}\n"
+            )
+            tampered_audit.chmod(0o600)
+            audit_kwargs = {
+                **base_kwargs,
+                "predecessor_allocation_audit_path": tampered_audit,
+                "predecessor_allocation_audit_raw_sha256": LIVE.sha256_bytes(
+                    tampered_audit.read_bytes()
+                ),
+            }
+            audit_errors = LIVE.validate_full_auto_authorization_contract(
+                authorization, **audit_kwargs
+            )
+            self.assertTrue(
+                any("allocation-audit" in item or "allocation-ledger" in item for item in audit_errors),
+                audit_errors,
             )
 
     def test_release_patch_is_bound_to_candidate_and_prospective_tree(self) -> None:

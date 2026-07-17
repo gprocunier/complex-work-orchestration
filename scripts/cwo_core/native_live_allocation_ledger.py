@@ -518,6 +518,52 @@ def validate_live_allocation_ledger(
     return sorted(set(errors))
 
 
+def summarize_live_allocation_ledger(
+    value: Mapping[str, Any],
+    *,
+    ledger_file_sha256: str,
+) -> dict[str, Any]:
+    """Derive the public campaign summary from a validated ledger value."""
+
+    if not _is_hash(ledger_file_sha256):
+        raise NativeLiveAllocationLedgerError("ledger-file-sha256-invalid")
+    errors = validate_live_allocation_ledger(value)
+    if errors:
+        raise NativeLiveAllocationLedgerError("ledger-invalid:" + ";".join(errors))
+    entries = value["entries"]
+    allocation_entries = [entry for entry in entries if entry["event"] == "allocation-intent"]
+    thread_entries = [entry for entry in entries if entry["event"] == "thread-bound"]
+    turn_intents = [entry for entry in entries if entry["event"] == "turn-intent"]
+    turn_entries = [entry for entry in entries if entry["event"] == "turn-bound"]
+    bound_allocations = {entry["allocation_intent_id"] for entry in thread_entries}
+    bound_turn_intents = {entry["turn_intent_id"] for entry in turn_entries}
+    return {
+        "ledger_type": value["ledger_type"],
+        "version": value["version"],
+        "ledger_id": value["ledger_id"],
+        "live_generation": value["bindings"]["live_generation"],
+        "campaign_manifest_sha256": value["bindings"].get(
+            "campaign_manifest_sha256"
+        ),
+        "sequence": value["sequence"],
+        "head_entry_sha256": value["head_entry_sha256"],
+        "state_sha256": value["state_sha256"],
+        "ledger_file_sha256": ledger_file_sha256,
+        "allocation_intent_count": len(allocation_entries),
+        "thread_bound_count": len(thread_entries),
+        "turn_intent_count": len(turn_intents),
+        "turn_bound_count": len(turn_entries),
+        "unresolved_allocation_intent_count": sum(
+            entry["allocation_intent_id"] not in bound_allocations
+            for entry in allocation_entries
+        ),
+        "unresolved_turn_intent_count": sum(
+            entry["turn_intent_id"] not in bound_turn_intents for entry in turn_intents
+        ),
+        "allocated_roles": [entry["role"] for entry in allocation_entries],
+    }
+
+
 class NativeLiveAllocationLedgerStore:
     """Fsync-backed, no-follow ledger with one external audit anchor per event."""
 
@@ -785,36 +831,7 @@ class NativeLiveAllocationLedgerStore:
 
     def summary(self) -> dict[str, Any]:
         state = self.load()
-        allocation_entries = [
-            entry for entry in state["entries"] if entry["event"] == "allocation-intent"
-        ]
-        thread_entries = [entry for entry in state["entries"] if entry["event"] == "thread-bound"]
-        turn_intents = [entry for entry in state["entries"] if entry["event"] == "turn-intent"]
-        turn_entries = [entry for entry in state["entries"] if entry["event"] == "turn-bound"]
-        bound_allocations = {entry["allocation_intent_id"] for entry in thread_entries}
-        bound_turn_intents = {entry["turn_intent_id"] for entry in turn_entries}
-        return {
-            "ledger_type": state["ledger_type"],
-            "version": state["version"],
-            "ledger_id": state["ledger_id"],
-            "live_generation": state["bindings"]["live_generation"],
-            "campaign_manifest_sha256": state["bindings"].get(
-                "campaign_manifest_sha256"
-            ),
-            "sequence": state["sequence"],
-            "head_entry_sha256": state["head_entry_sha256"],
-            "state_sha256": state["state_sha256"],
-            "ledger_file_sha256": hashlib.sha256(self.path.read_bytes()).hexdigest(),
-            "allocation_intent_count": len(allocation_entries),
-            "thread_bound_count": len(thread_entries),
-            "turn_intent_count": len(turn_intents),
-            "turn_bound_count": len(turn_entries),
-            "unresolved_allocation_intent_count": sum(
-                entry["allocation_intent_id"] not in bound_allocations
-                for entry in allocation_entries
-            ),
-            "unresolved_turn_intent_count": sum(
-                entry["turn_intent_id"] not in bound_turn_intents for entry in turn_intents
-            ),
-            "allocated_roles": [entry["role"] for entry in allocation_entries],
-        }
+        return summarize_live_allocation_ledger(
+            state,
+            ledger_file_sha256=hashlib.sha256(self.path.read_bytes()).hexdigest(),
+        )
