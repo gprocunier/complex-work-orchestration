@@ -701,11 +701,14 @@ def _validate_resolved_pre_mutation_stop_steering_receipt(
         errors.append("steering-stop-adjudication-post-commit-mismatch")
     if errors:
         return errors
-    required_codes = {
+    required_code_list = [
         finding.get("code")
         for finding in _extract_findings(receipt)
         if finding.get("severity") in {"high", "medium"}
-    }
+    ]
+    required_codes = set(required_code_list)
+    if len(required_codes) != len(required_code_list):
+        errors.append("steering-stop-receipt-finding-codes-duplicate")
     resolved_codes = {str(item.get("code")) for item in findings}
     if len(resolved_codes) != len(findings) or required_codes != resolved_codes:
         errors.append("steering-stop-adjudication-finding-codes-mismatch")

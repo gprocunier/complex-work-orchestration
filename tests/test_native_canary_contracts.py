@@ -544,6 +544,28 @@ class NativeCanaryContractTests(unittest.TestCase):
         )
         self.assertIn("steering-stop-adjudication-finding-codes-mismatch", errors)
 
+    def test_steering_stop_pre_mutation_rejects_duplicate_receipt_finding_codes(self) -> None:
+        receipt = stop_steering_receipt()
+        receipt["opinion"]["findings"].insert(
+            1,
+            {"severity": "medium", "code": "A-1", "finding": "duplicate code"},
+        )
+        receipt.pop("canonical_receipt_sha256", None)
+        receipt["canonical_receipt_sha256"] = hashlib.sha256(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        adjudication = resolved_stop_adjudication(receipt)
+        errors = validate_steering_receipt(
+            receipt,
+            architect_adjudication_sha256="a" * 64,
+            architect_decision="go",
+            allow_resolved_stop=True,
+            resolved_stop_adjudication=adjudication,
+            resolved_stop_post_resolution_commit="d" * 40,
+            require_accepting=True,
+        )
+        self.assertIn("steering-stop-receipt-finding-codes-duplicate", errors)
+
     def test_steering_model_activity_boundary_and_hash_tamper(self) -> None:
         receipt = steering()
         receipt["model"] = "other"
