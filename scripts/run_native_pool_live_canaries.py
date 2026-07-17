@@ -1269,6 +1269,12 @@ def guarded_measure(
     return result
 
 
+def pool_sleep(*, seconds: float) -> None:
+    """Adapt the coordinator's keyword callback to positional-only time.sleep."""
+
+    time.sleep(seconds)
+
+
 def calibration(
     server: AppServer,
     cwd: Path,
@@ -2261,7 +2267,7 @@ def run_pool_canary(
         {child_id: adapters[child_id].callbacks() for child_id in child_ids},
         pool_callbacks={
             "monotonic_ns": time.monotonic_ns,
-            "sleep": time.sleep,
+            "sleep": pool_sleep,
             "now_utc": iso,
             "read_child_evidence": read_child_evidence,
             "compare_workspaces": monitor.compare,

@@ -469,6 +469,27 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
     def owner(self) -> dict:
         return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
 
+    def test_pool_sleep_adapts_keyword_callback_to_positional_builtin(self) -> None:
+        from tests.test_native_pool import PoolHarness
+
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+            )
+            harness.coordinator.pool_callbacks["sleep"] = LIVE.pool_sleep
+
+            def advance(seconds: float) -> None:
+                harness.clock.sleep(seconds=seconds)
+
+            with mock.patch.object(LIVE.time, "sleep", side_effect=advance) as sleep:
+                receipt = harness.coordinator.run()
+
+            self.assertTrue(receipt["accepting"])
+            self.assertTrue(sleep.called)
+            self.assertTrue(all(call.args and not call.kwargs for call in sleep.call_args_list))
+
     def test_inprogress_before_turn_context_keeps_polling_then_interrupts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
