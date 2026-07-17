@@ -1927,6 +1927,17 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     LIVE.validate_independent_validation_session(receipt, path),
                     receipt["boundary"]["terminal"]["boundary_sha256"],
                 )
+                path.chmod(0o644)
+                self.assertEqual(
+                    LIVE.validate_independent_validation_session(receipt, path),
+                    receipt["boundary"]["terminal"]["boundary_sha256"],
+                )
+                path.chmod(0o664)
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "permissions-invalid"
+                ):
+                    LIVE.validate_independent_validation_session(receipt, path)
+                path.chmod(0o600)
                 path.write_text(
                     path.read_text(encoding="utf-8") + "{}\n", encoding="utf-8"
                 )

@@ -18,6 +18,7 @@ import re
 from pathlib import Path
 import queue
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -2512,10 +2513,19 @@ def validate_independent_validation_session(
         or session_id not in relative.name
     ):
         raise AppServerError("spark-validation-session-path-invalid")
+    if path.is_symlink():
+        raise AppServerError("spark-validation-session-permissions-invalid")
     try:
+        session_stat_before = path.stat(follow_symlinks=False)
         session_raw = path.read_bytes()
     except OSError as exc:
         raise AppServerError("spark-validation-session-file-unreadable") from exc
+    if (
+        not stat.S_ISREG(session_stat_before.st_mode)
+        or session_stat_before.st_uid != os.geteuid()
+        or session_stat_before.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    ):
+        raise AppServerError("spark-validation-session-permissions-invalid")
     if not session_raw:
         raise AppServerError("spark-validation-session-file-empty")
     boundary_value = receipt.get("boundary")
@@ -2536,6 +2546,24 @@ def validate_independent_validation_session(
         terminal = trusted_terminal_event(records, turn_id=turn_id)
     except (OSError, NativeSessionBoundaryError) as exc:
         raise AppServerError("spark-validation-session-telemetry-invalid") from exc
+    try:
+        session_stat_after = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise AppServerError("spark-validation-session-file-unreadable") from exc
+    if session_stat_after.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise AppServerError("spark-validation-session-permissions-invalid")
+    if (
+        session_stat_before.st_dev,
+        session_stat_before.st_ino,
+        session_stat_before.st_uid,
+        session_stat_before.st_mode,
+    ) != (
+        session_stat_after.st_dev,
+        session_stat_after.st_ino,
+        session_stat_after.st_uid,
+        session_stat_after.st_mode,
+    ):
+        raise AppServerError("spark-validation-session-source-changed")
     if (
         sha256_text(str(path)) != expected_terminal.get("path_sha256")
         or any(
