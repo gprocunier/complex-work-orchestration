@@ -7,6 +7,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -18,7 +19,7 @@ from .util import atomic_write_text
 
 
 STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v1"
-MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v3"
+MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v4"
 CANARY_AUTHORIZATION_TYPE = "cwo-native-canary-authorization-state:v1"
 STEERING_RECEIPT_SCHEMA = "schemas/native-steering-receipt.schema.json"
 MATERIALIZATION_EVIDENCE_SCHEMA = "schemas/native-session-materialization-evidence.schema.json"
@@ -73,6 +74,19 @@ OBSERVATION_FIELDS = {
     "declined_event_count",
     "ambiguous_event_count",
 }
+CONTROL_OBSERVATION_MAX = 192
+CONTROL_OBSERVATION_FIELDS = {
+    "ordinal",
+    "elapsed_monotonic_ms",
+    "phase",
+    "projected_status",
+    "durable_status",
+    "source_identity_sha256",
+    "previous_boundary_sha256",
+    "boundary",
+    "decision",
+}
+TERMINAL_EVENT_FIELDS = {"record_index", "event_type", "status", "count"}
 INTERRUPT_FIELDS = {
     "requested_at",
     "request_accepted_at",
@@ -100,11 +114,14 @@ MATERIALIZATION_FIELDS = {
     "attestation_source",
     "connection_epoch_sha256",
     "command_sha256",
+    "session_source_identity_sha256",
     "baseline",
+    "control_observations",
     "liveness_observations",
     "pre_interrupt_observation",
     "interrupt",
     "terminal",
+    "terminal_event",
     "status",
     "disposition",
     "evidence_sha256",
@@ -424,6 +441,63 @@ def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[di
     return observation, observed
 
 
+def _validate_control_observation(
+    value: Any, label: str, errors: list[str]
+) -> dict[str, Any]:
+    observation = _exact_fields(value, CONTROL_OBSERVATION_FIELDS, label, errors)
+    ordinal = observation.get("ordinal")
+    if isinstance(ordinal, bool) or not isinstance(ordinal, int) or ordinal < 0:
+        errors.append(f"{label}-ordinal-invalid")
+    elapsed = observation.get("elapsed_monotonic_ms")
+    if (
+        isinstance(elapsed, bool)
+        or not isinstance(elapsed, (int, float))
+        or not math.isfinite(float(elapsed))
+        or elapsed < 0
+    ):
+        errors.append(f"{label}-elapsed-invalid")
+    if observation.get("phase") not in {
+        "materialization",
+        "pre-interrupt",
+        "interrupt-confirmation",
+        "terminal",
+    }:
+        errors.append(f"{label}-phase-invalid")
+    if observation.get("projected_status") not in {
+        "active",
+        "completed",
+        "failed",
+        "interrupted",
+        "missing",
+        "unknown",
+    }:
+        errors.append(f"{label}-projected-status-invalid")
+    if observation.get("durable_status") not in {
+        None,
+        "completed",
+        "failed",
+        "interrupted",
+    }:
+        errors.append(f"{label}-durable-status-invalid")
+    source_identity = observation.get("source_identity_sha256")
+    if source_identity is not None and not _is_hash(source_identity):
+        errors.append(f"{label}-source-identity-invalid")
+    if not _is_hash(observation.get("previous_boundary_sha256")):
+        errors.append(f"{label}-previous-boundary-invalid")
+    _validate_boundary(observation.get("boundary"), f"{label}-boundary", errors)
+    if observation.get("decision") not in {
+        "continue-pending",
+        "continue-active",
+        "continue-provisional",
+        "ready",
+        "interrupt-pending",
+        "interrupt-confirmed",
+        "terminal-accepted",
+    }:
+        errors.append(f"{label}-decision-invalid")
+    return observation
+
+
 def seal_materialization_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
     body = dict(value)
     body.pop("evidence_sha256", None)
@@ -436,7 +510,7 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
     evidence = _exact_fields(value, MATERIALIZATION_FIELDS, "materialization", errors)
     if evidence.get("evidence_type") != MATERIALIZATION_EVIDENCE_TYPE:
         errors.append("materialization-type-invalid")
-    if evidence.get("version") != 3 or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA:
+    if evidence.get("version") != 4 or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA:
         errors.append("materialization-header-invalid")
     for field in (
         "evidence_id",
@@ -462,11 +536,145 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         errors.append("materialization-model-mismatch")
     if evidence.get("session_id") != evidence.get("thread_id"):
         errors.append("materialization-session-thread-mismatch")
-    for field in ("connection_epoch_sha256", "command_sha256"):
+    for field in (
+        "connection_epoch_sha256",
+        "command_sha256",
+        "session_source_identity_sha256",
+    ):
         if not _is_hash(evidence.get(field)):
             errors.append(f"materialization-{field}-invalid")
     baseline = _validate_boundary(evidence.get("baseline"), "materialization-baseline", errors)
     terminal = _validate_boundary(evidence.get("terminal"), "materialization-terminal", errors)
+    control_observations = evidence.get("control_observations")
+    if (
+        not isinstance(control_observations, list)
+        or not control_observations
+        or len(control_observations) > CONTROL_OBSERVATION_MAX
+    ):
+        errors.append("materialization-control-observations-invalid")
+        control_observations = []
+    parsed_control = [
+        _validate_control_observation(
+            item, f"materialization-control-{index}", errors
+        )
+        for index, item in enumerate(control_observations)
+    ]
+    previous_boundary = baseline
+    previous_elapsed = -1.0
+    saw_pre_interrupt = False
+    saw_interrupt_confirmed = False
+    for index, item in enumerate(parsed_control):
+        if item.get("ordinal") != index:
+            errors.append("materialization-control-ordinal-not-contiguous")
+        elapsed = item.get("elapsed_monotonic_ms")
+        if isinstance(elapsed, (int, float)) and not isinstance(elapsed, bool):
+            current_elapsed = float(elapsed)
+            if current_elapsed < previous_elapsed:
+                errors.append("materialization-control-elapsed-regressed")
+            if previous_elapsed >= 0 and current_elapsed - previous_elapsed > 1000:
+                errors.append("materialization-control-observation-gap-exceeded")
+            previous_elapsed = max(previous_elapsed, current_elapsed)
+        boundary = item.get("boundary") if isinstance(item.get("boundary"), Mapping) else {}
+        if item.get("previous_boundary_sha256") != previous_boundary.get(
+            "boundary_sha256"
+        ):
+            errors.append("materialization-control-prefix-link-mismatch")
+        prior_count = previous_boundary.get("record_count")
+        prior_offset = previous_boundary.get("byte_offset")
+        current_count = boundary.get("record_count")
+        current_offset = boundary.get("byte_offset")
+        if (
+            isinstance(prior_count, int)
+            and isinstance(current_count, int)
+            and current_count < prior_count
+        ):
+            errors.append("materialization-control-record-count-regressed")
+        if (
+            isinstance(prior_offset, int)
+            and isinstance(current_offset, int)
+            and current_offset < prior_offset
+        ):
+            errors.append("materialization-control-byte-offset-regressed")
+        if (
+            current_offset == prior_offset
+            and (
+                current_count != prior_count
+                or boundary.get("boundary_sha256")
+                != previous_boundary.get("boundary_sha256")
+            )
+        ):
+            errors.append("materialization-control-equal-offset-boundary-changed")
+        if boundary:
+            previous_boundary = boundary
+        source_identity = item.get("source_identity_sha256")
+        if source_identity is not None and source_identity != evidence.get(
+            "session_source_identity_sha256"
+        ):
+            errors.append("materialization-control-source-identity-mismatch")
+        projected = item.get("projected_status")
+        durable = item.get("durable_status")
+        decision = item.get("decision")
+        phase = item.get("phase")
+        if (
+            phase in {"materialization", "pre-interrupt"}
+            and projected in {"completed", "failed", "interrupted"}
+            and durable is None
+        ):
+            if decision != "continue-provisional":
+                errors.append("materialization-control-provisional-decision-invalid")
+        if durable in {"completed", "failed"}:
+            errors.append("materialization-control-losing-terminal-observed")
+        if durable == "interrupted" and decision not in {
+            "interrupt-confirmed",
+            "terminal-accepted",
+        }:
+            errors.append("materialization-control-interrupted-decision-invalid")
+        if phase == "pre-interrupt":
+            saw_pre_interrupt = True
+            if durable is not None:
+                errors.append("materialization-pre-interrupt-durable-terminal-observed")
+        if decision == "interrupt-confirmed":
+            saw_interrupt_confirmed = True
+            if phase != "interrupt-confirmation" or durable != "interrupted":
+                errors.append("materialization-control-interrupt-confirmation-invalid")
+    if parsed_control:
+        final_control = parsed_control[-1]
+        if (
+            final_control.get("phase") != "terminal"
+            or final_control.get("decision") != "terminal-accepted"
+            or final_control.get("durable_status") != "interrupted"
+            or final_control.get("source_identity_sha256")
+            != evidence.get("session_source_identity_sha256")
+            or final_control.get("boundary") != terminal
+        ):
+            errors.append("materialization-control-terminal-observation-invalid")
+    if not saw_pre_interrupt:
+        errors.append("materialization-control-pre-interrupt-missing")
+    if not saw_interrupt_confirmed:
+        errors.append("materialization-control-interrupt-confirmation-missing")
+    terminal_event = _exact_fields(
+        evidence.get("terminal_event"),
+        TERMINAL_EVENT_FIELDS,
+        "materialization-terminal-event",
+        errors,
+    )
+    record_index = terminal_event.get("record_index")
+    if (
+        isinstance(record_index, bool)
+        or not isinstance(record_index, int)
+        or record_index < 0
+        or (
+            isinstance(terminal.get("record_count"), int)
+            and record_index >= terminal.get("record_count", 0)
+        )
+    ):
+        errors.append("materialization-terminal-event-record-index-invalid")
+    if terminal_event.get("event_type") != "turn_aborted":
+        errors.append("materialization-terminal-event-type-invalid")
+    if terminal_event.get("status") != "interrupted":
+        errors.append("materialization-terminal-event-status-invalid")
+    if terminal_event.get("count") != 1:
+        errors.append("materialization-terminal-event-count-invalid")
     observations = evidence.get("liveness_observations")
     if not isinstance(observations, list) or len(observations) != 2:
         errors.append("materialization-liveness-observations-invalid")
@@ -507,6 +715,37 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             for item, _time in (*parsed_observations, (pre_interrupt, pre_time))
         ):
             errors.append("materialization-connection-epoch-mismatch")
+        if any(
+            item.get("session_source_identity_sha256")
+            != evidence.get("session_source_identity_sha256")
+            for item, _time in (*parsed_observations, (pre_interrupt, pre_time))
+        ):
+            errors.append("materialization-session-source-identity-mismatch")
+        materialization_control_hashes = {
+            item.get("boundary", {}).get("boundary_sha256")
+            for item in parsed_control
+            if item.get("phase") == "materialization"
+            and item.get("decision") == "ready"
+            and isinstance(item.get("boundary"), Mapping)
+        }
+        if any(
+            item.get("boundary", {}).get("boundary_sha256")
+            not in materialization_control_hashes
+            for item, _time in parsed_observations
+        ):
+            errors.append("materialization-liveness-control-binding-missing")
+        pre_interrupt_control_hashes = {
+            item.get("boundary", {}).get("boundary_sha256")
+            for item in parsed_control
+            if item.get("phase") == "pre-interrupt"
+            and item.get("decision") == "ready"
+            and isinstance(item.get("boundary"), Mapping)
+        }
+        if (
+            pre_interrupt.get("boundary", {}).get("boundary_sha256")
+            not in pre_interrupt_control_hashes
+        ):
+            errors.append("materialization-pre-interrupt-control-binding-missing")
         for index, (item, _time) in enumerate((*parsed_observations, (pre_interrupt, pre_time))):
             try:
                 expected_correlation = materialization_execution_correlation(

@@ -38,6 +38,7 @@ from cwo_core.native_live_campaign_contracts import (  # noqa: E402
 )
 from cwo_core.native_canary_contracts import (  # noqa: E402
     CanaryAuthorizationStore,
+    CONTROL_OBSERVATION_MAX,
     MATERIALIZATION_EVIDENCE_SCHEMA,
     MATERIALIZATION_EVIDENCE_TYPE,
     NativeCanaryContractError,
@@ -82,6 +83,7 @@ from cwo_core.native_session_boundary import (  # noqa: E402
     NativeSessionBoundaryError,
     capture_unique_boundary,
     telemetry_markers,
+    trusted_terminal_event,
     trusted_turn_context,
 )
 
@@ -89,6 +91,7 @@ from cwo_core.native_session_boundary import (  # noqa: E402
 EXACT_MODEL = "gpt-5.3-codex-spark"
 CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
 POST_SUBMISSION_MATERIALIZATION_GRACE_MS = POOL_POLL_LAG_TOLERANCE_MS
+PROVISIONAL_TERMINAL_GRACE_SECONDS = 5.0
 OPERATIVE_ITEM_TYPES = {
     "commandExecution",
     "fileChange",
@@ -624,8 +627,9 @@ def final_message_hash_and_match(
 def session_boundary_summary(
     codex_home: Path,
     thread_id: str,
-    reported: str | None,
+    _reported: str | None,
     *,
+    turn_id: str | None = None,
     baseline: Mapping[str, Any] | None = None,
     allow_unmaterialized: bool = False,
     expected_source_identity_sha256: str | None = None,
@@ -634,7 +638,6 @@ def session_boundary_summary(
         located, boundary, records = capture_unique_boundary(
             codex_home,
             thread_id,
-            reported_path=reported,
             baseline=baseline,
         )
         if (
@@ -664,11 +667,18 @@ def session_boundary_summary(
             "compactions": 0,
             "reroutes": 0,
             "observation_type": "unmaterialized-nonattesting",
+            "terminal_event": None,
         }
     models: list[str] = []
     efforts: list[str] = []
     compactions = 0
     reroutes = 0
+    terminal_event = None
+    if turn_id is not None:
+        try:
+            terminal_event = trusted_terminal_event(records, turn_id=turn_id)
+        except NativeSessionBoundaryError as exc:
+            raise AppServerError(f"session-terminal-grammar-invalid:{exc}") from exc
     for record in records:
         record_type = record.get("type")
         payload = record.get("payload") if isinstance(record.get("payload"), Mapping) else {}
@@ -697,6 +707,7 @@ def session_boundary_summary(
         "compactions": compactions,
         "reroutes": reroutes,
         "observation_type": "trusted-complete-boundary",
+        "terminal_event": terminal_event,
     }
 
 
@@ -737,6 +748,7 @@ class LiveThreadAdapter:
         self._boundary_lock = threading.RLock()
         self._monotonic_ns = monotonic_ns
         self._materialization_deadline_ns: int | None = None
+        self._projection_started_ns: int | None = None
         self._session_boundary_baseline: dict[str, Any] | None = None
         self._session_source_identity_sha256: str | None = None
         self.callback_latencies: dict[str, list[float]] = {}
@@ -808,23 +820,49 @@ class LiveThreadAdapter:
             thread, _latency = self.server.read_thread(self.thread_id)
             self.last_thread = thread
             self.reported_session_path = thread.get("path") or self.reported_session_path
-            status = turn_status(thread, self.turn_id)
+            boundary = self._capture_trusted_boundary(allow_pending=True)
+            status = turn_status(self.last_thread, self.turn_id)
+            terminal_event = boundary.get("terminal_event")
+            durable_status = (
+                terminal_event.get("status")
+                if isinstance(terminal_event, Mapping)
+                else None
+            )
+            if durable_status == "completed":
+                _message_hash, matches = final_message_hash_and_match(
+                    self.last_thread, self.turn_id, self.expected_token
+                )
+                return {"decision": "complete" if matches else "control-lost"}
+            if durable_status == "interrupted":
+                return {"decision": "interrupt"}
+            if durable_status == "failed":
+                return {"decision": "control-lost"}
+            now_ns = self._monotonic_ns()
+            if status in {"completed", "failed", "interrupted"}:
+                if self._projection_started_ns is None:
+                    self._projection_started_ns = now_ns
+                elif (
+                    now_ns - self._projection_started_ns
+                    > int(PROVISIONAL_TERMINAL_GRACE_SECONDS * 1_000_000_000)
+                ):
+                    return {"decision": "control-lost"}
+            elif status in {"inProgress", "in_progress", "running"}:
+                if boundary.get("available") is True:
+                    self._projection_started_ns = None
             if (
                 self.force_interrupt_after_checks is not None
                 and self.check_count >= self.force_interrupt_after_checks
-                and status == "inProgress"
             ):
                 return {"decision": "interrupt"}
-            if status == "completed":
-                _message_hash, matches = final_message_hash_and_match(
-                    thread, self.turn_id, self.expected_token
-                )
-                return {"decision": "complete" if matches else "control-lost"}
-            if status == "interrupted":
-                return {"decision": "interrupt"}
-            if status == "failed":
-                return {"decision": "control-lost"}
-            if status in {"inProgress", None}:
+            if status in {
+                "inProgress",
+                "in_progress",
+                "running",
+                "completed",
+                "failed",
+                "interrupted",
+                None,
+            }:
                 return {"decision": "continue"}
             return {"decision": "control-lost"}
 
@@ -866,9 +904,23 @@ class LiveThreadAdapter:
                 thread, _latency = self.server.read_thread(self.thread_id)
                 self.last_thread = thread
                 self.reported_session_path = thread.get("path") or self.reported_session_path
-                status = turn_status(thread, self.turn_id)
-                if status not in {"completed", "interrupted", "failed"}:
-                    raise AppServerError(f"close-before-terminal:{status}")
+                boundary = self._capture_trusted_boundary(allow_pending=True)
+                terminal_event = boundary.get("terminal_event")
+                durable_status = (
+                    terminal_event.get("status")
+                    if isinstance(terminal_event, Mapping)
+                    else None
+                )
+                if boundary.get("available") is True and durable_status not in {
+                    "completed",
+                    "interrupted",
+                    "failed",
+                }:
+                    raise AppServerError(
+                        f"close-before-durable-terminal:{durable_status}"
+                    )
+                if boundary.get("available") is not True and not self.interrupted:
+                    raise AppServerError("close-before-durable-terminal:unavailable")
                 self.server.archive_thread(self.thread_id)
                 self.archived = True
                 return {"ack": "closed"}
@@ -937,9 +989,6 @@ class LiveThreadAdapter:
             raise AppServerError("post-submission-thread-read-identity-mismatch")
         self.last_thread = thread
         self.reported_session_path = thread.get("path") or self.reported_session_path
-        status = turn_status(thread, self.turn_id)
-        if status != "inProgress":
-            raise AppServerError(f"post-submission-materialization-status-invalid:{status}")
         self._pending_window_is_open_locked()
 
     def _capture_trusted_boundary(self, *, allow_pending: bool) -> dict[str, Any]:
@@ -959,7 +1008,8 @@ class LiveThreadAdapter:
             boundary = session_boundary_summary(
                 self.server.codex_home,
                 self.thread_id,
-                self.reported_session_path,
+                None,
+                turn_id=self.turn_id,
                 baseline=self._session_boundary_baseline,
                 allow_unmaterialized=allow_unmaterialized,
                 expected_source_identity_sha256=self._session_source_identity_sha256,
@@ -984,7 +1034,8 @@ class LiveThreadAdapter:
             boundary = session_boundary_summary(
                 self.server.codex_home,
                 self.thread_id,
-                self.reported_session_path,
+                None,
+                turn_id=self.turn_id,
                 baseline=None,
                 allow_unmaterialized=True,
                 expected_source_identity_sha256=None,
@@ -1030,12 +1081,21 @@ class LiveThreadAdapter:
             and models == [EXACT_MODEL]
             and efforts == ["low"]
         )
+        projected_status = turn_status(self.last_thread, self.turn_id)
+        terminal_event = boundary.get("terminal_event")
+        durable_status = (
+            terminal_event.get("status")
+            if isinstance(terminal_event, Mapping)
+            else None
+        )
         return {
             "thread_id": self.thread_id,
             "turn_id": self.turn_id,
             "thread_start_model": self.thread_response.get("model"),
             "thread_start_model_provider": self.thread_response.get("modelProvider"),
-            "turn_status": turn_status(self.last_thread, self.turn_id),
+            "turn_status": durable_status or projected_status,
+            "projected_turn_status": projected_status,
+            "durable_terminal_event": terminal_event,
             "session_boundary": boundary,
             "model_exact": model_exact,
             "reroute_count": len(reroutes),
@@ -1221,6 +1281,9 @@ def calibration(
     }
     trusted_source_identity: str | None = None
     observed_prefix: dict[str, Any] = dict(strict_baseline)
+    control_started_ns = time.monotonic_ns()
+    control_observations: list[dict[str, Any]] = []
+    projection_started_ns: int | None = None
 
     def public_boundary(value: Mapping[str, Any]) -> dict[str, Any]:
         return {
@@ -1231,22 +1294,129 @@ def calibration(
             "trailing_partial": False,
         }
 
-    def observe() -> tuple[dict[str, Any], dict[str, Any] | None]:
+    def normalize_projected_status(value: str | None) -> str:
+        if value in {"inProgress", "in_progress", "running"}:
+            return "active"
+        if value in {"completed", "failed", "interrupted"}:
+            return str(value)
+        if value is None:
+            return "missing"
+        return "unknown"
+
+    def append_control_observation(
+        *,
+        phase: str,
+        projected_status: str,
+        durable_status: str | None,
+        source_identity_sha256: str | None,
+        previous_boundary: Mapping[str, Any],
+        boundary: Mapping[str, Any],
+        decision: str,
+    ) -> None:
+        if len(control_observations) >= CONTROL_OBSERVATION_MAX:
+            raise AppServerError("capability-control-observation-limit-exceeded")
+        control_observations.append(
+            {
+                "ordinal": len(control_observations),
+                "elapsed_monotonic_ms": round(
+                    (time.monotonic_ns() - control_started_ns) / 1_000_000, 3
+                ),
+                "phase": phase,
+                "projected_status": projected_status,
+                "durable_status": durable_status,
+                "source_identity_sha256": source_identity_sha256,
+                "previous_boundary_sha256": str(
+                    previous_boundary["boundary_sha256"]
+                ),
+                "boundary": public_boundary(boundary),
+                "decision": decision,
+            }
+        )
+
+    def record_nonterminal_projection(
+        *,
+        phase: str,
+        projected_status: str,
+        boundary_available: bool,
+        ready: bool,
+        source_identity_sha256: str | None,
+        previous_boundary: Mapping[str, Any],
+        boundary: Mapping[str, Any],
+    ) -> bool:
+        nonlocal projection_started_ns
+        now_ns = time.monotonic_ns()
+        if projected_status in {"completed", "failed", "interrupted"}:
+            if projection_started_ns is None:
+                projection_started_ns = now_ns
+            append_control_observation(
+                phase=phase,
+                projected_status=projected_status,
+                durable_status=None,
+                source_identity_sha256=source_identity_sha256,
+                previous_boundary=previous_boundary,
+                boundary=boundary,
+                decision="continue-provisional",
+            )
+            if (
+                now_ns - projection_started_ns
+                > int(PROVISIONAL_TERMINAL_GRACE_SECONDS * 1_000_000_000)
+            ):
+                raise AppServerError(
+                    f"capability-uncorroborated-terminal-projection:{projected_status}"
+                )
+            return False
+        if boundary_available and projected_status == "active":
+            projection_started_ns = None
+        elif (
+            projection_started_ns is not None
+            and now_ns - projection_started_ns
+            > int(PROVISIONAL_TERMINAL_GRACE_SECONDS * 1_000_000_000)
+        ):
+            raise AppServerError("capability-uncorroborated-terminal-projection:unresolved")
+        decision = (
+            "ready"
+            if ready and projected_status == "active"
+            else "continue-active"
+            if projected_status == "active"
+            else "continue-pending"
+        )
+        append_control_observation(
+            phase=phase,
+            projected_status=projected_status,
+            durable_status=None,
+            source_identity_sha256=source_identity_sha256,
+            previous_boundary=previous_boundary,
+            boundary=boundary,
+            decision=decision,
+        )
+        return ready and projected_status == "active"
+
+    def observe(
+        phase: str = "materialization",
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
         thread, _latency = server.read_thread(thread_id)
-        nonlocal reported_path, trusted_source_identity, observed_prefix
-        reported_path = thread.get("path") or reported_path
-        status = turn_status(thread, turn_id)
-        if status in {"completed", "failed", "interrupted"}:
-            raise AppServerError(f"capability-completed-before-deliberate-interrupt:{status}")
+        nonlocal trusted_source_identity, observed_prefix
+        projected_status = normalize_projected_status(turn_status(thread, turn_id))
+        previous_boundary = dict(observed_prefix)
         try:
             located, boundary, records = capture_unique_boundary(
                 server.codex_home,
                 thread_id,
-                reported_path=reported_path,
                 baseline=observed_prefix,
             )
         except NativeSessionBoundaryError as exc:
             if str(exc) == "trusted session file is missing":
+                if trusted_source_identity is not None:
+                    raise AppServerError("capability-pinned-session-source-missing") from exc
+                record_nonterminal_projection(
+                    phase=phase,
+                    projected_status=projected_status,
+                    boundary_available=False,
+                    ready=False,
+                    source_identity_sha256=None,
+                    previous_boundary=previous_boundary,
+                    boundary=observed_prefix,
+                )
                 return thread, None
             raise AppServerError(f"capability-session-boundary-invalid:{exc}") from exc
         if trusted_source_identity is None:
@@ -1254,6 +1424,10 @@ def calibration(
         elif trusted_source_identity != located.source_identity_sha256:
             raise AppServerError("capability-session-source-identity-changed")
         observed_prefix = dict(boundary)
+        try:
+            terminal_event = trusted_terminal_event(records, turn_id=turn_id)
+        except NativeSessionBoundaryError as exc:
+            raise AppServerError(f"capability-terminal-grammar-invalid:{exc}") from exc
         contexts = [
             (index, record["payload"])
             for index, record in enumerate(records)
@@ -1272,8 +1446,25 @@ def calibration(
         markers = telemetry_markers(records, turn_id=turn_id)
         if markers["compaction_indices"] or markers["reroute_indices"]:
             raise AppServerError("capability-session-containment-failed")
-        if markers["terminal_indices"]:
-            raise AppServerError("capability-terminal-event-before-interrupt")
+        if terminal_event is not None:
+            raise AppServerError(
+                "capability-terminal-event-before-deliberate-interrupt:"
+                + str(terminal_event["status"])
+            )
+
+        def finish(
+            observation: dict[str, Any] | None,
+        ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+            usable = record_nonterminal_projection(
+                phase=phase,
+                projected_status=projected_status,
+                boundary_available=True,
+                ready=observation is not None,
+                source_identity_sha256=located.source_identity_sha256,
+                previous_boundary=previous_boundary,
+                boundary=boundary,
+            )
+            return thread, observation if usable else None
         events = server.notification_events(
             thread_id,
             turn_id,
@@ -1295,7 +1486,7 @@ def calibration(
         if completed_commands:
             raise AppServerError("capability-command-completed-before-interrupt")
         if not contexts or not started_commands:
-            return thread, None
+            return finish(None)
         context_index, _context = trusted_turn_context(
             records,
             turn_id=turn_id,
@@ -1324,7 +1515,7 @@ def calibration(
                 f"capability-command-terminal-before-interrupt:{command.get('status')}"
             )
         if command.get("status") != "inProgress":
-            return thread, None
+            return finish(None)
         function_calls: list[tuple[int, Mapping[str, Any]]] = []
         function_outputs: list[tuple[int, Mapping[str, Any]]] = []
         competing_calls: list[int] = []
@@ -1346,7 +1537,7 @@ def calibration(
         if function_outputs:
             raise AppServerError("capability-function-output-before-interrupt")
         if not function_calls:
-            return thread, None
+            return finish(None)
         function_call_index, function_call = function_calls[0]
         call_id = function_call.get("call_id") or function_call.get("callId")
         if not isinstance(call_id, str) or not call_id:
@@ -1404,7 +1595,7 @@ def calibration(
             rendered_command_sha256=rendered_command_sha256,
             raw_command_sha256=raw_command_sha256,
         )
-        return thread, {
+        return finish({
             "observed_at": iso(),
             "boundary": public_boundary(boundary),
             "session_source_identity_sha256": located.source_identity_sha256,
@@ -1433,7 +1624,7 @@ def calibration(
             "failed_event_count": 0,
             "declined_event_count": 0,
             "ambiguous_event_count": 0,
-        }
+        })
 
     observations: list[dict[str, Any]] = []
     last_threads: dict[str, dict[str, Any]] = {}
@@ -1485,19 +1676,25 @@ def calibration(
             time.sleep(max(0.0, 0.20 - elapsed))
     if len(observations) != 2:
         raise AppServerError("capability-materialization-deadline-exceeded")
+    pre_interrupt: dict[str, Any] | None = None
+    pre_thread: dict[str, Any] | None = None
+    while time.monotonic() < deadline and pre_interrupt is None:
+        poll_start = time.monotonic()
+        poll_started.append(poll_start)
+        pre_thread, pre_interrupt = guarded_measure(
+            samples,
+            "check",
+            lambda: observe("pre-interrupt"),
+            guard_seconds=0.0,
+        )
+        last_threads[thread_id] = pre_thread
+        if pre_interrupt is None:
+            time.sleep(max(0.0, 0.20 - (time.monotonic() - poll_start)))
     if any(
         later - earlier > 0.250
         for earlier, later in zip(poll_started, poll_started[1:])
     ):
         raise AppServerError("capability-poll-interval-exceeded")
-
-    pre_thread, pre_interrupt = guarded_measure(
-        samples,
-        "check",
-        observe,
-        guard_seconds=0.0,
-    )
-    last_threads[thread_id] = pre_thread
     if pre_interrupt is None or any(
         pre_interrupt[field] != observations[-1][field]
         for field in (
@@ -1525,16 +1722,70 @@ def calibration(
     interrupt_request_accepted_at = iso()
     interrupt_deadline = time.monotonic() + 5.0
     interrupt_confirmed_at: str | None = None
+    confirmed_terminal_event: dict[str, Any] | None = None
     while time.monotonic() < interrupt_deadline:
         thread, _latency = server.read_thread(thread_id)
         last_threads[thread_id] = thread
-        if turn_status(thread, turn_id) == "interrupted":
+        previous_boundary = dict(observed_prefix)
+        try:
+            interrupt_location, interrupt_boundary, interrupt_records = (
+                capture_unique_boundary(
+                    server.codex_home,
+                    thread_id,
+                    baseline=observed_prefix,
+                )
+            )
+            interrupt_terminal_event = trusted_terminal_event(
+                interrupt_records, turn_id=turn_id
+            )
+        except NativeSessionBoundaryError as exc:
+            raise AppServerError(
+                f"capability-interrupt-boundary-invalid:{exc}"
+            ) from exc
+        if interrupt_location.source_identity_sha256 != trusted_source_identity:
+            raise AppServerError("capability-interrupt-session-source-identity-changed")
+        interrupt_markers = telemetry_markers(interrupt_records, turn_id=turn_id)
+        if (
+            interrupt_markers["compaction_indices"]
+            or interrupt_markers["reroute_indices"]
+        ):
+            raise AppServerError("capability-interrupt-containment-failed")
+        observed_prefix = dict(interrupt_boundary)
+        durable_status = (
+            str(interrupt_terminal_event["status"])
+            if interrupt_terminal_event is not None
+            else None
+        )
+        if durable_status in {"completed", "failed"}:
+            raise AppServerError(
+                f"capability-interrupt-race-lost:{durable_status}"
+            )
+        if durable_status == "interrupted":
+            append_control_observation(
+                phase="interrupt-confirmation",
+                projected_status=normalize_projected_status(
+                    turn_status(thread, turn_id)
+                ),
+                durable_status="interrupted",
+                source_identity_sha256=interrupt_location.source_identity_sha256,
+                previous_boundary=previous_boundary,
+                boundary=interrupt_boundary,
+                decision="interrupt-confirmed",
+            )
+            confirmed_terminal_event = dict(interrupt_terminal_event)
             interrupt_confirmed_at = iso()
             break
-        if turn_status(thread, turn_id) in {"completed", "failed"}:
-            raise AppServerError("capability-interrupt-race-lost")
+        append_control_observation(
+            phase="interrupt-confirmation",
+            projected_status=normalize_projected_status(turn_status(thread, turn_id)),
+            durable_status=None,
+            source_identity_sha256=interrupt_location.source_identity_sha256,
+            previous_boundary=previous_boundary,
+            boundary=interrupt_boundary,
+            decision="interrupt-pending",
+        )
         time.sleep(0.05)
-    if interrupt_confirmed_at is None:
+    if interrupt_confirmed_at is None or confirmed_terminal_event is None:
         raise AppServerError("capability-interrupt-not-confirmed")
 
     guarded_measure(
@@ -1552,12 +1803,14 @@ def calibration(
         lambda: server.archive_thread(thread_id),
         guard_seconds=0.0,
     )
+    previous_boundary = dict(observed_prefix)
     try:
         terminal_location, terminal_boundary, terminal_records = capture_unique_boundary(
             server.codex_home,
             thread_id,
             baseline=observed_prefix,
         )
+        terminal_event = trusted_terminal_event(terminal_records, turn_id=turn_id)
     except NativeSessionBoundaryError as exc:
         raise AppServerError(f"capability-terminal-boundary-invalid:{exc}") from exc
     terminal_markers = telemetry_markers(terminal_records, turn_id=turn_id)
@@ -1565,10 +1818,28 @@ def calibration(
         raise AppServerError("capability-terminal-session-source-identity-changed")
     if terminal_markers["compaction_indices"] or terminal_markers["reroute_indices"]:
         raise AppServerError("capability-terminal-containment-failed")
+    if terminal_event != confirmed_terminal_event or terminal_event is None:
+        raise AppServerError("capability-terminal-interrupt-proof-changed")
+    if terminal_event.get("status") != "interrupted":
+        raise AppServerError("capability-terminal-interrupt-proof-invalid")
+    observed_prefix = dict(terminal_boundary)
+    append_control_observation(
+        phase="terminal",
+        projected_status=normalize_projected_status(
+            turn_status(last_threads[thread_id], turn_id)
+        ),
+        durable_status="interrupted",
+        source_identity_sha256=terminal_location.source_identity_sha256,
+        previous_boundary=previous_boundary,
+        boundary=terminal_boundary,
+        decision="terminal-accepted",
+    )
+    if trusted_source_identity is None:
+        raise AppServerError("capability-session-source-identity-not-pinned")
     materialization = seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 3,
+            "version": 4,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": f"materialization-{uuid.uuid4()}",
             "run_nonce": run_nonce,
@@ -1585,7 +1856,9 @@ def calibration(
             ),
             "connection_epoch_sha256": server.connection_epoch_sha256,
             "command_sha256": sha256_text("sleep 20"),
+            "session_source_identity_sha256": trusted_source_identity,
             "baseline": public_boundary(strict_baseline),
+            "control_observations": control_observations,
             "liveness_observations": observations,
             "pre_interrupt_observation": pre_interrupt,
             "interrupt": {
@@ -1599,6 +1872,7 @@ def calibration(
                 "outcome": "interrupt-confirmed",
             },
             "terminal": public_boundary(terminal_boundary),
+            "terminal_event": terminal_event,
             "status": "interrupt-confirmed",
             "disposition": "accepted",
         }
@@ -1670,7 +1944,8 @@ def calibration(
     boundary = session_boundary_summary(
         server.codex_home,
         thread_id,
-        thread.get("path") or result["thread"].get("path"),
+        None,
+        turn_id=turn_id,
         baseline=strict_baseline,
     )
     summary = {
@@ -1686,8 +1961,6 @@ def calibration(
         "compactions": len(server.notifications(thread_id, "thread/compacted"))
         + int(boundary.get("compactions", 0)),
     }
-    if summary["turn_status"] != "interrupted":
-        raise AppServerError("capability-interrupt-summary-invalid")
     if summary["thread_start_model"] != EXACT_MODEL:
         raise AppServerError("capability-thread-start-model-mismatch")
     if summary["session_boundary"].get("attested_models") != [EXACT_MODEL]:

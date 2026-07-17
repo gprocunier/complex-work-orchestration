@@ -15,6 +15,17 @@ from .native_session import _record_token_snapshot
 
 BOUNDARY_FIELDS = {"record_count", "byte_offset", "boundary_sha256", "token_snapshot"}
 SESSION_STORES = ("sessions", "archived_sessions")
+TURN_LIFECYCLE_EVENT_TYPES = {
+    "task_started",
+    "task_complete",
+    "turn_aborted",
+    "task_failed",
+}
+TERMINAL_EVENT_STATUSES = {
+    "task_complete": "completed",
+    "turn_aborted": "interrupted",
+    "task_failed": "failed",
+}
 
 
 class NativeSessionBoundaryError(ValueError):
@@ -265,3 +276,48 @@ def telemetry_markers(records: Sequence[Mapping[str, Any]], *, turn_id: str) -> 
         }:
             terminal.append(index)
     return {"compaction_indices": compactions, "reroute_indices": reroutes, "terminal_indices": terminal}
+
+
+def trusted_terminal_event(
+    records: Sequence[Mapping[str, Any]], *, turn_id: str
+) -> dict[str, Any] | None:
+    """Return the singular exact-turn terminal event for the pinned app-server grammar."""
+
+    terminal: list[dict[str, Any]] = []
+    for index, record in enumerate(records):
+        if record.get("type") != "event_msg":
+            continue
+        payload = record.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        event_type = payload.get("type")
+        if not isinstance(event_type, str):
+            continue
+        if payload.get("turnId") == turn_id and payload.get("turn_id") != turn_id:
+            raise NativeSessionBoundaryError(
+                "exact-turn lifecycle attribution is not canonical"
+            )
+        if payload.get("turn_id") != turn_id:
+            continue
+        if (
+            (event_type.startswith("task_") or event_type.startswith("turn_"))
+            and event_type not in TURN_LIFECYCLE_EVENT_TYPES
+        ):
+            raise NativeSessionBoundaryError(
+                f"unknown exact-turn lifecycle event type: {event_type}"
+            )
+        status = TERMINAL_EVENT_STATUSES.get(event_type)
+        if status is not None:
+            terminal.append(
+                {
+                    "record_index": index,
+                    "event_type": event_type,
+                    "status": status,
+                    "count": 1,
+                }
+            )
+    if len(terminal) > 1:
+        raise NativeSessionBoundaryError(
+            "exact-turn durable terminal event is not singular"
+        )
+    return terminal[0] if terminal else None

@@ -19,6 +19,7 @@ from cwo_core.native_session_boundary import (  # noqa: E402
     same_boundary,
     session_source_identity,
     telemetry_markers,
+    trusted_terminal_event,
     trusted_turn_context,
 )
 
@@ -158,6 +159,53 @@ class NativeSessionBoundaryTests(unittest.TestCase):
         self.assertEqual(markers["compaction_indices"], [3])
         self.assertEqual(markers["reroute_indices"], [4])
         self.assertEqual(markers["terminal_indices"], [5])
+        self.assertEqual(
+            trusted_terminal_event(loaded, turn_id=self.turn_id),
+            {
+                "record_index": 5,
+                "event_type": "task_complete",
+                "status": "completed",
+                "count": 1,
+            },
+        )
+
+    def test_terminal_grammar_rejects_duplicates_unknowns_and_wrong_attribution(self) -> None:
+        base = self.records()
+        duplicate = base + [
+            {
+                "type": "event_msg",
+                "payload": {"type": "task_complete", "turn_id": self.turn_id},
+            },
+            {
+                "type": "event_msg",
+                "payload": {"type": "turn_aborted", "turn_id": self.turn_id},
+            },
+        ]
+        with self.assertRaisesRegex(NativeSessionBoundaryError, "not singular"):
+            trusted_terminal_event(duplicate, turn_id=self.turn_id)
+        unknown = base + [
+            {
+                "type": "event_msg",
+                "payload": {"type": "turn_cancelled", "turn_id": self.turn_id},
+            }
+        ]
+        with self.assertRaisesRegex(NativeSessionBoundaryError, "unknown exact-turn"):
+            trusted_terminal_event(unknown, turn_id=self.turn_id)
+        noncanonical = base + [
+            {
+                "type": "event_msg",
+                "payload": {"type": "task_complete", "turnId": self.turn_id},
+            }
+        ]
+        with self.assertRaisesRegex(NativeSessionBoundaryError, "not canonical"):
+            trusted_terminal_event(noncanonical, turn_id=self.turn_id)
+        wrong_turn = base + [
+            {
+                "type": "event_msg",
+                "payload": {"type": "task_failed", "turn_id": "other-turn"},
+            }
+        ]
+        self.assertIsNone(trusted_terminal_event(wrong_turn, turn_id=self.turn_id))
 
 
 if __name__ == "__main__":

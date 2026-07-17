@@ -47,6 +47,10 @@ class FakeCalibrationServer:
         competing_function_call: bool = False,
         replace_source_at_read: int | None = None,
         replace_notification_at_read: int | None = None,
+        read_statuses: list[str] | None = None,
+        durable_terminal_type: str | None = None,
+        duplicate_durable_terminal: bool = False,
+        interrupt_terminal_type: str = "turn_aborted",
     ) -> None:
         self.codex_home = root / "codex-home"
         self.active = self.codex_home / "sessions" / "2026" / "07"
@@ -76,6 +80,10 @@ class FakeCalibrationServer:
         self.competing_function_call = competing_function_call
         self.replace_source_at_read = replace_source_at_read
         self.replace_notification_at_read = replace_notification_at_read
+        self.read_statuses = list(read_statuses or [])
+        self.durable_terminal_type = durable_terminal_type
+        self.duplicate_durable_terminal = duplicate_durable_terminal
+        self.interrupt_terminal_type = interrupt_terminal_type
         self.started_cwd: Path | None = None
         self.connection_epoch_sha256 = "b" * 64
         self._notifications: list[tuple[int, dict]] = []
@@ -177,6 +185,26 @@ class FakeCalibrationServer:
                     },
                 }
             )
+        if self.durable_terminal_type is not None:
+            records.append(
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": self.durable_terminal_type,
+                        "turn_id": self.turn_id,
+                    },
+                }
+            )
+            if self.duplicate_durable_terminal:
+                records.append(
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "turn_aborted",
+                            "turn_id": self.turn_id,
+                        },
+                    }
+                )
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write("".join(json.dumps(item) + "\n" for item in records))
         if not self.missing_start:
@@ -235,6 +263,8 @@ class FakeCalibrationServer:
         if thread_id != self.thread_id:
             raise AssertionError("thread mismatch")
         self.read_count += 1
+        if self.read_statuses:
+            self.early_status = self.read_statuses.pop(0)
         if self.read_count == 3:
             self._materialize()
         if self.replace_source_at_read == self.read_count:
@@ -254,7 +284,10 @@ class FakeCalibrationServer:
                 json.dumps(
                     {
                         "type": "event_msg",
-                        "payload": {"type": "turn_aborted", "turn_id": self.turn_id},
+                        "payload": {
+                            "type": self.interrupt_terminal_type,
+                            "turn_id": self.turn_id,
+                        },
                     }
                 )
                 + "\n"
@@ -369,6 +402,21 @@ class FakeLiveThreadServer:
             encoding="utf-8",
         )
 
+    def append_terminal(self, event_type: str) -> None:
+        with self.path.open("a", encoding="utf-8") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": event_type,
+                            "turn_id": self.turn_id,
+                        },
+                    }
+                )
+                + "\n"
+            )
+
     def thread_response(self) -> dict:
         return {
             "model": LIVE.EXACT_MODEL,
@@ -440,7 +488,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertGreaterEqual(server.read_count, 8)
             materialization = evidence["materialization_evidence"]
             self.assertEqual(materialization["disposition"], "accepted")
-            self.assertEqual(materialization["version"], 3)
+            self.assertEqual(materialization["version"], 4)
             self.assertEqual(materialization["thread_id"], server.thread_id)
             self.assertEqual(
                 materialization["connection_epoch_sha256"], server.connection_epoch_sha256
@@ -464,10 +512,41 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertNotIn("path", json.dumps(materialization).lower())
             self.assertNotIn("arguments", json.dumps(materialization).lower())
             self.assertLessEqual(evidence["poll_interval_max_ms"], 250)
+            control = materialization["control_observations"]
+            self.assertEqual(
+                [item["ordinal"] for item in control], list(range(len(control)))
+            )
+            self.assertEqual(control[-1]["decision"], "terminal-accepted")
+            self.assertEqual(control[-1]["durable_status"], "interrupted")
+            self.assertEqual(
+                materialization["terminal_event"]["event_type"], "turn_aborted"
+            )
+
+    def test_transient_interrupted_projection_without_durable_terminal_keeps_polling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root, read_statuses=["interrupted", "inProgress"]
+            )
+            _receipt, evidence = LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+            )
+            control = evidence["materialization_evidence"]["control_observations"]
+            self.assertEqual(control[0]["projected_status"], "interrupted")
+            self.assertEqual(control[0]["durable_status"], None)
+            self.assertEqual(control[0]["decision"], "continue-provisional")
+            self.assertIn("ready", [item["decision"] for item in control])
 
     def test_early_completion_and_failed_or_declined_command_are_nonaccepting(self) -> None:
         for early, command, expected in (
-            ("completed", "inProgress", "completed-before-deliberate-interrupt"),
+            ("completed", "inProgress", "terminal-event-before-deliberate-interrupt"),
             (None, "failed", "command-terminal-before-interrupt"),
             (None, "declined", "command-terminal-before-interrupt"),
         ):
@@ -475,7 +554,12 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 root = Path(temporary)
                 record_dir = root / "records"
                 record_dir.mkdir()
-                server = FakeCalibrationServer(root, early_status=early, command_status=command)
+                server = FakeCalibrationServer(
+                    root,
+                    early_status=early,
+                    command_status=command,
+                    durable_terminal_type="task_complete" if early else None,
+                )
                 with self.assertRaisesRegex(LIVE.AppServerError, expected):
                     LIVE.calibration(
                         server,
@@ -484,6 +568,56 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                    )
+
+    def test_terminal_grammar_grace_and_interrupt_race_fail_closed(self) -> None:
+        cases = (
+            (
+                {"durable_terminal_type": "turn_cancelled"},
+                "terminal-grammar-invalid",
+            ),
+            (
+                {
+                    "durable_terminal_type": "task_complete",
+                    "duplicate_durable_terminal": True,
+                },
+                "terminal-grammar-invalid",
+            ),
+            ({"durable_terminal_type": "task_failed"}, "terminal-event-before"),
+            ({"interrupt_terminal_type": "task_complete"}, "interrupt-race-lost"),
+        )
+        for options, expected in cases:
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                record_dir = root / "records"
+                record_dir.mkdir()
+                server = FakeCalibrationServer(root, **options)
+                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                    LIVE.calibration(
+                        server,
+                        root,
+                        record_dir,
+                        self.owner(),
+                        run_nonce=str(uuid.uuid4()),
+                        phase_nonce=str(uuid.uuid4()),
+                    )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(root, early_status="interrupted")
+            with mock.patch.object(LIVE, "PROVISIONAL_TERMINAL_GRACE_SECONDS", 0.1):
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "uncorroborated-terminal-projection"
+                ):
+                    LIVE.calibration(
+                        server,
+                        root,
+                        record_dir,
+                        self.owner(),
+                        run_nonce=str(uuid.uuid4()),
+                        phase_nonce=str(uuid.uuid4()),
+                        materialization_timeout_seconds=1.2,
                     )
 
     def test_production_shaped_notification_and_jsonl_confusion_fails_closed(self) -> None:
@@ -685,6 +819,33 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 self.assertEqual(summary["byte_offset"], 0)
                 self.assertEqual(summary["attested_models"], [])
 
+    def test_thread_reported_path_cannot_select_trusted_session_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            outside = root.parent / f"reported-{server.thread_id}.jsonl"
+            outside.write_text(
+                json.dumps(
+                    {"type": "session_meta", "payload": {"id": server.thread_id}}
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            self.addCleanup(outside.unlink)
+            expected = LIVE.session_boundary_summary(
+                server.codex_home,
+                server.thread_id,
+                None,
+                turn_id=server.turn_id,
+            )
+            actual = LIVE.session_boundary_summary(
+                server.codex_home,
+                server.thread_id,
+                str(outside),
+                turn_id=server.turn_id,
+            )
+            self.assertEqual(actual, expected)
+
     def test_nonempty_incomplete_boundaries_remain_rejecting_before_dispatch(self) -> None:
         for raw, expected in ((b"{", "trailing partial"), (b"\n", "complete object")):
             with self.subTest(raw=raw), tempfile.TemporaryDirectory() as temporary:
@@ -831,7 +992,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 self.assertEqual(adapter._boundary_phase, "dispatch-attempted")
                 self.assertIsNone(adapter.turn_id)
 
-    def test_terminal_transition_interrupt_close_and_final_summary_are_strict(self) -> None:
+    def test_projected_terminal_without_durable_event_is_advisory(self) -> None:
         for statuses in (["completed"], ["inProgress", "completed"]):
             with self.subTest(statuses=statuses), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
@@ -839,8 +1000,39 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 server = FakeLiveThreadServer(root, read_statuses=statuses)
                 adapter = self.adapter(root, server, clock)
                 adapter.send_input(message="bounded prompt")
-                with self.assertRaisesRegex(LIVE.AppServerError, "status-invalid:completed"):
-                    adapter._trusted_summary()
+                with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                    summary = adapter._trusted_summary()
+                self.assertFalse(summary["session_boundary"]["available"])
+                self.assertIsNone(summary["durable_terminal_event"])
+
+    def test_pool_check_uses_durable_terminal_truth_and_tolerates_startup_flip(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(
+                root, initial_boundary="valid", read_statuses=["interrupted"]
+            )
+            adapter = self.adapter(root, server, clock)
+            adapter.send_input(message="bounded prompt")
+            self.assertEqual(adapter.check(), {"decision": "continue"})
+            server.status = "inProgress"
+            self.assertEqual(adapter.check(), {"decision": "continue"})
+
+        for event_type, expected in (
+            ("task_complete", "control-lost"),
+            ("turn_aborted", "interrupt"),
+            ("task_failed", "control-lost"),
+        ):
+            with self.subTest(event_type=event_type), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                server.append_terminal(event_type)
+                adapter = self.adapter(root, server, clock)
+                adapter.send_input(message="bounded prompt")
+                self.assertEqual(adapter.check(), {"decision": expected})
+
+    def test_terminal_transition_interrupt_close_and_final_summary_are_strict(self) -> None:
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

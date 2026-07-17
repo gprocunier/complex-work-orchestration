@@ -21,18 +21,21 @@
     "attestation_source",
     "connection_epoch_sha256",
     "command_sha256",
+    "session_source_identity_sha256",
     "baseline",
+    "control_observations",
     "liveness_observations",
     "pre_interrupt_observation",
     "interrupt",
     "terminal",
+    "terminal_event",
     "status",
     "disposition",
     "evidence_sha256"
   ],
   "properties": {
-    "evidence_type": {"const": "cwo-native-session-materialization-evidence:v3"},
-    "version": {"const": 3},
+    "evidence_type": {"const": "cwo-native-session-materialization-evidence:v4"},
+    "version": {"const": 4},
     "schema": {"const": "schemas/native-session-materialization-evidence.schema.json"},
     "evidence_id": {"type": "string", "minLength": 1},
     "run_nonce": {"$ref": "#/$defs/uuid"},
@@ -47,7 +50,14 @@
     "attestation_source": {"type": "string", "minLength": 1},
     "connection_epoch_sha256": {"$ref": "#/$defs/hash"},
     "command_sha256": {"$ref": "#/$defs/hash"},
+    "session_source_identity_sha256": {"$ref": "#/$defs/hash"},
     "baseline": {"$ref": "#/$defs/boundary"},
+    "control_observations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 192,
+      "items": {"$ref": "#/$defs/controlObservation"}
+    },
     "liveness_observations": {
       "type": "array",
       "minItems": 2,
@@ -80,6 +90,7 @@
       }
     },
     "terminal": {"$ref": "#/$defs/boundary"},
+    "terminal_event": {"$ref": "#/$defs/terminalEvent"},
     "status": {"enum": ["interrupt-confirmed", "nonaccepting"]},
     "disposition": {"enum": ["accepted", "quarantined", "rejected"]},
     "evidence_sha256": {"$ref": "#/$defs/hash"}
@@ -103,6 +114,65 @@
         "boundary_sha256": {"$ref": "#/$defs/hash"},
         "invalid_record_count": {"const": 0},
         "trailing_partial": {"const": false}
+      }
+    },
+    "controlObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "elapsed_monotonic_ms",
+        "phase",
+        "projected_status",
+        "durable_status",
+        "source_identity_sha256",
+        "previous_boundary_sha256",
+        "boundary",
+        "decision"
+      ],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 0},
+        "elapsed_monotonic_ms": {"type": "number", "minimum": 0},
+        "phase": {
+          "enum": ["materialization", "pre-interrupt", "interrupt-confirmation", "terminal"]
+        },
+        "projected_status": {
+          "enum": ["active", "completed", "failed", "interrupted", "missing", "unknown"]
+        },
+        "durable_status": {
+          "type": ["string", "null"],
+          "enum": [null, "completed", "failed", "interrupted"]
+        },
+        "source_identity_sha256": {
+          "anyOf": [
+            {"$ref": "#/$defs/hash"},
+            {"type": "null"}
+          ]
+        },
+        "previous_boundary_sha256": {"$ref": "#/$defs/hash"},
+        "boundary": {"$ref": "#/$defs/boundary"},
+        "decision": {
+          "enum": [
+            "continue-pending",
+            "continue-active",
+            "continue-provisional",
+            "ready",
+            "interrupt-pending",
+            "interrupt-confirmed",
+            "terminal-accepted"
+          ]
+        }
+      }
+    },
+    "terminalEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_index", "event_type", "status", "count"],
+      "properties": {
+        "record_index": {"type": "integer", "minimum": 0},
+        "event_type": {"const": "turn_aborted"},
+        "status": {"const": "interrupted"},
+        "count": {"const": 1}
       }
     },
     "observation": {

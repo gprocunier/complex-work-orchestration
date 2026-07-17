@@ -104,13 +104,58 @@ def observation(
     }
 
 
+def control_observations() -> list[dict]:
+    boundaries = [
+        boundary("boundary-1", 5),
+        boundary("boundary-2", 6),
+        boundary("boundary-3", 7),
+        boundary("interrupt", 8),
+        boundary("terminal", 9),
+    ]
+    phases = [
+        "materialization",
+        "materialization",
+        "pre-interrupt",
+        "interrupt-confirmation",
+        "terminal",
+    ]
+    decisions = [
+        "ready",
+        "ready",
+        "ready",
+        "interrupt-confirmed",
+        "terminal-accepted",
+    ]
+    values = []
+    previous = boundary("baseline", 1)
+    for ordinal, (current, phase, decision) in enumerate(
+        zip(boundaries, phases, decisions)
+    ):
+        interrupted = phase in {"interrupt-confirmation", "terminal"}
+        values.append(
+            {
+                "ordinal": ordinal,
+                "elapsed_monotonic_ms": ordinal * 250.0,
+                "phase": phase,
+                "projected_status": "interrupted" if interrupted else "active",
+                "durable_status": "interrupted" if interrupted else None,
+                "source_identity_sha256": hash_value("source"),
+                "previous_boundary_sha256": previous["boundary_sha256"],
+                "boundary": current,
+                "decision": decision,
+            }
+        )
+        previous = current
+    return values
+
+
 def materialization() -> dict:
     session = "session-one"
     turn = "turn-one"
     return seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 3,
+            "version": 4,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": "evidence-one",
             "run_nonce": str(uuid.uuid4()),
@@ -125,7 +170,9 @@ def materialization() -> dict:
             "attestation_source": "initialized-codex-home-session-jsonl-and-local-app-server-stdio-notifications",
             "connection_epoch_sha256": hash_value("connection"),
             "command_sha256": hash_value("sleep 20"),
+            "session_source_identity_sha256": hash_value("source"),
             "baseline": boundary("baseline", 1),
+            "control_observations": control_observations(),
             "liveness_observations": [observation(1), observation(2)],
             "pre_interrupt_observation": observation(3),
             "interrupt": {
@@ -139,6 +186,12 @@ def materialization() -> dict:
                 "outcome": "interrupt-confirmed",
             },
             "terminal": boundary("terminal", 9),
+            "terminal_event": {
+                "record_index": 8,
+                "event_type": "turn_aborted",
+                "status": "interrupted",
+                "count": 1,
+            },
             "status": "interrupt-confirmed",
             "disposition": "accepted",
         }
@@ -359,6 +412,55 @@ class NativeCanaryContractTests(unittest.TestCase):
         value = materialization()
         value["session_id"] = "changed"
         self.assertIn("materialization-evidence-sha256-mismatch", validate_materialization_evidence(value))
+
+    def test_materialization_control_sequence_is_strict_and_nontruncating(self) -> None:
+        cases = []
+        value = materialization()
+        value["control_observations"][1]["ordinal"] = 9
+        cases.append((value, "ordinal-not-contiguous"))
+        value = materialization()
+        value["control_observations"][1]["elapsed_monotonic_ms"] = -1
+        cases.append((value, "elapsed"))
+        value = materialization()
+        value["control_observations"][1]["previous_boundary_sha256"] = hash_value(
+            "wrong-prefix"
+        )
+        cases.append((value, "prefix-link"))
+        value = materialization()
+        value["control_observations"][0]["source_identity_sha256"] = hash_value(
+            "replacement-source"
+        )
+        cases.append((value, "source-identity"))
+        value = materialization()
+        value["control_observations"][0]["projected_status"] = "interrupted"
+        value["control_observations"][0]["decision"] = "continue-active"
+        cases.append((value, "provisional-decision"))
+        value = materialization()
+        value["control_observations"][-1]["decision"] = "interrupt-confirmed"
+        cases.append((value, "terminal-observation"))
+        value = materialization()
+        value["liveness_observations"][0]["boundary"] = boundary(
+            "unbound-liveness", 5
+        )
+        cases.append((value, "liveness-control-binding"))
+        value = materialization()
+        value["terminal_event"]["event_type"] = "task_complete"
+        cases.append((value, "terminal-event-type"))
+        value = materialization()
+        value["control_observations"] = value["control_observations"] * 40
+        cases.append((value, "control-observations-invalid"))
+        value = materialization()
+        value["control_observations"][0]["raw_status"] = "forbidden"
+        cases.append((value, "fields-invalid"))
+        for value, expected in cases:
+            value = seal_materialization_evidence(value)
+            with self.subTest(expected=expected):
+                self.assertTrue(
+                    any(
+                        expected in error
+                        for error in validate_materialization_evidence(value)
+                    )
+                )
 
     def test_steering_conditional_requires_bound_go_and_replay_is_rejected(self) -> None:
         receipt = steering()
