@@ -191,14 +191,31 @@ class NativeSessionBoundaryTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(NativeSessionBoundaryError, "unknown exact-turn"):
             trusted_terminal_event(unknown, turn_id=self.turn_id)
-        noncanonical = base + [
+        for payload in (
+            {"type": "task_complete", "turnId": self.turn_id},
             {
-                "type": "event_msg",
-                "payload": {"type": "task_complete", "turnId": self.turn_id},
-            }
-        ]
-        with self.assertRaisesRegex(NativeSessionBoundaryError, "not canonical"):
-            trusted_terminal_event(noncanonical, turn_id=self.turn_id)
+                "type": "task_complete",
+                "turn_id": self.turn_id,
+                "turnId": self.turn_id,
+            },
+            {
+                "type": "task_complete",
+                "turn_id": self.turn_id,
+                "turnId": "conflicting-turn",
+            },
+            {
+                "type": "task_complete",
+                "turn_id": "conflicting-turn",
+                "turnId": self.turn_id,
+            },
+        ):
+            with self.subTest(payload=payload), self.assertRaisesRegex(
+                NativeSessionBoundaryError, "not canonical"
+            ):
+                trusted_terminal_event(
+                    base + [{"type": "event_msg", "payload": payload}],
+                    turn_id=self.turn_id,
+                )
         wrong_turn = base + [
             {
                 "type": "event_msg",

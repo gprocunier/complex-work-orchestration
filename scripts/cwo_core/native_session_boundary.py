@@ -293,14 +293,22 @@ def trusted_terminal_event(
         event_type = payload.get("type")
         if not isinstance(event_type, str):
             continue
-        if payload.get("turnId") == turn_id and payload.get("turn_id") != turn_id:
+        is_lifecycle = event_type.startswith("task_") or event_type.startswith(
+            "turn_"
+        )
+        canonical_turn_id = payload.get("turn_id")
+        legacy_turn_id = payload.get("turnId")
+        if is_lifecycle and (
+            legacy_turn_id == turn_id
+            or (canonical_turn_id == turn_id and "turnId" in payload)
+        ):
             raise NativeSessionBoundaryError(
                 "exact-turn lifecycle attribution is not canonical"
             )
-        if payload.get("turn_id") != turn_id:
+        if canonical_turn_id != turn_id:
             continue
         if (
-            (event_type.startswith("task_") or event_type.startswith("turn_"))
+            is_lifecycle
             and event_type not in TURN_LIFECYCLE_EVENT_TYPES
         ):
             raise NativeSessionBoundaryError(
