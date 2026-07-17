@@ -133,7 +133,24 @@
       "connected-codex"
     ],
     "max_capability_ttl_seconds": 3600,
-    "max_certified_check_ms": 400,
+    "max_certified_check_ms": 200,
+    "callback_certification": {
+      "version": "live-thread-adapter-callback-certification:v1",
+      "envelope": "live-thread-adapter-callback-v1",
+      "scheduler_model": "nonpreemptive-edf-cap2-v1",
+      "response_time_equation": "max_lifecycle+2*check+scheduler<=poll_interval",
+      "observation_authority": "telemetry-only-non-authoritative",
+      "certified_callback_max_ms": {
+        "arm": 100,
+        "send_input": 250,
+        "mark_dispatched": 100,
+        "check": 200,
+        "interrupt": 250,
+        "close": 250,
+        "finalize": 100
+      },
+      "certified_scheduler_overhead_ms": 100
+    },
     "scheduler": {
       "kind": "earliest-deadline-rotating-v1",
       "poll_interval_ms": 1000,

@@ -184,6 +184,7 @@ class NativePoolCoordinator:
         self._last_callback_latency_ms: float | None = None
         self._max_callback_latency_ms = 0.0
         self._callback_fault: str | None = None
+        self._callback_fault_detail: dict[str, Any] | None = None
         self._poll_order: list[str] = []
         self._admission_order: list[str] = []
         self._terminal_order: list[str] = []
@@ -210,6 +211,7 @@ class NativePoolCoordinator:
         }
         self._turns: dict[str, NativeControlTurn] = {}
         self._reasons: list[str] = []
+        self._first_protected_fault: dict[str, Any] | None = None
         self._protected_fault = False
         self._control_failed = False
         self._ledger = AggregateUsageLedger(self.child_ids)
@@ -228,7 +230,8 @@ class NativePoolCoordinator:
         self._receipt: dict[str, Any] | None = None
         self._decision: dict[str, Any] | None = None
 
-        self._capability_callbacks: Mapping[str, Any] = {}
+        self._certified_callback_max_ms: Mapping[str, Any] = {}
+        self._certified_scheduler_overhead_ms = 0.0
         if self.contract["max_active_workers"] == 2:
             if self.capability_receipt is None:
                 raise NativePoolError("cap-two-capability-receipt-required")
@@ -239,7 +242,11 @@ class NativePoolCoordinator:
             )
             if capability_errors:
                 raise NativePoolError("capability-receipt-invalid:" + ";".join(capability_errors))
-            self._capability_callbacks = self.capability_receipt["callbacks"]
+            certification = self.capability_receipt["certification"]
+            self._certified_callback_max_ms = certification["certified_callback_max_ms"]
+            self._certified_scheduler_overhead_ms = float(
+                certification["certified_scheduler_overhead_ms"]
+            )
         elif self.capability_receipt is not None:
             raise NativePoolError("cap-one-capability-receipt-forbidden")
 
@@ -393,12 +400,15 @@ class NativePoolCoordinator:
                     self._max_callback_latency_ms = max(
                         self._max_callback_latency_ms, self._last_callback_latency_ms
                     )
-                    certification = self._capability_callbacks.get(_name)
-                    if isinstance(certification, Mapping):
-                        maximum = certification.get("max_ms")
-                        if isinstance(maximum, (int, float)) and not isinstance(maximum, bool):
-                            if self._last_callback_latency_ms > maximum:
-                                self._callback_fault = f"callback-overrun:{_name}"
+                    maximum = self._certified_callback_max_ms.get(_name)
+                    if isinstance(maximum, (int, float)) and not isinstance(maximum, bool):
+                        if self._last_callback_latency_ms > maximum:
+                            self._callback_fault = f"callback-overrun:{_name}"
+                            self._callback_fault_detail = {
+                                "operation": _name,
+                                "observed_callback_latency_ms": self._last_callback_latency_ms,
+                                "certified_callback_max_ms": float(maximum),
+                            }
 
             wrapped[name] = timed
         return wrapped
@@ -439,6 +449,7 @@ class NativePoolCoordinator:
             "poll_overhead_seconds": 0.0,
             "lease_bindings": [],
             "reasons": [],
+            "first_protected_fault": None,
             "control_loss_scope": None,
         }
         return seal_artifact(state, "state_sha256")
@@ -481,6 +492,11 @@ class NativePoolCoordinator:
                     if child_id in self._leases
                 ],
                 "reasons": list(self._reasons),
+                "first_protected_fault": (
+                    dict(self._first_protected_fault)
+                    if self._first_protected_fault is not None
+                    else None
+                ),
                 "control_loss_scope": "pool" if self._control_failed else None,
             }
         )
@@ -528,7 +544,24 @@ class NativePoolCoordinator:
         self._decision = value
         return value
 
-    def _enter_fault(self, reason: str, *, control_failed: bool) -> None:
+    def _enter_fault(
+        self,
+        reason: str,
+        *,
+        control_failed: bool,
+        operation: str | None = None,
+        observed_callback_latency_ms: float | None = None,
+        certified_callback_max_ms: float | None = None,
+    ) -> None:
+        if self._first_protected_fault is None:
+            state_sequence = self._state["state_sequence"] if hasattr(self, "_state") else 0
+            self._first_protected_fault = {
+                "code": reason,
+                "operation": operation,
+                "observed_callback_latency_ms": observed_callback_latency_ms,
+                "certified_callback_max_ms": certified_callback_max_ms,
+                "latched_state_sequence": state_sequence,
+            }
         self._add_reason(reason)
         self._protected_fault = True
         self._control_failed = self._control_failed or control_failed
@@ -667,6 +700,7 @@ class NativePoolCoordinator:
         self._last_callback_name = None
         self._last_callback_latency_ms = None
         self._callback_fault = None
+        self._callback_fault_detail = None
         started = self._monotonic_ns()
         if progress["status"] == "pending":
             result = turn.step(self._task_inputs[child_id])
@@ -689,7 +723,14 @@ class NativePoolCoordinator:
                 else:
                     self._enter_fault("child-check-failed", control_failed=True)
             if self._callback_fault:
-                self._enter_fault(self._callback_fault, control_failed=False)
+                detail = self._callback_fault_detail or {}
+                self._enter_fault(
+                    self._callback_fault,
+                    control_failed=False,
+                    operation=detail.get("operation"),
+                    observed_callback_latency_ms=detail.get("observed_callback_latency_ms"),
+                    certified_callback_max_ms=detail.get("certified_callback_max_ms"),
+                )
             try:
                 mutation = self._compare_workspaces(f"after-{child_id}-{self._last_callback_name}")
                 self._last_mutation_evidence = mutation
@@ -723,14 +764,14 @@ class NativePoolCoordinator:
         if proposed is not None:
             phase = str(self._progress[proposed].get("phase"))
             callback = _callback_name(phase)
-            certification = self._capability_callbacks.get(callback, {}) if callback else {}
-            maximum = certification.get("max_ms", 0) if isinstance(certification, Mapping) else 0
+            maximum = self._certified_callback_max_ms.get(callback, 0) if callback else 0
             guard = peer_deadline_guard(
                 state_children,
                 cursor=self._state["scheduler_cursor"],
                 proposed_child_id=proposed,
                 now_ns=now_ns,
                 certified_callback_ms=float(maximum),
+                certified_scheduler_overhead_ms=self._certified_scheduler_overhead_ms,
             )
             if guard is not None:
                 self._state["scheduler_cursor"] = guard.next_cursor
@@ -803,6 +844,7 @@ class NativePoolCoordinator:
         accepting = (
             self._state["status"] == "closed"
             and not self._reasons
+            and self._first_protected_fault is None
             and self._admission_order == self.child_ids
             and clean
             and len(lease_evidence) == len(self.child_ids)
@@ -851,6 +893,11 @@ class NativePoolCoordinator:
                 "lease_evidence": lease_evidence,
                 "mutation_evidence": dict(self._last_mutation_evidence),
                 "reasons": list(self._reasons),
+                "first_protected_fault": (
+                    dict(self._first_protected_fault)
+                    if self._first_protected_fault is not None
+                    else None
+                ),
                 "child_dispositions": dispositions,
                 "pool_disposition": pool_disposition,
                 "accepting": accepting,

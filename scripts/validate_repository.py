@@ -85,6 +85,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_worker_contracts": {"native_disposition"},
     "native_capability": set(),
     "native_canary_contracts": {"util"},
+    "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
     "native_release": {"native_precommit", "paths", "policy", "util"},

@@ -45,6 +45,7 @@ ALLOWED_IMPORTS = {
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
     "native_pool_contracts": set(),
+    "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
     "native_pool_scheduler": {"native_pool_contracts"},
     "native_pool_leases": {"native_pool_contracts"},
     "native_pool_workspace": {"native_pool_contracts", "workspace"},

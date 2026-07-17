@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import Mapping
 import unittest
 from unittest import mock
 import uuid
@@ -83,7 +84,9 @@ class FakeCalibrationServer:
     def _write(self, records: list[dict]) -> None:
         self.path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
 
-    def start_thread(self, _cwd: Path, *, mutable: bool) -> tuple[dict, float]:
+    def start_thread(
+        self, _cwd: Path, *, mutable: bool, role: str | None = None
+    ) -> tuple[dict, float]:
         self.assert_false(mutable)
         self.started_cwd = _cwd.resolve()
         return {
@@ -538,6 +541,109 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertTrue(result["all_contained"])
             self.assertEqual(result["archived_count"], 1)
 
+    def test_app_server_records_intents_before_thread_and_turn_rpc(self) -> None:
+        from cwo_core.native_live_allocation_ledger import NativeLiveAllocationLedgerStore
+        from tests.test_native_live_allocation_ledger import bindings
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ledger = NativeLiveAllocationLedgerStore(root / "ledger")
+            ledger.initialize(bindings())
+            server = object.__new__(LIVE.AppServer)
+            server.allocation_ledger = ledger
+            server.started_threads = {}
+
+            def request(method: str, _params: Mapping, *, timeout: float = 30):
+                state = ledger.load()
+                if method == "thread/start":
+                    self.assertEqual(state["entries"][-1]["event"], "allocation-intent")
+                    return {
+                        "thread": {"id": "thread-1", "turns": []},
+                        "model": LIVE.EXACT_MODEL,
+                    }, 1.0
+                if method == "turn/start":
+                    self.assertEqual(state["entries"][-1]["event"], "turn-intent")
+                    return {"turn": {"id": "turn-1"}}, 1.0
+                raise AssertionError(method)
+
+            server.request = request
+            server.start_thread(root, mutable=False, role="capability-calibration")
+            server.start_turn("thread-1", "bounded")
+            events = [entry["event"] for entry in ledger.load()["entries"]]
+            self.assertEqual(
+                events,
+                ["allocation-intent", "thread-bound", "turn-intent", "turn-bound"],
+            )
+            self.assertEqual(server.started_threads, {"thread-1": "turn-1"})
+
+    def test_containment_is_idempotent_with_durable_archive_proof(self) -> None:
+        from cwo_core.native_live_allocation_ledger import NativeLiveAllocationLedgerStore
+        from tests.test_native_live_allocation_ledger import bindings
+
+        class LedgerServer:
+            def __init__(self, ledger: NativeLiveAllocationLedgerStore) -> None:
+                self.allocation_ledger = ledger
+                self.started_threads = {"thread-1": "turn-1"}
+                self.status = "inProgress"
+                self.archived = False
+
+            def read_thread(self, _thread_id: str):
+                if self.archived:
+                    raise LIVE.AppServerError("app-server-request-failed:thread/read:-32600")
+                return {
+                    "id": "thread-1",
+                    "turns": [{"id": "turn-1", "status": self.status, "items": []}],
+                }, 1.0
+
+            def interrupt_turn(self, _thread_id: str, _turn_id: str):
+                self.status = "interrupted"
+                self.allocation_ledger.record_lifecycle(
+                    "thread-1", "interrupt-observed", "interrupt-request-accepted"
+                )
+                return 1.0
+
+            def archive_thread(self, _thread_id: str):
+                self.archived = True
+                self.allocation_ledger.record_lifecycle(
+                    "thread-1", "archive-observed", "archive-request-accepted"
+                )
+                return 1.0
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            ledger = NativeLiveAllocationLedgerStore(root / "ledger")
+            ledger.initialize(bindings())
+            allocation = ledger.allocation_intent("read-only-0")
+            ledger.bind_thread(allocation, "thread-1")
+            turn_intent = ledger.turn_intent("thread-1")
+            ledger.bind_turn("thread-1", turn_intent, "turn-1")
+            server = LedgerServer(ledger)
+            first = LIVE.contain_started_threads(server)
+            second = LIVE.contain_started_threads(server)
+            self.assertTrue(first["all_contained"])
+            self.assertEqual(first["archived_count"], 1)
+            self.assertTrue(second["all_contained"])
+            self.assertEqual(second["already_contained_count"], 1)
+            self.assertTrue(second["ledger_consistent"])
+
+    def test_unresolved_thread_start_intent_is_containment_ambiguity(self) -> None:
+        from cwo_core.native_live_allocation_ledger import NativeLiveAllocationLedgerStore
+        from tests.test_native_live_allocation_ledger import bindings
+
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = NativeLiveAllocationLedgerStore(Path(temporary) / "ledger")
+            ledger.initialize(bindings())
+            ledger.allocation_intent("read-only-0")
+            server = type(
+                "UnresolvedServer",
+                (),
+                {"allocation_ledger": ledger, "started_threads": {}},
+            )()
+            result = LIVE.contain_started_threads(server)
+            self.assertFalse(result["all_contained"])
+            self.assertEqual(result["ambiguous_count"], 1)
+            self.assertEqual(result["unresolved_allocation_intent_count"], 1)
+
 
 class LiveThreadBoundaryPhaseTests(unittest.TestCase):
     def adapter(
@@ -743,11 +849,22 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             adapter = self.adapter(root, server, clock)
             adapter.send_input(message="bounded prompt")
             adapter.interrupt()
-            with self.assertRaisesRegex(LIVE.AppServerError, "trusted session file is missing"):
-                adapter._trusted_summary()
+            adapter._workspace_mutations = lambda: []
+            summary = adapter._trusted_summary()
+            self.assertEqual(
+                summary["session_boundary"]["observation_type"],
+                "containment-unmaterialized-nonattesting-rejected",
+            )
+            evidence = adapter.evidence()
+            self.assertTrue(evidence["protected_fault"])
+            self.assertEqual(evidence["session_disposition"], "quarantined")
+            self.assertEqual(evidence["artifact_disposition"], "rejected")
             adapter.close()
-            with self.assertRaisesRegex(LIVE.AppServerError, "trusted session file is missing"):
-                adapter.final_summary()
+            final = adapter.final_summary()
+            self.assertEqual(
+                final["session_boundary"]["observation_type"],
+                "containment-unmaterialized-nonattesting-rejected",
+            )
 
     def test_nonempty_invalid_boundary_never_uses_pending_allowance(self) -> None:
         for boundary_kind, expected in (("partial", "trailing partial"), ("newline-only", "complete object")):

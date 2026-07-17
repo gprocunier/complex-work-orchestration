@@ -32,6 +32,7 @@ __all__ = [
     "native_progress",
     "native_release",
     "native_disposition",
+    "native_live_allocation_ledger",
     "native_recovery",
     "native_retry",
     "native_replanning",

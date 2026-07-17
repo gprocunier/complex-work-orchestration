@@ -276,6 +276,7 @@ def peer_deadline_guard(
     proposed_child_id: str,
     now_ns: int,
     certified_callback_ms: float,
+    certified_scheduler_overhead_ms: float = 0.0,
 ) -> SchedulerSelection | None:
     """Choose a peer first when one would cross deadline during a lifecycle call."""
     if isinstance(now_ns, bool) or not isinstance(now_ns, int) or now_ns < 0:
@@ -284,7 +285,15 @@ def peer_deadline_guard(
         raise PoolSchedulingError("certified-callback-latency-invalid")
     if certified_callback_ms < 0:
         raise PoolSchedulingError("certified-callback-latency-invalid")
-    horizon = now_ns + int(certified_callback_ms * 1_000_000)
+    if (
+        isinstance(certified_scheduler_overhead_ms, bool)
+        or not isinstance(certified_scheduler_overhead_ms, (int, float))
+        or certified_scheduler_overhead_ms < 0
+    ):
+        raise PoolSchedulingError("certified-scheduler-overhead-invalid")
+    horizon = now_ns + int(
+        (certified_callback_ms + certified_scheduler_overhead_ms) * 1_000_000
+    )
     peers = [
         child
         for child in children

@@ -7,7 +7,7 @@
     "receipt_type", "version", "schema", "adapter_id", "adapter_version",
     "execution_surface", "host_identity", "control_turn_id", "measured_at",
     "expires_at", "sample_count", "requested_cap", "clock", "callbacks",
-    "scheduler_overhead", "capabilities", "attestation_source",
+    "scheduler_overhead", "certification", "capabilities", "attestation_source",
     "validation_outcome", "receipt_sha256"
   ],
   "properties": {
@@ -38,6 +38,37 @@
       }
     },
     "scheduler_overhead": {"$ref": "#/$defs/stats"},
+    "certification": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "version", "envelope", "scheduler_model", "response_time_equation",
+        "observation_authority", "policy_sha256", "adapter_implementation_sha256",
+        "certified_callback_max_ms", "certified_scheduler_overhead_ms"
+      ],
+      "properties": {
+        "version": {"const": "live-thread-adapter-callback-certification:v1"},
+        "envelope": {"const": "live-thread-adapter-callback-v1"},
+        "scheduler_model": {"const": "nonpreemptive-edf-cap2-v1"},
+        "response_time_equation": {"const": "max_lifecycle+2*check+scheduler<=poll_interval"},
+        "observation_authority": {"const": "telemetry-only-non-authoritative"},
+        "policy_sha256": {"$ref": "#/$defs/sha256"},
+        "adapter_implementation_sha256": {"$ref": "#/$defs/sha256"},
+        "certified_callback_max_ms": {
+          "type": "object", "additionalProperties": false,
+          "required": ["arm", "send_input", "mark_dispatched", "check", "interrupt", "close", "finalize"],
+          "properties": {
+            "arm": {"const": 100},
+            "send_input": {"const": 250},
+            "mark_dispatched": {"const": 100},
+            "check": {"const": 200},
+            "interrupt": {"const": 250},
+            "close": {"const": 250},
+            "finalize": {"const": 100}
+          }
+        },
+        "certified_scheduler_overhead_ms": {"const": 100}
+      }
+    },
     "capabilities": {
       "type": "object", "additionalProperties": false,
       "required": ["interrupt", "close", "wait", "trusted_telemetry"],
@@ -77,10 +108,10 @@
       "type": "object", "additionalProperties": false,
       "required": ["p50_ms", "p90_ms", "p99_ms", "max_ms"],
       "properties": {
-        "p50_ms": {"type": "number", "minimum": 0, "maximum": 400},
-        "p90_ms": {"type": "number", "minimum": 0, "maximum": 400},
-        "p99_ms": {"type": "number", "minimum": 0, "maximum": 400},
-        "max_ms": {"type": "number", "minimum": 0, "maximum": 400}
+        "p50_ms": {"type": "number", "minimum": 0, "maximum": 200},
+        "p90_ms": {"type": "number", "minimum": 0, "maximum": 200},
+        "p99_ms": {"type": "number", "minimum": 0, "maximum": 200},
+        "max_ms": {"type": "number", "minimum": 0, "maximum": 200}
       }
     }
   }

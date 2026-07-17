@@ -10,6 +10,13 @@ from typing import Any, Mapping
 
 from .native_control import validate_control_turn_contract
 from .native_pool_contracts import (
+    CAPABILITY_CERTIFICATION_ENVELOPE,
+    CAPABILITY_CERTIFICATION_VERSION,
+    CAPABILITY_OBSERVATION_AUTHORITY,
+    CAPABILITY_RESPONSE_TIME_EQUATION,
+    CAPABILITY_SCHEDULER_MODEL,
+    CERTIFIED_CALLBACK_MAX_MS,
+    CERTIFIED_SCHEDULER_OVERHEAD_MS,
     MAX_ACTIVE_WORKERS,
     POOL_ALLOWED_ACTIONS,
     POOL_CONTRACT_SCHEMA,
@@ -17,6 +24,7 @@ from .native_pool_contracts import (
     POOL_POLL_INTERVAL_MS,
     POOL_POLL_LAG_TOLERANCE_MS,
     VERSION,
+    callback_certification_policy_sha256,
     seal_artifact,
     validate_capability_receipt,
     validate_pool_contract,
@@ -272,7 +280,7 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         "cap_two_requires_fresh_capability": True,
         "required_control_adapter": "native-multi-agent-v1",
         "max_capability_ttl_seconds": 3600,
-        "max_certified_check_ms": 400,
+        "max_certified_check_ms": CERTIFIED_CALLBACK_MAX_MS["check"],
     }
     for field, expected in required.items():
         if policy.get(field) != expected:
@@ -310,6 +318,20 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         or scheduler.get("threads_allowed") is not False
     ):
         raise NativePoolConfigError("native-supervision-pool-policy-invalid:scheduler")
+    certification = policy.get("callback_certification")
+    expected_certification = {
+        "version": CAPABILITY_CERTIFICATION_VERSION,
+        "envelope": CAPABILITY_CERTIFICATION_ENVELOPE,
+        "scheduler_model": CAPABILITY_SCHEDULER_MODEL,
+        "response_time_equation": CAPABILITY_RESPONSE_TIME_EQUATION,
+        "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
+        "certified_callback_max_ms": CERTIFIED_CALLBACK_MAX_MS,
+        "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+    }
+    if not isinstance(certification, Mapping) or dict(certification) != expected_certification:
+        raise NativePoolConfigError(
+            "native-supervision-pool-policy-invalid:callback_certification"
+        )
     return policy
 
 
@@ -344,6 +366,15 @@ def build_pool_contract(
             raise NativePoolConfigError("capability-adapter-policy-mismatch")
         if capability_receipt.get("execution_surface") not in policy.get("allowed_execution_surfaces", []):
             raise NativePoolConfigError("capability-execution-surface-not-allowed")
+        certification = capability_receipt.get("certification")
+        expected_policy_sha256 = callback_certification_policy_sha256(
+            policy["callback_certification"]
+        )
+        if (
+            not isinstance(certification, Mapping)
+            or certification.get("policy_sha256") != expected_policy_sha256
+        ):
+            raise NativePoolConfigError("capability-certification-policy-mismatch")
         owner = dict(capability_receipt["host_identity"])
         if owner_pid is not None and owner.get("pid") != owner_pid:
             raise NativePoolConfigError("owner-pid-capability-mismatch")
@@ -403,8 +434,16 @@ def build_pool_contract(
 
     read_only = all(child["isolation_class"] == "read-only-shared" for child in rendered_children)
     shared_read_only = read_only and len(set(child_roots)) == 1
-    check_max = capability_receipt["callbacks"]["check"]["max_ms"] if cap == 2 else None
-    overhead_max = capability_receipt["scheduler_overhead"]["max_ms"] if cap == 2 else None
+    check_max = (
+        capability_receipt["certification"]["certified_callback_max_ms"]["check"]
+        if cap == 2
+        else None
+    )
+    overhead_max = (
+        capability_receipt["certification"]["certified_scheduler_overhead_ms"]
+        if cap == 2
+        else None
+    )
     contract = seal_artifact(
         {
             "contract_type": POOL_CONTRACT_TYPE,

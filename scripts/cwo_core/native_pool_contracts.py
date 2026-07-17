@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -70,7 +71,22 @@ REQUIRED_CAPABILITY_CALLBACKS = (
 )
 MAX_ACTIVE_WORKERS = 2
 MAX_CAPABILITY_TTL_SECONDS = 3600
-MAX_CERTIFIED_CHECK_MS = 400
+CAPABILITY_CERTIFICATION_VERSION = "live-thread-adapter-callback-certification:v1"
+CAPABILITY_CERTIFICATION_ENVELOPE = "live-thread-adapter-callback-v1"
+CAPABILITY_SCHEDULER_MODEL = "nonpreemptive-edf-cap2-v1"
+CAPABILITY_RESPONSE_TIME_EQUATION = "max_lifecycle+2*check+scheduler<=poll_interval"
+CAPABILITY_OBSERVATION_AUTHORITY = "telemetry-only-non-authoritative"
+CERTIFIED_CALLBACK_MAX_MS = {
+    "arm": 100,
+    "send_input": 250,
+    "mark_dispatched": 100,
+    "check": 200,
+    "interrupt": 250,
+    "close": 250,
+    "finalize": 100,
+}
+CERTIFIED_SCHEDULER_OVERHEAD_MS = 100
+MAX_CERTIFIED_CHECK_MS = CERTIFIED_CALLBACK_MAX_MS["check"]
 POOL_POLL_INTERVAL_MS = 1000
 POOL_POLL_LAG_TOLERANCE_MS = 1500
 
@@ -100,6 +116,24 @@ TOKEN_FIELDS = {
     "reasoning",
     "total",
     "unavailable_reason",
+}
+FIRST_PROTECTED_FAULT_FIELDS = {
+    "code",
+    "operation",
+    "observed_callback_latency_ms",
+    "certified_callback_max_ms",
+    "latched_state_sequence",
+}
+CERTIFICATION_FIELDS = {
+    "version",
+    "envelope",
+    "scheduler_model",
+    "response_time_equation",
+    "observation_authority",
+    "policy_sha256",
+    "adapter_implementation_sha256",
+    "certified_callback_max_ms",
+    "certified_scheduler_overhead_ms",
 }
 USAGE_FIELDS = {
     "tool_calls",
@@ -177,6 +211,7 @@ POOL_STATE_FIELDS = {
     "poll_overhead_seconds",
     "lease_bindings",
     "reasons",
+    "first_protected_fault",
     "control_loss_scope",
     "state_sha256",
 }
@@ -229,6 +264,7 @@ CAPABILITY_FIELDS = {
     "clock",
     "callbacks",
     "scheduler_overhead",
+    "certification",
     "capabilities",
     "attestation_source",
     "validation_outcome",
@@ -273,6 +309,7 @@ POOL_RECEIPT_FIELDS = {
     "lease_evidence",
     "mutation_evidence",
     "reasons",
+    "first_protected_fault",
     "child_dispositions",
     "pool_disposition",
     "accepting",
@@ -352,7 +389,12 @@ def _is_int(value: Any, minimum: int = 0) -> bool:
 
 
 def _is_number(value: Any, minimum: float = 0.0) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= minimum
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and value >= minimum
+    )
 
 
 def _is_sha256(value: Any) -> bool:
@@ -528,6 +570,81 @@ def _validate_stats(value: Any, prefix: str, errors: list[str]) -> Mapping[str, 
     return stats
 
 
+def callback_certification_policy_sha256(value: Mapping[str, Any]) -> str:
+    """Hash the exact callback-certification policy without file-path authority."""
+
+    return canonical_sha256(dict(value))
+
+
+def _validate_certification(value: Any, errors: list[str]) -> Mapping[str, Any] | None:
+    certification = _strict(value, CERTIFICATION_FIELDS, "certification", errors)
+    if certification is None:
+        return None
+    expected_scalars = {
+        "version": CAPABILITY_CERTIFICATION_VERSION,
+        "envelope": CAPABILITY_CERTIFICATION_ENVELOPE,
+        "scheduler_model": CAPABILITY_SCHEDULER_MODEL,
+        "response_time_equation": CAPABILITY_RESPONSE_TIME_EQUATION,
+        "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
+        "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+    }
+    for field, expected in expected_scalars.items():
+        if certification.get(field) != expected:
+            errors.append(f"certification-{field.replace('_', '-')}-mismatch")
+    for field in ("policy_sha256", "adapter_implementation_sha256"):
+        if not _is_sha256(certification.get(field)):
+            errors.append(f"certification-{field.replace('_', '-')}-invalid")
+    ceilings = certification.get("certified_callback_max_ms")
+    if not isinstance(ceilings, Mapping):
+        errors.append("certification-callback-ceilings-must-be-object")
+    else:
+        missing = sorted(set(REQUIRED_CAPABILITY_CALLBACKS) - set(ceilings))
+        unknown = sorted(set(ceilings) - set(REQUIRED_CAPABILITY_CALLBACKS))
+        if missing:
+            errors.append("certification-callback-ceilings-missing:" + ",".join(missing))
+        if unknown:
+            errors.append("certification-callback-ceilings-unknown:" + ",".join(unknown))
+        for name, expected in CERTIFIED_CALLBACK_MAX_MS.items():
+            if ceilings.get(name) != expected:
+                errors.append(f"certification-callback-ceiling-mismatch:{name}")
+    return certification
+
+
+def _validate_first_protected_fault(
+    value: Any,
+    *,
+    state_sequence: Any,
+    prefix: str,
+    errors: list[str],
+) -> Mapping[str, Any] | None:
+    if value is None:
+        return None
+    fault = _strict(value, FIRST_PROTECTED_FAULT_FIELDS, prefix, errors)
+    if fault is None:
+        return None
+    if not _nonempty(fault.get("code")):
+        errors.append(f"invalid-{prefix}-code")
+    operation = fault.get("operation")
+    if operation is not None and operation not in REQUIRED_CAPABILITY_CALLBACKS:
+        errors.append(f"invalid-{prefix}-operation")
+    observed = fault.get("observed_callback_latency_ms")
+    certified = fault.get("certified_callback_max_ms")
+    if observed is not None and not _is_number(observed):
+        errors.append(f"invalid-{prefix}-observed-callback-latency-ms")
+    if certified is not None and not _is_number(certified):
+        errors.append(f"invalid-{prefix}-certified-callback-max-ms")
+    if (observed is None) != (certified is None):
+        errors.append(f"invalid-{prefix}-callback-pair")
+    if operation is None and (observed is not None or certified is not None):
+        errors.append(f"invalid-{prefix}-callback-operation")
+    latched = fault.get("latched_state_sequence")
+    if not _is_int(latched):
+        errors.append(f"invalid-{prefix}-latched-state-sequence")
+    elif _is_int(state_sequence) and latched > state_sequence:
+        errors.append(f"invalid-{prefix}-future-state-sequence")
+    return fault
+
+
 def _identity_key(value: Any) -> str:
     if not isinstance(value, Mapping):
         return ""
@@ -680,13 +797,14 @@ def validate_pool_contract(
         if cap == 1 and (check_ms is not None or overhead_ms is not None):
             errors.append("cap-one-scheduler-certification-must-be-null")
         if cap == 2:
-            if not _is_number(check_ms) or check_ms > MAX_CERTIFIED_CHECK_MS:
+            if check_ms != CERTIFIED_CALLBACK_MAX_MS["check"]:
                 errors.append("cap-two-check-certification-invalid")
-            if not _is_number(overhead_ms):
+            if overhead_ms != CERTIFIED_SCHEDULER_OVERHEAD_MS:
                 errors.append("cap-two-overhead-certification-invalid")
             if _is_number(check_ms) and _is_number(overhead_ms) and _is_int(scheduler.get("poll_interval_ms"), 1):
-                if cap * check_ms + overhead_ms > scheduler["poll_interval_ms"]:
-                    errors.append("cap-two-scheduler-inequality-failed")
+                lifecycle_max = max(CERTIFIED_CALLBACK_MAX_MS.values())
+                if lifecycle_max + cap * check_ms + overhead_ms > scheduler["poll_interval_ms"]:
+                    errors.append("cap-two-response-time-bound-failed")
 
     budget = _strict(
         contract.get("aggregate_hard_budget"),
@@ -795,6 +913,7 @@ def validate_capability_receipt(
             if name in callbacks:
                 _validate_stats(callbacks[name], f"callback-{name}", errors)
     scheduler_stats = _validate_stats(receipt.get("scheduler_overhead"), "scheduler-overhead", errors)
+    certification = _validate_certification(receipt.get("certification"), errors)
     capabilities = _strict(
         receipt.get("capabilities"),
         {"interrupt", "close", "wait", "trusted_telemetry"},
@@ -807,18 +926,50 @@ def validate_capability_receipt(
         errors.append("untrusted-attestation-source")
     if receipt.get("validation_outcome") != "accepted":
         errors.append("capability-not-accepted")
-    if isinstance(callbacks, Mapping) and isinstance(callbacks.get("check"), Mapping):
-        check_max = callbacks["check"].get("max_ms")
-        if not _is_number(check_max) or check_max > MAX_CERTIFIED_CHECK_MS:
-            errors.append("certified-check-ceiling-exceeded")
-        if expected_contract is not None and scheduler_stats is not None:
-            scheduler = expected_contract.get("scheduler", {})
-            cap = expected_contract.get("max_active_workers")
-            interval = scheduler.get("poll_interval_ms") if isinstance(scheduler, Mapping) else None
-            overhead_max = scheduler_stats.get("max_ms")
-            if _is_int(cap, 1) and _is_number(check_max) and _is_number(overhead_max) and _is_int(interval, 1):
-                if cap * check_max + overhead_max > interval:
-                    errors.append("capability-scheduler-inequality-failed")
+    if isinstance(callbacks, Mapping) and isinstance(certification, Mapping):
+        ceilings = certification.get("certified_callback_max_ms")
+        if isinstance(ceilings, Mapping):
+            for name in REQUIRED_CAPABILITY_CALLBACKS:
+                observed = callbacks.get(name)
+                if isinstance(observed, Mapping):
+                    observed_max = observed.get("max_ms")
+                    ceiling = ceilings.get(name)
+                    if _is_number(observed_max) and _is_number(ceiling) and observed_max > ceiling:
+                        errors.append(f"callback-observed-above-certified:{name}")
+            lifecycle_max = max(
+                (float(ceilings.get(name, 0)) for name in REQUIRED_CAPABILITY_CALLBACKS),
+                default=0.0,
+            )
+            check_max = ceilings.get("check")
+            overhead_max = certification.get("certified_scheduler_overhead_ms")
+            scheduler = expected_contract.get("scheduler", {}) if expected_contract is not None else {}
+            interval = (
+                scheduler.get("poll_interval_ms")
+                if isinstance(scheduler, Mapping)
+                else POOL_POLL_INTERVAL_MS
+            )
+            if not _is_number(interval, 1):
+                interval = POOL_POLL_INTERVAL_MS
+            if (
+                _is_number(check_max)
+                and _is_number(overhead_max)
+                and lifecycle_max + 2 * float(check_max) + float(overhead_max) > float(interval)
+            ):
+                errors.append("capability-response-time-bound-failed")
+            if expected_contract is not None and isinstance(scheduler, Mapping):
+                if scheduler.get("certified_max_check_ms") != check_max:
+                    errors.append("capability-contract-check-ceiling-mismatch")
+                if scheduler.get("certified_max_scheduler_overhead_ms") != overhead_max:
+                    errors.append("capability-contract-scheduler-ceiling-mismatch")
+    if isinstance(scheduler_stats, Mapping) and isinstance(certification, Mapping):
+        observed_overhead = scheduler_stats.get("max_ms")
+        certified_overhead = certification.get("certified_scheduler_overhead_ms")
+        if (
+            _is_number(observed_overhead)
+            and _is_number(certified_overhead)
+            and observed_overhead > certified_overhead
+        ):
+            errors.append("scheduler-observed-above-certified")
     if expected_contract is not None:
         if receipt.get("control_turn_id") != expected_contract.get("control_turn_id"):
             errors.append("capability-control-turn-mismatch")
@@ -970,6 +1121,18 @@ def validate_pool_state(
     reasons = state.get("reasons")
     if not isinstance(reasons, list) or any(not _nonempty(item) for item in reasons):
         errors.append("invalid-reasons")
+    first_fault = _validate_first_protected_fault(
+        state.get("first_protected_fault"),
+        state_sequence=state.get("state_sequence"),
+        prefix="first-protected-fault",
+        errors=errors,
+    )
+    if first_fault is None and reasons:
+        errors.append("reasons-require-first-protected-fault")
+    if first_fault is not None and not reasons:
+        errors.append("first-protected-fault-requires-reason")
+    if first_fault is not None and reasons and first_fault.get("code") not in reasons:
+        errors.append("first-protected-fault-reason-mismatch")
     if state.get("control_loss_scope") not in {None, "child", "pool"}:
         errors.append("invalid-control-loss-scope")
     if state.get("status") == "control-failed" and not reasons:
@@ -1342,6 +1505,18 @@ def validate_pool_receipt(
     reasons = receipt.get("reasons")
     if not isinstance(reasons, list) or any(not _nonempty(item) for item in reasons):
         errors.append("invalid-reasons")
+    first_fault = _validate_first_protected_fault(
+        receipt.get("first_protected_fault"),
+        state_sequence=(terminal_state or {}).get("state_sequence") if terminal_state else None,
+        prefix="first-protected-fault",
+        errors=errors,
+    )
+    if first_fault is None and reasons:
+        errors.append("reasons-require-first-protected-fault")
+    if first_fault is not None and not reasons:
+        errors.append("first-protected-fault-requires-reason")
+    if first_fault is not None and reasons and first_fault.get("code") not in reasons:
+        errors.append("first-protected-fault-reason-mismatch")
     dispositions = receipt.get("child_dispositions")
     disposition_ids: list[str] = []
     if not isinstance(dispositions, list):
@@ -1413,11 +1588,15 @@ def validate_pool_receipt(
             errors.append("receipt-pool-wall-seconds-mismatch")
         if receipt.get("worker_seconds") != terminal_state.get("worker_seconds"):
             errors.append("receipt-worker-seconds-mismatch")
+        if receipt.get("first_protected_fault") != terminal_state.get("first_protected_fault"):
+            errors.append("receipt-first-protected-fault-mismatch")
     if receipt.get("accepting") is True:
         if receipt.get("pool_disposition") != "accepted":
             errors.append("accepting-requires-accepted-disposition")
         if reasons:
             errors.append("accepting-requires-empty-reasons")
+        if first_fault is not None:
+            errors.append("accepting-forbids-first-protected-fault")
         if terminal_state is None or terminal_state.get("status") != "closed":
             errors.append("accepting-requires-closed-state")
         if contract is not None:

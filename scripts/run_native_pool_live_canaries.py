@@ -45,12 +45,25 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     validate_materialization_evidence,
 )
 from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402
+from cwo_core.native_live_allocation_ledger import (  # noqa: E402
+    EXPECTED_ROLES,
+    NativeLiveAllocationLedgerError,
+    NativeLiveAllocationLedgerStore,
+)
 from cwo_core.native_pool_config import build_pool_contract  # noqa: E402
 from cwo_core.native_pool_contracts import (  # noqa: E402
+    CAPABILITY_CERTIFICATION_ENVELOPE,
+    CAPABILITY_CERTIFICATION_VERSION,
+    CAPABILITY_OBSERVATION_AUTHORITY,
+    CAPABILITY_RESPONSE_TIME_EQUATION,
+    CAPABILITY_SCHEDULER_MODEL,
     CAPABILITY_RECEIPT_SCHEMA,
     CAPABILITY_RECEIPT_TYPE,
+    CERTIFIED_CALLBACK_MAX_MS,
+    CERTIFIED_SCHEDULER_OVERHEAD_MS,
     POOL_POLL_LAG_TOLERANCE_MS,
     canonical_sha256,
+    callback_certification_policy_sha256,
     seal_artifact,
     validate_capability_receipt,
     validate_pool_receipt,
@@ -134,6 +147,38 @@ def stats(values: list[float]) -> dict[str, float]:
         "p90_ms": round(percentile(values, 0.90), 3),
         "p99_ms": round(percentile(values, 0.99), 3),
         "max_ms": round(max(values), 3),
+    }
+
+
+def callback_certification_policy() -> dict[str, Any]:
+    try:
+        document = json.loads(
+            (ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AppServerError("callback-certification-policy-unreadable") from exc
+    pool = document.get("native_supervision_pool") if isinstance(document, Mapping) else None
+    certification = pool.get("callback_certification") if isinstance(pool, Mapping) else None
+    expected = {
+        "version": CAPABILITY_CERTIFICATION_VERSION,
+        "envelope": CAPABILITY_CERTIFICATION_ENVELOPE,
+        "scheduler_model": CAPABILITY_SCHEDULER_MODEL,
+        "response_time_equation": CAPABILITY_RESPONSE_TIME_EQUATION,
+        "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
+        "certified_callback_max_ms": CERTIFIED_CALLBACK_MAX_MS,
+        "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+    }
+    if not isinstance(certification, Mapping) or dict(certification) != expected:
+        raise AppServerError("callback-certification-policy-invalid")
+    return dict(certification)
+
+
+def capability_certification() -> dict[str, Any]:
+    policy = callback_certification_policy()
+    return {
+        **policy,
+        "policy_sha256": callback_certification_policy_sha256(policy),
+        "adapter_implementation_sha256": sha256_bytes(Path(__file__).read_bytes()),
     }
 
 
@@ -302,6 +347,22 @@ class AppServerError(RuntimeError):
     pass
 
 
+class LivePoolProtectedFault(AppServerError):
+    def __init__(self, first_protected_fault: Mapping[str, Any] | None) -> None:
+        self.first_protected_fault = (
+            dict(first_protected_fault)
+            if isinstance(first_protected_fault, Mapping)
+            else {
+                "code": "unknown",
+                "operation": None,
+                "observed_callback_latency_ms": None,
+                "certified_callback_max_ms": None,
+                "latched_state_sequence": 0,
+            }
+        )
+        super().__init__(f"live-pool-protected-fault:{self.first_protected_fault['code']}")
+
+
 class AppServer:
     """Minimal stdlib JSON-RPC client for one trusted Codex app-server."""
 
@@ -327,6 +388,7 @@ class AppServer:
         )
         self.rpc_latencies: dict[str, list[float]] = {}
         self.started_threads: dict[str, str | None] = {}
+        self.allocation_ledger: NativeLiveAllocationLedgerStore | None = None
         threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._drain_stderr, daemon=True).start()
         result, _ = self.request(
@@ -345,6 +407,12 @@ class AppServer:
             raise AppServerError("app-server-initialize-invalid")
         self.codex_home = Path(str(result["codexHome"])).resolve()
         self.notify("initialized", {})
+
+    def attach_allocation_ledger(self, ledger: NativeLiveAllocationLedgerStore) -> None:
+        if self.started_threads or self.allocation_ledger is not None:
+            raise AppServerError("allocation-ledger-attach-state-invalid")
+        ledger.load()
+        self.allocation_ledger = ledger
 
     def _read_stdout(self) -> None:
         assert self.process.stdout is not None
@@ -435,7 +503,18 @@ class AppServer:
             "latency_ms": round(latency, 3),
         }
 
-    def start_thread(self, cwd: Path, *, mutable: bool) -> tuple[dict[str, Any], float]:
+    def start_thread(
+        self,
+        cwd: Path,
+        *,
+        mutable: bool,
+        role: str | None = None,
+    ) -> tuple[dict[str, Any], float]:
+        allocation_intent_id: str | None = None
+        if self.allocation_ledger is not None:
+            if role not in EXPECTED_ROLES:
+                raise AppServerError("allocation-ledger-role-required")
+            allocation_intent_id = self.allocation_ledger.allocation_intent(str(role))
         result, latency = self.request(
             "thread/start",
             {
@@ -457,9 +536,12 @@ class AppServer:
         thread = result.get("thread")
         if not isinstance(thread, Mapping) or not thread.get("id"):
             raise AppServerError("thread-start-response-invalid")
+        thread_id = str(thread["id"])
+        self.started_threads[thread_id] = None
+        if self.allocation_ledger is not None and allocation_intent_id is not None:
+            self.allocation_ledger.bind_thread(allocation_intent_id, thread_id)
         if result.get("model") != EXACT_MODEL:
             raise AppServerError("thread-start-model-mismatch")
-        self.started_threads[str(thread["id"])] = None
         return dict(result), latency
 
     def read_thread(self, thread_id: str) -> tuple[dict[str, Any], float]:
@@ -472,6 +554,9 @@ class AppServer:
         return dict(thread), latency
 
     def start_turn(self, thread_id: str, prompt: str) -> tuple[dict[str, Any], float]:
+        turn_intent_id: str | None = None
+        if self.allocation_ledger is not None:
+            turn_intent_id = self.allocation_ledger.turn_intent(thread_id)
         result, latency = self.request(
             "turn/start",
             {
@@ -490,17 +575,28 @@ class AppServer:
         turn = result.get("turn")
         if not isinstance(turn, Mapping) or not turn.get("id"):
             raise AppServerError("turn-start-response-invalid")
-        self.started_threads[thread_id] = str(turn["id"])
+        turn_id = str(turn["id"])
+        self.started_threads[thread_id] = turn_id
+        if self.allocation_ledger is not None and turn_intent_id is not None:
+            self.allocation_ledger.bind_turn(thread_id, turn_intent_id, turn_id)
         return dict(turn), latency
 
     def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
         _result, latency = self.request(
             "turn/interrupt", {"threadId": thread_id, "turnId": turn_id}, timeout=15
         )
+        if self.allocation_ledger is not None:
+            self.allocation_ledger.record_lifecycle(
+                thread_id, "interrupt-observed", "interrupt-request-accepted"
+            )
         return latency
 
     def archive_thread(self, thread_id: str) -> float:
         _result, latency = self.request("thread/archive", {"threadId": thread_id}, timeout=15)
+        if self.allocation_ledger is not None:
+            self.allocation_ledger.record_lifecycle(
+                thread_id, "archive-observed", "archive-request-accepted"
+            )
         return latency
 
     def notifications(self, thread_id: str, method: str | None = None) -> list[dict[str, Any]]:
@@ -921,9 +1017,12 @@ class LiveThreadAdapter:
                 "pre-dispatch",
                 "submission-acknowledged-awaiting-materialization",
             }
+            containment_phase = self._boundary_phase in {
+                "interrupt-requested",
+                "closing",
+            }
             allow_unmaterialized = (
-                allow_pending
-                and pending_phase
+                (allow_pending and pending_phase or containment_phase)
                 and self._session_boundary_baseline is None
             )
             boundary = session_boundary_summary(
@@ -939,6 +1038,11 @@ class LiveThreadAdapter:
             if self._boundary_phase == "pre-dispatch":
                 boundary["observation_type"] = (
                     "pre-dispatch-unmaterialized-nonattesting-nonaccepting"
+                )
+                return boundary
+            if containment_phase:
+                boundary["observation_type"] = (
+                    "containment-unmaterialized-nonattesting-rejected"
                 )
                 return boundary
 
@@ -1026,6 +1130,11 @@ class LiveThreadAdapter:
         reasons: list[str] = []
         if terminal and not summary["model_exact"]:
             reasons.append("trusted-model-attestation-mismatch")
+        if (
+            summary["session_boundary"].get("observation_type")
+            == "containment-unmaterialized-nonattesting-rejected"
+        ):
+            reasons.append("containment-unmaterialized-nonattesting-rejected")
         if summary["reroute_count"]:
             reasons.append("model-reroute-observed")
         if summary["compactions"]:
@@ -1063,7 +1172,13 @@ class LiveThreadAdapter:
             "compactions": usage["compactions"],
             "evidence_sequence": self._evidence_sequence,
         }
-        if summary["session_boundary"].get("available") is not True:
+        if (
+            summary["session_boundary"].get("observation_type")
+            == "containment-unmaterialized-nonattesting-rejected"
+        ):
+            session_disposition = "quarantined"
+            artifact_disposition = "rejected"
+        elif summary["session_boundary"].get("available") is not True:
             session_disposition = "accepted-with-warning"
             artifact_disposition = "independent-validation-required"
         elif self.interrupted:
@@ -1122,7 +1237,9 @@ def calibration(
     materialization_timeout_seconds: float = 10.0,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     samples: dict[str, list[float]] = {}
-    result, preallocation_latency = server.start_thread(cwd, mutable=False)
+    result, preallocation_latency = server.start_thread(
+        cwd, mutable=False, role="capability-calibration"
+    )
     thread_id = str(result["thread"]["id"])
     reported_path = result["thread"].get("path")
     guarded_measure(
@@ -1596,6 +1713,7 @@ def calibration(
             "clock": "monotonic_ns",
             "callbacks": {name: stats(samples[name]) for name in sorted(samples)},
             "scheduler_overhead": stats(scheduler_samples),
+            "certification": capability_certification(),
             "capabilities": {
                 "interrupt": True,
                 "close": True,
@@ -1610,10 +1728,12 @@ def calibration(
     errors = validate_capability_receipt(receipt, now=utc_now())
     if errors:
         raise AppServerError("capability-receipt-invalid:" + ";".join(errors))
-    check_max = receipt["callbacks"]["check"]["max_ms"]
-    overhead_max = receipt["scheduler_overhead"]["max_ms"]
-    if 2 * check_max + overhead_max > 1000:
-        raise AppServerError("capability-scheduler-inequality-failed")
+    ceilings = receipt["certification"]["certified_callback_max_ms"]
+    check_max = ceilings["check"]
+    lifecycle_max = max(ceilings.values())
+    overhead_max = receipt["certification"]["certified_scheduler_overhead_ms"]
+    if lifecycle_max + 2 * check_max + overhead_max > 1000:
+        raise AppServerError("capability-response-time-bound-failed")
 
     thread = last_threads[thread_id]
     boundary = session_boundary_summary(
@@ -1661,7 +1781,9 @@ def calibration(
         ) if len(poll_started) > 1 else 0.0,
         "interrupt_confirmed": True,
         "peer_completion_deferred_to_coordinator_interrupt_canary": True,
-        "scheduler_inequality_lhs_ms": round(2 * check_max + overhead_max, 3),
+        "scheduler_inequality_lhs_ms": round(
+            lifecycle_max + 2 * check_max + overhead_max, 3
+        ),
         "scheduler_inequality_rhs_ms": 1000,
     }
     return receipt, evidence
@@ -1718,8 +1840,9 @@ def build_pool_inputs(
     record_dir = root / f"{pool_name}-records"
     record_dir.mkdir(mode=0o700)
     thread_results = []
-    for worktree in worktrees:
-        result, _latency = server.start_thread(worktree, mutable=mutable)
+    for index, worktree in enumerate(worktrees):
+        role = f"{pool_name}-{index}"
+        result, _latency = server.start_thread(worktree, mutable=mutable, role=role)
         thread_results.append(result)
     children = []
     child_contracts: dict[str, dict[str, Any]] = {}
@@ -1890,6 +2013,9 @@ def run_pool_canary(
     )
     if receipt_errors:
         raise AppServerError("live-pool-receipt-invalid:" + ";".join(receipt_errors))
+    if interrupt_after is None and receipt.get("accepting") is not True:
+        first_fault = receipt.get("first_protected_fault")
+        raise LivePoolProtectedFault(first_fault)
     summaries = [adapters[child_id].final_summary() for child_id in child_ids]
     worker_seconds = float(receipt["worker_seconds"])
     improvement = (
@@ -1923,12 +2049,15 @@ def validate_campaign(
     errors: list[str] = []
     capability_errors = validate_capability_receipt(capability, now=utc_now())
     errors.extend(f"capability:{item}" for item in capability_errors)
-    check_max = capability["callbacks"]["check"]["max_ms"]
-    overhead = capability["scheduler_overhead"]["max_ms"]
-    if check_max > 400:
+    certification = capability["certification"]
+    ceilings = certification["certified_callback_max_ms"]
+    check_max = ceilings["check"]
+    overhead = certification["certified_scheduler_overhead_ms"]
+    lifecycle_max = max(ceilings.values())
+    if check_max > 200:
         errors.append("capability-check-max-exceeded")
-    if 2 * check_max + overhead > 1000:
-        errors.append("capability-scheduler-inequality-failed")
+    if lifecycle_max + 2 * check_max + overhead > 1000:
+        errors.append("capability-response-time-bound-failed")
     all_sessions = list(calibration_evidence.get("sessions", []))
     for canary in canaries:
         all_sessions.extend(canary.get("sessions", []))
@@ -2001,11 +2130,31 @@ def validate_campaign(
 
 
 def contain_started_threads(server: AppServer) -> dict[str, Any]:
-    """Best-effort interrupt and archive for every thread allocated by this run."""
+    """Idempotently interrupt, archive, and audit every allocated thread."""
 
     interrupted: list[str] = []
     archived: list[str] = []
+    already_contained: list[str] = []
     ambiguous: list[str] = []
+    ledger_errors: list[str] = []
+    ledger = getattr(server, "allocation_ledger", None)
+
+    def audit_containment(thread_id: str, outcome: str, status: str | None) -> None:
+        if ledger is None:
+            return
+        try:
+            ledger.record_containment_audit(
+                thread_id,
+                outcome=outcome,
+                evidence={
+                    "thread_id_sha256": sha256_text(thread_id),
+                    "turn_status": status,
+                    "outcome": outcome,
+                },
+            )
+        except Exception as exc:
+            ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
+
     for thread_id, turn_id in list(server.started_threads.items()):
         try:
             thread, _latency = server.read_thread(thread_id)
@@ -2023,16 +2172,49 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
             if turn_id is None or status in {"interrupted", "completed", "failed"}:
                 server.archive_thread(thread_id)
                 archived.append(thread_id)
+                audit_containment(thread_id, "contained", status)
             else:
                 ambiguous.append(thread_id)
         except Exception:
-            ambiguous.append(thread_id)
+            try:
+                archived_in_ledger = bool(
+                    ledger is not None
+                    and ledger.has_lifecycle(thread_id, "archive-observed")
+                )
+            except Exception as exc:
+                archived_in_ledger = False
+                ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
+            if archived_in_ledger:
+                already_contained.append(thread_id)
+                audit_containment(thread_id, "already-contained", None)
+            else:
+                ambiguous.append(thread_id)
+    unresolved_allocations = 0
+    unresolved_turns = 0
+    ledger_allocation_count = len(server.started_threads)
+    if ledger is not None:
+        try:
+            ledger_summary = ledger.summary()
+            unresolved_allocations = int(
+                ledger_summary["unresolved_allocation_intent_count"]
+            )
+            unresolved_turns = int(ledger_summary["unresolved_turn_intent_count"])
+            ledger_allocation_count = int(ledger_summary["allocation_intent_count"])
+        except Exception as exc:
+            ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
+    ambiguous_count = len(set(ambiguous)) + unresolved_allocations
     return {
-        "allocated_count": len(server.started_threads),
-        "interrupted_count": len(interrupted),
-        "archived_count": len(archived),
-        "ambiguous_count": len(set(ambiguous)),
-        "all_contained": not ambiguous,
+        "allocated_count": ledger_allocation_count,
+        "identified_thread_count": len(server.started_threads),
+        "interrupted_count": len(set(interrupted)),
+        "archived_count": len(set(archived)),
+        "already_contained_count": len(set(already_contained)),
+        "unresolved_allocation_intent_count": unresolved_allocations,
+        "unresolved_turn_intent_count": unresolved_turns,
+        "ambiguous_count": ambiguous_count,
+        "all_contained": ambiguous_count == 0,
+        "ledger_consistent": not ledger_errors and not unresolved_allocations and not unresolved_turns,
+        "ledger_error_sha256": sorted(set(ledger_errors)),
     }
 
 
@@ -2046,6 +2228,20 @@ def load_private_json(path: Path, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise AppServerError(f"{label}-not-object")
     return value
+
+
+def safe_allocation_ledger_summary(
+    ledger: NativeLiveAllocationLedgerStore | None,
+) -> dict[str, Any] | None:
+    if ledger is None:
+        return None
+    try:
+        return {"available": True, **ledger.summary()}
+    except Exception as exc:
+        return {
+            "available": False,
+            "summary_error_sha256": sha256_text(f"{type(exc).__name__}:{exc}"),
+        }
 
 
 def main() -> int:
@@ -2066,6 +2262,7 @@ def main() -> int:
     authorization_store: CanaryAuthorizationStore | None = None
     authorization_state: dict[str, Any] | None = None
     steering_consumptions: dict[str, str] = {}
+    allocation_ledger: NativeLiveAllocationLedgerStore | None = None
     try:
         try:
             uuid.UUID(args.campaign_nonce)
@@ -2144,6 +2341,55 @@ def main() -> int:
             server = AppServer()
             discovery = server.model_discovery()
             owner = capture_owner_identity(os.getpid())
+            budgets = authorization.get("budgets")
+            consumed_generation = (
+                budgets.get("spark_live_campaign_generations_consumed_before_v9")
+                if isinstance(budgets, Mapping)
+                else None
+            )
+            if consumed_generation != 3:
+                raise AppServerError("allocation-ledger-predecessor-generation-invalid")
+            authorization_bindings = authorization.get("bindings")
+            if not isinstance(authorization_bindings, Mapping):
+                raise AppServerError("allocation-ledger-authorization-bindings-invalid")
+            certification_policy = callback_certification_policy()
+            allocation_ledger = NativeLiveAllocationLedgerStore(
+                output.parent / f".{output.name}.allocation-ledger"
+            )
+            allocation_ledger.initialize(
+                {
+                    "bead_id": "complex-work-orchestration-18w.6.14.6",
+                    "authorization_id": authorization_id,
+                    "authorization_raw_sha256": authorization_sha256,
+                    "authorization_canonical_sha256": authorization[
+                        "canonical_authorization_sha256"
+                    ],
+                    "campaign_nonce": args.campaign_nonce,
+                    "live_generation": consumed_generation + 1,
+                    "predecessor_generation": consumed_generation,
+                    "checkpoint_commit": repo_head,
+                    "guarded_primary_diff_sha256": authorization_bindings[
+                        "guarded_primary_diff_sha256"
+                    ],
+                    "predecessor_containment_sha256": authorization_bindings[
+                        "contained_failure_analysis_canonical_sha256"
+                    ],
+                    "pre_mutation_steering_receipt_sha256": pre_mutation_receipt[
+                        "canonical_receipt_sha256"
+                    ],
+                    "pre_live_steering_receipt_sha256": pre_live_receipt[
+                        "canonical_receipt_sha256"
+                    ],
+                    "certification_policy_sha256": callback_certification_policy_sha256(
+                        certification_policy
+                    ),
+                    "controller_identity": owner,
+                    "connection_epoch_sha256": server.connection_epoch_sha256,
+                    "retention_class": "private-local-until-bead-closure",
+                    "expected_roles": list(EXPECTED_ROLES),
+                }
+            )
+            server.attach_allocation_ledger(allocation_ledger)
             capability, calibration_evidence = calibration(
                 server,
                 layout["read-shared"],
@@ -2152,6 +2398,7 @@ def main() -> int:
                 run_nonce=authorization_id,
                 phase_nonce=args.campaign_nonce,
             )
+            allocation_ledger.bind_certification(capability["receipt_sha256"])
 
             read_prompts = [
                 (
@@ -2243,6 +2490,7 @@ def main() -> int:
                     "authorization_sha256": authorization_sha256,
                     "authorization_state_sha256": authorization_state["state_sha256"],
                     "steering_consumptions": steering_consumptions,
+                    "allocation_ledger": allocation_ledger.summary(),
                     "canaries": canaries,
                     "fresh_session_count": 7,
                     "no_resume_or_salvage": True,
@@ -2263,7 +2511,10 @@ def main() -> int:
                         "evidence_sha256": value["evidence_sha256"],
                         "fresh_session_count": value["fresh_session_count"],
                         "campaign_errors": value["campaign_errors"],
-                        "check_max_ms": capability["callbacks"]["check"]["max_ms"],
+                        "observed_check_max_ms": capability["callbacks"]["check"]["max_ms"],
+                        "certified_check_max_ms": capability["certification"][
+                            "certified_callback_max_ms"
+                        ]["check"],
                         "scheduler_inequality_lhs_ms": calibration_evidence[
                             "scheduler_inequality_lhs_ms"
                         ],
@@ -2289,10 +2540,16 @@ def main() -> int:
             if server is not None
             else {
                 "allocated_count": 0,
+                "identified_thread_count": 0,
                 "interrupted_count": 0,
                 "archived_count": 0,
+                "already_contained_count": 0,
+                "unresolved_allocation_intent_count": 0,
+                "unresolved_turn_intent_count": 0,
                 "ambiguous_count": 0,
                 "all_contained": True,
+                "ledger_consistent": True,
+                "ledger_error_sha256": [],
             }
         )
         if authorization_store is not None and authorization_state is not None:
@@ -2336,6 +2593,8 @@ def main() -> int:
                     else None
                 ),
                 "steering_consumptions": steering_consumptions,
+                "first_protected_fault": getattr(exc, "first_protected_fault", None),
+                "allocation_ledger": safe_allocation_ledger_summary(allocation_ledger),
             },
             "evidence_sha256",
         )

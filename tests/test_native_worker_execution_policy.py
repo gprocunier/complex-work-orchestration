@@ -68,6 +68,25 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(pool["scheduler"]["poll_lag_tolerance_ms"], 1500)
         self.assertFalse(pool["scheduler"]["hot_admission_allowed"])
         self.assertFalse(pool["scheduler"]["threads_allowed"])
+        certification = pool["callback_certification"]
+        self.assertEqual(
+            certification["certified_callback_max_ms"],
+            {
+                "arm": 100,
+                "send_input": 250,
+                "mark_dispatched": 100,
+                "check": 200,
+                "interrupt": 250,
+                "close": 250,
+                "finalize": 100,
+            },
+        )
+        self.assertEqual(certification["certified_scheduler_overhead_ms"], 100)
+        self.assertEqual(
+            certification["response_time_equation"],
+            "max_lifecycle+2*check+scheduler<=poll_interval",
+        )
+        self.assertEqual(pool["max_certified_check_ms"], 200)
         live = pool["trusted_live_canary"]
         self.assertEqual(live["runner"], "scripts/run_native_pool_live_canaries.py")
         self.assertEqual(live["exact_model"], "gpt-5.3-codex-spark")

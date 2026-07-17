@@ -45,6 +45,21 @@ monotonic. A protected fault durably changes `active` to `containment-only`
 before returning; only interrupt, close, sanitized evidence, reserved steering,
 Beads updates, local checkpoint, pickup, and handoff remain possible.
 
+Callback observations are telemetry, not timing authority. A capacity-two
+receipt separately binds the exact production envelope and policy digest, the
+adapter implementation digest, fixed per-operation ceilings, and a 100 ms
+scheduler ceiling. The frozen ceilings are 100 ms for arm, dispatch marking,
+and finalize; 200 ms for check; and 250 ms for send-input, interrupt, and
+close. Any observed value above its named ceiling rejects the capability.
+
+Before every `thread/start` and `turn/start`, the live controller fsyncs a
+two-phase intent to a private allocation ledger beside the final evidence.
+Returned thread and turn identities are bound in separate events, and every
+event is anchored into a separate locked CWO audit hash chain. The ledger uses
+an owner-only directory and files, records exactly seven campaign roles, and
+survives deletion of the disposable worktrees. An unresolved intent is
+ambiguous allocation evidence and rejects the campaign.
+
 The campaign has exactly seven fresh turn starts: capability interruption, two
 concurrent read-only workers, two concurrent disjoint mutable workers in
 disposable worktrees, and an interrupted worker while its peer completes. No
@@ -88,11 +103,22 @@ child lease is acquired before that child's first adapter callback. Scheduling
 uses earliest deadline with deterministic rotation for ties. `step()` invokes
 at most one adapter callback and never sleeps; only the host's `run()` wrapper
 sleeps. The v1 timing contract is exactly a 1000 ms poll interval with 1500 ms
-lag tolerance. Capacity two also proves:
+lag tolerance. Capacity two also proves the non-preemptive worst-case response
+bound:
 
 ```text
-2 * certified_check_max_ms + certified_scheduler_overhead_max_ms <= 1000
+max_lifecycle_ms + 2 * certified_check_max_ms
+  + certified_scheduler_overhead_max_ms <= 1000
+
+250 + 2 * 200 + 100 = 750 <= 1000
 ```
+
+Peer-deadline protection includes both the proposed operation ceiling and the
+certified scheduler overhead. The first protected fault is latched before
+interrupt and is hash-bound into pool state and receipt; later telemetry,
+cleanup, or close failures can add reasons but cannot replace it. Exactly
+missing or zero-byte telemetry after interrupt/close is represented only as a
+quarantined, nonattesting, nonaccepting containment observation.
 
 Each child reports cumulative usage. The coordinator rejects counter resets and
 sums deltas into one aggregate hard allowance. Pool wall time, worker time, and

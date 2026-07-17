@@ -38,6 +38,17 @@ NOW = dt.datetime(2026, 7, 16, 12, 0, tzinfo=dt.timezone.utc)
 def terminal_state(contract: dict, leases: list[dict], *, status: str = "completed") -> dict:
     child_status = "control-failed" if status == "control-failed" else "closed"
     reasons = ["control-state-corrupt"] if status == "control-failed" else []
+    first_protected_fault = (
+        {
+            "code": "control-state-corrupt",
+            "operation": None,
+            "observed_callback_latency_ms": None,
+            "certified_callback_max_ms": None,
+            "latched_state_sequence": 8,
+        }
+        if status == "control-failed"
+        else None
+    )
     children = [
         {
             "ordinal": index,
@@ -75,6 +86,7 @@ def terminal_state(contract: dict, leases: list[dict], *, status: str = "complet
             "poll_overhead_seconds": 0,
             "lease_bindings": [lease["lease_sha256"] for lease in leases],
             "reasons": reasons,
+            "first_protected_fault": first_protected_fault,
             "control_loss_scope": "pool" if status == "control-failed" else None,
         },
         "state_sha256",

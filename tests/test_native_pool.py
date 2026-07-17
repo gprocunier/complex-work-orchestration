@@ -253,6 +253,18 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 ["released", "released"],
             )
 
+    def test_cap_two_accepts_callbacks_exactly_at_certified_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                callback_ms=100,
+                decisions=[["complete"], ["complete"]],
+            )
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertIsNone(receipt["first_protected_fault"])
+
     def test_step_invokes_at_most_one_adapter_callback_and_never_sleeps(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=2)
@@ -291,10 +303,32 @@ class NativePoolCoordinatorTests(unittest.TestCase):
 
     def test_cap_two_callback_overrun_interrupts_entire_pool(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            harness = PoolHarness(temporary, cap=2, callback_ms=101)
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                callback_ms=101,
+                dirty_phases={"after-child-0-arm", "close"},
+            )
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
             self.assertIn("callback-overrun:arm", receipt["reasons"])
+            self.assertIn("workspace-mutation-attribution-failed", receipt["reasons"])
+            self.assertEqual(
+                receipt["first_protected_fault"],
+                {
+                    "code": "callback-overrun:arm",
+                    "operation": "arm",
+                    "observed_callback_latency_ms": 101.0,
+                    "certified_callback_max_ms": 100.0,
+                    "latched_state_sequence": receipt["first_protected_fault"][
+                        "latched_state_sequence"
+                    ],
+                },
+            )
+            self.assertEqual(
+                receipt["first_protected_fault"],
+                harness.coordinator.progress()["state"]["first_protected_fault"],
+            )
             self.assertEqual(receipt["pool_disposition"], "quarantined")
             self.assertTrue(all(item["lifecycle_state"] == "released" for item in receipt["lease_evidence"]))
 

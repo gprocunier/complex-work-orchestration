@@ -15,8 +15,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_pool_contracts import (  # noqa: E402
+    CAPABILITY_CERTIFICATION_ENVELOPE,
+    CAPABILITY_CERTIFICATION_VERSION,
+    CAPABILITY_OBSERVATION_AUTHORITY,
+    CAPABILITY_RESPONSE_TIME_EQUATION,
+    CAPABILITY_SCHEDULER_MODEL,
     CAPABILITY_RECEIPT_SCHEMA,
     CAPABILITY_RECEIPT_TYPE,
+    CERTIFIED_CALLBACK_MAX_MS,
+    CERTIFIED_SCHEDULER_OVERHEAD_MS,
     LEASE_SCHEMA,
     LEASE_TYPE,
     POOL_ALLOWED_ACTIONS,
@@ -33,6 +40,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     VERSION,
     artifact_sha256,
     canonical_sha256,
+    callback_certification_policy_sha256,
     seal_artifact,
     validate_capability_receipt,
     validate_lease,
@@ -96,6 +104,15 @@ def capability_payload() -> dict:
         name: dict(stats)
         for name in ("arm", "send_input", "mark_dispatched", "check", "interrupt", "close", "finalize")
     }
+    certification_policy = {
+        "version": CAPABILITY_CERTIFICATION_VERSION,
+        "envelope": CAPABILITY_CERTIFICATION_ENVELOPE,
+        "scheduler_model": CAPABILITY_SCHEDULER_MODEL,
+        "response_time_equation": CAPABILITY_RESPONSE_TIME_EQUATION,
+        "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
+        "certified_callback_max_ms": dict(CERTIFIED_CALLBACK_MAX_MS),
+        "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+    }
     return {
         "receipt_type": CAPABILITY_RECEIPT_TYPE,
         "version": VERSION,
@@ -112,6 +129,11 @@ def capability_payload() -> dict:
         "clock": "monotonic_ns",
         "callbacks": callbacks,
         "scheduler_overhead": {"p50_ms": 10, "p90_ms": 20, "p99_ms": 30, "max_ms": 50},
+        "certification": {
+            **certification_policy,
+            "policy_sha256": callback_certification_policy_sha256(certification_policy),
+            "adapter_implementation_sha256": sha("adapter-implementation"),
+        },
         "capabilities": {"interrupt": True, "close": True, "wait": True, "trusted_telemetry": True},
         "attestation_source": "trusted-control-plane-session-metadata",
         "validation_outcome": "accepted",
@@ -137,8 +159,8 @@ def pool_contract(*, cap: int = 2, read_only: bool = False) -> tuple[dict, dict 
             "kind": "earliest-deadline-rotating-v1",
             "poll_interval_ms": 1000,
             "poll_lag_tolerance_ms": 1500,
-            "certified_max_check_ms": 100 if cap == 2 else None,
-            "certified_max_scheduler_overhead_ms": 50 if cap == 2 else None,
+            "certified_max_check_ms": 200 if cap == 2 else None,
+            "certified_max_scheduler_overhead_ms": 100 if cap == 2 else None,
         },
         "aggregate_hard_budget": {
             "tool_calls": 56,
@@ -221,6 +243,7 @@ def closed_state(contract: dict, leases: list[dict]) -> dict:
             "poll_overhead_seconds": 0,
             "lease_bindings": [lease["lease_sha256"] for lease in leases],
             "reasons": [],
+            "first_protected_fault": None,
             "control_loss_scope": None,
         },
         "state_sha256",
@@ -292,6 +315,7 @@ def accepting_receipt(contract: dict, state: dict, leases: list[dict]) -> dict:
             ],
             "mutation_evidence": {**mutation, "evidence_sha256": canonical_sha256(mutation)},
             "reasons": [],
+            "first_protected_fault": None,
             "child_dispositions": [
                 {"child_id": child_id, "session_disposition": "accepted", "artifact_disposition": "accepted"}
                 for child_id in child_ids
@@ -492,7 +516,7 @@ class NativePoolContractTest(unittest.TestCase):
         overrun["callbacks"]["check"] = {"p50_ms": 410, "p90_ms": 410, "p99_ms": 410, "max_ms": 410}
         overrun = seal_artifact(overrun, "receipt_sha256")
         self.assertIn(
-            "certified-check-ceiling-exceeded",
+            "callback-observed-above-certified:check",
             validate_capability_receipt(overrun, now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)),
         )
         mismatch = copy.deepcopy(capability)
@@ -502,6 +526,43 @@ class NativePoolContractTest(unittest.TestCase):
             "capability-control-turn-mismatch",
             validate_capability_receipt(mismatch, expected_contract=contract, now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)),
         )
+
+    def test_certification_is_strict_policy_authority_not_observed_sample(self) -> None:
+        _contract, capability, _, _, _, _ = self.artifacts()
+        now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
+
+        observed_overrun = copy.deepcopy(capability)
+        observed_overrun["callbacks"]["send_input"] = {
+            "p50_ms": 251,
+            "p90_ms": 251,
+            "p99_ms": 251,
+            "max_ms": 251,
+        }
+        observed_overrun = seal_artifact(observed_overrun, "receipt_sha256")
+        self.assertIn(
+            "callback-observed-above-certified:send_input",
+            validate_capability_receipt(observed_overrun, now=now),
+        )
+
+        downgraded = copy.deepcopy(capability)
+        downgraded["certification"]["certified_callback_max_ms"]["check"] = 199
+        downgraded = seal_artifact(downgraded, "receipt_sha256")
+        self.assertIn(
+            "certification-callback-ceiling-mismatch:check",
+            validate_capability_receipt(downgraded, now=now),
+        )
+
+        unknown = copy.deepcopy(capability)
+        unknown["certification"]["unknown"] = True
+        unknown = seal_artifact(unknown, "receipt_sha256")
+        self.assertTrue(
+            any("certification-unknown-fields:unknown" in error for error in validate_capability_receipt(unknown, now=now))
+        )
+
+        nonfinite = copy.deepcopy(capability)
+        nonfinite["callbacks"]["check"]["max_ms"] = float("inf")
+        nonfinite = seal_artifact(nonfinite, "receipt_sha256")
+        self.assertIn("invalid-callback-check-values", validate_capability_receipt(nonfinite, now=now))
 
     def test_state_decision_lease_and_receipt_cross_binding_fail_closed(self) -> None:
         contract, _, leases, state, decision, receipt = self.artifacts()
@@ -546,11 +607,24 @@ class NativePoolContractTest(unittest.TestCase):
 
     def test_nonaccepting_partial_admission_and_lease_evidence_are_strict_subsets(self) -> None:
         contract, _, leases, state, _, receipt = self.artifacts()
+        fault = {
+            "code": "lease-acquisition-failed",
+            "operation": None,
+            "observed_callback_latency_ms": None,
+            "certified_callback_max_ms": None,
+            "latched_state_sequence": state["state_sequence"],
+        }
+        state = copy.deepcopy(state)
+        state["reasons"] = [fault["code"]]
+        state["first_protected_fault"] = fault
+        state = seal_artifact(state, "state_sha256")
         changed = copy.deepcopy(receipt)
+        changed["terminal_state_sha256"] = state["state_sha256"]
         changed["admission_order"] = []
         changed["poll_order"] = []
         changed["lease_evidence"] = []
         changed["reasons"] = ["lease-acquisition-failed"]
+        changed["first_protected_fault"] = fault
         changed["pool_disposition"] = "quarantined"
         changed["accepting"] = False
         changed = seal_artifact(changed, "receipt_sha256")

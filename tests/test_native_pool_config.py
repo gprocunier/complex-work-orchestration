@@ -181,7 +181,20 @@ class NativePoolConfigTests(unittest.TestCase):
             )
             self.assertEqual(validate_pool_contract(contract), [])
             self.assertEqual(contract["owner"], owner)
-            self.assertEqual(contract["scheduler"]["certified_max_check_ms"], 100)
+            self.assertEqual(contract["scheduler"]["certified_max_check_ms"], 200)
+            mismatched = copy.deepcopy(capability)
+            mismatched["certification"]["policy_sha256"] = sha("other-policy")
+            mismatched = seal_artifact(mismatched, "receipt_sha256")
+            with self.assertRaisesRegex(
+                NativePoolConfigError, "capability-certification-policy-mismatch"
+            ):
+                build_pool_contract(
+                    fixture.request,
+                    capability_receipt=mismatched,
+                    enable_concurrency=True,
+                    owner_pid=owner["pid"],
+                    now=now,
+                )
 
     def test_worker_state_identity_or_status_mismatch_fails_before_render(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

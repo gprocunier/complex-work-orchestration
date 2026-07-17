@@ -66,7 +66,8 @@ class NativePoolSchedulerTests(unittest.TestCase):
             cursor=0,
             proposed_child_id="a",
             now_ns=1_000_000_000,
-            certified_callback_ms=400,
+            certified_callback_ms=250,
+            certified_scheduler_overhead_ms=100,
         )
         self.assertEqual(selected.child_id, "b")
         self.assertIsNone(
@@ -75,7 +76,8 @@ class NativePoolSchedulerTests(unittest.TestCase):
                 cursor=0,
                 proposed_child_id="a",
                 now_ns=1_000_000_000,
-                certified_callback_ms=300,
+                certified_callback_ms=250,
+                certified_scheduler_overhead_ms=99.999999,
             )
         )
 

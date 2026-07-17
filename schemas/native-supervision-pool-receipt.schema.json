@@ -8,7 +8,8 @@
     "terminal_state_sha256", "capability_receipt_sha256", "admission_order", "poll_order",
     "terminal_order", "timing", "child_terminal_receipts", "final_aggregate_usage",
     "pool_wall_seconds", "worker_seconds", "lease_evidence", "mutation_evidence",
-    "reasons", "child_dispositions", "pool_disposition", "accepting", "receipt_sha256"
+    "reasons", "first_protected_fault", "child_dispositions", "pool_disposition",
+    "accepting", "receipt_sha256"
   ],
   "properties": {
     "receipt_type": {"const": "cwo-native-supervision-pool-receipt"},
@@ -69,6 +70,7 @@
       }
     },
     "reasons": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "first_protected_fault": {"oneOf": [{"$ref": "#/$defs/first_fault"}, {"type": "null"}]},
     "child_dispositions": {
       "type": "array", "minItems": 1, "maxItems": 2,
       "items": {
@@ -110,6 +112,17 @@
         "full_suite_runs": {"type": "integer", "minimum": 0},
         "mutations": {"type": "integer", "minimum": 0},
         "tokens": {"$ref": "#/$defs/tokens"}
+      }
+    },
+    "first_fault": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "operation", "observed_callback_latency_ms", "certified_callback_max_ms", "latched_state_sequence"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "operation": {"enum": [null, "arm", "send_input", "mark_dispatched", "check", "interrupt", "close", "finalize"]},
+        "observed_callback_latency_ms": {"type": ["number", "null"], "minimum": 0},
+        "certified_callback_max_ms": {"type": ["number", "null"], "minimum": 0},
+        "latched_state_sequence": {"type": "integer", "minimum": 0}
       }
     }
   }
