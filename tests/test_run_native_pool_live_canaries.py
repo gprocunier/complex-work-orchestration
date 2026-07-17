@@ -298,6 +298,122 @@ class FakeCalibrationServer:
         return values
 
 
+class FakeMonotonicClock:
+    def __init__(self) -> None:
+        self.now_ns = 0
+
+    def __call__(self) -> int:
+        return self.now_ns
+
+    def advance_ms(self, milliseconds: int) -> None:
+        self.now_ns += milliseconds * 1_000_000
+
+
+class FakeLiveThreadServer:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        initial_boundary: str = "missing",
+        read_statuses: list[str] | None = None,
+    ) -> None:
+        self.codex_home = root / "codex-home"
+        self.active = self.codex_home / "sessions" / "2026" / "07"
+        self.archive = self.codex_home / "archived_sessions"
+        self.active.mkdir(parents=True)
+        self.archive.mkdir(parents=True)
+        self.thread_id = str(uuid.uuid4())
+        self.turn_id = str(uuid.uuid4())
+        self.path = self.active / f"rollout-{self.thread_id}.jsonl"
+        self.started_threads: dict[str, str | None] = {self.thread_id: None}
+        self.status = "inProgress"
+        self.read_statuses = list(read_statuses or [])
+        self.turn_result_id: str | None = self.turn_id
+        self.bind_turn_result = True
+        self.start_error: Exception | None = None
+        self.archived = False
+        self.set_boundary(initial_boundary)
+
+    def set_boundary(self, kind: str) -> None:
+        if self.path.exists():
+            self.path.unlink()
+        if kind == "missing":
+            return
+        if kind == "empty":
+            self.path.touch()
+            return
+        if kind == "partial":
+            self.path.write_bytes(b"{")
+            return
+        if kind == "newline-only":
+            self.path.write_bytes(b"\n")
+            return
+        if kind != "valid":
+            raise AssertionError(f"unknown boundary kind: {kind}")
+        records = [
+            {"type": "session_meta", "payload": {"id": self.thread_id}},
+            {
+                "type": "turn_context",
+                "payload": {
+                    "turn_id": self.turn_id,
+                    "model": LIVE.EXACT_MODEL,
+                    "effort": "low",
+                },
+            },
+        ]
+        self.path.write_text(
+            "".join(json.dumps(record) + "\n" for record in records),
+            encoding="utf-8",
+        )
+
+    def thread_response(self) -> dict:
+        return {
+            "model": LIVE.EXACT_MODEL,
+            "modelProvider": "trusted",
+            "thread": {"id": self.thread_id, "turns": [], "path": str(self.path)},
+        }
+
+    def start_turn(self, thread_id: str, _message: str) -> tuple[dict, float]:
+        if thread_id != self.thread_id:
+            raise AssertionError("thread mismatch")
+        if self.start_error is not None:
+            raise self.start_error
+        if self.bind_turn_result:
+            self.started_threads[thread_id] = self.turn_result_id
+        return {"id": self.turn_result_id}, 1.0
+
+    def read_thread(self, thread_id: str) -> tuple[dict, float]:
+        if thread_id != self.thread_id:
+            raise AssertionError("thread mismatch")
+        if self.read_statuses:
+            self.status = self.read_statuses.pop(0)
+        return {
+            "id": self.thread_id,
+            "path": str(self.path),
+            "turns": [{"id": self.turn_id, "status": self.status, "items": []}],
+        }, 1.0
+
+    def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
+        if (thread_id, turn_id) != (self.thread_id, self.turn_id):
+            raise AssertionError("turn mismatch")
+        self.status = "interrupted"
+        return 1.0
+
+    def archive_thread(self, thread_id: str) -> float:
+        if thread_id != self.thread_id:
+            raise AssertionError("thread mismatch")
+        target = self.archive / self.path.name
+        if self.path.exists():
+            shutil.move(self.path, target)
+        self.path = target
+        self.archived = True
+        return 1.0
+
+    @staticmethod
+    def notifications(_thread_id: str, _method: str | None = None) -> list[dict]:
+        return []
+
+
 class LiveCanaryMaterializationTests(unittest.TestCase):
     def owner(self) -> dict:
         return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
@@ -424,6 +540,24 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
 
 
 class LiveThreadBoundaryPhaseTests(unittest.TestCase):
+    def adapter(
+        self,
+        root: Path,
+        server: FakeLiveThreadServer,
+        clock: FakeMonotonicClock,
+    ) -> LIVE.LiveThreadAdapter:
+        return LIVE.LiveThreadAdapter(
+            server,
+            server.thread_response(),
+            prompt="bounded prompt",
+            expected_token="DONE",
+            worktree=root,
+            mutable=False,
+            expected_mutation=None,
+            record_dir=root,
+            monotonic_ns=clock,
+        )
+
     def test_pre_dispatch_missing_and_empty_boundaries_are_unavailable(self) -> None:
         for materialization in ("missing", "empty"):
             with self.subTest(materialization=materialization), tempfile.TemporaryDirectory() as temporary:
@@ -514,6 +648,155 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     None,
                     allow_unmaterialized=False,
                 )
+
+    def test_acknowledged_missing_and_empty_boundaries_are_nonattesting(self) -> None:
+        for boundary_kind in ("missing", "empty"):
+            with self.subTest(boundary_kind=boundary_kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root, initial_boundary=boundary_kind)
+                adapter = self.adapter(root, server, clock)
+                adapter.send_input(message="bounded prompt")
+                with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                    evidence = adapter.evidence()
+                self.assertEqual(
+                    adapter._boundary_phase,
+                    "submission-acknowledged-awaiting-materialization",
+                )
+                self.assertEqual(evidence["session_disposition"], "accepted-with-warning")
+                self.assertEqual(
+                    evidence["artifact_disposition"], "independent-validation-required"
+                )
+                self.assertFalse(evidence["protected_fault"])
+                self.assertFalse(evidence["control_loss"])
+
+    def test_materialization_before_deadline_is_irreversible_and_exact(self) -> None:
+        for initial_boundary in ("missing", "empty"):
+            with self.subTest(initial_boundary=initial_boundary), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root, initial_boundary=initial_boundary)
+                adapter = self.adapter(root, server, clock)
+                adapter.send_input(message="bounded prompt")
+                adapter._capture_trusted_boundary(allow_pending=True)
+                clock.advance_ms(1499)
+                server.set_boundary("valid")
+                with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                    summary = adapter._trusted_summary()
+                self.assertEqual(adapter._boundary_phase, "materialized")
+                self.assertTrue(summary["session_boundary"]["available"])
+                self.assertTrue(summary["model_exact"])
+                self.assertIsNotNone(adapter._session_boundary_baseline)
+                self.assertIsNotNone(adapter._session_source_identity_sha256)
+                clock.advance_ms(5000)
+                with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                    self.assertTrue(adapter._trusted_summary()["model_exact"])
+
+    def test_first_complete_boundary_at_deadline_and_late_missing_are_rejected(self) -> None:
+        for materialize in (False, True):
+            with self.subTest(materialize=materialize), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root)
+                adapter = self.adapter(root, server, clock)
+                adapter.send_input(message="bounded prompt")
+                clock.advance_ms(LIVE.POST_SUBMISSION_MATERIALIZATION_GRACE_MS)
+                if materialize:
+                    server.set_boundary("valid")
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "materialization-deadline-exceeded"
+                ):
+                    adapter._trusted_summary()
+
+    def test_submission_identity_and_mapping_must_be_exact(self) -> None:
+        for failure in ("empty-id", "mapping-mismatch"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root)
+                if failure == "empty-id":
+                    server.turn_result_id = ""
+                else:
+                    server.bind_turn_result = False
+                adapter = self.adapter(root, server, clock)
+                expected = "turn-start-response-invalid" if failure == "empty-id" else "binding-mismatch"
+                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                    adapter.send_input(message="bounded prompt")
+                self.assertEqual(adapter._boundary_phase, "dispatch-attempted")
+                self.assertIsNone(adapter.turn_id)
+
+    def test_terminal_transition_interrupt_close_and_final_summary_are_strict(self) -> None:
+        for statuses in (["completed"], ["inProgress", "completed"]):
+            with self.subTest(statuses=statuses), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root, read_statuses=statuses)
+                adapter = self.adapter(root, server, clock)
+                adapter.send_input(message="bounded prompt")
+                with self.assertRaisesRegex(LIVE.AppServerError, "status-invalid:completed"):
+                    adapter._trusted_summary()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root)
+            adapter = self.adapter(root, server, clock)
+            adapter.send_input(message="bounded prompt")
+            adapter.interrupt()
+            with self.assertRaisesRegex(LIVE.AppServerError, "trusted session file is missing"):
+                adapter._trusted_summary()
+            adapter.close()
+            with self.assertRaisesRegex(LIVE.AppServerError, "trusted session file is missing"):
+                adapter.final_summary()
+
+    def test_nonempty_invalid_boundary_never_uses_pending_allowance(self) -> None:
+        for boundary_kind, expected in (("partial", "trailing partial"), ("newline-only", "complete object")):
+            with self.subTest(boundary_kind=boundary_kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root, initial_boundary=boundary_kind)
+                adapter = self.adapter(root, server, clock)
+                adapter.send_input(message="bounded prompt")
+                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                    adapter._trusted_summary()
+
+    def test_post_materialization_disappearance_truncation_rewrite_and_replacement_fail(self) -> None:
+        mutations = ("disappear", "zero", "truncate", "rewrite", "replace")
+        for mutation in mutations:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                clock = FakeMonotonicClock()
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                adapter = self.adapter(root, server, clock)
+                adapter.send_input(message="bounded prompt")
+                adapter._capture_trusted_boundary(allow_pending=True)
+                raw = server.path.read_bytes()
+                if mutation == "disappear":
+                    server.path.unlink()
+                elif mutation == "zero":
+                    server.path.write_bytes(b"")
+                elif mutation == "truncate":
+                    server.path.write_bytes(raw[:-1])
+                elif mutation == "rewrite":
+                    server.path.write_bytes(b"X" + raw[1:])
+                else:
+                    replacement = server.path.with_suffix(".replacement")
+                    replacement.write_bytes(raw)
+                    replacement.replace(server.path)
+                with self.assertRaises(LIVE.AppServerError):
+                    adapter._capture_trusted_boundary(allow_pending=True)
+
+    def test_duplicate_active_and_archive_boundaries_remain_rejecting(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            duplicate = server.archive / server.path.name
+            duplicate.write_bytes(server.path.read_bytes())
+            adapter = self.adapter(root, server, clock)
+            adapter.send_input(message="bounded prompt")
+            with self.assertRaisesRegex(LIVE.AppServerError, "duplicate active/archive"):
+                adapter._trusted_summary()
 
 
 class FullAutoAuthorizationLauncherTests(unittest.TestCase):

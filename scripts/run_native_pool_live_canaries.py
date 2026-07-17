@@ -49,6 +49,7 @@ from cwo_core.native_pool_config import build_pool_contract  # noqa: E402
 from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_RECEIPT_SCHEMA,
     CAPABILITY_RECEIPT_TYPE,
+    POOL_POLL_LAG_TOLERANCE_MS,
     canonical_sha256,
     seal_artifact,
     validate_capability_receipt,
@@ -69,6 +70,7 @@ from cwo_core.native_session_boundary import (  # noqa: E402
 
 EXACT_MODEL = "gpt-5.3-codex-spark"
 CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
+POST_SUBMISSION_MATERIALIZATION_GRACE_MS = POOL_POLL_LAG_TOLERANCE_MS
 FULL_AUTO_AUTHORIZATION_SCHEMA = "cwo-full-auto-run-authorization:v3"
 FULL_AUTO_AUTHORIZATION_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 OPERATIVE_ITEM_TYPES = {
@@ -599,14 +601,22 @@ def session_boundary_summary(
     *,
     baseline: Mapping[str, Any] | None = None,
     allow_unmaterialized: bool = False,
+    expected_source_identity_sha256: str | None = None,
 ) -> dict[str, Any]:
     try:
-        _located, boundary, records = capture_unique_boundary(
+        located, boundary, records = capture_unique_boundary(
             codex_home,
             thread_id,
             reported_path=reported,
             baseline=baseline,
         )
+        if (
+            expected_source_identity_sha256 is not None
+            and located.source_identity_sha256 != expected_source_identity_sha256
+        ):
+            raise NativeSessionBoundaryError(
+                "trusted session source identity changed after materialization"
+            )
     except NativeSessionBoundaryError as exc:
         boundary_error = str(exc)
         if not allow_unmaterialized or boundary_error not in {
@@ -619,11 +629,14 @@ def session_boundary_summary(
             "record_count": 0,
             "byte_offset": 0,
             "boundary_sha256": None,
+            "token_snapshot": None,
+            "source_identity_sha256": None,
             "trailing_partial": False,
             "attested_models": [],
             "attested_efforts": [],
             "compactions": 0,
             "reroutes": 0,
+            "observation_type": "unmaterialized-nonattesting",
         }
     models: list[str] = []
     efforts: list[str] = []
@@ -649,11 +662,14 @@ def session_boundary_summary(
         "record_count": boundary["record_count"],
         "byte_offset": boundary["byte_offset"],
         "boundary_sha256": boundary["boundary_sha256"],
+        "token_snapshot": boundary.get("token_snapshot"),
+        "source_identity_sha256": located.source_identity_sha256,
         "trailing_partial": False,
         "attested_models": sorted(set(models)),
         "attested_efforts": sorted(set(efforts)),
         "compactions": compactions,
         "reroutes": reroutes,
+        "observation_type": "trusted-complete-boundary",
     }
 
 
@@ -670,6 +686,7 @@ class LiveThreadAdapter:
         expected_mutation: str | None,
         force_interrupt_after_checks: int | None = None,
         record_dir: Path,
+        monotonic_ns: Callable[[], int] = time.monotonic_ns,
     ) -> None:
         self.server = server
         self.thread_response = dict(thread_response)
@@ -690,6 +707,11 @@ class LiveThreadAdapter:
         self.interrupted = False
         self.archived = False
         self._boundary_phase = "pre-dispatch"
+        self._boundary_lock = threading.RLock()
+        self._monotonic_ns = monotonic_ns
+        self._materialization_deadline_ns: int | None = None
+        self._session_boundary_baseline: dict[str, Any] | None = None
+        self._session_source_identity_sha256: str | None = None
         self.callback_latencies: dict[str, list[float]] = {}
         self._evidence_sequence = 0
 
@@ -715,15 +737,24 @@ class LiveThreadAdapter:
         def action() -> dict[str, str]:
             if message != self.prompt:
                 raise AppServerError("turn-prompt-binding-mismatch")
-            # Revoke the pre-dispatch materialization allowance before the RPC.
-            # A failed or ambiguous submission must not recover that allowance
-            # merely because no turn id was returned.
-            self._boundary_phase = "dispatch-attempted"
-            turn, _latency = self.server.start_turn(self.thread_id, message)
-            self.turn_id = str(turn["id"])
-            self._boundary_phase = "turn-bound"
-            self.send_started_ns = time.monotonic_ns()
-            return {"submission_id": self.turn_id}
+            with self._boundary_lock:
+                # Revoke the pre-dispatch allowance before the RPC. Failed or
+                # ambiguous submission can never recover it from a missing id.
+                self._boundary_phase = "dispatch-attempted"
+                turn, _latency = self.server.start_turn(self.thread_id, message)
+                returned_ns = self._monotonic_ns()
+                turn_id = turn.get("id") if isinstance(turn, Mapping) else None
+                if not isinstance(turn_id, str) or not turn_id:
+                    raise AppServerError("turn-start-response-invalid")
+                if self.server.started_threads.get(self.thread_id) != turn_id:
+                    raise AppServerError("trusted-turn-start-binding-mismatch")
+                self.turn_id = turn_id
+                self.send_started_ns = returned_ns
+                self._materialization_deadline_ns = returned_ns + (
+                    POST_SUBMISSION_MATERIALIZATION_GRACE_MS * 1_000_000
+                )
+                self._boundary_phase = "submission-acknowledged-awaiting-materialization"
+                return {"submission_id": self.turn_id}
 
         return self._timed("send_input", action)
 
@@ -774,11 +805,15 @@ class LiveThreadAdapter:
 
     def interrupt(self, **_kwargs: Any) -> dict[str, str]:
         def action() -> dict[str, str]:
-            if self.turn_id is None:
-                raise AppServerError("interrupt-turn-id-missing")
-            self.server.interrupt_turn(self.thread_id, self.turn_id)
-            self.interrupted = True
-            return {"ack": "interrupt-requested"}
+            with self._boundary_lock:
+                if self.turn_id is None:
+                    raise AppServerError("interrupt-turn-id-missing")
+                # Interrupt wins locally before the control RPC is attempted;
+                # unavailable telemetry can never be accepted after this point.
+                self._boundary_phase = "interrupt-requested"
+                self.server.interrupt_turn(self.thread_id, self.turn_id)
+                self.interrupted = True
+                return {"ack": "interrupt-requested"}
 
         return self._timed("interrupt", action)
 
@@ -799,15 +834,17 @@ class LiveThreadAdapter:
 
     def close(self, **_kwargs: Any) -> dict[str, str]:
         def action() -> dict[str, str]:
-            thread, _latency = self.server.read_thread(self.thread_id)
-            self.last_thread = thread
-            self.reported_session_path = thread.get("path") or self.reported_session_path
-            status = turn_status(thread, self.turn_id)
-            if status not in {"completed", "interrupted", "failed"}:
-                raise AppServerError(f"close-before-terminal:{status}")
-            self.server.archive_thread(self.thread_id)
-            self.archived = True
-            return {"ack": "closed"}
+            with self._boundary_lock:
+                self._boundary_phase = "closing"
+                thread, _latency = self.server.read_thread(self.thread_id)
+                self.last_thread = thread
+                self.reported_session_path = thread.get("path") or self.reported_session_path
+                status = turn_status(thread, self.turn_id)
+                if status not in {"completed", "interrupted", "failed"}:
+                    raise AppServerError(f"close-before-terminal:{status}")
+                self.server.archive_thread(self.thread_id)
+                self.archived = True
+                return {"ack": "closed"}
 
         return self._timed("close", action)
 
@@ -835,13 +872,98 @@ class LiveThreadAdapter:
                 values.append(line[3:].strip())
         return sorted(set(values))
 
-    def _trusted_summary(self) -> dict[str, Any]:
-        boundary = session_boundary_summary(
-            self.server.codex_home,
-            self.thread_id,
-            self.reported_session_path,
-            allow_unmaterialized=self._boundary_phase == "pre-dispatch",
-        )
+    def _pending_window_is_open_locked(self) -> None:
+        if self._boundary_phase != "submission-acknowledged-awaiting-materialization":
+            raise AppServerError("post-submission-materialization-phase-invalid")
+        if not self.turn_id or self.server.started_threads.get(self.thread_id) != self.turn_id:
+            raise AppServerError("trusted-turn-start-binding-mismatch")
+        if self._materialization_deadline_ns is None:
+            raise AppServerError("post-submission-materialization-deadline-missing")
+        if self._monotonic_ns() >= self._materialization_deadline_ns:
+            raise AppServerError("post-submission-materialization-deadline-exceeded")
+
+    def _record_complete_boundary_locked(self, boundary: Mapping[str, Any]) -> dict[str, Any]:
+        if self._boundary_phase == "submission-acknowledged-awaiting-materialization":
+            self._pending_window_is_open_locked()
+            self._boundary_phase = "materialized"
+        self._session_boundary_baseline = {
+            "record_count": boundary.get("record_count"),
+            "byte_offset": boundary.get("byte_offset"),
+            "boundary_sha256": boundary.get("boundary_sha256"),
+            "token_snapshot": boundary.get("token_snapshot"),
+        }
+        source_identity = boundary.get("source_identity_sha256")
+        if not isinstance(source_identity, str) or not source_identity:
+            raise AppServerError("trusted-session-source-identity-missing")
+        if (
+            self._session_source_identity_sha256 is not None
+            and source_identity != self._session_source_identity_sha256
+        ):
+            raise AppServerError("trusted-session-source-identity-changed")
+        self._session_source_identity_sha256 = source_identity
+        return dict(boundary)
+
+    def _fresh_nonterminal_thread_locked(self) -> None:
+        self._pending_window_is_open_locked()
+        thread, _latency = self.server.read_thread(self.thread_id)
+        if thread.get("id") != self.thread_id:
+            raise AppServerError("post-submission-thread-read-identity-mismatch")
+        self.last_thread = thread
+        self.reported_session_path = thread.get("path") or self.reported_session_path
+        status = turn_status(thread, self.turn_id)
+        if status != "inProgress":
+            raise AppServerError(f"post-submission-materialization-status-invalid:{status}")
+        self._pending_window_is_open_locked()
+
+    def _capture_trusted_boundary(self, *, allow_pending: bool) -> dict[str, Any]:
+        with self._boundary_lock:
+            pending_phase = self._boundary_phase in {
+                "pre-dispatch",
+                "submission-acknowledged-awaiting-materialization",
+            }
+            allow_unmaterialized = (
+                allow_pending
+                and pending_phase
+                and self._session_boundary_baseline is None
+            )
+            boundary = session_boundary_summary(
+                self.server.codex_home,
+                self.thread_id,
+                self.reported_session_path,
+                baseline=self._session_boundary_baseline,
+                allow_unmaterialized=allow_unmaterialized,
+                expected_source_identity_sha256=self._session_source_identity_sha256,
+            )
+            if boundary["available"]:
+                return self._record_complete_boundary_locked(boundary)
+            if self._boundary_phase == "pre-dispatch":
+                boundary["observation_type"] = (
+                    "pre-dispatch-unmaterialized-nonattesting-nonaccepting"
+                )
+                return boundary
+
+            # The trusted file was absent or exactly zero bytes. Re-read the
+            # control plane after that observation, retry the boundary once,
+            # then re-read status immediately before emitting a pending marker.
+            self._fresh_nonterminal_thread_locked()
+            boundary = session_boundary_summary(
+                self.server.codex_home,
+                self.thread_id,
+                self.reported_session_path,
+                baseline=None,
+                allow_unmaterialized=True,
+                expected_source_identity_sha256=None,
+            )
+            if boundary["available"]:
+                return self._record_complete_boundary_locked(boundary)
+            self._fresh_nonterminal_thread_locked()
+            boundary["observation_type"] = (
+                "post-submission-unmaterialized-nonattesting-nonaccepting"
+            )
+            return boundary
+
+    def _trusted_summary(self, *, allow_pending: bool = True) -> dict[str, Any]:
+        boundary = self._capture_trusted_boundary(allow_pending=allow_pending)
         items = turn_items(self.last_thread, self.turn_id)
         item_types = [str(item.get("type")) for item in items if item.get("type")]
         tool_calls = sum(item_type in OPERATIVE_ITEM_TYPES for item_type in item_types)
@@ -867,7 +989,12 @@ class LiveThreadAdapter:
                     "total": total.get("totalTokens"),
                 }
         models = boundary.get("attested_models", [])
-        model_exact = boundary.get("available") is True and models == [EXACT_MODEL]
+        efforts = boundary.get("attested_efforts", [])
+        model_exact = (
+            boundary.get("available") is True
+            and models == [EXACT_MODEL]
+            and efforts == ["low"]
+        )
         return {
             "thread_id": self.thread_id,
             "turn_id": self.turn_id,
@@ -929,13 +1056,17 @@ class LiveThreadAdapter:
             "turn_id": self.turn_id,
             "status": status,
             "boundary_sha256": summary["session_boundary"].get("boundary_sha256"),
+            "boundary_observation": summary["session_boundary"].get("observation_type"),
             "tool_calls": usage["tool_calls"],
             "runtime_seconds": usage["runtime_seconds"],
             "mutations": usage["mutations"],
             "compactions": usage["compactions"],
             "evidence_sequence": self._evidence_sequence,
         }
-        if self.interrupted:
+        if summary["session_boundary"].get("available") is not True:
+            session_disposition = "accepted-with-warning"
+            artifact_disposition = "independent-validation-required"
+        elif self.interrupted:
             session_disposition = "accepted-with-warning" if not reasons else "quarantined"
             artifact_disposition = "rejected"
         elif status == "completed" and not reasons:
@@ -958,7 +1089,7 @@ class LiveThreadAdapter:
         }
 
     def final_summary(self) -> dict[str, Any]:
-        summary = self._trusted_summary()
+        summary = self._trusted_summary(allow_pending=False)
         summary["callback_stats"] = {
             name: stats(values) for name, values in sorted(self.callback_latencies.items())
         }
@@ -1510,6 +1641,8 @@ def calibration(
         raise AppServerError("capability-thread-start-model-mismatch")
     if summary["session_boundary"].get("attested_models") != [EXACT_MODEL]:
         raise AppServerError("capability-session-model-mismatch")
+    if summary["session_boundary"].get("attested_efforts") != ["low"]:
+        raise AppServerError("capability-session-effort-mismatch")
     if summary["compactions"] or summary["reroute_count"]:
         raise AppServerError("capability-session-containment-failed")
 
@@ -1808,6 +1941,8 @@ def validate_campaign(
             errors.append("session-thread-start-model-mismatch")
         if boundary.get("attested_models") != [EXACT_MODEL]:
             errors.append("session-trusted-model-mismatch")
+        if boundary.get("attested_efforts") != ["low"]:
+            errors.append("session-trusted-effort-mismatch")
         if boundary.get("trailing_partial"):
             errors.append("session-terminal-boundary-partial")
         if session.get("compactions"):
