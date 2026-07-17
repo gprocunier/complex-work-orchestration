@@ -23,8 +23,20 @@ CANARY_AUTHORIZATION_TYPE = "cwo-native-canary-authorization-state:v1"
 STEERING_RECEIPT_SCHEMA = "schemas/native-steering-receipt.schema.json"
 MATERIALIZATION_EVIDENCE_SCHEMA = "schemas/native-session-materialization-evidence.schema.json"
 CANARY_AUTHORIZATION_SCHEMA = "schemas/native-canary-authorization-state.schema.json"
+FULL_AUTO_STOP_RESOLUTION_FIELDS = {
+    "schema",
+    "gate",
+    "steering_receipt_canonical_sha256",
+    "resolved_findings",
+    "unresolved_high_severity_findings",
+    "post_resolution_commit",
+    "resolution_evidence_sha256",
+    "pre_live_reconfirmation_required",
+}
+FULL_AUTO_FINDING_FIELDS = {"code", "severity", "status"}
 
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 ISO_MINIMUM = dt.datetime.min.replace(tzinfo=dt.timezone.utc)
 BOUNDARY_FIELDS = {
     "record_count",
@@ -283,6 +295,23 @@ def _legacy_sha256(value: Any) -> str:
 
 def _is_hash(value: Any) -> bool:
     return isinstance(value, str) and HASH_RE.fullmatch(value) is not None
+
+
+def _is_commit(value: Any) -> bool:
+    return isinstance(value, str) and COMMIT_RE.fullmatch(value) is not None
+
+
+def _is_valid_resolved_finding(value: Any) -> bool:
+    errors: list[str] = []
+    finding = _exact_fields(value, FULL_AUTO_FINDING_FIELDS, "steering-stop-finding", errors)
+    if errors or not isinstance(finding, dict) or set(finding) != FULL_AUTO_FINDING_FIELDS:
+        return False
+    return (
+        finding.get("status") == "resolved"
+        and finding.get("severity") in {"high", "medium"}
+        and isinstance(finding.get("code"), str)
+        and bool(finding.get("code"))
+    )
 
 
 def _parse_time(value: Any, label: str, errors: list[str]) -> dt.datetime:
@@ -544,6 +573,9 @@ def validate_steering_receipt(
     *,
     architect_adjudication_sha256: str | None = None,
     architect_decision: str | None = None,
+    allow_resolved_stop: bool = False,
+    resolved_stop_adjudication: Mapping[str, Any] | None = None,
+    resolved_stop_post_resolution_commit: str | None = None,
     require_accepting: bool = False,
 ) -> list[str]:
     errors: list[str] = []
@@ -600,9 +632,90 @@ def validate_steering_receipt(
     accepting = recommendation == "go"
     if recommendation == "conditional-go":
         accepting = _is_hash(architect_adjudication_sha256) and architect_decision == "go"
+    elif recommendation == "stop":
+        if allow_resolved_stop:
+            stop_errors = []
+            if not _is_hash(architect_adjudication_sha256) or architect_decision != "go":
+                stop_errors.append("steering-stop-main-adjudication-not-bound-go")
+            stop_errors.extend(
+                _validate_resolved_pre_mutation_stop_steering_receipt(
+                    receipt,
+                    resolved_stop_adjudication,
+                    resolved_stop_post_resolution_commit=resolved_stop_post_resolution_commit,
+                )
+            )
+            if stop_errors:
+                errors.extend(stop_errors)
+            else:
+                accepting = True
     if require_accepting and not accepting:
         errors.append("steering-receipt-not-accepting")
     return sorted(set(errors))
+
+
+def _validate_resolved_pre_mutation_stop_steering_receipt(
+    receipt: Mapping[str, Any],
+    adjudication: Mapping[str, Any] | None,
+    *,
+    resolved_stop_post_resolution_commit: str | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    if receipt.get("gate") != "pre-mutation":
+        errors.append("steering-stop-receipt-gate-invalid")
+        return errors
+    if not isinstance(adjudication, Mapping):
+        errors.append("steering-stop-adjudication-not-object")
+        return errors
+    adjudication_value = dict(adjudication)
+    if set(adjudication_value) != FULL_AUTO_STOP_RESOLUTION_FIELDS:
+        errors.append("steering-stop-adjudication-fields-invalid")
+        return errors
+    if adjudication_value.get("schema") != "cwo-resolved-stop-adjudication:v1":
+        errors.append("steering-stop-adjudication-schema-invalid")
+    if adjudication_value.get("gate") != "pre-mutation":
+        errors.append("steering-stop-adjudication-gate-invalid")
+    if adjudication_value.get("steering_receipt_canonical_sha256") != receipt.get(
+        "canonical_receipt_sha256"
+    ):
+        errors.append("steering-stop-adjudication-receipt-mismatch")
+    findings = adjudication_value.get("resolved_findings")
+    if not isinstance(findings, list) or not findings:
+        errors.append("steering-stop-adjudication-findings-invalid")
+    else:
+        for item in findings:
+            if not _is_valid_resolved_finding(item):
+                errors.append("steering-stop-adjudication-finding-invalid")
+                break
+    if adjudication_value.get("pre_live_reconfirmation_required") is not True:
+        errors.append("steering-stop-adjudication-reconfirmation-required-missing")
+    if adjudication_value.get("unresolved_high_severity_findings") != []:
+        errors.append("steering-stop-adjudication-findings-unresolved")
+    if not _is_hash(adjudication_value.get("resolution_evidence_sha256")):
+        errors.append("steering-stop-adjudication-evidence-digest-invalid")
+    post_commit = adjudication_value.get("post_resolution_commit")
+    if not _is_commit(post_commit):
+        errors.append("steering-stop-adjudication-post-commit-invalid")
+    if not _is_commit(resolved_stop_post_resolution_commit):
+        errors.append("steering-stop-adjudication-post-commit-missing")
+    elif post_commit != resolved_stop_post_resolution_commit:
+        errors.append("steering-stop-adjudication-post-commit-mismatch")
+    if errors:
+        return errors
+    required_codes = {
+        finding.get("code")
+        for finding in _extract_findings(receipt)
+        if finding.get("severity") in {"high", "medium"}
+    }
+    resolved_codes = {str(item.get("code")) for item in findings}
+    if len(resolved_codes) != len(findings) or required_codes != resolved_codes:
+        errors.append("steering-stop-adjudication-finding-codes-mismatch")
+    return errors
+
+
+def _extract_findings(receipt: Mapping[str, Any]) -> list[dict[str, Any]]:
+    opinion = receipt.get("opinion") if isinstance(receipt.get("opinion"), Mapping) else {}
+    findings = opinion.get("findings")
+    return findings if isinstance(findings, list) and all(isinstance(item, dict) for item in findings) else []
 
 
 def _private_write(path: Path, value: Mapping[str, Any]) -> None:
@@ -638,11 +751,18 @@ def consume_steering_receipt(
     phase_nonce: str,
     architect_adjudication_sha256: str,
     architect_decision: str,
+    allow_resolved_stop: bool = False,
+    resolved_stop_adjudication: Mapping[str, Any] | None = None,
+    resolved_stop_post_resolution_commit: str | None = None,
+    dry_run: bool = False,
 ) -> str:
     errors = validate_steering_receipt(
         receipt,
         architect_adjudication_sha256=architect_adjudication_sha256,
         architect_decision=architect_decision,
+        allow_resolved_stop=allow_resolved_stop,
+        resolved_stop_adjudication=resolved_stop_adjudication,
+        resolved_stop_post_resolution_commit=resolved_stop_post_resolution_commit,
         require_accepting=True,
     )
     if errors:
@@ -683,6 +803,8 @@ def consume_steering_receipt(
             for item in consumed
         ):
             raise NativeCanaryContractError("steering-receipt-replay")
+        if dry_run:
+            return key
         consumed.append(
             {
                 "receipt_sha256": receipt_hash,

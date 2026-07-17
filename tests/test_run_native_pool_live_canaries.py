@@ -5,9 +5,11 @@ import importlib.util
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import uuid
 
 
@@ -419,6 +421,256 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             result = LIVE.contain_started_threads(server)
             self.assertTrue(result["all_contained"])
             self.assertEqual(result["archived_count"], 1)
+
+
+class FullAutoAuthorizationLauncherTests(unittest.TestCase):
+    def make_repo(self, root: Path) -> tuple[str, str]:
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+        subprocess.run(["git", "config", "user.name", "CWO Test"], cwd=root, check=True)
+        (root / "baseline.txt").write_text("initial", encoding="utf-8")
+        subprocess.run(["git", "add", "baseline.txt"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "baseline"], cwd=root, check=True)
+        head = LIVE.run_git(root, "rev-parse", "HEAD")
+        subprocess.run(["git", "checkout", "-q", "--orphan", "orphan"], cwd=root, check=True)
+        (root / "orphan.txt").write_text("orphan", encoding="utf-8")
+        subprocess.run(["git", "add", "orphan.txt"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "orphan"], cwd=root, check=True)
+        orphan = LIVE.run_git(root, "rev-parse", "HEAD")
+        subprocess.run(["git", "checkout", "-q", "master"], cwd=root, check=True)
+        return head, orphan
+
+    def authorization(self, checkpoint: str) -> dict:
+        value = {
+            "schema": "cwo-full-auto-run-authorization:v3",
+            "run_generation": 5,
+            "initial_state": "active",
+            "authorization_id": str(uuid.uuid4()),
+            "forbidden": {
+                "glm_5_2": True,
+                "model_synthesis": True,
+                "release_before_live_acceptance": True,
+            },
+            "bindings": {
+                "campaign_nonce": str(uuid.uuid4()),
+                "checkpoint_commit": checkpoint,
+            },
+            "budgets": {
+                "spark_live_turn_starts_per_generation_exact": 7,
+                "spark_live_campaign_generations_hard": 3,
+            },
+            "executors": {
+                "steering": {"model": "gpt-5.6-sol", "effort": "max"},
+                "operative": {"model": "gpt-5.3-codex-spark"},
+            },
+            "mandatory_gates": {
+                "fresh_exact_sol_pre_mutation_receipt": True,
+                "fresh_exact_sol_pre_live_receipt": True,
+                "single_shot_per_generation_live_campaign": True,
+            },
+        }
+        value["canonical_authorization_sha256"] = LIVE.sha256_bytes(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        )
+        return value
+
+    def receipt(self, gate: str, authorization_id: str, recommendation: str = "go") -> dict:
+        return {
+            "gate": gate,
+            "authorization_id": authorization_id,
+            "authorization_sha256": "a" * 64,
+            "canonical_receipt_sha256": ("b" if gate == "pre-mutation" else "c") * 64,
+            "opinion": {"recommendation": recommendation},
+        }
+
+    def reseal_authorization(self, value: dict) -> None:
+        value.pop("canonical_authorization_sha256", None)
+        value["canonical_authorization_sha256"] = LIVE.sha256_bytes(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        )
+
+    def test_full_auto_authorization_v3_acceptance_and_v2_rejection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            head, _orphan = self.make_repo(root)
+            authorization = self.authorization(head)
+            self.assertEqual(
+                LIVE.validate_full_auto_authorization(
+                    authorization,
+                    authorization["bindings"]["campaign_nonce"],
+                    repo_root=root,
+                )[0],
+                authorization["authorization_id"],
+            )
+            for schema in ("cwo-full-auto-run-authorization:v2", "unknown"):
+                with self.subTest(schema=schema):
+                    invalid = json.loads(json.dumps(authorization))
+                    invalid["schema"] = schema
+                    with self.assertRaisesRegex(LIVE.AppServerError, "schema"):
+                        LIVE.validate_full_auto_authorization(
+                            invalid,
+                            invalid["bindings"]["campaign_nonce"],
+                            repo_root=root,
+                        )
+
+    def test_full_auto_authorization_allows_descendant_correction_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            checkpoint, _orphan = self.make_repo(root)
+            (root / "correction.txt").write_text("correction", encoding="utf-8")
+            subprocess.run(["git", "add", "correction.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "correction"], cwd=root, check=True)
+            authorization = self.authorization(checkpoint)
+            _authorization_id, current_head = LIVE.validate_full_auto_authorization(
+                authorization,
+                authorization["bindings"]["campaign_nonce"],
+                repo_root=root,
+            )
+            self.assertNotEqual(checkpoint, current_head)
+
+    def test_full_auto_authorization_rejects_hash_tamper_and_dirty_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            head, _orphan = self.make_repo(root)
+            authorization = self.authorization(head)
+            authorization["initial_state"] = "parked"
+            with self.assertRaisesRegex(LIVE.AppServerError, "canonical-hash"):
+                LIVE.validate_full_auto_authorization(
+                    authorization,
+                    authorization["bindings"]["campaign_nonce"],
+                    repo_root=root,
+                )
+            authorization = self.authorization(head)
+            (root / "baseline.txt").write_text("dirty", encoding="utf-8")
+            with self.assertRaisesRegex(LIVE.AppServerError, "repository-not-clean"):
+                LIVE.validate_full_auto_authorization(
+                    authorization,
+                    authorization["bindings"]["campaign_nonce"],
+                    repo_root=root,
+                )
+
+    def test_full_auto_authorization_checkpoint_must_be_ancestor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _head, orphan = self.make_repo(root)
+            authorization = self.authorization(orphan)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "full-auto-checkpoint-not-ancestor"
+            ):
+                LIVE.validate_full_auto_authorization(
+                    authorization,
+                    authorization["bindings"]["campaign_nonce"],
+                    repo_root=root,
+                )
+
+    def test_full_auto_authorization_rejects_weakened_live_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            head, _orphan = self.make_repo(root)
+            base = self.authorization(head)
+            cases = (
+                (("budgets", "spark_live_turn_starts_per_generation_exact"), 6, "budget"),
+                (("executors", "operative", "model"), "other", "executor"),
+                (("mandatory_gates", "fresh_exact_sol_pre_live_receipt"), False, "gates"),
+                (("forbidden", "model_synthesis"), False, "forbidden"),
+            )
+            for path, value, expected in cases:
+                with self.subTest(path=path):
+                    authorization = json.loads(json.dumps(base))
+                    target = authorization
+                    for field in path[:-1]:
+                        target = target[field]
+                    target[path[-1]] = value
+                    self.reseal_authorization(authorization)
+                    with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                        LIVE.validate_full_auto_authorization(
+                            authorization,
+                            authorization["bindings"]["campaign_nonce"],
+                            repo_root=root,
+                        )
+
+    def test_steering_plan_checks_both_bindings_before_validation(self) -> None:
+        campaign_nonce = str(uuid.uuid4())
+        auth_id = str(uuid.uuid4())
+        pre_mutation = self.receipt("pre-mutation", auth_id)
+        pre_live = self.receipt("pre-live", "wrong-authorization")
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            LIVE, "consume_steering_receipt"
+        ) as consume:
+            with self.assertRaisesRegex(LIVE.AppServerError, "pre-live-steering-binding"):
+                LIVE.plan_steering_receipt_consumptions(
+                    campaign_nonce,
+                    auth_id,
+                    "a" * 64,
+                    registry_file=Path(temporary) / "registry.json",
+                    repo_head="d" * 40,
+                    pre_mutation_receipt=pre_mutation,
+                    pre_mutation_adjudication={"main_architect_decision": "go"},
+                    pre_mutation_adjudication_sha256="d" * 64,
+                    pre_live_receipt=pre_live,
+                    pre_live_adjudication={"main_architect_decision": "go"},
+                    pre_live_adjudication_sha256="e" * 64,
+                )
+            consume.assert_not_called()
+
+    def test_steering_plan_dry_validates_both_before_consumption(self) -> None:
+        auth_id = str(uuid.uuid4())
+        receipts = (
+            self.receipt("pre-mutation", auth_id),
+            self.receipt("pre-live", auth_id),
+        )
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            LIVE,
+            "consume_steering_receipt",
+            side_effect=("pre-ok", LIVE.NativeCanaryContractError("pre-live-invalid")),
+        ) as consume:
+            registry = Path(temporary) / "registry.json"
+            with self.assertRaisesRegex(LIVE.AppServerError, "pre-live-steering-not-accepting"):
+                LIVE.plan_steering_receipt_consumptions(
+                    str(uuid.uuid4()),
+                    auth_id,
+                    "a" * 64,
+                    registry_file=registry,
+                    repo_head="d" * 40,
+                    pre_mutation_receipt=receipts[0],
+                    pre_mutation_adjudication={"main_architect_decision": "go"},
+                    pre_mutation_adjudication_sha256="d" * 64,
+                    pre_live_receipt=receipts[1],
+                    pre_live_adjudication={"main_architect_decision": "go"},
+                    pre_live_adjudication_sha256="e" * 64,
+                )
+            self.assertEqual(consume.call_count, 2)
+            self.assertTrue(all(call.kwargs["dry_run"] for call in consume.call_args_list))
+            self.assertFalse(registry.exists())
+
+    def test_steering_plan_scopes_resolved_stop_to_pre_mutation(self) -> None:
+        auth_id = str(uuid.uuid4())
+        pre_mutation = self.receipt("pre-mutation", auth_id, "stop")
+        pre_live = self.receipt("pre-live", auth_id)
+        resolution = {"schema": "cwo-resolved-stop-adjudication:v1"}
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            LIVE, "consume_steering_receipt", return_value="validated"
+        ) as consume:
+            prepared = LIVE.plan_steering_receipt_consumptions(
+                str(uuid.uuid4()),
+                auth_id,
+                "a" * 64,
+                registry_file=Path(temporary) / "registry.json",
+                repo_head="d" * 40,
+                pre_mutation_receipt=pre_mutation,
+                pre_mutation_adjudication={
+                    "main_architect_decision": "go",
+                    "resolved_stop": resolution,
+                },
+                pre_mutation_adjudication_sha256="d" * 64,
+                pre_live_receipt=pre_live,
+                pre_live_adjudication={"main_architect_decision": "go"},
+                pre_live_adjudication_sha256="e" * 64,
+            )
+            self.assertTrue(prepared["pre-mutation"][1]["allow_resolved_stop"])
+            self.assertIs(prepared["pre-mutation"][1]["resolved_stop_adjudication"], resolution)
+            self.assertNotIn("allow_resolved_stop", prepared["pre-live"][1])
+            self.assertTrue(all(call.kwargs["dry_run"] for call in consume.call_args_list))
 
 
 if __name__ == "__main__":

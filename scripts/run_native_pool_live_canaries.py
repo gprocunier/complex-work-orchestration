@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import queue
 import shutil
@@ -68,6 +69,8 @@ from cwo_core.native_session_boundary import (  # noqa: E402
 
 EXACT_MODEL = "gpt-5.3-codex-spark"
 CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
+FULL_AUTO_AUTHORIZATION_SCHEMA = "cwo-full-auto-run-authorization:v3"
+FULL_AUTO_AUTHORIZATION_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 OPERATIVE_ITEM_TYPES = {
     "commandExecution",
     "fileChange",
@@ -108,6 +111,13 @@ def run_git(cwd: Path, *args: str) -> str:
     return completed.stdout.strip()
 
 
+def require_repository_checkpoint(repo_root: Path, expected_head: str) -> None:
+    if run_git(repo_root, "rev-parse", "HEAD") != expected_head:
+        raise AppServerError("full-auto-repository-head-changed")
+    if run_git(repo_root, "status", "--porcelain=v1", "--untracked-files=no"):
+        raise AppServerError("full-auto-repository-not-clean")
+
+
 def percentile(values: list[float], ratio: float) -> float:
     ordered = sorted(values)
     if not ordered:
@@ -123,6 +133,167 @@ def stats(values: list[float]) -> dict[str, float]:
         "p99_ms": round(percentile(values, 0.99), 3),
         "max_ms": round(max(values), 3),
     }
+
+
+def validate_full_auto_authorization(
+    authorization: Mapping[str, Any],
+    campaign_nonce: str,
+    *,
+    repo_root: Path,
+) -> tuple[str, str]:
+    if not isinstance(authorization, Mapping):
+        raise AppServerError("full-auto-authorization-invalid-not-object")
+    if authorization.get("schema") != FULL_AUTO_AUTHORIZATION_SCHEMA:
+        raise AppServerError("full-auto-authorization-schema-invalid")
+    canonical_authorization_sha256 = authorization.get("canonical_authorization_sha256")
+    unsigned_authorization = dict(authorization)
+    unsigned_authorization.pop("canonical_authorization_sha256", None)
+    if (
+        not isinstance(canonical_authorization_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", canonical_authorization_sha256)
+        or sha256_bytes(
+            json.dumps(unsigned_authorization, sort_keys=True, separators=(",", ":")).encode()
+        )
+        != canonical_authorization_sha256
+    ):
+        raise AppServerError("full-auto-authorization-canonical-hash-invalid")
+    generation = authorization.get("run_generation")
+    if isinstance(generation, bool) or not isinstance(generation, int) or generation < 1:
+        raise AppServerError("full-auto-authorization-generation-invalid")
+    if authorization.get("initial_state") != "active":
+        raise AppServerError("full-auto-authorization-state-invalid")
+    forbidden = authorization.get("forbidden")
+    if not isinstance(forbidden, Mapping) or any(
+        forbidden.get(field) is not True
+        for field in ("glm_5_2", "model_synthesis", "release_before_live_acceptance")
+    ):
+        raise AppServerError("full-auto-authorization-forbidden-invalid")
+    bindings = authorization.get("bindings")
+    if not isinstance(bindings, Mapping) or bindings.get("campaign_nonce") != campaign_nonce:
+        raise AppServerError("full-auto-authorization-binding-invalid")
+    budgets = authorization.get("budgets")
+    if not isinstance(budgets, Mapping) or (
+        budgets.get("spark_live_turn_starts_per_generation_exact") != 7
+        or isinstance(budgets.get("spark_live_campaign_generations_hard"), bool)
+        or not isinstance(budgets.get("spark_live_campaign_generations_hard"), int)
+        or budgets.get("spark_live_campaign_generations_hard", 0) < 1
+    ):
+        raise AppServerError("full-auto-authorization-live-budget-invalid")
+    executors = authorization.get("executors")
+    steering = executors.get("steering") if isinstance(executors, Mapping) else None
+    operative = executors.get("operative") if isinstance(executors, Mapping) else None
+    if (
+        not isinstance(steering, Mapping)
+        or steering.get("model") != "gpt-5.6-sol"
+        or steering.get("effort") != "max"
+        or not isinstance(operative, Mapping)
+        or operative.get("model") != EXACT_MODEL
+    ):
+        raise AppServerError("full-auto-authorization-executor-invalid")
+    mandatory = authorization.get("mandatory_gates")
+    if not isinstance(mandatory, Mapping) or any(
+        mandatory.get(field) is not True
+        for field in (
+            "fresh_exact_sol_pre_mutation_receipt",
+            "fresh_exact_sol_pre_live_receipt",
+            "single_shot_per_generation_live_campaign",
+        )
+    ):
+        raise AppServerError("full-auto-authorization-gates-invalid")
+    authorization_id = str(authorization.get("authorization_id", ""))
+    try:
+        uuid.UUID(authorization_id)
+    except ValueError as exc:
+        raise AppServerError("full-auto-authorization-id-invalid") from exc
+    checkpoint_commit = bindings.get("checkpoint_commit")
+    if not isinstance(checkpoint_commit, str) or not FULL_AUTO_AUTHORIZATION_COMMIT_RE.fullmatch(
+        checkpoint_commit
+    ):
+        raise AppServerError("full-auto-checkpoint-commit-invalid")
+    try:
+        run_git(repo_root, "rev-parse", "--verify", checkpoint_commit)
+    except subprocess.CalledProcessError as exc:
+        raise AppServerError("full-auto-checkpoint-commit-invalid") from exc
+    head_commit = run_git(repo_root, "rev-parse", "HEAD")
+    try:
+        run_git(repo_root, "merge-base", "--is-ancestor", checkpoint_commit, head_commit)
+    except subprocess.CalledProcessError as exc:
+        raise AppServerError("full-auto-checkpoint-not-ancestor") from exc
+    require_repository_checkpoint(repo_root, head_commit)
+    return authorization_id, head_commit
+
+
+def plan_steering_receipt_consumptions(
+    campaign_nonce: str,
+    authorization_id: str,
+    authorization_sha256: str,
+    *,
+    registry_file: Path,
+    repo_head: str,
+    pre_mutation_receipt: Mapping[str, Any],
+    pre_mutation_adjudication: Mapping[str, Any],
+    pre_mutation_adjudication_sha256: str,
+    pre_live_receipt: Mapping[str, Any],
+    pre_live_adjudication: Mapping[str, Any],
+    pre_live_adjudication_sha256: str,
+) -> dict[str, tuple[str, dict[str, Any]]]:
+    bundles = (
+        (
+            "pre-mutation",
+            pre_mutation_receipt,
+            pre_mutation_adjudication,
+            pre_mutation_adjudication_sha256,
+        ),
+        (
+            "pre-live",
+            pre_live_receipt,
+            pre_live_adjudication,
+            pre_live_adjudication_sha256,
+        ),
+    )
+    for label, receipt, adjudication, adjudication_sha256 in bundles:
+        if (
+            receipt.get("gate") != label
+            or receipt.get("authorization_id") != authorization_id
+            or receipt.get("authorization_sha256") != authorization_sha256
+            or not re.fullmatch(r"[0-9a-f]{64}", adjudication_sha256)
+        ):
+            raise AppServerError(f"{label}-steering-binding-invalid")
+        if adjudication.get("main_architect_decision") != "go":
+            raise AppServerError(f"{label}-adjudication-decision-invalid")
+
+    steering_prepared: dict[str, tuple[str, dict[str, Any]]] = {}
+    for label, receipt, adjudication, adjudication_sha256 in bundles:
+        phase_nonce = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"{campaign_nonce}:{label}:{receipt.get('canonical_receipt_sha256')}",
+            )
+        )
+        kwargs: dict[str, Any] = {
+            "phase_nonce": phase_nonce,
+            "architect_adjudication_sha256": adjudication_sha256,
+            "architect_decision": "go",
+        }
+        if label == "pre-mutation" and receipt.get("opinion", {}).get("recommendation") == "stop":
+            kwargs.update(
+                {
+                    "allow_resolved_stop": True,
+                    "resolved_stop_adjudication": adjudication.get("resolved_stop"),
+                    "resolved_stop_post_resolution_commit": repo_head,
+                }
+            )
+        try:
+            consume_steering_receipt(
+                receipt,
+                registry_file,
+                dry_run=True,
+                **kwargs,
+            )
+        except NativeCanaryContractError as exc:
+            raise AppServerError(f"{label}-steering-not-accepting") from exc
+        steering_prepared[label] = (receipt["canonical_receipt_sha256"], kwargs)
+    return steering_prepared
 
 
 class AppServerError(RuntimeError):
@@ -1754,20 +1925,11 @@ def main() -> int:
             raise AppServerError("campaign-nonce-invalid") from exc
         authorization = load_private_json(args.authorization.absolute(), "authorization")
         authorization_sha256 = sha256_bytes(args.authorization.read_bytes())
-        if (
-            authorization.get("schema") != "cwo-full-auto-run-authorization:v2"
-            or authorization.get("initial_state") != "active"
-            or authorization.get("bindings", {}).get("campaign_nonce") != args.campaign_nonce
-            or authorization.get("forbidden", {}).get("glm_5_2") is not True
-            or authorization.get("forbidden", {}).get("model_synthesis") is not True
-            or authorization.get("forbidden", {}).get("release_before_live_acceptance") is not True
-        ):
-            raise AppServerError("full-auto-v2-authorization-binding-invalid")
-        authorization_id = str(authorization.get("authorization_id", ""))
-        try:
-            uuid.UUID(authorization_id)
-        except ValueError as exc:
-            raise AppServerError("authorization-id-invalid") from exc
+        authorization_id, repo_head = validate_full_auto_authorization(
+            authorization,
+            args.campaign_nonce,
+            repo_root=ROOT,
+        )
         state_path = (
             args.authorization_state.absolute()
             if args.authorization_state
@@ -1786,41 +1948,44 @@ def main() -> int:
                 now=iso(),
             )
         )
-        for label, receipt_path, adjudication_path in (
-            (
-                "pre-mutation",
-                args.pre_mutation_steering_receipt.absolute(),
-                args.pre_mutation_adjudication.absolute(),
-            ),
-            (
-                "pre-live",
-                args.pre_live_steering_receipt.absolute(),
-                args.pre_live_adjudication.absolute(),
-            ),
-        ):
-            receipt = load_private_json(receipt_path, f"{label}-steering-receipt")
-            adjudication = load_private_json(adjudication_path, f"{label}-adjudication")
-            if (
-                receipt.get("gate") != label
-                or receipt.get("authorization_id") != authorization_id
-                or receipt.get("authorization_sha256") != authorization_sha256
-                or adjudication.get("main_architect_decision") != "go"
-            ):
-                raise AppServerError(f"{label}-steering-binding-invalid")
-            adjudication_sha256 = sha256_bytes(adjudication_path.read_bytes())
-            phase_nonce = str(
-                uuid.uuid5(
-                    uuid.NAMESPACE_URL,
-                    f"{args.campaign_nonce}:{label}:{receipt.get('canonical_receipt_sha256')}",
-                )
-            )
-            steering_consumptions[label] = consume_steering_receipt(
-                receipt,
-                registry_path,
-                phase_nonce=phase_nonce,
-                architect_adjudication_sha256=adjudication_sha256,
-                architect_decision="go",
-            )
+        pre_mutation_receipt = load_private_json(
+            args.pre_mutation_steering_receipt.absolute(), "pre-mutation-steering-receipt"
+        )
+        pre_live_receipt = load_private_json(
+            args.pre_live_steering_receipt.absolute(), "pre-live-steering-receipt"
+        )
+        pre_mutation_adjudication = load_private_json(
+            args.pre_mutation_adjudication.absolute(), "pre-mutation-adjudication"
+        )
+        pre_mutation_adjudication_sha256 = sha256_bytes(
+            args.pre_mutation_adjudication.absolute().read_bytes()
+        )
+        pre_live_adjudication = load_private_json(
+            args.pre_live_adjudication.absolute(), "pre-live-adjudication"
+        )
+        pre_live_adjudication_sha256 = sha256_bytes(args.pre_live_adjudication.absolute().read_bytes())
+        prepared = plan_steering_receipt_consumptions(
+            args.campaign_nonce,
+            authorization_id,
+            authorization_sha256,
+            registry_file=registry_path,
+            repo_head=repo_head,
+            pre_mutation_receipt=pre_mutation_receipt,
+            pre_mutation_adjudication=pre_mutation_adjudication,
+            pre_mutation_adjudication_sha256=pre_mutation_adjudication_sha256,
+            pre_live_receipt=pre_live_receipt,
+            pre_live_adjudication=pre_live_adjudication,
+            pre_live_adjudication_sha256=pre_live_adjudication_sha256,
+        )
+        require_repository_checkpoint(ROOT, repo_head)
+        for label in ("pre-mutation", "pre-live"):
+            _, params = prepared[label]
+            if label == "pre-mutation":
+                receipt = pre_mutation_receipt
+            else:
+                receipt = pre_live_receipt
+            steering_consumptions[label] = consume_steering_receipt(receipt, registry_path, **params)
+        require_repository_checkpoint(ROOT, repo_head)
         authorization_store.require_action("tracked-mutation")
         with tempfile.TemporaryDirectory(prefix="cwo-18w6-live-") as temporary:
             temp_root = Path(temporary)

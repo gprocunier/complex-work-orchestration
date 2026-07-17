@@ -222,6 +222,37 @@ def steering() -> dict:
     return value
 
 
+def stop_steering_receipt() -> dict:
+    receipt = steering()
+    receipt["opinion"]["recommendation"] = "stop"
+    receipt["opinion"]["findings"] = [
+        {"severity": "high", "code": "A-1", "finding": "fix this"},
+        {"severity": "medium", "code": "B-2", "finding": "patch this"},
+        {"severity": "low", "code": "L-9", "finding": "non-blocking"},
+    ]
+    receipt.pop("canonical_receipt_sha256", None)
+    receipt["canonical_receipt_sha256"] = hashlib.sha256(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return receipt
+
+
+def resolved_stop_adjudication(receipt: dict) -> dict:
+    return {
+        "schema": "cwo-resolved-stop-adjudication:v1",
+        "gate": "pre-mutation",
+        "steering_receipt_canonical_sha256": receipt["canonical_receipt_sha256"],
+        "resolved_findings": [
+            {"code": "A-1", "severity": "high", "status": "resolved"},
+            {"code": "B-2", "severity": "medium", "status": "resolved"},
+        ],
+        "unresolved_high_severity_findings": [],
+        "post_resolution_commit": "d" * 40,
+        "resolution_evidence_sha256": "e" * 64,
+        "pre_live_reconfirmation_required": True,
+    }
+
+
 class NativeCanaryContractTests(unittest.TestCase):
     def test_rendered_command_requires_exact_production_wrapper(self) -> None:
         expected = validate_capability_rendered_command(
@@ -362,6 +393,156 @@ class NativeCanaryContractTests(unittest.TestCase):
                     architect_adjudication_sha256=adjudication,
                     architect_decision="go",
                 )
+
+    def test_steering_stop_pre_mutation_requires_resolved_main_architect_adjudication(self) -> None:
+        receipt = stop_steering_receipt()
+        adjudication = resolved_stop_adjudication(receipt)
+        adjudication_hash = "a" * 64
+        head = "d" * 40
+        self.assertIn(
+            "steering-receipt-not-accepting",
+            validate_steering_receipt(receipt, require_accepting=True),
+        )
+        self.assertEqual(
+            validate_steering_receipt(
+                receipt,
+                architect_adjudication_sha256=adjudication_hash,
+                architect_decision="go",
+                allow_resolved_stop=True,
+                resolved_stop_adjudication=adjudication,
+                resolved_stop_post_resolution_commit=head,
+                require_accepting=True,
+            ),
+            [],
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            registry = Path(temporary) / "consumed.json"
+            kwargs = {
+                "phase_nonce": str(uuid.uuid4()),
+                "architect_adjudication_sha256": adjudication_hash,
+                "architect_decision": "go",
+                "allow_resolved_stop": True,
+                "resolved_stop_adjudication": adjudication,
+                "resolved_stop_post_resolution_commit": head,
+            }
+            consume_steering_receipt(receipt, registry, **kwargs)
+            kwargs["phase_nonce"] = str(uuid.uuid4())
+            with self.assertRaisesRegex(NativeCanaryContractError, "replay"):
+                consume_steering_receipt(receipt, registry, **kwargs)
+
+    def test_steering_stop_pre_mutation_malformed_resolution_cases(self) -> None:
+        base_receipt = stop_steering_receipt()
+        base_adjudication = resolved_stop_adjudication(base_receipt)
+        base_hash = "a" * 64
+        head = "d" * 40
+        cases = (
+            ({"schema": "wrong"}, "steering-stop-adjudication-schema-invalid"),
+            ({"gate": "pre-live"}, "steering-stop-adjudication-gate-invalid"),
+            (
+                {"steering_receipt_canonical_sha256": "f" * 64},
+                "steering-stop-adjudication-receipt-mismatch",
+            ),
+            (
+                {"resolved_findings": [{"code": "A-1", "severity": "high", "status": "unresolved"}]},
+                "steering-stop-adjudication-finding-invalid",
+            ),
+            (
+                {"resolved_findings": [
+                    {"code": "A-1", "severity": "high", "status": "resolved"},
+                    {"code": "Z", "severity": "medium", "status": "resolved"},
+                ]},
+                "steering-stop-adjudication-finding-codes-mismatch",
+            ),
+            (
+                {"unresolved_high_severity_findings": ["A-1"]},
+                "steering-stop-adjudication-findings-unresolved",
+            ),
+            ({"post_resolution_commit": "e" * 40}, "steering-stop-adjudication-post-commit-mismatch"),
+            ({"resolution_evidence_sha256": "g"}, "steering-stop-adjudication-evidence-digest-invalid"),
+            (
+                {"pre_live_reconfirmation_required": False},
+                "steering-stop-adjudication-reconfirmation-required-missing",
+            ),
+            ({"post_resolution_commit": "d" * 41}, "steering-stop-adjudication-post-commit-invalid"),
+        )
+        for mutation, expected in cases:
+            with self.subTest(mutation=mutation):
+                adjudication = copy.deepcopy(base_adjudication)
+                adjudication.update(mutation)
+                errors = validate_steering_receipt(
+                    base_receipt,
+                    architect_adjudication_sha256=base_hash,
+                    architect_decision="go",
+                    allow_resolved_stop=True,
+                    resolved_stop_adjudication=adjudication,
+                    resolved_stop_post_resolution_commit=head,
+                    require_accepting=True,
+                )
+                self.assertIn(expected, errors)
+
+        errors = validate_steering_receipt(
+            base_receipt,
+            architect_adjudication_sha256=base_hash,
+            architect_decision="conditional-go",
+            allow_resolved_stop=True,
+            resolved_stop_adjudication=base_adjudication,
+            resolved_stop_post_resolution_commit=head,
+            require_accepting=True,
+        )
+        self.assertIn("steering-stop-main-adjudication-not-bound-go", errors)
+
+        pre_live_receipt = copy.deepcopy(base_receipt)
+        pre_live_receipt["gate"] = "pre-live"
+        pre_live_receipt["canonical_receipt_sha256"] = hashlib.sha256(
+            json.dumps(
+                {k: v for k, v in pre_live_receipt.items() if k != "canonical_receipt_sha256"},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        pre_live_adjudication = resolved_stop_adjudication(pre_live_receipt)
+        errors = validate_steering_receipt(
+            pre_live_receipt,
+            architect_adjudication_sha256=base_hash,
+            architect_decision="go",
+            allow_resolved_stop=True,
+            resolved_stop_adjudication=pre_live_adjudication,
+            resolved_stop_post_resolution_commit=head,
+            require_accepting=True,
+        )
+        self.assertIn("steering-stop-receipt-gate-invalid", errors)
+
+    def test_steering_stop_pre_mutation_unknown_adjudication_fields_reject(self) -> None:
+        receipt = stop_steering_receipt()
+        adjudication = resolved_stop_adjudication(receipt)
+        adjudication["unexpected"] = "extra"
+        errors = validate_steering_receipt(
+            receipt,
+            architect_adjudication_sha256="a" * 64,
+            architect_decision="go",
+            allow_resolved_stop=True,
+            resolved_stop_adjudication=adjudication,
+            resolved_stop_post_resolution_commit="d" * 40,
+            require_accepting=True,
+        )
+        self.assertIn("steering-stop-adjudication-fields-invalid", errors)
+
+    def test_steering_stop_pre_mutation_reconciles_missing_required_findings(self) -> None:
+        receipt = stop_steering_receipt()
+        adjudication = resolved_stop_adjudication(receipt)
+        adjudication["resolved_findings"] = [
+            {"code": "A-1", "severity": "high", "status": "resolved"},
+        ]
+        errors = validate_steering_receipt(
+            receipt,
+            architect_adjudication_sha256="a" * 64,
+            architect_decision="go",
+            allow_resolved_stop=True,
+            resolved_stop_adjudication=adjudication,
+            resolved_stop_post_resolution_commit="d" * 40,
+            require_accepting=True,
+        )
+        self.assertIn("steering-stop-adjudication-finding-codes-mismatch", errors)
 
     def test_steering_model_activity_boundary_and_hash_tamper(self) -> None:
         receipt = steering()
