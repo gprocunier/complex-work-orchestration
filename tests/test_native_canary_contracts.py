@@ -47,10 +47,20 @@ def observation(second: int, label: str = "same") -> dict:
     return {
         "observed_at": f"2026-07-16T00:00:0{second}Z",
         "boundary": boundary(f"boundary-{second}", 4 + second),
+        "session_source_identity_sha256": hash_value("source"),
+        "connection_epoch_sha256": hash_value("connection"),
+        "notification_sequence": 4,
+        "notification_received_monotonic_ns": 100,
+        "notification_started_at_ms": 42,
         "turn_context_record_index": 2,
-        "command_item_index": 0,
+        "function_call_record_index": 3,
+        "command_item_id_sha256": hash_value("item"),
+        "function_call_id_sha256": hash_value("call"),
         "command_origin": "agent",
         "command_status": "inProgress",
+        "started_event_count": 1,
+        "completed_event_count": 0,
+        "paired_result_count": 0,
         "terminal_event_count": 0,
         "failed_event_count": 0,
         "declined_event_count": 0,
@@ -64,7 +74,7 @@ def materialization() -> dict:
     return seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 1,
+            "version": 2,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": "evidence-one",
             "run_nonce": str(uuid.uuid4()),
@@ -75,16 +85,19 @@ def materialization() -> dict:
             "requested_model": "gpt-5.3-codex-spark",
             "attested_model": "gpt-5.3-codex-spark",
             "attested_effort": "low",
-            "attestation_source": "initialized-codex-home-session-jsonl-turn-context",
+            "attestation_source": "initialized-codex-home-session-jsonl-and-local-app-server-stdio-notifications",
+            "connection_epoch_sha256": hash_value("connection"),
             "command_sha256": hash_value("sleep 20"),
             "baseline": boundary("baseline", 1),
             "liveness_observations": [observation(1), observation(2)],
             "pre_interrupt_observation": observation(3),
             "interrupt": {
                 "requested_at": "2026-07-16T00:00:03Z",
+                "request_accepted_at": "2026-07-16T00:00:03.100Z",
                 "confirmed_at": "2026-07-16T00:00:04Z",
                 "session_id": session,
                 "turn_id": turn,
+                "request_outcome": "accepted",
                 "outcome": "interrupt-confirmed",
             },
             "terminal": boundary("terminal", 9),
@@ -181,7 +194,7 @@ class NativeCanaryContractTests(unittest.TestCase):
         value["liveness_observations"][1]["observed_at"] = "2026-07-16T00:00:01.500Z"
         cases.append((value, "separation"))
         value = materialization()
-        value["pre_interrupt_observation"]["turn_context_record_index"] = 3
+        value["pre_interrupt_observation"]["function_call_record_index"] = 4
         cases.append((value, "identity"))
         value = materialization()
         value["liveness_observations"][0]["terminal_event_count"] = 1
@@ -194,6 +207,18 @@ class NativeCanaryContractTests(unittest.TestCase):
         cases.append((value, "interrupt-identity"))
         value = materialization()
         value["interrupt"]["confirmed_at"] = "2026-07-16T00:00:09Z"
+        cases.append((value, "deadline"))
+        value = materialization()
+        value["liveness_observations"][1]["function_call_id_sha256"] = hash_value("other-call")
+        cases.append((value, "identity"))
+        value = materialization()
+        value["pre_interrupt_observation"]["completed_event_count"] = 1
+        cases.append((value, "completed_event_count"))
+        value = materialization()
+        value["liveness_observations"][0]["connection_epoch_sha256"] = hash_value("other-connection")
+        cases.append((value, "connection-epoch"))
+        value = materialization()
+        value["interrupt"]["request_accepted_at"] = "2026-07-16T00:00:02Z"
         cases.append((value, "deadline"))
         for value, expected in cases:
             value = seal_materialization_evidence(value)

@@ -17,7 +17,7 @@ from .util import atomic_write_text
 
 
 STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v1"
-MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v1"
+MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v2"
 CANARY_AUTHORIZATION_TYPE = "cwo-native-canary-authorization-state:v1"
 STEERING_RECEIPT_SCHEMA = "schemas/native-steering-receipt.schema.json"
 MATERIALIZATION_EVIDENCE_SCHEMA = "schemas/native-session-materialization-evidence.schema.json"
@@ -35,10 +35,20 @@ BOUNDARY_FIELDS = {
 OBSERVATION_FIELDS = {
     "observed_at",
     "boundary",
+    "session_source_identity_sha256",
+    "connection_epoch_sha256",
+    "notification_sequence",
+    "notification_received_monotonic_ns",
+    "notification_started_at_ms",
     "turn_context_record_index",
-    "command_item_index",
+    "function_call_record_index",
+    "command_item_id_sha256",
+    "function_call_id_sha256",
     "command_origin",
     "command_status",
+    "started_event_count",
+    "completed_event_count",
+    "paired_result_count",
     "terminal_event_count",
     "failed_event_count",
     "declined_event_count",
@@ -46,9 +56,11 @@ OBSERVATION_FIELDS = {
 }
 INTERRUPT_FIELDS = {
     "requested_at",
+    "request_accepted_at",
     "confirmed_at",
     "session_id",
     "turn_id",
+    "request_outcome",
     "outcome",
 }
 MATERIALIZATION_FIELDS = {
@@ -65,6 +77,7 @@ MATERIALIZATION_FIELDS = {
     "attested_model",
     "attested_effort",
     "attestation_source",
+    "connection_epoch_sha256",
     "command_sha256",
     "baseline",
     "liveness_observations",
@@ -234,8 +247,14 @@ def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[di
     observed = _parse_time(observation.get("observed_at"), f"{label}-observed-at", errors)
     _validate_boundary(observation.get("boundary"), f"{label}-boundary", errors)
     for field in (
+        "notification_sequence",
+        "notification_received_monotonic_ns",
+        "notification_started_at_ms",
         "turn_context_record_index",
-        "command_item_index",
+        "function_call_record_index",
+        "started_event_count",
+        "completed_event_count",
+        "paired_result_count",
         "terminal_event_count",
         "failed_event_count",
         "declined_event_count",
@@ -244,11 +263,21 @@ def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[di
         current = observation.get(field)
         if isinstance(current, bool) or not isinstance(current, int) or current < 0:
             errors.append(f"{label}-{field}-invalid")
+    for field in (
+        "session_source_identity_sha256",
+        "connection_epoch_sha256",
+        "command_item_id_sha256",
+        "function_call_id_sha256",
+    ):
+        if not _is_hash(observation.get(field)):
+            errors.append(f"{label}-{field}-invalid")
     if observation.get("command_origin") != "agent":
         errors.append(f"{label}-command-origin-invalid")
     if observation.get("command_status") != "inProgress":
         errors.append(f"{label}-command-not-in-progress")
     for field in (
+        "completed_event_count",
+        "paired_result_count",
         "terminal_event_count",
         "failed_event_count",
         "declined_event_count",
@@ -256,6 +285,8 @@ def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[di
     ):
         if observation.get(field) != 0:
             errors.append(f"{label}-{field}-nonzero")
+    if observation.get("started_event_count") != 1:
+        errors.append(f"{label}-started-event-count-invalid")
     return observation, observed
 
 
@@ -271,7 +302,7 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
     evidence = _exact_fields(value, MATERIALIZATION_FIELDS, "materialization", errors)
     if evidence.get("evidence_type") != MATERIALIZATION_EVIDENCE_TYPE:
         errors.append("materialization-type-invalid")
-    if evidence.get("version") != 1 or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA:
+    if evidence.get("version") != 2 or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA:
         errors.append("materialization-header-invalid")
     for field in (
         "evidence_id",
@@ -294,8 +325,9 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             errors.append(f"materialization-{field}-not-uuid")
     if evidence.get("requested_model") != evidence.get("attested_model"):
         errors.append("materialization-model-mismatch")
-    if not _is_hash(evidence.get("command_sha256")):
-        errors.append("materialization-command-sha256-invalid")
+    for field in ("connection_epoch_sha256", "command_sha256"):
+        if not _is_hash(evidence.get(field)):
+            errors.append(f"materialization-{field}-invalid")
     baseline = _validate_boundary(evidence.get("baseline"), "materialization-baseline", errors)
     terminal = _validate_boundary(evidence.get("terminal"), "materialization-terminal", errors)
     observations = evidence.get("liveness_observations")
@@ -314,21 +346,41 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         second, second_time = parsed_observations[1]
         if (second_time - first_time).total_seconds() < 1.0:
             errors.append("materialization-observation-separation-too-short")
-        identity_fields = ("turn_context_record_index", "command_item_index")
+        identity_fields = (
+            "session_source_identity_sha256",
+            "connection_epoch_sha256",
+            "notification_sequence",
+            "notification_received_monotonic_ns",
+            "notification_started_at_ms",
+            "turn_context_record_index",
+            "function_call_record_index",
+            "command_item_id_sha256",
+            "function_call_id_sha256",
+        )
         if any(first.get(field) != second.get(field) for field in identity_fields):
             errors.append("materialization-liveness-identity-changed")
         if any(second.get(field) != pre_interrupt.get(field) for field in identity_fields):
             errors.append("materialization-pre-interrupt-identity-changed")
         if pre_time < second_time:
             errors.append("materialization-pre-interrupt-precedes-liveness")
+        if any(
+            item.get("connection_epoch_sha256") != evidence.get("connection_epoch_sha256")
+            for item, _time in (*parsed_observations, (pre_interrupt, pre_time))
+        ):
+            errors.append("materialization-connection-epoch-mismatch")
     interrupt = _exact_fields(evidence.get("interrupt"), INTERRUPT_FIELDS, "materialization-interrupt", errors)
     requested = _parse_time(interrupt.get("requested_at"), "materialization-interrupt-requested", errors)
+    accepted = _parse_time(
+        interrupt.get("request_accepted_at"), "materialization-interrupt-request-accepted", errors
+    )
     confirmed = _parse_time(interrupt.get("confirmed_at"), "materialization-interrupt-confirmed", errors)
     if interrupt.get("session_id") != evidence.get("session_id") or interrupt.get("turn_id") != evidence.get("turn_id"):
         errors.append("materialization-interrupt-identity-mismatch")
+    if interrupt.get("request_outcome") != "accepted":
+        errors.append("materialization-interrupt-request-outcome-invalid")
     if interrupt.get("outcome") != "interrupt-confirmed":
         errors.append("materialization-interrupt-outcome-invalid")
-    if confirmed < requested or (confirmed - requested).total_seconds() > 5.0:
+    if accepted < requested or confirmed < accepted or (confirmed - requested).total_seconds() > 5.0:
         errors.append("materialization-interrupt-confirmation-deadline-invalid")
     if baseline and terminal:
         if terminal.get("record_count", 0) < baseline.get("record_count", 0) or terminal.get(

@@ -17,6 +17,7 @@ from cwo_core.native_session_boundary import (  # noqa: E402
     capture_unique_boundary,
     locate_unique_session,
     same_boundary,
+    session_source_identity,
     telemetry_markers,
     trusted_turn_context,
 )
@@ -74,14 +75,29 @@ class NativeSessionBoundaryTests(unittest.TestCase):
 
     def test_active_to_archive_relocation_preserves_prefix(self) -> None:
         self.write()
-        _located, baseline, _records = capture_unique_boundary(self.root, self.session_id)
+        initial, baseline, _records = capture_unique_boundary(self.root, self.session_id)
         archived = self.archive / self.path.name
         self.path.rename(archived)
         located, current, _records = capture_unique_boundary(
             self.root, self.session_id, baseline=baseline
         )
         self.assertEqual(located.store, "archived_sessions")
+        self.assertEqual(initial.source_identity_sha256, located.source_identity_sha256)
         self.assertTrue(same_boundary(baseline, current))
+
+    def test_symlink_and_identical_content_replacement_are_rejected(self) -> None:
+        outside = self.root / "outside.jsonl"
+        self.write(outside)
+        self.path.symlink_to(outside)
+        with self.assertRaisesRegex(NativeSessionBoundaryError, "symlink"):
+            locate_unique_session(self.root, self.session_id)
+        self.path.unlink()
+        self.write()
+        original_identity = session_source_identity(self.path, self.session_id)
+        replacement = self.path.with_suffix(".replacement")
+        replacement.write_bytes(self.path.read_bytes())
+        replacement.replace(self.path)
+        self.assertNotEqual(original_identity, session_source_identity(self.path, self.session_id))
 
     def test_duplicate_active_and_archive_fails_closed(self) -> None:
         self.write()

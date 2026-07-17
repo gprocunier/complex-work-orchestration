@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
+import stat
 from typing import Any, Mapping, Sequence
 
 from .native_session import _record_token_snapshot
@@ -25,6 +27,41 @@ class LocatedSession:
 
     path: Path
     store: str
+    source_identity_sha256: str
+
+
+def _regular_owner_stat(path: Path) -> os.stat_result:
+    """Return a stable stat for one trusted, owner-bound regular file."""
+
+    if path.is_symlink():
+        raise NativeSessionBoundaryError("trusted session file is a symlink")
+    try:
+        current = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise NativeSessionBoundaryError("trusted session file is unavailable") from exc
+    if not stat.S_ISREG(current.st_mode):
+        raise NativeSessionBoundaryError("trusted session source is not a regular file")
+    if current.st_uid != os.geteuid():
+        raise NativeSessionBoundaryError("trusted session source owner does not match controller")
+    return current
+
+
+def session_source_identity(path: Path | str, session_id: str) -> str:
+    """Hash path-independent filesystem identity for replacement detection."""
+
+    current = _regular_owner_stat(Path(path))
+    payload = json.dumps(
+        {
+            "device": current.st_dev,
+            "inode": current.st_ino,
+            "mode": stat.S_IMODE(current.st_mode),
+            "owner": current.st_uid,
+            "session_id": session_id,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(b"cwo:native-session-source:v1\0" + payload).hexdigest()
 
 
 def _token_snapshot(records: Sequence[Mapping[str, Any]]) -> dict[str, int] | None:
@@ -40,6 +77,7 @@ def capture_boundary(path: Path | str, session_id: str) -> tuple[dict[str, Any],
     """Capture one complete, identity-bound JSONL boundary."""
 
     session_path = Path(path)
+    source_before = session_source_identity(session_path, session_id)
     raw = session_path.read_bytes()
     if not raw:
         raise NativeSessionBoundaryError("session file has no complete records")
@@ -85,6 +123,8 @@ def capture_boundary(path: Path | str, session_id: str) -> tuple[dict[str, Any],
     )
     if identities != {session_id}:
         raise NativeSessionBoundaryError("trusted session identity is missing from JSONL boundary")
+    if session_source_identity(session_path, session_id) != source_before:
+        raise NativeSessionBoundaryError("trusted session source changed during boundary capture")
     return (
         {
             "record_count": len(records),
@@ -101,7 +141,9 @@ def same_boundary(expected: Mapping[str, Any], actual: Mapping[str, Any]) -> boo
 
 
 def assert_prefix_intact(path: Path | str, baseline: Mapping[str, Any]) -> None:
-    raw = Path(path).read_bytes()
+    session_path = Path(path)
+    _regular_owner_stat(session_path)
+    raw = session_path.read_bytes()
     offset = baseline.get("byte_offset")
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
         raise NativeSessionBoundaryError("baseline byte offset is invalid")
@@ -126,6 +168,7 @@ def locate_unique_session(
     if reported_path is not None:
         reported = Path(reported_path)
         if reported.is_file():
+            _regular_owner_stat(reported)
             resolved = reported.resolve()
             try:
                 relative = resolved.relative_to(root.resolve())
@@ -139,13 +182,18 @@ def locate_unique_session(
             continue
         for path in directory.rglob(f"*{session_id}.jsonl"):
             if path.is_file():
+                _regular_owner_stat(path)
                 candidates[path.resolve()] = store
     if not candidates:
         raise NativeSessionBoundaryError("trusted session file is missing")
     if len(candidates) != 1:
         raise NativeSessionBoundaryError("duplicate active/archive session files")
     path, store = next(iter(candidates.items()))
-    return LocatedSession(path=path, store=store)
+    return LocatedSession(
+        path=path,
+        store=store,
+        source_identity_sha256=session_source_identity(path, session_id),
+    )
 
 
 def capture_unique_boundary(
@@ -159,6 +207,8 @@ def capture_unique_boundary(
     if baseline is not None:
         assert_prefix_intact(located.path, baseline)
     boundary, records = capture_boundary(located.path, session_id)
+    if session_source_identity(located.path, session_id) != located.source_identity_sha256:
+        raise NativeSessionBoundaryError("trusted session source identity changed")
     return located, boundary, records
 
 

@@ -22,7 +22,26 @@ SPEC.loader.exec_module(LIVE)
 
 
 class FakeCalibrationServer:
-    def __init__(self, root: Path, *, early_status: str | None = None, command_status: str = "inProgress") -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        early_status: str | None = None,
+        command_status: str = "inProgress",
+        command_source: str | None = "agent",
+        notification_item_type: str = "commandExecution",
+        notification_command: str = "sleep 20",
+        function_command: str = "sleep 20",
+        missing_start: bool = False,
+        duplicate_start: bool = False,
+        cross_turn_start: bool = False,
+        cross_thread_start: bool = False,
+        completed_before_interrupt: bool = False,
+        output_before_interrupt: bool = False,
+        duplicate_function_call: bool = False,
+        competing_function_call: bool = False,
+        replace_source_at_read: int | None = None,
+    ) -> None:
         self.codex_home = root / "codex-home"
         self.active = self.codex_home / "sessions" / "2026" / "07"
         self.archive = self.codex_home / "archived_sessions"
@@ -35,6 +54,21 @@ class FakeCalibrationServer:
         self.interrupted = False
         self.early_status = early_status
         self.command_status = command_status
+        self.command_source = command_source
+        self.notification_item_type = notification_item_type
+        self.notification_command = notification_command
+        self.function_command = function_command
+        self.missing_start = missing_start
+        self.duplicate_start = duplicate_start
+        self.cross_turn_start = cross_turn_start
+        self.cross_thread_start = cross_thread_start
+        self.completed_before_interrupt = completed_before_interrupt
+        self.output_before_interrupt = output_before_interrupt
+        self.duplicate_function_call = duplicate_function_call
+        self.competing_function_call = competing_function_call
+        self.replace_source_at_read = replace_source_at_read
+        self.connection_epoch_sha256 = "b" * 64
+        self._notifications: list[tuple[int, dict]] = []
         self.rpc_latencies = {}
 
     def _write(self, records: list[dict]) -> None:
@@ -67,44 +101,127 @@ class FakeCalibrationServer:
 
     def _thread(self) -> dict:
         status = "interrupted" if self.interrupted else self.early_status or "inProgress"
-        items: list[dict] = []
-        if self.read_count >= 3:
-            items.append(
-                {
-                    "id": "command-one",
-                    "type": "commandExecution",
-                    "command": "sleep 20",
-                    "commandActions": [],
-                    "cwd": "/private",
-                    "source": "agent",
-                    "status": self.command_status,
-                }
-            )
         return {
             "id": self.thread_id,
             "path": str(self.path),
-            "turns": [{"id": self.turn_id, "status": status, "items": items}],
+            "turns": [{"id": self.turn_id, "status": status, "items": []}],
         }
+
+    def _materialize(self) -> None:
+        records = [
+            {
+                "type": "turn_context",
+                "payload": {
+                    "turn_id": self.turn_id,
+                    "model": LIVE.EXACT_MODEL,
+                    "effort": "low",
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "call_id": "call-one",
+                    "id": "call-one",
+                    "arguments": json.dumps({"cmd": self.function_command}),
+                },
+            },
+        ]
+        if self.duplicate_function_call:
+            records.append(
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "call-two",
+                        "id": "call-two",
+                        "arguments": json.dumps({"cmd": self.function_command}),
+                    },
+                }
+            )
+        if self.competing_function_call:
+            records.append(
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "custom_tool",
+                        "call_id": "call-other",
+                        "arguments": "{}",
+                    },
+                }
+            )
+        if self.output_before_interrupt:
+            records.append(
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "call-one",
+                        "output": "sanitized",
+                    },
+                }
+            )
+        with self.path.open("a", encoding="utf-8") as stream:
+            stream.write("".join(json.dumps(item) + "\n" for item in records))
+        if not self.missing_start:
+            item = {
+                "id": "command-one",
+                "type": self.notification_item_type,
+                "command": self.notification_command,
+                "commandActions": [],
+                "cwd": "/private",
+                "source": self.command_source,
+                "status": self.command_status,
+            }
+            params = {
+                "threadId": "other-thread" if self.cross_thread_start else self.thread_id,
+                "turnId": "other-turn" if self.cross_turn_start else self.turn_id,
+                "startedAtMs": 1000,
+                "item": item,
+            }
+            self._notifications.append(
+                (1_000_000, {"method": "item/started", "params": params})
+            )
+            if self.duplicate_start:
+                duplicate = {**item, "id": "command-two"}
+                self._notifications.append(
+                    (
+                        1_000_001,
+                        {
+                            "method": "item/started",
+                            "params": {**params, "item": duplicate},
+                        },
+                    )
+                )
+            if self.completed_before_interrupt:
+                self._notifications.append(
+                    (
+                        1_000_002,
+                        {
+                            "method": "item/completed",
+                            "params": {
+                                "threadId": self.thread_id,
+                                "turnId": self.turn_id,
+                                "completedAtMs": 1001,
+                                "item": {**item, "status": "completed"},
+                            },
+                        },
+                    )
+                )
 
     def read_thread(self, thread_id: str) -> tuple[dict, float]:
         if thread_id != self.thread_id:
             raise AssertionError("thread mismatch")
         self.read_count += 1
         if self.read_count == 3:
-            with self.path.open("a", encoding="utf-8") as stream:
-                stream.write(
-                    json.dumps(
-                        {
-                            "type": "turn_context",
-                            "payload": {
-                                "turn_id": self.turn_id,
-                                "model": LIVE.EXACT_MODEL,
-                                "effort": "low",
-                            },
-                        }
-                    )
-                    + "\n"
-                )
+            self._materialize()
+        if self.replace_source_at_read == self.read_count:
+            replacement = self.path.with_suffix(".replacement")
+            replacement.write_bytes(self.path.read_bytes())
+            replacement.replace(self.path)
         return self._thread(), 1.0
 
     def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
@@ -134,6 +251,34 @@ class FakeCalibrationServer:
     def notifications(self, _thread_id: str, _method: str | None = None) -> list[dict]:
         return []
 
+    def notification_cursor(self) -> int:
+        return len(self._notifications)
+
+    def notification_events(
+        self,
+        thread_id: str,
+        turn_id: str,
+        *,
+        after_sequence: int,
+    ) -> list[dict]:
+        values = []
+        for sequence, (received_ns, message) in enumerate(self._notifications, 1):
+            params = message["params"]
+            if sequence <= after_sequence:
+                continue
+            if params.get("threadId") != thread_id or params.get("turnId") != turn_id:
+                continue
+            values.append(
+                {
+                    "connection_epoch_sha256": self.connection_epoch_sha256,
+                    "sequence": sequence,
+                    "received_monotonic_ns": received_ns,
+                    "method": message["method"],
+                    "params": dict(params),
+                }
+            )
+        return values
+
 
 class LiveCanaryMaterializationTests(unittest.TestCase):
     def owner(self) -> dict:
@@ -158,7 +303,20 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertGreaterEqual(server.read_count, 8)
             materialization = evidence["materialization_evidence"]
             self.assertEqual(materialization["disposition"], "accepted")
+            self.assertEqual(materialization["version"], 2)
+            self.assertEqual(
+                materialization["connection_epoch_sha256"], server.connection_epoch_sha256
+            )
+            first, second = materialization["liveness_observations"]
+            self.assertEqual(first["command_item_id_sha256"], second["command_item_id_sha256"])
+            self.assertEqual(first["function_call_id_sha256"], second["function_call_id_sha256"])
+            self.assertEqual(first["session_source_identity_sha256"], second["session_source_identity_sha256"])
+            self.assertEqual(first["started_event_count"], 1)
+            self.assertEqual(first["completed_event_count"], 0)
+            self.assertEqual(first["paired_result_count"], 0)
+            self.assertEqual(server._thread()["turns"][0]["items"], [])
             self.assertNotIn("path", json.dumps(materialization).lower())
+            self.assertNotIn("arguments", json.dumps(materialization).lower())
             self.assertLessEqual(evidence["poll_interval_max_ms"], 250)
 
     def test_early_completion_and_failed_or_declined_command_are_nonaccepting(self) -> None:
@@ -180,6 +338,40 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                    )
+
+    def test_production_shaped_notification_and_jsonl_confusion_fails_closed(self) -> None:
+        cases = (
+            ({"missing_start": True}, "materialization-deadline"),
+            ({"cross_turn_start": True}, "materialization-deadline"),
+            ({"cross_thread_start": True}, "materialization-deadline"),
+            ({"notification_item_type": "agentMessage"}, "materialization-deadline"),
+            ({"duplicate_start": True}, "command-start-not-singular"),
+            ({"command_source": "user"}, "command-origin-invalid"),
+            ({"command_source": None}, "command-origin-invalid"),
+            ({"notification_command": "sleep 19"}, "command-digest-mismatch"),
+            ({"function_command": "sleep 19"}, "function-call-command-digest-mismatch"),
+            ({"completed_before_interrupt": True}, "command-completed-before-interrupt"),
+            ({"output_before_interrupt": True}, "function-output-before-interrupt"),
+            ({"duplicate_function_call": True}, "function-call-not-singular"),
+            ({"competing_function_call": True}, "function-call-not-singular"),
+            ({"replace_source_at_read": 6}, "session-source-identity-changed"),
+        )
+        for options, expected in cases:
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                record_dir = root / "records"
+                record_dir.mkdir()
+                server = FakeCalibrationServer(root, **options)
+                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                    LIVE.calibration(
+                        server,
+                        root,
+                        record_dir,
+                        self.owner(),
+                        run_nonce=str(uuid.uuid4()),
+                        phase_nonce=str(uuid.uuid4()),
+                        materialization_timeout_seconds=1.2,
                     )
 
     def test_containment_archives_allocated_threads(self) -> None:

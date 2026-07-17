@@ -34,6 +34,7 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     CanaryAuthorizationStore,
     MATERIALIZATION_EVIDENCE_SCHEMA,
     MATERIALIZATION_EVIDENCE_TYPE,
+    canonical_sha256 as domain_sha256,
     consume_steering_receipt,
     new_authorization_state,
     seal_materialization_evidence,
@@ -145,6 +146,9 @@ class AppServer:
         self._request_id = 0
         self._reader_error: str | None = None
         self._stderr_line_count = 0
+        self.connection_epoch_sha256 = domain_sha256(
+            {"epoch": str(uuid.uuid4())}, domain="app-server-stdio-connection-epoch"
+        )
         self.rpc_latencies: dict[str, list[float]] = {}
         self.started_threads: dict[str, str | None] = {}
         threading.Thread(target=self._read_stdout, daemon=True).start()
@@ -333,6 +337,40 @@ class AppServer:
                 if method is not None and message.get("method") != method:
                     continue
                 values.append(message)
+            return values
+
+    def notification_cursor(self) -> int:
+        """Return the current connection-local receive sequence."""
+
+        with self._condition:
+            return len(self._notifications)
+
+    def notification_events(
+        self,
+        thread_id: str,
+        turn_id: str,
+        *,
+        after_sequence: int,
+    ) -> list[dict[str, Any]]:
+        """Snapshot trusted stdio notifications with connection-local provenance."""
+
+        with self._condition:
+            values: list[dict[str, Any]] = []
+            for sequence, (received_ns, message) in enumerate(self._notifications, 1):
+                if sequence <= after_sequence:
+                    continue
+                params = message.get("params") if isinstance(message.get("params"), Mapping) else {}
+                if params.get("threadId") != thread_id or params.get("turnId") != turn_id:
+                    continue
+                values.append(
+                    {
+                        "connection_epoch_sha256": self.connection_epoch_sha256,
+                        "sequence": sequence,
+                        "received_monotonic_ns": received_ns,
+                        "method": message.get("method"),
+                        "params": dict(params),
+                    }
+                )
             return values
 
     def close(self) -> None:
@@ -763,6 +801,7 @@ def calibration(
     *,
     run_nonce: str,
     phase_nonce: str,
+    materialization_timeout_seconds: float = 10.0,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     samples: dict[str, list[float]] = {}
     result, preallocation_latency = server.start_thread(cwd, mutable=False)
@@ -783,6 +822,7 @@ def calibration(
         "Use the exec_command tool exactly once to run `sleep 20`. After it finishes, return "
         "exactly CAPABILITY_LONG_DONE. Do not use any other tool."
     )
+    notification_floor = server.notification_cursor()
     turn = guarded_measure(
         samples,
         "send_input",
@@ -813,6 +853,8 @@ def calibration(
         "boundary_sha256": sha256_bytes(b""),
         "token_snapshot": None,
     }
+    trusted_source_identity: str | None = None
+    observed_prefix: dict[str, Any] = dict(strict_baseline)
 
     def public_boundary(value: Mapping[str, Any]) -> dict[str, Any]:
         return {
@@ -825,22 +867,27 @@ def calibration(
 
     def observe() -> tuple[dict[str, Any], dict[str, Any] | None]:
         thread, _latency = server.read_thread(thread_id)
-        nonlocal reported_path
+        nonlocal reported_path, trusted_source_identity, observed_prefix
         reported_path = thread.get("path") or reported_path
         status = turn_status(thread, turn_id)
         if status in {"completed", "failed", "interrupted"}:
             raise AppServerError(f"capability-completed-before-deliberate-interrupt:{status}")
         try:
-            _located, boundary, records = capture_unique_boundary(
+            located, boundary, records = capture_unique_boundary(
                 server.codex_home,
                 thread_id,
                 reported_path=reported_path,
-                baseline=strict_baseline,
+                baseline=observed_prefix,
             )
         except NativeSessionBoundaryError as exc:
             if str(exc) == "trusted session file is missing":
                 return thread, None
             raise AppServerError(f"capability-session-boundary-invalid:{exc}") from exc
+        if trusted_source_identity is None:
+            trusted_source_identity = located.source_identity_sha256
+        elif trusted_source_identity != located.source_identity_sha256:
+            raise AppServerError("capability-session-source-identity-changed")
+        observed_prefix = dict(boundary)
         contexts = [
             (index, record["payload"])
             for index, record in enumerate(records)
@@ -861,15 +908,27 @@ def calibration(
             raise AppServerError("capability-session-containment-failed")
         if markers["terminal_indices"]:
             raise AppServerError("capability-terminal-event-before-interrupt")
-        items = turn_items(thread, turn_id)
-        commands = [
-            (index, item)
-            for index, item in enumerate(items)
-            if item.get("type") == "commandExecution"
-        ]
-        if len(commands) > 1:
-            raise AppServerError("capability-command-not-singular")
-        if not contexts or not commands:
+        events = server.notification_events(
+            thread_id,
+            turn_id,
+            after_sequence=notification_floor,
+        )
+        started_commands = []
+        completed_commands = []
+        for event in events:
+            params = event["params"]
+            item = params.get("item") if isinstance(params.get("item"), Mapping) else {}
+            if item.get("type") != "commandExecution":
+                continue
+            if event.get("method") == "item/started":
+                started_commands.append((event, item))
+            elif event.get("method") == "item/completed":
+                completed_commands.append((event, item))
+        if len(started_commands) > 1:
+            raise AppServerError("capability-command-start-not-singular")
+        if completed_commands:
+            raise AppServerError("capability-command-completed-before-interrupt")
+        if not contexts or not started_commands:
             return thread, None
         context_index, _context = trusted_turn_context(
             records,
@@ -877,8 +936,20 @@ def calibration(
             model=EXACT_MODEL,
             effort="low",
         )
-        command_index, command = commands[0]
-        if command.get("source", "agent") != "agent":
+        start_event, command = started_commands[0]
+        if start_event.get("connection_epoch_sha256") != server.connection_epoch_sha256:
+            raise AppServerError("capability-notification-connection-epoch-mismatch")
+        started_at_ms = start_event["params"].get("startedAtMs")
+        if (
+            isinstance(started_at_ms, bool)
+            or not isinstance(started_at_ms, int)
+            or started_at_ms < 0
+        ):
+            raise AppServerError("capability-command-start-time-invalid")
+        item_id = command.get("id")
+        if not isinstance(item_id, str) or not item_id:
+            raise AppServerError("capability-command-item-identity-invalid")
+        if command.get("source") != "agent":
             raise AppServerError("capability-command-origin-invalid")
         if sha256_text(str(command.get("command", ""))) != sha256_text("sleep 20"):
             raise AppServerError("capability-command-digest-mismatch")
@@ -888,13 +959,68 @@ def calibration(
             )
         if command.get("status") != "inProgress":
             return thread, None
+        function_calls: list[tuple[int, Mapping[str, Any]]] = []
+        function_outputs: list[tuple[int, Mapping[str, Any]]] = []
+        competing_calls: list[int] = []
+        for index, record in enumerate(records[context_index + 1 :], context_index + 1):
+            if record.get("type") != "response_item" or not isinstance(
+                record.get("payload"), Mapping
+            ):
+                continue
+            payload = record["payload"]
+            if payload.get("type") in {"function_call", "functionCall"}:
+                if payload.get("name") == "exec_command":
+                    function_calls.append((index, payload))
+                else:
+                    competing_calls.append(index)
+            elif payload.get("type") in {"function_call_output", "functionCallOutput"}:
+                function_outputs.append((index, payload))
+        if competing_calls or len(function_calls) > 1:
+            raise AppServerError("capability-function-call-not-singular")
+        if function_outputs:
+            raise AppServerError("capability-function-output-before-interrupt")
+        if not function_calls:
+            return thread, None
+        function_call_index, function_call = function_calls[0]
+        call_id = function_call.get("call_id") or function_call.get("callId")
+        if not isinstance(call_id, str) or not call_id:
+            raise AppServerError("capability-function-call-identity-invalid")
+        arguments = function_call.get("arguments")
+        if not isinstance(arguments, str):
+            raise AppServerError("capability-function-call-arguments-invalid")
+        try:
+            parsed_arguments = json.loads(arguments)
+        except json.JSONDecodeError as exc:
+            raise AppServerError("capability-function-call-arguments-invalid") from exc
+        if not isinstance(parsed_arguments, Mapping) or not isinstance(
+            parsed_arguments.get("cmd"), str
+        ):
+            raise AppServerError("capability-function-call-command-missing")
+        if sha256_text(str(parsed_arguments["cmd"])) != sha256_text("sleep 20"):
+            raise AppServerError("capability-function-call-command-digest-mismatch")
         return thread, {
             "observed_at": iso(),
             "boundary": public_boundary(boundary),
+            "session_source_identity_sha256": located.source_identity_sha256,
+            "connection_epoch_sha256": str(start_event["connection_epoch_sha256"]),
+            "notification_sequence": int(start_event["sequence"]),
+            "notification_received_monotonic_ns": int(
+                start_event["received_monotonic_ns"]
+            ),
+            "notification_started_at_ms": started_at_ms,
             "turn_context_record_index": context_index,
-            "command_item_index": command_index,
+            "function_call_record_index": function_call_index,
+            "command_item_id_sha256": domain_sha256(
+                {"item_id": item_id}, domain="app-server-command-item-id"
+            ),
+            "function_call_id_sha256": domain_sha256(
+                {"call_id": call_id}, domain="session-exec-command-call-id"
+            ),
             "command_origin": "agent",
             "command_status": "inProgress",
+            "started_event_count": 1,
+            "completed_event_count": 0,
+            "paired_result_count": 0,
             "terminal_event_count": 0,
             "failed_event_count": 0,
             "declined_event_count": 0,
@@ -904,7 +1030,9 @@ def calibration(
     observations: list[dict[str, Any]] = []
     last_threads: dict[str, dict[str, Any]] = {}
     poll_started: list[float] = []
-    deadline = time.monotonic() + 10.0
+    if materialization_timeout_seconds < 1.0:
+        raise AppServerError("capability-materialization-timeout-invalid")
+    deadline = time.monotonic() + materialization_timeout_seconds
     while time.monotonic() < deadline and len(observations) < 2:
         poll_start = time.monotonic()
         poll_started.append(poll_start)
@@ -928,7 +1056,17 @@ def calibration(
                 if (current_time - first_time).total_seconds() >= 1.0:
                     if any(
                         observations[0][field] != observation[field]
-                        for field in ("turn_context_record_index", "command_item_index")
+                        for field in (
+                            "session_source_identity_sha256",
+                            "connection_epoch_sha256",
+                            "notification_sequence",
+                            "notification_received_monotonic_ns",
+                            "notification_started_at_ms",
+                            "turn_context_record_index",
+                            "function_call_record_index",
+                            "command_item_id_sha256",
+                            "function_call_id_sha256",
+                        )
                     ):
                         raise AppServerError("capability-observation-identity-changed")
                     observations.append(observation)
@@ -952,7 +1090,17 @@ def calibration(
     last_threads[thread_id] = pre_thread
     if pre_interrupt is None or any(
         pre_interrupt[field] != observations[-1][field]
-        for field in ("turn_context_record_index", "command_item_index")
+        for field in (
+            "session_source_identity_sha256",
+            "connection_epoch_sha256",
+            "notification_sequence",
+            "notification_received_monotonic_ns",
+            "notification_started_at_ms",
+            "turn_context_record_index",
+            "function_call_record_index",
+            "command_item_id_sha256",
+            "function_call_id_sha256",
+        )
     ):
         raise AppServerError("capability-immediate-revalidation-failed")
     interrupt_requested_at = iso()
@@ -962,6 +1110,7 @@ def calibration(
         lambda: server.interrupt_turn(thread_id, turn_id),
         guard_seconds=0.0,
     )
+    interrupt_request_accepted_at = iso()
     interrupt_deadline = time.monotonic() + 5.0
     interrupt_confirmed_at: str | None = None
     while time.monotonic() < interrupt_deadline:
@@ -992,20 +1141,22 @@ def calibration(
         guard_seconds=0.0,
     )
     try:
-        _located, terminal_boundary, terminal_records = capture_unique_boundary(
+        terminal_location, terminal_boundary, terminal_records = capture_unique_boundary(
             server.codex_home,
             thread_id,
-            baseline=strict_baseline,
+            baseline=observed_prefix,
         )
     except NativeSessionBoundaryError as exc:
         raise AppServerError(f"capability-terminal-boundary-invalid:{exc}") from exc
     terminal_markers = telemetry_markers(terminal_records, turn_id=turn_id)
+    if terminal_location.source_identity_sha256 != trusted_source_identity:
+        raise AppServerError("capability-terminal-session-source-identity-changed")
     if terminal_markers["compaction_indices"] or terminal_markers["reroute_indices"]:
         raise AppServerError("capability-terminal-containment-failed")
     materialization = seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 1,
+            "version": 2,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": f"materialization-{uuid.uuid4()}",
             "run_nonce": run_nonce,
@@ -1016,16 +1167,21 @@ def calibration(
             "requested_model": EXACT_MODEL,
             "attested_model": EXACT_MODEL,
             "attested_effort": "low",
-            "attestation_source": "initialized-codex-home-session-jsonl-turn_context",
+            "attestation_source": (
+                "initialized-codex-home-session-jsonl-and-local-app-server-stdio-notifications"
+            ),
+            "connection_epoch_sha256": server.connection_epoch_sha256,
             "command_sha256": sha256_text("sleep 20"),
             "baseline": public_boundary(strict_baseline),
             "liveness_observations": observations,
             "pre_interrupt_observation": pre_interrupt,
             "interrupt": {
                 "requested_at": interrupt_requested_at,
+                "request_accepted_at": interrupt_request_accepted_at,
                 "confirmed_at": interrupt_confirmed_at,
                 "session_id": thread_id,
                 "turn_id": turn_id,
+                "request_outcome": "accepted",
                 "outcome": "interrupt-confirmed",
             },
             "terminal": public_boundary(terminal_boundary),
