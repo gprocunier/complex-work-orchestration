@@ -23,8 +23,13 @@ The public contract is deliberately small:
 
 The release canary is a separate, single-shot controller:
 `scripts/run_native_pool_live_canaries.py`. It requires the immutable full-auto
-authorization plus independently adjudicated pre-mutation and pre-live Sol
-steering receipts. Each receipt is validated against trusted session JSONL,
+authorization, the active outer authority, the exact predecessor authorization
+and campaign manifest, an accepting independent Spark receipt, plus
+independently adjudicated pre-mutation and pre-live Sol steering receipts. All
+artifacts are private mode 0600. The launcher recomputes canonical receipt and
+predecessor artifact hashes, binds predecessor identity, generation, and exact
+candidate commit/tree, then rechecks their raw byte hashes immediately before
+allocation. Each steering receipt is validated against trusted session JSONL,
 consumed once under a private process lock, and cannot authorize repository
 work by itself.
 

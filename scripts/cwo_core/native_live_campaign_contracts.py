@@ -73,6 +73,10 @@ BINDING_FIELDS = {
     "recovery_plan_sha256",
     "campaign_nonce",
     "predecessor_authorization_id",
+    "predecessor_authorization_file_sha256",
+    "predecessor_authorization_canonical_sha256",
+    "predecessor_manifest_file_sha256",
+    "predecessor_manifest_canonical_sha256",
     "predecessor_failure_evidence_file_sha256",
     "predecessor_failure_evidence_canonical_sha256",
     "predecessor_containment_file_sha256",
@@ -113,6 +117,7 @@ PROGRESS_GATE_FIELDS = {
     "predecessor_failure_evidence_canonical_sha256",
     "predecessor_candidate_commit",
     "predecessor_candidate_tree",
+    "predecessor_lineage_sha256",
     "new_falsifiable_cause",
     "cause_evidence_sha256",
     "repair_commit",
@@ -224,6 +229,13 @@ MANIFEST_CANDIDATE_FIELDS = {
 }
 MANIFEST_PREDECESSOR_FIELDS = {
     "authorization_id",
+    "authorization_file_sha256",
+    "authorization_canonical_sha256",
+    "manifest_file_sha256",
+    "manifest_canonical_sha256",
+    "candidate_commit",
+    "candidate_tree",
+    "lineage_sha256",
     "failure_evidence_canonical_sha256",
     "containment_canonical_sha256",
 }
@@ -313,10 +325,49 @@ def _run_git(repo: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def _canonical_artifact_hash(value: Mapping[str, Any], hash_field: str) -> str:
+    unsigned = dict(value)
+    unsigned.pop(hash_field, None)
+    return canonical_sha256(unsigned)
+
+
+def _predecessor_lineage(
+    bindings: Mapping[str, Any],
+    progress: Mapping[str, Any],
+    predecessor_live_generation: Any,
+) -> dict[str, Any]:
+    return {
+        "authorization_id": bindings.get("predecessor_authorization_id"),
+        "authorization_file_sha256": bindings.get(
+            "predecessor_authorization_file_sha256"
+        ),
+        "authorization_canonical_sha256": bindings.get(
+            "predecessor_authorization_canonical_sha256"
+        ),
+        "manifest_file_sha256": bindings.get("predecessor_manifest_file_sha256"),
+        "manifest_canonical_sha256": bindings.get(
+            "predecessor_manifest_canonical_sha256"
+        ),
+        "live_generation": predecessor_live_generation,
+        "candidate_commit": progress.get("predecessor_candidate_commit"),
+        "candidate_tree": progress.get("predecessor_candidate_tree"),
+        "failure_evidence_canonical_sha256": bindings.get(
+            "predecessor_failure_evidence_canonical_sha256"
+        ),
+        "containment_canonical_sha256": bindings.get(
+            "predecessor_containment_canonical_sha256"
+        ),
+    }
+
+
 def validate_full_auto_authorization(
     value: Any,
     *,
     expected_campaign_nonce: str | None = None,
+    predecessor_authorization: Mapping[str, Any] | None = None,
+    predecessor_authorization_raw_sha256: str | None = None,
+    predecessor_manifest: Mapping[str, Any] | None = None,
+    predecessor_manifest_raw_sha256: str | None = None,
     repo_root: Path | None = None,
 ) -> list[str]:
     errors: list[str] = []
@@ -365,6 +416,10 @@ def validate_full_auto_authorization(
         "recovery_plan_sha256",
         "outer_authority_canonical_sha256",
         "outer_authority_file_sha256",
+        "predecessor_authorization_file_sha256",
+        "predecessor_authorization_canonical_sha256",
+        "predecessor_manifest_file_sha256",
+        "predecessor_manifest_canonical_sha256",
         "predecessor_failure_evidence_file_sha256",
         "predecessor_failure_evidence_canonical_sha256",
         "predecessor_containment_file_sha256",
@@ -507,6 +562,7 @@ def validate_full_auto_authorization(
     for field in (
         "predecessor_failure_evidence_canonical_sha256",
         "cause_evidence_sha256",
+        "predecessor_lineage_sha256",
         "independent_validation_receipt_canonical_sha256",
         "independent_validation_receipt_file_sha256",
     ):
@@ -534,6 +590,11 @@ def validate_full_auto_authorization(
         == progress.get("predecessor_failure_evidence_canonical_sha256")
     ):
         errors.append("authorization-progress-new-evidence-or-repair-missing")
+    predecessor_lineage = _predecessor_lineage(bindings, progress, predecessor)
+    if progress.get("predecessor_lineage_sha256") != canonical_sha256(
+        predecessor_lineage
+    ):
+        errors.append("authorization-progress-predecessor-lineage-sha256-mismatch")
     if any(
         progress.get(field) is not expected
         for field, expected in (
@@ -614,6 +675,61 @@ def validate_full_auto_authorization(
     if not _is_hash(recorded_hash) or recorded_hash != canonical_sha256(unsigned):
         errors.append("authorization-canonical-sha256-mismatch")
 
+    predecessor_artifacts = (
+        predecessor_authorization,
+        predecessor_authorization_raw_sha256,
+        predecessor_manifest,
+        predecessor_manifest_raw_sha256,
+    )
+    if any(item is not None for item in predecessor_artifacts):
+        if any(item is None for item in predecessor_artifacts):
+            errors.append("authorization-predecessor-artifacts-incomplete")
+        else:
+            prior_authorization = dict(predecessor_authorization or {})
+            prior_manifest = dict(predecessor_manifest or {})
+            prior_authorization_canonical = prior_authorization.get(
+                "canonical_authorization_sha256"
+            )
+            prior_manifest_canonical = prior_manifest.get("manifest_sha256")
+            prior_candidate = prior_manifest.get("candidate")
+            if (
+                prior_authorization.get("authorization_id")
+                != bindings.get("predecessor_authorization_id")
+                or prior_authorization.get("live_generation") != predecessor
+                or predecessor_authorization_raw_sha256
+                != bindings.get("predecessor_authorization_file_sha256")
+                or prior_authorization_canonical
+                != bindings.get("predecessor_authorization_canonical_sha256")
+                or not _is_hash(prior_authorization_canonical)
+                or prior_authorization_canonical
+                != _canonical_artifact_hash(
+                    prior_authorization, "canonical_authorization_sha256"
+                )
+            ):
+                errors.append("authorization-predecessor-authorization-binding-invalid")
+            if (
+                prior_manifest.get("authorization_id")
+                != bindings.get("predecessor_authorization_id")
+                or prior_manifest.get("authorization_canonical_sha256")
+                != bindings.get("predecessor_authorization_canonical_sha256")
+                or prior_manifest.get("authorization_raw_sha256")
+                != bindings.get("predecessor_authorization_file_sha256")
+                or prior_manifest.get("live_generation") != predecessor
+                or predecessor_manifest_raw_sha256
+                != bindings.get("predecessor_manifest_file_sha256")
+                or prior_manifest_canonical
+                != bindings.get("predecessor_manifest_canonical_sha256")
+                or not _is_hash(prior_manifest_canonical)
+                or prior_manifest_canonical
+                != _canonical_artifact_hash(prior_manifest, "manifest_sha256")
+                or not isinstance(prior_candidate, Mapping)
+                or prior_candidate.get("commit")
+                != progress.get("predecessor_candidate_commit")
+                or prior_candidate.get("tree")
+                != progress.get("predecessor_candidate_tree")
+            ):
+                errors.append("authorization-predecessor-manifest-binding-invalid")
+
     if repo_root is not None and not errors:
         root = Path(repo_root).resolve()
         try:
@@ -652,6 +768,10 @@ def validate_campaign_manifest(
     authorization_raw_sha256: str | None = None,
     outer_authority: Mapping[str, Any] | None = None,
     outer_authority_raw_sha256: str | None = None,
+    predecessor_authorization: Mapping[str, Any] | None = None,
+    predecessor_authorization_raw_sha256: str | None = None,
+    predecessor_manifest: Mapping[str, Any] | None = None,
+    predecessor_manifest_raw_sha256: str | None = None,
     independent_validation_receipt: Mapping[str, Any] | None = None,
     independent_validation_receipt_raw_sha256: str | None = None,
     repo_root: Path | None = None,
@@ -702,9 +822,20 @@ def validate_campaign_manifest(
     )
     if not _is_uuid(predecessor_value.get("authorization_id")) or any(
         not _is_hash(predecessor_value.get(field))
-        for field in ("failure_evidence_canonical_sha256", "containment_canonical_sha256")
+        for field in (
+            "authorization_file_sha256",
+            "authorization_canonical_sha256",
+            "manifest_file_sha256",
+            "manifest_canonical_sha256",
+            "lineage_sha256",
+            "failure_evidence_canonical_sha256",
+            "containment_canonical_sha256",
+        )
     ):
         errors.append("campaign-manifest-predecessor-invalid")
+    for field in ("candidate_commit", "candidate_tree"):
+        if not _is_commit(predecessor_value.get(field)):
+            errors.append("campaign-manifest-predecessor-invalid")
     manifest_outer_authority = _strict(
         manifest.get("outer_authority"),
         MANIFEST_OUTER_AUTHORITY_FIELDS,
@@ -788,7 +919,13 @@ def validate_campaign_manifest(
         errors.append("campaign-manifest-sha256-mismatch")
 
     if authorization is not None:
-        auth_errors = validate_full_auto_authorization(authorization)
+        auth_errors = validate_full_auto_authorization(
+            authorization,
+            predecessor_authorization=predecessor_authorization,
+            predecessor_authorization_raw_sha256=predecessor_authorization_raw_sha256,
+            predecessor_manifest=predecessor_manifest,
+            predecessor_manifest_raw_sha256=predecessor_manifest_raw_sha256,
+        )
         errors.extend(f"campaign-manifest-authorization:{item}" for item in auth_errors)
         bindings = authorization.get("bindings") if isinstance(authorization.get("bindings"), Mapping) else {}
         scope = authorization.get("scope") if isinstance(authorization.get("scope"), Mapping) else {}
@@ -822,8 +959,26 @@ def validate_campaign_manifest(
             != bindings.get("guarded_primary_diff_sha256")
         ):
             errors.append("campaign-manifest-candidate-authorization-mismatch")
+        progress = (
+            authorization.get("progress_gate")
+            if isinstance(authorization.get("progress_gate"), Mapping)
+            else {}
+        )
         if predecessor_value != {
             "authorization_id": bindings.get("predecessor_authorization_id"),
+            "authorization_file_sha256": bindings.get(
+                "predecessor_authorization_file_sha256"
+            ),
+            "authorization_canonical_sha256": bindings.get(
+                "predecessor_authorization_canonical_sha256"
+            ),
+            "manifest_file_sha256": bindings.get("predecessor_manifest_file_sha256"),
+            "manifest_canonical_sha256": bindings.get(
+                "predecessor_manifest_canonical_sha256"
+            ),
+            "candidate_commit": progress.get("predecessor_candidate_commit"),
+            "candidate_tree": progress.get("predecessor_candidate_tree"),
+            "lineage_sha256": progress.get("predecessor_lineage_sha256"),
             "failure_evidence_canonical_sha256": bindings.get("predecessor_failure_evidence_canonical_sha256"),
             "containment_canonical_sha256": bindings.get("predecessor_containment_canonical_sha256"),
         }:
@@ -834,11 +989,6 @@ def validate_campaign_manifest(
             "file_sha256": bindings.get("outer_authority_file_sha256"),
         }:
             errors.append("campaign-manifest-outer-authority-authorization-mismatch")
-        progress = (
-            authorization.get("progress_gate")
-            if isinstance(authorization.get("progress_gate"), Mapping)
-            else {}
-        )
         if manifest.get("progress_qualification_sha256") != progress.get(
             "qualification_sha256"
         ):
@@ -890,6 +1040,19 @@ def validate_campaign_manifest(
         terminal_boundary = (
             boundary.get("terminal") if isinstance(boundary, Mapping) else None
         )
+        recorded_receipt_hash = independent_validation_receipt.get(
+            "canonical_receipt_sha256"
+        )
+        receipt_hash_valid = _is_hash(recorded_receipt_hash) and (
+            recorded_receipt_hash
+            == _canonical_artifact_hash(
+                independent_validation_receipt, "canonical_receipt_sha256"
+            )
+        )
+        if not receipt_hash_valid:
+            errors.append(
+                "campaign-manifest-independent-validation-canonical-sha256-mismatch"
+            )
         if (
             independent_validation_receipt.get("schema")
             != "cwo-steering-receipt:v1"
@@ -909,6 +1072,7 @@ def validate_campaign_manifest(
             or independent_validation_receipt.get("closure_outcome")
             != "completed-and-archived"
             or independent_validation_receipt.get("disposition") != "accepting"
+            or not receipt_hash_valid
             or not isinstance(opinion, Mapping)
             or opinion.get("recommendation") != "go"
             or not isinstance(guard_before, Mapping)

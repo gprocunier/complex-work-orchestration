@@ -98,6 +98,8 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(live["interrupt_confirmation_deadline_seconds"], 5)
         self.assertEqual(live["successful_turn_starts_exact"], 7)
         self.assertEqual(live["prestart_zero_artifact_relaunch_max"], 1)
+        self.assertIs(live["predecessor_lineage_artifacts_required"], True)
+        self.assertIs(live["spark_receipt_canonical_recompute_required"], True)
         self.assertTrue(live["no_resume_or_salvage"])
         self.assertTrue(live["release_on_acceptance_only"])
         for surface in (

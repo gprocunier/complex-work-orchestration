@@ -172,6 +172,8 @@
       "interrupt_confirmation_deadline_seconds": 5,
       "successful_turn_starts_exact": 7,
       "prestart_zero_artifact_relaunch_max": 1,
+      "predecessor_lineage_artifacts_required": true,
+      "spark_receipt_canonical_recompute_required": true,
       "no_resume_or_salvage": true,
       "release_on_acceptance_only": true
     },

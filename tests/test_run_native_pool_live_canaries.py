@@ -1139,8 +1139,86 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         )
         return head, orphan
 
+    def predecessor_artifacts(
+        self,
+        predecessor_authorization_id: str,
+        candidate_commit: str,
+        candidate_tree: str,
+    ) -> tuple[dict, str, dict, str]:
+        predecessor_authorization = {
+            "authorization_type": "cwo-full-auto-run-authorization",
+            "version": 4,
+            "authorization_id": predecessor_authorization_id,
+            "live_generation": 5,
+        }
+        predecessor_authorization["canonical_authorization_sha256"] = (
+            LIVE.sha256_bytes(
+                json.dumps(
+                    predecessor_authorization,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            )
+        )
+        predecessor_authorization_raw_sha256 = LIVE.sha256_bytes(
+            json.dumps(
+                predecessor_authorization,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        )
+        predecessor_manifest = {
+            "manifest_type": "cwo-native-live-campaign-manifest",
+            "version": 1,
+            "authorization_id": predecessor_authorization_id,
+            "authorization_raw_sha256": predecessor_authorization_raw_sha256,
+            "authorization_canonical_sha256": predecessor_authorization[
+                "canonical_authorization_sha256"
+            ],
+            "live_generation": 5,
+            "predecessor_live_generation": 4,
+            "candidate": {
+                "commit": candidate_commit,
+                "tree": candidate_tree,
+            },
+        }
+        predecessor_manifest["manifest_sha256"] = LIVE.sha256_bytes(
+            json.dumps(
+                predecessor_manifest,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        )
+        predecessor_manifest_raw_sha256 = LIVE.sha256_bytes(
+            json.dumps(
+                predecessor_manifest,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        )
+        return (
+            predecessor_authorization,
+            predecessor_authorization_raw_sha256,
+            predecessor_manifest,
+            predecessor_manifest_raw_sha256,
+        )
+
     def authorization(self, root: Path, checkpoint: str) -> dict:
         predecessor_authorization_id = str(uuid.uuid4())
+        predecessor_candidate_commit = LIVE.run_git(root, "rev-parse", f"{checkpoint}^")
+        predecessor_candidate_tree = LIVE.run_git(
+            root, "rev-parse", f"{checkpoint}^^{{tree}}"
+        )
+        (
+            predecessor_authorization,
+            predecessor_authorization_raw_sha256,
+            predecessor_manifest,
+            predecessor_manifest_raw_sha256,
+        ) = self.predecessor_artifacts(
+            predecessor_authorization_id,
+            predecessor_candidate_commit,
+            predecessor_candidate_tree,
+        )
         value = {
             "authorization_type": "cwo-full-auto-run-authorization",
             "version": 5,
@@ -1173,6 +1251,14 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "recovery_plan_sha256": "2" * 64,
                 "campaign_nonce": str(uuid.uuid4()),
                 "predecessor_authorization_id": predecessor_authorization_id,
+                "predecessor_authorization_file_sha256": predecessor_authorization_raw_sha256,
+                "predecessor_authorization_canonical_sha256": predecessor_authorization[
+                    "canonical_authorization_sha256"
+                ],
+                "predecessor_manifest_file_sha256": predecessor_manifest_raw_sha256,
+                "predecessor_manifest_canonical_sha256": predecessor_manifest[
+                    "manifest_sha256"
+                ],
                 "predecessor_failure_evidence_file_sha256": "3" * 64,
                 "predecessor_failure_evidence_canonical_sha256": "4" * 64,
                 "predecessor_containment_file_sha256": "5" * 64,
@@ -1228,12 +1314,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "qualification_basis": "same-fault-with-new-evidence-and-validated-repair",
                 "predecessor_failure_class": "startup-status-projection-race",
                 "predecessor_failure_evidence_canonical_sha256": "4" * 64,
-                "predecessor_candidate_commit": LIVE.run_git(
-                    root, "rev-parse", f"{checkpoint}^"
-                ),
-                "predecessor_candidate_tree": LIVE.run_git(
-                    root, "rev-parse", f"{checkpoint}^^{{tree}}"
-                ),
+                "predecessor_candidate_commit": predecessor_candidate_commit,
+                "predecessor_candidate_tree": predecessor_candidate_tree,
                 "new_falsifiable_cause": "projected terminal lacked exact-turn durable corroboration",
                 "cause_evidence_sha256": "9" * 64,
                 "repair_commit": checkpoint,
@@ -1304,6 +1386,25 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "actions_after_gate": ["staging-ci", "main-fast-forward", "install-parity"],
             },
         }
+        predecessor_lineage = {
+            "authorization_id": predecessor_authorization_id,
+            "authorization_file_sha256": predecessor_authorization_raw_sha256,
+            "authorization_canonical_sha256": predecessor_authorization[
+                "canonical_authorization_sha256"
+            ],
+            "manifest_file_sha256": predecessor_manifest_raw_sha256,
+            "manifest_canonical_sha256": predecessor_manifest["manifest_sha256"],
+            "live_generation": 5,
+            "candidate_commit": predecessor_candidate_commit,
+            "candidate_tree": predecessor_candidate_tree,
+            "failure_evidence_canonical_sha256": "4" * 64,
+            "containment_canonical_sha256": "6" * 64,
+        }
+        value["progress_gate"]["predecessor_lineage_sha256"] = LIVE.sha256_bytes(
+            json.dumps(
+                predecessor_lineage, sort_keys=True, separators=(",", ":")
+            ).encode()
+        )
         value["progress_gate"]["qualification_sha256"] = LIVE.sha256_bytes(
             json.dumps(
                 value["progress_gate"], sort_keys=True, separators=(",", ":")
@@ -1326,6 +1427,43 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
     def reseal_authorization(self, value: dict) -> None:
         progress = value.get("progress_gate")
         if isinstance(progress, dict):
+            bindings = value.get("bindings", {})
+            progress["predecessor_lineage_sha256"] = LIVE.sha256_bytes(
+                json.dumps(
+                    {
+                        "authorization_id": bindings.get(
+                            "predecessor_authorization_id"
+                        ),
+                        "authorization_file_sha256": bindings.get(
+                            "predecessor_authorization_file_sha256"
+                        ),
+                        "authorization_canonical_sha256": bindings.get(
+                            "predecessor_authorization_canonical_sha256"
+                        ),
+                        "manifest_file_sha256": bindings.get(
+                            "predecessor_manifest_file_sha256"
+                        ),
+                        "manifest_canonical_sha256": bindings.get(
+                            "predecessor_manifest_canonical_sha256"
+                        ),
+                        "live_generation": value.get("predecessor_live_generation"),
+                        "candidate_commit": progress.get(
+                            "predecessor_candidate_commit"
+                        ),
+                        "candidate_tree": progress.get(
+                            "predecessor_candidate_tree"
+                        ),
+                        "failure_evidence_canonical_sha256": bindings.get(
+                            "predecessor_failure_evidence_canonical_sha256"
+                        ),
+                        "containment_canonical_sha256": bindings.get(
+                            "predecessor_containment_canonical_sha256"
+                        ),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            )
             progress.pop("qualification_sha256", None)
             progress["qualification_sha256"] = LIVE.sha256_bytes(
                 json.dumps(progress, sort_keys=True, separators=(",", ":")).encode()
@@ -1368,6 +1506,27 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             },
             "predecessor": {
                 "authorization_id": bindings["predecessor_authorization_id"],
+                "authorization_file_sha256": bindings[
+                    "predecessor_authorization_file_sha256"
+                ],
+                "authorization_canonical_sha256": bindings[
+                    "predecessor_authorization_canonical_sha256"
+                ],
+                "manifest_file_sha256": bindings[
+                    "predecessor_manifest_file_sha256"
+                ],
+                "manifest_canonical_sha256": bindings[
+                    "predecessor_manifest_canonical_sha256"
+                ],
+                "candidate_commit": authorization["progress_gate"][
+                    "predecessor_candidate_commit"
+                ],
+                "candidate_tree": authorization["progress_gate"][
+                    "predecessor_candidate_tree"
+                ],
+                "lineage_sha256": authorization["progress_gate"][
+                    "predecessor_lineage_sha256"
+                ],
                 "failure_evidence_canonical_sha256": bindings[
                     "predecessor_failure_evidence_canonical_sha256"
                 ],
@@ -1403,8 +1562,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "pre_mutation_adjudication_file_sha256": "a" * 64,
                 "opus_evidence_file_sha256": "b" * 64,
                 "opus_adjudication_file_sha256": "c" * 64,
-                "spark_validation_receipt_canonical_sha256": "a" * 64,
-                "spark_validation_receipt_file_sha256": "b" * 64,
+                "spark_validation_receipt_canonical_sha256": authorization[
+                    "progress_gate"
+                ]["independent_validation_receipt_canonical_sha256"],
+                "spark_validation_receipt_file_sha256": authorization[
+                    "progress_gate"
+                ]["independent_validation_receipt_file_sha256"],
                 "pre_live_receipt_canonical_sha256": "d" * 64,
                 "pre_live_receipt_file_sha256": "e" * 64,
                 "pre_live_adjudication_file_sha256": "f" * 64,
@@ -1462,7 +1625,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "repo_status_sha256": LIVE.sha256_bytes(b""),
             "primary_diff_sha256": LIVE.sha256_bytes(b""),
         }
-        return {
+        value = {
             "schema": "cwo-steering-receipt:v1",
             "gate": "independent-validation",
             "authorization_id": authorization["bindings"]["outer_authority_id"],
@@ -1493,8 +1656,11 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "opinion": {"recommendation": "go", "findings": []},
             "closure_outcome": "completed-and-archived",
             "disposition": "accepting",
-            "canonical_receipt_sha256": "a" * 64,
         }
+        value["canonical_receipt_sha256"] = LIVE.sha256_bytes(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        )
+        return value
 
     def reseal_manifest(self, value: dict) -> None:
         value.pop("manifest_sha256", None)
@@ -1537,10 +1703,27 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             root = Path(temporary)
             head, _orphan = self.make_repo(root)
             authorization = self.authorization(root, head)
+            spark_receipt = self.spark_validation_receipt(authorization, head)
+            authorization["progress_gate"][
+                "independent_validation_receipt_canonical_sha256"
+            ] = spark_receipt["canonical_receipt_sha256"]
+            authorization["progress_gate"][
+                "independent_validation_receipt_file_sha256"
+            ] = "b" * 64
+            self.reseal_authorization(authorization)
             tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
             manifest = self.manifest(authorization, head, tree)
             outer_authority = self.outer_authority(authorization)
-            spark_receipt = self.spark_validation_receipt(authorization, head)
+            (
+                predecessor_authorization,
+                predecessor_authorization_raw_sha256,
+                predecessor_manifest,
+                predecessor_manifest_raw_sha256,
+            ) = self.predecessor_artifacts(
+                authorization["bindings"]["predecessor_authorization_id"],
+                authorization["progress_gate"]["predecessor_candidate_commit"],
+                authorization["progress_gate"]["predecessor_candidate_tree"],
+            )
             self.assertEqual(
                 LIVE.validate_campaign_manifest(
                     manifest,
@@ -1548,6 +1731,10 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     authorization_raw_sha256="7" * 64,
                     outer_authority=outer_authority,
                     outer_authority_raw_sha256="8" * 64,
+                    predecessor_authorization=predecessor_authorization,
+                    predecessor_authorization_raw_sha256=predecessor_authorization_raw_sha256,
+                    predecessor_manifest=predecessor_manifest,
+                    predecessor_manifest_raw_sha256=predecessor_manifest_raw_sha256,
                     independent_validation_receipt=spark_receipt,
                     independent_validation_receipt_raw_sha256="b" * 64,
                     expected_primary_diff_sha256=LIVE.sha256_bytes(b""),
@@ -1629,6 +1816,113 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     authorization=authorization,
                     independent_validation_receipt=wrong_spark,
                     independent_validation_receipt_raw_sha256="b" * 64,
+                ),
+            )
+            self.assertIn(
+                "campaign-manifest-independent-validation-canonical-sha256-mismatch",
+                LIVE.validate_campaign_manifest(
+                    manifest,
+                    authorization=authorization,
+                    independent_validation_receipt=wrong_spark,
+                    independent_validation_receipt_raw_sha256="b" * 64,
+                ),
+            )
+
+    def test_predecessor_lineage_and_receipt_integrity_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            head, _orphan = self.make_repo(root)
+            authorization = self.authorization(root, head)
+            spark_receipt = self.spark_validation_receipt(authorization, head)
+            authorization["progress_gate"][
+                "independent_validation_receipt_canonical_sha256"
+            ] = spark_receipt["canonical_receipt_sha256"]
+            authorization["progress_gate"][
+                "independent_validation_receipt_file_sha256"
+            ] = "b" * 64
+            self.reseal_authorization(authorization)
+            manifest = self.manifest(
+                authorization,
+                head,
+                LIVE.run_git(root, "rev-parse", "HEAD^{tree}"),
+            )
+            (
+                predecessor_authorization,
+                predecessor_authorization_raw_sha256,
+                predecessor_manifest,
+                predecessor_manifest_raw_sha256,
+            ) = self.predecessor_artifacts(
+                authorization["bindings"]["predecessor_authorization_id"],
+                authorization["progress_gate"]["predecessor_candidate_commit"],
+                authorization["progress_gate"]["predecessor_candidate_tree"],
+            )
+
+            tampered_receipt = json.loads(json.dumps(spark_receipt))
+            tampered_receipt["opinion"]["findings"] = [
+                {"code": "forged", "severity": "none"}
+            ]
+            self.assertIn(
+                "campaign-manifest-independent-validation-canonical-sha256-mismatch",
+                LIVE.validate_campaign_manifest(
+                    manifest,
+                    authorization=authorization,
+                    independent_validation_receipt=tampered_receipt,
+                    independent_validation_receipt_raw_sha256="b" * 64,
+                ),
+            )
+
+            arbitrary_ancestor = json.loads(json.dumps(authorization))
+            arbitrary_ancestor["progress_gate"]["predecessor_candidate_commit"] = (
+                LIVE.run_git(root, "rev-parse", f"{head}^^")
+            )
+            arbitrary_ancestor["progress_gate"]["predecessor_candidate_tree"] = (
+                LIVE.run_git(root, "rev-parse", f"{head}^^^{{tree}}")
+            )
+            self.reseal_authorization(arbitrary_ancestor)
+            arbitrary_manifest = self.manifest(
+                arbitrary_ancestor,
+                head,
+                LIVE.run_git(root, "rev-parse", "HEAD^{tree}"),
+            )
+            self.assertIn(
+                "campaign-manifest-authorization:authorization-predecessor-manifest-binding-invalid",
+                LIVE.validate_campaign_manifest(
+                    arbitrary_manifest,
+                    authorization=arbitrary_ancestor,
+                    predecessor_authorization=predecessor_authorization,
+                    predecessor_authorization_raw_sha256=predecessor_authorization_raw_sha256,
+                    predecessor_manifest=predecessor_manifest,
+                    predecessor_manifest_raw_sha256=predecessor_manifest_raw_sha256,
+                ),
+            )
+
+            wrong_identity = json.loads(json.dumps(predecessor_authorization))
+            wrong_identity["authorization_id"] = str(uuid.uuid4())
+            self.assertIn(
+                "authorization-predecessor-authorization-binding-invalid",
+                LIVE.validate_full_auto_authorization_contract(
+                    authorization,
+                    predecessor_authorization=wrong_identity,
+                    predecessor_authorization_raw_sha256=predecessor_authorization_raw_sha256,
+                    predecessor_manifest=predecessor_manifest,
+                    predecessor_manifest_raw_sha256=predecessor_manifest_raw_sha256,
+                ),
+            )
+            self.assertIn(
+                "authorization-predecessor-artifacts-incomplete",
+                LIVE.validate_full_auto_authorization_contract(
+                    authorization,
+                    predecessor_authorization=predecessor_authorization,
+                ),
+            )
+            self.assertIn(
+                "authorization-predecessor-authorization-binding-invalid",
+                LIVE.validate_full_auto_authorization_contract(
+                    authorization,
+                    predecessor_authorization=predecessor_authorization,
+                    predecessor_authorization_raw_sha256="0" * 64,
+                    predecessor_manifest=predecessor_manifest,
+                    predecessor_manifest_raw_sha256=predecessor_manifest_raw_sha256,
                 ),
             )
 

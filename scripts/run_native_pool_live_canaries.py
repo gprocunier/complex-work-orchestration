@@ -192,11 +192,19 @@ def validate_full_auto_authorization(
     authorization: Mapping[str, Any],
     campaign_nonce: str,
     *,
+    predecessor_authorization: Mapping[str, Any] | None = None,
+    predecessor_authorization_raw_sha256: str | None = None,
+    predecessor_manifest: Mapping[str, Any] | None = None,
+    predecessor_manifest_raw_sha256: str | None = None,
     repo_root: Path,
 ) -> tuple[str, str]:
     errors = validate_full_auto_authorization_contract(
         authorization,
         expected_campaign_nonce=campaign_nonce,
+        predecessor_authorization=predecessor_authorization,
+        predecessor_authorization_raw_sha256=predecessor_authorization_raw_sha256,
+        predecessor_manifest=predecessor_manifest,
+        predecessor_manifest_raw_sha256=predecessor_manifest_raw_sha256,
         repo_root=repo_root,
     )
     if errors:
@@ -2504,6 +2512,10 @@ def validate_campaign_launch_bindings(
     manifest_path: Path,
     outer_authority: Mapping[str, Any],
     outer_authority_path: Path,
+    predecessor_authorization: Mapping[str, Any],
+    predecessor_authorization_path: Path,
+    predecessor_manifest: Mapping[str, Any],
+    predecessor_manifest_path: Path,
     guarded_primary: Path,
     release_patch: Path,
     pre_mutation_receipt: Mapping[str, Any],
@@ -2526,6 +2538,14 @@ def validate_campaign_launch_bindings(
         authorization_raw_sha256=authorization_raw_sha256,
         outer_authority=outer_authority,
         outer_authority_raw_sha256=sha256_bytes(outer_authority_path.read_bytes()),
+        predecessor_authorization=predecessor_authorization,
+        predecessor_authorization_raw_sha256=sha256_bytes(
+            predecessor_authorization_path.read_bytes()
+        ),
+        predecessor_manifest=predecessor_manifest,
+        predecessor_manifest_raw_sha256=sha256_bytes(
+            predecessor_manifest_path.read_bytes()
+        ),
         independent_validation_receipt=spark_validation_receipt,
         independent_validation_receipt_raw_sha256=sha256_bytes(
             spark_validation_receipt_path.read_bytes()
@@ -2617,6 +2637,12 @@ def validate_campaign_launch_bindings(
         "outer_authority_file_sha256": sha256_bytes(
             outer_authority_path.read_bytes()
         ),
+        "predecessor_authorization_file_sha256": sha256_bytes(
+            predecessor_authorization_path.read_bytes()
+        ),
+        "predecessor_manifest_file_sha256": sha256_bytes(
+            predecessor_manifest_path.read_bytes()
+        ),
         "spark_validation_receipt_file_sha256": observed_reviews[
             "spark_validation_receipt_file_sha256"
         ],
@@ -2647,6 +2673,8 @@ def main() -> int:
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--campaign-manifest", type=Path, required=True)
     parser.add_argument("--outer-authority", type=Path, required=True)
+    parser.add_argument("--predecessor-authorization", type=Path, required=True)
+    parser.add_argument("--predecessor-manifest", type=Path, required=True)
     parser.add_argument("--guarded-primary", type=Path, required=True)
     parser.add_argument("--release-patch", type=Path, required=True)
     parser.add_argument("--pre-mutation-steering-receipt", type=Path, required=True)
@@ -2678,9 +2706,25 @@ def main() -> int:
         manifest_path = args.campaign_manifest.absolute()
         authorization = load_private_json(authorization_path, "authorization")
         authorization_sha256 = sha256_bytes(authorization_path.read_bytes())
+        predecessor_authorization_path = args.predecessor_authorization.absolute()
+        predecessor_manifest_path = args.predecessor_manifest.absolute()
+        predecessor_authorization = load_private_json(
+            predecessor_authorization_path, "predecessor-authorization"
+        )
+        predecessor_manifest = load_private_json(
+            predecessor_manifest_path, "predecessor-manifest"
+        )
         authorization_id, repo_head = validate_full_auto_authorization(
             authorization,
             args.campaign_nonce,
+            predecessor_authorization=predecessor_authorization,
+            predecessor_authorization_raw_sha256=sha256_bytes(
+                predecessor_authorization_path.read_bytes()
+            ),
+            predecessor_manifest=predecessor_manifest,
+            predecessor_manifest_raw_sha256=sha256_bytes(
+                predecessor_manifest_path.read_bytes()
+            ),
             repo_root=ROOT,
         )
         manifest = load_private_json(manifest_path, "campaign-manifest")
@@ -2719,6 +2763,10 @@ def main() -> int:
             manifest_path=manifest_path,
             outer_authority=outer_authority,
             outer_authority_path=args.outer_authority.absolute(),
+            predecessor_authorization=predecessor_authorization,
+            predecessor_authorization_path=predecessor_authorization_path,
+            predecessor_manifest=predecessor_manifest,
+            predecessor_manifest_path=predecessor_manifest_path,
             guarded_primary=args.guarded_primary.absolute(),
             release_patch=args.release_patch.absolute(),
             pre_mutation_receipt=pre_mutation_receipt,
@@ -2788,6 +2836,10 @@ def main() -> int:
             manifest_path=manifest_path,
             outer_authority=outer_authority,
             outer_authority_path=args.outer_authority.absolute(),
+            predecessor_authorization=predecessor_authorization,
+            predecessor_authorization_path=predecessor_authorization_path,
+            predecessor_manifest=predecessor_manifest,
+            predecessor_manifest_path=predecessor_manifest_path,
             guarded_primary=args.guarded_primary.absolute(),
             release_patch=args.release_patch.absolute(),
             pre_mutation_receipt=pre_mutation_receipt,
@@ -2829,6 +2881,10 @@ def main() -> int:
                 != artifact_bindings["release_patch_sha256"]
                 or sha256_bytes(args.outer_authority.absolute().read_bytes())
                 != artifact_bindings["outer_authority_file_sha256"]
+                or sha256_bytes(predecessor_authorization_path.read_bytes())
+                != artifact_bindings["predecessor_authorization_file_sha256"]
+                or sha256_bytes(predecessor_manifest_path.read_bytes())
+                != artifact_bindings["predecessor_manifest_file_sha256"]
                 or sha256_bytes(args.opus_review_evidence.absolute().read_bytes())
                 != artifact_bindings["opus_evidence_file_sha256"]
                 or sha256_bytes(

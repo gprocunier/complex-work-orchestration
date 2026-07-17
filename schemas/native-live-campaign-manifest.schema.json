@@ -75,9 +75,21 @@
     },
     "predecessor": {
       "type": "object", "additionalProperties": false,
-      "required": ["authorization_id", "failure_evidence_canonical_sha256", "containment_canonical_sha256"],
+      "required": [
+        "authorization_id", "authorization_file_sha256", "authorization_canonical_sha256",
+        "manifest_file_sha256", "manifest_canonical_sha256", "candidate_commit",
+        "candidate_tree", "lineage_sha256", "failure_evidence_canonical_sha256",
+        "containment_canonical_sha256"
+      ],
       "properties": {
         "authorization_id": {"$ref": "#/$defs/uuid"},
+        "authorization_file_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "manifest_file_sha256": {"$ref": "#/$defs/sha256"},
+        "manifest_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_commit": {"$ref": "#/$defs/git_object"},
+        "candidate_tree": {"$ref": "#/$defs/git_object"},
+        "lineage_sha256": {"$ref": "#/$defs/sha256"},
         "failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
         "containment_canonical_sha256": {"$ref": "#/$defs/sha256"}
       }
