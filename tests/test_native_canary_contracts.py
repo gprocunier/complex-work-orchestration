@@ -439,6 +439,36 @@ class NativeCanaryContractTests(unittest.TestCase):
         value["control_observations"][-1]["decision"] = "interrupt-confirmed"
         cases.append((value, "terminal-observation"))
         value = materialization()
+        value["control_observations"][0]["phase"] = "pre-interrupt"
+        cases.append((value, "phase-first-invalid"))
+        value = materialization()
+        value["control_observations"][2]["phase"] = "interrupt-confirmation"
+        cases.append((value, "phase-skipped"))
+        value = materialization()
+        value["control_observations"][3]["phase"] = "materialization"
+        cases.append((value, "phase-regressed"))
+        value = materialization()
+        value["control_observations"][3]["phase"] = "terminal"
+        cases.append((value, "terminal-phase-not-singular"))
+        value = materialization()
+        value["control_observations"][3]["decision"] = "interrupt-pending"
+        cases.append((value, "interrupt-confirmation-not-singular"))
+        value = materialization()
+        extra = dict(value["control_observations"][3])
+        extra["ordinal"] = 4
+        extra["elapsed_monotonic_ms"] = 875.0
+        extra["decision"] = "interrupt-pending"
+        extra["previous_boundary_sha256"] = extra["boundary"]["boundary_sha256"]
+        value["control_observations"].insert(4, extra)
+        value["control_observations"][5]["ordinal"] = 5
+        value["control_observations"][5]["previous_boundary_sha256"] = extra[
+            "boundary"
+        ]["boundary_sha256"]
+        cases.append((value, "interrupt-confirmation-not-adjacent-terminal"))
+        value = materialization()
+        value["control_observations"][2]["decision"] = "terminal-accepted"
+        cases.append((value, "terminal-decision-phase-invalid"))
+        value = materialization()
         value["liveness_observations"][0]["boundary"] = boundary(
             "unbound-liveness", 5
         )

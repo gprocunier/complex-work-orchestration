@@ -75,6 +75,13 @@ OBSERVATION_FIELDS = {
     "ambiguous_event_count",
 }
 CONTROL_OBSERVATION_MAX = 192
+CONTROL_OBSERVATION_MAX_GAP_MS = 1000
+CONTROL_OBSERVATION_PHASES = (
+    "materialization",
+    "pre-interrupt",
+    "interrupt-confirmation",
+    "terminal",
+)
 CONTROL_OBSERVATION_FIELDS = {
     "ordinal",
     "elapsed_monotonic_ms",
@@ -561,6 +568,9 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
     ]
     previous_boundary = baseline
     previous_elapsed = -1.0
+    previous_phase_rank: int | None = None
+    phase_counts = {phase: 0 for phase in CONTROL_OBSERVATION_PHASES}
+    interrupt_confirmation_indexes: list[int] = []
     saw_pre_interrupt = False
     saw_interrupt_confirmed = False
     for index, item in enumerate(parsed_control):
@@ -571,7 +581,11 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             current_elapsed = float(elapsed)
             if current_elapsed < previous_elapsed:
                 errors.append("materialization-control-elapsed-regressed")
-            if previous_elapsed >= 0 and current_elapsed - previous_elapsed > 1000:
+            if (
+                previous_elapsed >= 0
+                and current_elapsed - previous_elapsed
+                > CONTROL_OBSERVATION_MAX_GAP_MS
+            ):
                 errors.append("materialization-control-observation-gap-exceeded")
             previous_elapsed = max(previous_elapsed, current_elapsed)
         boundary = item.get("boundary") if isinstance(item.get("boundary"), Mapping) else {}
@@ -615,6 +629,19 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         durable = item.get("durable_status")
         decision = item.get("decision")
         phase = item.get("phase")
+        if phase in phase_counts:
+            phase_counts[phase] += 1
+            phase_rank = CONTROL_OBSERVATION_PHASES.index(phase)
+            if index == 0 and phase != "materialization":
+                errors.append("materialization-control-phase-first-invalid")
+            if previous_phase_rank is not None:
+                if phase_rank < previous_phase_rank:
+                    errors.append("materialization-control-phase-regressed")
+                elif phase_rank > previous_phase_rank + 1:
+                    errors.append("materialization-control-phase-skipped")
+            previous_phase_rank = phase_rank
+            if phase == "terminal" and index != len(parsed_control) - 1:
+                errors.append("materialization-control-terminal-phase-not-final")
         if (
             phase in {"materialization", "pre-interrupt"}
             and projected in {"completed", "failed", "interrupted"}
@@ -635,8 +662,22 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
                 errors.append("materialization-pre-interrupt-durable-terminal-observed")
         if decision == "interrupt-confirmed":
             saw_interrupt_confirmed = True
+            interrupt_confirmation_indexes.append(index)
             if phase != "interrupt-confirmation" or durable != "interrupted":
                 errors.append("materialization-control-interrupt-confirmation-invalid")
+        if decision == "terminal-accepted" and phase != "terminal":
+            errors.append("materialization-control-terminal-decision-phase-invalid")
+    for phase, count in phase_counts.items():
+        if count == 0:
+            errors.append(f"materialization-control-phase-missing:{phase}")
+    if phase_counts["terminal"] != 1:
+        errors.append("materialization-control-terminal-phase-not-singular")
+    if len(interrupt_confirmation_indexes) != 1:
+        errors.append("materialization-control-interrupt-confirmation-not-singular")
+    elif interrupt_confirmation_indexes[0] != len(parsed_control) - 2:
+        errors.append(
+            "materialization-control-interrupt-confirmation-not-adjacent-terminal"
+        )
     if parsed_control:
         final_control = parsed_control[-1]
         if (
