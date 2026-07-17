@@ -12,6 +12,8 @@ import tempfile
 from typing import Any, Mapping
 import uuid
 
+from .native_canary_contracts import validate_authorization_state
+
 
 AUTHORIZATION_TYPE = "cwo-full-auto-run-authorization"
 AUTHORIZATION_VERSION = 5
@@ -848,8 +850,7 @@ def validate_full_auto_authorization(
                 != bindings.get("predecessor_authorization_state_file_sha256")
                 or prior_state.get("state_sha256")
                 != bindings.get("predecessor_authorization_state_canonical_sha256")
-                or prior_state.get("state_sha256")
-                != _canonical_artifact_hash(prior_state, "state_sha256")
+                or validate_authorization_state(prior_state)
                 or prior_state.get("authorization_id")
                 != bindings.get("predecessor_authorization_id")
                 or prior_state.get("run_nonce") != expected_prior_nonce

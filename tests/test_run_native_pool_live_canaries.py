@@ -1194,27 +1194,39 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 separators=(",", ":"),
             ).encode()
         )
-        predecessor_state = seal(
-            {
-                "authorization_type": "cwo-native-canary-authorization-state:v1",
-                "version": 1,
-                "schema": "schemas/native-canary-authorization-state.schema.json",
-                "authorization_id": predecessor_authorization_id,
-                "run_nonce": campaign_nonce,
-                "state": "containment-only",
-                "allowed_actions": [],
-                "revoked_actions": [
-                    "install",
-                    "publish",
-                    "push",
-                    "relaunch",
-                    "release-enable",
-                    "replacement",
-                    "retry",
-                    "tracked-mutation",
-                ],
-            },
-            "state_sha256",
+        predecessor_state = {
+            "authorization_type": "cwo-native-canary-authorization-state:v1",
+            "version": 1,
+            "schema": "schemas/native-canary-authorization-state.schema.json",
+            "authorization_id": predecessor_authorization_id,
+            "run_nonce": campaign_nonce,
+            "state": "containment-only",
+            "reason": "synthetic predecessor containment",
+            "sequence": 1,
+            "updated_at": "2026-07-17T11:00:00Z",
+            "allowed_actions": [
+                "beads-update",
+                "close",
+                "handoff",
+                "interrupt",
+                "local-checkpoint",
+                "pickup",
+                "reserved-steering",
+                "sanitized-evidence",
+            ],
+            "revoked_actions": [
+                "install",
+                "publish",
+                "push",
+                "relaunch",
+                "release-enable",
+                "replacement",
+                "retry",
+                "tracked-mutation",
+            ],
+        }
+        predecessor_state["state_sha256"] = LIVE.domain_sha256(
+            predecessor_state, domain="native-canary-authorization"
         )
         predecessor_state_raw_sha256 = LIVE.sha256_bytes(
             json.dumps(
