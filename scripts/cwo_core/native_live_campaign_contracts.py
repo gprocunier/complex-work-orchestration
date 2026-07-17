@@ -1,0 +1,767 @@
+"""Strict successor authority and manifest contracts for native live campaigns."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+from typing import Any, Mapping
+import uuid
+
+
+AUTHORIZATION_TYPE = "cwo-full-auto-run-authorization"
+AUTHORIZATION_VERSION = 4
+AUTHORIZATION_SCHEMA = "schemas/full-auto-run-authorization.schema.json"
+MANIFEST_TYPE = "cwo-native-live-campaign-manifest"
+MANIFEST_VERSION = 1
+MANIFEST_SCHEMA = "schemas/native-live-campaign-manifest.schema.json"
+EXACT_STEERING_MODEL = "gpt-5.6-sol"
+EXACT_STEERING_EFFORT = "max"
+EXACT_OPERATIVE_MODEL = "gpt-5.3-codex-spark"
+EXACT_OPERATIVE_EFFORT = "low"
+EXACT_CRITIC_MODEL = "claude-opus-4-6"
+EXACT_CRITIC_EFFORT = "max"
+EXPECTED_ROLES = (
+    "capability-calibration",
+    "read-only-0",
+    "read-only-1",
+    "mutable-0",
+    "mutable-1",
+    "interrupt-0",
+    "interrupt-1",
+)
+HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+
+AUTHORIZATION_FIELDS = {
+    "authorization_type",
+    "version",
+    "schema",
+    "authorization_id",
+    "run_generation",
+    "live_generation",
+    "predecessor_live_generation",
+    "issued_at",
+    "issued_by",
+    "operator_authority",
+    "initial_state",
+    "scope",
+    "bindings",
+    "supersession",
+    "executors",
+    "budgets",
+    "mandatory_gates",
+    "persistence",
+    "forbidden",
+    "live_relaunch_rule",
+    "release",
+    "canonical_authorization_sha256",
+}
+SCOPE_FIELDS = {"epic_id", "parent_work_unit_id", "ordered_work_units"}
+BINDING_FIELDS = {
+    "checkpoint_commit",
+    "checkpoint_tree",
+    "origin_main_commit",
+    "guarded_primary_diff_sha256",
+    "pickup_path",
+    "pickup_sha256",
+    "recovery_plan_path",
+    "recovery_plan_sha256",
+    "campaign_nonce",
+    "predecessor_authorization_id",
+    "predecessor_failure_evidence_file_sha256",
+    "predecessor_failure_evidence_canonical_sha256",
+    "predecessor_containment_file_sha256",
+    "predecessor_containment_canonical_sha256",
+    "backup_ref",
+}
+SUPERSESSION_FIELDS = {
+    "prior_authorization_id",
+    "prior_terminal_state",
+    "prior_live_generation",
+    "prior_allocations",
+    "prior_ambiguities",
+    "prior_allowed_actions",
+    "reuse_resume_retry_substitution_salvage_bridge",
+}
+EXECUTOR_FIELDS = {"final_architect", "steering", "operative", "outside_critic"}
+STEERING_EXECUTOR_FIELDS = {"model", "effort", "surface", "authority"}
+OPERATIVE_EXECUTOR_FIELDS = {"model", "effort", "surface", "session_policy"}
+CRITIC_EXECUTOR_FIELDS = {"model", "effort", "surface", "authority"}
+BUDGET_FIELDS = {
+    "sol_consultations_observed_before_v10",
+    "sol_consultations_added",
+    "sol_consultations_global_hard",
+    "opus_reviews_observed_before_v10",
+    "opus_reviews_added",
+    "opus_reviews_global_hard",
+    "live_generations_consumed_before_current",
+    "live_generations_global_hard",
+    "live_generations_remaining_exact",
+    "spark_live_turn_starts_per_generation_exact",
+    "spark_read_only_validation_sessions_hard",
+    "spark_compactions_hard",
+    "full_repository_suites_observed_before_v10",
+    "full_repository_suites_added",
+    "full_repository_suites_global_hard",
+    "focused_validation_bundles_hard",
+    "implementation_correction_sprints_hard",
+    "origin_reconciliation_cycles_hard",
+    "primary_checkout_mutations_hard",
+}
+MANDATORY_GATE_FIELDS = {
+    "strict_authorization_v4",
+    "contained_prior_generation_proof",
+    "fresh_exact_sol_pre_mutation_receipt",
+    "successor_contract_validation",
+    "frozen_release_patch",
+    "fresh_opus_candidate_review",
+    "fresh_exact_sol_pre_live_receipt",
+    "campaign_manifest_v1",
+    "single_shot_per_generation_live_campaign",
+    "main_thread_adjudication_each_gate",
+    "guarded_primary_diff_stability",
+    "staging_ci_before_main",
+    "published_install_parity",
+}
+PERSISTENCE_FIELDS = {
+    "run_level_full_auto_survives_recoverable_failure",
+    "operator_recheck_required_for_routine_recovery",
+    "evidence_bearing_live_failure_becomes_terminal",
+    "fresh_successor_requires_new_authorization_id_nonce_receipts_sessions_and_paths",
+    "combined_confidence_formula",
+    "combined_confidence_minimum",
+    "operator_stop_conditions",
+}
+FORBIDDEN_FIELDS = {
+    "glm_5_2",
+    "model_synthesis",
+    "primary_checkout_mutation",
+    "prior_authorization_reuse",
+    "prior_nonce_session_receipt_registry_state_output_ledger_or_path_reuse",
+    "worker_resume",
+    "worker_salvage",
+    "model_substitution",
+    "evidence_bearing_live_retry",
+    "generation_6",
+    "sol_target_checkout_mutation",
+    "release_before_live_acceptance",
+    "force_push",
+    "git_tag",
+    "github_release",
+}
+RELAUNCH_FIELDS = {
+    "pre_rpc_zero_artifact_relaunch_max",
+    "requires_no_thread_start_request",
+    "requires_no_allocation_intent",
+    "requires_no_session_identity",
+    "requires_no_audit_event",
+    "requires_no_campaign_artifact",
+}
+AUTHORIZATION_RELEASE_FIELDS = {
+    "authorized_only_after_accepting_live_evidence_and_main_go",
+    "frozen_delta_required",
+    "version_remains",
+    "tag_or_github_release",
+    "actions_after_gate",
+}
+
+MANIFEST_FIELDS = {
+    "manifest_type",
+    "version",
+    "schema",
+    "manifest_id",
+    "created_at",
+    "authorization_id",
+    "authorization_raw_sha256",
+    "authorization_canonical_sha256",
+    "run_generation",
+    "live_generation",
+    "predecessor_live_generation",
+    "campaign_nonce",
+    "control_turn_id",
+    "work_units",
+    "candidate",
+    "predecessor",
+    "executors",
+    "expected_roles",
+    "successful_turn_starts_exact",
+    "prestart_zero_artifact_relaunch_max",
+    "reviews",
+    "release",
+    "outputs",
+    "no_resume_or_salvage",
+    "glm_5_2_used",
+    "model_synthesis_used",
+    "manifest_sha256",
+}
+MANIFEST_WORK_UNIT_FIELDS = {"epic_id", "parent_work_unit_id", "live_work_unit_id"}
+MANIFEST_CANDIDATE_FIELDS = {
+    "commit",
+    "tree",
+    "origin_main_commit",
+    "guarded_primary_diff_sha256",
+}
+MANIFEST_PREDECESSOR_FIELDS = {
+    "authorization_id",
+    "failure_evidence_canonical_sha256",
+    "containment_canonical_sha256",
+}
+MANIFEST_REVIEW_FIELDS = {
+    "pre_mutation_receipt_canonical_sha256",
+    "pre_mutation_receipt_file_sha256",
+    "pre_mutation_adjudication_file_sha256",
+    "opus_evidence_file_sha256",
+    "opus_adjudication_file_sha256",
+    "pre_live_receipt_canonical_sha256",
+    "pre_live_receipt_file_sha256",
+    "pre_live_adjudication_file_sha256",
+}
+MANIFEST_RELEASE_FIELDS = {
+    "patch_file_sha256",
+    "candidate_tree",
+    "prospective_tree",
+    "policy_before",
+    "policy_after",
+}
+MANIFEST_POLICY_FIELDS = {"status", "cap_two_operative_release"}
+MANIFEST_OUTPUT_FIELDS = {
+    "evidence_basename",
+    "authorization_state_basename",
+    "steering_registry_basename",
+    "allocation_ledger_basename",
+}
+
+
+def canonical_sha256(value: Any) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _is_hash(value: Any) -> bool:
+    return isinstance(value, str) and bool(HASH_RE.fullmatch(value))
+
+
+def _is_commit(value: Any) -> bool:
+    return isinstance(value, str) and bool(COMMIT_RE.fullmatch(value))
+
+
+def _is_uuid(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_int(value: Any, minimum: int = 0) -> bool:
+    return not isinstance(value, bool) and isinstance(value, int) and value >= minimum
+
+
+def _strict(value: Any, fields: set[str], label: str, errors: list[str]) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        errors.append(f"{label}-not-object")
+        return {}
+    result = dict(value)
+    if set(result) != fields:
+        errors.append(f"{label}-fields-invalid")
+    return result
+
+
+def _strings(value: Any) -> bool:
+    return isinstance(value, list) and bool(value) and all(
+        isinstance(item, str) and bool(item.strip()) for item in value
+    )
+
+
+def _run_git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def validate_full_auto_authorization(
+    value: Any,
+    *,
+    expected_campaign_nonce: str | None = None,
+    repo_root: Path | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    authorization = _strict(value, AUTHORIZATION_FIELDS, "authorization", errors)
+    if not authorization:
+        return sorted(set(errors))
+    if (
+        authorization.get("authorization_type") != AUTHORIZATION_TYPE
+        or authorization.get("version") != AUTHORIZATION_VERSION
+        or authorization.get("schema") != AUTHORIZATION_SCHEMA
+    ):
+        errors.append("authorization-header-invalid")
+    if not _is_uuid(authorization.get("authorization_id")):
+        errors.append("authorization-id-invalid")
+    run_generation = authorization.get("run_generation")
+    live_generation = authorization.get("live_generation")
+    predecessor = authorization.get("predecessor_live_generation")
+    if not _is_int(run_generation, 1):
+        errors.append("authorization-run-generation-invalid")
+    if not _is_int(live_generation, 1) or not _is_int(predecessor, 0):
+        errors.append("authorization-live-generation-invalid")
+    elif live_generation != predecessor + 1:
+        errors.append("authorization-live-generation-not-successor")
+    for field in ("issued_at", "issued_by", "operator_authority"):
+        if not isinstance(authorization.get(field), str) or not authorization[field].strip():
+            errors.append(f"authorization-{field.replace('_', '-')}-invalid")
+    if authorization.get("initial_state") != "active":
+        errors.append("authorization-initial-state-invalid")
+
+    scope = _strict(authorization.get("scope"), SCOPE_FIELDS, "authorization-scope", errors)
+    if not all(isinstance(scope.get(field), str) and scope[field].strip() for field in ("epic_id", "parent_work_unit_id")):
+        errors.append("authorization-scope-identity-invalid")
+    ordered = scope.get("ordered_work_units")
+    if not _strings(ordered) or len(ordered) != len(set(ordered or [])):
+        errors.append("authorization-scope-work-units-invalid")
+
+    bindings = _strict(
+        authorization.get("bindings"), BINDING_FIELDS, "authorization-bindings", errors
+    )
+    for field in ("checkpoint_commit", "checkpoint_tree", "origin_main_commit"):
+        if not _is_commit(bindings.get(field)):
+            errors.append(f"authorization-binding-{field.replace('_', '-')}-invalid")
+    for field in (
+        "guarded_primary_diff_sha256",
+        "pickup_sha256",
+        "recovery_plan_sha256",
+        "predecessor_failure_evidence_file_sha256",
+        "predecessor_failure_evidence_canonical_sha256",
+        "predecessor_containment_file_sha256",
+        "predecessor_containment_canonical_sha256",
+    ):
+        if not _is_hash(bindings.get(field)):
+            errors.append(f"authorization-binding-{field.replace('_', '-')}-invalid")
+    for field in ("campaign_nonce", "predecessor_authorization_id"):
+        if not _is_uuid(bindings.get(field)):
+            errors.append(f"authorization-binding-{field.replace('_', '-')}-invalid")
+    if expected_campaign_nonce is not None and bindings.get("campaign_nonce") != expected_campaign_nonce:
+        errors.append("authorization-campaign-nonce-mismatch")
+    for field in ("pickup_path", "recovery_plan_path", "backup_ref"):
+        item = bindings.get(field)
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"authorization-binding-{field.replace('_', '-')}-invalid")
+    backup_ref = bindings.get("backup_ref")
+    if not isinstance(backup_ref, str) or not backup_ref.startswith("refs/heads/"):
+        errors.append("authorization-binding-backup-ref-invalid")
+
+    supersession = _strict(
+        authorization.get("supersession"),
+        SUPERSESSION_FIELDS,
+        "authorization-supersession",
+        errors,
+    )
+    if supersession.get("prior_authorization_id") != bindings.get("predecessor_authorization_id"):
+        errors.append("authorization-supersession-id-mismatch")
+    if supersession.get("prior_terminal_state") != "containment-only":
+        errors.append("authorization-supersession-state-invalid")
+    if supersession.get("prior_live_generation") != predecessor:
+        errors.append("authorization-supersession-generation-mismatch")
+    for field in ("prior_allocations", "prior_ambiguities", "prior_allowed_actions"):
+        if not _is_int(supersession.get(field), 0):
+            errors.append(f"authorization-supersession-{field.replace('_', '-')}-invalid")
+    if supersession.get("prior_ambiguities") != 0 or supersession.get("prior_allowed_actions") != 0:
+        errors.append("authorization-supersession-not-terminal")
+    if supersession.get("reuse_resume_retry_substitution_salvage_bridge") is not False:
+        errors.append("authorization-supersession-reuse-invalid")
+
+    executors = _strict(
+        authorization.get("executors"), EXECUTOR_FIELDS, "authorization-executors", errors
+    )
+    steering = _strict(
+        executors.get("steering"),
+        STEERING_EXECUTOR_FIELDS,
+        "authorization-steering-executor",
+        errors,
+    )
+    operative = _strict(
+        executors.get("operative"),
+        OPERATIVE_EXECUTOR_FIELDS,
+        "authorization-operative-executor",
+        errors,
+    )
+    critic = _strict(
+        executors.get("outside_critic"),
+        CRITIC_EXECUTOR_FIELDS,
+        "authorization-critic-executor",
+        errors,
+    )
+    if executors.get("final_architect") != "current-codex-main-thread":
+        errors.append("authorization-final-architect-invalid")
+    if steering != {
+        "model": EXACT_STEERING_MODEL,
+        "effort": EXACT_STEERING_EFFORT,
+        "surface": "codex-app-server-stdio",
+        "authority": "read-only-evidence",
+    }:
+        errors.append("authorization-steering-executor-invalid")
+    if operative != {
+        "model": EXACT_OPERATIVE_MODEL,
+        "effort": EXACT_OPERATIVE_EFFORT,
+        "surface": "codex-app-server-stdio",
+        "session_policy": "fresh-nonresumable-nonsalvageable",
+    }:
+        errors.append("authorization-operative-executor-invalid")
+    if critic != {
+        "model": EXACT_CRITIC_MODEL,
+        "effort": EXACT_CRITIC_EFFORT,
+        "surface": "claude-cli-as-greg",
+        "authority": "evidence-only",
+    }:
+        errors.append("authorization-critic-executor-invalid")
+
+    budgets = _strict(
+        authorization.get("budgets"), BUDGET_FIELDS, "authorization-budgets", errors
+    )
+    if any(not _is_int(budgets.get(field), 0) for field in BUDGET_FIELDS):
+        errors.append("authorization-budget-value-invalid")
+    else:
+        if budgets["sol_consultations_observed_before_v10"] + budgets["sol_consultations_added"] != budgets["sol_consultations_global_hard"]:
+            errors.append("authorization-sol-budget-arithmetic-invalid")
+        if budgets["opus_reviews_observed_before_v10"] + budgets["opus_reviews_added"] != budgets["opus_reviews_global_hard"]:
+            errors.append("authorization-opus-budget-arithmetic-invalid")
+        if budgets["live_generations_consumed_before_current"] + budgets["live_generations_remaining_exact"] != budgets["live_generations_global_hard"]:
+            errors.append("authorization-live-budget-arithmetic-invalid")
+        if budgets["live_generations_consumed_before_current"] != predecessor or budgets["live_generations_remaining_exact"] != 1:
+            errors.append("authorization-live-budget-generation-mismatch")
+        if budgets["spark_live_turn_starts_per_generation_exact"] != len(EXPECTED_ROLES):
+            errors.append("authorization-live-turn-budget-invalid")
+        if budgets["spark_compactions_hard"] != 0 or budgets["primary_checkout_mutations_hard"] != 0:
+            errors.append("authorization-protected-budget-invalid")
+        if budgets["full_repository_suites_observed_before_v10"] + budgets["full_repository_suites_added"] != budgets["full_repository_suites_global_hard"]:
+            errors.append("authorization-full-suite-budget-arithmetic-invalid")
+
+    gates = _strict(
+        authorization.get("mandatory_gates"),
+        MANDATORY_GATE_FIELDS,
+        "authorization-mandatory-gates",
+        errors,
+    )
+    if any(gates.get(field) is not True for field in MANDATORY_GATE_FIELDS):
+        errors.append("authorization-mandatory-gate-disabled")
+    persistence = _strict(
+        authorization.get("persistence"),
+        PERSISTENCE_FIELDS,
+        "authorization-persistence",
+        errors,
+    )
+    if persistence.get("combined_confidence_formula") != "min(main,sol) when sol-used else main" or persistence.get("combined_confidence_minimum") != 0.5:
+        errors.append("authorization-confidence-policy-invalid")
+    if any(
+        persistence.get(field) is not expected
+        for field, expected in (
+            ("run_level_full_auto_survives_recoverable_failure", True),
+            ("operator_recheck_required_for_routine_recovery", False),
+            ("evidence_bearing_live_failure_becomes_terminal", True),
+            ("fresh_successor_requires_new_authorization_id_nonce_receipts_sessions_and_paths", True),
+        )
+    ) or not _strings(persistence.get("operator_stop_conditions")):
+        errors.append("authorization-persistence-policy-invalid")
+    forbidden = _strict(
+        authorization.get("forbidden"), FORBIDDEN_FIELDS, "authorization-forbidden", errors
+    )
+    if any(forbidden.get(field) is not True for field in FORBIDDEN_FIELDS):
+        errors.append("authorization-forbidden-policy-invalid")
+    relaunch = _strict(
+        authorization.get("live_relaunch_rule"),
+        RELAUNCH_FIELDS,
+        "authorization-live-relaunch",
+        errors,
+    )
+    if relaunch.get("pre_rpc_zero_artifact_relaunch_max") != 1 or any(
+        relaunch.get(field) is not True for field in RELAUNCH_FIELDS - {"pre_rpc_zero_artifact_relaunch_max"}
+    ):
+        errors.append("authorization-live-relaunch-policy-invalid")
+    release = _strict(
+        authorization.get("release"),
+        AUTHORIZATION_RELEASE_FIELDS,
+        "authorization-release",
+        errors,
+    )
+    if (
+        release.get("authorized_only_after_accepting_live_evidence_and_main_go") is not True
+        or release.get("frozen_delta_required") is not True
+        or release.get("version_remains") != "0.2.0-dev"
+        or release.get("tag_or_github_release") is not False
+        or not _strings(release.get("actions_after_gate"))
+    ):
+        errors.append("authorization-release-policy-invalid")
+
+    recorded_hash = authorization.get("canonical_authorization_sha256")
+    unsigned = dict(authorization)
+    unsigned.pop("canonical_authorization_sha256", None)
+    if not _is_hash(recorded_hash) or recorded_hash != canonical_sha256(unsigned):
+        errors.append("authorization-canonical-sha256-mismatch")
+
+    if repo_root is not None and not errors:
+        root = Path(repo_root).resolve()
+        try:
+            checkpoint = str(bindings["checkpoint_commit"])
+            if _run_git(root, "rev-parse", f"{checkpoint}^{{tree}}") != bindings["checkpoint_tree"]:
+                errors.append("authorization-checkpoint-tree-mismatch")
+            head = _run_git(root, "rev-parse", "HEAD")
+            ancestor = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", checkpoint, head],
+                cwd=root,
+                capture_output=True,
+            )
+            if ancestor.returncode != 0:
+                errors.append("authorization-checkpoint-not-ancestor")
+            if _run_git(root, "status", "--porcelain=v1", "--untracked-files=no"):
+                errors.append("authorization-repository-not-clean")
+            if _run_git(root, "rev-parse", "origin/main") != bindings["origin_main_commit"]:
+                errors.append("authorization-origin-main-mismatch")
+        except subprocess.CalledProcessError:
+            errors.append("authorization-repository-binding-invalid")
+    return sorted(set(errors))
+
+
+def validate_campaign_manifest(
+    value: Any,
+    *,
+    authorization: Mapping[str, Any] | None = None,
+    authorization_raw_sha256: str | None = None,
+    repo_root: Path | None = None,
+    expected_primary_diff_sha256: str | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    manifest = _strict(value, MANIFEST_FIELDS, "campaign-manifest", errors)
+    if not manifest:
+        return sorted(set(errors))
+    if (
+        manifest.get("manifest_type") != MANIFEST_TYPE
+        or manifest.get("version") != MANIFEST_VERSION
+        or manifest.get("schema") != MANIFEST_SCHEMA
+    ):
+        errors.append("campaign-manifest-header-invalid")
+    if not _is_uuid(manifest.get("manifest_id")) or not _is_uuid(manifest.get("authorization_id")) or not _is_uuid(manifest.get("campaign_nonce")):
+        errors.append("campaign-manifest-identity-invalid")
+    if not isinstance(manifest.get("created_at"), str) or not manifest["created_at"].strip():
+        errors.append("campaign-manifest-created-at-invalid")
+    for field in ("authorization_raw_sha256", "authorization_canonical_sha256"):
+        if not _is_hash(manifest.get(field)):
+            errors.append(f"campaign-manifest-{field.replace('_', '-')}-invalid")
+    live_generation = manifest.get("live_generation")
+    predecessor = manifest.get("predecessor_live_generation")
+    if not _is_int(manifest.get("run_generation"), 1) or not _is_int(live_generation, 1) or not _is_int(predecessor, 0) or live_generation != predecessor + 1:
+        errors.append("campaign-manifest-generation-invalid")
+    if not isinstance(manifest.get("control_turn_id"), str) or not manifest["control_turn_id"].strip():
+        errors.append("campaign-manifest-control-turn-invalid")
+
+    work_units = _strict(
+        manifest.get("work_units"), MANIFEST_WORK_UNIT_FIELDS, "campaign-manifest-work-units", errors
+    )
+    if not all(isinstance(work_units.get(field), str) and work_units[field].strip() for field in MANIFEST_WORK_UNIT_FIELDS):
+        errors.append("campaign-manifest-work-unit-invalid")
+    candidate = _strict(
+        manifest.get("candidate"), MANIFEST_CANDIDATE_FIELDS, "campaign-manifest-candidate", errors
+    )
+    for field in ("commit", "tree", "origin_main_commit"):
+        if not _is_commit(candidate.get(field)):
+            errors.append(f"campaign-manifest-candidate-{field}-invalid")
+    if not _is_hash(candidate.get("guarded_primary_diff_sha256")):
+        errors.append("campaign-manifest-primary-diff-invalid")
+    predecessor_value = _strict(
+        manifest.get("predecessor"),
+        MANIFEST_PREDECESSOR_FIELDS,
+        "campaign-manifest-predecessor",
+        errors,
+    )
+    if not _is_uuid(predecessor_value.get("authorization_id")) or any(
+        not _is_hash(predecessor_value.get(field))
+        for field in ("failure_evidence_canonical_sha256", "containment_canonical_sha256")
+    ):
+        errors.append("campaign-manifest-predecessor-invalid")
+    executors = _strict(
+        manifest.get("executors"), EXECUTOR_FIELDS, "campaign-manifest-executors", errors
+    )
+    if executors.get("final_architect") != "current-codex-main-thread":
+        errors.append("campaign-manifest-final-architect-invalid")
+    if _strict(executors.get("steering"), STEERING_EXECUTOR_FIELDS, "campaign-manifest-steering", errors) != {
+        "model": EXACT_STEERING_MODEL,
+        "effort": EXACT_STEERING_EFFORT,
+        "surface": "codex-app-server-stdio",
+        "authority": "read-only-evidence",
+    }:
+        errors.append("campaign-manifest-steering-invalid")
+    if _strict(executors.get("operative"), OPERATIVE_EXECUTOR_FIELDS, "campaign-manifest-operative", errors) != {
+        "model": EXACT_OPERATIVE_MODEL,
+        "effort": EXACT_OPERATIVE_EFFORT,
+        "surface": "codex-app-server-stdio",
+        "session_policy": "fresh-nonresumable-nonsalvageable",
+    }:
+        errors.append("campaign-manifest-operative-invalid")
+    if _strict(executors.get("outside_critic"), CRITIC_EXECUTOR_FIELDS, "campaign-manifest-critic", errors) != {
+        "model": EXACT_CRITIC_MODEL,
+        "effort": EXACT_CRITIC_EFFORT,
+        "surface": "claude-cli-as-greg",
+        "authority": "evidence-only",
+    }:
+        errors.append("campaign-manifest-critic-invalid")
+    if manifest.get("expected_roles") != list(EXPECTED_ROLES) or manifest.get("successful_turn_starts_exact") != len(EXPECTED_ROLES):
+        errors.append("campaign-manifest-role-contract-invalid")
+    if manifest.get("prestart_zero_artifact_relaunch_max") != 1:
+        errors.append("campaign-manifest-relaunch-invalid")
+    reviews = _strict(
+        manifest.get("reviews"), MANIFEST_REVIEW_FIELDS, "campaign-manifest-reviews", errors
+    )
+    if any(not _is_hash(reviews.get(field)) for field in MANIFEST_REVIEW_FIELDS):
+        errors.append("campaign-manifest-review-hash-invalid")
+    release = _strict(
+        manifest.get("release"), MANIFEST_RELEASE_FIELDS, "campaign-manifest-release", errors
+    )
+    for field in ("patch_file_sha256", "candidate_tree", "prospective_tree"):
+        validator = _is_hash if field == "patch_file_sha256" else _is_commit
+        if not validator(release.get(field)):
+            errors.append(f"campaign-manifest-release-{field.replace('_', '-')}-invalid")
+    policy_before = _strict(release.get("policy_before"), MANIFEST_POLICY_FIELDS, "campaign-manifest-policy-before", errors)
+    policy_after = _strict(release.get("policy_after"), MANIFEST_POLICY_FIELDS, "campaign-manifest-policy-after", errors)
+    if policy_before != {"status": "canary-gated", "cap_two_operative_release": False}:
+        errors.append("campaign-manifest-policy-before-invalid")
+    if policy_after != {"status": "operative-authorized", "cap_two_operative_release": True}:
+        errors.append("campaign-manifest-policy-after-invalid")
+    if release.get("candidate_tree") != candidate.get("tree"):
+        errors.append("campaign-manifest-release-candidate-tree-mismatch")
+    outputs = _strict(
+        manifest.get("outputs"), MANIFEST_OUTPUT_FIELDS, "campaign-manifest-outputs", errors
+    )
+    output_values = list(outputs.values())
+    if any(
+        not isinstance(item, str)
+        or not item
+        or Path(item).name != item
+        or item in {".", ".."}
+        for item in output_values
+    ) or len(output_values) != len(set(output_values)):
+        errors.append("campaign-manifest-output-identity-invalid")
+    if manifest.get("no_resume_or_salvage") is not True or manifest.get("glm_5_2_used") is not False or manifest.get("model_synthesis_used") is not False:
+        errors.append("campaign-manifest-containment-policy-invalid")
+    unsigned = dict(manifest)
+    unsigned.pop("manifest_sha256", None)
+    if not _is_hash(manifest.get("manifest_sha256")) or manifest.get("manifest_sha256") != canonical_sha256(unsigned):
+        errors.append("campaign-manifest-sha256-mismatch")
+
+    if authorization is not None:
+        auth_errors = validate_full_auto_authorization(authorization)
+        errors.extend(f"campaign-manifest-authorization:{item}" for item in auth_errors)
+        bindings = authorization.get("bindings") if isinstance(authorization.get("bindings"), Mapping) else {}
+        scope = authorization.get("scope") if isinstance(authorization.get("scope"), Mapping) else {}
+        expected = {
+            "authorization_id": authorization.get("authorization_id"),
+            "authorization_canonical_sha256": authorization.get("canonical_authorization_sha256"),
+            "run_generation": authorization.get("run_generation"),
+            "live_generation": authorization.get("live_generation"),
+            "predecessor_live_generation": authorization.get("predecessor_live_generation"),
+            "campaign_nonce": bindings.get("campaign_nonce"),
+        }
+        for field, expected_value in expected.items():
+            if manifest.get(field) != expected_value:
+                errors.append(f"campaign-manifest-authorization-{field.replace('_', '-')}-mismatch")
+        if authorization_raw_sha256 is not None and manifest.get("authorization_raw_sha256") != authorization_raw_sha256:
+            errors.append("campaign-manifest-authorization-raw-sha256-mismatch")
+        ordered_work_units = scope.get("ordered_work_units")
+        if (
+            work_units.get("epic_id") != scope.get("epic_id")
+            or work_units.get("parent_work_unit_id")
+            != scope.get("parent_work_unit_id")
+            or not isinstance(ordered_work_units, list)
+            or work_units.get("live_work_unit_id") not in ordered_work_units
+        ):
+            errors.append("campaign-manifest-work-unit-authorization-mismatch")
+        if candidate.get("origin_main_commit") != bindings.get("origin_main_commit") or candidate.get("guarded_primary_diff_sha256") != bindings.get("guarded_primary_diff_sha256"):
+            errors.append("campaign-manifest-candidate-authorization-mismatch")
+        if predecessor_value != {
+            "authorization_id": bindings.get("predecessor_authorization_id"),
+            "failure_evidence_canonical_sha256": bindings.get("predecessor_failure_evidence_canonical_sha256"),
+            "containment_canonical_sha256": bindings.get("predecessor_containment_canonical_sha256"),
+        }:
+            errors.append("campaign-manifest-predecessor-authorization-mismatch")
+
+    if expected_primary_diff_sha256 is not None and candidate.get("guarded_primary_diff_sha256") != expected_primary_diff_sha256:
+        errors.append("campaign-manifest-primary-diff-mismatch")
+    if repo_root is not None and not errors:
+        root = Path(repo_root).resolve()
+        try:
+            if _run_git(root, "rev-parse", "HEAD") != candidate["commit"]:
+                errors.append("campaign-manifest-head-mismatch")
+            if _run_git(root, "rev-parse", "HEAD^{tree}") != candidate["tree"]:
+                errors.append("campaign-manifest-tree-mismatch")
+            if _run_git(root, "rev-parse", "origin/main") != candidate["origin_main_commit"]:
+                errors.append("campaign-manifest-origin-main-mismatch")
+            if _run_git(root, "status", "--porcelain=v1", "--untracked-files=no"):
+                errors.append("campaign-manifest-repository-not-clean")
+        except subprocess.CalledProcessError:
+            errors.append("campaign-manifest-repository-binding-invalid")
+    return sorted(set(errors))
+
+
+def validate_release_patch_result(
+    repo_root: Path,
+    patch_path: Path,
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    root = Path(repo_root).resolve()
+    patch = Path(patch_path).resolve()
+    release = manifest.get("release") if isinstance(manifest.get("release"), Mapping) else {}
+    candidate = manifest.get("candidate") if isinstance(manifest.get("candidate"), Mapping) else {}
+    try:
+        if hashlib.sha256(patch.read_bytes()).hexdigest() != release.get("patch_file_sha256"):
+            return ["release-patch-file-sha256-mismatch"]
+    except OSError:
+        return ["release-patch-unavailable"]
+    with tempfile.TemporaryDirectory(prefix="cwo-release-patch-check-") as temporary:
+        worktree = Path(temporary) / "worktree"
+        added = False
+        try:
+            subprocess.run(
+                ["git", "worktree", "add", "--detach", str(worktree), str(candidate.get("commit"))],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            added = True
+            if _run_git(worktree, "rev-parse", "HEAD^{tree}") != candidate.get("tree"):
+                errors.append("release-patch-candidate-tree-mismatch")
+            subprocess.run(
+                ["git", "apply", "--check", str(patch)],
+                cwd=worktree,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "apply", "--index", str(patch)],
+                cwd=worktree,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            if _run_git(worktree, "write-tree") != release.get("prospective_tree"):
+                errors.append("release-patch-prospective-tree-mismatch")
+        except subprocess.CalledProcessError:
+            errors.append("release-patch-application-invalid")
+        finally:
+            if added:
+                subprocess.run(
+                    ["git", "worktree", "remove", "--force", str(worktree)],
+                    cwd=root,
+                    check=False,
+                    capture_output=True,
+                )
+    return sorted(set(errors))

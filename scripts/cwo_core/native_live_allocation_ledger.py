@@ -20,6 +20,9 @@ from .native_canary_contracts import canonical_sha256
 LEDGER_TYPE = "cwo-native-live-allocation-ledger:v1"
 LEDGER_SCHEMA = "schemas/native-live-allocation-ledger.schema.json"
 LEDGER_VERSION = 1
+LEDGER_TYPE_V2 = "cwo-native-live-allocation-ledger:v2"
+LEDGER_SCHEMA_V2 = "schemas/native-live-allocation-ledger-v2.schema.json"
+LEDGER_VERSION_V2 = 2
 EXPECTED_ROLES = (
     "capability-calibration",
     "read-only-0",
@@ -53,6 +56,31 @@ BINDING_FIELDS = {
     "predecessor_containment_sha256",
     "pre_mutation_steering_receipt_sha256",
     "pre_live_steering_receipt_sha256",
+    "certification_policy_sha256",
+    "controller_identity",
+    "connection_epoch_sha256",
+    "retention_class",
+    "expected_roles",
+}
+BINDING_FIELDS_V2 = {
+    "bead_id",
+    "work_unit_id",
+    "authorization_id",
+    "authorization_raw_sha256",
+    "authorization_canonical_sha256",
+    "campaign_manifest_sha256",
+    "campaign_nonce",
+    "live_generation",
+    "predecessor_generation",
+    "candidate_commit",
+    "candidate_tree",
+    "origin_main_commit",
+    "guarded_primary_diff_sha256",
+    "predecessor_containment_sha256",
+    "frozen_release_patch_sha256",
+    "pre_mutation_steering_receipt_sha256",
+    "pre_live_steering_receipt_sha256",
+    "opus_review_sha256",
     "certification_policy_sha256",
     "controller_identity",
     "connection_epoch_sha256",
@@ -234,14 +262,26 @@ def _exclusive_lock(path: Path) -> Iterator[None]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def _validate_bindings(value: Any, errors: list[str]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) != BINDING_FIELDS:
+def _validate_bindings(
+    value: Any,
+    errors: list[str],
+    *,
+    version: int,
+) -> dict[str, Any]:
+    expected_fields = BINDING_FIELDS if version == LEDGER_VERSION else BINDING_FIELDS_V2
+    if not isinstance(value, Mapping) or set(value) != expected_fields:
         errors.append("ledger-bindings-fields-invalid")
         return {}
     bindings = dict(value)
-    if not isinstance(bindings.get("bead_id"), str) or not bindings["bead_id"].strip():
-        errors.append("ledger-binding-bead-id-invalid")
-    for field in (
+    identity_fields = ["bead_id"]
+    if version == LEDGER_VERSION_V2:
+        identity_fields.append("work_unit_id")
+    if any(
+        not isinstance(bindings.get(field), str) or not bindings[field].strip()
+        for field in identity_fields
+    ):
+        errors.append("ledger-binding-work-unit-identity-invalid")
+    hash_fields = [
         "authorization_raw_sha256",
         "authorization_canonical_sha256",
         "guarded_primary_diff_sha256",
@@ -250,19 +290,46 @@ def _validate_bindings(value: Any, errors: list[str]) -> dict[str, Any]:
         "pre_live_steering_receipt_sha256",
         "certification_policy_sha256",
         "connection_epoch_sha256",
-    ):
+    ]
+    if version == LEDGER_VERSION_V2:
+        hash_fields.extend(
+            [
+                "campaign_manifest_sha256",
+                "frozen_release_patch_sha256",
+                "opus_review_sha256",
+            ]
+        )
+    for field in hash_fields:
         if not _is_hash(bindings.get(field)):
             errors.append(f"ledger-binding-{field}-invalid")
     for field in ("authorization_id", "campaign_nonce"):
         if not _is_uuid(bindings.get(field)):
             errors.append(f"ledger-binding-{field}-invalid")
-    if bindings.get("checkpoint_commit") is None or not isinstance(
-        bindings.get("checkpoint_commit"), str
-    ) or len(bindings["checkpoint_commit"]) != 40 or any(
-        character not in "0123456789abcdef" for character in bindings["checkpoint_commit"]
+    commit_fields = (
+        ["checkpoint_commit"]
+        if version == LEDGER_VERSION
+        else ["candidate_commit", "candidate_tree", "origin_main_commit"]
+    )
+    for field in commit_fields:
+        candidate = bindings.get(field)
+        if (
+            not isinstance(candidate, str)
+            or len(candidate) != 40
+            or any(character not in "0123456789abcdef" for character in candidate)
+        ):
+            errors.append(f"ledger-binding-{field}-invalid")
+    live_generation = bindings.get("live_generation")
+    predecessor_generation = bindings.get("predecessor_generation")
+    if version == LEDGER_VERSION and (live_generation, predecessor_generation) != (4, 3):
+        errors.append("ledger-binding-generation-invalid")
+    if version == LEDGER_VERSION_V2 and (
+        isinstance(live_generation, bool)
+        or not isinstance(live_generation, int)
+        or isinstance(predecessor_generation, bool)
+        or not isinstance(predecessor_generation, int)
+        or predecessor_generation < 0
+        or live_generation != predecessor_generation + 1
     ):
-        errors.append("ledger-binding-checkpoint-commit-invalid")
-    if bindings.get("live_generation") != 4 or bindings.get("predecessor_generation") != 3:
         errors.append("ledger-binding-generation-invalid")
     if bindings.get("retention_class") != "private-local-until-bead-closure":
         errors.append("ledger-binding-retention-class-invalid")
@@ -291,15 +358,19 @@ def validate_live_allocation_ledger(
     if not isinstance(value, Mapping) or set(value) != LEDGER_FIELDS:
         return ["ledger-fields-invalid"]
     ledger = dict(value)
-    if (
-        ledger.get("ledger_type") != LEDGER_TYPE
-        or ledger.get("version") != LEDGER_VERSION
-        or ledger.get("schema") != LEDGER_SCHEMA
-    ):
+    version = ledger.get("version")
+    expected_header = {
+        LEDGER_VERSION: (LEDGER_TYPE, LEDGER_SCHEMA),
+        LEDGER_VERSION_V2: (LEDGER_TYPE_V2, LEDGER_SCHEMA_V2),
+    }.get(version)
+    if expected_header is None or (
+        ledger.get("ledger_type"), ledger.get("schema")
+    ) != expected_header:
         errors.append("ledger-header-invalid")
+        version = 0
     if not _is_uuid(ledger.get("ledger_id")):
         errors.append("ledger-id-invalid")
-    _validate_bindings(ledger.get("bindings"), errors)
+    _validate_bindings(ledger.get("bindings"), errors, version=version)
     sequence = ledger.get("sequence")
     if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
         errors.append("ledger-sequence-invalid")
@@ -456,7 +527,12 @@ class NativeLiveAllocationLedgerStore:
         self.lock_path = self.directory / "ledger.lock"
         self.audit_file = self.directory / "audit.jsonl"
 
-    def initialize(self, bindings: Mapping[str, Any]) -> dict[str, Any]:
+    def initialize(
+        self,
+        bindings: Mapping[str, Any],
+        *,
+        version: int = LEDGER_VERSION,
+    ) -> dict[str, Any]:
         if self.directory.exists() or self.directory.is_symlink():
             raise NativeLiveAllocationLedgerError("ledger-directory-already-exists")
         self.directory.mkdir(mode=0o700)
@@ -464,10 +540,17 @@ class NativeLiveAllocationLedgerStore:
         for path in (self.lock_path, self.audit_file, self.audit_file.with_name("audit.jsonl.lock")):
             _create_private_file(path)
         _fsync_directory(self.directory)
+        headers = {
+            LEDGER_VERSION: (LEDGER_TYPE, LEDGER_SCHEMA),
+            LEDGER_VERSION_V2: (LEDGER_TYPE_V2, LEDGER_SCHEMA_V2),
+        }
+        if version not in headers:
+            raise NativeLiveAllocationLedgerError("ledger-version-invalid")
+        ledger_type, schema = headers[version]
         state = {
-            "ledger_type": LEDGER_TYPE,
-            "version": LEDGER_VERSION,
-            "schema": LEDGER_SCHEMA,
+            "ledger_type": ledger_type,
+            "version": version,
+            "schema": schema,
             "ledger_id": str(uuid.uuid4()),
             "bindings": dict(bindings),
             "sequence": 0,
@@ -711,7 +794,13 @@ class NativeLiveAllocationLedgerStore:
         bound_allocations = {entry["allocation_intent_id"] for entry in thread_entries}
         bound_turn_intents = {entry["turn_intent_id"] for entry in turn_entries}
         return {
+            "ledger_type": state["ledger_type"],
+            "version": state["version"],
             "ledger_id": state["ledger_id"],
+            "live_generation": state["bindings"]["live_generation"],
+            "campaign_manifest_sha256": state["bindings"].get(
+                "campaign_manifest_sha256"
+            ),
             "sequence": state["sequence"],
             "head_entry_sha256": state["head_entry_sha256"],
             "state_sha256": state["state_sha256"],

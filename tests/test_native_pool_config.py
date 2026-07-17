@@ -20,12 +20,14 @@ from cwo_core.native_pool_config import (  # noqa: E402
     NativePoolConfigError,
     RENDER_REQUEST_SCHEMA,
     RENDER_REQUEST_TYPE,
+    build_live_canary_pool_contract,
     build_pool_contract,
     validate_pool_render_request,
 )
 from cwo_core.native_pool_contracts import seal_artifact, validate_pool_contract, write_private_artifact  # noqa: E402
 from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload, sha  # noqa: E402
+from tests import test_run_native_pool_live_canaries as live_test_helpers  # noqa: E402
 
 
 def git(*args: str, cwd: Path) -> None:
@@ -172,12 +174,30 @@ class NativePoolConfigTests(unittest.TestCase):
                     capability_receipt=capability,
                     now=now,
                 )
+            with self.assertRaisesRegex(NativePoolConfigError, "operative-release-required"):
+                build_pool_contract(
+                    fixture.request,
+                    capability_receipt=capability,
+                    enable_concurrency=True,
+                    owner_pid=owner["pid"],
+                    now=now,
+                )
+            policy_document = json.loads(
+                (ROOT / "policy" / "native-worker-execution.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            policy_document["native_supervision_pool"]["status"] = "operative-authorized"
+            policy_document["native_supervision_pool"][
+                "cap_two_operative_release"
+            ] = True
             contract = build_pool_contract(
                 fixture.request,
                 capability_receipt=capability,
                 enable_concurrency=True,
                 owner_pid=owner["pid"],
                 now=now,
+                policy_document=policy_document,
             )
             self.assertEqual(validate_pool_contract(contract), [])
             self.assertEqual(contract["owner"], owner)
@@ -194,6 +214,7 @@ class NativePoolConfigTests(unittest.TestCase):
                     enable_concurrency=True,
                     owner_pid=owner["pid"],
                     now=now,
+                    policy_document=policy_document,
                 )
 
     def test_worker_state_identity_or_status_mismatch_fails_before_render(self) -> None:
@@ -205,6 +226,61 @@ class NativePoolConfigTests(unittest.TestCase):
             write_private_artifact(state_path, state)
             with self.assertRaisesRegex(NativePoolConfigError, "worker-state-not-newly-created"):
                 build_pool_contract(fixture.request)
+
+    def test_manifest_bound_canary_path_is_narrow_and_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = RenderFixture(root, 2)
+            authority_root = root / "authority"
+            authority_root.mkdir()
+            helper = live_test_helpers.FullAutoAuthorizationLauncherTests()
+            head, _orphan = helper.make_repo(authority_root)
+            authorization = helper.authorization(authority_root, head)
+            manifest = helper.manifest(
+                authorization,
+                head,
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD^{tree}"],
+                    cwd=authority_root,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip(),
+            )
+            fixture.request["control_turn_id"] = manifest["control_turn_id"]
+            owner = capture_owner_identity()
+            payload = capability_payload()
+            payload["host_identity"] = owner
+            payload["control_turn_id"] = manifest["control_turn_id"]
+            capability = seal_artifact(payload, "receipt_sha256")
+            now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
+            contract = build_live_canary_pool_contract(
+                fixture.request,
+                campaign_manifest=manifest,
+                capability_receipt=capability,
+                owner_pid=owner["pid"],
+                now=now,
+            )
+            self.assertEqual(validate_pool_contract(contract), [])
+            mismatched_request = copy.deepcopy(fixture.request)
+            mismatched_request["control_turn_id"] = "different-control-turn"
+            with self.assertRaisesRegex(NativePoolConfigError, "control-turn-mismatch"):
+                build_live_canary_pool_contract(
+                    mismatched_request,
+                    campaign_manifest=manifest,
+                    capability_receipt=capability,
+                    owner_pid=owner["pid"],
+                    now=now,
+                )
+            manifest["successful_turn_starts_exact"] = 6
+            with self.assertRaisesRegex(NativePoolConfigError, "campaign-manifest-invalid"):
+                build_live_canary_pool_contract(
+                    fixture.request,
+                    campaign_manifest=manifest,
+                    capability_receipt=capability,
+                    owner_pid=owner["pid"],
+                    now=now,
+                )
 
     def test_cli_renders_mode_0600_contract_and_requires_no_task_text(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

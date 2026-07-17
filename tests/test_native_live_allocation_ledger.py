@@ -58,7 +58,80 @@ def bindings() -> dict:
     }
 
 
+def bindings_v2() -> dict:
+    return {
+        "bead_id": "complex-work-orchestration-18w",
+        "work_unit_id": "complex-work-orchestration-18w.6.19",
+        "authorization_id": str(uuid.uuid4()),
+        "authorization_raw_sha256": sha("authorization-raw-v2"),
+        "authorization_canonical_sha256": sha("authorization-canonical-v2"),
+        "campaign_manifest_sha256": sha("campaign-manifest-v2"),
+        "campaign_nonce": str(uuid.uuid4()),
+        "live_generation": 5,
+        "predecessor_generation": 4,
+        "candidate_commit": "a" * 40,
+        "candidate_tree": "b" * 40,
+        "origin_main_commit": "c" * 40,
+        "guarded_primary_diff_sha256": sha("primary-diff-v2"),
+        "predecessor_containment_sha256": sha("predecessor-containment-v2"),
+        "frozen_release_patch_sha256": sha("release-patch-v2"),
+        "pre_mutation_steering_receipt_sha256": sha("pre-mutation-v2"),
+        "pre_live_steering_receipt_sha256": sha("pre-live-v2"),
+        "opus_review_sha256": sha("opus-v2"),
+        "certification_policy_sha256": sha("certification-policy-v2"),
+        "controller_identity": {
+            "pid": os.getpid(),
+            "start_ticks": 1,
+            "boot_id_sha256": sha("boot-v2"),
+        },
+        "connection_epoch_sha256": sha("connection-v2"),
+        "retention_class": "private-local-until-bead-closure",
+        "expected_roles": list(EXPECTED_ROLES),
+    }
+
+
 class NativeLiveAllocationLedgerTests(unittest.TestCase):
+    def test_v2_binds_successor_manifest_and_preserves_v1_isolation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(Path(temporary) / "private-ledger-v2")
+            initial = store.initialize(bindings_v2(), version=2)
+            self.assertEqual(validate_live_allocation_ledger(initial, audit_file=store.audit_file), [])
+            summary = store.summary()
+            self.assertEqual(summary["version"], 2)
+            self.assertEqual(summary["live_generation"], 5)
+            self.assertEqual(
+                summary["campaign_manifest_sha256"],
+                initial["bindings"]["campaign_manifest_sha256"],
+            )
+            if HAS_JSONSCHEMA:
+                import jsonschema
+
+                schema = json.loads(
+                    (ROOT / "schemas/native-live-allocation-ledger-v2.schema.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                jsonschema.validate(initial, schema)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(Path(temporary) / "v1-as-v2")
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "bindings-fields-invalid"
+            ):
+                store.initialize(bindings(), version=2)
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(Path(temporary) / "v2-as-v1")
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "bindings-fields-invalid"
+            ):
+                store.initialize(bindings_v2())
+        with tempfile.TemporaryDirectory() as temporary:
+            changed = bindings_v2()
+            changed["live_generation"] = 6
+            store = NativeLiveAllocationLedgerStore(Path(temporary) / "skipped-generation")
+            with self.assertRaisesRegex(NativeLiveAllocationLedgerError, "generation-invalid"):
+                store.initialize(changed, version=2)
+
     def test_intent_bind_lifecycle_and_audit_anchor_are_strict(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             store = NativeLiveAllocationLedgerStore(Path(temporary) / "private-ledger")

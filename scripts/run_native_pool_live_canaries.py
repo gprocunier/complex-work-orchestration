@@ -31,6 +31,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_control import build_control_turn_contract  # noqa: E402
+from cwo_core.native_live_campaign_contracts import (  # noqa: E402
+    validate_campaign_manifest,
+    validate_full_auto_authorization as validate_full_auto_authorization_contract,
+    validate_release_patch_result,
+)
 from cwo_core.native_canary_contracts import (  # noqa: E402
     CanaryAuthorizationStore,
     MATERIALIZATION_EVIDENCE_SCHEMA,
@@ -50,7 +55,7 @@ from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     NativeLiveAllocationLedgerError,
     NativeLiveAllocationLedgerStore,
 )
-from cwo_core.native_pool_config import build_pool_contract  # noqa: E402
+from cwo_core.native_pool_config import build_live_canary_pool_contract  # noqa: E402
 from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_CERTIFICATION_ENVELOPE,
     CAPABILITY_CERTIFICATION_VERSION,
@@ -84,8 +89,6 @@ from cwo_core.native_session_boundary import (  # noqa: E402
 EXACT_MODEL = "gpt-5.3-codex-spark"
 CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
 POST_SUBMISSION_MATERIALIZATION_GRACE_MS = POOL_POLL_LAG_TOLERANCE_MS
-FULL_AUTO_AUTHORIZATION_SCHEMA = "cwo-full-auto-run-authorization:v3"
-FULL_AUTO_AUTHORIZATION_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 OPERATIVE_ITEM_TYPES = {
     "commandExecution",
     "fileChange",
@@ -188,86 +191,14 @@ def validate_full_auto_authorization(
     *,
     repo_root: Path,
 ) -> tuple[str, str]:
-    if not isinstance(authorization, Mapping):
-        raise AppServerError("full-auto-authorization-invalid-not-object")
-    if authorization.get("schema") != FULL_AUTO_AUTHORIZATION_SCHEMA:
-        raise AppServerError("full-auto-authorization-schema-invalid")
-    canonical_authorization_sha256 = authorization.get("canonical_authorization_sha256")
-    unsigned_authorization = dict(authorization)
-    unsigned_authorization.pop("canonical_authorization_sha256", None)
-    if (
-        not isinstance(canonical_authorization_sha256, str)
-        or not re.fullmatch(r"[0-9a-f]{64}", canonical_authorization_sha256)
-        or sha256_bytes(
-            json.dumps(unsigned_authorization, sort_keys=True, separators=(",", ":")).encode()
-        )
-        != canonical_authorization_sha256
-    ):
-        raise AppServerError("full-auto-authorization-canonical-hash-invalid")
-    generation = authorization.get("run_generation")
-    if isinstance(generation, bool) or not isinstance(generation, int) or generation < 1:
-        raise AppServerError("full-auto-authorization-generation-invalid")
-    if authorization.get("initial_state") != "active":
-        raise AppServerError("full-auto-authorization-state-invalid")
-    forbidden = authorization.get("forbidden")
-    if not isinstance(forbidden, Mapping) or any(
-        forbidden.get(field) is not True
-        for field in ("glm_5_2", "model_synthesis", "release_before_live_acceptance")
-    ):
-        raise AppServerError("full-auto-authorization-forbidden-invalid")
-    bindings = authorization.get("bindings")
-    if not isinstance(bindings, Mapping) or bindings.get("campaign_nonce") != campaign_nonce:
-        raise AppServerError("full-auto-authorization-binding-invalid")
-    budgets = authorization.get("budgets")
-    if not isinstance(budgets, Mapping) or (
-        budgets.get("spark_live_turn_starts_per_generation_exact") != 7
-        or isinstance(budgets.get("spark_live_campaign_generations_hard"), bool)
-        or not isinstance(budgets.get("spark_live_campaign_generations_hard"), int)
-        or budgets.get("spark_live_campaign_generations_hard", 0) < 1
-    ):
-        raise AppServerError("full-auto-authorization-live-budget-invalid")
-    executors = authorization.get("executors")
-    steering = executors.get("steering") if isinstance(executors, Mapping) else None
-    operative = executors.get("operative") if isinstance(executors, Mapping) else None
-    if (
-        not isinstance(steering, Mapping)
-        or steering.get("model") != "gpt-5.6-sol"
-        or steering.get("effort") != "max"
-        or not isinstance(operative, Mapping)
-        or operative.get("model") != EXACT_MODEL
-    ):
-        raise AppServerError("full-auto-authorization-executor-invalid")
-    mandatory = authorization.get("mandatory_gates")
-    if not isinstance(mandatory, Mapping) or any(
-        mandatory.get(field) is not True
-        for field in (
-            "fresh_exact_sol_pre_mutation_receipt",
-            "fresh_exact_sol_pre_live_receipt",
-            "single_shot_per_generation_live_campaign",
-        )
-    ):
-        raise AppServerError("full-auto-authorization-gates-invalid")
-    authorization_id = str(authorization.get("authorization_id", ""))
-    try:
-        uuid.UUID(authorization_id)
-    except ValueError as exc:
-        raise AppServerError("full-auto-authorization-id-invalid") from exc
-    checkpoint_commit = bindings.get("checkpoint_commit")
-    if not isinstance(checkpoint_commit, str) or not FULL_AUTO_AUTHORIZATION_COMMIT_RE.fullmatch(
-        checkpoint_commit
-    ):
-        raise AppServerError("full-auto-checkpoint-commit-invalid")
-    try:
-        run_git(repo_root, "rev-parse", "--verify", checkpoint_commit)
-    except subprocess.CalledProcessError as exc:
-        raise AppServerError("full-auto-checkpoint-commit-invalid") from exc
-    head_commit = run_git(repo_root, "rev-parse", "HEAD")
-    try:
-        run_git(repo_root, "merge-base", "--is-ancestor", checkpoint_commit, head_commit)
-    except subprocess.CalledProcessError as exc:
-        raise AppServerError("full-auto-checkpoint-not-ancestor") from exc
-    require_repository_checkpoint(repo_root, head_commit)
-    return authorization_id, head_commit
+    errors = validate_full_auto_authorization_contract(
+        authorization,
+        expected_campaign_nonce=campaign_nonce,
+        repo_root=repo_root,
+    )
+    if errors:
+        raise AppServerError("full-auto-authorization-invalid:" + ";".join(errors))
+    return str(authorization["authorization_id"]), run_git(repo_root, "rev-parse", "HEAD")
 
 
 def plan_steering_receipt_consumptions(
@@ -1822,6 +1753,7 @@ def make_git_layout(root: Path) -> dict[str, Path]:
 def build_pool_inputs(
     server: AppServer,
     capability_receipt: Mapping[str, Any],
+    campaign_manifest: Mapping[str, Any],
     *,
     root: Path,
     integration: Path,
@@ -1837,6 +1769,14 @@ def build_pool_inputs(
     dict[str, LiveThreadAdapter],
     PoolWorkspaceMonitor,
 ]:
+    manifest_errors = validate_campaign_manifest(campaign_manifest)
+    if manifest_errors:
+        raise AppServerError(
+            "campaign-manifest-invalid-before-thread-start:"
+            + ";".join(manifest_errors)
+        )
+    if campaign_manifest.get("control_turn_id") != CONTROL_TURN_ID:
+        raise AppServerError("campaign-control-turn-invalid-before-thread-start")
     record_dir = root / f"{pool_name}-records"
     record_dir.mkdir(mode=0o700)
     thread_results = []
@@ -1938,10 +1878,10 @@ def build_pool_inputs(
         "integration_root": str(integration),
         "children": children,
     }
-    contract = build_pool_contract(
+    contract = build_live_canary_pool_contract(
         request,
+        campaign_manifest=campaign_manifest,
         capability_receipt=capability_receipt,
-        enable_concurrency=True,
         owner_pid=os.getpid(),
         now=utc_now(),
     )
@@ -1956,6 +1896,7 @@ def build_pool_inputs(
 def run_pool_canary(
     server: AppServer,
     capability_receipt: Mapping[str, Any],
+    campaign_manifest: Mapping[str, Any],
     *,
     root: Path,
     integration: Path,
@@ -1969,6 +1910,7 @@ def run_pool_canary(
     contract, child_contracts, adapters, monitor = build_pool_inputs(
         server,
         capability_receipt,
+        campaign_manifest,
         root=root,
         integration=integration,
         pool_name=pool_name,
@@ -2222,12 +2164,172 @@ def load_private_json(path: Path, label: str) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise AppServerError(f"{label}-file-invalid")
     try:
+        info = path.stat()
+        if info.st_uid != os.geteuid() or info.st_mode & 0o077:
+            raise AppServerError(f"{label}-permissions-invalid")
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise AppServerError(f"{label}-file-unreadable") from exc
     if not isinstance(value, dict):
         raise AppServerError(f"{label}-not-object")
     return value
+
+
+def guarded_diff_sha256(repo_root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "diff", "--binary"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise AppServerError("guarded-primary-diff-unavailable") from exc
+    return sha256_bytes(completed.stdout)
+
+
+def campaign_output_paths(
+    output: Path,
+    manifest: Mapping[str, Any],
+    *,
+    authorization_state: Path | None,
+    steering_registry: Path | None,
+) -> tuple[Path, Path, Path]:
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, Mapping):
+        raise AppServerError("campaign-manifest-outputs-invalid")
+    if output.name != outputs.get("evidence_basename"):
+        raise AppServerError("campaign-output-basename-mismatch")
+    state_path = (
+        authorization_state.absolute()
+        if authorization_state is not None
+        else output.parent / str(outputs.get("authorization_state_basename"))
+    )
+    registry_path = (
+        steering_registry.absolute()
+        if steering_registry is not None
+        else output.parent / str(outputs.get("steering_registry_basename"))
+    )
+    ledger_path = output.parent / str(outputs.get("allocation_ledger_basename"))
+    expected = {
+        state_path.name: outputs.get("authorization_state_basename"),
+        registry_path.name: outputs.get("steering_registry_basename"),
+        ledger_path.name: outputs.get("allocation_ledger_basename"),
+    }
+    if any(actual != declared for actual, declared in expected.items()):
+        raise AppServerError("campaign-output-path-mismatch")
+    if len({output, state_path, registry_path, ledger_path}) != 4:
+        raise AppServerError("campaign-output-path-collision")
+    return state_path, registry_path, ledger_path
+
+
+def validate_campaign_launch_bindings(
+    *,
+    authorization: Mapping[str, Any],
+    authorization_raw_sha256: str,
+    manifest: Mapping[str, Any],
+    manifest_path: Path,
+    guarded_primary: Path,
+    release_patch: Path,
+    pre_mutation_receipt: Mapping[str, Any],
+    pre_mutation_receipt_path: Path,
+    pre_mutation_adjudication_path: Path,
+    pre_live_receipt: Mapping[str, Any],
+    pre_live_receipt_path: Path,
+    pre_live_adjudication_path: Path,
+    opus_review_evidence: Mapping[str, Any],
+    opus_review_path: Path,
+    opus_adjudication: Mapping[str, Any],
+    opus_adjudication_path: Path,
+) -> dict[str, Any]:
+    primary_diff_sha256 = guarded_diff_sha256(guarded_primary)
+    errors = validate_campaign_manifest(
+        manifest,
+        authorization=authorization,
+        authorization_raw_sha256=authorization_raw_sha256,
+        repo_root=ROOT,
+        expected_primary_diff_sha256=primary_diff_sha256,
+    )
+    if errors:
+        raise AppServerError("campaign-manifest-invalid:" + ";".join(errors))
+    if manifest.get("control_turn_id") != CONTROL_TURN_ID:
+        raise AppServerError("campaign-manifest-control-turn-mismatch")
+    reviews = manifest["reviews"]
+    observed_reviews = {
+        "pre_mutation_receipt_canonical_sha256": pre_mutation_receipt.get(
+            "canonical_receipt_sha256"
+        ),
+        "pre_mutation_receipt_file_sha256": sha256_bytes(
+            pre_mutation_receipt_path.read_bytes()
+        ),
+        "pre_mutation_adjudication_file_sha256": sha256_bytes(
+            pre_mutation_adjudication_path.read_bytes()
+        ),
+        "opus_evidence_file_sha256": sha256_bytes(opus_review_path.read_bytes()),
+        "opus_adjudication_file_sha256": sha256_bytes(
+            opus_adjudication_path.read_bytes()
+        ),
+        "pre_live_receipt_canonical_sha256": pre_live_receipt.get(
+            "canonical_receipt_sha256"
+        ),
+        "pre_live_receipt_file_sha256": sha256_bytes(pre_live_receipt_path.read_bytes()),
+        "pre_live_adjudication_file_sha256": sha256_bytes(
+            pre_live_adjudication_path.read_bytes()
+        ),
+    }
+    if dict(reviews) != observed_reviews:
+        raise AppServerError("campaign-manifest-review-binding-mismatch")
+    candidate = manifest["candidate"]
+    if (
+        opus_review_evidence.get("exact_model") != "claude-opus-4-6"
+        or opus_review_evidence.get("candidate_commit") != candidate["commit"]
+        or opus_review_evidence.get("glm_5_2_used") is not False
+        or opus_review_evidence.get("model_synthesis_used") is not False
+        or opus_adjudication.get("main_architect_decision") != "go"
+        or opus_adjudication.get("candidate_commit") != candidate["commit"]
+        or opus_adjudication.get("opus_evidence_file_sha256")
+        != observed_reviews["opus_evidence_file_sha256"]
+    ):
+        raise AppServerError("campaign-opus-review-binding-invalid")
+    release_errors = validate_release_patch_result(ROOT, release_patch, manifest)
+    if release_errors:
+        raise AppServerError("campaign-release-patch-invalid:" + ";".join(release_errors))
+    try:
+        policy_document = json.loads(
+            (ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AppServerError("campaign-policy-unreadable") from exc
+    pool_policy = (
+        policy_document.get("native_supervision_pool")
+        if isinstance(policy_document, Mapping)
+        else None
+    )
+    current_policy = {
+        "status": pool_policy.get("status") if isinstance(pool_policy, Mapping) else None,
+        "cap_two_operative_release": (
+            pool_policy.get("cap_two_operative_release")
+            if isinstance(pool_policy, Mapping)
+            else None
+        ),
+    }
+    if current_policy != manifest["release"]["policy_before"]:
+        raise AppServerError("campaign-policy-before-mismatch")
+    return {
+        "authorization_raw_sha256": authorization_raw_sha256,
+        "manifest_file_sha256": sha256_bytes(manifest_path.read_bytes()),
+        "manifest_sha256": manifest["manifest_sha256"],
+        "candidate_commit": candidate["commit"],
+        "candidate_tree": candidate["tree"],
+        "origin_main_commit": candidate["origin_main_commit"],
+        "guarded_primary_diff_sha256": primary_diff_sha256,
+        "release_patch_sha256": manifest["release"]["patch_file_sha256"],
+        "release_prospective_tree": manifest["release"]["prospective_tree"],
+        "opus_evidence_file_sha256": observed_reviews["opus_evidence_file_sha256"],
+        "opus_adjudication_file_sha256": observed_reviews[
+            "opus_adjudication_file_sha256"
+        ],
+    }
 
 
 def safe_allocation_ledger_summary(
@@ -2248,8 +2350,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True)
     parser.add_argument("--authorization", type=Path, required=True)
+    parser.add_argument("--campaign-manifest", type=Path, required=True)
+    parser.add_argument("--guarded-primary", type=Path, required=True)
+    parser.add_argument("--release-patch", type=Path, required=True)
     parser.add_argument("--pre-mutation-steering-receipt", type=Path, required=True)
     parser.add_argument("--pre-mutation-adjudication", type=Path, required=True)
+    parser.add_argument("--opus-review-evidence", type=Path, required=True)
+    parser.add_argument("--opus-adjudication", type=Path, required=True)
     parser.add_argument("--pre-live-steering-receipt", type=Path, required=True)
     parser.add_argument("--pre-live-adjudication", type=Path, required=True)
     parser.add_argument("--campaign-nonce", required=True)
@@ -2263,36 +2370,23 @@ def main() -> int:
     authorization_state: dict[str, Any] | None = None
     steering_consumptions: dict[str, str] = {}
     allocation_ledger: NativeLiveAllocationLedgerStore | None = None
+    artifact_bindings: dict[str, Any] = {}
+    manifest: dict[str, Any] | None = None
     try:
         try:
             uuid.UUID(args.campaign_nonce)
         except ValueError as exc:
             raise AppServerError("campaign-nonce-invalid") from exc
-        authorization = load_private_json(args.authorization.absolute(), "authorization")
-        authorization_sha256 = sha256_bytes(args.authorization.read_bytes())
+        authorization_path = args.authorization.absolute()
+        manifest_path = args.campaign_manifest.absolute()
+        authorization = load_private_json(authorization_path, "authorization")
+        authorization_sha256 = sha256_bytes(authorization_path.read_bytes())
         authorization_id, repo_head = validate_full_auto_authorization(
             authorization,
             args.campaign_nonce,
             repo_root=ROOT,
         )
-        state_path = (
-            args.authorization_state.absolute()
-            if args.authorization_state
-            else output.with_suffix(output.suffix + ".authorization-state.json")
-        )
-        registry_path = (
-            args.steering_registry.absolute()
-            if args.steering_registry
-            else output.with_suffix(output.suffix + ".steering-consumption.json")
-        )
-        authorization_store = CanaryAuthorizationStore(state_path)
-        authorization_state = authorization_store.initialize(
-            new_authorization_state(
-                authorization_id=authorization_id,
-                run_nonce=args.campaign_nonce,
-                now=iso(),
-            )
-        )
+        manifest = load_private_json(manifest_path, "campaign-manifest")
         pre_mutation_receipt = load_private_json(
             args.pre_mutation_steering_receipt.absolute(), "pre-mutation-steering-receipt"
         )
@@ -2308,7 +2402,49 @@ def main() -> int:
         pre_live_adjudication = load_private_json(
             args.pre_live_adjudication.absolute(), "pre-live-adjudication"
         )
-        pre_live_adjudication_sha256 = sha256_bytes(args.pre_live_adjudication.absolute().read_bytes())
+        opus_review_evidence = load_private_json(
+            args.opus_review_evidence.absolute(), "opus-review-evidence"
+        )
+        opus_adjudication = load_private_json(
+            args.opus_adjudication.absolute(), "opus-adjudication"
+        )
+        artifact_bindings = validate_campaign_launch_bindings(
+            authorization=authorization,
+            authorization_raw_sha256=authorization_sha256,
+            manifest=manifest,
+            manifest_path=manifest_path,
+            guarded_primary=args.guarded_primary.absolute(),
+            release_patch=args.release_patch.absolute(),
+            pre_mutation_receipt=pre_mutation_receipt,
+            pre_mutation_receipt_path=args.pre_mutation_steering_receipt.absolute(),
+            pre_mutation_adjudication_path=args.pre_mutation_adjudication.absolute(),
+            pre_live_receipt=pre_live_receipt,
+            pre_live_receipt_path=args.pre_live_steering_receipt.absolute(),
+            pre_live_adjudication_path=args.pre_live_adjudication.absolute(),
+            opus_review_evidence=opus_review_evidence,
+            opus_review_path=args.opus_review_evidence.absolute(),
+            opus_adjudication=opus_adjudication,
+            opus_adjudication_path=args.opus_adjudication.absolute(),
+        )
+        state_path, registry_path, ledger_path = campaign_output_paths(
+            output,
+            manifest,
+            authorization_state=args.authorization_state,
+            steering_registry=args.steering_registry,
+        )
+        if any(path.exists() or path.is_symlink() for path in (output, state_path, registry_path, ledger_path)):
+            raise AppServerError("campaign-output-already-exists")
+        authorization_store = CanaryAuthorizationStore(state_path)
+        authorization_state = authorization_store.initialize(
+            new_authorization_state(
+                authorization_id=authorization_id,
+                run_nonce=args.campaign_nonce,
+                now=iso(),
+            )
+        )
+        pre_live_adjudication_sha256 = sha256_bytes(
+            args.pre_live_adjudication.absolute().read_bytes()
+        )
         prepared = plan_steering_receipt_consumptions(
             args.campaign_nonce,
             authorization_id,
@@ -2332,6 +2468,31 @@ def main() -> int:
             steering_consumptions[label] = consume_steering_receipt(receipt, registry_path, **params)
         require_repository_checkpoint(ROOT, repo_head)
         authorization_store.require_action("tracked-mutation")
+        if sha256_bytes(authorization_path.read_bytes()) != authorization_sha256:
+            raise AppServerError("authorization-changed-before-allocation")
+        refreshed_manifest = load_private_json(manifest_path, "campaign-manifest")
+        if refreshed_manifest != manifest:
+            raise AppServerError("campaign-manifest-changed-before-allocation")
+        refreshed_bindings = validate_campaign_launch_bindings(
+            authorization=authorization,
+            authorization_raw_sha256=authorization_sha256,
+            manifest=manifest,
+            manifest_path=manifest_path,
+            guarded_primary=args.guarded_primary.absolute(),
+            release_patch=args.release_patch.absolute(),
+            pre_mutation_receipt=pre_mutation_receipt,
+            pre_mutation_receipt_path=args.pre_mutation_steering_receipt.absolute(),
+            pre_mutation_adjudication_path=args.pre_mutation_adjudication.absolute(),
+            pre_live_receipt=pre_live_receipt,
+            pre_live_receipt_path=args.pre_live_steering_receipt.absolute(),
+            pre_live_adjudication_path=args.pre_live_adjudication.absolute(),
+            opus_review_evidence=opus_review_evidence,
+            opus_review_path=args.opus_review_evidence.absolute(),
+            opus_adjudication=opus_adjudication,
+            opus_adjudication_path=args.opus_adjudication.absolute(),
+        )
+        if refreshed_bindings != artifact_bindings:
+            raise AppServerError("campaign-artifact-binding-changed-before-allocation")
         with tempfile.TemporaryDirectory(prefix="cwo-18w6-live-") as temporary:
             temp_root = Path(temporary)
             temp_root.chmod(0o700)
@@ -2341,44 +2502,60 @@ def main() -> int:
             server = AppServer()
             discovery = server.model_discovery()
             owner = capture_owner_identity(os.getpid())
-            budgets = authorization.get("budgets")
-            consumed_generation = (
-                budgets.get("spark_live_campaign_generations_consumed_before_v9")
-                if isinstance(budgets, Mapping)
-                else None
-            )
-            if consumed_generation != 3:
-                raise AppServerError("allocation-ledger-predecessor-generation-invalid")
             authorization_bindings = authorization.get("bindings")
             if not isinstance(authorization_bindings, Mapping):
                 raise AppServerError("allocation-ledger-authorization-bindings-invalid")
+            if (
+                run_git(ROOT, "rev-parse", "HEAD") != manifest["candidate"]["commit"]
+                or run_git(ROOT, "rev-parse", "HEAD^{tree}")
+                != manifest["candidate"]["tree"]
+                or guarded_diff_sha256(args.guarded_primary.absolute())
+                != artifact_bindings["guarded_primary_diff_sha256"]
+                or sha256_bytes(manifest_path.read_bytes())
+                != artifact_bindings["manifest_file_sha256"]
+                or sha256_bytes(args.release_patch.absolute().read_bytes())
+                != artifact_bindings["release_patch_sha256"]
+                or sha256_bytes(args.opus_review_evidence.absolute().read_bytes())
+                != artifact_bindings["opus_evidence_file_sha256"]
+            ):
+                raise AppServerError("campaign-watermark-changed-before-allocation")
+            require_repository_checkpoint(ROOT, manifest["candidate"]["commit"])
             certification_policy = callback_certification_policy()
-            allocation_ledger = NativeLiveAllocationLedgerStore(
-                output.parent / f".{output.name}.allocation-ledger"
-            )
+            work_units = manifest["work_units"]
+            allocation_ledger = NativeLiveAllocationLedgerStore(ledger_path)
             allocation_ledger.initialize(
                 {
-                    "bead_id": "complex-work-orchestration-18w.6.14.6",
+                    "bead_id": work_units["epic_id"],
+                    "work_unit_id": work_units["live_work_unit_id"],
                     "authorization_id": authorization_id,
                     "authorization_raw_sha256": authorization_sha256,
                     "authorization_canonical_sha256": authorization[
                         "canonical_authorization_sha256"
                     ],
+                    "campaign_manifest_sha256": manifest["manifest_sha256"],
                     "campaign_nonce": args.campaign_nonce,
-                    "live_generation": consumed_generation + 1,
-                    "predecessor_generation": consumed_generation,
-                    "checkpoint_commit": repo_head,
+                    "live_generation": manifest["live_generation"],
+                    "predecessor_generation": manifest["predecessor_live_generation"],
+                    "candidate_commit": manifest["candidate"]["commit"],
+                    "candidate_tree": manifest["candidate"]["tree"],
+                    "origin_main_commit": manifest["candidate"]["origin_main_commit"],
                     "guarded_primary_diff_sha256": authorization_bindings[
                         "guarded_primary_diff_sha256"
                     ],
                     "predecessor_containment_sha256": authorization_bindings[
-                        "contained_failure_analysis_canonical_sha256"
+                        "predecessor_containment_canonical_sha256"
+                    ],
+                    "frozen_release_patch_sha256": artifact_bindings[
+                        "release_patch_sha256"
                     ],
                     "pre_mutation_steering_receipt_sha256": pre_mutation_receipt[
                         "canonical_receipt_sha256"
                     ],
                     "pre_live_steering_receipt_sha256": pre_live_receipt[
                         "canonical_receipt_sha256"
+                    ],
+                    "opus_review_sha256": artifact_bindings[
+                        "opus_evidence_file_sha256"
                     ],
                     "certification_policy_sha256": callback_certification_policy_sha256(
                         certification_policy
@@ -2387,7 +2564,8 @@ def main() -> int:
                     "connection_epoch_sha256": server.connection_epoch_sha256,
                     "retention_class": "private-local-until-bead-closure",
                     "expected_roles": list(EXPECTED_ROLES),
-                }
+                },
+                version=2,
             )
             server.attach_allocation_ledger(allocation_ledger)
             capability, calibration_evidence = calibration(
@@ -2411,6 +2589,7 @@ def main() -> int:
             read_canary = run_pool_canary(
                 server,
                 capability,
+                manifest,
                 root=temp_root,
                 integration=layout["integration"],
                 pool_name="read-only",
@@ -2431,6 +2610,7 @@ def main() -> int:
             mutable_canary = run_pool_canary(
                 server,
                 capability,
+                manifest,
                 root=temp_root,
                 integration=layout["integration"],
                 pool_name="mutable",
@@ -2453,6 +2633,7 @@ def main() -> int:
             interrupt_canary = run_pool_canary(
                 server,
                 capability,
+                manifest,
                 root=temp_root,
                 integration=layout["integration"],
                 pool_name="interrupt",
@@ -2473,8 +2654,9 @@ def main() -> int:
                 {
                     "result_type": "cwo-native-supervision-pool-live-canary-evidence",
                     "version": 1,
-                    "bead_id": "complex-work-orchestration-18w.6",
-                    "control_turn_id": CONTROL_TURN_ID,
+                    "bead_id": manifest["work_units"]["epic_id"],
+                    "work_unit_id": manifest["work_units"]["live_work_unit_id"],
+                    "control_turn_id": manifest["control_turn_id"],
                     "exact_model": EXACT_MODEL,
                     "attestation_source": "trusted-control-plane-session-metadata",
                     "execution_surface": "connected-codex",
@@ -2488,6 +2670,17 @@ def main() -> int:
                         "materialization_evidence_sha256"
                     ],
                     "authorization_sha256": authorization_sha256,
+                    "authorization_id": authorization_id,
+                    "authorization_canonical_sha256": authorization[
+                        "canonical_authorization_sha256"
+                    ],
+                    "campaign_manifest_sha256": manifest["manifest_sha256"],
+                    "campaign_bindings": artifact_bindings,
+                    "run_generation": manifest["run_generation"],
+                    "live_generation": manifest["live_generation"],
+                    "predecessor_live_generation": manifest[
+                        "predecessor_live_generation"
+                    ],
                     "authorization_state_sha256": authorization_state["state_sha256"],
                     "steering_consumptions": steering_consumptions,
                     "allocation_ledger": allocation_ledger.summary(),
@@ -2535,6 +2728,12 @@ def main() -> int:
             )
             return 0
     except Exception as exc:
+        manifest_work_units = (
+            manifest.get("work_units")
+            if isinstance(manifest, Mapping)
+            and isinstance(manifest.get("work_units"), Mapping)
+            else {}
+        )
         containment = (
             contain_started_threads(server)
             if server is not None
@@ -2575,8 +2774,17 @@ def main() -> int:
             {
                 "result_type": "cwo-native-supervision-pool-live-canary-failure",
                 "version": 1,
-                "bead_id": "complex-work-orchestration-18w.6",
-                "control_turn_id": CONTROL_TURN_ID,
+                "bead_id": (
+                    manifest_work_units.get("epic_id")
+                ),
+                "work_unit_id": (
+                    manifest_work_units.get("live_work_unit_id")
+                ),
+                "control_turn_id": (
+                    manifest.get("control_turn_id")
+                    if isinstance(manifest, Mapping)
+                    else CONTROL_TURN_ID
+                ),
                 "exact_model": EXACT_MODEL,
                 "started_at": iso(started_at),
                 "failed_at": iso(),
@@ -2593,12 +2801,17 @@ def main() -> int:
                     else None
                 ),
                 "steering_consumptions": steering_consumptions,
+                "campaign_bindings": artifact_bindings,
                 "first_protected_fault": getattr(exc, "first_protected_fault", None),
                 "allocation_ledger": safe_allocation_ledger_summary(allocation_ledger),
+                "glm_5_2_used": False,
+                "model_synthesis_used": False,
             },
             "evidence_sha256",
         )
-        write_private_artifact(output, failure)
+        failure_persisted = not output.exists() and not output.is_symlink()
+        if failure_persisted:
+            write_private_artifact(output, failure)
         print(
             json.dumps(
                 {
@@ -2607,6 +2820,7 @@ def main() -> int:
                     "failure_code": safe_failure_code,
                     "failure_message_sha256": failure["failure_message_sha256"],
                     "evidence_sha256": failure["evidence_sha256"],
+                    "failure_evidence_persisted": failure_persisted,
                 },
                 sort_keys=True,
             ),

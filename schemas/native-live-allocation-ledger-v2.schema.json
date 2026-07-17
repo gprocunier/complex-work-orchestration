@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Live Allocation Ledger v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ledger_type", "version", "schema", "ledger_id", "bindings", "sequence",
+    "entries", "head_entry_sha256", "state_sha256"
+  ],
+  "properties": {
+    "ledger_type": {"const": "cwo-native-live-allocation-ledger:v2"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-live-allocation-ledger-v2.schema.json"},
+    "ledger_id": {"type": "string", "format": "uuid"},
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bead_id", "work_unit_id", "authorization_id", "authorization_raw_sha256",
+        "authorization_canonical_sha256", "campaign_manifest_sha256", "campaign_nonce",
+        "live_generation", "predecessor_generation", "candidate_commit", "candidate_tree",
+        "origin_main_commit", "guarded_primary_diff_sha256", "predecessor_containment_sha256",
+        "frozen_release_patch_sha256", "pre_mutation_steering_receipt_sha256",
+        "pre_live_steering_receipt_sha256", "opus_review_sha256",
+        "certification_policy_sha256", "controller_identity", "connection_epoch_sha256",
+        "retention_class", "expected_roles"
+      ],
+      "properties": {
+        "bead_id": {"type": "string", "minLength": 1},
+        "work_unit_id": {"type": "string", "minLength": 1},
+        "authorization_id": {"type": "string", "format": "uuid"},
+        "authorization_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "campaign_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "campaign_nonce": {"type": "string", "format": "uuid"},
+        "live_generation": {"type": "integer", "minimum": 1},
+        "predecessor_generation": {"type": "integer", "minimum": 0},
+        "candidate_commit": {"$ref": "#/$defs/git_object"},
+        "candidate_tree": {"$ref": "#/$defs/git_object"},
+        "origin_main_commit": {"$ref": "#/$defs/git_object"},
+        "guarded_primary_diff_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_containment_sha256": {"$ref": "#/$defs/sha256"},
+        "frozen_release_patch_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_mutation_steering_receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_live_steering_receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "opus_review_sha256": {"$ref": "#/$defs/sha256"},
+        "certification_policy_sha256": {"$ref": "#/$defs/sha256"},
+        "controller_identity": {"$ref": "#/$defs/owner"},
+        "connection_epoch_sha256": {"$ref": "#/$defs/sha256"},
+        "retention_class": {"const": "private-local-until-bead-closure"},
+        "expected_roles": {"$ref": "#/$defs/roles"}
+      }
+    },
+    "sequence": {"type": "integer", "minimum": 0},
+    "entries": {"type": "array", "items": {"$ref": "#/$defs/entry"}},
+    "head_entry_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "state_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_object": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "roles": {
+      "const": [
+        "capability-calibration", "read-only-0", "read-only-1", "mutable-0",
+        "mutable-1", "interrupt-0", "interrupt-1"
+      ]
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_ticks", "boot_id_sha256"],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "start_ticks": {"type": "integer", "minimum": 1},
+        "boot_id_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence", "event", "role", "ordinal", "allocation_intent_id", "thread_id",
+        "turn_intent_id", "turn_id", "evidence_sha256", "outcome",
+        "previous_entry_sha256", "entry_sha256", "audit_event_hash"
+      ],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1},
+        "event": {"enum": [
+          "allocation-intent", "thread-bound", "turn-intent", "turn-bound",
+          "interrupt-observed", "archive-observed", "containment-audited",
+          "certification-bound"
+        ]},
+        "role": {"type": ["string", "null"]},
+        "ordinal": {"type": ["integer", "null"], "minimum": 0, "maximum": 6},
+        "allocation_intent_id": {"type": ["string", "null"]},
+        "thread_id": {"type": ["string", "null"]},
+        "turn_intent_id": {"type": ["string", "null"]},
+        "turn_id": {"type": ["string", "null"]},
+        "evidence_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "outcome": {"type": "string", "minLength": 1},
+        "previous_entry_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "entry_sha256": {"$ref": "#/$defs/sha256"},
+        "audit_event_hash": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

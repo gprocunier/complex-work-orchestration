@@ -8,6 +8,7 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
+from .native_live_campaign_contracts import validate_campaign_manifest
 from .native_control import validate_control_turn_contract
 from .native_pool_contracts import (
     CAPABILITY_CERTIFICATION_ENVELOPE,
@@ -289,6 +290,14 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         raise NativePoolConfigError("native-supervision-pool-policy-invalid:status")
     if not isinstance(policy.get("cap_two_operative_release"), bool):
         raise NativePoolConfigError("native-supervision-pool-policy-invalid:cap_two_operative_release")
+    if (
+        policy.get("status") == "canary-gated"
+        and policy.get("cap_two_operative_release") is not False
+    ) or (
+        policy.get("status") == "operative-authorized"
+        and policy.get("cap_two_operative_release") is not True
+    ):
+        raise NativePoolConfigError("native-supervision-pool-policy-release-inconsistent")
     if not _nonempty(policy.get("release_requires")):
         raise NativePoolConfigError("native-supervision-pool-policy-invalid:release_requires")
     surfaces = policy.get("allowed_execution_surfaces")
@@ -335,7 +344,7 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
     return policy
 
 
-def build_pool_contract(
+def _build_pool_contract(
     request: Mapping[str, Any],
     *,
     capability_receipt: Mapping[str, Any] | None = None,
@@ -343,6 +352,7 @@ def build_pool_contract(
     owner_pid: int | None = None,
     now: dt.datetime | None = None,
     policy_document: Mapping[str, Any] | None = None,
+    canary_manifest: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Render a strict pool contract without carrying task or repository content."""
     request_errors = validate_pool_render_request(request)
@@ -354,6 +364,18 @@ def build_pool_contract(
         raise NativePoolConfigError("cap-two-requires-explicit-enable-concurrency")
     if cap == 2 and policy.get("cap_two_requires_fresh_capability") is not True:
         raise NativePoolConfigError("cap-two-policy-does-not-require-fresh-capability")
+    if cap == 2:
+        operative_released = (
+            policy.get("status") == "operative-authorized"
+            and policy.get("cap_two_operative_release") is True
+        )
+        if not operative_released and canary_manifest is None:
+            raise NativePoolConfigError("cap-two-operative-release-required")
+        if not operative_released and {
+            "status": policy.get("status"),
+            "cap_two_operative_release": policy.get("cap_two_operative_release"),
+        } != canary_manifest.get("release", {}).get("policy_before"):
+            raise NativePoolConfigError("live-canary-policy-binding-mismatch")
 
     effective_now = now or dt.datetime.now(dt.timezone.utc)
     if cap == 2:
@@ -490,3 +512,53 @@ def build_pool_contract(
         child_worktrees=child_worktrees,
     )
     return contract
+
+
+def build_pool_contract(
+    request: Mapping[str, Any],
+    *,
+    capability_receipt: Mapping[str, Any] | None = None,
+    enable_concurrency: bool = False,
+    owner_pid: int | None = None,
+    now: dt.datetime | None = None,
+    policy_document: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Render an ordinary pool contract under the operative release policy."""
+    return _build_pool_contract(
+        request,
+        capability_receipt=capability_receipt,
+        enable_concurrency=enable_concurrency,
+        owner_pid=owner_pid,
+        now=now,
+        policy_document=policy_document,
+    )
+
+
+def build_live_canary_pool_contract(
+    request: Mapping[str, Any],
+    *,
+    campaign_manifest: Mapping[str, Any],
+    capability_receipt: Mapping[str, Any],
+    owner_pid: int | None = None,
+    now: dt.datetime | None = None,
+    policy_document: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Render the one manifest-bound cap-two canary before operative release."""
+    manifest_errors = validate_campaign_manifest(campaign_manifest)
+    if manifest_errors:
+        raise NativePoolConfigError(
+            "campaign-manifest-invalid:" + ";".join(manifest_errors)
+        )
+    if request.get("max_active_workers") != 2:
+        raise NativePoolConfigError("live-canary-requires-cap-two")
+    if request.get("control_turn_id") != campaign_manifest.get("control_turn_id"):
+        raise NativePoolConfigError("live-canary-control-turn-mismatch")
+    return _build_pool_contract(
+        request,
+        capability_receipt=capability_receipt,
+        enable_concurrency=True,
+        owner_pid=owner_pid,
+        now=now,
+        policy_document=policy_document,
+        canary_manifest=campaign_manifest,
+    )
