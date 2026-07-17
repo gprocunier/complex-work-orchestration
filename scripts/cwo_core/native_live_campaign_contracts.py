@@ -13,10 +13,10 @@ import uuid
 
 
 AUTHORIZATION_TYPE = "cwo-full-auto-run-authorization"
-AUTHORIZATION_VERSION = 4
+AUTHORIZATION_VERSION = 5
 AUTHORIZATION_SCHEMA = "schemas/full-auto-run-authorization.schema.json"
 MANIFEST_TYPE = "cwo-native-live-campaign-manifest"
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2
 MANIFEST_SCHEMA = "schemas/native-live-campaign-manifest.schema.json"
 EXACT_STEERING_MODEL = "gpt-5.6-sol"
 EXACT_STEERING_EFFORT = "max"
@@ -52,7 +52,8 @@ AUTHORIZATION_FIELDS = {
     "bindings",
     "supersession",
     "executors",
-    "budgets",
+    "resource_limits",
+    "progress_gate",
     "mandatory_gates",
     "persistence",
     "forbidden",
@@ -77,6 +78,9 @@ BINDING_FIELDS = {
     "predecessor_containment_file_sha256",
     "predecessor_containment_canonical_sha256",
     "backup_ref",
+    "outer_authority_id",
+    "outer_authority_canonical_sha256",
+    "outer_authority_file_sha256",
 }
 SUPERSESSION_FIELDS = {
     "prior_authorization_id",
@@ -91,36 +95,48 @@ EXECUTOR_FIELDS = {"final_architect", "steering", "operative", "outside_critic"}
 STEERING_EXECUTOR_FIELDS = {"model", "effort", "surface", "authority"}
 OPERATIVE_EXECUTOR_FIELDS = {"model", "effort", "surface", "session_policy"}
 CRITIC_EXECUTOR_FIELDS = {"model", "effort", "surface", "authority"}
-BUDGET_FIELDS = {
-    "sol_consultations_observed_before_v10",
-    "sol_consultations_added",
-    "sol_consultations_global_hard",
-    "opus_reviews_observed_before_v10",
-    "opus_reviews_added",
-    "opus_reviews_global_hard",
-    "live_generations_consumed_before_current",
-    "live_generations_global_hard",
-    "live_generations_remaining_exact",
-    "spark_live_turn_starts_per_generation_exact",
-    "spark_read_only_validation_sessions_hard",
+RESOURCE_LIMIT_FIELDS = {
+    "sol_consultations_this_inner_hard",
+    "opus_reviews_this_inner_hard",
+    "spark_validation_sessions_this_inner_hard",
+    "spark_live_turn_starts_exact",
     "spark_compactions_hard",
-    "full_repository_suites_observed_before_v10",
-    "full_repository_suites_added",
-    "full_repository_suites_global_hard",
-    "focused_validation_bundles_hard",
-    "implementation_correction_sprints_hard",
-    "origin_reconciliation_cycles_hard",
+    "full_repository_suites_this_inner_hard",
+    "focused_validation_bundles_this_inner_hard",
+    "implementation_correction_sprints_this_inner_hard",
     "primary_checkout_mutations_hard",
 }
+PROGRESS_GATE_FIELDS = {
+    "outer_authority_status",
+    "qualification_basis",
+    "predecessor_failure_class",
+    "predecessor_failure_evidence_canonical_sha256",
+    "predecessor_candidate_commit",
+    "predecessor_candidate_tree",
+    "new_falsifiable_cause",
+    "cause_evidence_sha256",
+    "repair_commit",
+    "repair_tree",
+    "independent_validation_receipt_canonical_sha256",
+    "independent_validation_receipt_file_sha256",
+    "same_fault_without_new_evidence",
+    "one_active_inner_campaign",
+    "arbitrary_generation_cap",
+    "fresh_exact_sol_pre_live_required",
+    "qualification_sha256",
+}
 MANDATORY_GATE_FIELDS = {
-    "strict_authorization_v4",
+    "strict_authorization_v5",
+    "active_outer_authority_binding",
+    "progress_qualification_validation",
     "contained_prior_generation_proof",
+    "fresh_exact_spark_validation",
     "fresh_exact_sol_pre_mutation_receipt",
     "successor_contract_validation",
     "frozen_release_patch",
-    "fresh_opus_candidate_review",
+    "opus_second_line_review_adjudicated",
     "fresh_exact_sol_pre_live_receipt",
-    "campaign_manifest_v1",
+    "campaign_manifest_v2",
     "single_shot_per_generation_live_campaign",
     "main_thread_adjudication_each_gate",
     "guarded_primary_diff_stability",
@@ -146,7 +162,6 @@ FORBIDDEN_FIELDS = {
     "worker_salvage",
     "model_substitution",
     "evidence_bearing_live_retry",
-    "generation_6",
     "sol_target_checkout_mutation",
     "release_before_live_acceptance",
     "force_push",
@@ -186,6 +201,8 @@ MANIFEST_FIELDS = {
     "work_units",
     "candidate",
     "predecessor",
+    "outer_authority",
+    "progress_qualification_sha256",
     "executors",
     "expected_roles",
     "successful_turn_starts_exact",
@@ -210,12 +227,19 @@ MANIFEST_PREDECESSOR_FIELDS = {
     "failure_evidence_canonical_sha256",
     "containment_canonical_sha256",
 }
+MANIFEST_OUTER_AUTHORITY_FIELDS = {
+    "authority_id",
+    "canonical_sha256",
+    "file_sha256",
+}
 MANIFEST_REVIEW_FIELDS = {
     "pre_mutation_receipt_canonical_sha256",
     "pre_mutation_receipt_file_sha256",
     "pre_mutation_adjudication_file_sha256",
     "opus_evidence_file_sha256",
     "opus_adjudication_file_sha256",
+    "spark_validation_receipt_canonical_sha256",
+    "spark_validation_receipt_file_sha256",
     "pre_live_receipt_canonical_sha256",
     "pre_live_receipt_file_sha256",
     "pre_live_adjudication_file_sha256",
@@ -339,6 +363,8 @@ def validate_full_auto_authorization(
         "guarded_primary_diff_sha256",
         "pickup_sha256",
         "recovery_plan_sha256",
+        "outer_authority_canonical_sha256",
+        "outer_authority_file_sha256",
         "predecessor_failure_evidence_file_sha256",
         "predecessor_failure_evidence_canonical_sha256",
         "predecessor_containment_file_sha256",
@@ -346,11 +372,20 @@ def validate_full_auto_authorization(
     ):
         if not _is_hash(bindings.get(field)):
             errors.append(f"authorization-binding-{field.replace('_', '-')}-invalid")
-    for field in ("campaign_nonce", "predecessor_authorization_id"):
+    for field in (
+        "campaign_nonce",
+        "predecessor_authorization_id",
+        "outer_authority_id",
+    ):
         if not _is_uuid(bindings.get(field)):
             errors.append(f"authorization-binding-{field.replace('_', '-')}-invalid")
     if expected_campaign_nonce is not None and bindings.get("campaign_nonce") != expected_campaign_nonce:
         errors.append("authorization-campaign-nonce-mismatch")
+    if authorization.get("authorization_id") in {
+        bindings.get("predecessor_authorization_id"),
+        bindings.get("outer_authority_id"),
+    }:
+        errors.append("authorization-identity-reuse-invalid")
     for field in ("pickup_path", "recovery_plan_path", "backup_ref"):
         item = bindings.get(field)
         if not isinstance(item, str) or not item.strip():
@@ -424,26 +459,98 @@ def validate_full_auto_authorization(
     }:
         errors.append("authorization-critic-executor-invalid")
 
-    budgets = _strict(
-        authorization.get("budgets"), BUDGET_FIELDS, "authorization-budgets", errors
+    resource_limits = _strict(
+        authorization.get("resource_limits"),
+        RESOURCE_LIMIT_FIELDS,
+        "authorization-resource-limits",
+        errors,
     )
-    if any(not _is_int(budgets.get(field), 0) for field in BUDGET_FIELDS):
-        errors.append("authorization-budget-value-invalid")
+    if any(
+        not _is_int(resource_limits.get(field), 0)
+        for field in RESOURCE_LIMIT_FIELDS
+    ):
+        errors.append("authorization-resource-limit-value-invalid")
     else:
-        if budgets["sol_consultations_observed_before_v10"] + budgets["sol_consultations_added"] != budgets["sol_consultations_global_hard"]:
-            errors.append("authorization-sol-budget-arithmetic-invalid")
-        if budgets["opus_reviews_observed_before_v10"] + budgets["opus_reviews_added"] != budgets["opus_reviews_global_hard"]:
-            errors.append("authorization-opus-budget-arithmetic-invalid")
-        if budgets["live_generations_consumed_before_current"] + budgets["live_generations_remaining_exact"] != budgets["live_generations_global_hard"]:
-            errors.append("authorization-live-budget-arithmetic-invalid")
-        if budgets["live_generations_consumed_before_current"] != predecessor or budgets["live_generations_remaining_exact"] != 1:
-            errors.append("authorization-live-budget-generation-mismatch")
-        if budgets["spark_live_turn_starts_per_generation_exact"] != len(EXPECTED_ROLES):
-            errors.append("authorization-live-turn-budget-invalid")
-        if budgets["spark_compactions_hard"] != 0 or budgets["primary_checkout_mutations_hard"] != 0:
-            errors.append("authorization-protected-budget-invalid")
-        if budgets["full_repository_suites_observed_before_v10"] + budgets["full_repository_suites_added"] != budgets["full_repository_suites_global_hard"]:
-            errors.append("authorization-full-suite-budget-arithmetic-invalid")
+        if resource_limits["sol_consultations_this_inner_hard"] < 2:
+            errors.append("authorization-sol-resource-limit-invalid")
+        if resource_limits["spark_validation_sessions_this_inner_hard"] < 1:
+            errors.append("authorization-spark-validation-resource-limit-invalid")
+        if resource_limits["spark_live_turn_starts_exact"] != len(EXPECTED_ROLES):
+            errors.append("authorization-live-turn-resource-limit-invalid")
+        if (
+            resource_limits["spark_compactions_hard"] != 0
+            or resource_limits["primary_checkout_mutations_hard"] != 0
+        ):
+            errors.append("authorization-protected-resource-limit-invalid")
+        if (
+            resource_limits["full_repository_suites_this_inner_hard"] < 1
+            or resource_limits["focused_validation_bundles_this_inner_hard"] < 1
+        ):
+            errors.append("authorization-validation-resource-limit-invalid")
+
+    progress = _strict(
+        authorization.get("progress_gate"),
+        PROGRESS_GATE_FIELDS,
+        "authorization-progress-gate",
+        errors,
+    )
+    if progress.get("outer_authority_status") != "active":
+        errors.append("authorization-progress-outer-authority-not-active")
+    if progress.get("qualification_basis") not in {
+        "new-fault-class",
+        "same-fault-with-new-evidence-and-validated-repair",
+    }:
+        errors.append("authorization-progress-qualification-basis-invalid")
+    for field in ("predecessor_failure_class", "new_falsifiable_cause"):
+        if not isinstance(progress.get(field), str) or not progress[field].strip():
+            errors.append(f"authorization-progress-{field.replace('_', '-')}-invalid")
+    for field in (
+        "predecessor_failure_evidence_canonical_sha256",
+        "cause_evidence_sha256",
+        "independent_validation_receipt_canonical_sha256",
+        "independent_validation_receipt_file_sha256",
+    ):
+        if not _is_hash(progress.get(field)):
+            errors.append(f"authorization-progress-{field.replace('_', '-')}-invalid")
+    for field in ("repair_commit", "repair_tree"):
+        if not _is_commit(progress.get(field)):
+            errors.append(f"authorization-progress-{field.replace('_', '-')}-invalid")
+    for field in ("predecessor_candidate_commit", "predecessor_candidate_tree"):
+        if not _is_commit(progress.get(field)):
+            errors.append(f"authorization-progress-{field.replace('_', '-')}-invalid")
+    if progress.get("predecessor_failure_evidence_canonical_sha256") != bindings.get(
+        "predecessor_failure_evidence_canonical_sha256"
+    ):
+        errors.append("authorization-progress-predecessor-evidence-mismatch")
+    if (
+        progress.get("repair_commit") != bindings.get("checkpoint_commit")
+        or progress.get("repair_tree") != bindings.get("checkpoint_tree")
+    ):
+        errors.append("authorization-progress-repair-checkpoint-mismatch")
+    if (
+        progress.get("repair_commit") == progress.get("predecessor_candidate_commit")
+        or progress.get("repair_tree") == progress.get("predecessor_candidate_tree")
+        or progress.get("cause_evidence_sha256")
+        == progress.get("predecessor_failure_evidence_canonical_sha256")
+    ):
+        errors.append("authorization-progress-new-evidence-or-repair-missing")
+    if any(
+        progress.get(field) is not expected
+        for field, expected in (
+            ("same_fault_without_new_evidence", False),
+            ("one_active_inner_campaign", True),
+            ("arbitrary_generation_cap", False),
+            ("fresh_exact_sol_pre_live_required", True),
+        )
+    ):
+        errors.append("authorization-progress-containment-policy-invalid")
+    qualification_hash = progress.get("qualification_sha256")
+    unsigned_progress = dict(progress)
+    unsigned_progress.pop("qualification_sha256", None)
+    if not _is_hash(qualification_hash) or qualification_hash != canonical_sha256(
+        unsigned_progress
+    ):
+        errors.append("authorization-progress-qualification-sha256-mismatch")
 
     gates = _strict(
         authorization.get("mandatory_gates"),
@@ -514,13 +621,21 @@ def validate_full_auto_authorization(
             if _run_git(root, "rev-parse", f"{checkpoint}^{{tree}}") != bindings["checkpoint_tree"]:
                 errors.append("authorization-checkpoint-tree-mismatch")
             head = _run_git(root, "rev-parse", "HEAD")
-            ancestor = subprocess.run(
-                ["git", "merge-base", "--is-ancestor", checkpoint, head],
+            if head != checkpoint:
+                errors.append("authorization-checkpoint-not-head")
+            predecessor_commit = str(progress["predecessor_candidate_commit"])
+            if (
+                _run_git(root, "rev-parse", f"{predecessor_commit}^{{tree}}")
+                != progress["predecessor_candidate_tree"]
+            ):
+                errors.append("authorization-progress-predecessor-tree-mismatch")
+            predecessor_ancestor = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", predecessor_commit, checkpoint],
                 cwd=root,
                 capture_output=True,
             )
-            if ancestor.returncode != 0:
-                errors.append("authorization-checkpoint-not-ancestor")
+            if predecessor_ancestor.returncode != 0:
+                errors.append("authorization-progress-repair-lineage-invalid")
             if _run_git(root, "status", "--porcelain=v1", "--untracked-files=no"):
                 errors.append("authorization-repository-not-clean")
             if _run_git(root, "rev-parse", "origin/main") != bindings["origin_main_commit"]:
@@ -535,6 +650,10 @@ def validate_campaign_manifest(
     *,
     authorization: Mapping[str, Any] | None = None,
     authorization_raw_sha256: str | None = None,
+    outer_authority: Mapping[str, Any] | None = None,
+    outer_authority_raw_sha256: str | None = None,
+    independent_validation_receipt: Mapping[str, Any] | None = None,
+    independent_validation_receipt_raw_sha256: str | None = None,
     repo_root: Path | None = None,
     expected_primary_diff_sha256: str | None = None,
 ) -> list[str]:
@@ -586,6 +705,19 @@ def validate_campaign_manifest(
         for field in ("failure_evidence_canonical_sha256", "containment_canonical_sha256")
     ):
         errors.append("campaign-manifest-predecessor-invalid")
+    manifest_outer_authority = _strict(
+        manifest.get("outer_authority"),
+        MANIFEST_OUTER_AUTHORITY_FIELDS,
+        "campaign-manifest-outer-authority",
+        errors,
+    )
+    if not _is_uuid(manifest_outer_authority.get("authority_id")) or any(
+        not _is_hash(manifest_outer_authority.get(field))
+        for field in ("canonical_sha256", "file_sha256")
+    ):
+        errors.append("campaign-manifest-outer-authority-invalid")
+    if not _is_hash(manifest.get("progress_qualification_sha256")):
+        errors.append("campaign-manifest-progress-qualification-invalid")
     executors = _strict(
         manifest.get("executors"), EXECUTOR_FIELDS, "campaign-manifest-executors", errors
     )
@@ -682,7 +814,13 @@ def validate_campaign_manifest(
             or work_units.get("live_work_unit_id") not in ordered_work_units
         ):
             errors.append("campaign-manifest-work-unit-authorization-mismatch")
-        if candidate.get("origin_main_commit") != bindings.get("origin_main_commit") or candidate.get("guarded_primary_diff_sha256") != bindings.get("guarded_primary_diff_sha256"):
+        if (
+            candidate.get("commit") != bindings.get("checkpoint_commit")
+            or candidate.get("tree") != bindings.get("checkpoint_tree")
+            or candidate.get("origin_main_commit") != bindings.get("origin_main_commit")
+            or candidate.get("guarded_primary_diff_sha256")
+            != bindings.get("guarded_primary_diff_sha256")
+        ):
             errors.append("campaign-manifest-candidate-authorization-mismatch")
         if predecessor_value != {
             "authorization_id": bindings.get("predecessor_authorization_id"),
@@ -690,6 +828,119 @@ def validate_campaign_manifest(
             "containment_canonical_sha256": bindings.get("predecessor_containment_canonical_sha256"),
         }:
             errors.append("campaign-manifest-predecessor-authorization-mismatch")
+        if manifest_outer_authority != {
+            "authority_id": bindings.get("outer_authority_id"),
+            "canonical_sha256": bindings.get("outer_authority_canonical_sha256"),
+            "file_sha256": bindings.get("outer_authority_file_sha256"),
+        }:
+            errors.append("campaign-manifest-outer-authority-authorization-mismatch")
+        progress = (
+            authorization.get("progress_gate")
+            if isinstance(authorization.get("progress_gate"), Mapping)
+            else {}
+        )
+        if manifest.get("progress_qualification_sha256") != progress.get(
+            "qualification_sha256"
+        ):
+            errors.append("campaign-manifest-progress-qualification-mismatch")
+
+    if outer_authority is not None:
+        if (
+            outer_authority.get("authority_type")
+            != "cwo-full-auto-outer-recovery-authority"
+            or outer_authority.get("version") != 1
+            or outer_authority.get("status") != "active"
+        ):
+            errors.append("campaign-manifest-outer-authority-state-invalid")
+        if not _is_uuid(outer_authority.get("authority_id")) or not _is_hash(
+            outer_authority.get("canonical_outer_authority_sha256")
+        ):
+            errors.append("campaign-manifest-outer-authority-id-invalid")
+        outer_scope = outer_authority.get("scope")
+        if (
+            not isinstance(outer_scope, Mapping)
+            or outer_scope.get("epic_id") != work_units.get("epic_id")
+            or outer_scope.get("parent_work_unit_id")
+            != work_units.get("parent_work_unit_id")
+        ):
+            errors.append("campaign-manifest-outer-authority-scope-mismatch")
+        expected_outer = {
+            "authority_id": outer_authority.get("authority_id"),
+            "canonical_sha256": outer_authority.get(
+                "canonical_outer_authority_sha256"
+            ),
+            "file_sha256": outer_authority_raw_sha256,
+        }
+        if manifest_outer_authority != expected_outer:
+            errors.append("campaign-manifest-outer-authority-binding-mismatch")
+
+    if independent_validation_receipt is not None:
+        expected_activity = {
+            "function_calls": 0,
+            "custom_tool_calls": 0,
+            "tool_item_types": [],
+            "compactions": 0,
+            "workspace_mutations": 0,
+        }
+        opinion = independent_validation_receipt.get("opinion")
+        guard = independent_validation_receipt.get("guard")
+        guard_before = guard.get("before") if isinstance(guard, Mapping) else None
+        guard_after = guard.get("after") if isinstance(guard, Mapping) else None
+        boundary = independent_validation_receipt.get("boundary")
+        terminal_boundary = (
+            boundary.get("terminal") if isinstance(boundary, Mapping) else None
+        )
+        if (
+            independent_validation_receipt.get("schema")
+            != "cwo-steering-receipt:v1"
+            or independent_validation_receipt.get("gate") != "independent-validation"
+            or independent_validation_receipt.get("authorization_id")
+            != manifest_outer_authority.get("authority_id")
+            or independent_validation_receipt.get("authorization_sha256")
+            != manifest_outer_authority.get("file_sha256")
+            or independent_validation_receipt.get("model")
+            != EXACT_OPERATIVE_MODEL
+            or independent_validation_receipt.get("effort")
+            != EXACT_OPERATIVE_EFFORT
+            or independent_validation_receipt.get("attestation_source")
+            != "initialized-codex-home-session-jsonl-turn-context"
+            or independent_validation_receipt.get("observed_activity")
+            != expected_activity
+            or independent_validation_receipt.get("closure_outcome")
+            != "completed-and-archived"
+            or independent_validation_receipt.get("disposition") != "accepting"
+            or not isinstance(opinion, Mapping)
+            or opinion.get("recommendation") != "go"
+            or not isinstance(guard_before, Mapping)
+            or not isinstance(guard_after, Mapping)
+            or guard_before != guard_after
+            or guard_before.get("repo_head") != candidate.get("commit")
+            or guard_before.get("primary_diff_sha256")
+            != candidate.get("guarded_primary_diff_sha256")
+            or guard_before.get("repo_status_sha256")
+            != hashlib.sha256(b"").hexdigest()
+            or not isinstance(terminal_boundary, Mapping)
+            or terminal_boundary.get("invalid_record_count") != 0
+            or terminal_boundary.get("trailing_partial") is not False
+        ):
+            errors.append("campaign-manifest-independent-validation-not-accepting")
+        progress = (
+            authorization.get("progress_gate")
+            if isinstance(authorization, Mapping)
+            and isinstance(authorization.get("progress_gate"), Mapping)
+            else {}
+        )
+        if (
+            reviews.get("spark_validation_receipt_canonical_sha256")
+            != independent_validation_receipt.get("canonical_receipt_sha256")
+            or reviews.get("spark_validation_receipt_file_sha256")
+            != independent_validation_receipt_raw_sha256
+            or progress.get("independent_validation_receipt_canonical_sha256")
+            != independent_validation_receipt.get("canonical_receipt_sha256")
+            or progress.get("independent_validation_receipt_file_sha256")
+            != independent_validation_receipt_raw_sha256
+        ):
+            errors.append("campaign-manifest-independent-validation-binding-mismatch")
 
     if expected_primary_diff_sha256 is not None and candidate.get("guarded_primary_diff_sha256") != expected_primary_diff_sha256:
         errors.append("campaign-manifest-primary-diff-mismatch")

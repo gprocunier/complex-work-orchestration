@@ -1119,6 +1119,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         (root / "baseline.txt").write_text("initial", encoding="utf-8")
         subprocess.run(["git", "add", "baseline.txt"], cwd=root, check=True)
         subprocess.run(["git", "commit", "-qm", "baseline"], cwd=root, check=True)
+        (root / "candidate.txt").write_text("candidate", encoding="utf-8")
+        subprocess.run(["git", "add", "candidate.txt"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "candidate"], cwd=root, check=True)
+        (root / "checkpoint.txt").write_text("checkpoint", encoding="utf-8")
+        subprocess.run(["git", "add", "checkpoint.txt"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "checkpoint"], cwd=root, check=True)
         head = LIVE.run_git(root, "rev-parse", "HEAD")
         subprocess.run(["git", "checkout", "-q", "--orphan", "orphan"], cwd=root, check=True)
         (root / "orphan.txt").write_text("orphan", encoding="utf-8")
@@ -1137,12 +1143,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         predecessor_authorization_id = str(uuid.uuid4())
         value = {
             "authorization_type": "cwo-full-auto-run-authorization",
-            "version": 4,
+            "version": 5,
             "schema": "schemas/full-auto-run-authorization.schema.json",
             "authorization_id": str(uuid.uuid4()),
-            "run_generation": 10,
-            "live_generation": 5,
-            "predecessor_live_generation": 4,
+            "run_generation": 11,
+            "live_generation": 6,
+            "predecessor_live_generation": 5,
             "issued_at": "2026-07-17T12:00:00Z",
             "issued_by": "test-operator",
             "operator_authority": "comprehensive-full-auto",
@@ -1151,10 +1157,9 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "epic_id": "complex-work-orchestration-18w",
                 "parent_work_unit_id": "complex-work-orchestration-18w.6",
                 "ordered_work_units": [
-                    "complex-work-orchestration-18w.6.16",
-                    "complex-work-orchestration-18w.6.17",
-                    "complex-work-orchestration-18w.6.18",
-                    "complex-work-orchestration-18w.6.19",
+                    "complex-work-orchestration-18w.6.23",
+                    "complex-work-orchestration-18w.6.24",
+                    "complex-work-orchestration-18w.7",
                 ],
             },
             "bindings": {
@@ -1162,9 +1167,9 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "checkpoint_tree": LIVE.run_git(root, "rev-parse", f"{checkpoint}^{{tree}}"),
                 "origin_main_commit": LIVE.run_git(root, "rev-parse", "origin/main"),
                 "guarded_primary_diff_sha256": LIVE.sha256_bytes(b""),
-                "pickup_path": "work-packets/18w/pickup-6.md",
+                "pickup_path": "work-packets/18w/pickup-7.md",
                 "pickup_sha256": "1" * 64,
-                "recovery_plan_path": "work-packets/18w/recovery-plan-v10.md",
+                "recovery_plan_path": "work-packets/18w/recovery-plan-v11.md",
                 "recovery_plan_sha256": "2" * 64,
                 "campaign_nonce": str(uuid.uuid4()),
                 "predecessor_authorization_id": predecessor_authorization_id,
@@ -1173,11 +1178,14 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "predecessor_containment_file_sha256": "5" * 64,
                 "predecessor_containment_canonical_sha256": "6" * 64,
                 "backup_ref": "refs/heads/backup/test-generation",
+                "outer_authority_id": str(uuid.uuid4()),
+                "outer_authority_canonical_sha256": "7" * 64,
+                "outer_authority_file_sha256": "8" * 64,
             },
             "supersession": {
                 "prior_authorization_id": predecessor_authorization_id,
                 "prior_terminal_state": "containment-only",
-                "prior_live_generation": 4,
+                "prior_live_generation": 5,
                 "prior_allocations": 1,
                 "prior_ambiguities": 0,
                 "prior_allowed_actions": 0,
@@ -1204,36 +1212,51 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     "authority": "evidence-only",
                 },
             },
-            "budgets": {
-                "sol_consultations_observed_before_v10": 16,
-                "sol_consultations_added": 3,
-                "sol_consultations_global_hard": 19,
-                "opus_reviews_observed_before_v10": 7,
-                "opus_reviews_added": 2,
-                "opus_reviews_global_hard": 9,
-                "live_generations_consumed_before_current": 4,
-                "live_generations_global_hard": 5,
-                "live_generations_remaining_exact": 1,
-                "spark_live_turn_starts_per_generation_exact": 7,
-                "spark_read_only_validation_sessions_hard": 1,
+            "resource_limits": {
+                "sol_consultations_this_inner_hard": 2,
+                "opus_reviews_this_inner_hard": 0,
+                "spark_validation_sessions_this_inner_hard": 1,
+                "spark_live_turn_starts_exact": 7,
                 "spark_compactions_hard": 0,
-                "full_repository_suites_observed_before_v10": 4,
-                "full_repository_suites_added": 3,
-                "full_repository_suites_global_hard": 7,
-                "focused_validation_bundles_hard": 4,
-                "implementation_correction_sprints_hard": 1,
-                "origin_reconciliation_cycles_hard": 1,
+                "full_repository_suites_this_inner_hard": 2,
+                "focused_validation_bundles_this_inner_hard": 3,
+                "implementation_correction_sprints_this_inner_hard": 1,
                 "primary_checkout_mutations_hard": 0,
             },
+            "progress_gate": {
+                "outer_authority_status": "active",
+                "qualification_basis": "same-fault-with-new-evidence-and-validated-repair",
+                "predecessor_failure_class": "startup-status-projection-race",
+                "predecessor_failure_evidence_canonical_sha256": "4" * 64,
+                "predecessor_candidate_commit": LIVE.run_git(
+                    root, "rev-parse", f"{checkpoint}^"
+                ),
+                "predecessor_candidate_tree": LIVE.run_git(
+                    root, "rev-parse", f"{checkpoint}^^{{tree}}"
+                ),
+                "new_falsifiable_cause": "projected terminal lacked exact-turn durable corroboration",
+                "cause_evidence_sha256": "9" * 64,
+                "repair_commit": checkpoint,
+                "repair_tree": LIVE.run_git(root, "rev-parse", f"{checkpoint}^{{tree}}"),
+                "independent_validation_receipt_canonical_sha256": "a" * 64,
+                "independent_validation_receipt_file_sha256": "b" * 64,
+                "same_fault_without_new_evidence": False,
+                "one_active_inner_campaign": True,
+                "arbitrary_generation_cap": False,
+                "fresh_exact_sol_pre_live_required": True,
+            },
             "mandatory_gates": {
-                "strict_authorization_v4": True,
+                "strict_authorization_v5": True,
+                "active_outer_authority_binding": True,
+                "progress_qualification_validation": True,
                 "contained_prior_generation_proof": True,
+                "fresh_exact_spark_validation": True,
                 "fresh_exact_sol_pre_mutation_receipt": True,
                 "successor_contract_validation": True,
                 "frozen_release_patch": True,
-                "fresh_opus_candidate_review": True,
+                "opus_second_line_review_adjudicated": True,
                 "fresh_exact_sol_pre_live_receipt": True,
-                "campaign_manifest_v1": True,
+                "campaign_manifest_v2": True,
                 "single_shot_per_generation_live_campaign": True,
                 "main_thread_adjudication_each_gate": True,
                 "guarded_primary_diff_stability": True,
@@ -1259,7 +1282,6 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "worker_salvage": True,
                 "model_substitution": True,
                 "evidence_bearing_live_retry": True,
-                "generation_6": True,
                 "sol_target_checkout_mutation": True,
                 "release_before_live_acceptance": True,
                 "force_push": True,
@@ -1282,6 +1304,11 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "actions_after_gate": ["staging-ci", "main-fast-forward", "install-parity"],
             },
         }
+        value["progress_gate"]["qualification_sha256"] = LIVE.sha256_bytes(
+            json.dumps(
+                value["progress_gate"], sort_keys=True, separators=(",", ":")
+            ).encode()
+        )
         value["canonical_authorization_sha256"] = LIVE.sha256_bytes(
             json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
         )
@@ -1297,6 +1324,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         }
 
     def reseal_authorization(self, value: dict) -> None:
+        progress = value.get("progress_gate")
+        if isinstance(progress, dict):
+            progress.pop("qualification_sha256", None)
+            progress["qualification_sha256"] = LIVE.sha256_bytes(
+                json.dumps(progress, sort_keys=True, separators=(",", ":")).encode()
+            )
         value.pop("canonical_authorization_sha256", None)
         value["canonical_authorization_sha256"] = LIVE.sha256_bytes(
             json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
@@ -1306,7 +1339,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         bindings = authorization["bindings"]
         value = {
             "manifest_type": "cwo-native-live-campaign-manifest",
-            "version": 1,
+            "version": 2,
             "schema": "schemas/native-live-campaign-manifest.schema.json",
             "manifest_id": str(uuid.uuid4()),
             "created_at": "2026-07-17T13:00:00Z",
@@ -1323,7 +1356,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "work_units": {
                 "epic_id": authorization["scope"]["epic_id"],
                 "parent_work_unit_id": authorization["scope"]["parent_work_unit_id"],
-                "live_work_unit_id": "complex-work-orchestration-18w.6.19",
+                "live_work_unit_id": "complex-work-orchestration-18w.6.24",
             },
             "candidate": {
                 "commit": candidate_commit,
@@ -1342,6 +1375,16 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     "predecessor_containment_canonical_sha256"
                 ],
             },
+            "outer_authority": {
+                "authority_id": bindings["outer_authority_id"],
+                "canonical_sha256": bindings[
+                    "outer_authority_canonical_sha256"
+                ],
+                "file_sha256": bindings["outer_authority_file_sha256"],
+            },
+            "progress_qualification_sha256": authorization["progress_gate"][
+                "qualification_sha256"
+            ],
             "executors": json.loads(json.dumps(authorization["executors"])),
             "expected_roles": [
                 "capability-calibration",
@@ -1360,6 +1403,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "pre_mutation_adjudication_file_sha256": "a" * 64,
                 "opus_evidence_file_sha256": "b" * 64,
                 "opus_adjudication_file_sha256": "c" * 64,
+                "spark_validation_receipt_canonical_sha256": "a" * 64,
+                "spark_validation_receipt_file_sha256": "b" * 64,
                 "pre_live_receipt_canonical_sha256": "d" * 64,
                 "pre_live_receipt_file_sha256": "e" * 64,
                 "pre_live_adjudication_file_sha256": "f" * 64,
@@ -1378,10 +1423,10 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 },
             },
             "outputs": {
-                "evidence_basename": "generation5-evidence.json",
-                "authorization_state_basename": "generation5-state.json",
-                "steering_registry_basename": "generation5-steering.json",
-                "allocation_ledger_basename": "generation5-ledger",
+                "evidence_basename": "generation6-evidence.json",
+                "authorization_state_basename": "generation6-state.json",
+                "steering_registry_basename": "generation6-steering.json",
+                "allocation_ledger_basename": "generation6-ledger",
             },
             "no_resume_or_salvage": True,
             "glm_5_2_used": False,
@@ -1392,13 +1437,72 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         )
         return value
 
+    def outer_authority(self, authorization: dict) -> dict:
+        return {
+            "authority_type": "cwo-full-auto-outer-recovery-authority",
+            "version": 1,
+            "authority_id": authorization["bindings"]["outer_authority_id"],
+            "status": "active",
+            "scope": {
+                "epic_id": authorization["scope"]["epic_id"],
+                "parent_work_unit_id": authorization["scope"][
+                    "parent_work_unit_id"
+                ],
+            },
+            "canonical_outer_authority_sha256": authorization["bindings"][
+                "outer_authority_canonical_sha256"
+            ],
+        }
+
+    def spark_validation_receipt(
+        self, authorization: dict, candidate_commit: str
+    ) -> dict:
+        guard = {
+            "repo_head": candidate_commit,
+            "repo_status_sha256": LIVE.sha256_bytes(b""),
+            "primary_diff_sha256": LIVE.sha256_bytes(b""),
+        }
+        return {
+            "schema": "cwo-steering-receipt:v1",
+            "gate": "independent-validation",
+            "authorization_id": authorization["bindings"]["outer_authority_id"],
+            "authorization_sha256": authorization["bindings"][
+                "outer_authority_file_sha256"
+            ],
+            "model": "gpt-5.3-codex-spark",
+            "effort": "low",
+            "attestation_source": "initialized-codex-home-session-jsonl-turn-context",
+            "observed_activity": {
+                "function_calls": 0,
+                "custom_tool_calls": 0,
+                "tool_item_types": [],
+                "compactions": 0,
+                "workspace_mutations": 0,
+            },
+            "guard": {"before": guard, "after": dict(guard)},
+            "boundary": {
+                "baseline": {
+                    "invalid_record_count": 0,
+                    "trailing_partial": False,
+                },
+                "terminal": {
+                    "invalid_record_count": 0,
+                    "trailing_partial": False,
+                },
+            },
+            "opinion": {"recommendation": "go", "findings": []},
+            "closure_outcome": "completed-and-archived",
+            "disposition": "accepting",
+            "canonical_receipt_sha256": "a" * 64,
+        }
+
     def reseal_manifest(self, value: dict) -> None:
         value.pop("manifest_sha256", None)
         value["manifest_sha256"] = LIVE.sha256_bytes(
             json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
         )
 
-    def test_full_auto_authorization_v4_acceptance_and_legacy_rejection(self) -> None:
+    def test_full_auto_authorization_v5_acceptance_and_legacy_rejection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             head, _orphan = self.make_repo(root)
@@ -1413,7 +1517,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             )
             for version, schema in (
                 (3, "cwo-full-auto-run-authorization:v3"),
-                (4, "unknown"),
+                (4, "schemas/full-auto-run-authorization.schema.json"),
+                (5, "unknown"),
             ):
                 with self.subTest(version=version, schema=schema):
                     invalid = json.loads(json.dumps(authorization))
@@ -1434,14 +1539,27 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             authorization = self.authorization(root, head)
             tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
             manifest = self.manifest(authorization, head, tree)
+            outer_authority = self.outer_authority(authorization)
+            spark_receipt = self.spark_validation_receipt(authorization, head)
             self.assertEqual(
                 LIVE.validate_campaign_manifest(
                     manifest,
                     authorization=authorization,
                     authorization_raw_sha256="7" * 64,
+                    outer_authority=outer_authority,
+                    outer_authority_raw_sha256="8" * 64,
+                    independent_validation_receipt=spark_receipt,
+                    independent_validation_receipt_raw_sha256="b" * 64,
                     expected_primary_diff_sha256=LIVE.sha256_bytes(b""),
                 ),
                 [],
+            )
+            legacy = json.loads(json.dumps(manifest))
+            legacy["version"] = 1
+            self.reseal_manifest(legacy)
+            self.assertIn(
+                "campaign-manifest-header-invalid",
+                LIVE.validate_campaign_manifest(legacy, authorization=authorization),
             )
             unknown = json.loads(json.dumps(manifest))
             unknown["unknown"] = True
@@ -1456,6 +1574,15 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertIn(
                 "campaign-manifest-authorization-campaign-nonce-mismatch",
                 LIVE.validate_campaign_manifest(replay, authorization=authorization),
+            )
+            changed_candidate = json.loads(json.dumps(manifest))
+            changed_candidate["candidate"]["commit"] = "0" * 40
+            self.reseal_manifest(changed_candidate)
+            self.assertIn(
+                "campaign-manifest-candidate-authorization-mismatch",
+                LIVE.validate_campaign_manifest(
+                    changed_candidate, authorization=authorization
+                ),
             )
             duplicate_output = json.loads(json.dumps(manifest))
             duplicate_output["outputs"]["steering_registry_basename"] = duplicate_output[
@@ -1472,6 +1599,37 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertIn(
                 "campaign-manifest-policy-before-invalid",
                 LIVE.validate_campaign_manifest(policy, authorization=authorization),
+            )
+            inactive_outer = dict(outer_authority)
+            inactive_outer["status"] = "parked"
+            self.assertIn(
+                "campaign-manifest-outer-authority-state-invalid",
+                LIVE.validate_campaign_manifest(
+                    manifest,
+                    authorization=authorization,
+                    outer_authority=inactive_outer,
+                    outer_authority_raw_sha256="8" * 64,
+                ),
+            )
+            self.assertIn(
+                "campaign-manifest-outer-authority-binding-mismatch",
+                LIVE.validate_campaign_manifest(
+                    manifest,
+                    authorization=authorization,
+                    outer_authority=outer_authority,
+                    outer_authority_raw_sha256="0" * 64,
+                ),
+            )
+            wrong_spark = json.loads(json.dumps(spark_receipt))
+            wrong_spark["model"] = "gpt-5.6-sol"
+            self.assertIn(
+                "campaign-manifest-independent-validation-not-accepting",
+                LIVE.validate_campaign_manifest(
+                    manifest,
+                    authorization=authorization,
+                    independent_validation_receipt=wrong_spark,
+                    independent_validation_receipt_raw_sha256="b" * 64,
+                ),
             )
 
     def test_release_patch_is_bound_to_candidate_and_prospective_tree(self) -> None:
@@ -1510,7 +1668,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 ["release-patch-file-sha256-mismatch"],
             )
 
-    def test_full_auto_authorization_allows_descendant_correction_commit(self) -> None:
+    def test_full_auto_authorization_rejects_descendant_after_inner_mint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             checkpoint, _orphan = self.make_repo(root)
@@ -1518,12 +1676,14 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             subprocess.run(["git", "add", "correction.txt"], cwd=root, check=True)
             subprocess.run(["git", "commit", "-qm", "correction"], cwd=root, check=True)
             authorization = self.authorization(root, checkpoint)
-            _authorization_id, current_head = LIVE.validate_full_auto_authorization(
-                authorization,
-                authorization["bindings"]["campaign_nonce"],
-                repo_root=root,
-            )
-            self.assertNotEqual(checkpoint, current_head)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "checkpoint-not-head"
+            ):
+                LIVE.validate_full_auto_authorization(
+                    authorization,
+                    authorization["bindings"]["campaign_nonce"],
+                    repo_root=root,
+                )
 
     def test_full_auto_authorization_rejects_hash_tamper_and_dirty_repository(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1546,13 +1706,15 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     repo_root=root,
                 )
 
-    def test_full_auto_authorization_checkpoint_must_be_ancestor(self) -> None:
+    def test_full_auto_authorization_checkpoint_must_be_head(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            _head, orphan = self.make_repo(root)
-            authorization = self.authorization(root, orphan)
+            head, _orphan = self.make_repo(root)
+            authorization = self.authorization(
+                root, LIVE.run_git(root, "rev-parse", f"{head}^")
+            )
             with self.assertRaisesRegex(
-                LIVE.AppServerError, "checkpoint-not-ancestor"
+                LIVE.AppServerError, "checkpoint-not-head"
             ):
                 LIVE.validate_full_auto_authorization(
                     authorization,
@@ -1566,10 +1728,13 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             head, _orphan = self.make_repo(root)
             base = self.authorization(root, head)
             cases = (
-                (("budgets", "spark_live_turn_starts_per_generation_exact"), 6, "budget"),
+                (("resource_limits", "spark_live_turn_starts_exact"), 6, "resource-limit"),
                 (("executors", "operative", "model"), "other", "executor"),
                 (("mandatory_gates", "fresh_exact_sol_pre_live_receipt"), False, "gate"),
                 (("forbidden", "model_synthesis"), False, "forbidden"),
+                (("progress_gate", "one_active_inner_campaign"), False, "progress"),
+                (("progress_gate", "arbitrary_generation_cap"), True, "progress"),
+                (("progress_gate", "cause_evidence_sha256"), "4" * 64, "new-evidence"),
             )
             for path, value, expected in cases:
                 with self.subTest(path=path):
@@ -1585,6 +1750,20 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                             authorization["bindings"]["campaign_nonce"],
                             repo_root=root,
                         )
+            reused = json.loads(json.dumps(base))
+            reused["bindings"]["predecessor_authorization_id"] = reused[
+                "authorization_id"
+            ]
+            reused["supersession"]["prior_authorization_id"] = reused[
+                "authorization_id"
+            ]
+            self.reseal_authorization(reused)
+            with self.assertRaisesRegex(LIVE.AppServerError, "identity-reuse"):
+                LIVE.validate_full_auto_authorization(
+                    reused,
+                    reused["bindings"]["campaign_nonce"],
+                    repo_root=root,
+                )
 
     def test_steering_plan_checks_both_bindings_before_validation(self) -> None:
         campaign_nonce = str(uuid.uuid4())

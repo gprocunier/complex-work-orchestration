@@ -2502,6 +2502,8 @@ def validate_campaign_launch_bindings(
     authorization_raw_sha256: str,
     manifest: Mapping[str, Any],
     manifest_path: Path,
+    outer_authority: Mapping[str, Any],
+    outer_authority_path: Path,
     guarded_primary: Path,
     release_patch: Path,
     pre_mutation_receipt: Mapping[str, Any],
@@ -2514,12 +2516,20 @@ def validate_campaign_launch_bindings(
     opus_review_path: Path,
     opus_adjudication: Mapping[str, Any],
     opus_adjudication_path: Path,
+    spark_validation_receipt: Mapping[str, Any],
+    spark_validation_receipt_path: Path,
 ) -> dict[str, Any]:
     primary_diff_sha256 = guarded_diff_sha256(guarded_primary)
     errors = validate_campaign_manifest(
         manifest,
         authorization=authorization,
         authorization_raw_sha256=authorization_raw_sha256,
+        outer_authority=outer_authority,
+        outer_authority_raw_sha256=sha256_bytes(outer_authority_path.read_bytes()),
+        independent_validation_receipt=spark_validation_receipt,
+        independent_validation_receipt_raw_sha256=sha256_bytes(
+            spark_validation_receipt_path.read_bytes()
+        ),
         repo_root=ROOT,
         expected_primary_diff_sha256=primary_diff_sha256,
     )
@@ -2541,6 +2551,12 @@ def validate_campaign_launch_bindings(
         "opus_evidence_file_sha256": sha256_bytes(opus_review_path.read_bytes()),
         "opus_adjudication_file_sha256": sha256_bytes(
             opus_adjudication_path.read_bytes()
+        ),
+        "spark_validation_receipt_canonical_sha256": spark_validation_receipt.get(
+            "canonical_receipt_sha256"
+        ),
+        "spark_validation_receipt_file_sha256": sha256_bytes(
+            spark_validation_receipt_path.read_bytes()
         ),
         "pre_live_receipt_canonical_sha256": pre_live_receipt.get(
             "canonical_receipt_sha256"
@@ -2598,6 +2614,12 @@ def validate_campaign_launch_bindings(
         "guarded_primary_diff_sha256": primary_diff_sha256,
         "release_patch_sha256": manifest["release"]["patch_file_sha256"],
         "release_prospective_tree": manifest["release"]["prospective_tree"],
+        "outer_authority_file_sha256": sha256_bytes(
+            outer_authority_path.read_bytes()
+        ),
+        "spark_validation_receipt_file_sha256": observed_reviews[
+            "spark_validation_receipt_file_sha256"
+        ],
         "opus_evidence_file_sha256": observed_reviews["opus_evidence_file_sha256"],
         "opus_adjudication_file_sha256": observed_reviews[
             "opus_adjudication_file_sha256"
@@ -2624,12 +2646,14 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--campaign-manifest", type=Path, required=True)
+    parser.add_argument("--outer-authority", type=Path, required=True)
     parser.add_argument("--guarded-primary", type=Path, required=True)
     parser.add_argument("--release-patch", type=Path, required=True)
     parser.add_argument("--pre-mutation-steering-receipt", type=Path, required=True)
     parser.add_argument("--pre-mutation-adjudication", type=Path, required=True)
     parser.add_argument("--opus-review-evidence", type=Path, required=True)
     parser.add_argument("--opus-adjudication", type=Path, required=True)
+    parser.add_argument("--spark-validation-receipt", type=Path, required=True)
     parser.add_argument("--pre-live-steering-receipt", type=Path, required=True)
     parser.add_argument("--pre-live-adjudication", type=Path, required=True)
     parser.add_argument("--campaign-nonce", required=True)
@@ -2660,6 +2684,9 @@ def main() -> int:
             repo_root=ROOT,
         )
         manifest = load_private_json(manifest_path, "campaign-manifest")
+        outer_authority = load_private_json(
+            args.outer_authority.absolute(), "outer-authority"
+        )
         pre_mutation_receipt = load_private_json(
             args.pre_mutation_steering_receipt.absolute(), "pre-mutation-steering-receipt"
         )
@@ -2681,11 +2708,17 @@ def main() -> int:
         opus_adjudication = load_private_json(
             args.opus_adjudication.absolute(), "opus-adjudication"
         )
+        spark_validation_receipt = load_private_json(
+            args.spark_validation_receipt.absolute(),
+            "spark-validation-receipt",
+        )
         artifact_bindings = validate_campaign_launch_bindings(
             authorization=authorization,
             authorization_raw_sha256=authorization_sha256,
             manifest=manifest,
             manifest_path=manifest_path,
+            outer_authority=outer_authority,
+            outer_authority_path=args.outer_authority.absolute(),
             guarded_primary=args.guarded_primary.absolute(),
             release_patch=args.release_patch.absolute(),
             pre_mutation_receipt=pre_mutation_receipt,
@@ -2698,6 +2731,8 @@ def main() -> int:
             opus_review_path=args.opus_review_evidence.absolute(),
             opus_adjudication=opus_adjudication,
             opus_adjudication_path=args.opus_adjudication.absolute(),
+            spark_validation_receipt=spark_validation_receipt,
+            spark_validation_receipt_path=args.spark_validation_receipt.absolute(),
         )
         state_path, registry_path, ledger_path = campaign_output_paths(
             output,
@@ -2751,6 +2786,8 @@ def main() -> int:
             authorization_raw_sha256=authorization_sha256,
             manifest=manifest,
             manifest_path=manifest_path,
+            outer_authority=outer_authority,
+            outer_authority_path=args.outer_authority.absolute(),
             guarded_primary=args.guarded_primary.absolute(),
             release_patch=args.release_patch.absolute(),
             pre_mutation_receipt=pre_mutation_receipt,
@@ -2763,6 +2800,8 @@ def main() -> int:
             opus_review_path=args.opus_review_evidence.absolute(),
             opus_adjudication=opus_adjudication,
             opus_adjudication_path=args.opus_adjudication.absolute(),
+            spark_validation_receipt=spark_validation_receipt,
+            spark_validation_receipt_path=args.spark_validation_receipt.absolute(),
         )
         if refreshed_bindings != artifact_bindings:
             raise AppServerError("campaign-artifact-binding-changed-before-allocation")
@@ -2788,8 +2827,14 @@ def main() -> int:
                 != artifact_bindings["manifest_file_sha256"]
                 or sha256_bytes(args.release_patch.absolute().read_bytes())
                 != artifact_bindings["release_patch_sha256"]
+                or sha256_bytes(args.outer_authority.absolute().read_bytes())
+                != artifact_bindings["outer_authority_file_sha256"]
                 or sha256_bytes(args.opus_review_evidence.absolute().read_bytes())
                 != artifact_bindings["opus_evidence_file_sha256"]
+                or sha256_bytes(
+                    args.spark_validation_receipt.absolute().read_bytes()
+                )
+                != artifact_bindings["spark_validation_receipt_file_sha256"]
             ):
                 raise AppServerError("campaign-watermark-changed-before-allocation")
             require_repository_checkpoint(ROOT, manifest["candidate"]["commit"])

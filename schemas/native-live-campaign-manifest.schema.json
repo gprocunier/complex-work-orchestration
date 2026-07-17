@@ -1,20 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Native Live Campaign Manifest v1",
+  "title": "Native Live Campaign Manifest v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "manifest_type", "version", "schema", "manifest_id", "created_at",
     "authorization_id", "authorization_raw_sha256", "authorization_canonical_sha256",
     "run_generation", "live_generation", "predecessor_live_generation", "campaign_nonce",
-    "control_turn_id", "work_units", "candidate", "predecessor", "executors",
+    "control_turn_id", "work_units", "candidate", "predecessor",
+    "outer_authority", "progress_qualification_sha256", "executors",
     "expected_roles", "successful_turn_starts_exact", "prestart_zero_artifact_relaunch_max",
     "reviews", "release", "outputs", "no_resume_or_salvage", "glm_5_2_used",
     "model_synthesis_used", "manifest_sha256"
   ],
   "properties": {
     "manifest_type": {"const": "cwo-native-live-campaign-manifest"},
-    "version": {"const": 1},
+    "version": {"const": 2},
     "schema": {"const": "schemas/native-live-campaign-manifest.schema.json"},
     "manifest_id": {"$ref": "#/$defs/uuid"},
     "created_at": {"type": "string", "format": "date-time"},
@@ -29,6 +30,8 @@
     "work_units": {"$ref": "#/$defs/work_units"},
     "candidate": {"$ref": "#/$defs/candidate"},
     "predecessor": {"$ref": "#/$defs/predecessor"},
+    "outer_authority": {"$ref": "#/$defs/outer_authority"},
+    "progress_qualification_sha256": {"$ref": "#/$defs/sha256"},
     "executors": {"$ref": "#/$defs/executors"},
     "expected_roles": {"$ref": "#/$defs/roles"},
     "successful_turn_starts_exact": {"const": 7},
@@ -79,6 +82,15 @@
         "containment_canonical_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
+    "outer_authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authority_id", "canonical_sha256", "file_sha256"],
+      "properties": {
+        "authority_id": {"$ref": "#/$defs/uuid"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "file_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
     "executors": {
       "type": "object", "additionalProperties": false,
       "required": ["final_architect", "steering", "operative", "outside_critic"],
@@ -94,7 +106,10 @@
       "required": [
         "pre_mutation_receipt_canonical_sha256", "pre_mutation_receipt_file_sha256",
         "pre_mutation_adjudication_file_sha256", "opus_evidence_file_sha256",
-        "opus_adjudication_file_sha256", "pre_live_receipt_canonical_sha256",
+        "opus_adjudication_file_sha256",
+        "spark_validation_receipt_canonical_sha256",
+        "spark_validation_receipt_file_sha256",
+        "pre_live_receipt_canonical_sha256",
         "pre_live_receipt_file_sha256", "pre_live_adjudication_file_sha256"
       ],
       "properties": {
@@ -103,6 +118,8 @@
         "pre_mutation_adjudication_file_sha256": {"$ref": "#/$defs/sha256"},
         "opus_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
         "opus_adjudication_file_sha256": {"$ref": "#/$defs/sha256"},
+        "spark_validation_receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "spark_validation_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
         "pre_live_receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
         "pre_live_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
         "pre_live_adjudication_file_sha256": {"$ref": "#/$defs/sha256"}

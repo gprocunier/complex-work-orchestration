@@ -1,18 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Full Auto Run Authorization v4",
+  "title": "Full Auto Run Authorization v5",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "authorization_type", "version", "schema", "authorization_id", "run_generation",
     "live_generation", "predecessor_live_generation", "issued_at", "issued_by",
     "operator_authority", "initial_state", "scope", "bindings", "supersession",
-    "executors", "budgets", "mandatory_gates", "persistence", "forbidden",
+    "executors", "resource_limits", "progress_gate", "mandatory_gates",
+    "persistence", "forbidden",
     "live_relaunch_rule", "release", "canonical_authorization_sha256"
   ],
   "properties": {
     "authorization_type": {"const": "cwo-full-auto-run-authorization"},
-    "version": {"const": 4},
+    "version": {"const": 5},
     "schema": {"const": "schemas/full-auto-run-authorization.schema.json"},
     "authorization_id": {"type": "string", "format": "uuid"},
     "run_generation": {"type": "integer", "minimum": 1},
@@ -26,7 +27,8 @@
     "bindings": {"$ref": "#/$defs/bindings"},
     "supersession": {"$ref": "#/$defs/supersession"},
     "executors": {"$ref": "#/$defs/executors"},
-    "budgets": {"$ref": "#/$defs/budgets"},
+    "resource_limits": {"$ref": "#/$defs/resource_limits"},
+    "progress_gate": {"$ref": "#/$defs/progress_gate"},
     "mandatory_gates": {"$ref": "#/$defs/mandatory_gates"},
     "persistence": {"$ref": "#/$defs/persistence"},
     "forbidden": {"$ref": "#/$defs/forbidden"},
@@ -56,7 +58,9 @@
         "recovery_plan_path", "recovery_plan_sha256", "campaign_nonce",
         "predecessor_authorization_id", "predecessor_failure_evidence_file_sha256",
         "predecessor_failure_evidence_canonical_sha256", "predecessor_containment_file_sha256",
-        "predecessor_containment_canonical_sha256", "backup_ref"
+        "predecessor_containment_canonical_sha256", "backup_ref",
+        "outer_authority_id", "outer_authority_canonical_sha256",
+        "outer_authority_file_sha256"
       ],
       "properties": {
         "checkpoint_commit": {"$ref": "#/$defs/git_object"},
@@ -73,7 +77,10 @@
         "predecessor_failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
         "predecessor_containment_file_sha256": {"$ref": "#/$defs/sha256"},
         "predecessor_containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
-        "backup_ref": {"type": "string", "pattern": "^refs/heads/", "minLength": 12}
+        "backup_ref": {"type": "string", "pattern": "^refs/heads/", "minLength": 12},
+        "outer_authority_id": {"$ref": "#/$defs/uuid"},
+        "outer_authority_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "outer_authority_file_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "supersession": {
@@ -109,61 +116,87 @@
         }
       }
     },
-    "budgets": {
+    "resource_limits": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "sol_consultations_observed_before_v10", "sol_consultations_added",
-        "sol_consultations_global_hard", "opus_reviews_observed_before_v10",
-        "opus_reviews_added", "opus_reviews_global_hard",
-        "live_generations_consumed_before_current", "live_generations_global_hard",
-        "live_generations_remaining_exact", "spark_live_turn_starts_per_generation_exact",
-        "spark_read_only_validation_sessions_hard", "spark_compactions_hard",
-        "full_repository_suites_observed_before_v10", "full_repository_suites_added",
-        "full_repository_suites_global_hard", "focused_validation_bundles_hard",
-        "implementation_correction_sprints_hard", "origin_reconciliation_cycles_hard",
+        "sol_consultations_this_inner_hard", "opus_reviews_this_inner_hard",
+        "spark_validation_sessions_this_inner_hard", "spark_live_turn_starts_exact",
+        "spark_compactions_hard", "full_repository_suites_this_inner_hard",
+        "focused_validation_bundles_this_inner_hard",
+        "implementation_correction_sprints_this_inner_hard",
         "primary_checkout_mutations_hard"
       ],
       "properties": {
-        "sol_consultations_observed_before_v10": {"type": "integer", "minimum": 0},
-        "sol_consultations_added": {"type": "integer", "minimum": 0},
-        "sol_consultations_global_hard": {"type": "integer", "minimum": 0},
-        "opus_reviews_observed_before_v10": {"type": "integer", "minimum": 0},
-        "opus_reviews_added": {"type": "integer", "minimum": 0},
-        "opus_reviews_global_hard": {"type": "integer", "minimum": 0},
-        "live_generations_consumed_before_current": {"type": "integer", "minimum": 0},
-        "live_generations_global_hard": {"type": "integer", "minimum": 1},
-        "live_generations_remaining_exact": {"const": 1},
-        "spark_live_turn_starts_per_generation_exact": {"const": 7},
-        "spark_read_only_validation_sessions_hard": {"type": "integer", "minimum": 0},
+        "sol_consultations_this_inner_hard": {"type": "integer", "minimum": 2},
+        "opus_reviews_this_inner_hard": {"type": "integer", "minimum": 0},
+        "spark_validation_sessions_this_inner_hard": {"type": "integer", "minimum": 1},
+        "spark_live_turn_starts_exact": {"const": 7},
         "spark_compactions_hard": {"const": 0},
-        "full_repository_suites_observed_before_v10": {"type": "integer", "minimum": 0},
-        "full_repository_suites_added": {"type": "integer", "minimum": 0},
-        "full_repository_suites_global_hard": {"type": "integer", "minimum": 0},
-        "focused_validation_bundles_hard": {"type": "integer", "minimum": 0},
-        "implementation_correction_sprints_hard": {"type": "integer", "minimum": 0},
-        "origin_reconciliation_cycles_hard": {"type": "integer", "minimum": 0},
+        "full_repository_suites_this_inner_hard": {"type": "integer", "minimum": 1},
+        "focused_validation_bundles_this_inner_hard": {"type": "integer", "minimum": 1},
+        "implementation_correction_sprints_this_inner_hard": {"type": "integer", "minimum": 0},
         "primary_checkout_mutations_hard": {"const": 0}
+      }
+    },
+    "progress_gate": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "outer_authority_status", "qualification_basis",
+        "predecessor_failure_class", "predecessor_failure_evidence_canonical_sha256",
+        "predecessor_candidate_commit", "predecessor_candidate_tree",
+        "new_falsifiable_cause", "cause_evidence_sha256", "repair_commit",
+        "repair_tree", "independent_validation_receipt_canonical_sha256",
+        "independent_validation_receipt_file_sha256",
+        "same_fault_without_new_evidence", "one_active_inner_campaign",
+        "arbitrary_generation_cap", "fresh_exact_sol_pre_live_required",
+        "qualification_sha256"
+      ],
+      "properties": {
+        "outer_authority_status": {"const": "active"},
+        "qualification_basis": {
+          "enum": ["new-fault-class", "same-fault-with-new-evidence-and-validated-repair"]
+        },
+        "predecessor_failure_class": {"type": "string", "minLength": 1},
+        "predecessor_failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_candidate_commit": {"$ref": "#/$defs/git_object"},
+        "predecessor_candidate_tree": {"$ref": "#/$defs/git_object"},
+        "new_falsifiable_cause": {"type": "string", "minLength": 1},
+        "cause_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "repair_commit": {"$ref": "#/$defs/git_object"},
+        "repair_tree": {"$ref": "#/$defs/git_object"},
+        "independent_validation_receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "independent_validation_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "same_fault_without_new_evidence": {"const": false},
+        "one_active_inner_campaign": {"const": true},
+        "arbitrary_generation_cap": {"const": false},
+        "fresh_exact_sol_pre_live_required": {"const": true},
+        "qualification_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "mandatory_gates": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "strict_authorization_v4", "contained_prior_generation_proof",
-        "fresh_exact_sol_pre_mutation_receipt", "successor_contract_validation",
-        "frozen_release_patch", "fresh_opus_candidate_review",
-        "fresh_exact_sol_pre_live_receipt", "campaign_manifest_v1",
+        "strict_authorization_v5", "active_outer_authority_binding",
+        "progress_qualification_validation", "contained_prior_generation_proof",
+        "fresh_exact_spark_validation", "fresh_exact_sol_pre_mutation_receipt",
+        "successor_contract_validation", "frozen_release_patch",
+        "opus_second_line_review_adjudicated",
+        "fresh_exact_sol_pre_live_receipt", "campaign_manifest_v2",
         "single_shot_per_generation_live_campaign", "main_thread_adjudication_each_gate",
         "guarded_primary_diff_stability", "staging_ci_before_main", "published_install_parity"
       ],
       "properties": {
-        "strict_authorization_v4": {"const": true},
+        "strict_authorization_v5": {"const": true},
+        "active_outer_authority_binding": {"const": true},
+        "progress_qualification_validation": {"const": true},
         "contained_prior_generation_proof": {"const": true},
+        "fresh_exact_spark_validation": {"const": true},
         "fresh_exact_sol_pre_mutation_receipt": {"const": true},
         "successor_contract_validation": {"const": true},
         "frozen_release_patch": {"const": true},
-        "fresh_opus_candidate_review": {"const": true},
+        "opus_second_line_review_adjudicated": {"const": true},
         "fresh_exact_sol_pre_live_receipt": {"const": true},
-        "campaign_manifest_v1": {"const": true},
+        "campaign_manifest_v2": {"const": true},
         "single_shot_per_generation_live_campaign": {"const": true},
         "main_thread_adjudication_each_gate": {"const": true},
         "guarded_primary_diff_stability": {"const": true},
@@ -196,7 +229,7 @@
         "glm_5_2", "model_synthesis", "primary_checkout_mutation",
         "prior_authorization_reuse", "prior_nonce_session_receipt_registry_state_output_ledger_or_path_reuse",
         "worker_resume", "worker_salvage", "model_substitution", "evidence_bearing_live_retry",
-        "generation_6", "sol_target_checkout_mutation", "release_before_live_acceptance",
+        "sol_target_checkout_mutation", "release_before_live_acceptance",
         "force_push", "git_tag", "github_release"
       ],
       "properties": {
@@ -209,7 +242,6 @@
         "worker_salvage": {"const": true},
         "model_substitution": {"const": true},
         "evidence_bearing_live_retry": {"const": true},
-        "generation_6": {"const": true},
         "sol_target_checkout_mutation": {"const": true},
         "release_before_live_acceptance": {"const": true},
         "force_push": {"const": true},
