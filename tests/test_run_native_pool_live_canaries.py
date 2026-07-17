@@ -423,6 +423,99 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertEqual(result["archived_count"], 1)
 
 
+class LiveThreadBoundaryPhaseTests(unittest.TestCase):
+    def test_pre_dispatch_missing_and_empty_boundaries_are_unavailable(self) -> None:
+        for materialization in ("missing", "empty"):
+            with self.subTest(materialization=materialization), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                active = root / "sessions" / "2026" / "07"
+                active.mkdir(parents=True)
+                thread_id = str(uuid.uuid4())
+                path = active / f"rollout-{thread_id}.jsonl"
+                if materialization == "empty":
+                    path.touch()
+                summary = LIVE.session_boundary_summary(
+                    root,
+                    thread_id,
+                    str(path),
+                    allow_unmaterialized=True,
+                )
+                self.assertFalse(summary["available"])
+                self.assertEqual(summary["record_count"], 0)
+                self.assertEqual(summary["byte_offset"], 0)
+                self.assertEqual(summary["attested_models"], [])
+
+    def test_nonempty_incomplete_boundaries_remain_rejecting_before_dispatch(self) -> None:
+        for raw, expected in ((b"{", "trailing partial"), (b"\n", "complete object")):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                active = root / "sessions" / "2026" / "07"
+                active.mkdir(parents=True)
+                thread_id = str(uuid.uuid4())
+                path = active / f"rollout-{thread_id}.jsonl"
+                path.write_bytes(raw)
+                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                    LIVE.session_boundary_summary(
+                        root,
+                        thread_id,
+                        str(path),
+                        allow_unmaterialized=True,
+                    )
+
+    def test_dispatch_attempt_irreversibly_revokes_unmaterialized_allowance(self) -> None:
+        class FailedSubmissionServer:
+            def __init__(self, codex_home: Path) -> None:
+                self.codex_home = codex_home
+
+            @staticmethod
+            def start_turn(_thread_id: str, _message: str) -> tuple[dict, float]:
+                raise LIVE.AppServerError("synthetic-submission-failure")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            thread_id = str(uuid.uuid4())
+            server = FailedSubmissionServer(root)
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                {
+                    "model": LIVE.EXACT_MODEL,
+                    "modelProvider": "trusted",
+                    "thread": {"id": thread_id, "turns": [], "path": None},
+                },
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                record_dir=root,
+            )
+            pre_dispatch = LIVE.session_boundary_summary(
+                root,
+                thread_id,
+                None,
+                allow_unmaterialized=adapter._boundary_phase == "pre-dispatch",
+            )
+            self.assertFalse(pre_dispatch["available"])
+            with self.assertRaisesRegex(LIVE.AppServerError, "synthetic-submission-failure"):
+                adapter.send_input(message="bounded prompt")
+            self.assertEqual(adapter._boundary_phase, "dispatch-attempted")
+            self.assertIsNone(adapter.turn_id)
+            with self.assertRaisesRegex(LIVE.AppServerError, "trusted session file is missing"):
+                adapter._trusted_summary()
+
+    def test_bound_turn_missing_boundary_is_rejecting(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            thread_id = str(uuid.uuid4())
+            with self.assertRaisesRegex(LIVE.AppServerError, "trusted session file is missing"):
+                LIVE.session_boundary_summary(
+                    root,
+                    thread_id,
+                    None,
+                    allow_unmaterialized=False,
+                )
+
+
 class FullAutoAuthorizationLauncherTests(unittest.TestCase):
     def test_launcher_root_is_repository_root(self) -> None:
         self.assertEqual(LIVE.ROOT, ROOT)

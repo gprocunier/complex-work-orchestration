@@ -598,6 +598,7 @@ def session_boundary_summary(
     reported: str | None,
     *,
     baseline: Mapping[str, Any] | None = None,
+    allow_unmaterialized: bool = False,
 ) -> dict[str, Any]:
     try:
         _located, boundary, records = capture_unique_boundary(
@@ -607,7 +608,11 @@ def session_boundary_summary(
             baseline=baseline,
         )
     except NativeSessionBoundaryError as exc:
-        if str(exc) != "trusted session file is missing":
+        boundary_error = str(exc)
+        if not allow_unmaterialized or boundary_error not in {
+            "trusted session file is missing",
+            "session file has no complete records",
+        }:
             raise AppServerError(f"session-boundary-invalid:{exc}") from exc
         return {
             "available": False,
@@ -618,6 +623,7 @@ def session_boundary_summary(
             "attested_models": [],
             "attested_efforts": [],
             "compactions": 0,
+            "reroutes": 0,
         }
     models: list[str] = []
     efforts: list[str] = []
@@ -683,6 +689,7 @@ class LiveThreadAdapter:
         self.check_count = 0
         self.interrupted = False
         self.archived = False
+        self._boundary_phase = "pre-dispatch"
         self.callback_latencies: dict[str, list[float]] = {}
         self._evidence_sequence = 0
 
@@ -708,8 +715,13 @@ class LiveThreadAdapter:
         def action() -> dict[str, str]:
             if message != self.prompt:
                 raise AppServerError("turn-prompt-binding-mismatch")
+            # Revoke the pre-dispatch materialization allowance before the RPC.
+            # A failed or ambiguous submission must not recover that allowance
+            # merely because no turn id was returned.
+            self._boundary_phase = "dispatch-attempted"
             turn, _latency = self.server.start_turn(self.thread_id, message)
             self.turn_id = str(turn["id"])
+            self._boundary_phase = "turn-bound"
             self.send_started_ns = time.monotonic_ns()
             return {"submission_id": self.turn_id}
 
@@ -828,6 +840,7 @@ class LiveThreadAdapter:
             self.server.codex_home,
             self.thread_id,
             self.reported_session_path,
+            allow_unmaterialized=self._boundary_phase == "pre-dispatch",
         )
         items = turn_items(self.last_thread, self.turn_id)
         item_types = [str(item.get("type")) for item in items if item.get("type")]
