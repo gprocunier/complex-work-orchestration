@@ -41,6 +41,7 @@ ALLOWED_IMPORTS = {
     "harness": {"access_profiles", "policy", "util"},
     "native_capability": set(),
     "native_canary_contracts": {"util"},
+    "native_live_campaign_contracts": set(),
     "proportional_execution": {"native_capability", "native_containment"},
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
@@ -57,6 +58,7 @@ ALLOWED_IMPORTS = {
     },
     "native_pool_config": {
         "native_control",
+        "native_live_campaign_contracts",
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_workspace",
