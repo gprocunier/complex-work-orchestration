@@ -21,9 +21,11 @@ from .util import atomic_write_text
 STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v1"
 MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v4"
 CANARY_AUTHORIZATION_TYPE = "cwo-native-canary-authorization-state:v1"
+CANARY_AUTHORIZATION_TYPE_V2 = "cwo-native-canary-authorization-state:v2"
 STEERING_RECEIPT_SCHEMA = "schemas/native-steering-receipt.schema.json"
 MATERIALIZATION_EVIDENCE_SCHEMA = "schemas/native-session-materialization-evidence.schema.json"
 CANARY_AUTHORIZATION_SCHEMA = "schemas/native-canary-authorization-state.schema.json"
+CANARY_AUTHORIZATION_SCHEMA_V2 = "schemas/native-canary-authorization-state-v2.schema.json"
 FULL_AUTO_STOP_RESOLUTION_FIELDS = {
     "schema",
     "gate",
@@ -174,6 +176,7 @@ AUTHORIZATION_FIELDS = {
     "reason",
     "state_sha256",
 }
+AUTHORIZATION_FIELDS_V2 = AUTHORIZATION_FIELDS | {"launch_claim_sha256"}
 ACTIVE_ACTIONS = {
     "interrupt",
     "close",
@@ -1112,11 +1115,30 @@ def _actions_for(state: str) -> set[str]:
 
 def validate_authorization_state(value: Any) -> list[str]:
     errors: list[str] = []
-    state = _exact_fields(value, AUTHORIZATION_FIELDS, "authorization", errors)
-    if state.get("authorization_type") != CANARY_AUTHORIZATION_TYPE:
-        errors.append("authorization-type-invalid")
-    if state.get("version") != 1 or state.get("schema") != CANARY_AUTHORIZATION_SCHEMA:
+    is_v2 = (
+        isinstance(value, Mapping)
+        and value.get("authorization_type") == CANARY_AUTHORIZATION_TYPE_V2
+        and value.get("version") == 2
+    )
+    state = _exact_fields(
+        value,
+        AUTHORIZATION_FIELDS_V2 if is_v2 else AUTHORIZATION_FIELDS,
+        "authorization",
+        errors,
+    )
+    expected_header = (
+        (CANARY_AUTHORIZATION_TYPE_V2, 2, CANARY_AUTHORIZATION_SCHEMA_V2)
+        if is_v2
+        else (CANARY_AUTHORIZATION_TYPE, 1, CANARY_AUTHORIZATION_SCHEMA)
+    )
+    if (
+        state.get("authorization_type"),
+        state.get("version"),
+        state.get("schema"),
+    ) != expected_header:
         errors.append("authorization-header-invalid")
+    if is_v2 and not _is_hash(state.get("launch_claim_sha256")):
+        errors.append("authorization-launch-claim-sha256-invalid")
     if state.get("state") not in TRANSITIONS:
         errors.append("authorization-state-invalid")
     for field in ("authorization_id", "run_nonce", "reason"):
@@ -1139,12 +1161,27 @@ def validate_authorization_state(value: Any) -> list[str]:
     return sorted(set(errors))
 
 
-def new_authorization_state(*, authorization_id: str, run_nonce: str, now: str) -> dict[str, Any]:
-    return seal_authorization_state(
-        {
-            "authorization_type": CANARY_AUTHORIZATION_TYPE,
-            "version": 1,
-            "schema": CANARY_AUTHORIZATION_SCHEMA,
+def new_authorization_state(
+    *,
+    authorization_id: str,
+    run_nonce: str,
+    now: str,
+    launch_claim_sha256: str | None = None,
+) -> dict[str, Any]:
+    if launch_claim_sha256 is not None and not _is_hash(launch_claim_sha256):
+        raise NativeCanaryContractError("authorization-launch-claim-sha256-invalid")
+    state = {
+            "authorization_type": (
+                CANARY_AUTHORIZATION_TYPE_V2
+                if launch_claim_sha256 is not None
+                else CANARY_AUTHORIZATION_TYPE
+            ),
+            "version": 2 if launch_claim_sha256 is not None else 1,
+            "schema": (
+                CANARY_AUTHORIZATION_SCHEMA_V2
+                if launch_claim_sha256 is not None
+                else CANARY_AUTHORIZATION_SCHEMA
+            ),
             "authorization_id": authorization_id,
             "run_nonce": run_nonce,
             "state": "active",
@@ -1154,7 +1191,9 @@ def new_authorization_state(*, authorization_id: str, run_nonce: str, now: str) 
             "updated_at": now,
             "reason": "initialized",
         }
-    )
+    if launch_claim_sha256 is not None:
+        state["launch_claim_sha256"] = launch_claim_sha256
+    return seal_authorization_state(state)
 
 
 class CanaryAuthorizationStore:

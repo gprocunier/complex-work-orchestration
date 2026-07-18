@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import replace
 import importlib.util
 import json
 from pathlib import Path
@@ -16,6 +17,8 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from cwo_core import native_live_campaign_contracts as CAMPAIGN_CONTRACTS  # noqa: E402
+
 SPEC = importlib.util.spec_from_file_location(
     "run_native_pool_live_canaries", ROOT / "scripts" / "run_native_pool_live_canaries.py"
 )
@@ -1347,6 +1350,26 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         ledger.record_containment_audit(
             thread_id, outcome="contained", evidence={"contained": True}
         )
+        contained_session_bytes = (
+            json.dumps(
+                {
+                    "type": "session_meta",
+                    "payload": {"id": thread_id, "session_id": thread_id},
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "event_msg",
+                    "payload": {"type": "task_started", "turn_id": turn_id},
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+        ).encode()
         predecessor_allocation_ledger = ledger.load()
         ledger_path = ledger.path
         audit_path = ledger.audit_file
@@ -1481,7 +1504,18 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 },
                 "failed_evidence": original_failed_evidence,
                 "root_cause": {},
-                "session_accounting": [{"role": "capability-calibration"}],
+                "session_accounting": [
+                    {
+                        "role": "capability-calibration",
+                        "thread_id": thread_id,
+                        "turn_id": turn_id,
+                        "record_count": 2,
+                        "byte_offset": len(contained_session_bytes),
+                        "boundary_sha256": LIVE.sha256_bytes(
+                            contained_session_bytes
+                        ),
+                    }
+                ],
                 "allocation_ledger": {
                     "ledger_type": ledger_summary["ledger_type"],
                     "version": ledger_summary["version"],
@@ -1614,6 +1648,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "audit_path": audit_path,
             "audit_raw_sha256": audit_raw_sha256,
             "cause_evidence": cause_evidence,
+            "contained_session_bytes": contained_session_bytes,
         }
         cache[cache_key] = result
         self._predecessor_artifact_cache = cache
@@ -2329,7 +2364,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             ]
         )
         archive = root / "archived_sessions"
-        archive.mkdir(parents=True)
+        archive.mkdir(parents=True, exist_ok=True)
         path = archive / f"rollout-test-{session_id}.jsonl"
         path.write_text(
             "".join(json.dumps(item) + "\n" for item in records),
@@ -2352,6 +2387,798 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "final_response_sha256": LIVE.sha256_text(final_text),
         }
         return receipt, path
+
+    def json_snapshot(self, value: dict) -> LIVE.JsonArtifactSnapshot:
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        return LIVE.JsonArtifactSnapshot(raw=raw, value=value)
+
+    def file_snapshot(self, path: Path) -> LIVE.JsonArtifactSnapshot:
+        raw = path.read_bytes()
+        return LIVE.JsonArtifactSnapshot(raw=raw, value=json.loads(raw))
+
+    def seal_field(self, value: dict, field: str) -> dict:
+        value.pop(field, None)
+        value[field] = LIVE.sha256_bytes(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        )
+        return value
+
+    def historical_proof(self, predecessor: dict) -> LIVE.HistoricalV4V1ProofInputs:
+        return LIVE.HistoricalV4V1ProofInputs(
+            authorization=LIVE.JsonArtifactSnapshot(
+                raw=predecessor["authorization_bytes"],
+                value=predecessor["authorization"],
+            ),
+            manifest=LIVE.JsonArtifactSnapshot(
+                raw=predecessor["manifest_bytes"],
+                value=predecessor["manifest"],
+            ),
+            authorization_state=LIVE.JsonArtifactSnapshot(
+                raw=predecessor["state_bytes"], value=predecessor["state"]
+            ),
+            failure_evidence=LIVE.JsonArtifactSnapshot(
+                raw=predecessor["failure_bytes"], value=predecessor["failure"]
+            ),
+            original_containment=LIVE.JsonArtifactSnapshot(
+                raw=predecessor["original_containment_bytes"],
+                value=predecessor["original_containment"],
+            ),
+            containment=LIVE.JsonArtifactSnapshot(
+                raw=predecessor["containment_bytes"],
+                value=predecessor["containment"],
+            ),
+            allocation_ledger=self.file_snapshot(predecessor["ledger_path"]),
+            allocation_audit_bytes=predecessor["audit_path"].read_bytes(),
+            cause_evidence=predecessor["cause_evidence"],
+            contained_session_bytes=(predecessor["contained_session_bytes"],),
+        )
+
+    def bound_validation_receipt(
+        self,
+        root: Path,
+        authorization: dict,
+        candidate_commit: str,
+    ) -> tuple[dict, bytes, Path, bytes]:
+        session_receipt, session_path = self.validation_session(root)
+        receipt = self.spark_validation_receipt(authorization, candidate_commit)
+        for field in (
+            "session_id",
+            "submission_id",
+            "boundary",
+            "opinion",
+            "final_response_sha256",
+        ):
+            receipt[field] = json.loads(json.dumps(session_receipt[field]))
+        self.seal_field(receipt, "canonical_receipt_sha256")
+        receipt_raw = json.dumps(
+            receipt, sort_keys=True, separators=(",", ":")
+        ).encode()
+        return receipt, receipt_raw, session_path, session_path.read_bytes()
+
+    def install_validator_contract_files(self, root: Path) -> None:
+        for relative in LIVE.VALIDATOR_CONTRACT_PATHS:
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / relative, target)
+
+    def modern_predecessor_proof(
+        self,
+        root: Path,
+        checkpoint: str,
+    ) -> LIVE.Version5PredecessorProofInputs:
+        authorization = self.authorization(root, checkpoint)
+        ancestor_artifacts = self.predecessor_artifacts(
+            root,
+            authorization["bindings"]["predecessor_authorization_id"],
+            authorization["progress_gate"]["predecessor_candidate_commit"],
+            authorization["progress_gate"]["predecessor_candidate_tree"],
+        )
+        outer_authority = self.outer_authority(authorization)
+        receipt, receipt_raw, _session_path, session_raw = (
+            self.bound_validation_receipt(root, authorization, checkpoint)
+        )
+        progress = authorization["progress_gate"]
+        progress.update(
+            {
+                "independent_validation_receipt_canonical_sha256": receipt[
+                    "canonical_receipt_sha256"
+                ],
+                "independent_validation_receipt_file_sha256": LIVE.sha256_bytes(
+                    receipt_raw
+                ),
+                "independent_validation_session_id": receipt["session_id"],
+                "independent_validation_completed_at": receipt["completed_at"],
+            }
+        )
+        self.reseal_authorization(authorization)
+        authorization_snapshot = self.json_snapshot(authorization)
+        candidate_tree = LIVE.run_git(root, "rev-parse", f"{checkpoint}^{{tree}}")
+        manifest = self.manifest(authorization, checkpoint, candidate_tree)
+        manifest["authorization_raw_sha256"] = authorization_snapshot.raw_sha256
+        manifest["authorization_canonical_sha256"] = authorization[
+            "canonical_authorization_sha256"
+        ]
+        manifest["reviews"]["spark_validation_receipt_canonical_sha256"] = receipt[
+            "canonical_receipt_sha256"
+        ]
+        manifest["reviews"]["spark_validation_receipt_file_sha256"] = (
+            LIVE.sha256_bytes(receipt_raw)
+        )
+        self.reseal_manifest(manifest)
+        manifest_snapshot = self.json_snapshot(manifest)
+
+        state_directory = root / (".modern-state-" + uuid.uuid4().hex)
+        state_store = LIVE.CanaryAuthorizationStore(state_directory / "state.json")
+        state_store.initialize(
+            LIVE.new_authorization_state(
+                authorization_id=authorization["authorization_id"],
+                run_nonce=authorization["bindings"]["campaign_nonce"],
+                now="2026-07-17T12:10:00Z",
+            )
+        )
+        state_store.transition(
+            "containment-only",
+            reason="synthetic-modern-predecessor-failure",
+            now="2026-07-17T12:11:00Z",
+        )
+        state_snapshot = self.file_snapshot(state_store.path)
+
+        ledger_directory = root / (".modern-ledger-" + uuid.uuid4().hex)
+        ledger = LIVE.NativeLiveAllocationLedgerStore(ledger_directory)
+        reviews = manifest["reviews"]
+        release = manifest["release"]
+        ledger.initialize(
+            {
+                "bead_id": "complex-work-orchestration-18w",
+                "work_unit_id": "complex-work-orchestration-18w.6.24",
+                "authorization_id": authorization["authorization_id"],
+                "authorization_raw_sha256": authorization_snapshot.raw_sha256,
+                "authorization_canonical_sha256": authorization[
+                    "canonical_authorization_sha256"
+                ],
+                "campaign_manifest_sha256": manifest["manifest_sha256"],
+                "campaign_nonce": authorization["bindings"]["campaign_nonce"],
+                "live_generation": 6,
+                "predecessor_generation": 5,
+                "candidate_commit": checkpoint,
+                "candidate_tree": candidate_tree,
+                "origin_main_commit": manifest["candidate"]["origin_main_commit"],
+                "guarded_primary_diff_sha256": manifest["candidate"][
+                    "guarded_primary_diff_sha256"
+                ],
+                "predecessor_containment_sha256": authorization["bindings"][
+                    "predecessor_containment_canonical_sha256"
+                ],
+                "frozen_release_patch_sha256": release["patch_file_sha256"],
+                "pre_mutation_steering_receipt_sha256": reviews[
+                    "pre_mutation_receipt_canonical_sha256"
+                ],
+                "pre_live_steering_receipt_sha256": reviews[
+                    "pre_live_receipt_canonical_sha256"
+                ],
+                "opus_review_sha256": reviews["opus_evidence_file_sha256"],
+                "certification_policy_sha256": "c" * 64,
+                "controller_identity": {
+                    "pid": 1,
+                    "start_ticks": 1,
+                    "boot_id_sha256": "d" * 64,
+                },
+                "connection_epoch_sha256": "e" * 64,
+                "retention_class": "private-local-until-bead-closure",
+                "expected_roles": list(LIVE.EXPECTED_ROLES),
+            },
+            version=2,
+        )
+        allocation_intent_id = ledger.allocation_intent("capability-calibration")
+        thread_id = str(uuid.uuid4())
+        turn_id = str(uuid.uuid4())
+        ledger.bind_thread(allocation_intent_id, thread_id)
+        turn_intent_id = ledger.turn_intent(thread_id)
+        ledger.bind_turn(thread_id, turn_intent_id, turn_id)
+        ledger.record_lifecycle(
+            thread_id, "interrupt-observed", "interrupt-request-accepted"
+        )
+        ledger.record_lifecycle(
+            thread_id, "archive-observed", "archive-request-accepted"
+        )
+        ledger.bind_certification("b" * 64)
+        ledger.record_containment_audit(
+            thread_id, outcome="contained", evidence={"contained": True}
+        )
+        ledger_snapshot = self.file_snapshot(ledger.path)
+        allocation_audit_bytes = ledger.audit_file.read_bytes()
+        ledger_summary = ledger.summary()
+        containment_summary = {
+            "allocated_count": 1,
+            "identified_thread_count": 1,
+            "interrupted_count": 1,
+            "archived_count": 1,
+            "already_contained_count": 0,
+            "unresolved_allocation_intent_count": 0,
+            "unresolved_turn_intent_count": 0,
+            "ambiguous_count": 0,
+            "all_contained": True,
+            "ledger_consistent": True,
+            "ledger_error_sha256": [],
+        }
+        failure_message_sha256 = LIVE.sha256_text(
+            "synthetic callback mismatch"
+        )
+        failure = self.seal_field(
+            {
+                "result_type": "cwo-native-supervision-pool-live-canary-failure",
+                "version": 1,
+                "bead_id": "complex-work-orchestration-18w",
+                "work_unit_id": "complex-work-orchestration-18w.6.24",
+                "control_turn_id": LIVE.CONTROL_TURN_ID,
+                "started_at": "2026-07-17T12:09:00Z",
+                "failed_at": "2026-07-17T12:12:00Z",
+                "exact_model": LIVE.EXACT_MODEL,
+                "campaign_bindings": {
+                    "authorization_raw_sha256": authorization_snapshot.raw_sha256,
+                    "manifest_file_sha256": manifest_snapshot.raw_sha256,
+                    "manifest_sha256": manifest["manifest_sha256"],
+                    "candidate_commit": checkpoint,
+                    "candidate_tree": candidate_tree,
+                    "spark_validation_session_file_sha256": LIVE.sha256_bytes(
+                        session_raw
+                    ),
+                },
+                "steering_consumptions": {},
+                "allocation_ledger": {"available": True, **ledger_summary},
+                "failure_class": "TypeError",
+                "failure_code": "TypeError",
+                "failure_message_sha256": failure_message_sha256,
+                "first_protected_fault": None,
+                "containment": containment_summary,
+                "authorization_state_sha256": state_snapshot.value["state_sha256"],
+                "release_gate_passed": False,
+                "validation_outcome": "rejected",
+                "no_resume_or_salvage": True,
+                "glm_5_2_used": False,
+                "model_synthesis_used": False,
+            },
+            "evidence_sha256",
+        )
+        failure_snapshot = self.json_snapshot(failure)
+        session_id = thread_id
+        contained_session_bytes = (
+            json.dumps(
+                {
+                    "type": "session_meta",
+                    "payload": {"id": session_id, "session_id": session_id},
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "event_msg",
+                    "payload": {"type": "task_started", "turn_id": turn_id},
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
+        ).encode()
+        containment = self.seal_field(
+            {
+                "schema": "cwo-live-campaign-containment-recovery:v2",
+                "bead_id": "complex-work-orchestration-18w.6.24",
+                "recorded_at": "2026-07-17T12:13:00Z",
+                "failed_authorization": {
+                    "authorization_id": authorization["authorization_id"],
+                    "campaign_nonce": authorization["bindings"]["campaign_nonce"],
+                    "canonical_sha256": authorization[
+                        "canonical_authorization_sha256"
+                    ],
+                    "file_sha256": authorization_snapshot.raw_sha256,
+                    "live_generation": 6,
+                },
+                "failed_manifest": {
+                    "canonical_sha256": manifest["manifest_sha256"],
+                    "file_sha256": manifest_snapshot.raw_sha256,
+                    "manifest_id": manifest["manifest_id"],
+                },
+                "failed_evidence": {
+                    "canonical_sha256": failure["evidence_sha256"],
+                    "file_sha256": failure_snapshot.raw_sha256,
+                    "authorization_state_canonical_sha256": state_snapshot.value[
+                        "state_sha256"
+                    ],
+                    "authorization_state_file_sha256": state_snapshot.raw_sha256,
+                },
+                "root_cause": {
+                    "exception_class": "TypeError",
+                    "failure_class": "synthetic-live-callback-failure",
+                    "falsifiable_cause": "a keyword adapter removes the mismatch",
+                    "independent_reproduction": True,
+                    "message": "synthetic callback mismatch",
+                    "message_sha256": failure_message_sha256,
+                },
+                "session_accounting": [
+                    {
+                        "session_id": session_id,
+                        "active_match_count": 0,
+                        "archive_match_count": 1,
+                        "archived_session_file_sha256": LIVE.sha256_bytes(
+                            contained_session_bytes
+                        ),
+                    }
+                ],
+                "allocation_ledger": {
+                    "allocated_roles": ["capability-calibration"],
+                    "allocation_intent_count": 1,
+                    "audit_file_sha256": LIVE.sha256_bytes(
+                        allocation_audit_bytes
+                    ),
+                    "head_entry_sha256": ledger_summary["head_entry_sha256"],
+                    "ledger_file_sha256": ledger_snapshot.raw_sha256,
+                    "sequence": ledger_summary["sequence"],
+                    "state_sha256": ledger_summary["state_sha256"],
+                    "thread_bound_count": 1,
+                    "turn_bound_count": 1,
+                    "turn_intent_count": 1,
+                    "unresolved_allocation_intent_count": 0,
+                    "unresolved_turn_intent_count": 0,
+                    "validation_errors": [],
+                },
+                "containment": containment_summary,
+                "control_plane_recheck": {
+                    "authorization_state_validation_errors": [],
+                    "campaign_process_alive": False,
+                    "controller_pid": 1,
+                    "disposable_workspace_present": False,
+                    "evidence_canonical_hash_valid": True,
+                    "isolated_checkout_head": checkpoint,
+                    "isolated_checkout_tracked_clean": True,
+                    "isolated_checkout_tree": candidate_tree,
+                    "operative_dispatch_authorized": False,
+                    "origin_main_commit": manifest["candidate"][
+                        "origin_main_commit"
+                    ],
+                    "protected_primary_diff_sha256": manifest["candidate"][
+                        "guarded_primary_diff_sha256"
+                    ],
+                    "release_policy_status": "canary-gated",
+                },
+                "disposition": {
+                    "authorization_state": "containment-only",
+                    "outer_full_auto_recovery_permitted": True,
+                    "release_gate_passed": False,
+                    "requires_fresh_live_generation": 7,
+                    "requires_validated_candidate_repair": True,
+                    "reuse_resume_retry_substitution_salvage_bridge": False,
+                },
+            },
+            "canonical_recovery_sha256",
+        )
+        return LIVE.Version5PredecessorProofInputs(
+            authorization=authorization_snapshot,
+            manifest=manifest_snapshot,
+            authorization_state=state_snapshot,
+            failure_evidence=failure_snapshot,
+            containment=self.json_snapshot(containment),
+            allocation_ledger=ledger_snapshot,
+            allocation_audit_bytes=allocation_audit_bytes,
+            authorization_cause_evidence=ancestor_artifacts["cause_evidence"],
+            outer_authority=self.json_snapshot(outer_authority),
+            independent_validation_receipt=LIVE.JsonArtifactSnapshot(
+                raw=receipt_raw, value=receipt
+            ),
+            independent_validation_session_bytes=session_raw,
+            ancestor=self.historical_proof(ancestor_artifacts),
+            contained_session_bytes=(contained_session_bytes,),
+        )
+
+    def reseal_v6_authorization(self, value: dict) -> None:
+        bindings = value["bindings"]
+        progress = value["progress_gate"]
+        lineage = {
+            "validator_contract_sha256": bindings["validator_contract_sha256"],
+            "authorization_id": bindings["predecessor_authorization_id"],
+            "authorization_file_sha256": bindings[
+                "predecessor_authorization_file_sha256"
+            ],
+            "authorization_canonical_sha256": bindings[
+                "predecessor_authorization_canonical_sha256"
+            ],
+            "manifest_file_sha256": bindings["predecessor_manifest_file_sha256"],
+            "manifest_canonical_sha256": bindings[
+                "predecessor_manifest_canonical_sha256"
+            ],
+            "authorization_state_file_sha256": bindings[
+                "predecessor_authorization_state_file_sha256"
+            ],
+            "authorization_state_canonical_sha256": bindings[
+                "predecessor_authorization_state_canonical_sha256"
+            ],
+            "live_generation": value["predecessor_live_generation"],
+            "candidate_commit": progress["predecessor_candidate_commit"],
+            "candidate_tree": progress["predecessor_candidate_tree"],
+            "failure_evidence_file_sha256": bindings[
+                "predecessor_failure_evidence_file_sha256"
+            ],
+            "failure_evidence_canonical_sha256": bindings[
+                "predecessor_failure_evidence_canonical_sha256"
+            ],
+            "containment_file_sha256": bindings[
+                "predecessor_containment_file_sha256"
+            ],
+            "containment_canonical_sha256": bindings[
+                "predecessor_containment_canonical_sha256"
+            ],
+            "recovery_cause_evidence_file_sha256": bindings[
+                "recovery_cause_evidence_file_sha256"
+            ],
+            "recovery_cause_evidence_canonical_sha256": bindings[
+                "recovery_cause_evidence_canonical_sha256"
+            ],
+            "allocation_ledger_file_sha256": bindings[
+                "predecessor_allocation_ledger_file_sha256"
+            ],
+            "allocation_ledger_state_sha256": bindings[
+                "predecessor_allocation_ledger_state_sha256"
+            ],
+            "allocation_audit_file_sha256": bindings[
+                "predecessor_allocation_audit_file_sha256"
+            ],
+            "ancestor_lineage_sha256": bindings[
+                "predecessor_ancestor_lineage_sha256"
+            ],
+        }
+        progress["predecessor_lineage_sha256"] = LIVE.sha256_bytes(
+            json.dumps(lineage, sort_keys=True, separators=(",", ":")).encode()
+        )
+        validation_binding = {
+            "authorization_id": value["authorization_id"],
+            "campaign_nonce": bindings["campaign_nonce"],
+            "candidate_commit": bindings["checkpoint_commit"],
+            "candidate_tree": bindings["checkpoint_tree"],
+            "outer_authority_id": bindings["outer_authority_id"],
+            "receipt_canonical_sha256": progress[
+                "independent_validation_receipt_canonical_sha256"
+            ],
+            "receipt_file_sha256": progress[
+                "independent_validation_receipt_file_sha256"
+            ],
+            "session_id": progress["independent_validation_session_id"],
+            "completed_at": progress["independent_validation_completed_at"],
+        }
+        progress["independent_validation_binding_sha256"] = LIVE.sha256_bytes(
+            json.dumps(
+                validation_binding, sort_keys=True, separators=(",", ":")
+            ).encode()
+        )
+        progress.pop("qualification_sha256", None)
+        progress["qualification_sha256"] = LIVE.sha256_bytes(
+            json.dumps(progress, sort_keys=True, separators=(",", ":")).encode()
+        )
+        value.pop("canonical_authorization_sha256", None)
+        value["canonical_authorization_sha256"] = LIVE.sha256_bytes(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        )
+
+    def generation7_successor(
+        self,
+        root: Path,
+        predecessor: LIVE.Version5PredecessorProofInputs,
+    ) -> dict[str, object]:
+        (root / "generation7-repair.txt").write_text("repair", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "generation7-repair.txt"], cwd=root, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "generation seven repair"],
+            cwd=root,
+            check=True,
+        )
+        checkpoint = LIVE.run_git(root, "rev-parse", "HEAD")
+        checkpoint_tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
+        self.install_validator_contract_files(root)
+        validator_sha256 = LIVE.validator_contract_sha256(root)
+
+        prior_authorization = predecessor.authorization.value
+        prior_manifest = predecessor.manifest.value
+        prior_state = predecessor.authorization_state.value
+        prior_failure = predecessor.failure_evidence.value
+        prior_containment = predecessor.containment.value
+        prior_ledger = predecessor.allocation_ledger.value
+        authorization = json.loads(json.dumps(prior_authorization))
+        authorization.update(
+            {
+                "version": 6,
+                "schema": "schemas/full-auto-run-authorization-v6.schema.json",
+                "authorization_id": str(uuid.uuid4()),
+                "run_generation": 12,
+                "live_generation": 7,
+                "predecessor_live_generation": 6,
+                "issued_at": "2026-07-17T14:00:00Z",
+            }
+        )
+        authorization["scope"]["ordered_work_units"] = [
+            "complex-work-orchestration-18w.6.34",
+            "complex-work-orchestration-18w.6.35",
+            "complex-work-orchestration-18w.7",
+        ]
+        bindings = authorization["bindings"]
+        bindings.update(
+            {
+                "checkpoint_commit": checkpoint,
+                "checkpoint_tree": checkpoint_tree,
+                "campaign_nonce": str(uuid.uuid4()),
+                "predecessor_authorization_id": prior_authorization[
+                    "authorization_id"
+                ],
+                "predecessor_authorization_file_sha256": predecessor.authorization.raw_sha256,
+                "predecessor_authorization_canonical_sha256": prior_authorization[
+                    "canonical_authorization_sha256"
+                ],
+                "predecessor_manifest_file_sha256": predecessor.manifest.raw_sha256,
+                "predecessor_manifest_canonical_sha256": prior_manifest[
+                    "manifest_sha256"
+                ],
+                "predecessor_authorization_state_file_sha256": predecessor.authorization_state.raw_sha256,
+                "predecessor_authorization_state_canonical_sha256": prior_state[
+                    "state_sha256"
+                ],
+                "predecessor_failure_evidence_file_sha256": predecessor.failure_evidence.raw_sha256,
+                "predecessor_failure_evidence_canonical_sha256": prior_failure[
+                    "evidence_sha256"
+                ],
+                "predecessor_containment_file_sha256": predecessor.containment.raw_sha256,
+                "predecessor_containment_canonical_sha256": prior_containment[
+                    "canonical_recovery_sha256"
+                ],
+                "predecessor_allocation_ledger_file_sha256": predecessor.allocation_ledger.raw_sha256,
+                "predecessor_allocation_ledger_state_sha256": prior_ledger[
+                    "state_sha256"
+                ],
+                "predecessor_allocation_audit_file_sha256": LIVE.sha256_bytes(
+                    predecessor.allocation_audit_bytes
+                ),
+                "predecessor_ancestor_lineage_sha256": prior_authorization[
+                    "progress_gate"
+                ]["predecessor_lineage_sha256"],
+                "validator_contract_sha256": validator_sha256,
+                "outer_authority_id": str(uuid.uuid4()),
+                "backup_ref": "refs/heads/backup/test-generation-seven",
+            }
+        )
+        bindings.pop("predecessor_original_containment_file_sha256", None)
+        bindings.pop("predecessor_original_containment_canonical_sha256", None)
+        authorization["supersession"].update(
+            {
+                "prior_authorization_id": prior_authorization["authorization_id"],
+                "prior_terminal_state": "containment-only",
+                "prior_live_generation": 6,
+                "prior_allocations": 1,
+                "prior_ambiguities": 0,
+                "prior_allowed_actions": 0,
+            }
+        )
+        progress = authorization["progress_gate"]
+        progress.update(
+            {
+                "predecessor_failure_class": "synthetic-live-callback-failure",
+                "predecessor_failure_evidence_canonical_sha256": prior_failure[
+                    "evidence_sha256"
+                ],
+                "predecessor_candidate_commit": prior_manifest["candidate"]["commit"],
+                "predecessor_candidate_tree": prior_manifest["candidate"]["tree"],
+                "new_falsifiable_cause": "a keyword adapter removes the mismatch",
+                "repair_commit": checkpoint,
+                "repair_tree": checkpoint_tree,
+                "independent_validation_completed_at": "2026-07-17T13:59:00Z",
+                "same_fault_without_new_evidence": False,
+                "one_active_inner_campaign": True,
+                "arbitrary_generation_cap": False,
+                "fresh_exact_sol_pre_live_required": True,
+            }
+        )
+        cause_source_analysis = b"synthetic callback source analysis\n"
+        cause = self.seal_field(
+            {
+                "evidence_type": "cwo-native-live-campaign-cause-evidence",
+                "version": 1,
+                "schema": "schemas/native-live-campaign-cause-evidence.schema.json",
+                "evidence_id": str(uuid.uuid4()),
+                "recorded_at": "2026-07-17T13:58:00Z",
+                "failed_authorization_id": prior_authorization["authorization_id"],
+                "failed_manifest_id": prior_manifest["manifest_id"],
+                "live_generation": 6,
+                "failure_evidence_file_sha256": predecessor.failure_evidence.raw_sha256,
+                "failure_evidence_canonical_sha256": prior_failure[
+                    "evidence_sha256"
+                ],
+                "containment_file_sha256": predecessor.containment.raw_sha256,
+                "containment_canonical_sha256": prior_containment[
+                    "canonical_recovery_sha256"
+                ],
+                "failure_class": "synthetic-live-callback-failure",
+                "failure_message_sha256": prior_failure[
+                    "failure_message_sha256"
+                ],
+                "falsifiable_cause": "a keyword adapter removes the mismatch",
+                "repair_commit": checkpoint,
+                "repair_tree": checkpoint_tree,
+                "source_analysis_sha256": LIVE.sha256_bytes(
+                    cause_source_analysis
+                ),
+                "focused_tests_passed": 3,
+                "repository_validation_passed": True,
+                "compileall_passed": True,
+                "diff_check_passed": True,
+            },
+            "canonical_cause_evidence_sha256",
+        )
+        cause_snapshot = self.json_snapshot(cause)
+        bindings["recovery_cause_evidence_file_sha256"] = cause_snapshot.raw_sha256
+        bindings["recovery_cause_evidence_canonical_sha256"] = cause[
+            "canonical_cause_evidence_sha256"
+        ]
+        progress["cause_evidence_sha256"] = cause_snapshot.raw_sha256
+        outer_authority = self.outer_authority(authorization)
+        outer_snapshot = self.json_snapshot(outer_authority)
+        bindings["outer_authority_canonical_sha256"] = outer_authority[
+            "canonical_outer_authority_sha256"
+        ]
+        bindings["outer_authority_file_sha256"] = outer_snapshot.raw_sha256
+
+        receipt, receipt_raw, session_path, session_raw = (
+            self.bound_validation_receipt(root, authorization, checkpoint)
+        )
+        progress.update(
+            {
+                "independent_validation_receipt_canonical_sha256": receipt[
+                    "canonical_receipt_sha256"
+                ],
+                "independent_validation_receipt_file_sha256": LIVE.sha256_bytes(
+                    receipt_raw
+                ),
+                "independent_validation_session_id": receipt["session_id"],
+                "independent_validation_completed_at": receipt["completed_at"],
+            }
+        )
+        mandatory_gates = authorization["mandatory_gates"]
+        mandatory_gates.pop("strict_authorization_v5", None)
+        mandatory_gates.pop("campaign_manifest_v2", None)
+        mandatory_gates.update(
+            {
+                "strict_authorization_v6": True,
+                "campaign_manifest_v3": True,
+                "finite_predecessor_proof_dag": True,
+                "read_once_predecessor_snapshots": True,
+                "atomic_launch_claim": True,
+            }
+        )
+        self.reseal_v6_authorization(authorization)
+        authorization_snapshot = self.json_snapshot(authorization)
+
+        manifest = self.manifest(
+            dict(prior_authorization), checkpoint, checkpoint_tree
+        )
+        manifest.update(
+            {
+                "version": 3,
+                "schema": "schemas/native-live-campaign-manifest-v3.schema.json",
+                "authorization_id": authorization["authorization_id"],
+                "authorization_raw_sha256": authorization_snapshot.raw_sha256,
+                "authorization_canonical_sha256": authorization[
+                    "canonical_authorization_sha256"
+                ],
+                "run_generation": authorization["run_generation"],
+                "live_generation": 7,
+                "predecessor_live_generation": 6,
+                "campaign_nonce": bindings["campaign_nonce"],
+                "progress_qualification_sha256": progress[
+                    "qualification_sha256"
+                ],
+                "executors": json.loads(json.dumps(authorization["executors"])),
+            }
+        )
+        manifest["work_units"].update(
+            {"live_work_unit_id": "complex-work-orchestration-18w.6.35"}
+        )
+        manifest["candidate"] = {
+            "commit": checkpoint,
+            "tree": checkpoint_tree,
+            "origin_main_commit": bindings["origin_main_commit"],
+            "guarded_primary_diff_sha256": bindings[
+                "guarded_primary_diff_sha256"
+            ],
+        }
+        manifest["predecessor"] = {
+            "authorization_id": bindings["predecessor_authorization_id"],
+            "authorization_file_sha256": bindings[
+                "predecessor_authorization_file_sha256"
+            ],
+            "authorization_canonical_sha256": bindings[
+                "predecessor_authorization_canonical_sha256"
+            ],
+            "manifest_file_sha256": bindings["predecessor_manifest_file_sha256"],
+            "manifest_canonical_sha256": bindings[
+                "predecessor_manifest_canonical_sha256"
+            ],
+            "authorization_state_file_sha256": bindings[
+                "predecessor_authorization_state_file_sha256"
+            ],
+            "authorization_state_canonical_sha256": bindings[
+                "predecessor_authorization_state_canonical_sha256"
+            ],
+            "candidate_commit": progress["predecessor_candidate_commit"],
+            "candidate_tree": progress["predecessor_candidate_tree"],
+            "lineage_sha256": progress["predecessor_lineage_sha256"],
+            "failure_evidence_file_sha256": bindings[
+                "predecessor_failure_evidence_file_sha256"
+            ],
+            "failure_evidence_canonical_sha256": bindings[
+                "predecessor_failure_evidence_canonical_sha256"
+            ],
+            "containment_file_sha256": bindings[
+                "predecessor_containment_file_sha256"
+            ],
+            "containment_canonical_sha256": bindings[
+                "predecessor_containment_canonical_sha256"
+            ],
+            "recovery_cause_evidence_file_sha256": bindings[
+                "recovery_cause_evidence_file_sha256"
+            ],
+            "recovery_cause_evidence_canonical_sha256": bindings[
+                "recovery_cause_evidence_canonical_sha256"
+            ],
+            "allocation_ledger_file_sha256": bindings[
+                "predecessor_allocation_ledger_file_sha256"
+            ],
+            "allocation_ledger_state_sha256": bindings[
+                "predecessor_allocation_ledger_state_sha256"
+            ],
+            "allocation_audit_file_sha256": bindings[
+                "predecessor_allocation_audit_file_sha256"
+            ],
+            "ancestor_lineage_sha256": bindings[
+                "predecessor_ancestor_lineage_sha256"
+            ],
+            "validator_contract_sha256": validator_sha256,
+        }
+        manifest["outer_authority"] = {
+            "authority_id": bindings["outer_authority_id"],
+            "canonical_sha256": bindings["outer_authority_canonical_sha256"],
+            "file_sha256": bindings["outer_authority_file_sha256"],
+        }
+        manifest["reviews"]["spark_validation_receipt_canonical_sha256"] = receipt[
+            "canonical_receipt_sha256"
+        ]
+        manifest["reviews"]["spark_validation_receipt_file_sha256"] = (
+            LIVE.sha256_bytes(receipt_raw)
+        )
+        manifest["release"]["candidate_tree"] = checkpoint_tree
+        manifest["outputs"] = {
+            "evidence_basename": "generation7-evidence.json",
+            "authorization_state_basename": "generation7-state.json",
+            "steering_registry_basename": "generation7-steering.json",
+            "allocation_ledger_basename": "generation7-ledger",
+        }
+        self.reseal_manifest(manifest)
+        return {
+            "authorization": authorization,
+            "authorization_snapshot": authorization_snapshot,
+            "manifest": manifest,
+            "manifest_snapshot": self.json_snapshot(manifest),
+            "cause_snapshot": cause_snapshot,
+            "cause_source_analysis": cause_source_analysis,
+            "outer_snapshot": outer_snapshot,
+            "receipt": receipt,
+            "receipt_snapshot": LIVE.JsonArtifactSnapshot(
+                raw=receipt_raw, value=receipt
+            ),
+            "session_path": session_path,
+            "session_raw": session_raw,
+            "validator_sha256": validator_sha256,
+            "checkpoint": checkpoint,
+            "checkpoint_tree": checkpoint_tree,
+        }
 
     def test_independent_validation_session_binds_archived_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2380,6 +3207,585 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     LIVE.AppServerError, "boundary-mismatch"
                 ):
                     LIVE.validate_independent_validation_session(receipt, path)
+
+    def test_v6_v3_finite_predecessor_proof_accepts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            predecessor_checkpoint, _orphan = self.make_repo(root)
+            predecessor = self.modern_predecessor_proof(
+                root, predecessor_checkpoint
+            )
+            successor = self.generation7_successor(root, predecessor)
+            authorization = successor["authorization"]
+            authorization_errors = LIVE.validate_full_auto_authorization_contract(
+                authorization,
+                expected_campaign_nonce=authorization["bindings"]["campaign_nonce"],
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=successor["cause_snapshot"],
+                recovery_cause_source_analysis=successor[
+                    "cause_source_analysis"
+                ],
+                expected_validator_contract_sha256=successor["validator_sha256"],
+                repo_root=root,
+            )
+            self.assertEqual(authorization_errors, [])
+            manifest_errors = LIVE.validate_campaign_manifest(
+                successor["manifest"],
+                authorization=authorization,
+                authorization_raw_sha256=successor[
+                    "authorization_snapshot"
+                ].raw_sha256,
+                outer_authority=successor["outer_snapshot"].value,
+                outer_authority_raw_sha256=successor["outer_snapshot"].raw_sha256,
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=successor["cause_snapshot"],
+                recovery_cause_source_analysis=successor[
+                    "cause_source_analysis"
+                ],
+                independent_validation_receipt=successor["receipt"],
+                independent_validation_receipt_raw_sha256=successor[
+                    "receipt_snapshot"
+                ].raw_sha256,
+                expected_validator_contract_sha256=successor["validator_sha256"],
+                repo_root=root,
+                expected_primary_diff_sha256=LIVE.sha256_bytes(b""),
+            )
+            self.assertEqual(manifest_errors, [])
+
+    def test_v6_proof_rejects_missing_legacy_alias_cause_and_session_tamper(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            predecessor_checkpoint, _orphan = self.make_repo(root)
+            predecessor = self.modern_predecessor_proof(
+                root, predecessor_checkpoint
+            )
+            successor = self.generation7_successor(root, predecessor)
+            authorization = successor["authorization"]
+            common = {
+                "expected_campaign_nonce": authorization["bindings"][
+                    "campaign_nonce"
+                ],
+                "recovery_cause_evidence": successor["cause_snapshot"],
+                "recovery_cause_source_analysis": successor[
+                    "cause_source_analysis"
+                ],
+                "expected_validator_contract_sha256": successor[
+                    "validator_sha256"
+                ],
+                "repo_root": root,
+            }
+            missing = LIVE.validate_full_auto_authorization_contract(
+                authorization, **common
+            )
+            self.assertIn("authorization-v6-predecessor-proof-missing", missing)
+            legacy_alias = LIVE.validate_full_auto_authorization_contract(
+                authorization,
+                predecessor_proof=predecessor,
+                predecessor_authorization=predecessor.authorization.value,
+                **common,
+            )
+            self.assertEqual(
+                legacy_alias,
+                ["authorization-v6-legacy-proof-input-forbidden"],
+            )
+
+            changed_cause = dict(successor["cause_snapshot"].value)
+            changed_cause["focused_tests_passed"] = 4
+            cause_errors = LIVE.validate_full_auto_authorization_contract(
+                authorization,
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=LIVE.JsonArtifactSnapshot(
+                    raw=successor["cause_snapshot"].raw,
+                    value=changed_cause,
+                ),
+                recovery_cause_source_analysis=successor[
+                    "cause_source_analysis"
+                ],
+                expected_validator_contract_sha256=successor[
+                    "validator_sha256"
+                ],
+                repo_root=root,
+            )
+            self.assertTrue(
+                any("recovery-cause-evidence" in item for item in cause_errors),
+                cause_errors,
+            )
+
+            session_records = predecessor.independent_validation_session_bytes.splitlines(
+                keepends=True
+            )
+            session_records.insert(
+                -1,
+                json.dumps(
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                        },
+                    }
+                ).encode()
+                + b"\n",
+            )
+            tool_session_proof = replace(
+                predecessor,
+                independent_validation_session_bytes=b"".join(session_records),
+            )
+            session_errors = LIVE.validate_full_auto_authorization_contract(
+                authorization,
+                predecessor_proof=tool_session_proof,
+                **common,
+            )
+            self.assertTrue(
+                any("validation-session-tool-activity" in item for item in session_errors),
+                session_errors,
+            )
+
+    def test_v6_proof_rejects_ancestor_and_validator_anchor_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            predecessor_checkpoint, _orphan = self.make_repo(root)
+            predecessor = self.modern_predecessor_proof(
+                root, predecessor_checkpoint
+            )
+            successor = self.generation7_successor(root, predecessor)
+            authorization = successor["authorization"]
+            ancestor_authorization = json.loads(
+                json.dumps(predecessor.ancestor.authorization.value)
+            )
+            ancestor_authorization["bindings"]["checkpoint_tree"] = "0" * 40
+            changed_ancestor = replace(
+                predecessor.ancestor,
+                authorization=LIVE.JsonArtifactSnapshot(
+                    raw=predecessor.ancestor.authorization.raw,
+                    value=ancestor_authorization,
+                ),
+            )
+            changed_proof = replace(predecessor, ancestor=changed_ancestor)
+            ancestor_errors = LIVE.validate_full_auto_authorization_contract(
+                authorization,
+                expected_campaign_nonce=authorization["bindings"]["campaign_nonce"],
+                predecessor_proof=changed_proof,
+                recovery_cause_evidence=successor["cause_snapshot"],
+                recovery_cause_source_analysis=successor[
+                    "cause_source_analysis"
+                ],
+                expected_validator_contract_sha256=successor["validator_sha256"],
+                repo_root=root,
+            )
+            self.assertTrue(
+                any("historical-anchor-tree-mismatch" in item for item in ancestor_errors),
+                ancestor_errors,
+            )
+
+            changed_authorization = json.loads(json.dumps(authorization))
+            changed_authorization["bindings"]["validator_contract_sha256"] = "0" * 64
+            self.reseal_v6_authorization(changed_authorization)
+            validator_errors = LIVE.validate_full_auto_authorization_contract(
+                changed_authorization,
+                expected_campaign_nonce=changed_authorization["bindings"][
+                    "campaign_nonce"
+                ],
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=successor["cause_snapshot"],
+                recovery_cause_source_analysis=successor[
+                    "cause_source_analysis"
+                ],
+                expected_validator_contract_sha256=successor["validator_sha256"],
+                repo_root=root,
+            )
+            self.assertTrue(
+                any("validator-contract" in item for item in validator_errors),
+                validator_errors,
+            )
+
+    def test_v6_proof_rejects_session_ledger_cause_and_git_proof_gaps(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            predecessor_checkpoint, orphan = self.make_repo(root)
+            predecessor = self.modern_predecessor_proof(
+                root, predecessor_checkpoint
+            )
+            successor = self.generation7_successor(root, predecessor)
+            authorization = successor["authorization"]
+
+            def validate(
+                proof: LIVE.Version5PredecessorProofInputs,
+                *,
+                source: bytes | None = successor["cause_source_analysis"],
+            ) -> list[str]:
+                return LIVE.validate_full_auto_authorization_contract(
+                    authorization,
+                    expected_campaign_nonce=authorization["bindings"][
+                        "campaign_nonce"
+                    ],
+                    predecessor_proof=proof,
+                    recovery_cause_evidence=successor["cause_snapshot"],
+                    recovery_cause_source_analysis=source,
+                    expected_validator_contract_sha256=successor[
+                        "validator_sha256"
+                    ],
+                    repo_root=root,
+                )
+
+            self.assertIn(
+                "authorization-v6-recovery-cause-source-analysis-missing",
+                validate(predecessor, source=None),
+            )
+            self.assertIn(
+                "authorization-recovery-cause-evidence-binding-invalid",
+                validate(predecessor, source=b"different source analysis\n"),
+            )
+
+            contained_session_errors = validate(
+                replace(predecessor, contained_session_bytes=(b"{}\n",))
+            )
+            self.assertTrue(
+                any("modern-session" in item for item in contained_session_errors),
+                contained_session_errors,
+            )
+            ancestor_session_errors = validate(
+                replace(
+                    predecessor,
+                    ancestor=replace(
+                        predecessor.ancestor,
+                        contained_session_bytes=(b"{}\n",),
+                    ),
+                )
+            )
+            self.assertTrue(
+                any("ancestor" in item for item in ancestor_session_errors),
+                ancestor_session_errors,
+            )
+
+            changed_ledger = json.loads(
+                json.dumps(predecessor.allocation_ledger.value)
+            )
+            next(
+                item
+                for item in changed_ledger["entries"]
+                if item["event"] == "allocation-intent"
+            )["role"] = "read-only-0"
+            role_errors = validate(
+                replace(
+                    predecessor,
+                    allocation_ledger=LIVE.JsonArtifactSnapshot(
+                        raw=predecessor.allocation_ledger.raw,
+                        value=changed_ledger,
+                    ),
+                )
+            )
+            self.assertIn(
+                "authorization-predecessor-modern-ledger-role-prefix-invalid",
+                role_errors,
+            )
+
+            missing_certification = json.loads(
+                json.dumps(predecessor.allocation_ledger.value)
+            )
+            missing_certification["entries"] = [
+                item
+                for item in missing_certification["entries"]
+                if item["event"] != "certification-bound"
+            ]
+            certification_errors = validate(
+                replace(
+                    predecessor,
+                    allocation_ledger=LIVE.JsonArtifactSnapshot(
+                        raw=predecessor.allocation_ledger.raw,
+                        value=missing_certification,
+                    ),
+                )
+            )
+            self.assertIn(
+                "authorization-predecessor-modern-ledger-certification-invalid",
+                certification_errors,
+            )
+
+            ledger = predecessor.allocation_ledger.value
+            allocated = sum(
+                item.get("event") == "allocation-intent"
+                for item in ledger["entries"]
+            )
+            self.assertEqual(
+                CAMPAIGN_CONTRACTS._validate_modern_ledger_semantics(
+                    ledger, allocated
+                ),
+                [],
+            )
+            missing_lifecycle = json.loads(json.dumps(ledger))
+            capability_id = next(
+                item["allocation_intent_id"]
+                for item in missing_lifecycle["entries"]
+                if item["event"] == "allocation-intent" and item["ordinal"] == 0
+            )
+            missing_lifecycle["entries"] = [
+                item
+                for item in missing_lifecycle["entries"]
+                if not (
+                    item.get("allocation_intent_id") == capability_id
+                    and item.get("event")
+                    in {"interrupt-observed", "archive-observed"}
+                )
+            ]
+            lifecycle_errors = (
+                CAMPAIGN_CONTRACTS._validate_modern_ledger_semantics(
+                    missing_lifecycle, allocated
+                )
+            )
+            self.assertIn(
+                "authorization-predecessor-modern-ledger-interrupt-invalid",
+                lifecycle_errors,
+            )
+            self.assertIn(
+                "authorization-predecessor-modern-ledger-archive-invalid",
+                lifecycle_errors,
+            )
+
+            wrong_outcomes = json.loads(json.dumps(ledger))
+            for item in wrong_outcomes["entries"]:
+                if item.get("event") == "interrupt-observed":
+                    item["outcome"] = "arbitrary-nonempty"
+                elif item.get("event") == "archive-observed":
+                    item["outcome"] = "another-nonempty-value"
+            outcome_errors = CAMPAIGN_CONTRACTS._validate_modern_ledger_semantics(
+                wrong_outcomes, allocated
+            )
+            self.assertIn(
+                "authorization-predecessor-modern-ledger-interrupt-invalid",
+                outcome_errors,
+            )
+            self.assertIn(
+                "authorization-predecessor-modern-ledger-archive-invalid",
+                outcome_errors,
+            )
+
+            changed_manifest = json.loads(
+                json.dumps(predecessor.ancestor.manifest.value)
+            )
+            changed_manifest["candidate"] = {
+                **changed_manifest["candidate"],
+                "commit": orphan,
+                "tree": LIVE.run_git(root, "rev-parse", f"{orphan}^{{tree}}"),
+            }
+            anchor_errors = validate(
+                replace(
+                    predecessor,
+                    ancestor=replace(
+                        predecessor.ancestor,
+                        manifest=LIVE.JsonArtifactSnapshot(
+                            raw=predecessor.ancestor.manifest.raw,
+                            value=changed_manifest,
+                        ),
+                    ),
+                )
+            )
+            self.assertIn(
+                "authorization-historical-anchor-lineage-invalid",
+                anchor_errors,
+            )
+
+            changed_failure = json.loads(
+                json.dumps(predecessor.failure_evidence.value)
+            )
+            changed_failure["failure_message_sha256"] = "0" * 64
+            cause_errors = validate(
+                replace(
+                    predecessor,
+                    failure_evidence=LIVE.JsonArtifactSnapshot(
+                        raw=predecessor.failure_evidence.raw,
+                        value=changed_failure,
+                    ),
+                )
+            )
+            self.assertIn(
+                "authorization-recovery-cause-evidence-binding-invalid",
+                cause_errors,
+            )
+
+    def test_v6_session_inputs_use_trusted_source_rules_and_recheck_bytes(
+        self,
+    ) -> None:
+        self.assertFalse(
+            LIVE.campaign_input_requires_private_parent(
+                "predecessor-contained-session-0"
+            )
+        )
+        self.assertFalse(
+            LIVE.campaign_input_requires_private_parent(
+                "ancestor-contained-session-0"
+            )
+        )
+        self.assertFalse(
+            LIVE.campaign_input_requires_private_parent("spark-validation-session")
+        )
+        self.assertTrue(LIVE.campaign_input_requires_private_parent("authorization"))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            predecessor_checkpoint, _orphan = self.make_repo(root)
+            predecessor = self.modern_predecessor_proof(
+                root, predecessor_checkpoint
+            )
+            successor = self.generation7_successor(root, predecessor)
+            session_path = successor["session_path"]
+            session_path.parent.chmod(0o755)
+            session_path.chmod(0o644)
+            inputs = LIVE.CampaignLaunchInputs(
+                authorization=successor["authorization_snapshot"],
+                manifest=successor["manifest_snapshot"],
+                outer_authority=successor["outer_snapshot"],
+                release_patch_bytes=b"release patch",
+                pre_mutation_receipt=self.json_snapshot(
+                    {"canonical_receipt_sha256": LIVE.sha256_text("pre-mutation")}
+                ),
+                pre_mutation_adjudication=self.json_snapshot({"decision": "go"}),
+                pre_live_receipt=self.json_snapshot(
+                    {"canonical_receipt_sha256": LIVE.sha256_text("pre-live")}
+                ),
+                pre_live_adjudication=self.json_snapshot({"decision": "go"}),
+                opus_review_evidence=self.json_snapshot({"verdict": "go"}),
+                opus_adjudication=self.json_snapshot({"decision": "go"}),
+                spark_validation_receipt=successor["receipt_snapshot"],
+                spark_validation_session_path=session_path,
+                spark_validation_session_bytes=successor["session_raw"],
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=successor["cause_snapshot"],
+                recovery_cause_source_analysis_bytes=successor[
+                    "cause_source_analysis"
+                ],
+            )
+            paths = {"spark-validation-session": session_path}
+            for label, raw in (
+                (
+                    "predecessor-independent-validation-session",
+                    predecessor.independent_validation_session_bytes,
+                ),
+                *(
+                    (f"predecessor-contained-session-{index}", value)
+                    for index, value in enumerate(predecessor.contained_session_bytes)
+                ),
+                *(
+                    (f"ancestor-contained-session-{index}", value)
+                    for index, value in enumerate(
+                        predecessor.ancestor.contained_session_bytes
+                    )
+                ),
+            ):
+                path = root / f"{label}.jsonl"
+                path.write_bytes(raw)
+                paths[label] = path
+            LIVE.require_trusted_session_snapshots_unchanged(paths, inputs)
+            session_path.write_bytes(successor["session_raw"] + b"{}\n")
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "spark-validation-session-changed-before-allocation",
+            ):
+                LIVE.require_trusted_session_snapshots_unchanged(paths, inputs)
+
+    def test_v3_cross_field_and_launch_claim_bind_every_immutable_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            predecessor_checkpoint, _orphan = self.make_repo(root)
+            predecessor = self.modern_predecessor_proof(
+                root, predecessor_checkpoint
+            )
+            successor = self.generation7_successor(root, predecessor)
+            manifest = json.loads(json.dumps(successor["manifest"]))
+            manifest["predecessor"]["ancestor_lineage_sha256"] = "0" * 64
+            self.reseal_manifest(manifest)
+            errors = LIVE.validate_campaign_manifest(
+                manifest,
+                authorization=successor["authorization"],
+                authorization_raw_sha256=successor[
+                    "authorization_snapshot"
+                ].raw_sha256,
+                outer_authority=successor["outer_snapshot"].value,
+                outer_authority_raw_sha256=successor["outer_snapshot"].raw_sha256,
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=successor["cause_snapshot"],
+                recovery_cause_source_analysis=successor[
+                    "cause_source_analysis"
+                ],
+                independent_validation_receipt=successor["receipt"],
+                independent_validation_receipt_raw_sha256=successor[
+                    "receipt_snapshot"
+                ].raw_sha256,
+                expected_validator_contract_sha256=successor["validator_sha256"],
+                repo_root=root,
+                expected_primary_diff_sha256=LIVE.sha256_bytes(b""),
+            )
+            self.assertIn(
+                "campaign-manifest-v3-predecessor-authorization-mismatch", errors
+            )
+
+            def receipt_snapshot(label: str) -> LIVE.JsonArtifactSnapshot:
+                value = {"canonical_receipt_sha256": LIVE.sha256_text(label)}
+                return self.json_snapshot(value)
+
+            inputs = LIVE.CampaignLaunchInputs(
+                authorization=successor["authorization_snapshot"],
+                manifest=successor["manifest_snapshot"],
+                outer_authority=successor["outer_snapshot"],
+                release_patch_bytes=b"release patch",
+                pre_mutation_receipt=receipt_snapshot("pre-mutation"),
+                pre_mutation_adjudication=receipt_snapshot("pre-mutation-adjudication"),
+                pre_live_receipt=receipt_snapshot("pre-live"),
+                pre_live_adjudication=receipt_snapshot("pre-live-adjudication"),
+                opus_review_evidence=receipt_snapshot("opus"),
+                opus_adjudication=receipt_snapshot("opus-adjudication"),
+                spark_validation_receipt=successor["receipt_snapshot"],
+                spark_validation_session_path=successor["session_path"],
+                spark_validation_session_bytes=successor["session_raw"],
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=successor["cause_snapshot"],
+                recovery_cause_source_analysis_bytes=successor[
+                    "cause_source_analysis"
+                ],
+            )
+            parent = root / "outputs"
+            parent.mkdir()
+            output_paths = {
+                "output": parent / "generation7-evidence.json",
+                "authorization_state": parent / "generation7-state.json",
+                "steering_registry": parent / "generation7-steering.json",
+                "allocation_ledger": parent / "generation7-ledger",
+            }
+            claim = LIVE.campaign_launch_claim_sha256(inputs, **output_paths)
+            changed_inputs = LIVE.CampaignLaunchInputs(
+                authorization=inputs.authorization,
+                manifest=inputs.manifest,
+                outer_authority=inputs.outer_authority,
+                release_patch_bytes=inputs.release_patch_bytes,
+                pre_mutation_receipt=inputs.pre_mutation_receipt,
+                pre_mutation_adjudication=inputs.pre_mutation_adjudication,
+                pre_live_receipt=receipt_snapshot("changed-pre-live"),
+                pre_live_adjudication=inputs.pre_live_adjudication,
+                opus_review_evidence=inputs.opus_review_evidence,
+                opus_adjudication=inputs.opus_adjudication,
+                spark_validation_receipt=inputs.spark_validation_receipt,
+                spark_validation_session_path=inputs.spark_validation_session_path,
+                spark_validation_session_bytes=inputs.spark_validation_session_bytes,
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=inputs.recovery_cause_evidence,
+                recovery_cause_source_analysis_bytes=(
+                    inputs.recovery_cause_source_analysis_bytes
+                ),
+            )
+            self.assertNotEqual(
+                claim,
+                LIVE.campaign_launch_claim_sha256(
+                    changed_inputs, **output_paths
+                ),
+            )
+            alias = root / "same.json"
+            alias.write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(LIVE.AppServerError, "path-alias"):
+                LIVE.require_unique_input_paths({"one": alias, "two": alias})
 
     def test_independent_validation_session_rejects_tool_activity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

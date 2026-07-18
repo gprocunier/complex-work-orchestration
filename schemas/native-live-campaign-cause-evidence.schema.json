@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-live-campaign-cause-evidence.schema.json",
+  "title": "Native live-campaign successor cause evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evidence_type", "version", "schema", "evidence_id", "recorded_at",
+    "failed_authorization_id", "failed_manifest_id", "live_generation",
+    "failure_evidence_file_sha256", "failure_evidence_canonical_sha256",
+    "containment_file_sha256", "containment_canonical_sha256", "failure_class",
+    "failure_message_sha256", "falsifiable_cause", "repair_commit", "repair_tree",
+    "source_analysis_sha256", "focused_tests_passed", "repository_validation_passed",
+    "compileall_passed", "diff_check_passed", "canonical_cause_evidence_sha256"
+  ],
+  "properties": {
+    "evidence_type": {"const": "cwo-native-live-campaign-cause-evidence"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-live-campaign-cause-evidence.schema.json"},
+    "evidence_id": {"type": "string", "format": "uuid"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "failed_authorization_id": {"type": "string", "format": "uuid"},
+    "failed_manifest_id": {"type": "string", "format": "uuid"},
+    "live_generation": {"type": "integer", "minimum": 1},
+    "failure_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
+    "failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
+    "containment_file_sha256": {"$ref": "#/$defs/sha256"},
+    "containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
+    "failure_class": {"type": "string", "minLength": 1},
+    "failure_message_sha256": {"$ref": "#/$defs/sha256"},
+    "falsifiable_cause": {"type": "string", "minLength": 1},
+    "repair_commit": {"$ref": "#/$defs/git_object"},
+    "repair_tree": {"$ref": "#/$defs/git_object"},
+    "source_analysis_sha256": {"$ref": "#/$defs/sha256"},
+    "focused_tests_passed": {"type": "integer", "minimum": 1},
+    "repository_validation_passed": {"const": true},
+    "compileall_passed": {"const": true},
+    "diff_check_passed": {"const": true},
+    "canonical_cause_evidence_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_object": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+  }
+}

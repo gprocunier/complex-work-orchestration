@@ -13,7 +13,12 @@ import tempfile
 from typing import Any, Iterator, Mapping
 import uuid
 
-from .audit import iter_audit_events, record_audit_event, verify_audit_log
+from .audit import (
+    audit_event_payload_hash,
+    iter_audit_events,
+    record_audit_event,
+    verify_audit_log,
+)
 from .native_canary_contracts import canonical_sha256
 
 
@@ -353,6 +358,7 @@ def validate_live_allocation_ledger(
     value: Any,
     *,
     audit_file: Path | None = None,
+    audit_bytes: bytes | None = None,
 ) -> list[str]:
     errors: list[str] = []
     if not isinstance(value, Mapping) or set(value) != LEDGER_FIELDS:
@@ -382,8 +388,36 @@ def validate_live_allocation_ledger(
     if sequence != len(entries):
         errors.append("ledger-sequence-count-mismatch")
 
-    audits = []
-    if audit_file is not None:
+    audits: list[dict[str, Any]] = []
+    if audit_file is not None and audit_bytes is not None:
+        errors.append("ledger-audit-source-ambiguous")
+    elif audit_bytes is not None:
+        try:
+            if not isinstance(audit_bytes, bytes) or (
+                audit_bytes and not audit_bytes.endswith(b"\n")
+            ):
+                raise ValueError("partial audit snapshot")
+            decoded = audit_bytes.decode("utf-8")
+            previous_hash: str | None = None
+            for line in decoded.splitlines():
+                if not line.strip():
+                    continue
+                event = json.loads(line)
+                if not isinstance(event, dict):
+                    raise ValueError("audit event is not an object")
+                if event.get("event_hash") != audit_event_payload_hash(event):
+                    raise ValueError("audit event hash mismatch")
+                if previous_hash is None:
+                    if event.get("previous_event_hash") is not None:
+                        raise ValueError("first audit event is linked")
+                elif event.get("previous_event_hash") != previous_hash:
+                    raise ValueError("audit chain mismatch")
+                previous_hash = event.get("event_hash")
+                audits.append(event)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            errors.append("ledger-audit-chain-invalid")
+            audits = []
+    elif audit_file is not None:
         try:
             _strict_private_regular(audit_file, "ledger-audit")
             audits = iter_audit_events(audit_file)
@@ -417,7 +451,7 @@ def validate_live_allocation_ledger(
         previous = entry.get("entry_sha256") if _is_hash(entry.get("entry_sha256")) else None
         if not _is_hash(entry.get("audit_event_hash")):
             errors.append(f"ledger-entry-{index}-audit-hash-invalid")
-        elif audit_file is not None and not any(
+        elif (audit_file is not None or audit_bytes is not None) and not any(
             audit.get("event_hash") == entry.get("audit_event_hash")
             and audit.get("event_type") == "native_live_allocation_ledger_entry"
             and audit.get("dispatch_id") == ledger.get("ledger_id")

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-canary-authorization-state-v2.schema.json",
+  "title": "CWO native canary authorization state v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "authorization_type", "version", "schema", "authorization_id", "run_nonce",
+    "launch_claim_sha256", "state", "sequence", "allowed_actions", "revoked_actions",
+    "updated_at", "reason", "state_sha256"
+  ],
+  "properties": {
+    "authorization_type": {"const": "cwo-native-canary-authorization-state:v2"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-canary-authorization-state-v2.schema.json"},
+    "authorization_id": {"type": "string", "minLength": 1},
+    "run_nonce": {"type": "string", "minLength": 1},
+    "launch_claim_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "state": {"enum": ["active", "containment-only", "complete", "parked"]},
+    "sequence": {"type": "integer", "minimum": 0},
+    "allowed_actions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "revoked_actions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "reason": {"type": "string", "minLength": 1},
+    "state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

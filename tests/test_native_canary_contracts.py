@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
@@ -750,11 +751,55 @@ class NativeCanaryContractTests(unittest.TestCase):
             with self.assertRaisesRegex(NativeCanaryContractError, "transition-forbidden"):
                 store.transition("containment-only", reason="late", now="2026-07-16T00:00:02Z")
 
+    def test_v2_launch_claim_is_atomic_and_survives_transitions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "authorization.json"
+            launch_claim = hash_value("generation-seven-launch")
+
+            def claim() -> str:
+                try:
+                    CanaryAuthorizationStore(path).initialize(
+                        new_authorization_state(
+                            authorization_id="authorization-seven",
+                            run_nonce=str(uuid.uuid4()),
+                            now="2026-07-17T00:00:00Z",
+                            launch_claim_sha256=launch_claim,
+                        )
+                    )
+                except NativeCanaryContractError as exc:
+                    return str(exc)
+                return "won"
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                outcomes = list(executor.map(lambda _index: claim(), range(2)))
+            self.assertEqual(outcomes.count("won"), 1)
+            self.assertEqual(
+                sum("authorization-state-already-exists" in item for item in outcomes),
+                1,
+            )
+            store = CanaryAuthorizationStore(path)
+            active = store.load()
+            self.assertEqual(active["version"], 2)
+            self.assertEqual(active["launch_claim_sha256"], launch_claim)
+            contained = store.transition(
+                "containment-only",
+                reason="protected-fault",
+                now="2026-07-17T00:00:01Z",
+            )
+            self.assertEqual(contained["launch_claim_sha256"], launch_claim)
+            tampered = dict(contained)
+            tampered["launch_claim_sha256"] = hash_value("different-launch")
+            self.assertIn(
+                "authorization-state-sha256-mismatch",
+                validate_authorization_state(tampered),
+            )
+
     def test_schemas_are_json_and_strict(self) -> None:
         for relative in (
             "schemas/native-steering-receipt.schema.json",
             MATERIALIZATION_EVIDENCE_SCHEMA,
             CANARY_AUTHORIZATION_SCHEMA,
+            "schemas/native-canary-authorization-state-v2.schema.json",
         ):
             value = json.loads((ROOT / relative).read_text(encoding="utf-8"))
             self.assertFalse(value["additionalProperties"])
