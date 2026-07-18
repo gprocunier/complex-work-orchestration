@@ -4036,8 +4036,6 @@ def generation8_private_source_snapshots(
     proof = require_generation8_launch_inputs(inputs)
     ancestor = proof.ancestor
     grandancestor = ancestor.ancestor
-    if ancestor.authorization_cause_evidence != grandancestor.cause_evidence:
-        raise AppServerError("campaign-generation8-ancestor-cause-mismatch")
     return {
         "authorization": inputs.authorization.raw,
         "campaign-manifest": inputs.manifest.raw,
@@ -4080,6 +4078,9 @@ def generation8_private_source_snapshots(
         "ancestor-outer-authority": ancestor.outer_authority.raw,
         "ancestor-independent-validation-receipt": (
             ancestor.independent_validation_receipt.raw
+        ),
+        "grandancestor-authorization-cause-evidence": (
+            grandancestor.cause_evidence
         ),
         "grandancestor-authorization": grandancestor.authorization.raw,
         "grandancestor-manifest": grandancestor.manifest.raw,
@@ -5049,6 +5050,7 @@ GENERATION8_REQUIRED_PROOF_PATHS = {
     "ancestor-independent-validation-receipt",
     "ancestor-independent-validation-session",
     "ancestor-authorization-cause-evidence",
+    "grandancestor-authorization-cause-evidence",
     "grandancestor-authorization",
     "grandancestor-manifest",
     "grandancestor-authorization-state",
@@ -5122,6 +5124,7 @@ def main() -> int:
     parser.add_argument("--ancestor-independent-validation-session", type=Path)
     parser.add_argument("--ancestor-authorization-cause-evidence", type=Path)
     parser.add_argument("--ancestor-contained-session", type=Path, action="append")
+    parser.add_argument("--grandancestor-authorization-cause-evidence", type=Path)
     parser.add_argument("--grandancestor-authorization", type=Path)
     parser.add_argument("--grandancestor-manifest", type=Path)
     parser.add_argument("--grandancestor-authorization-state", type=Path)
@@ -5219,6 +5222,9 @@ def main() -> int:
             ),
             "ancestor-authorization-cause-evidence": (
                 args.ancestor_authorization_cause_evidence
+            ),
+            "grandancestor-authorization-cause-evidence": (
+                args.grandancestor_authorization_cause_evidence
             ),
             "grandancestor-authorization": args.grandancestor_authorization,
             "grandancestor-manifest": args.grandancestor_manifest,
@@ -5327,6 +5333,9 @@ def main() -> int:
         ancestor_authorization_cause = private_bytes_snapshot(
             "ancestor-authorization-cause-evidence"
         )
+        grandancestor_authorization_cause = private_bytes_snapshot(
+            "grandancestor-authorization-cause-evidence"
+        )
         grandancestor = HistoricalV4V1ProofInputs(
             authorization=private_json_snapshot("grandancestor-authorization"),
             manifest=private_json_snapshot("grandancestor-manifest"),
@@ -5346,7 +5355,7 @@ def main() -> int:
             allocation_audit_bytes=private_bytes_snapshot(
                 "grandancestor-allocation-audit"
             ),
-            cause_evidence=ancestor_authorization_cause,
+            cause_evidence=grandancestor_authorization_cause,
             contained_session_bytes=tuple(
                 trusted_session_snapshot(
                     f"grandancestor-contained-session-{index}"

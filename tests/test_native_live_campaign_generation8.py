@@ -859,6 +859,44 @@ class Generation8FiniteDagContractTests(unittest.TestCase):
                 tamper_errors,
             )
 
+    def test_v7_validates_ancestor_and_grandancestor_causes_independently(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            generation6, predecessor, generation8 = self._complete_chain(root)
+
+            changed_v5 = replace(
+                generation6,
+                authorization_cause_evidence=b"changed-v5-cause\n",
+            )
+            v5_errors = self._authorization_errors(
+                root,
+                replace(predecessor, ancestor=changed_v5),
+                generation8,
+            )
+            self.assertTrue(
+                any("v5-cause-evidence-binding-invalid" in item for item in v5_errors),
+                v5_errors,
+            )
+
+            changed_v4 = replace(
+                generation6.ancestor,
+                cause_evidence=b"changed-v4-cause\n",
+            )
+            v4_errors = self._authorization_errors(
+                root,
+                replace(
+                    predecessor,
+                    ancestor=replace(generation6, ancestor=changed_v4),
+                ),
+                generation8,
+            )
+            self.assertTrue(
+                any("cause-evidence-binding-invalid" in item for item in v4_errors),
+                v4_errors,
+            )
+
     def test_v7_rejects_omitted_extra_mixed_and_recursive_nodes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

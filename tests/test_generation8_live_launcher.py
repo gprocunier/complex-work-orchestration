@@ -29,6 +29,7 @@ def snapshot(label: str, **value: object) -> LIVE.JsonArtifactSnapshot:
 class Generation8LiveLauncherTests(unittest.TestCase):
     def inputs(self) -> LIVE.CampaignLaunchInputs:
         ancestor_cause = b"ancestor-authorization-cause\n"
+        grandancestor_cause = b"grandancestor-authorization-cause\n"
         grandancestor = LIVE.HistoricalV4V1ProofInputs(
             authorization=snapshot("grandancestor-authorization"),
             manifest=snapshot("grandancestor-manifest"),
@@ -38,7 +39,7 @@ class Generation8LiveLauncherTests(unittest.TestCase):
             containment=snapshot("grandancestor-containment"),
             allocation_ledger=snapshot("grandancestor-ledger"),
             allocation_audit_bytes=b"grandancestor-audit\n",
-            cause_evidence=ancestor_cause,
+            cause_evidence=grandancestor_cause,
             contained_session_bytes=(b"grandancestor-session\n",),
         )
         ancestor = LIVE.Version5PredecessorProofInputs(
@@ -153,6 +154,11 @@ class Generation8LiveLauncherTests(unittest.TestCase):
         )
         for changed in (
             {key: value for key, value in paths.items() if key != "grandancestor-manifest"},
+            {
+                key: value
+                for key, value in paths.items()
+                if key != "grandancestor-authorization-cause-evidence"
+            },
             {**paths, "ancestor-original-containment": Path("/legacy")},
         ):
             with self.assertRaisesRegex(
@@ -244,6 +250,34 @@ class Generation8LiveLauncherTests(unittest.TestCase):
                     **paths,
                 ),
             )
+
+            for field, replacement in (
+                ("ancestor", b"changed-ancestor-cause\n"),
+                ("grandancestor", b"changed-grandancestor-cause\n"),
+            ):
+                if field == "ancestor":
+                    changed_ancestor = replace(
+                        inputs.predecessor_proof.ancestor,
+                        authorization_cause_evidence=replacement,
+                    )
+                else:
+                    changed_grandancestor = replace(
+                        inputs.predecessor_proof.ancestor.ancestor,
+                        cause_evidence=replacement,
+                    )
+                    changed_ancestor = replace(
+                        inputs.predecessor_proof.ancestor,
+                        ancestor=changed_grandancestor,
+                    )
+                changed_inputs = copy.copy(inputs)
+                changed_inputs.predecessor_proof = replace(
+                    inputs.predecessor_proof,
+                    ancestor=changed_ancestor,
+                )
+                self.assertNotEqual(
+                    original,
+                    LIVE.campaign_launch_claim_sha256(changed_inputs, **paths),
+                )
 
     def test_bound_gate_runs_immediately_before_each_fake_allocation(self) -> None:
         events: list[str] = []

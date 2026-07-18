@@ -3240,10 +3240,7 @@ def _validate_v5_v2_predecessor_proof(
         errors.append("authorization-predecessor-audit-snapshot-invalid")
         return sorted(set(errors))
 
-    historical_kwargs = _historical_proof_kwargs(
-        proof.ancestor,
-        cause_evidence=proof.authorization_cause_evidence,
-    )
+    historical_kwargs = _historical_proof_kwargs(proof.ancestor)
     prior_authorization = dict(proof.authorization.value)
     prior_manifest = dict(proof.manifest.value)
     prior_state = dict(proof.authorization_state.value)
