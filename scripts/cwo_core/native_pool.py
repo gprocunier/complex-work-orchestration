@@ -638,7 +638,14 @@ class NativePoolCoordinator:
             if evidence["control_loss"]:
                 self._enter_fault("child-control-loss", control_failed=True)
             elif evidence["protected_fault"]:
-                self._enter_fault("child-protected-fault", control_failed=False)
+                first_reason = (
+                    evidence["reasons"][0]
+                    if evidence["reasons"]
+                    else "reason-unavailable"
+                )
+                self._enter_fault(
+                    f"child-protected-fault:{first_reason}", control_failed=False
+                )
         except (NativePoolError, PoolAccountingError, TypeError, ValueError) as exc:
             self._enter_fault(f"child-evidence-failed:{type(exc).__name__}:{exc}", control_failed=True)
 

@@ -1248,6 +1248,50 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
 
 
 class LiveThreadBoundaryPhaseTests(unittest.TestCase):
+    def test_porcelain_mutation_paths_preserve_status_columns(self) -> None:
+        self.assertEqual(
+            LIVE.porcelain_mutation_paths(
+                " M targets/child_1.txt\n"
+                "M  targets/staged.txt\n"
+                "R  targets/old.txt -> targets/new.txt\n"
+                '?? "targets/quoted name.txt"\n'
+            ),
+            [
+                "targets/child_1.txt",
+                "targets/new.txt",
+                "targets/quoted name.txt",
+                "targets/staged.txt",
+            ],
+        )
+
+    def test_porcelain_mutation_paths_reject_partial_or_malformed_records(self) -> None:
+        with self.assertRaisesRegex(
+            LIVE.AppServerError, "workspace-status-trailing-partial"
+        ):
+            LIVE.porcelain_mutation_paths(" M targets/child_1.txt")
+        with self.assertRaisesRegex(
+            LIVE.AppServerError, "workspace-status-record-invalid"
+        ):
+            LIVE.porcelain_mutation_paths("M targets/child_1.txt\n")
+
+    def test_workspace_mutations_use_unstripped_porcelain_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root)
+            adapter = self.adapter(root, server, clock)
+            completed = subprocess.CompletedProcess(
+                args=["git", "status"],
+                returncode=0,
+                stdout=" M targets/child_1.txt\n",
+                stderr="",
+            )
+            with mock.patch.object(LIVE.subprocess, "run", return_value=completed) as run:
+                self.assertEqual(
+                    adapter._workspace_mutations(), ["targets/child_1.txt"]
+                )
+            self.assertEqual(run.call_args.kwargs["cwd"], root)
+
     def adapter(
         self,
         root: Path,

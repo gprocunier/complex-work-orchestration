@@ -100,6 +100,7 @@ class PoolHarness:
         usage_by_child: dict[str, dict] | None = None,
         usage_sequence_by_child: dict[str, list[dict]] | None = None,
         dispositions_by_child: dict[str, tuple[str, str]] | None = None,
+        protected_fault_reasons_by_child: dict[str, list[str]] | None = None,
         budget_overrides: dict[str, int] | None = None,
         read_only: bool = False,
         control_file: Path | None = None,
@@ -145,6 +146,9 @@ class PoolHarness:
             for child_id, sequence in (usage_sequence_by_child or {}).items()
         }
         self.dispositions_by_child = dispositions_by_child or {}
+        self.protected_fault_reasons_by_child = (
+            protected_fault_reasons_by_child or {}
+        )
         self.compare_phases: list[str] = []
         self.registry = PoolLeaseRegistry(
             Path(temporary) / "leases.json",
@@ -181,14 +185,17 @@ class PoolHarness:
         session_disposition, artifact_disposition = self.dispositions_by_child.get(
             child_id, ("accepted", "accepted")
         )
+        protected_fault_reasons = self.protected_fault_reasons_by_child.get(
+            child_id, []
+        )
         return {
             "state_sha256": sha(
                 f"{child_id}:{state_file}:{len(self.adapters[child_id].calls)}"
             ),
             "usage": usage,
-            "protected_fault": False,
+            "protected_fault": bool(protected_fault_reasons),
             "control_loss": False,
-            "reasons": [],
+            "reasons": list(protected_fault_reasons),
             "session_disposition": session_disposition,
             "artifact_disposition": artifact_disposition,
         }
@@ -205,6 +212,22 @@ class PoolHarness:
 
 
 class NativePoolCoordinatorTests(unittest.TestCase):
+    def test_first_child_protected_fault_reason_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=1,
+                protected_fault_reasons_by_child={
+                    "child-0": ["unexpected-mutation:targets/child_1.txt"]
+                },
+            )
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(
+                receipt["first_protected_fault"]["code"],
+                "child-protected-fault:unexpected-mutation:targets/child_1.txt",
+            )
+
     def test_cap_one_runs_to_accepting_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=1, decisions=[["continue", "complete"]])

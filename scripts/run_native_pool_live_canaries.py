@@ -104,6 +104,7 @@ from cwo_core.native_session_boundary import (  # noqa: E402
     trusted_terminal_event,
     trusted_turn_context,
 )
+from cwo_core.workspace import status_path  # noqa: E402
 
 
 EXACT_MODEL = "gpt-5.3-codex-spark"
@@ -297,6 +298,24 @@ def run_git(cwd: Path, *args: str) -> str:
         text=True,
     )
     return completed.stdout.strip()
+
+
+def porcelain_mutation_paths(output: str) -> list[str]:
+    """Parse porcelain-v1 records without destroying the status columns."""
+
+    if output and not output.endswith("\n"):
+        raise AppServerError("workspace-status-trailing-partial")
+    values: list[str] = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        if len(line) < 4 or line[2] != " ":
+            raise AppServerError("workspace-status-record-invalid")
+        path = status_path(line)
+        if not path:
+            raise AppServerError("workspace-status-path-empty")
+        values.append(path)
+    return sorted(set(values))
 
 
 def require_repository_checkpoint(repo_root: Path, expected_head: str) -> None:
@@ -1427,12 +1446,19 @@ class LiveThreadAdapter:
         }
 
     def _workspace_mutations(self) -> list[str]:
-        output = run_git(self.worktree, "status", "--porcelain=v1", "--untracked-files=all")
-        values = []
-        for line in output.splitlines():
-            if len(line) >= 4:
-                values.append(line[3:].strip())
-        return sorted(set(values))
+        completed = subprocess.run(
+            [
+                "git",
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            cwd=self.worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return porcelain_mutation_paths(completed.stdout)
 
     def _pending_window_is_open_locked(self) -> None:
         if self._boundary_phase != "submission-acknowledged-awaiting-materialization":
