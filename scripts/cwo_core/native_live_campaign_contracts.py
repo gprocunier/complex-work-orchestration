@@ -2929,7 +2929,7 @@ def _validate_contained_session_snapshots(
             started_turns,
             record_count,
             tool_sequence,
-            _terminal_type,
+            terminal_type,
         ) = parsed_by_id[session_id]
         thread_entry = thread_entries.get(session_id, {})
         turn_entry = turn_entries.get(session_id, {})
@@ -2938,10 +2938,15 @@ def _validate_contained_session_snapshots(
             errors.append(f"{label}-session-turn-mismatch")
         role = thread_entry.get("role")
         expected_tools = CONTAINED_ROLE_TOOL_PREFIXES.get(role)
-        if (
-            expected_tools is None
-            or len(tool_sequence) > len(expected_tools)
-            or tool_sequence != expected_tools[: len(tool_sequence)]
+        if expected_tools is None or (
+            terminal_type == "task_complete"
+            and tool_sequence != expected_tools
+        ) or (
+            terminal_type == "turn_aborted"
+            and (
+                len(tool_sequence) > len(expected_tools)
+                or tool_sequence != expected_tools[: len(tool_sequence)]
+            )
         ):
             errors.append(f"{label}-session-tool-activity-invalid")
         if historical:

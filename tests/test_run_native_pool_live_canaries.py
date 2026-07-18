@@ -3541,6 +3541,28 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             contained_records = predecessor.contained_session_bytes[0].splitlines(
                 keepends=True
             )
+            completed_without_required_tools = [
+                json.loads(line) for line in contained_records
+            ]
+            completed_without_required_tools[-1]["payload"]["type"] = (
+                "task_complete"
+            )
+            completed_without_required_tools_raw = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in completed_without_required_tools
+            )
+            completed_without_required_tools_errors = validate(
+                replace(
+                    predecessor,
+                    contained_session_bytes=(
+                        completed_without_required_tools_raw,
+                    ),
+                )
+            )
+            self.assertIn(
+                "authorization-predecessor-modern-session-tool-activity-invalid",
+                completed_without_required_tools_errors,
+            )
             post_terminal = b"".join(
                 [
                     *contained_records,

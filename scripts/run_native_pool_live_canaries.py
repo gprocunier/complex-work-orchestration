@@ -2999,7 +2999,12 @@ def acquire_global_campaign_claim(
     claim_root: Path | None = None,
     registry_root: Path | None = None,
 ) -> Path:
-    """Acquire the machine-global one-shot claim for an inner authorization."""
+    """Acquire the permanent machine-global claim for one inner authorization.
+
+    A claim is an intentional one-shot tombstone, not a recoverable lock.  A
+    contained or aborted campaign must mint a fresh authorization ID and nonce;
+    deleting a prior claim would turn a forbidden resume into a replay path.
+    """
 
     authorization = inputs.authorization.value
     manifest = inputs.manifest.value
