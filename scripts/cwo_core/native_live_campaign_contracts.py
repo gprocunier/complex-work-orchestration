@@ -2691,7 +2691,8 @@ def _parse_contained_session_identity(
     session_meta_indices: list[int] = []
     started_events: list[tuple[int, str]] = []
     terminal_events: list[tuple[int, str, str]] = []
-    turn_contexts: list[tuple[int, str]] = []
+    turn_contexts: list[tuple[int, str, str | None, str | None]] = []
+    top_level_session_identities: list[Any] = []
     calls: dict[str, tuple[int, str, str]] = {}
     outputs: dict[str, tuple[int, str]] = {}
     tool_sequence: list[tuple[str, str]] = []
@@ -2699,6 +2700,8 @@ def _parse_contained_session_identity(
     for index, record in enumerate(records):
         record_type = record.get("type")
         payload = record.get("payload")
+        if "session_id" in record:
+            top_level_session_identities.append(record.get("session_id"))
         if record_type not in allowed_payload_types or not isinstance(
             payload, Mapping
         ):
@@ -2738,11 +2741,34 @@ def _parse_contained_session_identity(
             else:
                 patch_events[call_id] = (index, str(turn_id))
         elif record_type == "turn_context":
-            turn_id = payload.get("turn_id") or payload.get("turnId")
-            if not _is_uuid(turn_id):
+            snake_turn = payload.get("turn_id")
+            camel_turn = payload.get("turnId")
+            effort = payload.get("effort")
+            reasoning_effort = payload.get("reasoning_effort")
+            turn_id = snake_turn or camel_turn
+            if (
+                not _is_uuid(turn_id)
+                or (
+                    snake_turn is not None
+                    and camel_turn is not None
+                    and snake_turn != camel_turn
+                )
+                or (
+                    effort is not None
+                    and reasoning_effort is not None
+                    and effort != reasoning_effort
+                )
+            ):
                 errors.append(f"{label}-turn-context-invalid")
             else:
-                turn_contexts.append((index, str(turn_id)))
+                turn_contexts.append(
+                    (
+                        index,
+                        str(turn_id),
+                        payload.get("model"),
+                        effort or reasoning_effort,
+                    )
+                )
         elif record_type == "response_item" and payload_type == "message":
             if payload.get("role") not in {"developer", "user", "assistant"}:
                 errors.append(f"{label}-message-role-invalid")
@@ -2788,14 +2814,24 @@ def _parse_contained_session_identity(
                 errors.append(f"{label}-tool-output-invalid")
             else:
                 outputs[call_id] = (index, kind)
-    session_ids = [
-        record.get("payload", {}).get("id")
+    session_metas = [
+        record.get("payload")
         for record in records
         if record.get("type") == "session_meta"
         and isinstance(record.get("payload"), Mapping)
     ]
-    session_id = session_ids[0] if len(session_ids) == 1 else None
-    if not _is_uuid(session_id):
+    session_id = session_metas[0].get("id") if len(session_metas) == 1 else None
+    session_identities = list(top_level_session_identities)
+    if len(session_metas) == 1:
+        session_identities.append(session_metas[0].get("id"))
+        if "session_id" in session_metas[0]:
+            session_identities.append(session_metas[0].get("session_id"))
+    if (
+        not _is_uuid(session_id)
+        or not session_identities
+        or any(not _is_uuid(value) for value in session_identities)
+        or set(session_identities) != {session_id}
+    ):
         errors.append(f"{label}-session-identity-invalid")
     started_turns = {turn_id for _index, turn_id in started_events}
     if len(started_turns) != 1:
@@ -2814,8 +2850,21 @@ def _parse_contained_session_identity(
         )
     ):
         errors.append(f"{label}-terminal-boundary-invalid")
-    if any(turn_id != expected_turn for _index, turn_id in turn_contexts):
+    terminal_type = terminal_events[0][2] if len(terminal_events) == 1 else None
+    if any(
+        turn_id != expected_turn
+        for _index, turn_id, _model, _effort in turn_contexts
+    ):
         errors.append(f"{label}-turn-context-mismatch")
+    if (
+        (terminal_type == "task_complete" and len(turn_contexts) != 1)
+        or (terminal_type == "turn_aborted" and len(turn_contexts) > 1)
+        or any(
+            model != EXACT_OPERATIVE_MODEL or effort != EXACT_OPERATIVE_EFFORT
+            for _index, _turn_id, model, effort in turn_contexts
+        )
+    ):
+        errors.append(f"{label}-turn-context-attestation-invalid")
     if set(calls) != set(outputs):
         errors.append(f"{label}-tool-pairing-invalid")
     for call_id in sorted(set(calls) & set(outputs)):
@@ -2834,7 +2883,6 @@ def _parse_contained_session_identity(
             or event_turn != expected_turn
         ):
             errors.append(f"{label}-patch-event-binding-invalid")
-    terminal_type = terminal_events[0][2] if len(terminal_events) == 1 else None
     return (
         session_id,
         started_turns,

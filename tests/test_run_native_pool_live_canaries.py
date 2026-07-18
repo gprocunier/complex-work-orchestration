@@ -3762,6 +3762,14 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     },
                 },
                 {
+                    "type": "turn_context",
+                    "payload": {
+                        "turn_id": mutable_turn_id,
+                        "model": LIVE.EXACT_MODEL,
+                        "effort": "low",
+                    },
+                },
+                {
                     "type": "response_item",
                     "payload": {
                         "type": "custom_tool_call",
@@ -3829,6 +3837,59 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 CAMPAIGN_CONTRACTS.CONTAINED_ROLE_TOOL_PREFIXES["mutable-0"],
             )
             self.assertEqual(terminal_type, "task_complete")
+
+            conflicting_identity_records = json.loads(
+                json.dumps(mutable_records)
+            )
+            conflicting_identity_records[0]["payload"]["session_id"] = str(
+                uuid.uuid4()
+            )
+            conflicting_identity_records[1]["session_id"] = str(uuid.uuid4())
+            conflicting_identity = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in conflicting_identity_records
+            )
+            *_, conflicting_identity_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    conflicting_identity, "conflicting-identity"
+                )
+            )
+            self.assertIn(
+                "conflicting-identity-session-identity-invalid",
+                conflicting_identity_errors,
+            )
+
+            wrong_context_records = json.loads(json.dumps(mutable_records))
+            wrong_context_records[2]["payload"]["model"] = "gpt-5.6-sol"
+            wrong_context_records[2]["payload"]["effort"] = "max"
+            wrong_context = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in wrong_context_records
+            )
+            *_, wrong_context_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    wrong_context, "wrong-context"
+                )
+            )
+            self.assertIn(
+                "wrong-context-turn-context-attestation-invalid",
+                wrong_context_errors,
+            )
+
+            missing_context = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for index, record in enumerate(mutable_records)
+                if index != 2
+            )
+            *_, missing_context_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    missing_context, "missing-context"
+                )
+            )
+            self.assertIn(
+                "missing-context-turn-context-attestation-invalid",
+                missing_context_errors,
+            )
 
             changed_ledger = json.loads(
                 json.dumps(predecessor.allocation_ledger.value)
@@ -4047,6 +4108,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 path = root / f"{label}.jsonl"
                 path.write_bytes(raw)
                 paths[label] = path
+            inputs.source_identities = LIVE.capture_input_source_identities(paths)
             LIVE.require_trusted_session_snapshots_unchanged(paths, inputs)
             private_snapshots = {
                 "authorization": inputs.authorization.raw,
@@ -4240,23 +4302,56 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 candidate_tree=successor["checkpoint_tree"],
                 registry_root=authority_registry,
             )
+            LIVE.register_active_outer_authority(
+                successor["outer_snapshot"],
+                candidate_commit=successor["checkpoint"],
+                candidate_tree=successor["checkpoint_tree"],
+                registry_root=authority_registry,
+            )
+            changed_same_id = json.loads(
+                json.dumps(successor["outer_snapshot"].value)
+            )
+            changed_same_id["created_at"] = "2026-07-17T13:00:00Z"
+            self.seal_field(
+                changed_same_id, "canonical_outer_authority_sha256"
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "authority-id-reused"
+            ):
+                LIVE.register_active_outer_authority(
+                    self.json_snapshot(changed_same_id),
+                    candidate_commit=successor["checkpoint"],
+                    candidate_tree=successor["checkpoint_tree"],
+                    registry_root=authority_registry,
+                )
             with mock.patch.object(
                 LIVE,
-                "_fsync_private_control_directory",
-                wraps=LIVE._fsync_private_control_directory,
+                "_fsync_owned_control_directory",
+                wraps=LIVE._fsync_owned_control_directory,
             ) as durable_directory:
-                LIVE.acquire_global_campaign_claim(
+                reservation = LIVE.acquire_global_campaign_claim(
                     inputs,
                     launch_claim_sha256=claim,
                     claim_root=claim_registry,
                     registry_root=authority_registry,
                     **output_paths,
                 )
-            durable_directory.assert_called_once_with(
-                claim_registry.resolve(), "campaign-global-claim"
+            self.assertTrue(
+                any(
+                    call.args[:2]
+                    == (claim_registry.parent.resolve(), "campaign-global-claim-parent")
+                    and call.kwargs == {"require_private": False}
+                    for call in durable_directory.mock_calls
+                ),
+                durable_directory.mock_calls,
+            )
+            LIVE.transition_global_campaign_state(
+                reservation,
+                "contained",
+                terminal_evidence_sha256="f" * 64,
             )
             with self.assertRaisesRegex(
-                LIVE.AppServerError, "global-claim-already-exists"
+                LIVE.AppServerError, "global-authorization-reused"
             ):
                 LIVE.acquire_global_campaign_claim(
                     inputs,
@@ -4266,11 +4361,192 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     **output_paths,
                 )
 
+            def claim_inputs(
+                authorization_id: str, campaign_nonce: str
+            ) -> LIVE.CampaignLaunchInputs:
+                authorization_value = json.loads(
+                    json.dumps(inputs.authorization.value)
+                )
+                authorization_value["authorization_id"] = authorization_id
+                authorization_value["bindings"]["campaign_nonce"] = (
+                    campaign_nonce
+                )
+                return LIVE.CampaignLaunchInputs(
+                    authorization=self.json_snapshot(authorization_value),
+                    manifest=inputs.manifest,
+                    outer_authority=inputs.outer_authority,
+                    release_patch_bytes=inputs.release_patch_bytes,
+                    pre_mutation_receipt=inputs.pre_mutation_receipt,
+                    pre_mutation_adjudication=inputs.pre_mutation_adjudication,
+                    pre_live_receipt=inputs.pre_live_receipt,
+                    pre_live_adjudication=inputs.pre_live_adjudication,
+                    opus_review_evidence=inputs.opus_review_evidence,
+                    opus_adjudication=inputs.opus_adjudication,
+                    spark_validation_receipt=inputs.spark_validation_receipt,
+                    spark_validation_session_path=(
+                        inputs.spark_validation_session_path
+                    ),
+                    spark_validation_session_bytes=(
+                        inputs.spark_validation_session_bytes
+                    ),
+                    predecessor_proof=inputs.predecessor_proof,
+                    recovery_cause_evidence=inputs.recovery_cause_evidence,
+                    recovery_cause_source_analysis_bytes=(
+                        inputs.recovery_cause_source_analysis_bytes
+                    ),
+                )
+
+            original_authorization_id = str(
+                inputs.authorization.value["authorization_id"]
+            )
+            original_nonce = str(
+                inputs.authorization.value["bindings"]["campaign_nonce"]
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "global-authorization-reused"
+            ):
+                LIVE.acquire_global_campaign_claim(
+                    claim_inputs(original_authorization_id, str(uuid.uuid4())),
+                    launch_claim_sha256="1" * 64,
+                    claim_root=claim_registry,
+                    registry_root=authority_registry,
+                    **output_paths,
+                )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "global-nonce-reused"
+            ):
+                LIVE.acquire_global_campaign_claim(
+                    claim_inputs(str(uuid.uuid4()), original_nonce),
+                    launch_claim_sha256="2" * 64,
+                    claim_root=claim_registry,
+                    registry_root=authority_registry,
+                    **output_paths,
+                )
+            fresh_claim_inputs = claim_inputs(
+                str(uuid.uuid4()), str(uuid.uuid4())
+            )
+            fresh_reservation = LIVE.acquire_global_campaign_claim(
+                fresh_claim_inputs,
+                launch_claim_sha256="3" * 64,
+                claim_root=claim_registry,
+                registry_root=authority_registry,
+                **output_paths,
+            )
+            LIVE.transition_global_campaign_state(
+                fresh_reservation,
+                "contained",
+                terminal_evidence_sha256="d" * 64,
+            )
+
+            original_claim_write = LIVE._write_exclusive_private_bytes
+
+            def exercise_claim_crash(stage: str) -> None:
+                crash_claim_registry = root / f"crash-claim-{stage}"
+                crash_authorization_id = str(uuid.uuid4())
+                crash_nonce = str(uuid.uuid4())
+                crash_inputs = claim_inputs(
+                    crash_authorization_id, crash_nonce
+                )
+
+                def fail_at_marker(
+                    path: Path, raw: bytes, label: str
+                ) -> None:
+                    marker_kind = (
+                        "authorization"
+                        if path.name.startswith("authorization-")
+                        else "nonce"
+                        if path.name.startswith("nonce-")
+                        else None
+                    )
+                    if (
+                        label == "campaign-global-claim-marker"
+                        and marker_kind == stage
+                    ):
+                        raise LIVE.AppServerError("injected-claim-crash")
+                    original_claim_write(path, raw, label)
+
+                if stage == "reservation":
+                    with mock.patch.object(
+                        LIVE,
+                        "_write_scope_campaign_state",
+                        side_effect=LIVE.AppServerError(
+                            "injected-claim-crash"
+                        ),
+                    ):
+                        with self.assertRaisesRegex(
+                            LIVE.AppServerError, "injected-claim-crash"
+                        ):
+                            LIVE.acquire_global_campaign_claim(
+                                crash_inputs,
+                                launch_claim_sha256="4" * 64,
+                                claim_root=crash_claim_registry,
+                                registry_root=authority_registry,
+                                **output_paths,
+                            )
+                else:
+                    with mock.patch.object(
+                        LIVE,
+                        "_write_exclusive_private_bytes",
+                        side_effect=fail_at_marker,
+                    ):
+                        with self.assertRaisesRegex(
+                            LIVE.AppServerError, "injected-claim-crash"
+                        ):
+                            LIVE.acquire_global_campaign_claim(
+                                crash_inputs,
+                                launch_claim_sha256="4" * 64,
+                                claim_root=crash_claim_registry,
+                                registry_root=authority_registry,
+                                **output_paths,
+                            )
+                crash_values = [
+                    LIVE.load_private_json(path, "crash-claim")
+                    for path in crash_claim_registry.glob("*.json")
+                ]
+                self.assertTrue(
+                    any(
+                        item.get("claim_type")
+                        == "cwo-native-live-campaign-global-claim"
+                        for item in crash_values
+                    )
+                )
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "global-authorization-reused"
+                ):
+                    LIVE.acquire_global_campaign_claim(
+                        claim_inputs(
+                            crash_authorization_id, str(uuid.uuid4())
+                        ),
+                        launch_claim_sha256="5" * 64,
+                        claim_root=crash_claim_registry,
+                        registry_root=authority_registry,
+                        **output_paths,
+                    )
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "global-nonce-reused"
+                ):
+                    LIVE.acquire_global_campaign_claim(
+                        claim_inputs(str(uuid.uuid4()), crash_nonce),
+                        launch_claim_sha256="6" * 64,
+                        claim_root=crash_claim_registry,
+                        registry_root=authority_registry,
+                        **output_paths,
+                    )
+
+            for crash_stage in ("authorization", "nonce", "reservation"):
+                exercise_claim_crash(crash_stage)
+
             replacement_outer = json.loads(
                 json.dumps(successor["outer_snapshot"].value)
             )
             replacement_outer["supersession"] = {
-                "prior_outer_authority_id": replacement_outer["authority_id"]
+                "prior_outer_authority_id": replacement_outer["authority_id"],
+                "prior_outer_authority_file_sha256": successor[
+                    "outer_snapshot"
+                ].raw_sha256,
+                "prior_outer_authority_canonical_sha256": replacement_outer[
+                    "canonical_outer_authority_sha256"
+                ],
             }
             replacement_outer["authority_id"] = str(uuid.uuid4())
             self.seal_field(
@@ -4282,6 +4558,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             permit_claim_write = threading.Event()
             replacement_finished = threading.Event()
             thread_errors: list[BaseException] = []
+            replacement_errors: list[BaseException] = []
+            atomic_reservations: list[LIVE.GlobalCampaignReservation] = []
             original_write = LIVE._write_exclusive_private_bytes
 
             def gated_write(path: Path, raw: bytes, label: str) -> None:
@@ -4293,12 +4571,14 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
             def claim_worker() -> None:
                 try:
-                    LIVE.acquire_global_campaign_claim(
-                        inputs,
-                        launch_claim_sha256=claim,
-                        claim_root=atomic_claim_registry,
-                        registry_root=authority_registry,
-                        **output_paths,
+                    atomic_reservations.append(
+                        LIVE.acquire_global_campaign_claim(
+                            inputs,
+                            launch_claim_sha256=claim,
+                            claim_root=atomic_claim_registry,
+                            registry_root=authority_registry,
+                            **output_paths,
+                        )
                     )
                 except BaseException as exc:  # pragma: no cover - asserted below
                     thread_errors.append(exc)
@@ -4312,7 +4592,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                         registry_root=authority_registry,
                     )
                 except BaseException as exc:  # pragma: no cover - asserted below
-                    thread_errors.append(exc)
+                    replacement_errors.append(exc)
                 finally:
                     replacement_finished.set()
 
@@ -4331,11 +4611,73 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertFalse(claim_thread.is_alive())
             self.assertFalse(replacement_thread.is_alive())
             self.assertEqual(thread_errors, [])
+            self.assertEqual(len(atomic_reservations), 1)
+            self.assertEqual(len(replacement_errors), 1)
+            self.assertIn(
+                "active-scope-campaign-nonterminal",
+                str(replacement_errors[0]),
+            )
+            LIVE.validate_active_outer_authority(
+                successor["outer_snapshot"],
+                candidate_commit=successor["checkpoint"],
+                candidate_tree=successor["checkpoint_tree"],
+                registry_root=authority_registry,
+            )
+            LIVE.transition_global_campaign_state(
+                atomic_reservations[0],
+                "active",
+                outer_authority=successor["outer_snapshot"],
+                candidate_commit=successor["checkpoint"],
+                candidate_tree=successor["checkpoint_tree"],
+                registry_root=authority_registry,
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "active-scope-campaign-nonterminal"
+            ):
+                LIVE.register_active_outer_authority(
+                    replacement_snapshot,
+                    candidate_commit=successor["checkpoint"],
+                    candidate_tree=successor["checkpoint_tree"],
+                    registry_root=authority_registry,
+                )
+            LIVE.transition_global_campaign_state(
+                atomic_reservations[0],
+                "terminal",
+                terminal_evidence_sha256="e" * 64,
+            )
+            LIVE.register_active_outer_authority(
+                replacement_snapshot,
+                candidate_commit=successor["checkpoint"],
+                candidate_tree=successor["checkpoint_tree"],
+                registry_root=authority_registry,
+            )
             with self.assertRaisesRegex(
                 LIVE.AppServerError, "registry-mismatch"
             ):
                 LIVE.validate_active_outer_authority(
                     successor["outer_snapshot"],
+                    candidate_commit=successor["checkpoint"],
+                    candidate_tree=successor["checkpoint_tree"],
+                    registry_root=authority_registry,
+                )
+            recycled_outer = json.loads(
+                json.dumps(successor["outer_snapshot"].value)
+            )
+            recycled_outer["supersession"] = {
+                "prior_outer_authority_id": replacement_outer["authority_id"],
+                "prior_outer_authority_file_sha256": replacement_snapshot.raw_sha256,
+                "prior_outer_authority_canonical_sha256": replacement_outer[
+                    "canonical_outer_authority_sha256"
+                ],
+            }
+            self.seal_field(
+                recycled_outer, "canonical_outer_authority_sha256"
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "authority-id-reused"
+            ):
+                LIVE.register_active_outer_authority(
+                    self.json_snapshot(recycled_outer),
                     candidate_commit=successor["checkpoint"],
                     candidate_tree=successor["checkpoint_tree"],
                     registry_root=authority_registry,
@@ -4364,6 +4706,297 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 / ".codex",
             )
             self.assertNotEqual(stable_root, Path(alternate_home) / ".codex")
+
+    def test_existing_control_root_and_parent_are_fsynced(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            control_root = parent / "existing-control-root"
+            control_root.mkdir(mode=0o700)
+            with mock.patch.object(
+                LIVE,
+                "_fsync_owned_control_directory",
+                wraps=LIVE._fsync_owned_control_directory,
+            ) as durable_directory:
+                self.assertEqual(
+                    LIVE._private_control_directory(control_root, "existing"),
+                    control_root,
+                )
+            self.assertTrue(
+                any(
+                    call.args[:2] == (control_root, "existing")
+                    and call.kwargs == {"require_private": True}
+                    for call in durable_directory.mock_calls
+                ),
+                durable_directory.mock_calls,
+            )
+            self.assertTrue(
+                any(
+                    call.args[:2] == (parent, "existing-parent")
+                    and call.kwargs == {"require_private": False}
+                    for call in durable_directory.mock_calls
+                ),
+                durable_directory.mock_calls,
+            )
+
+            original_fsync = LIVE._fsync_owned_control_directory
+
+            def fail_parent_fsync(
+                path: Path, label: str, *, require_private: bool
+            ) -> None:
+                if path == parent:
+                    raise LIVE.AppServerError("injected-parent-fsync-failure")
+                original_fsync(
+                    path, label, require_private=require_private
+                )
+
+            with mock.patch.object(
+                LIVE,
+                "_fsync_owned_control_directory",
+                side_effect=fail_parent_fsync,
+            ):
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "injected-parent-fsync-failure"
+                ):
+                    LIVE._private_control_directory(control_root, "existing")
+
+    def test_conflicting_legacy_claims_quarantine_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            authorization_id = str(uuid.uuid4())
+
+            def legacy_claim(nonce: str) -> dict:
+                identity = {
+                    "authorization_id": authorization_id,
+                    "run_generation": 11,
+                    "live_generation": 6,
+                    "campaign_nonce": nonce,
+                }
+                value = {
+                    "claim_type": "cwo-native-live-campaign-global-claim",
+                    "version": 1,
+                    "identity": identity,
+                    "identity_sha256": LIVE.domain_sha256(
+                        identity, domain="native-live-global-claim"
+                    ),
+                }
+                value["canonical_claim_sha256"] = LIVE.domain_sha256(
+                    value, domain="native-live-global-claim-artifact"
+                )
+                return value
+
+            for index in range(2):
+                value = legacy_claim(str(uuid.uuid4()))
+                path = root / f"legacy-{index}.json"
+                path.write_text(
+                    json.dumps(value, sort_keys=True), encoding="utf-8"
+                )
+                path.chmod(0o600)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "global-claim-marker-conflict"
+            ):
+                LIVE._migrate_global_claim_markers(root)
+
+    def test_historical_campaign_contract_is_not_operative(self) -> None:
+        with self.assertRaisesRegex(
+            LIVE.AppServerError,
+            "campaign-authorization-version-historical-only",
+        ):
+            LIVE.require_operative_campaign_contract(5, 2)
+        with self.assertRaisesRegex(
+            LIVE.AppServerError, "campaign-contract-version-mismatch"
+        ):
+            LIVE.require_operative_campaign_contract(6, 2)
+        LIVE.require_operative_campaign_contract(6, 3)
+
+    def test_legacy_authority_history_requires_complete_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            registry_root = root / "authority-registry"
+            candidate_commit = "1" * 40
+            candidate_tree = "2" * 40
+            scope = {
+                "epic_id": "complex-work-orchestration-18w",
+                "parent_work_unit_id": "complex-work-orchestration-18w.6",
+            }
+            scope_key = LIVE.active_outer_authority_scope_key(
+                scope["epic_id"], scope["parent_work_unit_id"]
+            )
+
+            def outer(
+                authority_id: str,
+                *,
+                predecessor: LIVE.JsonArtifactSnapshot | None = None,
+            ) -> dict:
+                value = {
+                    "authority_type": "cwo-full-auto-outer-recovery-authority",
+                    "version": 1,
+                    "authority_id": authority_id,
+                    "status": "active",
+                    "scope": scope,
+                    "active_registry": {
+                        "contract": "cwo-active-outer-authority-registry:v1",
+                        "scope_key": scope_key,
+                    },
+                    "bindings": {
+                        "candidate_commit": candidate_commit,
+                        "candidate_tree": candidate_tree,
+                    },
+                }
+                if predecessor is not None:
+                    value["supersession"] = {
+                        "prior_outer_authority_id": predecessor.value[
+                            "authority_id"
+                        ],
+                        "prior_outer_authority_file_sha256": (
+                            predecessor.raw_sha256
+                        ),
+                        "prior_outer_authority_canonical_sha256": (
+                            predecessor.value[
+                                "canonical_outer_authority_sha256"
+                            ]
+                        ),
+                    }
+                self.seal_field(value, "canonical_outer_authority_sha256")
+                return value
+
+            first = self.json_snapshot(outer(str(uuid.uuid4())))
+            LIVE.register_active_outer_authority(
+                first,
+                candidate_commit=candidate_commit,
+                candidate_tree=candidate_tree,
+                registry_root=registry_root,
+            )
+            active_path, _lock_path, _scope_key = (
+                LIVE._active_authority_registry_path(
+                    first.value, registry_root
+                )
+            )
+            current = LIVE.load_private_json(
+                active_path, "active-outer-authority-registry"
+            )
+            history_path = LIVE._authority_history_path(
+                active_path.parent,
+                scope_key,
+                str(first.value["authority_id"]),
+            )
+            history_path.unlink()
+
+            replacement_value = outer(str(uuid.uuid4()), predecessor=first)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "authority-history-seed-missing"
+            ):
+                LIVE.register_active_outer_authority(
+                    self.json_snapshot(replacement_value),
+                    candidate_commit=candidate_commit,
+                    candidate_tree=candidate_tree,
+                    registry_root=registry_root,
+                )
+
+            seed_entry = {
+                "authority_id": current["authority_id"],
+                "authority_file_sha256": current[
+                    "authority_file_sha256"
+                ],
+                "authority_canonical_sha256": current[
+                    "authority_canonical_sha256"
+                ],
+                "candidate_commit": current["candidate_commit"],
+                "candidate_tree": current["candidate_tree"],
+                "predecessor_authority_id": None,
+            }
+
+            mismatched = json.loads(json.dumps(replacement_value))
+            mismatched_seed = {
+                "contract": "cwo-native-live-authority-history-seed:v1",
+                "complete": True,
+                "entries": [
+                    {**seed_entry, "candidate_tree": "3" * 40}
+                ],
+            }
+            self.seal_field(mismatched_seed, "canonical_seed_sha256")
+            mismatched["authority_history_seed"] = mismatched_seed
+            self.seal_field(mismatched, "canonical_outer_authority_sha256")
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "authority-history-seed-current-mismatch",
+            ):
+                LIVE.register_active_outer_authority(
+                    self.json_snapshot(mismatched),
+                    candidate_commit=candidate_commit,
+                    candidate_tree=candidate_tree,
+                    registry_root=registry_root,
+                )
+
+            seed = {
+                "contract": "cwo-native-live-authority-history-seed:v1",
+                "complete": True,
+                "entries": [seed_entry],
+            }
+            self.seal_field(seed, "canonical_seed_sha256")
+            replacement_value["authority_history_seed"] = seed
+            self.seal_field(
+                replacement_value, "canonical_outer_authority_sha256"
+            )
+            replacement = self.json_snapshot(replacement_value)
+            LIVE.register_active_outer_authority(
+                replacement,
+                candidate_commit=candidate_commit,
+                candidate_tree=candidate_tree,
+                registry_root=registry_root,
+            )
+            self.assertTrue(history_path.is_file())
+            self.assertTrue(
+                LIVE._authority_history_path(
+                    active_path.parent,
+                    scope_key,
+                    str(replacement.value["authority_id"]),
+                ).is_file()
+            )
+
+    def test_descriptor_identity_blocks_replacement_read_restore(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source.json"
+            attacker = root / "attacker.json"
+            saved = root / "saved.json"
+            source.write_text('{"source":true}\n', encoding="utf-8")
+            attacker.write_text('{"attacker":true}\n', encoding="utf-8")
+            source.chmod(0o600)
+            attacker.chmod(0o600)
+            identity = LIVE.capture_input_source_identities(
+                {"source": source}
+            )["source"]
+            original_open = LIVE.os.open
+
+            def replacement_open(path: object, flags: int, *args: object) -> int:
+                if Path(path) == source.resolve():
+                    LIVE.os.replace(source, saved)
+                    LIVE.os.replace(attacker, source)
+                    descriptor = original_open(path, flags, *args)
+                    LIVE.os.replace(source, attacker)
+                    LIVE.os.replace(saved, source)
+                    return descriptor
+                return original_open(path, flags, *args)
+
+            with mock.patch.object(LIVE.os, "open", side_effect=replacement_open):
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "source-identity-changed"
+                ):
+                    LIVE.load_private_bytes(
+                        source,
+                        "source",
+                        expected_identity=identity,
+                    )
+            with mock.patch.object(LIVE.os, "open", side_effect=replacement_open):
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "source-identity-changed"
+                ):
+                    LIVE.load_trusted_session_bytes(
+                        source,
+                        "source-session",
+                        expected_identity=identity,
+                    )
 
     def test_independent_validation_session_rejects_tool_activity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
