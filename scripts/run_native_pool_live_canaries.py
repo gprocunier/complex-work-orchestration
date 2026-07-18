@@ -40,12 +40,14 @@ from cwo_core.native_live_campaign_contracts import (  # noqa: E402
     VALIDATOR_CONTRACT_PATHS,
     Version5PredecessorProofInputs,
     Version6PredecessorProofInputs,
+    Version7QuarantinePredecessorProofInputs,
     active_outer_authority_scope_key,
     validate_campaign_manifest,
     validate_full_auto_authorization as validate_full_auto_authorization_contract,
     validate_release_patch_result,
     validator_contract_sha256,
     validator_contract_sha256_v2,
+    validator_contract_sha256_v3,
 )
 from cwo_core.native_canary_contracts import (  # noqa: E402
     CanaryAuthorizationStore,
@@ -108,6 +110,41 @@ EXACT_MODEL = "gpt-5.3-codex-spark"
 CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
 POST_SUBMISSION_MATERIALIZATION_GRACE_MS = POOL_POLL_LAG_TOLERANCE_MS
 PROVISIONAL_TERMINAL_GRACE_SECONDS = 5.0
+THREAD_READ_TIMEOUT_SECONDS = 15.0
+CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
+CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
+CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE = (
+    "cwo-calibration-thread-read-recovery-telemetry:v1"
+)
+CALIBRATION_READ_RECOVERY_POLICY = (
+    "single-calibration-wide-replacement-pre-attestation-materialization"
+)
+CALIBRATION_READ_RECOVERY_TELEMETRY_FIELDS = {
+    "telemetry_type",
+    "version",
+    "policy",
+    "method",
+    "code",
+    "replacement_attempt_max",
+    "token_consumed",
+    "replacement_attempt_count",
+    "phase",
+    "failed_callback_latency_ms",
+    "remaining_deadline_ms_before_scheduling",
+    "remaining_deadline_ms_before_attempt",
+    "attestation_observed_at_fault",
+    "connection_epoch_sha256",
+    "prior_source_identity_sha256",
+    "prior_boundary_sha256",
+    "fault_boundary_record_count",
+    "fault_boundary_byte_offset",
+    "pre_attempt_source_identity_sha256",
+    "pre_attempt_boundary_sha256",
+    "pre_attempt_boundary_record_count",
+    "pre_attempt_boundary_byte_offset",
+    "outcome",
+    "telemetry_sha256",
+}
 OPERATIVE_ITEM_TYPES = {
     "commandExecution",
     "fileChange",
@@ -181,6 +218,7 @@ class CampaignLaunchInputs:
         predecessor_proof: (
             Version5PredecessorProofInputs
             | Version6PredecessorProofInputs
+            | Version7QuarantinePredecessorProofInputs
             | None
         ) = None,
         recovery_cause_evidence: JsonArtifactSnapshot | None = None,
@@ -340,14 +378,17 @@ def validate_full_auto_authorization(
     predecessor_allocation_audit_bytes: bytes | None = None,
     cause_evidence: bytes | None = None,
     predecessor_proof: (
-        Version5PredecessorProofInputs | Version6PredecessorProofInputs | None
+        Version5PredecessorProofInputs
+        | Version6PredecessorProofInputs
+        | Version7QuarantinePredecessorProofInputs
+        | None
     ) = None,
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
     recovery_cause_source_analysis: bytes | None = None,
     expected_validator_contract_sha256: str | None = None,
     repo_root: Path,
 ) -> tuple[str, str]:
-    if authorization.get("version") in {6, 7}:
+    if authorization.get("version") in {6, 7, 8}:
         errors = validate_full_auto_authorization_contract(
             authorization,
             expected_campaign_nonce=campaign_nonce,
@@ -467,6 +508,241 @@ class AppServerError(RuntimeError):
     pass
 
 
+class AppServerRpcError(AppServerError):
+    """One request-correlated JSON-RPC error with trusted local method context."""
+
+    def __init__(
+        self,
+        *,
+        method: str,
+        code: int,
+        request_id: int,
+        latency_ms: float,
+    ) -> None:
+        if not isinstance(method, str) or not method:
+            raise ValueError("app-server-rpc-error-method-invalid")
+        if type(code) is not int:
+            raise ValueError("app-server-rpc-error-code-invalid")
+        if type(request_id) is not int or request_id < 0:
+            raise ValueError("app-server-rpc-error-request-id-invalid")
+        if (
+            isinstance(latency_ms, bool)
+            or not isinstance(latency_ms, (int, float))
+            or not math.isfinite(float(latency_ms))
+            or float(latency_ms) < 0
+        ):
+            raise ValueError("app-server-rpc-error-latency-invalid")
+        self.method = method
+        self.code = code
+        self.request_id = request_id
+        self.latency_ms = float(latency_ms)
+        super().__init__(f"app-server-request-failed:{method}:{code}")
+
+
+def validate_calibration_read_recovery_telemetry(
+    value: Mapping[str, Any],
+) -> list[str]:
+    """Validate the closed, privacy-safe calibration read-recovery record."""
+
+    errors: list[str] = []
+    if not isinstance(value, Mapping):
+        return ["read-recovery-telemetry-not-object"]
+    telemetry = dict(value)
+    if set(telemetry) != CALIBRATION_READ_RECOVERY_TELEMETRY_FIELDS:
+        errors.append("read-recovery-telemetry-fields-invalid")
+    if telemetry.get("telemetry_type") != CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE:
+        errors.append("read-recovery-telemetry-type-invalid")
+    if type(telemetry.get("version")) is not int or telemetry.get("version") != 1:
+        errors.append("read-recovery-telemetry-version-invalid")
+    if telemetry.get("policy") != CALIBRATION_READ_RECOVERY_POLICY:
+        errors.append("read-recovery-telemetry-policy-invalid")
+    if (
+        type(telemetry.get("replacement_attempt_max")) is not int
+        or telemetry.get("replacement_attempt_max") != 1
+    ):
+        errors.append("read-recovery-replacement-max-invalid")
+    if not isinstance(telemetry.get("token_consumed"), bool):
+        errors.append("read-recovery-token-consumed-invalid")
+    attempt_count = telemetry.get("replacement_attempt_count")
+    if (
+        type(attempt_count) is not int
+        or attempt_count not in {0, 1}
+    ):
+        errors.append("read-recovery-attempt-count-invalid")
+    for field in (
+        "failed_callback_latency_ms",
+        "remaining_deadline_ms_before_scheduling",
+        "remaining_deadline_ms_before_attempt",
+    ):
+        current = telemetry.get(field)
+        if current is not None and (
+            isinstance(current, bool)
+            or not isinstance(current, (int, float))
+            or not math.isfinite(float(current))
+            or float(current) < 0
+        ):
+            errors.append(f"read-recovery-{field.replace('_', '-')}-invalid")
+    for field in ("connection_epoch_sha256", "prior_boundary_sha256"):
+        current = telemetry.get(field)
+        if not isinstance(current, str) or re.fullmatch(r"[0-9a-f]{64}", current) is None:
+            errors.append(f"read-recovery-{field.replace('_', '-')}-invalid")
+    for field in (
+        "prior_source_identity_sha256",
+        "pre_attempt_source_identity_sha256",
+    ):
+        current = telemetry.get(field)
+        if current is not None and (
+            not isinstance(current, str)
+            or re.fullmatch(r"[0-9a-f]{64}", current) is None
+        ):
+            errors.append(f"read-recovery-{field.replace('_', '-')}-invalid")
+    for field in (
+        "pre_attempt_boundary_sha256",
+    ):
+        current = telemetry.get(field)
+        if current is not None and (
+            not isinstance(current, str)
+            or re.fullmatch(r"[0-9a-f]{64}", current) is None
+        ):
+            errors.append(f"read-recovery-{field.replace('_', '-')}-invalid")
+    for field in (
+        "fault_boundary_record_count",
+        "fault_boundary_byte_offset",
+        "pre_attempt_boundary_record_count",
+        "pre_attempt_boundary_byte_offset",
+    ):
+        current = telemetry.get(field)
+        if current is not None and (
+            type(current) is not int or current < 0
+        ):
+            errors.append(f"read-recovery-{field.replace('_', '-')}-invalid")
+    outcome = telemetry.get("outcome")
+    if outcome not in {"not-needed", "recovered"}:
+        errors.append("read-recovery-outcome-invalid")
+    if outcome == "not-needed":
+        if any(
+            telemetry.get(field) is not None
+            for field in (
+                "method",
+                "code",
+                "phase",
+                "failed_callback_latency_ms",
+                "remaining_deadline_ms_before_scheduling",
+                "remaining_deadline_ms_before_attempt",
+                "attestation_observed_at_fault",
+                "prior_source_identity_sha256",
+                "fault_boundary_record_count",
+                "fault_boundary_byte_offset",
+                "pre_attempt_source_identity_sha256",
+                "pre_attempt_boundary_sha256",
+                "pre_attempt_boundary_record_count",
+                "pre_attempt_boundary_byte_offset",
+            )
+        ):
+            errors.append("read-recovery-unused-fields-invalid")
+        if telemetry.get("token_consumed") is not False or attempt_count != 0:
+            errors.append("read-recovery-unused-budget-invalid")
+    elif outcome == "recovered":
+        if telemetry.get("method") != "thread/read":
+            errors.append("read-recovery-method-invalid")
+        code = telemetry.get("code")
+        if type(code) is not int or code != -32603:
+            errors.append("read-recovery-code-invalid")
+        if telemetry.get("phase") != "materialization":
+            errors.append("read-recovery-phase-invalid")
+        if telemetry.get("attestation_observed_at_fault") is not False:
+            errors.append("read-recovery-attestation-state-invalid")
+        if telemetry.get("token_consumed") is not True or attempt_count != 1:
+            errors.append("read-recovery-consumption-invalid")
+        if any(
+            telemetry.get(field) is None
+            for field in (
+                "failed_callback_latency_ms",
+                "remaining_deadline_ms_before_scheduling",
+                "remaining_deadline_ms_before_attempt",
+                "fault_boundary_record_count",
+                "fault_boundary_byte_offset",
+                "pre_attempt_boundary_sha256",
+                "pre_attempt_boundary_record_count",
+                "pre_attempt_boundary_byte_offset",
+            )
+        ):
+            errors.append("read-recovery-timing-missing")
+        prior_source = telemetry.get("prior_source_identity_sha256")
+        record_count = telemetry.get("fault_boundary_record_count")
+        byte_offset = telemetry.get("fault_boundary_byte_offset")
+        if record_count == 0:
+            if (
+                byte_offset != 0
+                or prior_source is not None
+                or telemetry.get("prior_boundary_sha256") != sha256_bytes(b"")
+            ):
+                errors.append("read-recovery-empty-fault-boundary-invalid")
+        elif (
+            type(record_count) is int
+            and record_count > 0
+            and (type(byte_offset) is not int or byte_offset <= 0 or prior_source is None)
+        ):
+            errors.append("read-recovery-materialized-fault-boundary-invalid")
+        pre_attempt_source = telemetry.get("pre_attempt_source_identity_sha256")
+        pre_attempt_count = telemetry.get("pre_attempt_boundary_record_count")
+        pre_attempt_offset = telemetry.get("pre_attempt_boundary_byte_offset")
+        if pre_attempt_count == 0:
+            if (
+                pre_attempt_offset != 0
+                or pre_attempt_source is not None
+                or telemetry.get("pre_attempt_boundary_sha256")
+                != sha256_bytes(b"")
+            ):
+                errors.append("read-recovery-empty-pre-attempt-boundary-invalid")
+        elif (
+            type(pre_attempt_count) is int
+            and pre_attempt_count > 0
+            and (
+                type(pre_attempt_offset) is not int
+                or pre_attempt_offset <= 0
+                or pre_attempt_source is None
+            )
+        ):
+            errors.append(
+                "read-recovery-materialized-pre-attempt-boundary-invalid"
+            )
+        if (
+            type(record_count) is int
+            and type(pre_attempt_count) is int
+            and pre_attempt_count < record_count
+        ):
+            errors.append("read-recovery-pre-attempt-record-count-regressed")
+        if (
+            type(byte_offset) is int
+            and type(pre_attempt_offset) is int
+            and pre_attempt_offset < byte_offset
+        ):
+            errors.append("read-recovery-pre-attempt-byte-offset-regressed")
+        if (
+            prior_source is not None
+            and pre_attempt_source is not None
+            and pre_attempt_source != prior_source
+        ):
+            errors.append("read-recovery-pre-attempt-source-changed")
+    expected_sha256 = canonical_sha256(
+        {key: item for key, item in telemetry.items() if key != "telemetry_sha256"}
+    )
+    if telemetry.get("telemetry_sha256") != expected_sha256:
+        errors.append("read-recovery-telemetry-sha256-invalid")
+    return errors
+
+
+def seal_calibration_read_recovery_telemetry(
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    sealed = seal_artifact(value, "telemetry_sha256")
+    errors = validate_calibration_read_recovery_telemetry(sealed)
+    if errors:
+        raise AppServerError("capability-read-recovery-telemetry-invalid:" + ";".join(errors))
+    return sealed
+
+
 class LivePoolProtectedFault(AppServerError):
     def __init__(self, first_protected_fault: Mapping[str, Any] | None) -> None:
         self.first_protected_fault = (
@@ -546,7 +822,7 @@ class AppServer:
                         self._condition.notify_all()
                     continue
                 with self._condition:
-                    if isinstance(message.get("id"), int) and (
+                    if type(message.get("id")) is int and (
                         "result" in message or "error" in message
                     ):
                         self._responses[int(message["id"])] = message
@@ -599,10 +875,24 @@ class AppServer:
             message = self._responses.pop(request_id)
         latency_ms = (time.monotonic_ns() - started) / 1_000_000
         self.rpc_latencies.setdefault(method, []).append(latency_ms)
+        if type(message.get("id")) is not int or message.get("id") != request_id:
+            raise AppServerError(f"app-server-response-id-invalid:{method}")
         if "error" in message:
-            error = message.get("error") if isinstance(message.get("error"), Mapping) else {}
-            code = error.get("code", "unknown")
-            raise AppServerError(f"app-server-request-failed:{method}:{code}")
+            if "result" in message or not isinstance(message.get("error"), Mapping):
+                raise AppServerError(f"app-server-error-response-invalid:{method}")
+            error = message["error"]
+            code = error.get("code")
+            if (
+                type(code) is not int
+                or not isinstance(error.get("message"), str)
+            ):
+                raise AppServerError(f"app-server-error-response-invalid:{method}")
+            raise AppServerRpcError(
+                method=method,
+                code=code,
+                request_id=request_id,
+                latency_ms=latency_ms,
+            )
         result = message.get("result")
         if not isinstance(result, dict):
             raise AppServerError(f"app-server-result-invalid:{method}")
@@ -664,9 +954,16 @@ class AppServer:
             raise AppServerError("thread-start-model-mismatch")
         return dict(result), latency
 
-    def read_thread(self, thread_id: str) -> tuple[dict[str, Any], float]:
+    def read_thread(
+        self,
+        thread_id: str,
+        *,
+        timeout: float = THREAD_READ_TIMEOUT_SECONDS,
+    ) -> tuple[dict[str, Any], float]:
         result, latency = self.request(
-            "thread/read", {"threadId": thread_id, "includeTurns": True}, timeout=15
+            "thread/read",
+            {"threadId": thread_id, "includeTurns": True},
+            timeout=timeout,
         )
         thread = result.get("thread")
         if not isinstance(thread, Mapping) or thread.get("id") != thread_id:
@@ -1418,8 +1715,11 @@ def calibration(
     run_nonce: str,
     phase_nonce: str,
     materialization_timeout_seconds: float = 10.0,
+    pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     samples: dict[str, list[float]] = {}
+    if pre_allocation_check is not None:
+        pre_allocation_check()
     result, preallocation_latency = server.start_thread(
         cwd, mutable=False, role="capability-calibration"
     )
@@ -1476,6 +1776,33 @@ def calibration(
     control_started_ns = time.monotonic_ns()
     control_observations: list[dict[str, Any]] = []
     projection_started_ns: int | None = None
+    attestation_observed = False
+    read_recovery_pending = False
+    read_recovery: dict[str, Any] = {
+        "telemetry_type": CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE,
+        "version": 1,
+        "policy": CALIBRATION_READ_RECOVERY_POLICY,
+        "method": None,
+        "code": None,
+        "replacement_attempt_max": 1,
+        "token_consumed": False,
+        "replacement_attempt_count": 0,
+        "phase": None,
+        "failed_callback_latency_ms": None,
+        "remaining_deadline_ms_before_scheduling": None,
+        "remaining_deadline_ms_before_attempt": None,
+        "attestation_observed_at_fault": None,
+        "connection_epoch_sha256": server.connection_epoch_sha256,
+        "prior_source_identity_sha256": None,
+        "prior_boundary_sha256": strict_baseline["boundary_sha256"],
+        "fault_boundary_record_count": None,
+        "fault_boundary_byte_offset": None,
+        "pre_attempt_source_identity_sha256": None,
+        "pre_attempt_boundary_sha256": None,
+        "pre_attempt_boundary_record_count": None,
+        "pre_attempt_boundary_byte_offset": None,
+        "outcome": "not-needed",
+    }
 
     def public_boundary(value: Mapping[str, Any]) -> dict[str, Any]:
         return {
@@ -1585,9 +1912,14 @@ def calibration(
 
     def observe(
         phase: str = "materialization",
+        *,
+        read_timeout_seconds: float = THREAD_READ_TIMEOUT_SECONDS,
     ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        thread, _latency = server.read_thread(thread_id)
-        nonlocal trusted_source_identity, observed_prefix
+        thread, _latency = server.read_thread(
+            thread_id,
+            timeout=read_timeout_seconds,
+        )
+        nonlocal attestation_observed, trusted_source_identity, observed_prefix
         projected_status = normalize_projected_status(turn_status(thread, turn_id))
         previous_boundary = dict(observed_prefix)
         try:
@@ -1635,6 +1967,8 @@ def calibration(
             raise AppServerError("capability-trusted-model-effort-mismatch")
         if len(contexts) > 1:
             raise AppServerError("capability-current-turn-context-not-singular")
+        if len(contexts) == 1:
+            attestation_observed = True
         markers = telemetry_markers(records, turn_id=turn_id)
         if markers["compaction_indices"] or markers["reroute_indices"]:
             raise AppServerError("capability-session-containment-failed")
@@ -1818,21 +2152,247 @@ def calibration(
             "ambiguous_event_count": 0,
         })
 
+    def capture_recovery_boundary(stage: str) -> dict[str, Any]:
+        """Pin durable JSONL truth at both replacement-eligibility edges."""
+
+        if stage not in {"at-fault", "before-replacement"}:
+            raise AppServerError("capability-read-recovery-stage-invalid")
+
+        nonlocal attestation_observed, trusted_source_identity, observed_prefix
+        previous_boundary = dict(observed_prefix)
+        try:
+            located, boundary, records = capture_unique_boundary(
+                server.codex_home,
+                thread_id,
+                baseline=previous_boundary,
+            )
+        except NativeSessionBoundaryError as exc:
+            if str(exc) == "trusted session file is missing":
+                if trusted_source_identity is not None:
+                    raise AppServerError(
+                        "capability-pinned-session-source-missing"
+                    ) from exc
+                return previous_boundary
+            raise AppServerError(
+                f"capability-read-recovery-fault-boundary-invalid:{exc}"
+            ) from exc
+        if trusted_source_identity is None:
+            trusted_source_identity = located.source_identity_sha256
+        elif trusted_source_identity != located.source_identity_sha256:
+            raise AppServerError("capability-session-source-identity-changed")
+        observed_prefix = dict(boundary)
+        try:
+            terminal_event = trusted_terminal_event(records, turn_id=turn_id)
+        except NativeSessionBoundaryError as exc:
+            raise AppServerError(
+                f"capability-read-recovery-terminal-grammar-invalid:{exc}"
+            ) from exc
+        contexts = [
+            record["payload"]
+            for record in records
+            if record.get("type") == "turn_context"
+            and isinstance(record.get("payload"), Mapping)
+            and (
+                record["payload"].get("turn_id")
+                or record["payload"].get("turnId")
+            )
+            == turn_id
+        ]
+        if contexts and any(
+            context.get("model") != EXACT_MODEL
+            or (context.get("effort") or context.get("reasoning_effort"))
+            != "low"
+            for context in contexts
+        ):
+            raise AppServerError("capability-trusted-model-effort-mismatch")
+        if len(contexts) > 1:
+            raise AppServerError("capability-current-turn-context-not-singular")
+        markers = telemetry_markers(records, turn_id=turn_id)
+        if markers["compaction_indices"] or markers["reroute_indices"]:
+            raise AppServerError("capability-session-containment-failed")
+        if terminal_event is not None:
+            raise AppServerError(
+                "capability-terminal-event-before-deliberate-interrupt:"
+                + str(terminal_event["status"])
+            )
+        if contexts:
+            attestation_observed = True
+            raise AppServerError(
+                f"capability-read-recovery-attestation-observed-{stage}"
+            )
+        if any(
+            record.get("type") == "response_item"
+            and isinstance(record.get("payload"), Mapping)
+            and record["payload"].get("type")
+            in {
+                "function_call",
+                "functionCall",
+                "custom_tool_call",
+                "customToolCall",
+            }
+            for record in records
+        ):
+            raise AppServerError(
+                "capability-read-recovery-operative-activity-at-fault"
+            )
+        append_control_observation(
+            phase="materialization",
+            projected_status="unknown",
+            durable_status=None,
+            source_identity_sha256=located.source_identity_sha256,
+            previous_boundary=previous_boundary,
+            boundary=boundary,
+            decision="continue-pending",
+        )
+        return dict(boundary)
+
     observations: list[dict[str, Any]] = []
     last_threads: dict[str, dict[str, Any]] = {}
     poll_started: list[float] = []
     if materialization_timeout_seconds < 1.0:
         raise AppServerError("capability-materialization-timeout-invalid")
     deadline = time.monotonic() + materialization_timeout_seconds
+
+    def remaining_materialization_seconds() -> float:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AppServerError("capability-materialization-deadline-exceeded")
+        return remaining
+
+    def require_poll_start_within_bounds() -> None:
+        remaining_materialization_seconds()
+        if (
+            len(poll_started) > 1
+            and poll_started[-1] - poll_started[-2]
+            > CALIBRATION_POLL_GAP_MAX_SECONDS
+        ):
+            raise AppServerError("capability-poll-interval-exceeded")
+
+    def require_recovery_edge_within_bounds(poll_start: float) -> float:
+        observed = time.monotonic()
+        remaining = deadline - observed
+        if remaining <= 0:
+            raise AppServerError("capability-materialization-deadline-exceeded")
+        if observed - poll_start > CALIBRATION_POLL_GAP_MAX_SECONDS:
+            raise AppServerError("capability-poll-interval-exceeded")
+        return remaining
+
     while time.monotonic() < deadline and len(observations) < 2:
         poll_start = time.monotonic()
         poll_started.append(poll_start)
-        thread, observation = guarded_measure(
-            samples,
-            "check",
-            observe,
-            guard_seconds=0.0,
-        )
+        require_poll_start_within_bounds()
+        replacement_attempt = read_recovery_pending
+        remaining_before_attempt = remaining_materialization_seconds()
+        if replacement_attempt:
+            if (
+                attestation_observed
+                or server.connection_epoch_sha256
+                != read_recovery["connection_epoch_sha256"]
+            ):
+                raise AppServerError("capability-read-recovery-identity-invalid")
+            pre_attempt_boundary = capture_recovery_boundary(
+                "before-replacement"
+            )
+            if attestation_observed:
+                raise AppServerError(
+                    "capability-read-recovery-attestation-observed-before-replacement"
+                )
+            remaining_before_attempt = require_recovery_edge_within_bounds(
+                poll_start
+            )
+            read_recovery_pending = False
+            read_recovery["replacement_attempt_count"] = 1
+            read_recovery["remaining_deadline_ms_before_attempt"] = round(
+                remaining_before_attempt * 1000,
+                3,
+            )
+            read_recovery["pre_attempt_source_identity_sha256"] = (
+                trusted_source_identity
+            )
+            read_recovery["pre_attempt_boundary_sha256"] = (
+                pre_attempt_boundary["boundary_sha256"]
+            )
+            read_recovery["pre_attempt_boundary_record_count"] = int(
+                pre_attempt_boundary["record_count"]
+            )
+            read_recovery["pre_attempt_boundary_byte_offset"] = int(
+                pre_attempt_boundary["byte_offset"]
+            )
+        try:
+            thread, observation = guarded_measure(
+                samples,
+                "check",
+                lambda: observe(
+                    read_timeout_seconds=min(
+                        THREAD_READ_TIMEOUT_SECONDS,
+                        remaining_before_attempt,
+                    )
+                ),
+                guard_seconds=0.0,
+            )
+        except AppServerRpcError as exc:
+            samples.setdefault("check", []).append(exc.latency_ms)
+            if replacement_attempt:
+                raise
+            eligible = (
+                exc.method == "thread/read"
+                and type(exc.code) is int
+                and exc.code == -32603
+                and not attestation_observed
+                and read_recovery["token_consumed"] is False
+                and server.connection_epoch_sha256
+                == read_recovery["connection_epoch_sha256"]
+            )
+            if not eligible:
+                raise
+            fault_boundary = capture_recovery_boundary("at-fault")
+            if attestation_observed:
+                raise AppServerError(
+                    "capability-read-recovery-attestation-observed-at-fault"
+                )
+            remaining_before_scheduling = require_recovery_edge_within_bounds(
+                poll_start
+            )
+            read_recovery.update(
+                {
+                    "method": exc.method,
+                    "code": exc.code,
+                    "token_consumed": True,
+                    "phase": "materialization",
+                    "failed_callback_latency_ms": round(exc.latency_ms, 3),
+                    "remaining_deadline_ms_before_scheduling": round(
+                        remaining_before_scheduling * 1000,
+                        3,
+                    ),
+                    "attestation_observed_at_fault": False,
+                    "prior_source_identity_sha256": trusted_source_identity,
+                    "prior_boundary_sha256": fault_boundary["boundary_sha256"],
+                    "fault_boundary_record_count": int(
+                        fault_boundary["record_count"]
+                    ),
+                    "fault_boundary_byte_offset": int(
+                        fault_boundary["byte_offset"]
+                    ),
+                }
+            )
+            read_recovery_pending = True
+            elapsed = time.monotonic() - poll_start
+            time.sleep(
+                max(0.0, CALIBRATION_POLL_INTERVAL_SECONDS - elapsed)
+            )
+            continue
+        if replacement_attempt:
+            require_recovery_edge_within_bounds(poll_start)
+            if (
+                server.connection_epoch_sha256
+                != read_recovery["connection_epoch_sha256"]
+            ):
+                raise AppServerError("capability-read-recovery-identity-invalid")
+            if attestation_observed:
+                raise AppServerError(
+                    "capability-read-recovery-attestation-observed-during-replacement"
+                )
+            read_recovery["outcome"] = "recovered"
         last_threads[thread_id] = thread
         if observation is not None:
             if not observations:
@@ -1865,7 +2425,9 @@ def calibration(
                     observations.append(observation)
         elapsed = time.monotonic() - poll_start
         if len(observations) < 2:
-            time.sleep(max(0.0, 0.20 - elapsed))
+            time.sleep(
+                max(0.0, CALIBRATION_POLL_INTERVAL_SECONDS - elapsed)
+            )
     if len(observations) != 2:
         raise AppServerError("capability-materialization-deadline-exceeded")
     pre_interrupt: dict[str, Any] | None = None
@@ -1873,17 +2435,31 @@ def calibration(
     while time.monotonic() < deadline and pre_interrupt is None:
         poll_start = time.monotonic()
         poll_started.append(poll_start)
+        require_poll_start_within_bounds()
+        remaining_before_attempt = remaining_materialization_seconds()
         pre_thread, pre_interrupt = guarded_measure(
             samples,
             "check",
-            lambda: observe("pre-interrupt"),
+            lambda: observe(
+                "pre-interrupt",
+                read_timeout_seconds=min(
+                    THREAD_READ_TIMEOUT_SECONDS,
+                    remaining_before_attempt,
+                ),
+            ),
             guard_seconds=0.0,
         )
         last_threads[thread_id] = pre_thread
         if pre_interrupt is None:
-            time.sleep(max(0.0, 0.20 - (time.monotonic() - poll_start)))
+            time.sleep(
+                max(
+                    0.0,
+                    CALIBRATION_POLL_INTERVAL_SECONDS
+                    - (time.monotonic() - poll_start),
+                )
+            )
     if any(
-        later - earlier > 0.250
+        later - earlier > CALIBRATION_POLL_GAP_MAX_SECONDS
         for earlier, later in zip(poll_started, poll_started[1:])
     ):
         raise AppServerError("capability-poll-interval-exceeded")
@@ -2028,6 +2604,9 @@ def calibration(
     )
     if trusted_source_identity is None:
         raise AppServerError("capability-session-source-identity-not-pinned")
+    read_recovery_telemetry = seal_calibration_read_recovery_telemetry(
+        read_recovery
+    )
     materialization = seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
@@ -2168,6 +2747,10 @@ def calibration(
         "sessions": [summary],
         "materialization_evidence": materialization,
         "materialization_evidence_sha256": materialization["evidence_sha256"],
+        "thread_read_recovery": read_recovery_telemetry,
+        "thread_read_recovery_sha256": read_recovery_telemetry[
+            "telemetry_sha256"
+        ],
         "poll_interval_max_ms": round(
             max(
                 (later - earlier) * 1000
@@ -2228,6 +2811,7 @@ def build_pool_inputs(
     prompts: list[str],
     expected_tokens: list[str],
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
+    pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     interrupt_after: list[int | None] | None = None,
 ) -> tuple[
@@ -2257,6 +2841,8 @@ def build_pool_inputs(
         if campaign_manifest.get("control_turn_id") != CONTROL_TURN_ID:
             raise AppServerError("campaign-control-turn-invalid-before-thread-start")
         role = f"{pool_name}-{index}"
+        if pre_allocation_check is not None:
+            pre_allocation_check()
         result, _latency = server.start_thread(worktree, mutable=mutable, role=role)
         thread_results.append(result)
     record_dir.mkdir(mode=0o700)
@@ -2384,6 +2970,7 @@ def run_pool_canary(
     prompts: list[str],
     expected_tokens: list[str],
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
+    pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     interrupt_after: list[int | None] | None = None,
 ) -> dict[str, Any]:
@@ -2399,6 +2986,7 @@ def run_pool_canary(
         prompts=prompts,
         expected_tokens=expected_tokens,
         pre_thread_start_check=pre_thread_start_check,
+        pre_allocation_check=pre_allocation_check,
         expected_bound_manifest_validation=expected_bound_manifest_validation,
         interrupt_after=interrupt_after,
     )
@@ -2473,6 +3061,15 @@ def validate_campaign(
     errors: list[str] = []
     capability_errors = validate_capability_receipt(capability, now=utc_now())
     errors.extend(f"capability:{item}" for item in capability_errors)
+    recovery = calibration_evidence.get("thread_read_recovery")
+    recovery_errors = validate_calibration_read_recovery_telemetry(recovery)
+    errors.extend(f"capability-read-recovery:{item}" for item in recovery_errors)
+    if (
+        isinstance(recovery, Mapping)
+        and calibration_evidence.get("thread_read_recovery_sha256")
+        != recovery.get("telemetry_sha256")
+    ):
+        errors.append("capability-read-recovery-sha256-mismatch")
     certification = capability["certification"]
     ceilings = certification["certified_callback_max_ms"]
     check_max = ceilings["check"]
@@ -4153,12 +4750,188 @@ def generation8_source_file_sha256s(
     }
 
 
+def require_generation9_launch_inputs(
+    inputs: CampaignLaunchInputs,
+) -> Version7QuarantinePredecessorProofInputs:
+    """Return the fixed Gen8 quarantine proof or reject a mixed generation."""
+
+    if (
+        inputs.authorization.value.get("version") != 8
+        or inputs.manifest.value.get("version") != 5
+        or not isinstance(
+            inputs.predecessor_proof,
+            Version7QuarantinePredecessorProofInputs,
+        )
+        or inputs.legacy_predecessor is not None
+        or not isinstance(inputs.recovery_cause_evidence, JsonArtifactSnapshot)
+        or not isinstance(inputs.recovery_cause_source_analysis_bytes, bytes)
+    ):
+        raise AppServerError("campaign-generation9-proof-input-invalid")
+    return inputs.predecessor_proof
+
+
+def generation9_private_source_snapshots(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, bytes]:
+    """Flatten every non-session source in the fixed v8/v5 proof DAG."""
+
+    quarantine = require_generation9_launch_inputs(inputs)
+    predecessor = quarantine.ancestor
+    ancestor = predecessor.ancestor
+    grandancestor = ancestor.ancestor
+    return {
+        "authorization": inputs.authorization.raw,
+        "campaign-manifest": inputs.manifest.raw,
+        "outer-authority": inputs.outer_authority.raw,
+        "release-patch": inputs.release_patch_bytes,
+        "pre-mutation-steering-receipt": inputs.pre_mutation_receipt.raw,
+        "pre-mutation-adjudication": inputs.pre_mutation_adjudication.raw,
+        "pre-live-steering-receipt": inputs.pre_live_receipt.raw,
+        "pre-live-adjudication": inputs.pre_live_adjudication.raw,
+        "opus-review-evidence": inputs.opus_review_evidence.raw,
+        "opus-adjudication": inputs.opus_adjudication.raw,
+        "spark-validation-receipt": inputs.spark_validation_receipt.raw,
+        "quarantined-predecessor-authorization": quarantine.authorization.raw,
+        "quarantined-predecessor-manifest": quarantine.manifest.raw,
+        "quarantined-predecessor-authorization-state": (
+            quarantine.authorization_state.raw
+        ),
+        "quarantined-predecessor-failure-evidence": (
+            quarantine.failure_evidence.raw
+        ),
+        "quarantined-predecessor-containment": quarantine.containment.raw,
+        "quarantined-predecessor-allocation-ledger": (
+            quarantine.allocation_ledger.raw
+        ),
+        "quarantined-predecessor-allocation-audit": (
+            quarantine.allocation_audit_bytes
+        ),
+        "quarantined-predecessor-recovery-cause-evidence": (
+            quarantine.authorization_recovery_cause_evidence.raw
+        ),
+        "quarantined-predecessor-recovery-cause-source-analysis": (
+            quarantine.authorization_recovery_cause_source_analysis
+        ),
+        "quarantined-predecessor-outer-authority": quarantine.outer_authority.raw,
+        "quarantined-predecessor-independent-validation-receipt": (
+            quarantine.independent_validation_receipt.raw
+        ),
+        "predecessor-authorization": predecessor.authorization.raw,
+        "predecessor-manifest": predecessor.manifest.raw,
+        "predecessor-authorization-state": predecessor.authorization_state.raw,
+        "predecessor-failure-evidence": predecessor.failure_evidence.raw,
+        "predecessor-containment": predecessor.containment.raw,
+        "predecessor-allocation-ledger": predecessor.allocation_ledger.raw,
+        "predecessor-allocation-audit": predecessor.allocation_audit_bytes,
+        "predecessor-recovery-cause-evidence": (
+            predecessor.authorization_recovery_cause_evidence.raw
+        ),
+        "predecessor-recovery-cause-source-analysis": (
+            predecessor.authorization_recovery_cause_source_analysis
+        ),
+        "predecessor-outer-authority": predecessor.outer_authority.raw,
+        "predecessor-independent-validation-receipt": (
+            predecessor.independent_validation_receipt.raw
+        ),
+        "ancestor-authorization": ancestor.authorization.raw,
+        "ancestor-manifest": ancestor.manifest.raw,
+        "ancestor-authorization-state": ancestor.authorization_state.raw,
+        "ancestor-failure-evidence": ancestor.failure_evidence.raw,
+        "ancestor-containment": ancestor.containment.raw,
+        "ancestor-allocation-ledger": ancestor.allocation_ledger.raw,
+        "ancestor-allocation-audit": ancestor.allocation_audit_bytes,
+        "ancestor-authorization-cause-evidence": (
+            ancestor.authorization_cause_evidence
+        ),
+        "ancestor-outer-authority": ancestor.outer_authority.raw,
+        "ancestor-independent-validation-receipt": (
+            ancestor.independent_validation_receipt.raw
+        ),
+        "grandancestor-authorization-cause-evidence": grandancestor.cause_evidence,
+        "grandancestor-authorization": grandancestor.authorization.raw,
+        "grandancestor-manifest": grandancestor.manifest.raw,
+        "grandancestor-authorization-state": (
+            grandancestor.authorization_state.raw
+        ),
+        "grandancestor-failure-evidence": grandancestor.failure_evidence.raw,
+        "grandancestor-original-containment": (
+            grandancestor.original_containment.raw
+        ),
+        "grandancestor-containment": grandancestor.containment.raw,
+        "grandancestor-allocation-ledger": grandancestor.allocation_ledger.raw,
+        "grandancestor-allocation-audit": grandancestor.allocation_audit_bytes,
+        "cause-evidence": inputs.recovery_cause_evidence.raw,
+        "cause-source-analysis": inputs.recovery_cause_source_analysis_bytes,
+    }
+
+
+def generation9_trusted_session_snapshots(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, bytes]:
+    """Flatten every JSONL boundary in the fixed Generation-9 proof DAG."""
+
+    quarantine = require_generation9_launch_inputs(inputs)
+    predecessor = quarantine.ancestor
+    ancestor = predecessor.ancestor
+    grandancestor = ancestor.ancestor
+    snapshots = {
+        "spark-validation-session": inputs.spark_validation_session_bytes,
+        "quarantined-predecessor-independent-validation-session": (
+            quarantine.independent_validation_session_bytes
+        ),
+        "quarantined-predecessor-session": quarantine.quarantined_session_bytes,
+        "predecessor-independent-validation-session": (
+            predecessor.independent_validation_session_bytes
+        ),
+        "ancestor-independent-validation-session": (
+            ancestor.independent_validation_session_bytes
+        ),
+    }
+    snapshots.update(
+        {
+            f"predecessor-contained-session-{index}": raw
+            for index, raw in enumerate(predecessor.contained_session_bytes)
+        }
+    )
+    snapshots.update(
+        {
+            f"ancestor-contained-session-{index}": raw
+            for index, raw in enumerate(ancestor.contained_session_bytes)
+        }
+    )
+    snapshots.update(
+        {
+            f"grandancestor-contained-session-{index}": raw
+            for index, raw in enumerate(grandancestor.contained_session_bytes)
+        }
+    )
+    return snapshots
+
+
+def generation9_source_file_sha256s(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, str]:
+    """Hash every read-once source bound by validation and launch claim v3."""
+
+    return {
+        label: sha256_bytes(raw)
+        for label, raw in sorted(
+            {
+                **generation9_private_source_snapshots(inputs),
+                **generation9_trusted_session_snapshots(inputs),
+            }.items()
+        )
+    }
+
+
 def require_trusted_session_snapshots_unchanged(
     paths: Mapping[str, Path], inputs: CampaignLaunchInputs
 ) -> None:
     """Re-read every trusted JSONL immediately before the first allocation."""
 
-    if inputs.authorization.value.get("version") == 7:
+    if inputs.authorization.value.get("version") == 8:
+        expected = generation9_trusted_session_snapshots(inputs)
+    elif inputs.authorization.value.get("version") == 7:
         expected = generation8_trusted_session_snapshots(inputs)
     else:
         proof = inputs.predecessor_proof
@@ -4201,7 +4974,9 @@ def require_launch_source_snapshots_unchanged(
 ) -> None:
     """Recheck every mutable source against the read-once launch snapshots."""
 
-    if inputs.authorization.value.get("version") == 7:
+    if inputs.authorization.value.get("version") == 8:
+        expected = generation9_private_source_snapshots(inputs)
+    elif inputs.authorization.value.get("version") == 7:
         expected = generation8_private_source_snapshots(inputs)
     else:
         proof = inputs.predecessor_proof
@@ -4566,10 +5341,11 @@ def validate_campaign_launch_bindings(
         inputs.spark_validation_session_bytes,
     )
     primary_diff_sha256 = guarded_diff_sha256(guarded_primary)
-    proof = require_generation8_launch_inputs(inputs)
-    ancestor = proof.ancestor
+    proof = require_generation9_launch_inputs(inputs)
+    predecessor = proof.ancestor
+    ancestor = predecessor.ancestor
     grandancestor = ancestor.ancestor
-    validator_sha256 = validator_contract_sha256_v2(
+    validator_sha256 = validator_contract_sha256_v3(
         ROOT, manifest.get("candidate", {}).get("tree")
     )
     common_manifest_kwargs = {
@@ -4593,36 +5369,96 @@ def validate_campaign_launch_bindings(
         **common_manifest_kwargs,
     )
     predecessor_bindings = {
-        "predecessor_authorization_file_sha256": proof.authorization.raw_sha256,
-        "predecessor_manifest_file_sha256": proof.manifest.raw_sha256,
-        "predecessor_authorization_state_file_sha256": (
+        "quarantined_predecessor_authorization_file_sha256": (
+            proof.authorization.raw_sha256
+        ),
+        "quarantined_predecessor_manifest_file_sha256": (
+            proof.manifest.raw_sha256
+        ),
+        "quarantined_predecessor_authorization_state_file_sha256": (
             proof.authorization_state.raw_sha256
         ),
-        "predecessor_failure_evidence_file_sha256": (
+        "quarantined_predecessor_failure_evidence_file_sha256": (
             proof.failure_evidence.raw_sha256
         ),
-        "predecessor_containment_file_sha256": proof.containment.raw_sha256,
-        "predecessor_allocation_ledger_file_sha256": (
+        "quarantined_predecessor_containment_file_sha256": (
+            proof.containment.raw_sha256
+        ),
+        "quarantined_predecessor_allocation_ledger_file_sha256": (
             proof.allocation_ledger.raw_sha256
         ),
-        "predecessor_allocation_audit_file_sha256": sha256_bytes(
+        "quarantined_predecessor_allocation_audit_file_sha256": sha256_bytes(
             proof.allocation_audit_bytes
         ),
-        "predecessor_recovery_cause_evidence_file_sha256": (
+        "quarantined_predecessor_recovery_cause_evidence_file_sha256": (
             proof.authorization_recovery_cause_evidence.raw_sha256
         ),
-        "predecessor_recovery_cause_source_analysis_file_sha256": sha256_bytes(
-            proof.authorization_recovery_cause_source_analysis
+        "quarantined_predecessor_recovery_cause_source_analysis_file_sha256": (
+            sha256_bytes(proof.authorization_recovery_cause_source_analysis)
         ),
-        "predecessor_outer_authority_file_sha256": proof.outer_authority.raw_sha256,
-        "predecessor_independent_validation_receipt_file_sha256": (
+        "quarantined_predecessor_outer_authority_file_sha256": (
+            proof.outer_authority.raw_sha256
+        ),
+        "quarantined_predecessor_independent_validation_receipt_file_sha256": (
             proof.independent_validation_receipt.raw_sha256
         ),
-        "predecessor_independent_validation_session_file_sha256": sha256_bytes(
+        "quarantined_predecessor_independent_validation_session_file_sha256": sha256_bytes(
             proof.independent_validation_session_bytes
         ),
+        "quarantined_predecessor_session_file_sha256": sha256_bytes(
+            proof.quarantined_session_bytes
+        ),
+        "quarantined_predecessor_failure_ledger_prefix_file_sha256": (
+            authorization.get("bindings", {}).get(
+                "predecessor_failure_ledger_prefix_file_sha256"
+            )
+        ),
+        "quarantined_predecessor_failure_ledger_prefix_state_sha256": (
+            authorization.get("bindings", {}).get(
+                "predecessor_failure_ledger_prefix_state_sha256"
+            )
+        ),
+        "quarantined_predecessor_failure_ledger_prefix_head_entry_sha256": (
+            authorization.get("bindings", {}).get(
+                "predecessor_failure_ledger_prefix_head_entry_sha256"
+            )
+        ),
+        "predecessor_authorization_file_sha256": (
+            predecessor.authorization.raw_sha256
+        ),
+        "predecessor_manifest_file_sha256": predecessor.manifest.raw_sha256,
+        "predecessor_authorization_state_file_sha256": (
+            predecessor.authorization_state.raw_sha256
+        ),
+        "predecessor_failure_evidence_file_sha256": (
+            predecessor.failure_evidence.raw_sha256
+        ),
+        "predecessor_containment_file_sha256": (
+            predecessor.containment.raw_sha256
+        ),
+        "predecessor_allocation_ledger_file_sha256": (
+            predecessor.allocation_ledger.raw_sha256
+        ),
+        "predecessor_allocation_audit_file_sha256": sha256_bytes(
+            predecessor.allocation_audit_bytes
+        ),
+        "predecessor_recovery_cause_evidence_file_sha256": (
+            predecessor.authorization_recovery_cause_evidence.raw_sha256
+        ),
+        "predecessor_recovery_cause_source_analysis_file_sha256": sha256_bytes(
+            predecessor.authorization_recovery_cause_source_analysis
+        ),
+        "predecessor_outer_authority_file_sha256": (
+            predecessor.outer_authority.raw_sha256
+        ),
+        "predecessor_independent_validation_receipt_file_sha256": (
+            predecessor.independent_validation_receipt.raw_sha256
+        ),
+        "predecessor_independent_validation_session_file_sha256": sha256_bytes(
+            predecessor.independent_validation_session_bytes
+        ),
         "predecessor_contained_session_file_sha256s": [
-            sha256_bytes(raw) for raw in proof.contained_session_bytes
+            sha256_bytes(raw) for raw in predecessor.contained_session_bytes
         ],
         "ancestor_authorization_file_sha256": ancestor.authorization.raw_sha256,
         "ancestor_manifest_file_sha256": ancestor.manifest.raw_sha256,
@@ -4758,7 +5594,7 @@ def validate_campaign_launch_bindings(
     }
     if current_policy != manifest["release"]["policy_before"]:
         raise AppServerError("campaign-policy-before-mismatch")
-    all_source_file_sha256s = generation8_source_file_sha256s(inputs)
+    all_source_file_sha256s = generation9_source_file_sha256s(inputs)
     return {
         "authorization_raw_sha256": inputs.authorization.raw_sha256,
         "manifest_file_sha256": inputs.manifest.raw_sha256,
@@ -4929,6 +5765,199 @@ def campaign_launch_claim_payload(
     return claim
 
 
+def campaign_launch_claim_payload_v3(
+    inputs: CampaignLaunchInputs,
+    *,
+    output: Path,
+    authorization_state: Path,
+    steering_registry: Path,
+    allocation_ledger: Path,
+) -> dict[str, Any]:
+    """Bind every read-once Generation-9 source and quarantine proof."""
+
+    quarantine = require_generation9_launch_inputs(inputs)
+    predecessor = quarantine.ancestor
+    ancestor = predecessor.ancestor
+    grandancestor = ancestor.ancestor
+    authorization = inputs.authorization.value
+    manifest = inputs.manifest.value
+    outer = inputs.outer_authority.value
+    spark = inputs.spark_validation_receipt.value
+    declared_outputs = manifest.get("outputs")
+    if not isinstance(declared_outputs, Mapping):
+        raise AppServerError("campaign-launch-claim-outputs-invalid")
+    output_basenames = {
+        "evidence_basename": output.name,
+        "authorization_state_basename": authorization_state.name,
+        "steering_registry_basename": steering_registry.name,
+        "allocation_ledger_basename": allocation_ledger.name,
+    }
+    if output_basenames != dict(declared_outputs):
+        raise AppServerError("campaign-launch-claim-outputs-mismatch")
+    bindings = authorization.get("bindings")
+    if not isinstance(bindings, Mapping):
+        raise AppServerError("campaign-launch-claim-authorization-invalid")
+    claim = {
+        "claim_type": "cwo-native-live-campaign-launch-claim",
+        "version": 3,
+        "authority_semantics": {
+            "durable_one_shot_claim_is_launch_authority": True,
+            "authorization_and_nonce_tombstones_are_permanent": True,
+            "bound_manifest_validation_is_evidence_only": True,
+            "resume_retry_replay_salvage_forbidden": True,
+            "quarantined_predecessor_is_never_attestation": True,
+        },
+        "authorization": {
+            "authorization_id": authorization.get("authorization_id"),
+            "raw_sha256": inputs.authorization.raw_sha256,
+            "canonical_sha256": authorization.get(
+                "canonical_authorization_sha256"
+            ),
+            "run_generation": authorization.get("run_generation"),
+            "live_generation": authorization.get("live_generation"),
+            "predecessor_live_generation": authorization.get(
+                "predecessor_live_generation"
+            ),
+            "campaign_nonce": bindings.get("campaign_nonce"),
+        },
+        "manifest": {
+            "manifest_id": manifest.get("manifest_id"),
+            "raw_sha256": inputs.manifest.raw_sha256,
+            "canonical_sha256": manifest.get("manifest_sha256"),
+        },
+        "outer_authority": {
+            "authority_id": outer.get("authority_id"),
+            "raw_sha256": inputs.outer_authority.raw_sha256,
+            "canonical_sha256": outer.get("canonical_outer_authority_sha256"),
+        },
+        "spark_validation": {
+            "receipt_raw_sha256": inputs.spark_validation_receipt.raw_sha256,
+            "receipt_canonical_sha256": spark.get("canonical_receipt_sha256"),
+            "session_id": spark.get("session_id"),
+            "session_file_sha256": sha256_bytes(
+                inputs.spark_validation_session_bytes
+            ),
+        },
+        "successor_proof": {
+            "proof_dag": ["v8/v5", "v7/v4", "v6/v3", "v5/v2", "v4/v1"],
+            "recovery_cause_evidence_raw_sha256": (
+                inputs.recovery_cause_evidence.raw_sha256
+            ),
+            "recovery_cause_source_analysis_sha256": sha256_bytes(
+                inputs.recovery_cause_source_analysis_bytes
+            ),
+            "quarantined_predecessor": {
+                "authorization_raw_sha256": quarantine.authorization.raw_sha256,
+                "manifest_raw_sha256": quarantine.manifest.raw_sha256,
+                "authorization_state_raw_sha256": (
+                    quarantine.authorization_state.raw_sha256
+                ),
+                "failure_evidence_raw_sha256": (
+                    quarantine.failure_evidence.raw_sha256
+                ),
+                "containment_raw_sha256": quarantine.containment.raw_sha256,
+                "allocation_ledger_raw_sha256": (
+                    quarantine.allocation_ledger.raw_sha256
+                ),
+                "allocation_audit_sha256": sha256_bytes(
+                    quarantine.allocation_audit_bytes
+                ),
+                "recovery_cause_evidence_raw_sha256": (
+                    quarantine.authorization_recovery_cause_evidence.raw_sha256
+                ),
+                "recovery_cause_source_analysis_sha256": sha256_bytes(
+                    quarantine.authorization_recovery_cause_source_analysis
+                ),
+                "outer_authority_raw_sha256": (
+                    quarantine.outer_authority.raw_sha256
+                ),
+                "independent_validation_receipt_raw_sha256": (
+                    quarantine.independent_validation_receipt.raw_sha256
+                ),
+                "independent_validation_session_sha256": sha256_bytes(
+                    quarantine.independent_validation_session_bytes
+                ),
+                "quarantined_session_sha256": sha256_bytes(
+                    quarantine.quarantined_session_bytes
+                ),
+                "failure_ledger_prefix_file_sha256": bindings.get(
+                    "predecessor_failure_ledger_prefix_file_sha256"
+                ),
+                "failure_ledger_prefix_state_sha256": bindings.get(
+                    "predecessor_failure_ledger_prefix_state_sha256"
+                ),
+                "failure_ledger_prefix_head_entry_sha256": bindings.get(
+                    "predecessor_failure_ledger_prefix_head_entry_sha256"
+                ),
+                "attestation_disposition": "unavailable-quarantined-nonaccepting",
+                "accepting_model_evidence": False,
+            },
+            "predecessor_recovery_cause_evidence_raw_sha256": (
+                predecessor.authorization_recovery_cause_evidence.raw_sha256
+            ),
+            "predecessor_recovery_cause_source_analysis_sha256": sha256_bytes(
+                predecessor.authorization_recovery_cause_source_analysis
+            ),
+            "ancestor_authorization_cause_evidence_sha256": sha256_bytes(
+                ancestor.authorization_cause_evidence
+            ),
+            "grandancestor_cause_evidence_sha256": sha256_bytes(
+                grandancestor.cause_evidence
+            ),
+            "predecessor_contained_session_sha256s": [
+                sha256_bytes(raw) for raw in predecessor.contained_session_bytes
+            ],
+            "ancestor_contained_session_sha256s": [
+                sha256_bytes(raw) for raw in ancestor.contained_session_bytes
+            ],
+            "grandancestor_contained_session_sha256s": [
+                sha256_bytes(raw)
+                for raw in grandancestor.contained_session_bytes
+            ],
+        },
+        "steering": {
+            "pre_mutation_receipt_raw_sha256": (
+                inputs.pre_mutation_receipt.raw_sha256
+            ),
+            "pre_mutation_receipt_canonical_sha256": (
+                inputs.pre_mutation_receipt.value.get("canonical_receipt_sha256")
+            ),
+            "pre_live_receipt_raw_sha256": inputs.pre_live_receipt.raw_sha256,
+            "pre_live_receipt_canonical_sha256": inputs.pre_live_receipt.value.get(
+                "canonical_receipt_sha256"
+            ),
+            "pre_mutation_adjudication_raw_sha256": (
+                inputs.pre_mutation_adjudication.raw_sha256
+            ),
+            "pre_live_adjudication_raw_sha256": (
+                inputs.pre_live_adjudication.raw_sha256
+            ),
+        },
+        "outside_review": {
+            "opus_evidence_raw_sha256": inputs.opus_review_evidence.raw_sha256,
+            "opus_adjudication_raw_sha256": inputs.opus_adjudication.raw_sha256,
+            "exact_model": inputs.opus_review_evidence.value.get("exact_model"),
+            "glm_5_2_used": inputs.opus_review_evidence.value.get("glm_5_2_used"),
+            "model_synthesis_used": inputs.opus_review_evidence.value.get(
+                "model_synthesis_used"
+            ),
+            "main_architect_decision": inputs.opus_adjudication.value.get(
+                "main_architect_decision"
+            ),
+        },
+        "source_file_sha256s": generation9_source_file_sha256s(inputs),
+        "output_basenames": output_basenames,
+        "output_paths": {
+            "evidence": str(output.resolve(strict=False)),
+            "authorization_state": str(authorization_state.resolve(strict=False)),
+            "steering_registry": str(steering_registry.resolve(strict=False)),
+            "allocation_ledger": str(allocation_ledger.resolve(strict=False)),
+        },
+        "validator_contract_sha256": bindings.get("validator_contract_sha256"),
+    }
+    return claim
+
+
 def campaign_launch_claim_sha256(
     inputs: CampaignLaunchInputs,
     *,
@@ -4937,9 +5966,21 @@ def campaign_launch_claim_sha256(
     steering_registry: Path,
     allocation_ledger: Path,
 ) -> str:
-    """Seal one immutable Generation-8 launch claim under the v2 domain."""
+    """Seal one immutable versioned launch claim under its exact domain."""
 
-    if inputs.authorization.value.get("version") != 7:
+    authorization_version = inputs.authorization.value.get("version")
+    if authorization_version == 8:
+        claim = campaign_launch_claim_payload_v3(
+            inputs,
+            output=output,
+            authorization_state=authorization_state,
+            steering_registry=steering_registry,
+            allocation_ledger=allocation_ledger,
+        )
+        return domain_sha256(
+            claim, domain="native-live-campaign-launch-claim-v3"
+        )
+    if authorization_version != 7:
         proof = inputs.predecessor_proof
         if not isinstance(proof, Version5PredecessorProofInputs):
             raise AppServerError("campaign-historical-proof-input-invalid")
@@ -5020,9 +6061,9 @@ def require_operative_campaign_contract(
 ) -> None:
     """Keep historical contracts inspectable but outside the live launcher."""
 
-    if authorization_version != 7:
+    if authorization_version != 8:
         raise AppServerError("campaign-authorization-version-historical-only")
-    if manifest_version != 4:
+    if manifest_version != 5:
         raise AppServerError("campaign-contract-version-mismatch")
 
 
@@ -5088,12 +6129,98 @@ def require_generation8_proof_path_set(
         raise AppServerError("campaign-generation8-proof-path-set-invalid")
 
 
+GENERATION9_QUARANTINE_PROOF_PATHS = {
+    "quarantined-predecessor-authorization",
+    "quarantined-predecessor-manifest",
+    "quarantined-predecessor-authorization-state",
+    "quarantined-predecessor-failure-evidence",
+    "quarantined-predecessor-containment",
+    "quarantined-predecessor-allocation-ledger",
+    "quarantined-predecessor-allocation-audit",
+    "quarantined-predecessor-outer-authority",
+    "quarantined-predecessor-independent-validation-receipt",
+    "quarantined-predecessor-independent-validation-session",
+    "quarantined-predecessor-recovery-cause-evidence",
+    "quarantined-predecessor-recovery-cause-source-analysis",
+    "quarantined-predecessor-session",
+}
+GENERATION9_REQUIRED_PROOF_PATHS = (
+    GENERATION8_REQUIRED_PROOF_PATHS | GENERATION9_QUARANTINE_PROOF_PATHS
+)
+
+
+def require_generation9_proof_path_set(
+    paths: Mapping[str, Path],
+    *,
+    predecessor_contained_sessions: int,
+    ancestor_contained_sessions: int,
+    grandancestor_contained_sessions: int,
+) -> None:
+    """Reject an incomplete, downgraded, mixed, or aliased v8/v5 proof."""
+
+    if (
+        not GENERATION9_REQUIRED_PROOF_PATHS.issubset(paths)
+        or GENERATION8_FORBIDDEN_MIXED_PROOF_PATHS.intersection(paths)
+        or predecessor_contained_sessions < 1
+        or ancestor_contained_sessions < 1
+        or grandancestor_contained_sessions < 1
+    ):
+        raise AppServerError("campaign-generation9-proof-path-set-invalid")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True)
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--campaign-manifest", type=Path, required=True)
     parser.add_argument("--outer-authority", type=Path, required=True)
+    parser.add_argument(
+        "--quarantined-predecessor-authorization", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-manifest", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-authorization-state", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-failure-evidence", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-containment", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-allocation-ledger", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-allocation-audit", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-outer-authority", type=Path, required=True
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-independent-validation-receipt",
+        type=Path,
+        required=True,
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-independent-validation-session",
+        type=Path,
+        required=True,
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-recovery-cause-evidence",
+        type=Path,
+        required=True,
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-recovery-cause-source-analysis",
+        type=Path,
+        required=True,
+    )
+    parser.add_argument(
+        "--quarantined-predecessor-session", type=Path, required=True
+    )
     parser.add_argument("--predecessor-authorization", type=Path, required=True)
     parser.add_argument("--predecessor-manifest", type=Path, required=True)
     parser.add_argument("--predecessor-authorization-state", type=Path, required=True)
@@ -5169,6 +6296,45 @@ def main() -> int:
             "authorization": args.authorization,
             "campaign-manifest": args.campaign_manifest,
             "outer-authority": args.outer_authority,
+            "quarantined-predecessor-authorization": (
+                args.quarantined_predecessor_authorization
+            ),
+            "quarantined-predecessor-manifest": (
+                args.quarantined_predecessor_manifest
+            ),
+            "quarantined-predecessor-authorization-state": (
+                args.quarantined_predecessor_authorization_state
+            ),
+            "quarantined-predecessor-failure-evidence": (
+                args.quarantined_predecessor_failure_evidence
+            ),
+            "quarantined-predecessor-containment": (
+                args.quarantined_predecessor_containment
+            ),
+            "quarantined-predecessor-allocation-ledger": (
+                args.quarantined_predecessor_allocation_ledger
+            ),
+            "quarantined-predecessor-allocation-audit": (
+                args.quarantined_predecessor_allocation_audit
+            ),
+            "quarantined-predecessor-outer-authority": (
+                args.quarantined_predecessor_outer_authority
+            ),
+            "quarantined-predecessor-independent-validation-receipt": (
+                args.quarantined_predecessor_independent_validation_receipt
+            ),
+            "quarantined-predecessor-independent-validation-session": (
+                args.quarantined_predecessor_independent_validation_session
+            ),
+            "quarantined-predecessor-recovery-cause-evidence": (
+                args.quarantined_predecessor_recovery_cause_evidence
+            ),
+            "quarantined-predecessor-recovery-cause-source-analysis": (
+                args.quarantined_predecessor_recovery_cause_source_analysis
+            ),
+            "quarantined-predecessor-session": (
+                args.quarantined_predecessor_session
+            ),
             "predecessor-authorization": args.predecessor_authorization,
             "predecessor-manifest": args.predecessor_manifest,
             "predecessor-authorization-state": args.predecessor_authorization_state,
@@ -5308,7 +6474,7 @@ def main() -> int:
         manifest = dict(manifest_snapshot.value)
         version = authorization.get("version")
         require_operative_campaign_contract(version, manifest.get("version"))
-        require_generation8_proof_path_set(
+        require_generation9_proof_path_set(
             paths,
             predecessor_contained_sessions=len(
                 args.predecessor_contained_session or []
@@ -5393,7 +6559,7 @@ def main() -> int:
                 for index in range(len(args.ancestor_contained_session or []))
             ),
         )
-        predecessor_proof = Version6PredecessorProofInputs(
+        generation7_proof = Version6PredecessorProofInputs(
             authorization=predecessor_common["predecessor-authorization"],
             manifest=predecessor_common["predecessor-manifest"],
             authorization_state=predecessor_common[
@@ -5428,6 +6594,48 @@ def main() -> int:
                 for index in range(
                     len(args.predecessor_contained_session or [])
                 )
+            ),
+        )
+        predecessor_proof = Version7QuarantinePredecessorProofInputs(
+            authorization=private_json_snapshot(
+                "quarantined-predecessor-authorization"
+            ),
+            manifest=private_json_snapshot(
+                "quarantined-predecessor-manifest"
+            ),
+            authorization_state=private_json_snapshot(
+                "quarantined-predecessor-authorization-state"
+            ),
+            failure_evidence=private_json_snapshot(
+                "quarantined-predecessor-failure-evidence"
+            ),
+            containment=private_json_snapshot(
+                "quarantined-predecessor-containment"
+            ),
+            allocation_ledger=private_json_snapshot(
+                "quarantined-predecessor-allocation-ledger"
+            ),
+            allocation_audit_bytes=private_bytes_snapshot(
+                "quarantined-predecessor-allocation-audit"
+            ),
+            authorization_recovery_cause_evidence=private_json_snapshot(
+                "quarantined-predecessor-recovery-cause-evidence"
+            ),
+            authorization_recovery_cause_source_analysis=private_bytes_snapshot(
+                "quarantined-predecessor-recovery-cause-source-analysis"
+            ),
+            outer_authority=private_json_snapshot(
+                "quarantined-predecessor-outer-authority"
+            ),
+            independent_validation_receipt=private_json_snapshot(
+                "quarantined-predecessor-independent-validation-receipt"
+            ),
+            independent_validation_session_bytes=trusted_session_snapshot(
+                "quarantined-predecessor-independent-validation-session"
+            ),
+            ancestor=generation7_proof,
+            quarantined_session_bytes=trusted_session_snapshot(
+                "quarantined-predecessor-session"
             ),
         )
         recovery_cause_evidence = private_json_snapshot("cause-evidence")
@@ -5475,7 +6683,7 @@ def main() -> int:
             predecessor_proof=predecessor_proof,
             recovery_cause_evidence=recovery_cause_evidence,
             recovery_cause_source_analysis=recovery_cause_source_analysis_bytes,
-            expected_validator_contract_sha256=validator_contract_sha256_v2(
+            expected_validator_contract_sha256=validator_contract_sha256_v3(
                 ROOT, authorization.get("bindings", {}).get("checkpoint_tree")
             ),
             repo_root=ROOT,
@@ -5576,6 +6784,30 @@ def main() -> int:
             and active_state.get("launch_claim_sha256") != launch_claim_sha256
         ):
             raise AppServerError("campaign-launch-claim-state-mismatch")
+
+        def require_allocation_watermark_unchanged() -> None:
+            """Perform the final complete recheck adjacent to an allocation RPC."""
+
+            candidate = manifest.get("candidate")
+            if not isinstance(candidate, Mapping):
+                raise AppServerError("campaign-candidate-watermark-invalid")
+            require_repository_checkpoint(ROOT, str(candidate.get("commit")))
+            if (
+                run_git(ROOT, "rev-parse", "HEAD^{tree}")
+                != candidate.get("tree")
+                or run_git(ROOT, "rev-parse", "origin/main")
+                != candidate.get("origin_main_commit")
+                or guarded_diff_sha256(args.guarded_primary.absolute())
+                != artifact_bindings["guarded_primary_diff_sha256"]
+                or validator_contract_sha256_v3(ROOT, str(candidate.get("tree")))
+                != artifact_bindings["validator_contract_sha256"]
+            ):
+                raise AppServerError("campaign-allocation-watermark-changed")
+            # This content-and-identity pass is deliberately last.  The caller
+            # invokes it again after receipt validation and immediately before
+            # `thread/start`, closing the validation-time rewrite window.
+            require_launch_source_snapshots_unchanged(paths, launch_inputs)
+
         def require_bound_campaign_inputs_before_thread_start() -> dict[str, Any] | None:
             require_launch_source_snapshots_unchanged(paths, launch_inputs)
             refreshed_bindings = validate_campaign_launch_bindings(
@@ -5603,6 +6835,7 @@ def main() -> int:
                 raise AppServerError(
                     "campaign-bound-validation-changed-before-thread-start"
                 )
+            require_allocation_watermark_unchanged()
             return refreshed_receipt
 
         with tempfile.TemporaryDirectory(prefix="cwo-18w6-live-") as temporary:
@@ -5637,7 +6870,7 @@ def main() -> int:
                 != manifest["candidate"]["tree"]
                 or guarded_diff_sha256(args.guarded_primary.absolute())
                 != artifact_bindings["guarded_primary_diff_sha256"]
-                or validator_contract_sha256_v2(
+                or validator_contract_sha256_v3(
                     ROOT, manifest["candidate"]["tree"]
                 )
                 != artifact_bindings["validator_contract_sha256"]
@@ -5710,6 +6943,7 @@ def main() -> int:
                 owner,
                 run_nonce=authorization_id,
                 phase_nonce=args.campaign_nonce,
+                pre_allocation_check=require_allocation_watermark_unchanged,
             )
             allocation_ledger.bind_certification(capability["receipt_sha256"])
 
@@ -5735,6 +6969,7 @@ def main() -> int:
                 pre_thread_start_check=(
                     require_bound_campaign_inputs_before_thread_start
                 ),
+                pre_allocation_check=require_allocation_watermark_unchanged,
                 expected_bound_manifest_validation=(
                     expected_bound_manifest_validation
                 ),
@@ -5762,6 +6997,7 @@ def main() -> int:
                 pre_thread_start_check=(
                     require_bound_campaign_inputs_before_thread_start
                 ),
+                pre_allocation_check=require_allocation_watermark_unchanged,
                 expected_bound_manifest_validation=(
                     expected_bound_manifest_validation
                 ),
@@ -5791,6 +7027,7 @@ def main() -> int:
                 pre_thread_start_check=(
                     require_bound_campaign_inputs_before_thread_start
                 ),
+                pre_allocation_check=require_allocation_watermark_unchanged,
                 expected_bound_manifest_validation=(
                     expected_bound_manifest_validation
                 ),

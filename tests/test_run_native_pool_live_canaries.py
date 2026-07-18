@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import replace
 import importlib.util
+import io
 import inspect
 import json
 from pathlib import Path
@@ -69,6 +70,10 @@ class FakeCalibrationServer:
         durable_terminal_type: str | None = None,
         duplicate_durable_terminal: bool = False,
         interrupt_terminal_type: str = "turn_aborted",
+        read_faults: Mapping[int, tuple[str, int, float]] | None = None,
+        read_delays: Mapping[int, float] | None = None,
+        materialize_before_fault_read: int | None = None,
+        materialize_before_read: int | None = None,
     ) -> None:
         self.codex_home = root / "codex-home"
         self.active = self.codex_home / "sessions" / "2026" / "07"
@@ -79,6 +84,14 @@ class FakeCalibrationServer:
         self.turn_id = str(uuid.uuid4())
         self.path = self.active / f"rollout-{self.thread_id}.jsonl"
         self.read_count = 0
+        self.thread_start_count = 0
+        self.turn_start_count = 0
+        self.read_faults = dict(read_faults or {})
+        self.read_delays = dict(read_delays or {})
+        self.materialize_before_fault_read = materialize_before_fault_read
+        self.materialize_before_read = materialize_before_read
+        self.read_started: list[float] = []
+        self.read_timeouts: list[float] = []
         self.interrupted = False
         self.early_status = early_status
         self.command_status = command_status
@@ -114,6 +127,7 @@ class FakeCalibrationServer:
         self, _cwd: Path, *, mutable: bool, role: str | None = None
     ) -> tuple[dict, float]:
         self.assert_false(mutable)
+        self.thread_start_count += 1
         self.started_cwd = _cwd.resolve()
         return {
             "model": LIVE.EXACT_MODEL,
@@ -129,6 +143,7 @@ class FakeCalibrationServer:
     def start_turn(self, thread_id: str, _prompt: str) -> tuple[dict, float]:
         if thread_id != self.thread_id:
             raise AssertionError("thread mismatch")
+        self.turn_start_count += 1
         self._write(
             [
                 {"type": "session_meta", "payload": {"id": self.thread_id}},
@@ -277,10 +292,33 @@ class FakeCalibrationServer:
                     )
                 )
 
-    def read_thread(self, thread_id: str) -> tuple[dict, float]:
+    def read_thread(
+        self,
+        thread_id: str,
+        *,
+        timeout: float = LIVE.THREAD_READ_TIMEOUT_SECONDS,
+    ) -> tuple[dict, float]:
         if thread_id != self.thread_id:
             raise AssertionError("thread mismatch")
         self.read_count += 1
+        self.read_started.append(LIVE.time.monotonic())
+        self.read_timeouts.append(timeout)
+        delay = self.read_delays.get(self.read_count, 0.0)
+        if delay:
+            LIVE.time.sleep(delay)
+        if self.materialize_before_read == self.read_count:
+            self._materialize()
+        fault = self.read_faults.get(self.read_count)
+        if fault is not None:
+            if self.materialize_before_fault_read == self.read_count:
+                self._materialize()
+            method, code, latency_ms = fault
+            raise LIVE.AppServerRpcError(
+                method=method,
+                code=code,
+                request_id=self.read_count,
+                latency_ms=latency_ms,
+            )
         if self.read_statuses:
             self.early_status = self.read_statuses.pop(0)
         if self.read_count == 3:
@@ -483,6 +521,57 @@ class FakeLiveThreadServer:
         return []
 
 
+class AppServerRpcErrorTests(unittest.TestCase):
+    def request_server(self, response: dict) -> LIVE.AppServer:
+        server = object.__new__(LIVE.AppServer)
+        server.process = mock.Mock()
+        server.process.stdin = io.StringIO()
+        server.process.poll.return_value = None
+        server.process.returncode = None
+        server._condition = threading.Condition()
+        server._responses = {1: response}
+        server._request_id = 0
+        server._reader_error = None
+        server.rpc_latencies = {}
+        return server
+
+    def test_correlated_error_preserves_local_method_and_concrete_code(self) -> None:
+        server = self.request_server(
+            {
+                "id": 1,
+                "error": {
+                    "code": -32603,
+                    "message": "internal error",
+                    "method": "attacker/supplied",
+                },
+            }
+        )
+        with self.assertRaises(LIVE.AppServerRpcError) as raised:
+            server.request("thread/read", {"threadId": "thread-1"})
+        self.assertEqual(raised.exception.method, "thread/read")
+        self.assertEqual(raised.exception.code, -32603)
+        self.assertEqual(raised.exception.request_id, 1)
+        self.assertGreaterEqual(raised.exception.latency_ms, 0)
+        self.assertEqual(len(server.rpc_latencies["thread/read"]), 1)
+
+    def test_noninteger_code_and_unmatched_response_id_are_not_structured(self) -> None:
+        for code in (True, "-32603"):
+            with self.subTest(code=code):
+                server = self.request_server(
+                    {"id": 1, "error": {"code": code, "message": "invalid"}}
+                )
+                with self.assertRaises(LIVE.AppServerError) as raised:
+                    server.request("thread/read", {"threadId": "thread-1"})
+                self.assertNotIsInstance(raised.exception, LIVE.AppServerRpcError)
+                self.assertIn("error-response-invalid", str(raised.exception))
+        server = self.request_server(
+            {"id": 2, "error": {"code": -32603, "message": "wrong id"}}
+        )
+        with self.assertRaisesRegex(LIVE.AppServerError, "response-id-invalid") as raised:
+            server.request("thread/read", {"threadId": "thread-1"})
+        self.assertNotIsInstance(raised.exception, LIVE.AppServerRpcError)
+
+
 class LiveCanaryMaterializationTests(unittest.TestCase):
     def owner(self) -> dict:
         return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
@@ -507,6 +596,338 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertTrue(receipt["accepting"])
             self.assertTrue(sleep.called)
             self.assertTrue(all(call.args and not call.kwargs for call in sleep.call_args_list))
+
+    def test_final_watermark_failure_prevents_calibration_allocation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(root)
+
+            def reject_changed_source() -> None:
+                raise LIVE.AppServerError("campaign-source-changed-at-final-watermark")
+
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "source-changed-at-final-watermark",
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    pre_allocation_check=reject_changed_source,
+                )
+            self.assertEqual(server.thread_start_count, 0)
+            self.assertEqual(server.turn_start_count, 0)
+
+    def test_one_pre_attestation_internal_read_fault_recovers_in_same_calibration(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 137.0)},
+            )
+            connection_epoch = server.connection_epoch_sha256
+            receipt, evidence = LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+                materialization_timeout_seconds=3.0,
+            )
+            telemetry = evidence["thread_read_recovery"]
+            self.assertEqual(
+                LIVE.validate_calibration_read_recovery_telemetry(telemetry),
+                [],
+            )
+            self.assertEqual(telemetry["outcome"], "recovered")
+            self.assertTrue(telemetry["token_consumed"])
+            self.assertEqual(telemetry["replacement_attempt_count"], 1)
+            self.assertEqual(telemetry["method"], "thread/read")
+            self.assertEqual(telemetry["code"], -32603)
+            self.assertEqual(telemetry["phase"], "materialization")
+            self.assertFalse(telemetry["attestation_observed_at_fault"])
+            self.assertNotEqual(
+                telemetry["prior_boundary_sha256"],
+                LIVE.sha256_bytes(b""),
+            )
+            self.assertEqual(telemetry["fault_boundary_record_count"], 3)
+            self.assertGreater(telemetry["fault_boundary_byte_offset"], 0)
+            self.assertRegex(
+                telemetry["prior_source_identity_sha256"], r"^[0-9a-f]{64}$"
+            )
+            self.assertEqual(
+                telemetry["pre_attempt_source_identity_sha256"],
+                telemetry["prior_source_identity_sha256"],
+            )
+            self.assertEqual(
+                telemetry["pre_attempt_boundary_sha256"],
+                telemetry["prior_boundary_sha256"],
+            )
+            self.assertEqual(telemetry["pre_attempt_boundary_record_count"], 3)
+            self.assertEqual(
+                telemetry["pre_attempt_boundary_byte_offset"],
+                telemetry["fault_boundary_byte_offset"],
+            )
+            self.assertEqual(
+                evidence["thread_read_recovery_sha256"],
+                telemetry["telemetry_sha256"],
+            )
+            self.assertGreaterEqual(receipt["callbacks"]["check"]["max_ms"], 137.0)
+            self.assertEqual(server.thread_start_count, 1)
+            self.assertEqual(server.turn_start_count, 1)
+            self.assertEqual(server.connection_epoch_sha256, connection_epoch)
+            self.assertGreaterEqual(len(server.read_timeouts), 2)
+            self.assertTrue(all(0 < timeout <= 3.0 for timeout in server.read_timeouts[:2]))
+            retry_gap = server.read_started[1] - server.read_started[0]
+            self.assertGreaterEqual(retry_gap, 0.18)
+            self.assertLessEqual(retry_gap, LIVE.CALIBRATION_POLL_GAP_MAX_SECONDS)
+            self.assertEqual(
+                evidence["materialization_evidence"]["control_observations"][0][
+                    "ordinal"
+                ],
+                0,
+            )
+
+            tampered = dict(telemetry)
+            tampered["replacement_attempt_count"] = 0
+            self.assertTrue(
+                LIVE.validate_calibration_read_recovery_telemetry(tampered)
+            )
+            unknown = dict(telemetry)
+            unknown["unexpected"] = True
+            self.assertIn(
+                "read-recovery-telemetry-fields-invalid",
+                LIVE.validate_calibration_read_recovery_telemetry(unknown),
+            )
+
+            regressed_count = dict(telemetry)
+            regressed_count["pre_attempt_boundary_record_count"] = 2
+            regressed_count["telemetry_sha256"] = LIVE.canonical_sha256(
+                {
+                    key: value
+                    for key, value in regressed_count.items()
+                    if key != "telemetry_sha256"
+                }
+            )
+            self.assertIn(
+                "read-recovery-pre-attempt-record-count-regressed",
+                LIVE.validate_calibration_read_recovery_telemetry(regressed_count),
+            )
+
+            regressed_offset = dict(telemetry)
+            regressed_offset["pre_attempt_boundary_byte_offset"] = (
+                telemetry["fault_boundary_byte_offset"] - 1
+            )
+            regressed_offset["telemetry_sha256"] = LIVE.canonical_sha256(
+                {
+                    key: value
+                    for key, value in regressed_offset.items()
+                    if key != "telemetry_sha256"
+                }
+            )
+            self.assertIn(
+                "read-recovery-pre-attempt-byte-offset-regressed",
+                LIVE.validate_calibration_read_recovery_telemetry(regressed_offset),
+            )
+
+            changed_source = dict(telemetry)
+            changed_source["pre_attempt_source_identity_sha256"] = "f" * 64
+            changed_source["telemetry_sha256"] = LIVE.canonical_sha256(
+                {
+                    key: value
+                    for key, value in changed_source.items()
+                    if key != "telemetry_sha256"
+                }
+            )
+            self.assertIn(
+                "read-recovery-pre-attempt-source-changed",
+                LIVE.validate_calibration_read_recovery_telemetry(changed_source),
+            )
+
+    def test_read_recovery_rechecks_durable_attestation_at_fault_time(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 1.0)},
+                materialize_before_fault_read=1,
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "read-recovery-attestation-observed-at-fault",
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    materialization_timeout_seconds=3.0,
+                )
+            self.assertEqual(server.read_count, 1)
+            self.assertEqual(server.thread_start_count, 1)
+            self.assertEqual(server.turn_start_count, 1)
+
+    def test_read_recovery_rejects_attestation_before_or_during_replacement(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 1.0)},
+            )
+            real_sleep = LIVE.time.sleep
+            materialized = False
+
+            def materialize_during_retry_gap(seconds: float) -> None:
+                nonlocal materialized
+                if server.read_count == 1 and not materialized:
+                    server._materialize()
+                    materialized = True
+                real_sleep(seconds)
+
+            with mock.patch.object(
+                LIVE.time,
+                "sleep",
+                side_effect=materialize_during_retry_gap,
+            ), self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "attestation-observed-before-replacement",
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    materialization_timeout_seconds=3.0,
+                )
+            self.assertEqual(server.read_count, 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 1.0)},
+                materialize_before_read=2,
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "attestation-observed-during-replacement",
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    materialization_timeout_seconds=3.0,
+                )
+            self.assertEqual(server.read_count, 2)
+
+    def test_read_recovery_is_single_use_pre_attestation_and_exact_error_only(self) -> None:
+        cases = (
+            (
+                {
+                    "read_faults": {
+                        1: ("thread/read", -32603, 1.0),
+                        2: ("thread/read", -32603, 1.0),
+                    }
+                },
+                2,
+                "app-server-request-failed:thread/read:-32603",
+            ),
+            (
+                {"read_faults": {1: ("thread/read", -32600, 1.0)}},
+                1,
+                "app-server-request-failed:thread/read:-32600",
+            ),
+            (
+                {"read_faults": {1: ("thread/list", -32603, 1.0)}},
+                1,
+                "app-server-request-failed:thread/list:-32603",
+            ),
+            (
+                {"read_faults": {4: ("thread/read", -32603, 1.0)}},
+                4,
+                "app-server-request-failed:thread/read:-32603",
+            ),
+        )
+        for options, expected_reads, expected in cases:
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                record_dir = root / "records"
+                record_dir.mkdir()
+                server = FakeCalibrationServer(root, **options)
+                with self.assertRaisesRegex(LIVE.AppServerRpcError, expected):
+                    LIVE.calibration(
+                        server,
+                        root,
+                        record_dir,
+                        self.owner(),
+                        run_nonce=str(uuid.uuid4()),
+                        phase_nonce=str(uuid.uuid4()),
+                        materialization_timeout_seconds=3.0,
+                    )
+                self.assertEqual(server.read_count, expected_reads)
+                self.assertEqual(server.thread_start_count, 1)
+                self.assertEqual(server.turn_start_count, 1)
+
+    def test_read_recovery_rejects_late_precheck_and_post_attempt(self) -> None:
+        cases = (
+            (
+                {
+                    "read_faults": {1: ("thread/read", -32603, 1.0)},
+                    "read_delays": {1: 0.26},
+                },
+                1,
+            ),
+            (
+                {
+                    "read_faults": {1: ("thread/read", -32603, 1.0)},
+                    "read_delays": {2: 0.26},
+                },
+                2,
+            ),
+        )
+        for options, expected_reads in cases:
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                record_dir = root / "records"
+                record_dir.mkdir()
+                server = FakeCalibrationServer(root, **options)
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    "capability-poll-interval-exceeded",
+                ):
+                    LIVE.calibration(
+                        server,
+                        root,
+                        record_dir,
+                        self.owner(),
+                        run_nonce=str(uuid.uuid4()),
+                        phase_nonce=str(uuid.uuid4()),
+                        materialization_timeout_seconds=2.0,
+                    )
+                self.assertEqual(server.read_count, expected_reads)
 
     def test_inprogress_before_turn_context_keeps_polling_then_interrupts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -551,6 +972,14 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertNotIn("path", json.dumps(materialization).lower())
             self.assertNotIn("arguments", json.dumps(materialization).lower())
             self.assertLessEqual(evidence["poll_interval_max_ms"], 250)
+            recovery = evidence["thread_read_recovery"]
+            self.assertEqual(recovery["outcome"], "not-needed")
+            self.assertFalse(recovery["token_consumed"])
+            self.assertEqual(recovery["replacement_attempt_count"], 0)
+            self.assertEqual(
+                LIVE.validate_calibration_read_recovery_telemetry(recovery),
+                [],
+            )
             control = materialization["control_observations"]
             self.assertEqual(
                 [item["ordinal"] for item in control], list(range(len(control)))
@@ -1261,7 +1690,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertFalse((root / "read-only-records").exists())
 
             manifest = {
-                "version": 4,
+                "version": 5,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -1315,7 +1744,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             manifest = {
-                "version": 4,
+                "version": 5,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -5102,7 +5531,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 LIVE._migrate_global_claim_markers(root)
 
     def test_historical_campaign_contract_is_not_operative(self) -> None:
-        for authorization_version, manifest_version in ((5, 2), (6, 3)):
+        for authorization_version, manifest_version in ((5, 2), (6, 3), (7, 4)):
             with self.subTest(
                 authorization_version=authorization_version,
                 manifest_version=manifest_version,
@@ -5116,8 +5545,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(
             LIVE.AppServerError, "campaign-contract-version-mismatch"
         ):
-            LIVE.require_operative_campaign_contract(7, 3)
-        LIVE.require_operative_campaign_contract(7, 4)
+            LIVE.require_operative_campaign_contract(8, 4)
+        LIVE.require_operative_campaign_contract(8, 5)
 
     def test_legacy_authority_history_requires_complete_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

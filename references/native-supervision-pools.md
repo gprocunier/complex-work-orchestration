@@ -33,6 +33,21 @@ allocation. Each steering receipt is validated against trusted session JSONL,
 consumed once under a private process lock, and cannot authorize repository
 work by itself.
 
+The only operative successor contract is authorization v8 with campaign
+manifest v5. Versions v5-v7 and manifests v2-v4 remain inspection-only, and a
+mixed authorization/manifest pair fails before allocation. The v3 validator
+contract binds the finite proof DAG
+`v8/v5 -> v7/v4 -> v6/v3 -> v5/v2 -> v4/v1` to one checkpoint tree.
+
+Generation 8 is represented by a dedicated quarantine predecessor leaf, never
+by the accepting-session parser. The leaf requires its exact two-record archive
+(`session_meta`, then `task_started`), zero trusted turn contexts, terminal
+events, tools, certification, or model attestation, and its exact archive-only
+six-event ledger. It reconstructs the sequence-4 failure ledger from the final
+ledger's same identity, authority bindings, and first four entry payloads, then
+requires the reconstructed raw, state, and head hashes to equal the failure
+evidence. This proves containment only; it cannot supply trusted model evidence.
+
 Calibration runs exactly `sleep 20`. App-server `inProgress` is only a hint:
 the controller waits up to ten seconds for a complete current-turn
 `turn_context` with the exact model and effort and an agent-origin

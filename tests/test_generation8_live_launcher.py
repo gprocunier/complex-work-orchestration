@@ -134,9 +134,14 @@ class Generation8LiveLauncherTests(unittest.TestCase):
             ),
         )
 
-    def test_only_v7_v4_is_operative(self) -> None:
-        LIVE.require_operative_campaign_contract(7, 4)
-        for authorization_version, manifest_version in ((6, 3), (7, 3), (6, 4)):
+    def test_v7_v4_is_historical_after_v8_v5_activation(self) -> None:
+        LIVE.require_operative_campaign_contract(8, 5)
+        for authorization_version, manifest_version in (
+            (7, 4),
+            (8, 4),
+            (7, 5),
+            (6, 3),
+        ):
             with self.subTest(
                 authorization=authorization_version, manifest=manifest_version
             ), self.assertRaises(LIVE.AppServerError):
@@ -279,7 +284,7 @@ class Generation8LiveLauncherTests(unittest.TestCase):
                     LIVE.campaign_launch_claim_sha256(changed_inputs, **paths),
                 )
 
-    def test_bound_gate_runs_immediately_before_each_fake_allocation(self) -> None:
+    def test_bound_gate_and_final_watermark_run_before_each_allocation(self) -> None:
         events: list[str] = []
 
         class FakeServer:
@@ -294,6 +299,9 @@ class Generation8LiveLauncherTests(unittest.TestCase):
         def gate() -> dict[str, str]:
             events.append("gate")
             return {"validation": "evidence-only"}
+
+        def final_watermark() -> None:
+            events.append("watermark")
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -323,9 +331,20 @@ class Generation8LiveLauncherTests(unittest.TestCase):
                     prompts=["one", "two"],
                     expected_tokens=["ONE", "TWO"],
                     pre_thread_start_check=gate,
+                    pre_allocation_check=final_watermark,
                     expected_bound_manifest_validation={"expected": "receipt"},
                 )
-        self.assertEqual(events, ["gate", "allocate", "gate", "allocate"])
+        self.assertEqual(
+            events,
+            [
+                "gate",
+                "watermark",
+                "allocate",
+                "gate",
+                "watermark",
+                "allocate",
+            ],
+        )
 
 
 if __name__ == "__main__":
