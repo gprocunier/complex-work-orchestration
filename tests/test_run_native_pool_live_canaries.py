@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 from typing import Mapping
 import unittest
 from unittest import mock
@@ -1369,6 +1370,15 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 separators=(",", ":"),
             )
             + "\n"
+            + json.dumps(
+                {
+                    "type": "event_msg",
+                    "payload": {"type": "turn_aborted", "turn_id": turn_id},
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
         ).encode()
         predecessor_allocation_ledger = ledger.load()
         ledger_path = ledger.path
@@ -1509,7 +1519,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                         "role": "capability-calibration",
                         "thread_id": thread_id,
                         "turn_id": turn_id,
-                        "record_count": 2,
+                        "record_count": 3,
                         "byte_offset": len(contained_session_bytes),
                         "boundary_sha256": LIVE.sha256_bytes(
                             contained_session_bytes
@@ -2227,16 +2237,27 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         return value
 
     def outer_authority(self, authorization: dict) -> dict:
+        scope = {
+            "epic_id": authorization["scope"]["epic_id"],
+            "parent_work_unit_id": authorization["scope"][
+                "parent_work_unit_id"
+            ],
+        }
         value = {
             "authority_type": "cwo-full-auto-outer-recovery-authority",
             "version": 1,
             "authority_id": authorization["bindings"]["outer_authority_id"],
             "status": "active",
-            "scope": {
-                "epic_id": authorization["scope"]["epic_id"],
-                "parent_work_unit_id": authorization["scope"][
-                    "parent_work_unit_id"
-                ],
+            "scope": scope,
+            "active_registry": {
+                "contract": "cwo-active-outer-authority-registry:v1",
+                "scope_key": LIVE.active_outer_authority_scope_key(
+                    scope["epic_id"], scope["parent_work_unit_id"]
+                ),
+            },
+            "bindings": {
+                "candidate_commit": authorization["bindings"]["checkpoint_commit"],
+                "candidate_tree": authorization["bindings"]["checkpoint_tree"],
             },
         }
         value["canonical_outer_authority_sha256"] = LIVE.sha256_bytes(
@@ -2661,6 +2682,15 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 separators=(",", ":"),
             )
             + "\n"
+            + json.dumps(
+                {
+                    "type": "event_msg",
+                    "payload": {"type": "turn_aborted", "turn_id": turn_id},
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n"
         ).encode()
         containment = self.seal_field(
             {
@@ -2874,10 +2904,20 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             cwd=root,
             check=True,
         )
+        self.install_validator_contract_files(root)
+        subprocess.run(
+            ["git", "add", *LIVE.VALIDATOR_CONTRACT_PATHS],
+            cwd=root,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "install validator contract"],
+            cwd=root,
+            check=True,
+        )
         checkpoint = LIVE.run_git(root, "rev-parse", "HEAD")
         checkpoint_tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
-        self.install_validator_contract_files(root)
-        validator_sha256 = LIVE.validator_contract_sha256(root)
+        validator_sha256 = LIVE.validator_contract_sha256(root, checkpoint_tree)
 
         prior_authorization = predecessor.authorization.value
         prior_manifest = predecessor.manifest.value
@@ -3208,6 +3248,43 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 ):
                     LIVE.validate_independent_validation_session(receipt, path)
 
+    def test_validator_contract_hash_is_immutable_tree_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_repo(root)
+            self.install_validator_contract_files(root)
+            subprocess.run(
+                ["git", "add", *LIVE.VALIDATOR_CONTRACT_PATHS],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "install validator contract"],
+                cwd=root,
+                check=True,
+            )
+            first_tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
+            first_hash = LIVE.validator_contract_sha256(root, first_tree)
+            contract_path = root / LIVE.VALIDATOR_CONTRACT_PATHS[0]
+            contract_path.write_bytes(contract_path.read_bytes() + b"working-tree-change\n")
+            self.assertEqual(
+                LIVE.validator_contract_sha256(root, first_tree), first_hash
+            )
+            subprocess.run(
+                ["git", "add", LIVE.VALIDATOR_CONTRACT_PATHS[0]],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "change validator contract"],
+                cwd=root,
+                check=True,
+            )
+            second_tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
+            self.assertNotEqual(
+                LIVE.validator_contract_sha256(root, second_tree), first_hash
+            )
+
     def test_v6_v3_finite_predecessor_proof_accepts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3461,6 +3538,275 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 any("ancestor" in item for item in ancestor_session_errors),
                 ancestor_session_errors,
             )
+            contained_records = predecessor.contained_session_bytes[0].splitlines(
+                keepends=True
+            )
+            post_terminal = b"".join(
+                [
+                    *contained_records,
+                    json.dumps(
+                        {
+                            "type": "event_msg",
+                            "payload": {"type": "token_count"},
+                        }
+                    ).encode()
+                    + b"\n",
+                ]
+            )
+            *_, post_terminal_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    post_terminal, "post-terminal"
+                )
+            )
+            self.assertIn(
+                "post-terminal-terminal-boundary-invalid", post_terminal_errors
+            )
+            unknown_activity = b"".join(
+                [
+                    *contained_records[:-1],
+                    json.dumps(
+                        {
+                            "type": "response_item",
+                            "payload": {"type": "unknown_tool_call"},
+                        }
+                    ).encode()
+                    + b"\n",
+                    contained_records[-1],
+                ]
+            )
+            *_, unknown_activity_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    unknown_activity, "unknown-activity"
+                )
+            )
+            self.assertIn(
+                "unknown-activity-activity-invalid", unknown_activity_errors
+            )
+
+            tool_session_index = 0
+            parsed_records = [
+                json.loads(line)
+                for line in predecessor.contained_session_bytes[
+                    tool_session_index
+                ].splitlines()
+            ]
+            malicious_tool_records = json.loads(json.dumps(parsed_records))
+            malicious_tool_records[-1:-1] = [
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "apply_patch",
+                        "call_id": "malicious-call",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "malicious-call",
+                    },
+                },
+            ]
+            malicious_tool = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in malicious_tool_records
+            )
+            *_, malicious_parse_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    malicious_tool, "malicious-tool"
+                )
+            )
+            self.assertIn(
+                "malicious-tool-tool-call-invalid", malicious_parse_errors
+            )
+            malicious_tool_errors = validate(
+                replace(
+                    predecessor,
+                    contained_session_bytes=tuple(
+                        malicious_tool if index == tool_session_index else raw
+                        for index, raw in enumerate(
+                            predecessor.contained_session_bytes
+                        )
+                    ),
+                )
+            )
+            self.assertTrue(
+                any(
+                    "tool-call-invalid" in item
+                    for item in malicious_tool_errors
+                ),
+                malicious_tool_errors,
+            )
+
+            wrong_role_records = json.loads(json.dumps(parsed_records))
+            wrong_role_records[-1:-1] = [
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "name": "apply_patch",
+                        "call_id": "wrong-role-call",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call_output",
+                        "call_id": "wrong-role-call",
+                    },
+                },
+            ]
+            wrong_role = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in wrong_role_records
+            )
+            wrong_role_errors = validate(
+                replace(
+                    predecessor,
+                    contained_session_bytes=tuple(
+                        wrong_role if index == tool_session_index else raw
+                        for index, raw in enumerate(
+                            predecessor.contained_session_bytes
+                        )
+                    ),
+                )
+            )
+            self.assertTrue(
+                any(
+                    "session-tool-activity-invalid" in item
+                    for item in wrong_role_errors
+                ),
+                wrong_role_errors,
+            )
+
+            out_of_order_records = json.loads(json.dumps(parsed_records))
+            out_of_order_records[-1:-1] = [
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "out-of-order-call",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "out-of-order-call",
+                    },
+                },
+            ]
+            out_of_order = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in out_of_order_records
+            )
+            *_, out_of_order_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    out_of_order, "out-of-order"
+                )
+            )
+            self.assertIn("out-of-order-tool-order-invalid", out_of_order_errors)
+
+            prestart_records = json.loads(json.dumps(parsed_records))
+            prestart_records[1], prestart_records[2] = (
+                prestart_records[2],
+                prestart_records[1],
+            )
+            prestart = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in prestart_records
+            )
+            *_, prestart_errors = (
+                CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                    prestart, "prestart"
+                )
+            )
+            self.assertIn("prestart-terminal-boundary-invalid", prestart_errors)
+
+            mutable_session_id = str(uuid.uuid4())
+            mutable_turn_id = str(uuid.uuid4())
+            mutable_records = [
+                {
+                    "type": "session_meta",
+                    "payload": {"id": mutable_session_id},
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "task_started",
+                        "turn_id": mutable_turn_id,
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "name": "apply_patch",
+                        "call_id": "patch-call",
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "patch_apply_end",
+                        "call_id": "patch-call",
+                        "turn_id": mutable_turn_id,
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call_output",
+                        "call_id": "patch-call",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "exec-call",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "exec-call",
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "task_complete",
+                        "turn_id": mutable_turn_id,
+                    },
+                },
+            ]
+            mutable_raw = b"".join(
+                json.dumps(record, sort_keys=True).encode() + b"\n"
+                for record in mutable_records
+            )
+            (
+                parsed_session_id,
+                parsed_turns,
+                _record_count,
+                parsed_tools,
+                terminal_type,
+                mutable_errors,
+            ) = CAMPAIGN_CONTRACTS._parse_contained_session_identity(
+                mutable_raw, "mutable"
+            )
+            self.assertEqual(mutable_errors, [])
+            self.assertEqual(parsed_session_id, mutable_session_id)
+            self.assertEqual(parsed_turns, {mutable_turn_id})
+            self.assertEqual(
+                parsed_tools,
+                CAMPAIGN_CONTRACTS.CONTAINED_ROLE_TOOL_PREFIXES["mutable-0"],
+            )
+            self.assertEqual(terminal_type, "task_complete")
 
             changed_ledger = json.loads(
                 json.dumps(predecessor.allocation_ledger.value)
@@ -3680,6 +4026,65 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 path.write_bytes(raw)
                 paths[label] = path
             LIVE.require_trusted_session_snapshots_unchanged(paths, inputs)
+            private_snapshots = {
+                "authorization": inputs.authorization.raw,
+                "campaign-manifest": inputs.manifest.raw,
+                "outer-authority": inputs.outer_authority.raw,
+                "release-patch": inputs.release_patch_bytes,
+                "pre-mutation-steering-receipt": inputs.pre_mutation_receipt.raw,
+                "pre-mutation-adjudication": inputs.pre_mutation_adjudication.raw,
+                "pre-live-steering-receipt": inputs.pre_live_receipt.raw,
+                "pre-live-adjudication": inputs.pre_live_adjudication.raw,
+                "opus-review-evidence": inputs.opus_review_evidence.raw,
+                "opus-adjudication": inputs.opus_adjudication.raw,
+                "spark-validation-receipt": inputs.spark_validation_receipt.raw,
+                "predecessor-authorization": predecessor.authorization.raw,
+                "predecessor-manifest": predecessor.manifest.raw,
+                "predecessor-authorization-state": predecessor.authorization_state.raw,
+                "predecessor-failure-evidence": predecessor.failure_evidence.raw,
+                "predecessor-containment": predecessor.containment.raw,
+                "predecessor-allocation-ledger": predecessor.allocation_ledger.raw,
+                "predecessor-allocation-audit": predecessor.allocation_audit_bytes,
+                "predecessor-outer-authority": predecessor.outer_authority.raw,
+                "predecessor-independent-validation-receipt": (
+                    predecessor.independent_validation_receipt.raw
+                ),
+                "predecessor-authorization-cause-evidence": (
+                    predecessor.authorization_cause_evidence
+                ),
+                "ancestor-authorization": predecessor.ancestor.authorization.raw,
+                "ancestor-manifest": predecessor.ancestor.manifest.raw,
+                "ancestor-authorization-state": (
+                    predecessor.ancestor.authorization_state.raw
+                ),
+                "ancestor-failure-evidence": predecessor.ancestor.failure_evidence.raw,
+                "ancestor-original-containment": (
+                    predecessor.ancestor.original_containment.raw
+                ),
+                "ancestor-containment": predecessor.ancestor.containment.raw,
+                "ancestor-allocation-ledger": predecessor.ancestor.allocation_ledger.raw,
+                "ancestor-allocation-audit": (
+                    predecessor.ancestor.allocation_audit_bytes
+                ),
+                "cause-evidence": inputs.recovery_cause_evidence.raw,
+                "cause-source-analysis": inputs.recovery_cause_source_analysis_bytes,
+            }
+            for label, raw in private_snapshots.items():
+                path = root / f"private-{label}"
+                path.write_bytes(raw)
+                path.chmod(0o600)
+                paths[label] = path
+            inputs.source_identities = LIVE.capture_input_source_identities(paths)
+            LIVE.require_launch_source_snapshots_unchanged(paths, inputs)
+            outer_path = paths["outer-authority"]
+            replacement = outer_path.with_suffix(".replacement")
+            replacement.write_bytes(outer_path.read_bytes())
+            replacement.chmod(0o600)
+            replacement.replace(outer_path)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "outer-authority-source-identity-changed"
+            ):
+                LIVE.require_launch_source_snapshots_unchanged(paths, inputs)
             session_path.write_bytes(successor["session_raw"] + b"{}\n")
             with self.assertRaisesRegex(
                 LIVE.AppServerError,
@@ -3782,10 +4187,161 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     changed_inputs, **output_paths
                 ),
             )
+            relocated_paths = {
+                label: root / "relocated" / path.name
+                for label, path in output_paths.items()
+            }
+            self.assertNotEqual(
+                claim,
+                LIVE.campaign_launch_claim_sha256(inputs, **relocated_paths),
+            )
             alias = root / "same.json"
             alias.write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(LIVE.AppServerError, "path-alias"):
                 LIVE.require_unique_input_paths({"one": alias, "two": alias})
+            hardlink = root / "hardlink.json"
+            hardlink.hardlink_to(alias)
+            with self.assertRaisesRegex(LIVE.AppServerError, "path-alias"):
+                LIVE.require_unique_input_paths({"one": alias, "two": hardlink})
+
+            authority_registry = root / "authority-registry"
+            claim_registry = root / "claim-registry"
+            LIVE.register_active_outer_authority(
+                successor["outer_snapshot"],
+                candidate_commit=successor["checkpoint"],
+                candidate_tree=successor["checkpoint_tree"],
+                registry_root=authority_registry,
+            )
+            LIVE.validate_active_outer_authority(
+                successor["outer_snapshot"],
+                candidate_commit=successor["checkpoint"],
+                candidate_tree=successor["checkpoint_tree"],
+                registry_root=authority_registry,
+            )
+            with mock.patch.object(
+                LIVE,
+                "_fsync_private_control_directory",
+                wraps=LIVE._fsync_private_control_directory,
+            ) as durable_directory:
+                LIVE.acquire_global_campaign_claim(
+                    inputs,
+                    launch_claim_sha256=claim,
+                    claim_root=claim_registry,
+                    registry_root=authority_registry,
+                    **output_paths,
+                )
+            durable_directory.assert_called_once_with(
+                claim_registry.resolve(), "campaign-global-claim"
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "global-claim-already-exists"
+            ):
+                LIVE.acquire_global_campaign_claim(
+                    inputs,
+                    launch_claim_sha256=claim,
+                    claim_root=claim_registry,
+                    registry_root=authority_registry,
+                    **output_paths,
+                )
+
+            replacement_outer = json.loads(
+                json.dumps(successor["outer_snapshot"].value)
+            )
+            replacement_outer["supersession"] = {
+                "prior_outer_authority_id": replacement_outer["authority_id"]
+            }
+            replacement_outer["authority_id"] = str(uuid.uuid4())
+            self.seal_field(
+                replacement_outer, "canonical_outer_authority_sha256"
+            )
+            replacement_snapshot = self.json_snapshot(replacement_outer)
+            atomic_claim_registry = root / "atomic-claim-registry"
+            claim_write_entered = threading.Event()
+            permit_claim_write = threading.Event()
+            replacement_finished = threading.Event()
+            thread_errors: list[BaseException] = []
+            original_write = LIVE._write_exclusive_private_bytes
+
+            def gated_write(path: Path, raw: bytes, label: str) -> None:
+                if label == "campaign-global-claim":
+                    claim_write_entered.set()
+                    if not permit_claim_write.wait(timeout=5):
+                        raise AssertionError("timed out waiting to release claim write")
+                original_write(path, raw, label)
+
+            def claim_worker() -> None:
+                try:
+                    LIVE.acquire_global_campaign_claim(
+                        inputs,
+                        launch_claim_sha256=claim,
+                        claim_root=atomic_claim_registry,
+                        registry_root=authority_registry,
+                        **output_paths,
+                    )
+                except BaseException as exc:  # pragma: no cover - asserted below
+                    thread_errors.append(exc)
+
+            def replacement_worker() -> None:
+                try:
+                    LIVE.register_active_outer_authority(
+                        replacement_snapshot,
+                        candidate_commit=successor["checkpoint"],
+                        candidate_tree=successor["checkpoint_tree"],
+                        registry_root=authority_registry,
+                    )
+                except BaseException as exc:  # pragma: no cover - asserted below
+                    thread_errors.append(exc)
+                finally:
+                    replacement_finished.set()
+
+            with mock.patch.object(
+                LIVE, "_write_exclusive_private_bytes", side_effect=gated_write
+            ):
+                claim_thread = threading.Thread(target=claim_worker)
+                claim_thread.start()
+                self.assertTrue(claim_write_entered.wait(timeout=5))
+                replacement_thread = threading.Thread(target=replacement_worker)
+                replacement_thread.start()
+                self.assertFalse(replacement_finished.wait(timeout=0.1))
+                permit_claim_write.set()
+                claim_thread.join(timeout=5)
+                replacement_thread.join(timeout=5)
+            self.assertFalse(claim_thread.is_alive())
+            self.assertFalse(replacement_thread.is_alive())
+            self.assertEqual(thread_errors, [])
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "registry-mismatch"
+            ):
+                LIVE.validate_active_outer_authority(
+                    successor["outer_snapshot"],
+                    candidate_commit=successor["checkpoint"],
+                    candidate_tree=successor["checkpoint_tree"],
+                    registry_root=authority_registry,
+                )
+
+            real_registry = root / "real-authority-registry"
+            real_registry.mkdir(mode=0o700)
+            alias_registry = root / "alias-authority-registry"
+            alias_registry.symlink_to(real_registry, target_is_directory=True)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "directory-permissions-invalid"
+            ):
+                LIVE.register_active_outer_authority(
+                    replacement_snapshot,
+                    candidate_commit=successor["checkpoint"],
+                    candidate_tree=successor["checkpoint_tree"],
+                    registry_root=alias_registry,
+                )
+            with tempfile.TemporaryDirectory() as alternate_home, mock.patch.dict(
+                "os.environ", {"HOME": alternate_home}
+            ):
+                stable_root = LIVE._stable_codex_control_root()
+            self.assertEqual(
+                stable_root,
+                Path(LIVE.pwd.getpwuid(LIVE.os.geteuid()).pw_dir).resolve()
+                / ".codex",
+            )
+            self.assertNotEqual(stable_root, Path(alternate_home) / ".codex")
 
     def test_independent_validation_session_rejects_tool_activity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

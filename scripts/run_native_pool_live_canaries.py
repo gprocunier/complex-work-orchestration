@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import math
 import os
+import pwd
 import re
 from pathlib import Path
 import queue
@@ -37,6 +39,7 @@ from cwo_core.native_live_campaign_contracts import (  # noqa: E402
     JsonArtifactSnapshot,
     VALIDATOR_CONTRACT_PATHS,
     Version5PredecessorProofInputs,
+    active_outer_authority_scope_key,
     validate_campaign_manifest,
     validate_full_auto_authorization as validate_full_auto_authorization_contract,
     validate_release_patch_result,
@@ -149,6 +152,7 @@ class CampaignLaunchInputs:
         "predecessor_proof",
         "recovery_cause_evidence",
         "recovery_cause_source_analysis_bytes",
+        "source_identities",
     )
 
     def __init__(
@@ -171,6 +175,7 @@ class CampaignLaunchInputs:
         predecessor_proof: Version5PredecessorProofInputs | None = None,
         recovery_cause_evidence: JsonArtifactSnapshot | None = None,
         recovery_cause_source_analysis_bytes: bytes | None = None,
+        source_identities: Mapping[str, tuple[int, int, int, int]] | None = None,
     ) -> None:
         self.authorization = authorization
         self.manifest = manifest
@@ -191,6 +196,7 @@ class CampaignLaunchInputs:
         self.recovery_cause_source_analysis_bytes = (
             recovery_cause_source_analysis_bytes
         )
+        self.source_identities = dict(source_identities or {})
 
 
 def utc_now() -> dt.datetime:
@@ -2662,22 +2668,450 @@ def load_private_json(path: Path, label: str) -> dict[str, Any]:
     return dict(load_private_json_snapshot(path, label).value)
 
 
+def _private_control_directory(path: Path, label: str) -> Path:
+    supplied = Path(path).absolute()
+    try:
+        if supplied.is_symlink():
+            raise AppServerError(f"{label}-directory-permissions-invalid")
+        supplied.mkdir(mode=0o700, parents=True, exist_ok=True)
+        directory = supplied.resolve(strict=True)
+    except OSError as exc:
+        raise AppServerError(f"{label}-directory-unavailable") from exc
+    if directory != supplied:
+        raise AppServerError(f"{label}-directory-permissions-invalid")
+    try:
+        info = directory.lstat()
+    except OSError as exc:
+        raise AppServerError(f"{label}-directory-unavailable") from exc
+    if (
+        stat.S_ISLNK(info.st_mode)
+        or not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.geteuid()
+        or stat.S_IMODE(info.st_mode) != 0o700
+    ):
+        raise AppServerError(f"{label}-directory-permissions-invalid")
+    return directory
+
+
+def _stable_codex_control_root() -> Path:
+    """Resolve the control root from the effective account, never mutable HOME."""
+
+    try:
+        account_home = Path(pwd.getpwuid(os.geteuid()).pw_dir).absolute()
+        root = (account_home / ".codex").resolve(strict=True)
+        info = root.lstat()
+    except (KeyError, OSError) as exc:
+        raise AppServerError("stable-codex-control-root-unavailable") from exc
+    if (
+        root != account_home / ".codex"
+        or stat.S_ISLNK(info.st_mode)
+        or not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.geteuid()
+        or stat.S_IMODE(info.st_mode) & 0o022
+    ):
+        raise AppServerError("stable-codex-control-root-invalid")
+    return root
+
+
+def _open_private_control_lock(path: Path, label: str) -> int:
+    """Open one owner-private regular lock file without following aliases."""
+
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        info = os.fstat(descriptor)
+    except OSError as exc:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise AppServerError(f"{label}-lock-invalid") from exc
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_uid != os.geteuid()
+        or stat.S_IMODE(info.st_mode) != 0o600
+    ):
+        os.close(descriptor)
+        raise AppServerError(f"{label}-lock-invalid")
+    return descriptor
+
+
+def _write_exclusive_private_bytes(path: Path, raw: bytes, label: str) -> None:
+    try:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+    except FileExistsError as exc:
+        raise AppServerError(f"{label}-already-exists") from exc
+    except OSError as exc:
+        raise AppServerError(f"{label}-create-failed") from exc
+    try:
+        offset = 0
+        while offset < len(raw):
+            offset += os.write(descriptor, raw[offset:])
+        os.fsync(descriptor)
+    except OSError as exc:
+        raise AppServerError(f"{label}-write-failed") from exc
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_private_control_directory(path: Path, label: str) -> None:
+    """Durably persist a newly created private control-plane directory entry."""
+
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+        )
+        info = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or info.st_uid != os.geteuid()
+            or stat.S_IMODE(info.st_mode) != 0o700
+        ):
+            raise AppServerError(f"{label}-directory-permissions-invalid")
+        os.fsync(descriptor)
+    except OSError as exc:
+        raise AppServerError(f"{label}-directory-fsync-failed") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def _active_authority_registry_root(override: Path | None = None) -> Path:
+    return _private_control_directory(
+        override
+        if override is not None
+        else _stable_codex_control_root() / "cwo-native-live-authorities-v1",
+        "active-outer-authority-registry",
+    )
+
+
+def _active_authority_registry_path(
+    outer_authority: Mapping[str, Any], registry_root: Path | None = None
+) -> tuple[Path, Path, str]:
+    scope = outer_authority.get("scope")
+    if not isinstance(scope, Mapping):
+        raise AppServerError("active-outer-authority-scope-invalid")
+    try:
+        scope_key = active_outer_authority_scope_key(
+            scope.get("epic_id"), scope.get("parent_work_unit_id")
+        )
+    except ValueError as exc:
+        raise AppServerError("active-outer-authority-scope-invalid") from exc
+    declared = outer_authority.get("active_registry")
+    if declared != {
+        "contract": "cwo-active-outer-authority-registry:v1",
+        "scope_key": scope_key,
+    }:
+        raise AppServerError("active-outer-authority-registry-declaration-invalid")
+    root = _active_authority_registry_root(registry_root)
+    return root / f"{scope_key}.json", root / f"{scope_key}.lock", scope_key
+
+
+def register_active_outer_authority(
+    outer_authority: JsonArtifactSnapshot,
+    *,
+    candidate_commit: str,
+    candidate_tree: str,
+    registry_root: Path | None = None,
+) -> JsonArtifactSnapshot:
+    """Atomically supersede the active outer authority for one work-graph scope."""
+
+    value = dict(outer_authority.value)
+    outer_bindings = value.get("bindings")
+    if (
+        json.loads(outer_authority.raw) != value
+        or value.get("status") != "active"
+        or not isinstance(outer_bindings, Mapping)
+        or outer_bindings.get("candidate_commit") != candidate_commit
+        or outer_bindings.get("candidate_tree") != candidate_tree
+        or not re.fullmatch(r"[0-9a-f]{40}", candidate_commit)
+        or not re.fullmatch(r"[0-9a-f]{40}", candidate_tree)
+        or value.get("canonical_outer_authority_sha256")
+        != sha256_bytes(
+            json.dumps(
+                {
+                    key: item
+                    for key, item in value.items()
+                    if key != "canonical_outer_authority_sha256"
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        )
+    ):
+        raise AppServerError("active-outer-authority-artifact-invalid")
+    path, lock_path, scope_key = _active_authority_registry_path(
+        value, registry_root
+    )
+    scope = value["scope"]
+    record: dict[str, Any] = {
+        "registry_type": "cwo-active-outer-authority-registry",
+        "version": 1,
+        "scope_key": scope_key,
+        "epic_id": scope["epic_id"],
+        "parent_work_unit_id": scope["parent_work_unit_id"],
+        "authority_id": value["authority_id"],
+        "authority_file_sha256": outer_authority.raw_sha256,
+        "authority_canonical_sha256": value[
+            "canonical_outer_authority_sha256"
+        ],
+        "candidate_commit": candidate_commit,
+        "candidate_tree": candidate_tree,
+        "status": "active",
+        "updated_at": iso(),
+    }
+    record["canonical_registry_sha256"] = sha256_bytes(
+        json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+    )
+    raw = (json.dumps(record, indent=2, sort_keys=True) + "\n").encode()
+    lock_descriptor = _open_private_control_lock(
+        lock_path, "active-outer-authority"
+    )
+    try:
+        fcntl.flock(lock_descriptor, fcntl.LOCK_EX)
+        if path.exists():
+            current = load_private_json(path, "active-outer-authority-registry")
+            if current.get("authority_id") != value["authority_id"]:
+                supersession = value.get("supersession")
+                if (
+                    not isinstance(supersession, Mapping)
+                    or supersession.get("prior_outer_authority_id")
+                    != current.get("authority_id")
+                ):
+                    raise AppServerError(
+                        "active-outer-authority-supersession-invalid"
+                    )
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4()}.tmp")
+        _write_exclusive_private_bytes(
+            temporary, raw, "active-outer-authority-registry-temporary"
+        )
+        os.replace(temporary, path)
+        _fsync_private_control_directory(
+            path.parent, "active-outer-authority-registry"
+        )
+    finally:
+        os.close(lock_descriptor)
+    return JsonArtifactSnapshot(raw=raw, value=record)
+
+
+def _validate_active_outer_authority_unlocked(
+    outer_authority: JsonArtifactSnapshot,
+    *,
+    candidate_commit: str,
+    candidate_tree: str,
+    path: Path,
+    scope_key: str,
+) -> str:
+    registry = load_private_json(path, "active-outer-authority-registry")
+    expected_fields = {
+        "registry_type",
+        "version",
+        "scope_key",
+        "epic_id",
+        "parent_work_unit_id",
+        "authority_id",
+        "authority_file_sha256",
+        "authority_canonical_sha256",
+        "candidate_commit",
+        "candidate_tree",
+        "status",
+        "updated_at",
+        "canonical_registry_sha256",
+    }
+    unsigned = dict(registry)
+    recorded = unsigned.pop("canonical_registry_sha256", None)
+    scope = outer_authority.value.get("scope", {})
+    if (
+        set(registry) != expected_fields
+        or registry.get("registry_type")
+        != "cwo-active-outer-authority-registry"
+        or registry.get("version") != 1
+        or registry.get("scope_key") != scope_key
+        or registry.get("epic_id") != scope.get("epic_id")
+        or registry.get("parent_work_unit_id")
+        != scope.get("parent_work_unit_id")
+        or registry.get("authority_id")
+        != outer_authority.value.get("authority_id")
+        or registry.get("authority_file_sha256") != outer_authority.raw_sha256
+        or registry.get("authority_canonical_sha256")
+        != outer_authority.value.get("canonical_outer_authority_sha256")
+        or registry.get("candidate_commit") != candidate_commit
+        or registry.get("candidate_tree") != candidate_tree
+        or registry.get("status") != "active"
+        or recorded
+        != sha256_bytes(
+            json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+        )
+    ):
+        raise AppServerError("active-outer-authority-registry-mismatch")
+    return str(recorded)
+
+
+def validate_active_outer_authority(
+    outer_authority: JsonArtifactSnapshot,
+    *,
+    candidate_commit: str,
+    candidate_tree: str,
+    registry_root: Path | None = None,
+) -> str:
+    """Require the supplied outer artifact to remain the canonical active one."""
+
+    path, lock_path, scope_key = _active_authority_registry_path(
+        outer_authority.value, registry_root
+    )
+    lock_descriptor = _open_private_control_lock(
+        lock_path, "active-outer-authority"
+    )
+    try:
+        fcntl.flock(lock_descriptor, fcntl.LOCK_SH)
+        return _validate_active_outer_authority_unlocked(
+            outer_authority,
+            candidate_commit=candidate_commit,
+            candidate_tree=candidate_tree,
+            path=path,
+            scope_key=scope_key,
+        )
+    finally:
+        os.close(lock_descriptor)
+
+
+def acquire_global_campaign_claim(
+    inputs: CampaignLaunchInputs,
+    *,
+    launch_claim_sha256: str,
+    output: Path,
+    authorization_state: Path,
+    steering_registry: Path,
+    allocation_ledger: Path,
+    claim_root: Path | None = None,
+    registry_root: Path | None = None,
+) -> Path:
+    """Acquire the machine-global one-shot claim for an inner authorization."""
+
+    authorization = inputs.authorization.value
+    manifest = inputs.manifest.value
+    bindings = authorization.get("bindings")
+    if not isinstance(bindings, Mapping):
+        raise AppServerError("campaign-global-claim-authorization-invalid")
+    identity = {
+        "authorization_id": authorization.get("authorization_id"),
+        "run_generation": authorization.get("run_generation"),
+        "live_generation": authorization.get("live_generation"),
+        "campaign_nonce": bindings.get("campaign_nonce"),
+    }
+    identity_sha256 = domain_sha256(identity, domain="native-live-global-claim")
+    root = _private_control_directory(
+        claim_root
+        if claim_root is not None
+        else _stable_codex_control_root()
+        / "cwo-native-live-campaign-claims-v1",
+        "campaign-global-claim",
+    )
+    path = root / f"{identity_sha256}.json"
+    claim: dict[str, Any] = {
+        "claim_type": "cwo-native-live-campaign-global-claim",
+        "version": 1,
+        "identity": identity,
+        "identity_sha256": identity_sha256,
+        "launch_claim_sha256": launch_claim_sha256,
+        "outer_authority_id": inputs.outer_authority.value.get("authority_id"),
+        "candidate_commit": manifest.get("candidate", {}).get("commit"),
+        "candidate_tree": manifest.get("candidate", {}).get("tree"),
+        "output_paths": {
+            "evidence": str(output.resolve(strict=False)),
+            "authorization_state": str(authorization_state.resolve(strict=False)),
+            "steering_registry": str(steering_registry.resolve(strict=False)),
+            "allocation_ledger": str(allocation_ledger.resolve(strict=False)),
+        },
+        "claimed_at": iso(),
+    }
+    claim["canonical_claim_sha256"] = domain_sha256(
+        claim, domain="native-live-global-claim-artifact"
+    )
+    authority_path, authority_lock_path, scope_key = (
+        _active_authority_registry_path(
+            inputs.outer_authority.value, registry_root
+        )
+    )
+    authority_lock_descriptor = _open_private_control_lock(
+        authority_lock_path, "active-outer-authority"
+    )
+    try:
+        # The shared authority lock makes the active-authority check and the
+        # exclusive one-shot claim one indivisible launch decision. A successor
+        # authority cannot supersede this authority between those two events.
+        fcntl.flock(authority_lock_descriptor, fcntl.LOCK_SH)
+        _validate_active_outer_authority_unlocked(
+            inputs.outer_authority,
+            candidate_commit=str(manifest.get("candidate", {}).get("commit")),
+            candidate_tree=str(manifest.get("candidate", {}).get("tree")),
+            path=authority_path,
+            scope_key=scope_key,
+        )
+        _write_exclusive_private_bytes(
+            path,
+            (json.dumps(claim, indent=2, sort_keys=True) + "\n").encode(),
+            "campaign-global-claim",
+        )
+        _fsync_private_control_directory(root, "campaign-global-claim")
+    finally:
+        os.close(authority_lock_descriptor)
+    return path
+
+
 def require_unique_input_paths(paths: Mapping[str, Path]) -> dict[str, Path]:
-    """Resolve a complete input set once and reject aliases before any claim."""
+    """Resolve a complete input set once and reject path or inode aliases."""
 
     resolved: dict[str, Path] = {}
     reverse: dict[Path, str] = {}
+    identities: dict[tuple[int, int], str] = {}
     for label, supplied in paths.items():
         lexical = Path(supplied).absolute()
         try:
             current = Path(supplied).resolve(strict=True)
+            info = current.stat()
         except OSError as exc:
             raise AppServerError(f"{label}-path-invalid") from exc
-        if lexical != current or current in reverse:
+        identity = (info.st_dev, info.st_ino)
+        if (
+            lexical != current
+            or current in reverse
+            or identity in identities
+            or not stat.S_ISREG(info.st_mode)
+        ):
             raise AppServerError("campaign-input-path-alias")
         resolved[label] = current
         reverse[current] = label
+        identities[identity] = label
     return resolved
+
+
+def capture_input_source_identities(
+    paths: Mapping[str, Path],
+) -> dict[str, tuple[int, int, int, int]]:
+    """Capture stable source identities after alias rejection."""
+
+    identities: dict[str, tuple[int, int, int, int]] = {}
+    for label, path in paths.items():
+        try:
+            info = path.stat()
+        except OSError as exc:
+            raise AppServerError(f"{label}-source-identity-unavailable") from exc
+        identities[label] = (info.st_dev, info.st_ino, info.st_uid, info.st_mode)
+    return identities
 
 
 def require_private_parent(path: Path, label: str) -> None:
@@ -2733,6 +3167,92 @@ def require_trusted_session_snapshots_unchanged(
             raise AppServerError(f"{label}-path-missing")
         if load_trusted_session_bytes(path, label) != snapshot:
             raise AppServerError(f"{label}-changed-before-allocation")
+
+
+def require_launch_source_snapshots_unchanged(
+    paths: Mapping[str, Path], inputs: CampaignLaunchInputs
+) -> None:
+    """Recheck every mutable source against the read-once launch snapshots."""
+
+    expected: dict[str, bytes] = {
+        "authorization": inputs.authorization.raw,
+        "campaign-manifest": inputs.manifest.raw,
+        "outer-authority": inputs.outer_authority.raw,
+        "release-patch": inputs.release_patch_bytes,
+        "pre-mutation-steering-receipt": inputs.pre_mutation_receipt.raw,
+        "pre-mutation-adjudication": inputs.pre_mutation_adjudication.raw,
+        "pre-live-steering-receipt": inputs.pre_live_receipt.raw,
+        "pre-live-adjudication": inputs.pre_live_adjudication.raw,
+        "opus-review-evidence": inputs.opus_review_evidence.raw,
+        "opus-adjudication": inputs.opus_adjudication.raw,
+        "spark-validation-receipt": inputs.spark_validation_receipt.raw,
+    }
+    proof = inputs.predecessor_proof
+    legacy = inputs.legacy_predecessor
+    if proof is not None:
+        expected.update(
+            {
+                "predecessor-authorization": proof.authorization.raw,
+                "predecessor-manifest": proof.manifest.raw,
+                "predecessor-authorization-state": proof.authorization_state.raw,
+                "predecessor-failure-evidence": proof.failure_evidence.raw,
+                "predecessor-containment": proof.containment.raw,
+                "predecessor-allocation-ledger": proof.allocation_ledger.raw,
+                "predecessor-allocation-audit": proof.allocation_audit_bytes,
+                "predecessor-outer-authority": proof.outer_authority.raw,
+                "predecessor-independent-validation-receipt": (
+                    proof.independent_validation_receipt.raw
+                ),
+                "predecessor-authorization-cause-evidence": (
+                    proof.authorization_cause_evidence
+                ),
+                "ancestor-authorization": proof.ancestor.authorization.raw,
+                "ancestor-manifest": proof.ancestor.manifest.raw,
+                "ancestor-authorization-state": proof.ancestor.authorization_state.raw,
+                "ancestor-failure-evidence": proof.ancestor.failure_evidence.raw,
+                "ancestor-original-containment": proof.ancestor.original_containment.raw,
+                "ancestor-containment": proof.ancestor.containment.raw,
+                "ancestor-allocation-ledger": proof.ancestor.allocation_ledger.raw,
+                "ancestor-allocation-audit": proof.ancestor.allocation_audit_bytes,
+            }
+        )
+        if inputs.recovery_cause_evidence is not None:
+            expected["cause-evidence"] = inputs.recovery_cause_evidence.raw
+        if inputs.recovery_cause_source_analysis_bytes is not None:
+            expected["cause-source-analysis"] = (
+                inputs.recovery_cause_source_analysis_bytes
+            )
+    elif legacy is not None:
+        expected.update(
+            {
+                "predecessor-authorization": legacy.authorization.raw,
+                "predecessor-manifest": legacy.manifest.raw,
+                "predecessor-authorization-state": legacy.authorization_state.raw,
+                "predecessor-failure-evidence": legacy.failure_evidence.raw,
+                "predecessor-original-containment": legacy.original_containment.raw,
+                "predecessor-containment": legacy.containment.raw,
+                "predecessor-allocation-ledger": legacy.allocation_ledger.raw,
+                "predecessor-allocation-audit": legacy.allocation_audit_bytes,
+                "cause-evidence": legacy.cause_evidence,
+            }
+        )
+    for label, snapshot in expected.items():
+        path = paths.get(label)
+        if path is None or load_private_bytes(path, label) != snapshot:
+            raise AppServerError(f"{label}-changed-before-allocation")
+    require_trusted_session_snapshots_unchanged(paths, inputs)
+    for label, expected_identity in inputs.source_identities.items():
+        path = paths.get(label)
+        if path is None:
+            raise AppServerError(f"{label}-path-missing")
+        try:
+            info = path.stat()
+        except OSError as exc:
+            raise AppServerError(f"{label}-source-identity-unavailable") from exc
+        if (info.st_dev, info.st_ino, info.st_uid, info.st_mode) != tuple(
+            expected_identity
+        ):
+            raise AppServerError(f"{label}-source-identity-changed")
 
 
 def _capture_session_snapshot(
@@ -3026,7 +3546,9 @@ def validate_campaign_launch_bindings(
         inputs.spark_validation_session_bytes,
     )
     primary_diff_sha256 = guarded_diff_sha256(guarded_primary)
-    validator_sha256 = validator_contract_sha256(ROOT)
+    validator_sha256 = validator_contract_sha256(
+        ROOT, manifest.get("candidate", {}).get("tree")
+    )
     common_manifest_kwargs = {
         "authorization": authorization,
         "authorization_raw_sha256": inputs.authorization.raw_sha256,
@@ -3362,7 +3884,13 @@ def campaign_launch_claim_sha256(
             ),
         },
         "output_basenames": output_basenames,
-        "validator_contract_sha256": validator_contract_sha256(ROOT),
+        "output_paths": {
+            "evidence": str(output.resolve(strict=False)),
+            "authorization_state": str(authorization_state.resolve(strict=False)),
+            "steering_registry": str(steering_registry.resolve(strict=False)),
+            "allocation_ledger": str(allocation_ledger.resolve(strict=False)),
+        },
+        "validator_contract_sha256": bindings.get("validator_contract_sha256"),
     }
     return domain_sha256(claim, domain="native-live-campaign-launch-claim")
 
@@ -3507,6 +4035,7 @@ def main() -> int:
             }
         )
         paths = require_unique_input_paths(path_arguments)
+        source_identities = capture_input_source_identities(paths)
         for label, path in paths.items():
             if campaign_input_requires_private_parent(label):
                 require_private_parent(path, label)
@@ -3728,6 +4257,7 @@ def main() -> int:
             recovery_cause_source_analysis_bytes=(
                 recovery_cause_source_analysis_bytes
             ),
+            source_identities=source_identities,
         )
         authorization_sha256 = launch_inputs.authorization.raw_sha256
         if version == 6:
@@ -3739,7 +4269,9 @@ def main() -> int:
                 recovery_cause_source_analysis=(
                     recovery_cause_source_analysis_bytes
                 ),
-                expected_validator_contract_sha256=validator_contract_sha256(ROOT),
+                expected_validator_contract_sha256=validator_contract_sha256(
+                    ROOT, authorization.get("bindings", {}).get("checkpoint_tree")
+                ),
                 repo_root=ROOT,
             )
         else:
@@ -3830,6 +4362,14 @@ def main() -> int:
         )
         if launch_claim_sha256 is not None:
             artifact_bindings["launch_claim_sha256"] = launch_claim_sha256
+            acquire_global_campaign_claim(
+                launch_inputs,
+                launch_claim_sha256=launch_claim_sha256,
+                output=output,
+                authorization_state=state_path,
+                steering_registry=registry_path,
+                allocation_ledger=ledger_path,
+            )
         authorization_store = CanaryAuthorizationStore(state_path)
         authorization_state = authorization_store.initialize(
             new_authorization_state(
@@ -3873,7 +4413,7 @@ def main() -> int:
             and active_state.get("launch_claim_sha256") != launch_claim_sha256
         ):
             raise AppServerError("campaign-launch-claim-state-mismatch")
-        require_trusted_session_snapshots_unchanged(paths, launch_inputs)
+        require_launch_source_snapshots_unchanged(paths, launch_inputs)
         refreshed_bindings = validate_campaign_launch_bindings(
             inputs=launch_inputs,
             guarded_primary=args.guarded_primary.absolute(),
@@ -3924,7 +4464,9 @@ def main() -> int:
                 != artifact_bindings["guarded_primary_diff_sha256"]
                 or (
                     version == 6
-                    and validator_contract_sha256(ROOT)
+                    and validator_contract_sha256(
+                        ROOT, manifest["candidate"]["tree"]
+                    )
                     != artifact_bindings["validator_contract_sha256"]
                 )
             ):
@@ -3978,7 +4520,13 @@ def main() -> int:
                 version=2,
             )
             server.attach_allocation_ledger(allocation_ledger)
-            require_trusted_session_snapshots_unchanged(paths, launch_inputs)
+            require_launch_source_snapshots_unchanged(paths, launch_inputs)
+            if version == 6:
+                validate_active_outer_authority(
+                    launch_inputs.outer_authority,
+                    candidate_commit=manifest["candidate"]["commit"],
+                    candidate_tree=manifest["candidate"]["tree"],
+                )
             capability, calibration_evidence = calibration(
                 server,
                 layout["read-shared"],

@@ -46,6 +46,27 @@ EXPECTED_ROLES = (
     "interrupt-0",
     "interrupt-1",
 )
+CONTAINED_ROLE_TOOL_PREFIXES = {
+    "capability-calibration": (("function", "exec_command"),),
+    "read-only-0": (
+        ("function", "exec_command"),
+        ("function", "exec_command"),
+    ),
+    "read-only-1": (
+        ("function", "exec_command"),
+        ("function", "exec_command"),
+    ),
+    "mutable-0": (
+        ("custom", "apply_patch"),
+        ("function", "exec_command"),
+    ),
+    "mutable-1": (
+        ("custom", "apply_patch"),
+        ("function", "exec_command"),
+    ),
+    "interrupt-0": (("function", "exec_command"),),
+    "interrupt-1": (("function", "exec_command"),),
+}
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -714,19 +735,58 @@ VALIDATOR_CONTRACT_PATHS = (
 )
 
 
-def validator_contract_sha256(repo_root: Path) -> str:
-    """Bind the exact finite-DAG implementation and versioned schemas."""
+def validator_contract_sha256(
+    repo_root: Path, checkpoint_tree: str | None = None
+) -> str:
+    """Bind validator blobs from one immutable checkpoint tree.
+
+    Reading the working tree one pathname at a time leaves the digest vulnerable
+    to a concurrent rewrite-and-restore race. Git tree objects provide one stable,
+    candidate-bound snapshot for the complete validator contract.
+    """
 
     root = Path(repo_root).resolve()
+    if checkpoint_tree is None:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD^{tree}"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        checkpoint_tree = completed.stdout.strip()
+    if not _is_commit(checkpoint_tree):
+        raise ValueError("validator-contract-tree-invalid")
     files: list[dict[str, str]] = []
     for relative in VALIDATOR_CONTRACT_PATHS:
-        path = root / relative
-        if path.is_symlink() or not path.is_file():
+        entry = subprocess.run(
+            ["git", "ls-tree", checkpoint_tree, "--", relative],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        fields = entry.stdout.strip().split(None, 3)
+        if (
+            entry.returncode != 0
+            or len(fields) != 4
+            or fields[0] not in {"100644", "100755"}
+            or fields[1] != "blob"
+            or fields[3] != relative
+        ):
             raise ValueError(f"validator-contract-path-invalid:{relative}")
+        blob = subprocess.run(
+            ["git", "show", f"{checkpoint_tree}:{relative}"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+        )
+        if blob.returncode != 0:
+            raise ValueError(f"validator-contract-blob-invalid:{relative}")
         files.append(
             {
                 "path": relative,
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "sha256": hashlib.sha256(blob.stdout).hexdigest(),
             }
         )
     return canonical_sha256(
@@ -734,7 +794,27 @@ def validator_contract_sha256(repo_root: Path) -> str:
             "contract": "cwo-live-successor-validator:v1",
             "proof_dag": ["v6/v3", "v5/v2", "v4/v1"],
             "ancestor_depth_exact": 1,
+            "checkpoint_tree": checkpoint_tree,
             "files": files,
+        }
+    )
+
+
+def active_outer_authority_scope_key(epic_id: Any, parent_work_unit_id: Any) -> str:
+    """Return the machine-local registry key for one outer-authority scope."""
+
+    if (
+        not isinstance(epic_id, str)
+        or not epic_id
+        or not isinstance(parent_work_unit_id, str)
+        or not parent_work_unit_id
+    ):
+        raise ValueError("outer-authority-registry-scope-invalid")
+    return canonical_sha256(
+        {
+            "contract": "cwo-active-outer-authority-registry:v1",
+            "epic_id": epic_id,
+            "parent_work_unit_id": parent_work_unit_id,
         }
     )
 
@@ -2569,16 +2649,145 @@ def _validate_independent_validation_session_snapshot(
 
 def _parse_contained_session_identity(
     raw: bytes, label: str
-) -> tuple[str | None, set[str], int, list[str]]:
+) -> tuple[
+    str | None,
+    set[str],
+    int,
+    tuple[tuple[str, str], ...],
+    str | None,
+    list[str],
+]:
     errors: list[str] = []
     if not isinstance(raw, bytes) or not raw or not raw.endswith(b"\n"):
-        return None, set(), 0, [f"{label}-boundary-invalid"]
+        return None, set(), 0, (), None, [f"{label}-boundary-invalid"]
     try:
         records = [json.loads(line) for line in raw.splitlines()]
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return None, set(), 0, [f"{label}-json-invalid"]
+        return None, set(), 0, (), None, [f"{label}-json-invalid"]
     if not all(isinstance(record, dict) for record in records):
-        return None, set(), len(records), [f"{label}-record-invalid"]
+        return None, set(), len(records), (), None, [f"{label}-record-invalid"]
+    allowed_payload_types: dict[str, set[str | None]] = {
+        "session_meta": {None},
+        "event_msg": {
+            "task_started",
+            "user_message",
+            "agent_message",
+            "token_count",
+            "task_complete",
+            "turn_aborted",
+            "patch_apply_end",
+        },
+        "response_item": {
+            "message",
+            "reasoning",
+            "function_call",
+            "function_call_output",
+            "custom_tool_call",
+            "custom_tool_call_output",
+        },
+        "world_state": {None},
+        "turn_context": {None},
+    }
+    session_meta_indices: list[int] = []
+    started_events: list[tuple[int, str]] = []
+    terminal_events: list[tuple[int, str, str]] = []
+    turn_contexts: list[tuple[int, str]] = []
+    calls: dict[str, tuple[int, str, str]] = {}
+    outputs: dict[str, tuple[int, str]] = {}
+    tool_sequence: list[tuple[str, str]] = []
+    patch_events: dict[str, tuple[int, str]] = {}
+    for index, record in enumerate(records):
+        record_type = record.get("type")
+        payload = record.get("payload")
+        if record_type not in allowed_payload_types or not isinstance(
+            payload, Mapping
+        ):
+            errors.append(f"{label}-activity-invalid")
+            continue
+        payload_type = payload.get("type")
+        if payload_type not in allowed_payload_types[record_type]:
+            errors.append(f"{label}-activity-invalid")
+            continue
+        marker = f"{record_type}:{payload_type}".lower()
+        if "compact" in marker or "rerout" in marker:
+            errors.append(f"{label}-activity-invalid")
+        if record_type == "session_meta":
+            session_meta_indices.append(index)
+        if record_type == "event_msg" and payload_type in {
+            "task_started",
+            "task_complete",
+            "turn_aborted",
+        }:
+            turn_id = payload.get("turn_id")
+            if not _is_uuid(turn_id) or "turnId" in payload:
+                errors.append(f"{label}-turn-identity-invalid")
+            elif payload_type == "task_started":
+                started_events.append((index, str(turn_id)))
+            else:
+                terminal_events.append((index, str(turn_id), str(payload_type)))
+        elif record_type == "event_msg" and payload_type == "patch_apply_end":
+            call_id = payload.get("call_id")
+            turn_id = payload.get("turn_id")
+            if (
+                not isinstance(call_id, str)
+                or not call_id
+                or call_id in patch_events
+                or not _is_uuid(turn_id)
+            ):
+                errors.append(f"{label}-patch-event-invalid")
+            else:
+                patch_events[call_id] = (index, str(turn_id))
+        elif record_type == "turn_context":
+            turn_id = payload.get("turn_id") or payload.get("turnId")
+            if not _is_uuid(turn_id):
+                errors.append(f"{label}-turn-context-invalid")
+            else:
+                turn_contexts.append((index, str(turn_id)))
+        elif record_type == "response_item" and payload_type == "message":
+            if payload.get("role") not in {"developer", "user", "assistant"}:
+                errors.append(f"{label}-message-role-invalid")
+        elif record_type == "response_item" and payload_type in {
+            "function_call",
+            "custom_tool_call",
+        }:
+            kind = "function" if payload_type == "function_call" else "custom"
+            call_id = payload.get("call_id")
+            name = payload.get("name")
+            if (
+                not isinstance(call_id, str)
+                or not call_id
+                or call_id in calls
+                or not isinstance(name, str)
+                or not name
+                or (kind, name)
+                not in {
+                    ("function", "exec_command"),
+                    ("custom", "apply_patch"),
+                }
+            ):
+                errors.append(f"{label}-tool-call-invalid")
+            else:
+                calls[call_id] = (index, kind, name)
+                tool_sequence.append((kind, name))
+        elif (
+            record_type == "response_item"
+            and payload_type
+            in {"function_call_output", "custom_tool_call_output"}
+        ):
+            kind = (
+                "function"
+                if payload_type == "function_call_output"
+                else "custom"
+            )
+            call_id = payload.get("call_id")
+            if (
+                not isinstance(call_id, str)
+                or not call_id
+                or call_id in outputs
+            ):
+                errors.append(f"{label}-tool-output-invalid")
+            else:
+                outputs[call_id] = (index, kind)
     session_ids = [
         record.get("payload", {}).get("id")
         for record in records
@@ -2588,17 +2797,52 @@ def _parse_contained_session_identity(
     session_id = session_ids[0] if len(session_ids) == 1 else None
     if not _is_uuid(session_id):
         errors.append(f"{label}-session-identity-invalid")
-    started_turns = {
-        record.get("payload", {}).get("turn_id")
-        for record in records
-        if record.get("type") == "event_msg"
-        and isinstance(record.get("payload"), Mapping)
-        and record["payload"].get("type") == "task_started"
-        and _is_uuid(record["payload"].get("turn_id"))
-    }
+    started_turns = {turn_id for _index, turn_id in started_events}
     if len(started_turns) != 1:
         errors.append(f"{label}-turn-identity-invalid")
-    return session_id, started_turns, len(records), errors
+    expected_turn = next(iter(started_turns), None)
+    if (
+        session_meta_indices != [0]
+        or len(started_events) != 1
+        or (started_events and started_events[0][0] != 1)
+        or len(terminal_events) != 1
+        or terminal_events[0][0] != len(records) - 1
+        or (
+            started_events
+            and terminal_events
+            and started_events[0][1] != terminal_events[0][1]
+        )
+    ):
+        errors.append(f"{label}-terminal-boundary-invalid")
+    if any(turn_id != expected_turn for _index, turn_id in turn_contexts):
+        errors.append(f"{label}-turn-context-mismatch")
+    if set(calls) != set(outputs):
+        errors.append(f"{label}-tool-pairing-invalid")
+    for call_id in sorted(set(calls) & set(outputs)):
+        call_index, call_kind, _name = calls[call_id]
+        output_index, output_kind = outputs[call_id]
+        if call_kind != output_kind or call_index >= output_index:
+            errors.append(f"{label}-tool-order-invalid")
+    for call_id, (event_index, event_turn) in patch_events.items():
+        call = calls.get(call_id)
+        output = outputs.get(call_id)
+        if (
+            call is None
+            or output is None
+            or call[1:] != ("custom", "apply_patch")
+            or not (call[0] < event_index < output[0])
+            or event_turn != expected_turn
+        ):
+            errors.append(f"{label}-patch-event-binding-invalid")
+    terminal_type = terminal_events[0][2] if len(terminal_events) == 1 else None
+    return (
+        session_id,
+        started_turns,
+        len(records),
+        tuple(tool_sequence),
+        terminal_type,
+        errors,
+    )
 
 
 def _validate_contained_session_snapshots(
@@ -2646,16 +2890,32 @@ def _validate_contained_session_snapshots(
             errors.append(f"{label}-session-accounting-identity-invalid")
             continue
         accounting_by_id[str(session_id)] = item
-    parsed_by_id: dict[str, tuple[bytes, set[str], int]] = {}
+    parsed_by_id: dict[
+        str,
+        tuple[bytes, set[str], int, tuple[tuple[str, str], ...], str | None],
+    ] = {}
     for index, raw in enumerate(raw_sessions):
-        session_id, started_turns, record_count, parse_errors = (
+        (
+            session_id,
+            started_turns,
+            record_count,
+            tool_sequence,
+            terminal_type,
+            parse_errors,
+        ) = (
             _parse_contained_session_identity(raw, f"{label}-{index}")
         )
         errors.extend(parse_errors)
         if session_id is None or session_id in parsed_by_id:
             errors.append(f"{label}-session-snapshot-identity-invalid")
             continue
-        parsed_by_id[session_id] = (raw, started_turns, record_count)
+        parsed_by_id[session_id] = (
+            raw,
+            started_turns,
+            record_count,
+            tool_sequence,
+            terminal_type,
+        )
     if (
         set(accounting_by_id) != set(parsed_by_id)
         or set(accounting_by_id) != set(thread_entries)
@@ -2664,12 +2924,26 @@ def _validate_contained_session_snapshots(
         errors.append(f"{label}-session-ledger-identity-mismatch")
     for session_id in sorted(set(accounting_by_id) & set(parsed_by_id)):
         item = accounting_by_id[session_id]
-        raw, started_turns, record_count = parsed_by_id[session_id]
+        (
+            raw,
+            started_turns,
+            record_count,
+            tool_sequence,
+            _terminal_type,
+        ) = parsed_by_id[session_id]
         thread_entry = thread_entries.get(session_id, {})
         turn_entry = turn_entries.get(session_id, {})
         expected_turn = turn_entry.get("turn_id")
         if expected_turn not in started_turns:
             errors.append(f"{label}-session-turn-mismatch")
+        role = thread_entry.get("role")
+        expected_tools = CONTAINED_ROLE_TOOL_PREFIXES.get(role)
+        if (
+            expected_tools is None
+            or len(tool_sequence) > len(expected_tools)
+            or tool_sequence != expected_tools[: len(tool_sequence)]
+        ):
+            errors.append(f"{label}-session-tool-activity-invalid")
         if historical:
             if (
                 item.get("role") != thread_entry.get("role")
@@ -3454,7 +3728,9 @@ def _validate_full_auto_authorization_v6(
 
     if repo_root is not None:
         try:
-            observed_contract = validator_contract_sha256(Path(repo_root))
+            observed_contract = validator_contract_sha256(
+                Path(repo_root), bindings.get("checkpoint_tree")
+            )
         except (OSError, ValueError):
             observed_contract = None
             errors.append("authorization-v6-validator-contract-unavailable")
@@ -3885,7 +4161,6 @@ def _validate_campaign_manifest_v2(
         }
         if manifest_outer_authority != expected_outer:
             errors.append("campaign-manifest-outer-authority-binding-mismatch")
-
     if independent_validation_receipt is not None:
         expected_activity = {
             "function_calls": 0,
@@ -4116,6 +4391,31 @@ def _validate_campaign_manifest_v3(
             repo_root=repo_root,
         )
     )
+    work_units = (
+        manifest.get("work_units")
+        if isinstance(manifest.get("work_units"), Mapping)
+        else {}
+    )
+    registry = (
+        outer_authority.get("active_registry")
+        if isinstance(outer_authority, Mapping)
+        else None
+    )
+    expected_scope_key: str | None = None
+    try:
+        expected_scope_key = active_outer_authority_scope_key(
+            work_units.get("epic_id"), work_units.get("parent_work_unit_id")
+        )
+    except ValueError:
+        pass
+    if (
+        not isinstance(registry, Mapping)
+        or set(registry) != {"contract", "scope_key"}
+        or registry.get("contract")
+        != "cwo-active-outer-authority-registry:v1"
+        or registry.get("scope_key") != expected_scope_key
+    ):
+        errors.append("campaign-manifest-v3-outer-authority-registry-invalid")
     bindings = (
         authorization.get("bindings")
         if isinstance(authorization.get("bindings"), Mapping)
