@@ -1307,6 +1307,260 @@ class Generation12ContractTests(unittest.TestCase):
         expected_shadow_supersession["prior_allowed_actions"] = 0
         self.assertEqual(shadow["supersession"], expected_shadow_supersession)
 
+    def test_v8_manifest_shadow_projects_only_legacy_ledger_aliases(self) -> None:
+        actual = {
+            "allocation_ledger_file_sha256": "1" * 64,
+            "allocation_ledger_state_sha256": "2" * 64,
+            "allocation_audit_file_sha256": "3" * 64,
+        }
+        aliases = {
+            "predecessor_global_claim_file_sha256": "4" * 64,
+            "predecessor_scope_state_canonical_sha256": "5" * 64,
+            "predecessor_authorization_marker_file_sha256": "6" * 64,
+        }
+        authorization = {
+            "version": CONTRACTS.AUTHORIZATION_VERSION_V11,
+            "schema": CONTRACTS.AUTHORIZATION_SCHEMA_V11,
+            "bindings": {
+                **aliases,
+                **{
+                    f"predecessor_{field}": value
+                    for field, value in actual.items()
+                },
+            },
+            "mandatory_gates": {},
+            "progress_gate": {},
+            "supersession": {"prior_allowed_actions": 8},
+        }
+        predecessor = {
+            "authorization_file_sha256": "7" * 64,
+            "recovery_cause_evidence_file_sha256": "8" * 64,
+            "recovery_cause_evidence_canonical_sha256": "9" * 64,
+            "ancestor_lineage_sha256": "a" * 64,
+            "validator_contract_sha256": "b" * 64,
+            **actual,
+        }
+        manifest = {
+            "version": CONTRACTS.MANIFEST_VERSION_V8,
+            "schema": CONTRACTS.MANIFEST_SCHEMA_V8,
+            "predecessor": predecessor,
+        }
+        original_authorization = deepcopy(authorization)
+        original_manifest = deepcopy(manifest)
+
+        shadow, shadow_authorization, _raw_sha256 = (
+            CONTRACTS._v8_manifest_common_shadow(manifest, authorization)
+        )
+
+        self.assertEqual(authorization, original_authorization)
+        self.assertEqual(manifest, original_manifest)
+        shadow_predecessor = shadow["predecessor"]
+        self.assertEqual(
+            shadow_predecessor["allocation_ledger_file_sha256"],
+            aliases["predecessor_global_claim_file_sha256"],
+        )
+        self.assertEqual(
+            shadow_predecessor["allocation_ledger_state_sha256"],
+            aliases["predecessor_scope_state_canonical_sha256"],
+        )
+        self.assertEqual(
+            shadow_predecessor["allocation_audit_file_sha256"],
+            aliases["predecessor_authorization_marker_file_sha256"],
+        )
+        self.assertEqual(
+            shadow_predecessor["authorization_file_sha256"], "7" * 64
+        )
+        self.assertEqual(
+            shadow_predecessor["original_containment_file_sha256"], "8" * 64
+        )
+        self.assertEqual(
+            shadow_predecessor["original_containment_canonical_sha256"],
+            "9" * 64,
+        )
+        self.assertNotIn("ancestor_lineage_sha256", shadow_predecessor)
+        self.assertNotIn("validator_contract_sha256", shadow_predecessor)
+        self.assertEqual(
+            shadow_authorization["bindings"][
+                "predecessor_allocation_ledger_file_sha256"
+            ],
+            aliases["predecessor_global_claim_file_sha256"],
+        )
+
+    def test_v8_semantics_still_reject_real_ledger_tampering(self) -> None:
+        authorization_id = str(uuid.uuid4())
+        bindings = {
+            field: "1" * 64 for field in CONTRACTS.BINDING_FIELDS_V11
+        }
+        bindings.update(
+            {
+                "campaign_nonce": str(uuid.uuid4()),
+                "checkpoint_commit": "2" * 40,
+                "checkpoint_tree": "3" * 40,
+                "origin_main_commit": "4" * 40,
+                "pickup_path": "pickup.md",
+                "recovery_plan_path": "plan.md",
+                "predecessor_authorization_id": authorization_id,
+                "predecessor_terminal_session_id": str(uuid.uuid4()),
+                "predecessor_terminal_turn_id": str(uuid.uuid4()),
+                "backup_ref": "refs/heads/backup/test",
+                "outer_authority_id": str(uuid.uuid4()),
+            }
+        )
+        progress = {
+            "predecessor_candidate_commit": "5" * 40,
+            "predecessor_candidate_tree": "6" * 40,
+            "predecessor_lineage_sha256": "7" * 64,
+            "qualification_sha256": "8" * 64,
+        }
+        predecessor = {
+            "authorization_id": bindings["predecessor_authorization_id"],
+            "authorization_file_sha256": bindings[
+                "predecessor_authorization_file_sha256"
+            ],
+            "authorization_canonical_sha256": bindings[
+                "predecessor_authorization_canonical_sha256"
+            ],
+            "manifest_file_sha256": bindings[
+                "predecessor_manifest_file_sha256"
+            ],
+            "manifest_canonical_sha256": bindings[
+                "predecessor_manifest_canonical_sha256"
+            ],
+            "authorization_state_file_sha256": bindings[
+                "predecessor_authorization_state_file_sha256"
+            ],
+            "authorization_state_canonical_sha256": bindings[
+                "predecessor_authorization_state_canonical_sha256"
+            ],
+            "candidate_commit": progress["predecessor_candidate_commit"],
+            "candidate_tree": progress["predecessor_candidate_tree"],
+            "lineage_sha256": progress["predecessor_lineage_sha256"],
+            "failure_evidence_file_sha256": bindings[
+                "predecessor_failure_evidence_file_sha256"
+            ],
+            "failure_evidence_canonical_sha256": bindings[
+                "predecessor_failure_evidence_canonical_sha256"
+            ],
+            "containment_file_sha256": bindings[
+                "predecessor_containment_file_sha256"
+            ],
+            "containment_canonical_sha256": bindings[
+                "predecessor_containment_canonical_sha256"
+            ],
+            "recovery_cause_evidence_file_sha256": bindings[
+                "recovery_cause_evidence_file_sha256"
+            ],
+            "recovery_cause_evidence_canonical_sha256": bindings[
+                "recovery_cause_evidence_canonical_sha256"
+            ],
+            "ancestor_lineage_sha256": bindings[
+                "predecessor_ancestor_lineage_sha256"
+            ],
+            "validator_contract_sha256": bindings[
+                "validator_contract_sha256"
+            ],
+            "allocation_ledger_file_sha256": bindings[
+                "predecessor_allocation_ledger_file_sha256"
+            ],
+            "allocation_ledger_state_sha256": bindings[
+                "predecessor_allocation_ledger_state_sha256"
+            ],
+            "allocation_audit_file_sha256": bindings[
+                "predecessor_allocation_audit_file_sha256"
+            ],
+            **{
+                field.removeprefix("predecessor_"): bindings[field]
+                for field in CONTRACTS.BINDING_FIELDS_V11
+                - CONTRACTS.BINDING_FIELDS_V7
+            },
+        }
+        self.assertEqual(
+            set(predecessor), CONTRACTS.MANIFEST_PREDECESSOR_FIELDS_V8
+        )
+        authorization = {
+            "version": 11,
+            "authorization_id": authorization_id,
+            "canonical_authorization_sha256": "9" * 64,
+            "bindings": bindings,
+            "progress_gate": progress,
+            "mandatory_gates": {},
+            "supersession": {"prior_allowed_actions": 8},
+        }
+        raw_sha256 = "a" * 64
+        work_units = {
+            "epic_id": "complex-work-orchestration-18w",
+            "parent_work_unit_id": "complex-work-orchestration-18w.6",
+            "live_work_unit_id": "complex-work-orchestration-18w.6.52",
+        }
+        manifest = {
+            "manifest_type": CONTRACTS.MANIFEST_TYPE,
+            "version": CONTRACTS.MANIFEST_VERSION_V8,
+            "schema": CONTRACTS.MANIFEST_SCHEMA_V8,
+            "authorization_id": authorization_id,
+            "authorization_raw_sha256": raw_sha256,
+            "authorization_canonical_sha256": authorization[
+                "canonical_authorization_sha256"
+            ],
+            "progress_qualification_sha256": progress[
+                "qualification_sha256"
+            ],
+            "work_units": work_units,
+            "predecessor": predecessor,
+        }
+        manifest["manifest_sha256"] = CONTRACTS.canonical_sha256(manifest)
+        outer = {
+            "active_registry": {
+                "contract": "cwo-active-outer-authority-registry:v1",
+                "scope_key": CONTRACTS.active_outer_authority_scope_key(
+                    work_units["epic_id"], work_units["parent_work_unit_id"]
+                ),
+            }
+        }
+
+        def validate(value: dict) -> list[str]:
+            with (
+                patch.object(
+                    CONTRACTS,
+                    "_strict",
+                    side_effect=lambda item, _fields, _label, _errors: (
+                        dict(item) if isinstance(item, dict) else {}
+                    ),
+                ),
+                patch.object(
+                    CONTRACTS, "_validate_campaign_manifest_v2", return_value=[]
+                ),
+                patch.object(
+                    CONTRACTS,
+                    "_validate_full_auto_authorization_v11",
+                    return_value=[],
+                ),
+            ):
+                return CONTRACTS._validate_campaign_manifest_v8(
+                    value,
+                    authorization=authorization,
+                    authorization_raw_sha256=raw_sha256,
+                    outer_authority=outer,
+                    outer_authority_raw_sha256="b" * 64,
+                    predecessor_proof=None,
+                    recovery_cause_evidence=None,
+                    recovery_cause_source_analysis=None,
+                    independent_validation_receipt=None,
+                    independent_validation_receipt_raw_sha256=None,
+                    expected_validator_contract_sha256=None,
+                    repo_root=None,
+                    expected_primary_diff_sha256=None,
+                )
+
+        self.assertEqual(validate(manifest), [])
+        tampered = deepcopy(manifest)
+        tampered["predecessor"]["allocation_ledger_file_sha256"] = "f" * 64
+        tampered.pop("manifest_sha256")
+        tampered["manifest_sha256"] = CONTRACTS.canonical_sha256(tampered)
+        self.assertIn(
+            "campaign-manifest-v8-predecessor-authorization-mismatch",
+            validate(tampered),
+        )
+
     def test_malformed_v11_v8_inputs_fail_closed(self) -> None:
         for malformed in ({}, [], "11", True, None):
             with self.subTest(authorization=malformed):

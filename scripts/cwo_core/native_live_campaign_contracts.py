@@ -13217,6 +13217,19 @@ def _v8_manifest_common_shadow(
     shadow["predecessor"] = predecessor
     for field in MANIFEST_PREDECESSOR_FIELDS_V8 - MANIFEST_PREDECESSOR_FIELDS_V4:
         predecessor.pop(field, None)
+    shadow_bindings = shadow_authorization["bindings"]
+    # The frozen v2 manifest validator compares these fields to the v5
+    # authorization shadow. That authorization shadow deliberately aliases
+    # the three legacy ledger slots to Generation-10 preallocation artifacts;
+    # project the same aliases only into this deep-copied manifest shadow.
+    # The caller-owned v8 manifest retains the actual Generation-11 ledger,
+    # state, and audit hashes enforced by the semantic v8 validator below.
+    for field in (
+        "allocation_ledger_file_sha256",
+        "allocation_ledger_state_sha256",
+        "allocation_audit_file_sha256",
+    ):
+        predecessor[field] = shadow_bindings[f"predecessor_{field}"]
     predecessor["original_containment_file_sha256"] = predecessor.pop(
         "recovery_cause_evidence_file_sha256", None
     )
