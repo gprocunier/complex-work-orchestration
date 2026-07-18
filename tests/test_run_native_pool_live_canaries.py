@@ -28,6 +28,19 @@ LIVE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(LIVE)
 
 
+CANONICAL_UUID_TEXT = "123e4567-e89b-12d3-a456-426614174000"
+UUID_TEXT_ALIASES = (
+    CANONICAL_UUID_TEXT.upper(),
+    "{" + CANONICAL_UUID_TEXT + "}",
+    uuid.UUID(CANONICAL_UUID_TEXT).hex,
+    "urn:uuid:" + CANONICAL_UUID_TEXT,
+    " " + CANONICAL_UUID_TEXT,
+    CANONICAL_UUID_TEXT + " ",
+    CANONICAL_UUID_TEXT + "\n",
+)
+PARSEABLE_UUID_ALIASES = UUID_TEXT_ALIASES[:4]
+
+
 class FakeCalibrationServer:
     def __init__(
         self,
@@ -1134,6 +1147,75 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
 
 
 class FullAutoAuthorizationLauncherTests(unittest.TestCase):
+    def test_uuid_aliases_reject_before_control_key_derivation(self) -> None:
+        self.assertTrue(LIVE._valid_uuid_text(CANONICAL_UUID_TEXT))
+        self.assertTrue(CAMPAIGN_CONTRACTS._is_uuid(CANONICAL_UUID_TEXT))
+        for alias in UUID_TEXT_ALIASES:
+            with self.subTest(alias=repr(alias)):
+                self.assertFalse(LIVE._valid_uuid_text(alias))
+                self.assertFalse(CAMPAIGN_CONTRACTS._is_uuid(alias))
+                self.assertEqual(
+                    CAMPAIGN_CONTRACTS._is_parseable_uuid(alias),
+                    alias in PARSEABLE_UUID_ALIASES,
+                )
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    with self.assertRaisesRegex(
+                        LIVE.AppServerError,
+                        "campaign-global-claim-marker-identity-invalid",
+                    ):
+                        LIVE._claim_identifier_marker_path(
+                            root, "authorization", alias
+                        )
+                    with self.assertRaisesRegex(
+                        LIVE.AppServerError, "active-outer-authority-id-invalid"
+                    ):
+                        LIVE._authority_history_path(root, "scope", alias)
+                    self.assertEqual(list(root.iterdir()), [])
+
+    def test_legacy_claim_migration_quarantines_uuid_aliases(self) -> None:
+        for alias in UUID_TEXT_ALIASES:
+            with self.subTest(alias=repr(alias)), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                root.chmod(0o700)
+                identity = {
+                    "authorization_id": alias,
+                    "run_generation": 20,
+                    "live_generation": 8,
+                    "campaign_nonce": str(uuid.uuid4()),
+                }
+                claim = {
+                    "claim_type": "cwo-native-live-campaign-global-claim",
+                    "version": 1,
+                    "identity": identity,
+                    "identity_sha256": LIVE.domain_sha256(
+                        identity, domain="native-live-global-claim"
+                    ),
+                    "launch_claim_sha256": "a" * 64,
+                    "outer_authority_id": str(uuid.uuid4()),
+                    "candidate_commit": "b" * 40,
+                    "candidate_tree": "c" * 40,
+                    "output_paths": {
+                        "evidence": "/tmp/evidence",
+                        "authorization_state": "/tmp/state",
+                        "steering_registry": "/tmp/steering",
+                        "allocation_ledger": "/tmp/ledger",
+                    },
+                    "claimed_at": "2026-07-17T00:00:00Z",
+                }
+                claim["canonical_claim_sha256"] = LIVE.domain_sha256(
+                    claim, domain="native-live-global-claim-artifact"
+                )
+                path = root / "legacy.json"
+                path.write_text(json.dumps(claim), encoding="utf-8")
+                path.chmod(0o600)
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    "campaign-global-claim-registry-entry-invalid",
+                ):
+                    LIVE._migrate_global_claim_markers(root)
+                self.assertEqual([item.name for item in root.iterdir()], ["legacy.json"])
+
     def test_launcher_root_is_repository_root(self) -> None:
         self.assertEqual(LIVE.ROOT, ROOT)
 
@@ -3224,11 +3306,34 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             receipt, path = self.validation_session(root)
+            session_raw = path.read_bytes()
             with mock.patch.dict("os.environ", {"CODEX_HOME": str(root)}):
                 self.assertEqual(
                     LIVE.validate_independent_validation_session(receipt, path),
                     receipt["boundary"]["terminal"]["boundary_sha256"],
                 )
+                for field in ("session_id", "submission_id"):
+                    for alias in UUID_TEXT_ALIASES:
+                        with self.subTest(field=field, alias=repr(alias)):
+                            aliased_receipt = json.loads(json.dumps(receipt))
+                            aliased_receipt[field] = alias
+                            with self.assertRaisesRegex(
+                                LIVE.AppServerError,
+                                "spark-validation-session-identity-invalid",
+                            ):
+                                LIVE.validate_independent_validation_session_snapshot(
+                                    aliased_receipt,
+                                    path,
+                                    session_raw,
+                                )
+                            self.assertEqual(
+                                CAMPAIGN_CONTRACTS._validate_independent_validation_session_snapshot(
+                                    aliased_receipt, session_raw
+                                ),
+                                [
+                                    "authorization-predecessor-validation-session-identity-invalid"
+                                ],
+                            )
                 path.chmod(0o644)
                 self.assertEqual(
                     LIVE.validate_independent_validation_session(receipt, path),
@@ -4290,6 +4395,24 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
             authority_registry = root / "authority-registry"
             claim_registry = root / "claim-registry"
+            for alias in UUID_TEXT_ALIASES:
+                aliased_outer = json.loads(
+                    json.dumps(successor["outer_snapshot"].value)
+                )
+                aliased_outer["authority_id"] = alias
+                self.seal_field(
+                    aliased_outer, "canonical_outer_authority_sha256"
+                )
+                with self.subTest(surface="outer-authority", alias=repr(alias)), self.assertRaisesRegex(
+                    LIVE.AppServerError, "active-outer-authority-artifact-invalid"
+                ):
+                    LIVE.register_active_outer_authority(
+                        self.json_snapshot(aliased_outer),
+                        candidate_commit=successor["checkpoint"],
+                        candidate_tree=successor["checkpoint_tree"],
+                        registry_root=authority_registry,
+                    )
+            self.assertFalse(authority_registry.exists())
             LIVE.register_active_outer_authority(
                 successor["outer_snapshot"],
                 candidate_commit=successor["checkpoint"],
@@ -4395,6 +4518,41 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                         inputs.recovery_cause_source_analysis_bytes
                     ),
                 )
+
+            initial_claim_registry_snapshot = {
+                path.name: path.read_bytes()
+                for path in claim_registry.iterdir()
+                if path.is_file()
+            }
+            for identity_field in ("authorization_id", "campaign_nonce"):
+                for alias in UUID_TEXT_ALIASES:
+                    aliased_inputs = claim_inputs(
+                        alias
+                        if identity_field == "authorization_id"
+                        else str(uuid.uuid4()),
+                        alias
+                        if identity_field == "campaign_nonce"
+                        else str(uuid.uuid4()),
+                    )
+                    with self.subTest(surface="global-claim", field=identity_field, alias=repr(alias)), self.assertRaisesRegex(
+                        LIVE.AppServerError,
+                        "campaign-global-claim-identity-invalid",
+                    ):
+                        LIVE.acquire_global_campaign_claim(
+                            aliased_inputs,
+                            launch_claim_sha256="0" * 64,
+                            claim_root=claim_registry,
+                            registry_root=authority_registry,
+                            **output_paths,
+                        )
+            self.assertEqual(
+                {
+                    path.name: path.read_bytes()
+                    for path in claim_registry.iterdir()
+                    if path.is_file()
+                },
+                initial_claim_registry_snapshot,
+            )
 
             original_authorization_id = str(
                 inputs.authorization.value["authorization_id"]
@@ -5538,6 +5696,77 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 [],
             )
 
+            graph_kwargs = {
+                key: value
+                for key, value in base_kwargs.items()
+                if key != "cause_evidence"
+            }
+            for alias in PARSEABLE_UUID_ALIASES:
+                original = json.loads(
+                    json.dumps(predecessor["original_containment"])
+                )
+                original["failed_authorization_id"] = alias
+                self.seal_field(original, "canonical_recovery_sha256")
+                original_raw = json.dumps(
+                    original, sort_keys=True, separators=(",", ":")
+                ).encode()
+                correction = json.loads(json.dumps(predecessor["containment"]))
+                correction["correction"][
+                    "original_recorded_authorization_id"
+                ] = alias
+                correction["correction"][
+                    "original_artifact_file_sha256"
+                ] = LIVE.sha256_bytes(original_raw)
+                correction["correction"][
+                    "original_artifact_canonical_sha256"
+                ] = original["canonical_recovery_sha256"]
+                self.seal_field(correction, "canonical_recovery_sha256")
+                correction_raw = json.dumps(
+                    correction, sort_keys=True, separators=(",", ":")
+                ).encode()
+                bindings = json.loads(json.dumps(authorization["bindings"]))
+                bindings.update(
+                    {
+                        "predecessor_original_containment_file_sha256": LIVE.sha256_bytes(
+                            original_raw
+                        ),
+                        "predecessor_original_containment_canonical_sha256": original[
+                            "canonical_recovery_sha256"
+                        ],
+                        "predecessor_containment_file_sha256": LIVE.sha256_bytes(
+                            correction_raw
+                        ),
+                        "predecessor_containment_canonical_sha256": correction[
+                            "canonical_recovery_sha256"
+                        ],
+                    }
+                )
+                errors = CAMPAIGN_CONTRACTS._validate_predecessor_proof_graph(
+                    bindings=bindings,
+                    progress=authorization["progress_gate"],
+                    supersession=authorization["supersession"],
+                    predecessor_live_generation=authorization[
+                        "predecessor_live_generation"
+                    ],
+                    repo_root=root,
+                    **{
+                        **graph_kwargs,
+                        "predecessor_original_containment": original,
+                        "predecessor_original_containment_raw_sha256": LIVE.sha256_bytes(
+                            original_raw
+                        ),
+                        "predecessor_containment": correction,
+                        "predecessor_containment_raw_sha256": LIVE.sha256_bytes(
+                            correction_raw
+                        ),
+                    },
+                )
+                with self.subTest(alias=repr(alias)):
+                    self.assertIn(
+                        "authorization-predecessor-original-containment-binding-invalid",
+                        errors,
+                    )
+
             cases = []
             historical_authorization = json.loads(
                 json.dumps(predecessor["authorization"])
@@ -5781,6 +6010,37 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     pre_live_adjudication_sha256="e" * 64,
                 )
             consume.assert_not_called()
+
+    def test_steering_plan_rejects_uuid_aliases_before_receipt_validation(self) -> None:
+        auth_id = str(uuid.uuid4())
+        pre_mutation = self.receipt("pre-mutation", auth_id)
+        pre_live = self.receipt("pre-live", auth_id)
+        for identity_field in ("campaign_nonce", "authorization_id"):
+            for alias in UUID_TEXT_ALIASES:
+                with self.subTest(field=identity_field, alias=repr(alias)), tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+                    LIVE, "consume_steering_receipt"
+                ) as consume:
+                    with self.assertRaisesRegex(
+                        LIVE.AppServerError, "steering-control-identity-invalid"
+                    ):
+                        LIVE.plan_steering_receipt_consumptions(
+                            alias
+                            if identity_field == "campaign_nonce"
+                            else str(uuid.uuid4()),
+                            alias if identity_field == "authorization_id" else auth_id,
+                            "a" * 64,
+                            registry_file=Path(temporary) / "registry.json",
+                            repo_head="d" * 40,
+                            pre_mutation_receipt=pre_mutation,
+                            pre_mutation_adjudication={
+                                "main_architect_decision": "go"
+                            },
+                            pre_mutation_adjudication_sha256="d" * 64,
+                            pre_live_receipt=pre_live,
+                            pre_live_adjudication={"main_architect_decision": "go"},
+                            pre_live_adjudication_sha256="e" * 64,
+                        )
+                    consume.assert_not_called()
 
     def test_steering_plan_dry_validates_both_before_consumption(self) -> None:
         auth_id = str(uuid.uuid4())

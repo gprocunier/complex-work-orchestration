@@ -90,7 +90,34 @@ def bindings_v2() -> dict:
     }
 
 
+CANONICAL_UUID_TEXT = "123e4567-e89b-12d3-a456-426614174000"
+UUID_TEXT_ALIASES = (
+    CANONICAL_UUID_TEXT.upper(),
+    "{" + CANONICAL_UUID_TEXT + "}",
+    uuid.UUID(CANONICAL_UUID_TEXT).hex,
+    "urn:uuid:" + CANONICAL_UUID_TEXT,
+    " " + CANONICAL_UUID_TEXT,
+    CANONICAL_UUID_TEXT + " ",
+    CANONICAL_UUID_TEXT + "\n",
+)
+
+
 class NativeLiveAllocationLedgerTests(unittest.TestCase):
+    def test_v2_identity_bindings_reject_uuid_text_aliases(self) -> None:
+        for field in ("authorization_id", "campaign_nonce"):
+            for alias in UUID_TEXT_ALIASES:
+                with self.subTest(field=field, alias=repr(alias)), tempfile.TemporaryDirectory() as temporary:
+                    value = bindings_v2()
+                    value[field] = alias
+                    store = NativeLiveAllocationLedgerStore(
+                        Path(temporary) / "private-ledger-v2"
+                    )
+                    with self.assertRaisesRegex(
+                        NativeLiveAllocationLedgerError,
+                        f"ledger-binding-{field}-invalid",
+                    ):
+                        store.initialize(value, version=2)
+
     def test_v2_binds_successor_manifest_and_preserves_v1_isolation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             store = NativeLiveAllocationLedgerStore(Path(temporary) / "private-ledger-v2")

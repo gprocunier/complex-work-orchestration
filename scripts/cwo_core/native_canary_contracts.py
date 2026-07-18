@@ -328,6 +328,16 @@ def _is_commit(value: Any) -> bool:
     return isinstance(value, str) and COMMIT_RE.fullmatch(value) is not None
 
 
+def _is_canonical_uuid(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = uuid.UUID(value)
+    except ValueError:
+        return False
+    return str(parsed) == value
+
+
 def _is_valid_resolved_finding(value: Any) -> bool:
     errors: list[str] = []
     finding = _exact_fields(value, FULL_AUTO_FINDING_FIELDS, "steering-stop-finding", errors)
@@ -538,9 +548,7 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         if not isinstance(evidence.get(field), str) or not evidence.get(field):
             errors.append(f"materialization-{field}-invalid")
     for field in ("run_nonce", "attempt_nonce", "phase_nonce"):
-        try:
-            uuid.UUID(str(evidence.get(field)))
-        except ValueError:
+        if not _is_canonical_uuid(evidence.get(field)):
             errors.append(f"materialization-{field}-not-uuid")
     if evidence.get("requested_model") != evidence.get("attested_model"):
         errors.append("materialization-model-mismatch")
@@ -877,6 +885,14 @@ def validate_steering_receipt(
     ):
         if not isinstance(receipt.get(field), str) or not receipt.get(field):
             errors.append(f"steering-{field}-invalid")
+    for field in (
+        "authorization_id",
+        "submission_id",
+        "client_user_message_id",
+        "session_id",
+    ):
+        if not _is_canonical_uuid(receipt.get(field)):
+            errors.append(f"steering-{field}-not-canonical-uuid")
     if receipt.get("model") != "gpt-5.6-sol" or receipt.get("effort") != "max":
         errors.append("steering-model-effort-mismatch")
     if receipt.get("attestation_source") != "initialized-codex-home-session-jsonl-turn-context":
@@ -1053,10 +1069,8 @@ def consume_steering_receipt(
     )
     if errors:
         raise NativeCanaryContractError("steering-receipt-invalid:" + ";".join(errors))
-    try:
-        uuid.UUID(phase_nonce)
-    except ValueError as exc:
-        raise NativeCanaryContractError("phase-nonce-invalid") from exc
+    if not _is_canonical_uuid(phase_nonce):
+        raise NativeCanaryContractError("phase-nonce-invalid")
     path = Path(registry_file).absolute()
     key = canonical_sha256(
         {
@@ -1144,6 +1158,9 @@ def validate_authorization_state(value: Any) -> list[str]:
     for field in ("authorization_id", "run_nonce", "reason"):
         if not isinstance(state.get(field), str) or not state.get(field):
             errors.append(f"authorization-{field}-invalid")
+    for field in ("authorization_id", "run_nonce"):
+        if is_v2 and not _is_canonical_uuid(state.get(field)):
+            errors.append(f"authorization-{field}-not-canonical-uuid")
     if isinstance(state.get("sequence"), bool) or not isinstance(state.get("sequence"), int) or state.get(
         "sequence", -1
     ) < 0:
@@ -1168,6 +1185,11 @@ def new_authorization_state(
     now: str,
     launch_claim_sha256: str | None = None,
 ) -> dict[str, Any]:
+    if launch_claim_sha256 is not None and (
+        not _is_canonical_uuid(authorization_id)
+        or not _is_canonical_uuid(run_nonce)
+    ):
+        raise NativeCanaryContractError("authorization-identity-invalid")
     if launch_claim_sha256 is not None and not _is_hash(launch_claim_sha256):
         raise NativeCanaryContractError("authorization-launch-claim-sha256-invalid")
     state = {

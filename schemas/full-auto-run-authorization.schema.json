@@ -15,7 +15,7 @@
     "authorization_type": {"const": "cwo-full-auto-run-authorization"},
     "version": {"const": 5},
     "schema": {"const": "schemas/full-auto-run-authorization.schema.json"},
-    "authorization_id": {"type": "string", "format": "uuid"},
+    "authorization_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "run_generation": {"type": "integer", "minimum": 1},
     "live_generation": {"type": "integer", "minimum": 1},
     "predecessor_live_generation": {"type": "integer", "minimum": 0},
@@ -39,7 +39,7 @@
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "git_object": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-    "uuid": {"type": "string", "format": "uuid"},
+    "uuid": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "nonempty_strings": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
     "scope": {
       "type": "object", "additionalProperties": false,

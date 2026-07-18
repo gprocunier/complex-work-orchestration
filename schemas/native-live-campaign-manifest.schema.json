@@ -45,7 +45,7 @@
     "manifest_sha256": {"$ref": "#/$defs/sha256"}
   },
   "$defs": {
-    "uuid": {"type": "string", "format": "uuid"},
+    "uuid": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "git_object": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "roles": {

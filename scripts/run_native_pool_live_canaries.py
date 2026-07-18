@@ -388,6 +388,10 @@ def plan_steering_receipt_consumptions(
     pre_live_adjudication: Mapping[str, Any],
     pre_live_adjudication_sha256: str,
 ) -> dict[str, tuple[str, dict[str, Any]]]:
+    if not _valid_uuid_text(campaign_nonce) or not _valid_uuid_text(
+        authorization_id
+    ):
+        raise AppServerError("steering-control-identity-invalid")
     bundles = (
         (
             "pre-mutation",
@@ -2947,10 +2951,10 @@ def _valid_uuid_text(value: Any) -> bool:
     if not isinstance(value, str):
         return False
     try:
-        uuid.UUID(value)
+        parsed = uuid.UUID(value)
     except ValueError:
         return False
-    return True
+    return str(parsed) == value
 
 
 def _load_scope_campaign_state(path: Path, scope_key: str) -> dict[str, Any]:
@@ -3028,6 +3032,8 @@ def _write_scope_campaign_state(path: Path, value: Mapping[str, Any]) -> None:
 
 
 def _authority_history_path(root: Path, scope_key: str, authority_id: str) -> Path:
+    if not _valid_uuid_text(authority_id):
+        raise AppServerError("active-outer-authority-id-invalid")
     identity_sha256 = domain_sha256(
         {"scope_key": scope_key, "authority_id": authority_id},
         domain="native-live-authority-history-identity",
@@ -3081,6 +3087,7 @@ def _validate_authority_history_record(
         set(value) != fields
         or value.get("record_type") != "cwo-native-live-authority-history"
         or value.get("version") != 1
+        or not _valid_uuid_text(value.get("authority_id"))
         or any(
             value.get(field) != active.get(field)
             for field in (
@@ -3258,6 +3265,7 @@ def register_active_outer_authority(
     if (
         json.loads(outer_authority.raw) != value
         or value.get("status") != "active"
+        or not _valid_uuid_text(value.get("authority_id"))
         or not isinstance(outer_bindings, Mapping)
         or outer_bindings.get("candidate_commit") != candidate_commit
         or outer_bindings.get("candidate_tree") != candidate_tree
@@ -3510,6 +3518,10 @@ def validate_active_outer_authority(
 
 
 def _claim_identifier_marker_path(root: Path, kind: str, identifier: str) -> Path:
+    if kind not in {"authorization", "nonce"} or not _valid_uuid_text(
+        identifier
+    ):
+        raise AppServerError("campaign-global-claim-marker-identity-invalid")
     digest = domain_sha256(
         {"kind": kind, "identifier": identifier},
         domain="native-live-global-claim-identifier",
@@ -4182,7 +4194,7 @@ def validate_independent_validation_session_snapshot(
 ) -> str:
     session_id = receipt.get("session_id")
     turn_id = receipt.get("submission_id")
-    if not isinstance(session_id, str) or not isinstance(turn_id, str):
+    if not _valid_uuid_text(session_id) or not _valid_uuid_text(turn_id):
         raise AppServerError("spark-validation-session-identity-invalid")
     supplied_path = Path(session_path)
     lexical_path = supplied_path.absolute()
@@ -4833,10 +4845,8 @@ def main() -> int:
     manifest: dict[str, Any] | None = None
     campaign_reservation: GlobalCampaignReservation | None = None
     try:
-        try:
-            uuid.UUID(args.campaign_nonce)
-        except ValueError as exc:
-            raise AppServerError("campaign-nonce-invalid") from exc
+        if not _valid_uuid_text(args.campaign_nonce):
+            raise AppServerError("campaign-nonce-invalid")
         path_arguments: dict[str, Path] = {
             "authorization": args.authorization,
             "campaign-manifest": args.campaign_manifest,

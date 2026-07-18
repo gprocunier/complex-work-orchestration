@@ -11,7 +11,7 @@
     "ledger_type": {"const": "cwo-native-live-allocation-ledger:v2"},
     "version": {"const": 2},
     "schema": {"const": "schemas/native-live-allocation-ledger-v2.schema.json"},
-    "ledger_id": {"type": "string", "format": "uuid"},
+    "ledger_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "bindings": {
       "type": "object",
       "additionalProperties": false,
@@ -28,11 +28,11 @@
       "properties": {
         "bead_id": {"type": "string", "minLength": 1},
         "work_unit_id": {"type": "string", "minLength": 1},
-        "authorization_id": {"type": "string", "format": "uuid"},
+        "authorization_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
         "authorization_raw_sha256": {"$ref": "#/$defs/sha256"},
         "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
         "campaign_manifest_sha256": {"$ref": "#/$defs/sha256"},
-        "campaign_nonce": {"type": "string", "format": "uuid"},
+        "campaign_nonce": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
         "live_generation": {"type": "integer", "minimum": 1},
         "predecessor_generation": {"type": "integer", "minimum": 0},
         "candidate_commit": {"$ref": "#/$defs/git_object"},

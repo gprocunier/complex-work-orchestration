@@ -653,7 +653,7 @@ def _is_commit(value: Any) -> bool:
     return isinstance(value, str) and bool(COMMIT_RE.fullmatch(value))
 
 
-def _is_uuid(value: Any) -> bool:
+def _is_parseable_uuid(value: Any) -> bool:
     if not isinstance(value, str):
         return False
     try:
@@ -661,6 +661,10 @@ def _is_uuid(value: Any) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _is_uuid(value: Any) -> bool:
+    return _is_parseable_uuid(value) and str(uuid.UUID(value)) == value
 
 
 def _is_int(value: Any, minimum: int = 0) -> bool:
@@ -1902,7 +1906,7 @@ def _validate_predecessor_proof_graph(
         or original.get("canonical_recovery_sha256")
         != _canonical_artifact_hash(original, "canonical_recovery_sha256")
         or not isinstance(original.get("failed_authorization_id"), str)
-        or _is_uuid(original.get("failed_authorization_id"))
+        or _is_parseable_uuid(original.get("failed_authorization_id"))
         or original.get("failed_campaign_nonce") != prior_nonce
         or not isinstance(original_failed_manifest, Mapping)
         or original_failed_manifest.get("file_sha256")
@@ -2543,6 +2547,8 @@ def _validate_independent_validation_session_snapshot(
         return ["authorization-predecessor-validation-session-record-invalid"]
     session_id = receipt.get("session_id")
     turn_id = receipt.get("submission_id")
+    if not _is_uuid(session_id) or not _is_uuid(turn_id):
+        return ["authorization-predecessor-validation-session-identity-invalid"]
     metas = [
         record.get("payload", {}).get("id")
         for record in records

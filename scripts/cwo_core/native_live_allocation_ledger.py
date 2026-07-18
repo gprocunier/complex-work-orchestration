@@ -140,10 +140,10 @@ def _is_uuid(value: Any) -> bool:
     if not isinstance(value, str):
         return False
     try:
-        uuid.UUID(value)
+        parsed = uuid.UUID(value)
     except ValueError:
         return False
-    return True
+    return str(parsed) == value
 
 
 def _entry_sha256(entry: Mapping[str, Any]) -> str:

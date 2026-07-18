@@ -97,7 +97,7 @@
   },
   "$defs": {
     "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "uuid": {"type": "string", "format": "uuid"},
+    "uuid": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "boundary": {
       "type": "object",
       "additionalProperties": false,

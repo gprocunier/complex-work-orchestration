@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import stat
@@ -35,6 +36,18 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
 
 def hash_value(label: str) -> str:
     return hashlib.sha256(label.encode()).hexdigest()
+
+
+CANONICAL_UUID_TEXT = "123e4567-e89b-12d3-a456-426614174000"
+UUID_TEXT_ALIASES = (
+    CANONICAL_UUID_TEXT.upper(),
+    "{" + CANONICAL_UUID_TEXT + "}",
+    uuid.UUID(CANONICAL_UUID_TEXT).hex,
+    "urn:uuid:" + CANONICAL_UUID_TEXT,
+    " " + CANONICAL_UUID_TEXT,
+    CANONICAL_UUID_TEXT + " ",
+    CANONICAL_UUID_TEXT + "\n",
+)
 
 
 def boundary(label: str, count: int) -> dict:
@@ -308,6 +321,96 @@ def resolved_stop_adjudication(receipt: dict) -> dict:
 
 
 class NativeCanaryContractTests(unittest.TestCase):
+    def test_runtime_uuid_identities_reject_textual_aliases(self) -> None:
+        for alias in UUID_TEXT_ALIASES:
+            with self.subTest(surface="materialization", alias=repr(alias)):
+                evidence = materialization()
+                evidence["run_nonce"] = alias
+                evidence = seal_materialization_evidence(evidence)
+                self.assertIn(
+                    "materialization-run_nonce-not-uuid",
+                    validate_materialization_evidence(evidence),
+                )
+            for field in (
+                "authorization_id",
+                "submission_id",
+                "client_user_message_id",
+                "session_id",
+            ):
+                with self.subTest(surface="steering", field=field, alias=repr(alias)):
+                    receipt = steering()
+                    receipt[field] = alias
+                    receipt.pop("canonical_receipt_sha256", None)
+                    receipt["canonical_receipt_sha256"] = hashlib.sha256(
+                        json.dumps(
+                            receipt, sort_keys=True, separators=(",", ":")
+                        ).encode()
+                    ).hexdigest()
+                    self.assertIn(
+                        f"steering-{field}-not-canonical-uuid",
+                        validate_steering_receipt(receipt),
+                    )
+            with self.subTest(surface="phase-nonce", alias=repr(alias)):
+                receipt = steering()
+                adjudication = hash_value("adjudication")
+                with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(
+                    NativeCanaryContractError, "phase-nonce-invalid"
+                ):
+                    consume_steering_receipt(
+                        receipt,
+                        Path(temporary) / "registry.json",
+                        phase_nonce=alias,
+                        architect_adjudication_sha256=adjudication,
+                        architect_decision="go",
+                    )
+            with self.subTest(surface="authorization-v2", alias=repr(alias)):
+                with self.assertRaisesRegex(
+                    NativeCanaryContractError, "authorization-identity-invalid"
+                ):
+                    new_authorization_state(
+                        authorization_id=alias,
+                        run_nonce=str(uuid.uuid4()),
+                        now="2026-07-17T00:00:00Z",
+                        launch_claim_sha256=hash_value("launch"),
+                    )
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("jsonschema") is not None,
+        "jsonschema not installed",
+    )
+    def test_uuid_schema_nodes_require_exact_canonical_text(self) -> None:
+        import jsonschema
+
+        schema_paths = (
+            "schemas/full-auto-run-authorization.schema.json",
+            "schemas/native-canary-authorization-state-v2.schema.json",
+            "schemas/native-live-allocation-ledger.schema.json",
+            "schemas/native-live-allocation-ledger-v2.schema.json",
+            "schemas/native-live-campaign-cause-evidence.schema.json",
+            "schemas/native-live-campaign-manifest.schema.json",
+            "schemas/native-session-materialization-evidence.schema.json",
+            "schemas/native-steering-receipt.schema.json",
+        )
+        for relative in schema_paths:
+            schema = json.loads((ROOT / relative).read_text(encoding="utf-8"))
+            pending = [schema]
+            uuid_nodes = []
+            while pending:
+                node = pending.pop()
+                if isinstance(node, dict):
+                    if node.get("format") == "uuid":
+                        uuid_nodes.append(node)
+                    pending.extend(node.values())
+                elif isinstance(node, list):
+                    pending.extend(node)
+            self.assertTrue(uuid_nodes, relative)
+            for node in uuid_nodes:
+                validator = jsonschema.Draft202012Validator(node)
+                self.assertTrue(validator.is_valid(CANONICAL_UUID_TEXT), relative)
+                for alias in UUID_TEXT_ALIASES:
+                    with self.subTest(schema=relative, alias=repr(alias)):
+                        self.assertFalse(validator.is_valid(alias))
+
     def test_rendered_command_requires_exact_production_wrapper(self) -> None:
         expected = validate_capability_rendered_command(
             "/bin/bash -lc 'sleep 20'", raw_command="sleep 20"
@@ -755,12 +858,13 @@ class NativeCanaryContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "authorization.json"
             launch_claim = hash_value("generation-seven-launch")
+            authorization_id = str(uuid.uuid4())
 
             def claim() -> str:
                 try:
                     CanaryAuthorizationStore(path).initialize(
                         new_authorization_state(
-                            authorization_id="authorization-seven",
+                            authorization_id=authorization_id,
                             run_nonce=str(uuid.uuid4()),
                             now="2026-07-17T00:00:00Z",
                             launch_claim_sha256=launch_claim,

@@ -11,7 +11,7 @@
     "ledger_type": {"const": "cwo-native-live-allocation-ledger:v1"},
     "version": {"const": 1},
     "schema": {"const": "schemas/native-live-allocation-ledger.schema.json"},
-    "ledger_id": {"type": "string", "format": "uuid"},
+    "ledger_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "bindings": {
       "type": "object", "additionalProperties": false,
       "required": [
@@ -24,10 +24,10 @@
       ],
       "properties": {
         "bead_id": {"type": "string", "minLength": 1},
-        "authorization_id": {"type": "string", "format": "uuid"},
+        "authorization_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
         "authorization_raw_sha256": {"$ref": "#/$defs/sha256"},
         "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
-        "campaign_nonce": {"type": "string", "format": "uuid"},
+        "campaign_nonce": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
         "live_generation": {"const": 4},
         "predecessor_generation": {"const": 3},
         "checkpoint_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
