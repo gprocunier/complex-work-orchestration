@@ -156,12 +156,14 @@ class Generation9LiveLauncherTests(unittest.TestCase):
             "allocation_ledger": root / "ledger",
         }
 
-    def test_only_v8_v5_is_operative(self) -> None:
-        LIVE.require_operative_campaign_contract(8, 5)
+    def test_v8_v5_is_historical_after_v9_v6_activation(self) -> None:
+        LIVE.require_operative_campaign_contract(9, 6)
         for authorization_version, manifest_version in (
             (7, 4),
+            (8, 5),
             (8, 4),
-            (7, 5),
+            (9, 5),
+            (8, 6),
             (6, 3),
         ):
             with self.subTest(

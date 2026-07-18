@@ -1734,7 +1734,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertFalse((root / "read-only-records").exists())
 
             manifest = {
-                "version": 5,
+                "version": 6,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -1788,7 +1788,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             manifest = {
-                "version": 5,
+                "version": 6,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -5575,7 +5575,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 LIVE._migrate_global_claim_markers(root)
 
     def test_historical_campaign_contract_is_not_operative(self) -> None:
-        for authorization_version, manifest_version in ((5, 2), (6, 3), (7, 4)):
+        for authorization_version, manifest_version in (
+            (5, 2),
+            (6, 3),
+            (7, 4),
+            (8, 5),
+        ):
             with self.subTest(
                 authorization_version=authorization_version,
                 manifest_version=manifest_version,
@@ -5589,8 +5594,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(
             LIVE.AppServerError, "campaign-contract-version-mismatch"
         ):
-            LIVE.require_operative_campaign_contract(8, 4)
-        LIVE.require_operative_campaign_contract(8, 5)
+            LIVE.require_operative_campaign_contract(9, 5)
+        LIVE.require_operative_campaign_contract(9, 6)
 
     def test_legacy_authority_history_requires_complete_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

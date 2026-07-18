@@ -269,9 +269,9 @@ class Generation9QuarantineContractTests(unittest.TestCase):
                 recovery_cause_source_analysis=b"cause",
             ),
         )
-        self.assertEqual(
+        self.assertIn(
+            "authorization-v9-predecessor-protected-proof-missing",
             CONTRACTS.validate_full_auto_authorization({"version": 9}),
-            ["authorization-header-invalid"],
         )
         self.assertIn(
             "campaign-manifest-v5-authorization-missing",
@@ -279,9 +279,9 @@ class Generation9QuarantineContractTests(unittest.TestCase):
                 {"version": 5}, predecessor_proof=object()
             ),
         )
-        self.assertEqual(
+        self.assertIn(
+            "campaign-manifest-v6-header-invalid",
             CONTRACTS.validate_campaign_manifest({"version": 6}),
-            ["campaign-manifest-header-invalid"],
         )
 
     def test_validator_contract_v3_adds_schema_blobs_without_changing_v1_v2(self) -> None:
