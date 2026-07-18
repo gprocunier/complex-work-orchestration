@@ -1251,6 +1251,7 @@ VALIDATOR_CONTRACT_PATHS_V5 = VALIDATOR_CONTRACT_PATHS_V4 + (
     "schemas/native-live-campaign-manifest-v7.schema.json",
 )
 VALIDATOR_CONTRACT_PATHS_V6 = VALIDATOR_CONTRACT_PATHS_V5 + (
+    "scripts/cwo_core/native_pool_config.py",
     "schemas/full-auto-run-authorization-v11.schema.json",
     "schemas/native-live-campaign-manifest-v8.schema.json",
     "schemas/generation11-terminal-facts.schema.json",
@@ -11043,9 +11044,11 @@ def _validate_generation11_containment(
                 "attempt": receipt.value.get("submission_id"),
                 "gate": receipt.value.get("gate"),
                 "phase_nonce": phase_nonce,
-                "adjudication": adjudication.value.get(
-                    "canonical_adjudication_sha256"
-                ),
+                # The live runner consumes and records the SHA-256 of the exact
+                # adjudication file bytes.  Successor validation must replay
+                # that same binding, not the adjudication's inner canonical
+                # content hash.
+                "adjudication": adjudication.raw_sha256,
             },
             domain="steering-receipt-consumption",
         )

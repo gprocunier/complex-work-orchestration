@@ -15,6 +15,7 @@ from .native_live_campaign_contracts import (
     MANIFEST_VERSION_V5,
     MANIFEST_VERSION_V6,
     MANIFEST_VERSION_V7,
+    MANIFEST_VERSION_V8,
 )
 from .native_control import validate_control_turn_contract
 from .native_pool_contracts import (
@@ -146,7 +147,7 @@ def seal_bound_manifest_validation(
     campaign_manifest: Mapping[str, Any],
     artifact_bindings: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Seal the result of the launcher's complete v7 binding validation.
+    """Seal the result of the launcher's complete v8 binding validation.
 
     This record is evidence from the trusted launch callback, not a replacement
     for that callback.  The shared pool renderer consumes it so a modern manifest is
@@ -155,7 +156,7 @@ def seal_bound_manifest_validation(
 
     candidate = campaign_manifest.get("candidate")
     if (
-        campaign_manifest.get("version") != MANIFEST_VERSION_V7
+        campaign_manifest.get("version") != MANIFEST_VERSION_V8
         or not isinstance(candidate, Mapping)
     ):
         raise NativePoolConfigError("bound-manifest-validation-source-invalid")
@@ -241,7 +242,7 @@ def validate_live_canary_manifest_gate(
     """Validate the manifest gate that must run before any live allocation."""
 
     manifest_version = campaign_manifest.get("version")
-    if manifest_version == MANIFEST_VERSION_V7:
+    if manifest_version == MANIFEST_VERSION_V8:
         errors: list[str] = []
         for label, receipt in (
             ("observed", bound_manifest_validation),
@@ -268,6 +269,7 @@ def validate_live_canary_manifest_gate(
         MANIFEST_VERSION_V4,
         MANIFEST_VERSION_V5,
         MANIFEST_VERSION_V6,
+        MANIFEST_VERSION_V7,
     }:
         return ["campaign-manifest-version-historical-only"]
     return ["campaign-manifest-version-invalid"]
@@ -708,7 +710,7 @@ def build_live_canary_pool_contract(
     if manifest_errors:
         error_prefix = (
             "campaign-manifest-bound-validation-invalid"
-            if campaign_manifest.get("version") == MANIFEST_VERSION_V7
+            if campaign_manifest.get("version") == MANIFEST_VERSION_V8
             else "campaign-manifest-invalid"
         )
         raise NativePoolConfigError(

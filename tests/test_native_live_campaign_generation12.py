@@ -1076,9 +1076,7 @@ class Generation12ContractTests(unittest.TestCase):
                         "attempt": receipt.value["submission_id"],
                         "gate": receipt.value["gate"],
                         "phase_nonce": consumption["phase_nonce"],
-                        "adjudication": adjudication.value[
-                            "canonical_adjudication_sha256"
-                        ],
+                        "adjudication": adjudication.raw_sha256,
                     },
                     domain="steering-receipt-consumption",
                 ),
@@ -1714,6 +1712,63 @@ class Generation12ContractTests(unittest.TestCase):
                 expected_containment=expected_containment,
             ),
             [],
+        )
+
+    def test_v32_containment_rejects_canonical_hash_in_raw_file_consumption_binding(
+        self,
+    ) -> None:
+        (
+            containment,
+            bindings,
+            authorization,
+            manifest,
+            failure,
+            proof,
+            ledger_summary,
+            expected_containment,
+        ) = self.containment_fixture()
+        changed = deepcopy(containment.value)
+        receipt = proof.pre_live_receipt
+        adjudication = proof.pre_live_adjudication
+        phase_nonce = proof.steering_registry.value["consumed"][1]["phase_nonce"]
+        changed["steering_consumptions"]["pre-live"]["consumption_sha256"] = (
+            CONTRACTS._domain_sha256(
+                {
+                    "receipt": receipt.value["canonical_receipt_sha256"],
+                    "run": receipt.value["authorization_id"],
+                    "attempt": receipt.value["submission_id"],
+                    "gate": receipt.value["gate"],
+                    "phase_nonce": phase_nonce,
+                    "adjudication": adjudication.value[
+                        "canonical_adjudication_sha256"
+                    ],
+                },
+                domain="steering-receipt-consumption",
+            )
+        )
+        changed_snapshot = self._reseal(changed, "canonical_recovery_sha256")
+        changed_bindings = deepcopy(bindings)
+        changed_bindings.update(
+            {
+                "predecessor_containment_file_sha256": changed_snapshot.raw_sha256,
+                "predecessor_containment_canonical_sha256": changed_snapshot.value[
+                    "canonical_recovery_sha256"
+                ],
+            }
+        )
+        errors = CONTRACTS._validate_generation11_containment(
+            changed_snapshot,
+            bindings=changed_bindings,
+            prior_authorization=authorization,
+            prior_manifest=manifest,
+            failure=failure,
+            proof=replace(proof, containment=changed_snapshot),
+            ledger_summary=ledger_summary,
+            expected_containment=expected_containment,
+        )
+        self.assertIn(
+            "authorization-predecessor-v10-containment-steering-binding-invalid",
+            errors,
         )
 
     def test_v32_containment_rejects_resealed_nested_contradictions(self) -> None:

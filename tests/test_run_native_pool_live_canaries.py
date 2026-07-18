@@ -1755,7 +1755,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertFalse((root / "read-only-records").exists())
 
             manifest = {
-                "version": 7,
+                "version": 8,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -1809,7 +1809,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             manifest = {
-                "version": 7,
+                "version": 8,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -3213,8 +3213,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         ).encode()
         return receipt, receipt_raw, session_path, session_path.read_bytes()
 
-    def install_validator_contract_files(self, root: Path) -> None:
-        for relative in LIVE.VALIDATOR_CONTRACT_PATHS:
+    def install_validator_contract_files(
+        self,
+        root: Path,
+        paths: tuple[str, ...] = LIVE.VALIDATOR_CONTRACT_PATHS,
+    ) -> None:
+        for relative in paths:
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / relative, target)
@@ -4043,6 +4047,59 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             second_tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
             self.assertNotEqual(
                 LIVE.validator_contract_sha256(root, second_tree), first_hash
+            )
+
+    def test_v6_validator_contract_explicitly_binds_pool_config(self) -> None:
+        pool_config = "scripts/cwo_core/native_pool_config.py"
+        self.assertIn(
+            pool_config,
+            CAMPAIGN_CONTRACTS.VALIDATOR_CONTRACT_PATHS_V6,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_repo(root)
+            self.install_validator_contract_files(
+                root,
+                CAMPAIGN_CONTRACTS.VALIDATOR_CONTRACT_PATHS_V6,
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "add",
+                    *CAMPAIGN_CONTRACTS.VALIDATOR_CONTRACT_PATHS_V6,
+                ],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "install v6 validator contract"],
+                cwd=root,
+                check=True,
+            )
+            first_tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
+            first_hash = LIVE.validator_contract_sha256_v6(root, first_tree)
+            contract_path = root / pool_config
+            contract_path.write_bytes(
+                contract_path.read_bytes() + b"working-tree-change\n"
+            )
+            self.assertEqual(
+                LIVE.validator_contract_sha256_v6(root, first_tree),
+                first_hash,
+            )
+            subprocess.run(
+                ["git", "add", pool_config],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "change pool config contract"],
+                cwd=root,
+                check=True,
+            )
+            second_tree = LIVE.run_git(root, "rev-parse", "HEAD^{tree}")
+            self.assertNotEqual(
+                LIVE.validator_contract_sha256_v6(root, second_tree),
+                first_hash,
             )
 
     def test_v6_v3_finite_predecessor_proof_accepts(self) -> None:
