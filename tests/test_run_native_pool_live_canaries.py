@@ -5720,12 +5720,18 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 )
             with tempfile.TemporaryDirectory() as alternate_home, mock.patch.dict(
                 "os.environ", {"HOME": alternate_home}
+            ), mock.patch.object(
+                LIVE.pwd,
+                "getpwuid",
+                return_value=mock.Mock(pw_dir=str(root / "account-home")),
             ):
+                account_home = root / "account-home"
+                account_home.mkdir(mode=0o700)
+                (account_home / ".codex").mkdir(mode=0o700)
                 stable_root = LIVE._stable_codex_control_root()
             self.assertEqual(
                 stable_root,
-                Path(LIVE.pwd.getpwuid(LIVE.os.geteuid()).pw_dir).resolve()
-                / ".codex",
+                (account_home / ".codex").resolve(),
             )
             self.assertNotEqual(stable_root, Path(alternate_home) / ".codex")
 
