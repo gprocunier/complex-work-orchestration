@@ -308,7 +308,7 @@ class NativePoolConfigTests(unittest.TestCase):
                     now=now,
                 )
 
-    def test_v6_manifest_requires_exact_full_binding_receipt(self) -> None:
+    def test_v7_manifest_requires_exact_full_binding_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fixture = RenderFixture(root, 2)
@@ -328,8 +328,8 @@ class NativePoolConfigTests(unittest.TestCase):
                     text=True,
                 ).stdout.strip(),
             )
-            manifest["version"] = 6
-            manifest["schema"] = "schemas/native-live-campaign-manifest-v6.schema.json"
+            manifest["version"] = 7
+            manifest["schema"] = "schemas/native-live-campaign-manifest-v7.schema.json"
             manifest.pop("manifest_sha256", None)
             manifest["manifest_sha256"] = canonical_sha256(manifest)
             fixture.request["control_turn_id"] = manifest["control_turn_id"]

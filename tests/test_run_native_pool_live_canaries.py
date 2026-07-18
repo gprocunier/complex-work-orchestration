@@ -1734,7 +1734,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertFalse((root / "read-only-records").exists())
 
             manifest = {
-                "version": 6,
+                "version": 7,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -1788,7 +1788,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             manifest = {
-                "version": 6,
+                "version": 7,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
@@ -2681,6 +2681,21 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "canonical_receipt_sha256": ("b" if gate == "pre-mutation" else "c") * 64,
             "opinion": {"recommendation": recommendation},
         }
+
+    def valid_steering_receipt(
+        self, gate: str, authorization_id: str, authorization_sha256: str
+    ) -> dict:
+        from tests.test_native_canary_contracts import steering
+
+        receipt = steering()
+        receipt["gate"] = gate
+        receipt["authorization_id"] = authorization_id
+        receipt["authorization_sha256"] = authorization_sha256
+        receipt.pop("canonical_receipt_sha256", None)
+        receipt["canonical_receipt_sha256"] = LIVE.sha256_bytes(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        )
+        return receipt
 
     def reseal_authorization(self, value: dict) -> None:
         progress = value.get("progress_gate")
@@ -5580,6 +5595,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             (6, 3),
             (7, 4),
             (8, 5),
+            (9, 6),
         ):
             with self.subTest(
                 authorization_version=authorization_version,
@@ -5594,8 +5610,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(
             LIVE.AppServerError, "campaign-contract-version-mismatch"
         ):
-            LIVE.require_operative_campaign_contract(9, 5)
-        LIVE.require_operative_campaign_contract(9, 6)
+            LIVE.require_operative_campaign_contract(10, 6)
+        LIVE.require_operative_campaign_contract(10, 7)
 
     def test_legacy_authority_history_requires_complete_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -6641,6 +6657,192 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 )
             consume.assert_not_called()
 
+    def test_pure_steering_launch_binding_rejects_each_mismatch(self) -> None:
+        auth_id = str(uuid.uuid4())
+        auth_sha = "a" * 64
+        base_mutation = self.receipt("pre-mutation", auth_id)
+        base_live = self.receipt("pre-live", auth_id)
+        cases = (
+            ("pre-mutation", "gate", "pre-live", "pre-mutation-steering-binding"),
+            ("pre-mutation", "authorization_id", str(uuid.uuid4()), "pre-mutation-steering-binding"),
+            ("pre-mutation", "authorization_sha256", "b" * 64, "pre-mutation-steering-binding"),
+            ("pre-live", "gate", "pre-mutation", "pre-live-steering-binding"),
+            ("pre-live", "authorization_id", str(uuid.uuid4()), "pre-live-steering-binding"),
+            ("pre-live", "authorization_sha256", "b" * 64, "pre-live-steering-binding"),
+        )
+        for target, field, value, expected in cases:
+            with self.subTest(target=target, field=field):
+                pre_mutation = dict(base_mutation)
+                pre_live = dict(base_live)
+                (pre_mutation if target == "pre-mutation" else pre_live)[field] = value
+                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                    LIVE.validate_steering_launch_bindings(
+                        auth_id,
+                        auth_sha,
+                        pre_mutation_receipt=pre_mutation,
+                        pre_mutation_adjudication={"main_architect_decision": "go"},
+                        pre_mutation_adjudication_sha256="c" * 64,
+                        pre_live_receipt=pre_live,
+                        pre_live_adjudication={"main_architect_decision": "go"},
+                        pre_live_adjudication_sha256="d" * 64,
+                    )
+
+    def test_pure_steering_launch_binding_accepts_exact_current_inner(self) -> None:
+        auth_id = str(uuid.uuid4())
+        LIVE.validate_steering_launch_bindings(
+            auth_id,
+            "a" * 64,
+            pre_mutation_receipt=self.receipt("pre-mutation", auth_id),
+            pre_mutation_adjudication={"main_architect_decision": "go"},
+            pre_mutation_adjudication_sha256="c" * 64,
+            pre_live_receipt=self.receipt("pre-live", auth_id),
+            pre_live_adjudication={"main_architect_decision": "go"},
+            pre_live_adjudication_sha256="d" * 64,
+        )
+
+    def test_preclaim_rejection_creates_no_durable_campaign_authority(self) -> None:
+        paths = {
+            "output": Path("/private/evidence.json"),
+            "authorization_state": Path("/private/state.json"),
+            "steering_registry": Path("/private/steering.json"),
+            "allocation_ledger": Path("/private/ledger"),
+        }
+        with mock.patch.object(
+            LIVE,
+            "validate_campaign_launch_bindings",
+            side_effect=LIVE.AppServerError("pre-mutation-steering-binding-invalid"),
+        ), mock.patch.object(LIVE, "campaign_launch_claim_sha256") as claim, mock.patch.object(
+            LIVE, "seal_bound_manifest_validation"
+        ) as seal, mock.patch.object(LIVE, "acquire_global_campaign_claim") as acquire:
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "pre-mutation-steering-binding-invalid"
+            ):
+                LIVE.validate_and_acquire_global_campaign_claim(
+                    mock.sentinel.inputs,
+                    campaign_nonce=str(uuid.uuid4()),
+                    authorization_id=str(uuid.uuid4()),
+                    authorization_sha256="a" * 64,
+                    repo_head="b" * 40,
+                    guarded_primary=Path("/guarded"),
+                    **paths,
+                )
+        claim.assert_not_called()
+        seal.assert_not_called()
+        acquire.assert_not_called()
+
+    def test_nonaccepting_steering_never_acquires_global_claim(self) -> None:
+        inputs = mock.MagicMock()
+        inputs.pre_mutation_receipt.value = {}
+        inputs.pre_mutation_adjudication.value = {}
+        inputs.pre_live_receipt.value = {}
+        inputs.pre_live_adjudication.value = {}
+        paths = {
+            "output": Path("/private/evidence.json"),
+            "authorization_state": Path("/private/state.json"),
+            "steering_registry": Path("/private/steering.json"),
+            "allocation_ledger": Path("/private/ledger"),
+        }
+        with mock.patch.object(
+            LIVE, "validate_campaign_launch_bindings", return_value={}
+        ), mock.patch.object(
+            LIVE,
+            "plan_steering_receipt_consumptions",
+            side_effect=LIVE.AppServerError(
+                "pre-mutation-steering-not-accepting"
+            ),
+        ), mock.patch.object(LIVE, "campaign_launch_claim_sha256") as claim, mock.patch.object(
+            LIVE, "acquire_global_campaign_claim"
+        ) as acquire:
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "pre-mutation-steering-not-accepting"
+            ):
+                LIVE.validate_and_acquire_global_campaign_claim(
+                    inputs,
+                    campaign_nonce=str(uuid.uuid4()),
+                    authorization_id=str(uuid.uuid4()),
+                    authorization_sha256="a" * 64,
+                    repo_head="b" * 40,
+                    guarded_primary=Path("/guarded"),
+                    **paths,
+                )
+        claim.assert_not_called()
+        acquire.assert_not_called()
+
+    def test_real_malformed_or_replayed_steering_never_acquires_claim(self) -> None:
+        for scenario in ("malformed-canonical", "replay"):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                campaign_nonce = str(uuid.uuid4())
+                authorization_id = str(uuid.uuid4())
+                authorization_sha256 = "a" * 64
+                pre_mutation = self.valid_steering_receipt(
+                    "pre-mutation", authorization_id, authorization_sha256
+                )
+                pre_live = self.valid_steering_receipt(
+                    "pre-live", authorization_id, authorization_sha256
+                )
+                registry = root / "steering.json"
+                if scenario == "malformed-canonical":
+                    pre_mutation["canonical_receipt_sha256"] = "f" * 64
+                else:
+                    phase_nonce = str(
+                        uuid.uuid5(
+                            uuid.NAMESPACE_URL,
+                            (
+                                f"{campaign_nonce}:pre-mutation:"
+                                f"{pre_mutation['canonical_receipt_sha256']}"
+                            ),
+                        )
+                    )
+                    LIVE.consume_steering_receipt(
+                        pre_mutation,
+                        registry,
+                        phase_nonce=phase_nonce,
+                        architect_adjudication_sha256="d" * 64,
+                        architect_decision="go",
+                    )
+                inputs = mock.MagicMock()
+                inputs.pre_mutation_receipt.value = pre_mutation
+                inputs.pre_mutation_adjudication.value = {
+                    "main_architect_decision": "go"
+                }
+                inputs.pre_mutation_adjudication.raw_sha256 = "d" * 64
+                inputs.pre_live_receipt.value = pre_live
+                inputs.pre_live_adjudication.value = {
+                    "main_architect_decision": "go"
+                }
+                inputs.pre_live_adjudication.raw_sha256 = "e" * 64
+                paths = {
+                    "output": root / "evidence.json",
+                    "authorization_state": root / "state.json",
+                    "steering_registry": registry,
+                    "allocation_ledger": root / "ledger",
+                }
+                with mock.patch.object(
+                    LIVE, "validate_campaign_launch_bindings", return_value={}
+                ), mock.patch.object(
+                    LIVE, "campaign_launch_claim_sha256"
+                ) as claim, mock.patch.object(
+                    LIVE, "acquire_global_campaign_claim"
+                ) as acquire:
+                    with self.assertRaisesRegex(
+                        LIVE.AppServerError, "pre-mutation-steering-not-accepting"
+                    ):
+                        LIVE.validate_and_acquire_global_campaign_claim(
+                            inputs,
+                            campaign_nonce=campaign_nonce,
+                            authorization_id=authorization_id,
+                            authorization_sha256=authorization_sha256,
+                            repo_head="b" * 40,
+                            guarded_primary=root / "guarded",
+                            **paths,
+                        )
+                claim.assert_not_called()
+                acquire.assert_not_called()
+                self.assertFalse(paths["output"].exists())
+                self.assertFalse(paths["authorization_state"].exists())
+                self.assertFalse(paths["allocation_ledger"].exists())
+
     def test_steering_plan_rejects_uuid_aliases_before_receipt_validation(self) -> None:
         auth_id = str(uuid.uuid4())
         pre_mutation = self.receipt("pre-mutation", auth_id)
@@ -6651,7 +6853,12 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     LIVE, "consume_steering_receipt"
                 ) as consume:
                     with self.assertRaisesRegex(
-                        LIVE.AppServerError, "steering-control-identity-invalid"
+                        LIVE.AppServerError,
+                        (
+                            "steering-control-identity-invalid"
+                            if identity_field == "campaign_nonce"
+                            else "steering-authorization-identity-invalid"
+                        ),
                     ):
                         LIVE.plan_steering_receipt_consumptions(
                             alias
