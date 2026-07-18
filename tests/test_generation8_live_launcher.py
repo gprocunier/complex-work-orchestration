@@ -134,8 +134,8 @@ class Generation8LiveLauncherTests(unittest.TestCase):
             ),
         )
 
-    def test_v7_v4_and_v8_v5_are_historical_after_v10_v7_activation(self) -> None:
-        LIVE.require_operative_campaign_contract(10, 7)
+    def test_old_pairs_are_historical_after_v11_v8_activation(self) -> None:
+        LIVE.require_operative_campaign_contract(11, 8, 6, 6)
         for authorization_version, manifest_version in (
             (7, 4),
             (8, 5),
@@ -143,6 +143,7 @@ class Generation8LiveLauncherTests(unittest.TestCase):
             (9, 5),
             (8, 6),
             (9, 6),
+            (10, 7),
             (6, 3),
         ):
             with self.subTest(

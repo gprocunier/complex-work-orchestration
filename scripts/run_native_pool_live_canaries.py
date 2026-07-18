@@ -18,8 +18,6 @@ import os
 import pwd
 import re
 from pathlib import Path
-import queue
-import shutil
 import stat
 import subprocess
 import sys
@@ -37,21 +35,23 @@ from cwo_core.native_control import build_control_turn_contract  # noqa: E402
 from cwo_core.native_live_campaign_contracts import (  # noqa: E402
     HistoricalV4V1ProofInputs,
     JsonArtifactSnapshot,
-    VALIDATOR_CONTRACT_PATHS,
+    VALIDATOR_CONTRACT_PATHS,  # noqa: F401
     Version5PredecessorProofInputs,
     Version6PredecessorProofInputs,
     Version7QuarantinePredecessorProofInputs,
     Version8ProtectedFaultPredecessorProofInputs,
     Version9PreallocationFaultPredecessorProofInputs,
+    Version10InterruptedEmptyBoundaryPredecessorProofInputs,
     active_outer_authority_scope_key,
     validate_campaign_manifest,
     validate_full_auto_authorization as validate_full_auto_authorization_contract,
     validate_release_patch_result,
-    validator_contract_sha256,
-    validator_contract_sha256_v2,
+    validator_contract_sha256,  # noqa: F401
     validator_contract_sha256_v3,
     validator_contract_sha256_v4,
     validator_contract_sha256_v5,
+    validator_contract_sha256_v6,
+    validate_operative_version_tuple,
 )
 from cwo_core.native_canary_contracts import (  # noqa: E402
     CanaryAuthorizationStore,
@@ -70,7 +70,6 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
 from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402
 from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     EXPECTED_ROLES,
-    NativeLiveAllocationLedgerError,
     NativeLiveAllocationLedgerStore,
 )
 from cwo_core.native_pool_config import (  # noqa: E402
@@ -100,10 +99,14 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
+from cwo_core.native_session import _record_token_snapshot  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
+    LocatedSession,
     NativeSessionBoundaryError,
-    capture_boundary,
+    capture_boundary,  # noqa: F401
     capture_unique_boundary,
+    locate_unique_session,
+    session_source_identity,
     telemetry_markers,
     trusted_terminal_event,
     trusted_turn_context,
@@ -226,6 +229,7 @@ class CampaignLaunchInputs:
             | Version7QuarantinePredecessorProofInputs
             | Version8ProtectedFaultPredecessorProofInputs
             | Version9PreallocationFaultPredecessorProofInputs
+            | Version10InterruptedEmptyBoundaryPredecessorProofInputs
             | None
         ) = None,
         recovery_cause_evidence: JsonArtifactSnapshot | None = None,
@@ -293,6 +297,410 @@ def sha256_bytes(value: bytes) -> str:
 
 def sha256_text(value: str) -> str:
     return sha256_bytes(value.encode("utf-8"))
+
+
+class PreAttestationSessionBoundaryTracker:
+    """Pin one session object while accepting only a provably empty precursor.
+
+    Native app-server may create its JSONL before the first complete record is
+    durable.  That exact zero-byte state is non-attesting, but it must not turn
+    the pre-attestation recovery edge into a path-based TOCTOU exception.  Keep
+    the source open, bind every later lookup to that same object, and remember
+    filesystem change metadata so same-inode rewrites or truncations cannot be
+    hidden by returning to an earlier length.
+    """
+
+    def __init__(self, codex_home: Path, session_id: str) -> None:
+        self.codex_home = Path(codex_home)
+        self.session_id = session_id
+        self._fd: int | None = None
+        self._source_identity_sha256: str | None = None
+        self._last_stat_signature: tuple[int, int, int] | None = None
+        self._last_store: str | None = None
+
+    @staticmethod
+    def _stat_signature(current: os.stat_result) -> tuple[int, int, int]:
+        return (current.st_size, current.st_mtime_ns, current.st_ctime_ns)
+
+    @staticmethod
+    def _require_owner_regular_unaliased(current: os.stat_result) -> None:
+        if not stat.S_ISREG(current.st_mode):
+            raise NativeSessionBoundaryError(
+                "trusted session source is not a regular file"
+            )
+        if current.st_uid != os.geteuid():
+            raise NativeSessionBoundaryError(
+                "trusted session source owner does not match controller"
+            )
+        if current.st_nlink == 0:
+            raise NativeSessionBoundaryError(
+                "trusted session source is unlinked"
+            )
+        if current.st_nlink != 1:
+            raise NativeSessionBoundaryError(
+                "trusted session source has filesystem aliases"
+            )
+
+    @staticmethod
+    def _require_private(current: os.stat_result) -> None:
+        if stat.S_IMODE(current.st_mode) & 0o077:
+            raise NativeSessionBoundaryError(
+                "trusted session source is not private"
+            )
+
+    def _pin_or_verify(self, located: LocatedSession) -> os.stat_result:
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(
+            os, "O_NOFOLLOW", 0
+        )
+        if self._fd is None:
+            try:
+                candidate_fd = os.open(located.path, flags)
+            except OSError as exc:
+                raise NativeSessionBoundaryError(
+                    "trusted session file is unavailable"
+                ) from exc
+            try:
+                handle_stat = os.fstat(candidate_fd)
+                path_stat = located.path.stat(follow_symlinks=False)
+                self._require_owner_regular_unaliased(handle_stat)
+                self._require_owner_regular_unaliased(path_stat)
+                if (handle_stat.st_dev, handle_stat.st_ino) != (
+                    path_stat.st_dev,
+                    path_stat.st_ino,
+                ):
+                    raise NativeSessionBoundaryError(
+                        "trusted session source changed while pinning"
+                    )
+                self._require_private(handle_stat)
+                self._require_private(path_stat)
+                identity = session_source_identity(
+                    located.path, self.session_id
+                )
+                if identity != located.source_identity_sha256:
+                    raise NativeSessionBoundaryError(
+                        "trusted session source identity changed while pinning"
+                    )
+            except BaseException:
+                os.close(candidate_fd)
+                raise
+            self._fd = candidate_fd
+            self._source_identity_sha256 = identity
+            return handle_stat
+
+        handle_stat = os.fstat(self._fd)
+        try:
+            path_stat = located.path.stat(follow_symlinks=False)
+        except OSError as exc:
+            raise NativeSessionBoundaryError(
+                "trusted session file is unavailable"
+            ) from exc
+        self._require_owner_regular_unaliased(handle_stat)
+        self._require_owner_regular_unaliased(path_stat)
+        if (handle_stat.st_dev, handle_stat.st_ino) != (
+            path_stat.st_dev,
+            path_stat.st_ino,
+        ):
+            raise NativeSessionBoundaryError(
+                "trusted session source changed after pinning"
+            )
+        identity = session_source_identity(located.path, self.session_id)
+        if (
+            identity != self._source_identity_sha256
+            or located.source_identity_sha256 != self._source_identity_sha256
+        ):
+            raise NativeSessionBoundaryError(
+                "trusted session source identity changed after pinning"
+            )
+        self._require_private(handle_stat)
+        self._require_private(path_stat)
+        return handle_stat
+
+    def _require_change_history_valid(
+        self,
+        current: os.stat_result,
+        *,
+        allow_archive_metadata_change: bool,
+    ) -> None:
+        previous = self._last_stat_signature
+        if previous is None:
+            return
+        current_signature = self._stat_signature(current)
+        if current_signature[0] < previous[0]:
+            raise NativeSessionBoundaryError(
+                "trusted session source was truncated after observation"
+            )
+        if (
+            current_signature[0] == previous[0]
+            and current_signature != previous
+            and not allow_archive_metadata_change
+        ):
+            raise NativeSessionBoundaryError(
+                "trusted session source was rewritten after observation"
+            )
+
+    def _require_no_ignored_candidate_types(self) -> None:
+        """Reject matching filesystem objects the canonical locator skips."""
+
+        for store in ("sessions", "archived_sessions"):
+            directory = self.codex_home / store
+            if not directory.is_dir():
+                continue
+            for candidate in directory.rglob(f"*{self.session_id}.jsonl"):
+                try:
+                    current = candidate.lstat()
+                except OSError as exc:
+                    raise NativeSessionBoundaryError(
+                        "trusted session candidate is unavailable"
+                    ) from exc
+                if stat.S_ISLNK(current.st_mode):
+                    raise NativeSessionBoundaryError(
+                        "trusted session file is a symlink"
+                    )
+                if not stat.S_ISREG(current.st_mode):
+                    raise NativeSessionBoundaryError(
+                        "trusted session source is not a regular file"
+                    )
+
+    def _locate_current(self) -> LocatedSession:
+        self._require_no_ignored_candidate_types()
+        try:
+            return locate_unique_session(self.codex_home, self.session_id)
+        except NativeSessionBoundaryError as exc:
+            if (
+                str(exc) == "trusted session file is missing"
+                and self._fd is not None
+            ):
+                raise NativeSessionBoundaryError(
+                    "pinned trusted session source is missing"
+                ) from exc
+            raise
+
+    def _parse_pinned_boundary(
+        self,
+        raw: bytes,
+        *,
+        baseline: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Parse and hash only bytes read from the pinned descriptor."""
+
+        offset = baseline.get("byte_offset")
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            raise NativeSessionBoundaryError("baseline byte offset is invalid")
+        if len(raw) < offset:
+            raise NativeSessionBoundaryError(
+                "session JSONL was truncated below the baseline byte offset"
+            )
+        if hashlib.sha256(raw[:offset]).hexdigest() != baseline.get(
+            "boundary_sha256"
+        ):
+            raise NativeSessionBoundaryError(
+                "session JSONL prefix was rewritten after baseline capture"
+            )
+        if not raw:
+            raise NativeSessionBoundaryError(
+                "session file has no complete records"
+            )
+        if not raw.endswith(b"\n"):
+            raise NativeSessionBoundaryError(
+                "session file has a trailing partial record"
+            )
+
+        records: list[dict[str, Any]] = []
+        for number, line in enumerate(raw.splitlines(keepends=True), 1):
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise NativeSessionBoundaryError(
+                    f"session record {number} is invalid: {exc}"
+                ) from exc
+            if not isinstance(value, dict):
+                raise NativeSessionBoundaryError(
+                    f"session record {number} is not an object"
+                )
+            explicit = value.get("session_id")
+            if (
+                isinstance(explicit, str)
+                and explicit
+                and explicit != self.session_id
+            ):
+                raise NativeSessionBoundaryError(
+                    "session identity changed inside JSONL boundary"
+                )
+            if value.get("type") == "session_meta":
+                payload = value.get("payload")
+                if isinstance(payload, Mapping):
+                    for field in ("id", "session_id"):
+                        current = payload.get(field)
+                        if (
+                            isinstance(current, str)
+                            and current
+                            and current != self.session_id
+                        ):
+                            raise NativeSessionBoundaryError(
+                                "session_meta identity does not match requested session"
+                            )
+            records.append(value)
+        if not records:
+            raise NativeSessionBoundaryError(
+                "session file has no complete object records"
+            )
+        identities = {
+            str(payload[field])
+            for record in records
+            if record.get("type") == "session_meta"
+            and isinstance((payload := record.get("payload")), Mapping)
+            for field in ("id", "session_id")
+            if isinstance(payload.get(field), str) and payload.get(field)
+        }
+        identities.update(
+            str(record["session_id"])
+            for record in records
+            if isinstance(record.get("session_id"), str)
+            and record.get("session_id")
+        )
+        if identities != {self.session_id}:
+            raise NativeSessionBoundaryError(
+                "trusted session identity is missing from JSONL boundary"
+            )
+        token_snapshot: dict[str, int] | None = None
+        for record in records:
+            snapshot = _record_token_snapshot(record)
+            if snapshot is not None:
+                token_snapshot = {
+                    key: int(value) for key, value in snapshot.items()
+                }
+        return (
+            {
+                "record_count": len(records),
+                "byte_offset": len(raw),
+                "boundary_sha256": hashlib.sha256(raw).hexdigest(),
+                "token_snapshot": token_snapshot,
+            },
+            records,
+        )
+
+    def _pread_stable(self, expected: os.stat_result) -> bytes:
+        if self._fd is None:
+            raise NativeSessionBoundaryError(
+                "trusted session source is not pinned"
+            )
+        raw = bytearray()
+        while len(raw) < expected.st_size:
+            chunk = os.pread(
+                self._fd,
+                min(1024 * 1024, expected.st_size - len(raw)),
+                len(raw),
+            )
+            if not chunk:
+                raise NativeSessionBoundaryError(
+                    "trusted session source changed during descriptor read"
+                )
+            raw.extend(chunk)
+        after = os.fstat(self._fd)
+        if self._stat_signature(after) != self._stat_signature(expected):
+            raise NativeSessionBoundaryError(
+                "trusted session source changed during descriptor read"
+            )
+        return bytes(raw)
+
+    def capture(
+        self,
+        *,
+        baseline: Mapping[str, Any],
+        allow_archive_transition: bool = False,
+    ) -> tuple[
+        LocatedSession | None,
+        dict[str, Any],
+        list[dict[str, Any]],
+        bool,
+    ]:
+        """Return a strict boundary, or one pinned exact-empty precursor."""
+
+        empty_boundary = {
+            "record_count": 0,
+            "byte_offset": 0,
+            "boundary_sha256": sha256_bytes(b""),
+            "token_snapshot": None,
+        }
+        try:
+            located = self._locate_current()
+        except NativeSessionBoundaryError as exc:
+            if str(exc) != "trusted session file is missing":
+                raise
+            self._require_no_ignored_candidate_types()
+            return None, empty_boundary, [], False
+
+        archive_transition = (
+            allow_archive_transition
+            and self._last_store == "sessions"
+            and located.store == "archived_sessions"
+        )
+        if self._last_store is not None and (
+            located.store != self._last_store and not archive_transition
+        ):
+            raise NativeSessionBoundaryError(
+                "trusted session store changed outside authorized archive transition"
+            )
+        before = self._pin_or_verify(located)
+        self._require_change_history_valid(
+            before,
+            allow_archive_metadata_change=archive_transition,
+        )
+        raw = self._pread_stable(before)
+        try:
+            boundary, records = self._parse_pinned_boundary(
+                raw,
+                baseline=baseline,
+            )
+        except NativeSessionBoundaryError as exc:
+            if str(exc) != "session file has no complete records":
+                raise
+            if self._fd is None:
+                raise NativeSessionBoundaryError(
+                    "trusted empty session source is not pinned"
+                ) from exc
+            boundary = empty_boundary
+            records = []
+
+        refreshed = self._locate_current()
+        if refreshed.store != located.store:
+            raise NativeSessionBoundaryError(
+                "trusted session store changed during descriptor capture"
+            )
+        after = self._pin_or_verify(refreshed)
+        if self._stat_signature(after) != self._stat_signature(before):
+            raise NativeSessionBoundaryError(
+                "trusted session source changed during descriptor capture"
+            )
+        # Parsing is deliberately inside the identity bracket: an ancestor or
+        # leaf substitution during JSON decoding must be observed before the
+        # boundary can become accepting.
+        final_location = self._locate_current()
+        if final_location.store != refreshed.store:
+            raise NativeSessionBoundaryError(
+                "trusted session store changed during descriptor capture"
+            )
+        final_stat = self._pin_or_verify(final_location)
+        if self._stat_signature(final_stat) != self._stat_signature(before):
+            raise NativeSessionBoundaryError(
+                "trusted session source changed during descriptor capture"
+            )
+        self._last_stat_signature = self._stat_signature(final_stat)
+        self._last_store = final_location.store
+        return final_location, boundary, records, bool(records)
+
+    def close(self) -> None:
+        if self._fd is not None:
+            os.close(self._fd)
+            self._fd = None
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except OSError:
+            pass
 
 
 def run_git(cwd: Path, *args: str) -> str:
@@ -408,6 +816,7 @@ def validate_full_auto_authorization(
         | Version7QuarantinePredecessorProofInputs
         | Version8ProtectedFaultPredecessorProofInputs
         | Version9PreallocationFaultPredecessorProofInputs
+        | Version10InterruptedEmptyBoundaryPredecessorProofInputs
         | None
     ) = None,
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
@@ -415,7 +824,7 @@ def validate_full_auto_authorization(
     expected_validator_contract_sha256: str | None = None,
     repo_root: Path,
 ) -> tuple[str, str]:
-    if authorization.get("version") in {6, 7, 8, 9, 10}:
+    if authorization.get("version") in {6, 7, 8, 9, 10, 11}:
         errors = validate_full_auto_authorization_contract(
             authorization,
             expected_campaign_nonce=campaign_nonce,
@@ -768,7 +1177,7 @@ def validate_calibration_read_recovery_telemetry(
         if record_count == 0:
             if (
                 byte_offset != 0
-                or prior_source is not None
+                or prior_source is None
                 or telemetry.get("prior_boundary_sha256") != sha256_bytes(b"")
             ):
                 errors.append("read-recovery-empty-fault-boundary-invalid")
@@ -784,7 +1193,7 @@ def validate_calibration_read_recovery_telemetry(
         if pre_attempt_count == 0:
             if (
                 pre_attempt_offset != 0
-                or pre_attempt_source is not None
+                or pre_attempt_source is None
                 or telemetry.get("pre_attempt_boundary_sha256")
                 != sha256_bytes(b"")
             ):
@@ -807,6 +1216,8 @@ def validate_calibration_read_recovery_telemetry(
             and pre_attempt_count < record_count
         ):
             errors.append("read-recovery-pre-attempt-record-count-regressed")
+        if record_count == 0 and pre_attempt_count != 0:
+            errors.append("read-recovery-zero-boundary-edge-mismatch")
         if (
             type(byte_offset) is int
             and type(pre_attempt_offset) is int
@@ -815,7 +1226,6 @@ def validate_calibration_read_recovery_telemetry(
             errors.append("read-recovery-pre-attempt-byte-offset-regressed")
         if (
             prior_source is not None
-            and pre_attempt_source is not None
             and pre_attempt_source != prior_source
         ):
             errors.append("read-recovery-pre-attempt-source-changed")
@@ -864,6 +1274,7 @@ class AppServer:
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            umask=0o077,
         )
         if self.process.stdin is None or self.process.stdout is None or self.process.stderr is None:
             raise AppServerError("app-server-pipes-unavailable")
@@ -1267,6 +1678,62 @@ def session_boundary_summary(
                 efforts.append(effort)
         payload_type = str(payload.get("type", ""))
         marker = f"{record_type}:{payload_type}".lower()
+        if "compact" in marker:
+            compactions += 1
+        if "rerout" in marker:
+            reroutes += 1
+    return {
+        "available": True,
+        "record_count": boundary["record_count"],
+        "byte_offset": boundary["byte_offset"],
+        "boundary_sha256": boundary["boundary_sha256"],
+        "token_snapshot": boundary.get("token_snapshot"),
+        "source_identity_sha256": located.source_identity_sha256,
+        "trailing_partial": False,
+        "attested_models": sorted(set(models)),
+        "attested_efforts": sorted(set(efforts)),
+        "compactions": compactions,
+        "reroutes": reroutes,
+        "observation_type": "trusted-complete-boundary",
+        "terminal_event": terminal_event,
+    }
+
+
+def captured_session_boundary_summary(
+    located: LocatedSession,
+    boundary: Mapping[str, Any],
+    records: list[dict[str, Any]],
+    *,
+    turn_id: str | None,
+) -> dict[str, Any]:
+    """Summarize an already descriptor-bound session boundary."""
+
+    models: list[str] = []
+    efforts: list[str] = []
+    compactions = 0
+    reroutes = 0
+    terminal_event = None
+    if turn_id is not None:
+        try:
+            terminal_event = trusted_terminal_event(records, turn_id=turn_id)
+        except NativeSessionBoundaryError as exc:
+            raise AppServerError(
+                f"session-terminal-grammar-invalid:{exc}"
+            ) from exc
+    for record in records:
+        record_type = record.get("type")
+        payload = (
+            record.get("payload")
+            if isinstance(record.get("payload"), Mapping)
+            else {}
+        )
+        if record_type == "turn_context":
+            if isinstance(payload.get("model"), str):
+                models.append(str(payload["model"]))
+            effort = payload.get("effort") or payload.get("reasoning_effort")
+            if isinstance(effort, str):
+                efforts.append(effort)
+        marker = f"{record_type}:{payload.get('type', '')}".lower()
         if "compact" in marker:
             compactions += 1
         if "rerout" in marker:
@@ -1807,7 +2274,7 @@ def pool_sleep(*, seconds: float) -> None:
     time.sleep(seconds)
 
 
-def calibration(
+def _run_calibration(
     server: AppServer,
     cwd: Path,
     record_dir: Path,
@@ -1815,6 +2282,7 @@ def calibration(
     *,
     run_nonce: str,
     phase_nonce: str,
+    boundary_trackers: list[PreAttestationSessionBoundaryTracker],
     materialization_timeout_seconds: float = 10.0,
     pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -1825,7 +2293,6 @@ def calibration(
         cwd, mutable=False, role="capability-calibration"
     )
     thread_id = str(result["thread"]["id"])
-    reported_path = result["thread"].get("path")
     guarded_measure(
         samples,
         "arm",
@@ -1872,6 +2339,11 @@ def calibration(
         "boundary_sha256": sha256_bytes(b""),
         "token_snapshot": None,
     }
+    preattestation_boundary = PreAttestationSessionBoundaryTracker(
+        server.codex_home,
+        thread_id,
+    )
+    boundary_trackers.append(preattestation_boundary)
     trusted_source_identity: str | None = None
     observed_prefix: dict[str, Any] = dict(strict_baseline)
     control_started_ns = time.monotonic_ns()
@@ -2024,31 +2496,52 @@ def calibration(
         projected_status = normalize_projected_status(turn_status(thread, turn_id))
         previous_boundary = dict(observed_prefix)
         try:
-            located, boundary, records = capture_unique_boundary(
-                server.codex_home,
-                thread_id,
-                baseline=observed_prefix,
+            located, boundary, records, materialized = (
+                preattestation_boundary.capture(
+                    baseline=observed_prefix,
+                )
             )
         except NativeSessionBoundaryError as exc:
-            if str(exc) == "trusted session file is missing":
-                if trusted_source_identity is not None:
-                    raise AppServerError("capability-pinned-session-source-missing") from exc
-                record_nonterminal_projection(
-                    phase=phase,
-                    projected_status=projected_status,
-                    boundary_available=False,
-                    ready=False,
-                    source_identity_sha256=None,
-                    previous_boundary=previous_boundary,
-                    boundary=observed_prefix,
-                )
-                return thread, None
-            raise AppServerError(f"capability-session-boundary-invalid:{exc}") from exc
-        if trusted_source_identity is None:
+            error = str(exc)
+            if error == "pinned trusted session source is missing":
+                raise AppServerError(
+                    "capability-pinned-session-source-missing"
+                ) from exc
+            if error in {
+                "trusted session source changed after pinning",
+                "trusted session source identity changed after pinning",
+                "trusted session source is unlinked",
+            }:
+                raise AppServerError(
+                    "capability-session-source-identity-changed"
+                ) from exc
+            raise AppServerError(
+                f"capability-session-boundary-invalid:{exc}"
+            ) from exc
+        if located is not None and trusted_source_identity is None:
             trusted_source_identity = located.source_identity_sha256
-        elif trusted_source_identity != located.source_identity_sha256:
+        elif (
+            located is not None
+            and trusted_source_identity != located.source_identity_sha256
+        ):
             raise AppServerError("capability-session-source-identity-changed")
         observed_prefix = dict(boundary)
+        if not materialized:
+            record_nonterminal_projection(
+                phase=phase,
+                projected_status=projected_status,
+                boundary_available=False,
+                ready=False,
+                source_identity_sha256=(
+                    located.source_identity_sha256
+                    if located is not None
+                    else None
+                ),
+                previous_boundary=previous_boundary,
+                boundary=boundary,
+            )
+            return thread, None
+        assert located is not None
         try:
             terminal_event = trusted_terminal_event(records, turn_id=turn_id)
         except NativeSessionBoundaryError as exc:
@@ -2262,26 +2755,64 @@ def calibration(
         nonlocal attestation_observed, trusted_source_identity, observed_prefix
         previous_boundary = dict(observed_prefix)
         try:
-            located, boundary, records = capture_unique_boundary(
-                server.codex_home,
-                thread_id,
-                baseline=previous_boundary,
+            located, boundary, records, materialized = (
+                preattestation_boundary.capture(
+                    baseline=previous_boundary,
+                )
             )
         except NativeSessionBoundaryError as exc:
-            if str(exc) == "trusted session file is missing":
-                if trusted_source_identity is not None:
-                    raise AppServerError(
-                        "capability-pinned-session-source-missing"
-                    ) from exc
-                return previous_boundary
+            error = str(exc)
+            if error == "pinned trusted session source is missing":
+                raise AppServerError(
+                    "capability-pinned-session-source-missing"
+                ) from exc
+            if error in {
+                "trusted session source changed after pinning",
+                "trusted session source identity changed after pinning",
+                "trusted session source is unlinked",
+            }:
+                raise AppServerError(
+                    "capability-session-source-identity-changed"
+                ) from exc
             raise AppServerError(
                 f"capability-read-recovery-fault-boundary-invalid:{exc}"
             ) from exc
-        if trusted_source_identity is None:
+        if located is not None and trusted_source_identity is None:
             trusted_source_identity = located.source_identity_sha256
-        elif trusted_source_identity != located.source_identity_sha256:
+        elif (
+            located is not None
+            and trusted_source_identity != located.source_identity_sha256
+        ):
             raise AppServerError("capability-session-source-identity-changed")
         observed_prefix = dict(boundary)
+        if not materialized:
+            if located is None:
+                raise AppServerError(
+                    f"capability-read-recovery-session-source-missing-{stage}"
+                )
+            if (
+                records
+                or boundary.get("record_count") != 0
+                or boundary.get("byte_offset") != 0
+                or boundary.get("boundary_sha256") != sha256_bytes(b"")
+                or boundary.get("token_snapshot") is not None
+                or trusted_source_identity is None
+                or located.source_identity_sha256 != trusted_source_identity
+            ):
+                raise AppServerError(
+                    f"capability-read-recovery-boundary-not-exact-zero-{stage}"
+                )
+            append_control_observation(
+                phase="materialization",
+                projected_status="unknown",
+                durable_status=None,
+                source_identity_sha256=located.source_identity_sha256,
+                previous_boundary=previous_boundary,
+                boundary=boundary,
+                decision="continue-pending",
+            )
+            return dict(boundary)
+        assert located is not None
         try:
             terminal_event = trusted_terminal_event(records, turn_id=turn_id)
         except NativeSessionBoundaryError as exc:
@@ -2336,16 +2867,9 @@ def calibration(
             raise AppServerError(
                 "capability-read-recovery-operative-activity-at-fault"
             )
-        append_control_observation(
-            phase="materialization",
-            projected_status="unknown",
-            durable_status=None,
-            source_identity_sha256=located.source_identity_sha256,
-            previous_boundary=previous_boundary,
-            boundary=boundary,
-            decision="continue-pending",
+        raise AppServerError(
+            f"capability-read-recovery-boundary-not-exact-zero-{stage}"
         )
-        return dict(boundary)
 
     observations: list[dict[str, Any]] = []
     last_threads: dict[str, dict[str, Any]] = {}
@@ -2394,6 +2918,16 @@ def calibration(
             pre_attempt_boundary = capture_recovery_boundary(
                 "before-replacement"
             )
+            if (
+                read_recovery["fault_boundary_record_count"] == 0
+                and (
+                    pre_attempt_boundary["record_count"] != 0
+                    or pre_attempt_boundary["byte_offset"] != 0
+                )
+            ):
+                raise AppServerError(
+                    "capability-read-recovery-zero-boundary-changed-before-replacement"
+                )
             if attestation_observed:
                 raise AppServerError(
                     "capability-read-recovery-attestation-observed-before-replacement"
@@ -2597,13 +3131,18 @@ def calibration(
         last_threads[thread_id] = thread
         previous_boundary = dict(observed_prefix)
         try:
-            interrupt_location, interrupt_boundary, interrupt_records = (
-                capture_unique_boundary(
-                    server.codex_home,
-                    thread_id,
+            (
+                interrupt_location,
+                interrupt_boundary,
+                interrupt_records,
+                interrupt_materialized,
+            ) = preattestation_boundary.capture(
                     baseline=observed_prefix,
-                )
             )
+            if not interrupt_materialized or interrupt_location is None:
+                raise NativeSessionBoundaryError(
+                    "interrupt session boundary is not materialized"
+                )
             interrupt_terminal_event = trusted_terminal_event(
                 interrupt_records, turn_id=turn_id
             )
@@ -2674,11 +3213,19 @@ def calibration(
     )
     previous_boundary = dict(observed_prefix)
     try:
-        terminal_location, terminal_boundary, terminal_records = capture_unique_boundary(
-            server.codex_home,
-            thread_id,
+        (
+            terminal_location,
+            terminal_boundary,
+            terminal_records,
+            terminal_materialized,
+        ) = preattestation_boundary.capture(
             baseline=observed_prefix,
+            allow_archive_transition=True,
         )
+        if not terminal_materialized or terminal_location is None:
+            raise NativeSessionBoundaryError(
+                "terminal session boundary is not materialized"
+            )
         terminal_event = trusted_terminal_event(terminal_records, turn_id=turn_id)
     except NativeSessionBoundaryError as exc:
         raise AppServerError(f"capability-terminal-boundary-invalid:{exc}") from exc
@@ -2813,13 +3360,27 @@ def calibration(
         raise AppServerError("capability-response-time-bound-failed")
 
     thread = last_threads[thread_id]
-    boundary = session_boundary_summary(
-        server.codex_home,
-        thread_id,
-        None,
-        turn_id=turn_id,
-        baseline=strict_baseline,
-    )
+    try:
+        (
+            summary_location,
+            summary_boundary,
+            summary_records,
+            summary_materialized,
+        ) = preattestation_boundary.capture(baseline=terminal_boundary)
+        if not summary_materialized or summary_location is None:
+            raise NativeSessionBoundaryError(
+                "final session summary boundary is not materialized"
+            )
+        boundary = captured_session_boundary_summary(
+            summary_location,
+            summary_boundary,
+            summary_records,
+            turn_id=turn_id,
+        )
+    except NativeSessionBoundaryError as exc:
+        raise AppServerError(
+            f"capability-final-session-boundary-invalid:{exc}"
+        ) from exc
     summary = {
         "thread_id": thread_id,
         "turn_id": turn_id,
@@ -2867,6 +3428,37 @@ def calibration(
         "scheduler_inequality_rhs_ms": 1000,
     }
     return receipt, evidence
+
+
+def calibration(
+    server: AppServer,
+    cwd: Path,
+    record_dir: Path,
+    owner: Mapping[str, Any],
+    *,
+    run_nonce: str,
+    phase_nonce: str,
+    materialization_timeout_seconds: float = 10.0,
+    pre_allocation_check: Callable[[], None] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run one calibration and deterministically release every pinned source."""
+
+    boundary_trackers: list[PreAttestationSessionBoundaryTracker] = []
+    try:
+        return _run_calibration(
+            server,
+            cwd,
+            record_dir,
+            owner,
+            run_nonce=run_nonce,
+            phase_nonce=phase_nonce,
+            boundary_trackers=boundary_trackers,
+            materialization_timeout_seconds=materialization_timeout_seconds,
+            pre_allocation_check=pre_allocation_check,
+        )
+    finally:
+        for tracker in reversed(boundary_trackers):
+            tracker.close()
 
 
 def make_git_layout(root: Path) -> dict[str, Path]:
@@ -4706,7 +5298,11 @@ def require_private_parent(path: Path, label: str) -> None:
 def campaign_input_requires_private_parent(label: str) -> bool:
     """Session telemetry is owner-bound but may live below a shared directory."""
 
-    return "session" not in label
+    return not (
+        label.endswith("-session")
+        or "-contained-session-" in label
+        or label == "spark-validation-session"
+    )
 
 
 def require_generation8_launch_inputs(
@@ -5458,12 +6054,231 @@ def generation11_source_file_sha256s(
     }
 
 
+def require_generation12_launch_inputs(
+    inputs: CampaignLaunchInputs,
+) -> Version10InterruptedEmptyBoundaryPredecessorProofInputs:
+    """Return the exact terminal Gen11 leaf or reject a mixed generation."""
+
+    if (
+        inputs.authorization.value.get("version") != 11
+        or inputs.manifest.value.get("version") != 8
+        or not isinstance(
+            inputs.predecessor_proof,
+            Version10InterruptedEmptyBoundaryPredecessorProofInputs,
+        )
+        or inputs.legacy_predecessor is not None
+        or not isinstance(inputs.recovery_cause_evidence, JsonArtifactSnapshot)
+        or not isinstance(inputs.recovery_cause_source_analysis_bytes, bytes)
+    ):
+        raise AppServerError("campaign-generation12-proof-input-invalid")
+    return inputs.predecessor_proof
+
+
+_GENERATION11_TOP_LEVEL_PRIVATE_SOURCE_LABELS = {
+    "authorization",
+    "campaign-manifest",
+    "outer-authority",
+    "release-patch",
+    "pre-mutation-steering-receipt",
+    "pre-mutation-adjudication",
+    "pre-live-steering-receipt",
+    "pre-live-adjudication",
+    "opus-review-evidence",
+    "opus-adjudication",
+    "spark-validation-receipt",
+    "cause-evidence",
+    "cause-source-analysis",
+}
+
+
+def _generation11_ancestor_launch_inputs(
+    inputs: CampaignLaunchInputs,
+    interrupted: Version10InterruptedEmptyBoundaryPredecessorProofInputs,
+) -> CampaignLaunchInputs:
+    """Project the fixed v10/v7 ancestor into the frozen Gen11 flattener.
+
+    Only ancestor-prefixed sources survive the caller's filter.  Reusing the
+    frozen flattener prevents the historical subtree from silently drifting as
+    Generation 12 adds its immediate terminal leaf.
+    """
+
+    return CampaignLaunchInputs(
+        authorization=interrupted.authorization,
+        manifest=interrupted.manifest,
+        outer_authority=interrupted.outer_authority,
+        release_patch_bytes=inputs.release_patch_bytes,
+        pre_mutation_receipt=interrupted.pre_mutation_receipt,
+        pre_mutation_adjudication=inputs.pre_mutation_adjudication,
+        pre_live_receipt=interrupted.pre_live_receipt,
+        pre_live_adjudication=inputs.pre_live_adjudication,
+        opus_review_evidence=inputs.opus_review_evidence,
+        opus_adjudication=inputs.opus_adjudication,
+        spark_validation_receipt=interrupted.independent_validation_receipt,
+        spark_validation_session_path=inputs.spark_validation_session_path,
+        spark_validation_session_bytes=(
+            interrupted.independent_validation_session_bytes
+        ),
+        predecessor_proof=interrupted.ancestor,
+        recovery_cause_evidence=(
+            interrupted.authorization_recovery_cause_evidence
+        ),
+        recovery_cause_source_analysis_bytes=(
+            interrupted.authorization_recovery_cause_source_analysis
+        ),
+    )
+
+
+def generation12_private_source_snapshots(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, bytes]:
+    """Flatten every non-session source in the fixed v11/v8 proof DAG."""
+
+    interrupted = require_generation12_launch_inputs(inputs)
+    ancestor_inputs = _generation11_ancestor_launch_inputs(inputs, interrupted)
+    ancestor_sources = {
+        label: raw
+        for label, raw in generation11_private_source_snapshots(
+            ancestor_inputs
+        ).items()
+        if label not in _GENERATION11_TOP_LEVEL_PRIVATE_SOURCE_LABELS
+    }
+    return {
+        "authorization": inputs.authorization.raw,
+        "campaign-manifest": inputs.manifest.raw,
+        "outer-authority": inputs.outer_authority.raw,
+        "release-patch": inputs.release_patch_bytes,
+        "pre-mutation-steering-receipt": inputs.pre_mutation_receipt.raw,
+        "pre-mutation-adjudication": inputs.pre_mutation_adjudication.raw,
+        "pre-live-steering-receipt": inputs.pre_live_receipt.raw,
+        "pre-live-adjudication": inputs.pre_live_adjudication.raw,
+        "opus-review-evidence": inputs.opus_review_evidence.raw,
+        "opus-adjudication": inputs.opus_adjudication.raw,
+        "spark-validation-receipt": inputs.spark_validation_receipt.raw,
+        "interrupted-failed-predecessor-authorization": (
+            interrupted.authorization.raw
+        ),
+        "interrupted-failed-predecessor-manifest": interrupted.manifest.raw,
+        "interrupted-failed-predecessor-authorization-state": (
+            interrupted.authorization_state.raw
+        ),
+        "interrupted-failed-predecessor-failure-evidence": (
+            interrupted.failure_evidence.raw
+        ),
+        "interrupted-failed-predecessor-containment": interrupted.containment.raw,
+        "interrupted-failed-predecessor-global-claim": interrupted.global_claim.raw,
+        "interrupted-failed-predecessor-authorization-marker": (
+            interrupted.authorization_marker.raw
+        ),
+        "interrupted-failed-predecessor-nonce-marker": (
+            interrupted.nonce_marker.raw
+        ),
+        "interrupted-failed-predecessor-scope-state": interrupted.scope_state.raw,
+        "interrupted-failed-predecessor-preflight": interrupted.preflight.raw,
+        "interrupted-failed-predecessor-pre-mutation-receipt": (
+            interrupted.pre_mutation_receipt.raw
+        ),
+        "interrupted-failed-predecessor-pre-mutation-adjudication": (
+            interrupted.pre_mutation_adjudication.raw
+        ),
+        "interrupted-failed-predecessor-pre-live-receipt": (
+            interrupted.pre_live_receipt.raw
+        ),
+        "interrupted-failed-predecessor-pre-live-adjudication": (
+            interrupted.pre_live_adjudication.raw
+        ),
+        "interrupted-failed-predecessor-allocation-ledger": (
+            interrupted.allocation_ledger.raw
+        ),
+        "interrupted-failed-predecessor-allocation-audit": (
+            interrupted.allocation_audit_bytes
+        ),
+        "interrupted-failed-predecessor-steering-registry": (
+            interrupted.steering_registry.raw
+        ),
+        "interrupted-failed-predecessor-terminal-facts": interrupted.terminal_facts.raw,
+        "interrupted-failed-predecessor-generation11-runner-source": (
+            interrupted.generation11_runner_source_bytes
+        ),
+        "interrupted-failed-predecessor-generation11-session-boundary-source": (
+            interrupted.generation11_session_boundary_source_bytes
+        ),
+        "interrupted-failed-predecessor-recovery-cause-analysis": (
+            interrupted.recovery_cause_analysis_bytes
+        ),
+        "interrupted-failed-predecessor-recovery-steering-receipt": (
+            interrupted.recovery_steering_receipt.raw
+        ),
+        "interrupted-failed-predecessor-recovery-cause-evidence": (
+            interrupted.authorization_recovery_cause_evidence.raw
+        ),
+        "interrupted-failed-predecessor-recovery-cause-source-analysis": (
+            interrupted.authorization_recovery_cause_source_analysis
+        ),
+        "interrupted-failed-predecessor-outer-authority": (
+            interrupted.outer_authority.raw
+        ),
+        "interrupted-failed-predecessor-independent-validation-receipt": (
+            interrupted.independent_validation_receipt.raw
+        ),
+        **ancestor_sources,
+        "cause-evidence": inputs.recovery_cause_evidence.raw,
+        "cause-source-analysis": inputs.recovery_cause_source_analysis_bytes,
+    }
+
+
+def generation12_trusted_session_snapshots(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, bytes]:
+    """Flatten current validation plus the one terminal Gen11 session."""
+
+    interrupted = require_generation12_launch_inputs(inputs)
+    ancestor_inputs = _generation11_ancestor_launch_inputs(inputs, interrupted)
+    ancestor_sessions = {
+        label: raw
+        for label, raw in generation11_trusted_session_snapshots(
+            ancestor_inputs
+        ).items()
+        if label != "spark-validation-session"
+    }
+    return {
+        "spark-validation-session": inputs.spark_validation_session_bytes,
+        "interrupted-failed-predecessor-terminal-session": (
+            interrupted.terminal_session_bytes
+        ),
+        "interrupted-failed-predecessor-independent-validation-session": (
+            interrupted.independent_validation_session_bytes
+        ),
+        "interrupted-failed-predecessor-recovery-steering-session": (
+            interrupted.recovery_steering_session_bytes
+        ),
+        **ancestor_sessions,
+    }
+
+
+def generation12_source_file_sha256s(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, str]:
+    """Hash every read-once source bound by validation and launch claim v6."""
+
+    return {
+        label: sha256_bytes(raw)
+        for label, raw in sorted(
+            {
+                **generation12_private_source_snapshots(inputs),
+                **generation12_trusted_session_snapshots(inputs),
+            }.items()
+        )
+    }
+
+
 def require_trusted_session_snapshots_unchanged(
     paths: Mapping[str, Path], inputs: CampaignLaunchInputs
 ) -> None:
     """Re-read every trusted JSONL immediately before the first allocation."""
 
-    if inputs.authorization.value.get("version") == 10:
+    if inputs.authorization.value.get("version") == 11:
+        expected = generation12_trusted_session_snapshots(inputs)
+    elif inputs.authorization.value.get("version") == 10:
         expected = generation11_trusted_session_snapshots(inputs)
     elif inputs.authorization.value.get("version") == 9:
         expected = generation10_trusted_session_snapshots(inputs)
@@ -5512,7 +6327,9 @@ def require_launch_source_snapshots_unchanged(
 ) -> None:
     """Recheck every mutable source against the read-once launch snapshots."""
 
-    if inputs.authorization.value.get("version") == 10:
+    if inputs.authorization.value.get("version") == 11:
+        expected = generation12_private_source_snapshots(inputs)
+    elif inputs.authorization.value.get("version") == 10:
         expected = generation11_private_source_snapshots(inputs)
     elif inputs.authorization.value.get("version") == 9:
         expected = generation10_private_source_snapshots(inputs)
@@ -5898,9 +6715,22 @@ def validate_campaign_launch_bindings(
         pre_live_adjudication_sha256=inputs.pre_live_adjudication.raw_sha256,
     )
     authorization_version = authorization.get("version")
+    interrupted_failed: (
+        Version10InterruptedEmptyBoundaryPredecessorProofInputs | None
+    )
     preallocation_failed: Version9PreallocationFaultPredecessorProofInputs | None
     failed_predecessor: Version8ProtectedFaultPredecessorProofInputs | None
-    if authorization_version == 10:
+    if authorization_version == 11:
+        interrupted_failed = require_generation12_launch_inputs(inputs)
+        preallocation_failed = interrupted_failed.ancestor
+        failed_predecessor = preallocation_failed.ancestor
+        proof = failed_predecessor.ancestor
+        validator_sha256 = validator_contract_sha256_v6(
+            ROOT, manifest.get("candidate", {}).get("tree")
+        )
+        manifest_proof = interrupted_failed
+    elif authorization_version == 10:
+        interrupted_failed = None
         preallocation_failed = require_generation11_launch_inputs(inputs)
         failed_predecessor = preallocation_failed.ancestor
         proof = failed_predecessor.ancestor
@@ -5909,6 +6739,7 @@ def validate_campaign_launch_bindings(
         )
         manifest_proof = preallocation_failed
     elif authorization_version == 9:
+        interrupted_failed = None
         preallocation_failed = None
         failed_predecessor = require_generation10_launch_inputs(inputs)
         proof = failed_predecessor.ancestor
@@ -5917,6 +6748,7 @@ def validate_campaign_launch_bindings(
         )
         manifest_proof = failed_predecessor
     else:
+        interrupted_failed = None
         preallocation_failed = None
         failed_predecessor = None
         proof = require_generation9_launch_inputs(inputs)
@@ -6209,6 +7041,104 @@ def validate_campaign_launch_bindings(
                 ),
             }
         )
+    if interrupted_failed is not None:
+        predecessor_bindings.update(
+            {
+                "interrupted_failed_predecessor_authorization_file_sha256": (
+                    interrupted_failed.authorization.raw_sha256
+                ),
+                "interrupted_failed_predecessor_manifest_file_sha256": (
+                    interrupted_failed.manifest.raw_sha256
+                ),
+                "interrupted_failed_predecessor_authorization_state_file_sha256": (
+                    interrupted_failed.authorization_state.raw_sha256
+                ),
+                "interrupted_failed_predecessor_failure_evidence_file_sha256": (
+                    interrupted_failed.failure_evidence.raw_sha256
+                ),
+                "interrupted_failed_predecessor_containment_file_sha256": (
+                    interrupted_failed.containment.raw_sha256
+                ),
+                "interrupted_failed_predecessor_global_claim_file_sha256": (
+                    interrupted_failed.global_claim.raw_sha256
+                ),
+                "interrupted_failed_predecessor_authorization_marker_file_sha256": (
+                    interrupted_failed.authorization_marker.raw_sha256
+                ),
+                "interrupted_failed_predecessor_nonce_marker_file_sha256": (
+                    interrupted_failed.nonce_marker.raw_sha256
+                ),
+                "interrupted_failed_predecessor_scope_state_file_sha256": (
+                    interrupted_failed.scope_state.raw_sha256
+                ),
+                "interrupted_failed_predecessor_preflight_file_sha256": (
+                    interrupted_failed.preflight.raw_sha256
+                ),
+                "interrupted_failed_predecessor_pre_mutation_receipt_file_sha256": (
+                    interrupted_failed.pre_mutation_receipt.raw_sha256
+                ),
+                "interrupted_failed_predecessor_pre_mutation_adjudication_file_sha256": (
+                    interrupted_failed.pre_mutation_adjudication.raw_sha256
+                ),
+                "interrupted_failed_predecessor_pre_live_receipt_file_sha256": (
+                    interrupted_failed.pre_live_receipt.raw_sha256
+                ),
+                "interrupted_failed_predecessor_pre_live_adjudication_file_sha256": (
+                    interrupted_failed.pre_live_adjudication.raw_sha256
+                ),
+                "interrupted_failed_predecessor_allocation_ledger_file_sha256": (
+                    interrupted_failed.allocation_ledger.raw_sha256
+                ),
+                "interrupted_failed_predecessor_allocation_audit_file_sha256": (
+                    sha256_bytes(interrupted_failed.allocation_audit_bytes)
+                ),
+                "interrupted_failed_predecessor_steering_registry_file_sha256": (
+                    interrupted_failed.steering_registry.raw_sha256
+                ),
+                "interrupted_failed_predecessor_terminal_session_file_sha256": (
+                    sha256_bytes(interrupted_failed.terminal_session_bytes)
+                ),
+                "interrupted_failed_predecessor_terminal_facts_file_sha256": (
+                    interrupted_failed.terminal_facts.raw_sha256
+                ),
+                "interrupted_failed_predecessor_generation11_runner_source_sha256": (
+                    sha256_bytes(interrupted_failed.generation11_runner_source_bytes)
+                ),
+                "interrupted_failed_predecessor_generation11_session_boundary_source_sha256": (
+                    sha256_bytes(
+                        interrupted_failed.generation11_session_boundary_source_bytes
+                    )
+                ),
+                "interrupted_failed_predecessor_recovery_cause_analysis_sha256": (
+                    sha256_bytes(interrupted_failed.recovery_cause_analysis_bytes)
+                ),
+                "interrupted_failed_predecessor_recovery_steering_receipt_file_sha256": (
+                    interrupted_failed.recovery_steering_receipt.raw_sha256
+                ),
+                "interrupted_failed_predecessor_recovery_steering_session_file_sha256": (
+                    sha256_bytes(interrupted_failed.recovery_steering_session_bytes)
+                ),
+                "interrupted_failed_predecessor_recovery_cause_evidence_file_sha256": (
+                    interrupted_failed.authorization_recovery_cause_evidence.raw_sha256
+                ),
+                "interrupted_failed_predecessor_recovery_cause_source_analysis_file_sha256": (
+                    sha256_bytes(
+                        interrupted_failed.authorization_recovery_cause_source_analysis
+                    )
+                ),
+                "interrupted_failed_predecessor_outer_authority_file_sha256": (
+                    interrupted_failed.outer_authority.raw_sha256
+                ),
+                "interrupted_failed_predecessor_independent_validation_receipt_file_sha256": (
+                    interrupted_failed.independent_validation_receipt.raw_sha256
+                ),
+                "interrupted_failed_predecessor_independent_validation_session_file_sha256": (
+                    sha256_bytes(
+                        interrupted_failed.independent_validation_session_bytes
+                    )
+                ),
+            }
+        )
     if errors:
         raise AppServerError("campaign-manifest-invalid:" + ";".join(errors))
     if manifest.get("control_turn_id") != CONTROL_TURN_ID:
@@ -6280,12 +7210,16 @@ def validate_campaign_launch_bindings(
     if current_policy != manifest["release"]["policy_before"]:
         raise AppServerError("campaign-policy-before-mismatch")
     all_source_file_sha256s = (
-        generation11_source_file_sha256s(inputs)
-        if authorization_version == 10
+        generation12_source_file_sha256s(inputs)
+        if authorization_version == 11
         else (
-            generation10_source_file_sha256s(inputs)
-            if authorization_version == 9
-            else generation9_source_file_sha256s(inputs)
+            generation11_source_file_sha256s(inputs)
+            if authorization_version == 10
+            else (
+                generation10_source_file_sha256s(inputs)
+                if authorization_version == 9
+                else generation9_source_file_sha256s(inputs)
+            )
         )
     )
     return {
@@ -6866,6 +7800,256 @@ def campaign_launch_claim_payload_v4(
 
 
 
+def campaign_launch_claim_payload_v6(
+    inputs: CampaignLaunchInputs,
+    *,
+    output: Path,
+    authorization_state: Path,
+    steering_registry: Path,
+    allocation_ledger: Path,
+) -> dict[str, Any]:
+    """Bind every Generation-12 source and the terminal Gen11 leaf."""
+
+    interrupted = require_generation12_launch_inputs(inputs)
+    authorization = inputs.authorization.value
+    manifest = inputs.manifest.value
+    outer = inputs.outer_authority.value
+    spark = inputs.spark_validation_receipt.value
+    version_errors = validate_operative_version_tuple(
+        authorization.get("version"), manifest.get("version"), 6, 6
+    )
+    if version_errors:
+        raise AppServerError(
+            "campaign-launch-claim-version-tuple-invalid:"
+            + ";".join(version_errors)
+        )
+    declared_outputs = manifest.get("outputs")
+    if not isinstance(declared_outputs, Mapping):
+        raise AppServerError("campaign-launch-claim-outputs-invalid")
+    output_basenames = {
+        "evidence_basename": output.name,
+        "authorization_state_basename": authorization_state.name,
+        "steering_registry_basename": steering_registry.name,
+        "allocation_ledger_basename": allocation_ledger.name,
+    }
+    if output_basenames != dict(declared_outputs):
+        raise AppServerError("campaign-launch-claim-outputs-mismatch")
+    bindings = authorization.get("bindings")
+    if not isinstance(bindings, Mapping):
+        raise AppServerError("campaign-launch-claim-authorization-invalid")
+    return {
+        "claim_type": "cwo-native-live-campaign-launch-claim",
+        "version": 6,
+        "operative_version_tuple": {
+            "authorization_version": 11,
+            "manifest_version": 8,
+            "launch_claim_version": 6,
+            "validator_contract_version": 6,
+        },
+        "authority_semantics": {
+            "durable_one_shot_claim_is_launch_authority": True,
+            "authorization_and_nonce_tombstones_are_permanent": True,
+            "bound_manifest_validation_is_evidence_only": True,
+            "resume_retry_replay_salvage_forbidden": True,
+            "terminal_predecessor_is_containment_evidence_only": True,
+            "interrupted_terminal_is_never_accepting_completion": True,
+            "consumed_predecessor_steering_is_evidence_only": True,
+        },
+        "authorization": {
+            "authorization_id": authorization.get("authorization_id"),
+            "raw_sha256": inputs.authorization.raw_sha256,
+            "canonical_sha256": authorization.get(
+                "canonical_authorization_sha256"
+            ),
+            "run_generation": authorization.get("run_generation"),
+            "live_generation": authorization.get("live_generation"),
+            "predecessor_live_generation": authorization.get(
+                "predecessor_live_generation"
+            ),
+            "campaign_nonce": bindings.get("campaign_nonce"),
+        },
+        "manifest": {
+            "manifest_id": manifest.get("manifest_id"),
+            "raw_sha256": inputs.manifest.raw_sha256,
+            "canonical_sha256": manifest.get("manifest_sha256"),
+        },
+        "outer_authority": {
+            "authority_id": outer.get("authority_id"),
+            "raw_sha256": inputs.outer_authority.raw_sha256,
+            "canonical_sha256": outer.get("canonical_outer_authority_sha256"),
+        },
+        "spark_validation": {
+            "receipt_raw_sha256": inputs.spark_validation_receipt.raw_sha256,
+            "receipt_canonical_sha256": spark.get("canonical_receipt_sha256"),
+            "session_id": spark.get("session_id"),
+            "session_file_sha256": sha256_bytes(
+                inputs.spark_validation_session_bytes
+            ),
+        },
+        "successor_proof": {
+            "proof_dag": [
+                "v11/v8",
+                "v10/v7",
+                "v9/v6",
+                "v8/v5",
+                "v7/v4",
+                "v6/v3",
+                "v5/v2",
+                "v4/v1",
+            ],
+            "recovery_cause_evidence_raw_sha256": (
+                inputs.recovery_cause_evidence.raw_sha256
+            ),
+            "recovery_cause_source_analysis_sha256": sha256_bytes(
+                inputs.recovery_cause_source_analysis_bytes
+            ),
+            "interrupted_failed_predecessor": {
+                "authorization_raw_sha256": interrupted.authorization.raw_sha256,
+                "manifest_raw_sha256": interrupted.manifest.raw_sha256,
+                "authorization_state_raw_sha256": (
+                    interrupted.authorization_state.raw_sha256
+                ),
+                "failure_evidence_raw_sha256": (
+                    interrupted.failure_evidence.raw_sha256
+                ),
+                "containment_raw_sha256": interrupted.containment.raw_sha256,
+                "global_claim_raw_sha256": interrupted.global_claim.raw_sha256,
+                "authorization_marker_raw_sha256": (
+                    interrupted.authorization_marker.raw_sha256
+                ),
+                "nonce_marker_raw_sha256": interrupted.nonce_marker.raw_sha256,
+                "scope_state_raw_sha256": interrupted.scope_state.raw_sha256,
+                "preflight_raw_sha256": interrupted.preflight.raw_sha256,
+                "pre_mutation_receipt_raw_sha256": (
+                    interrupted.pre_mutation_receipt.raw_sha256
+                ),
+                "pre_mutation_adjudication_raw_sha256": (
+                    interrupted.pre_mutation_adjudication.raw_sha256
+                ),
+                "pre_live_receipt_raw_sha256": (
+                    interrupted.pre_live_receipt.raw_sha256
+                ),
+                "pre_live_adjudication_raw_sha256": (
+                    interrupted.pre_live_adjudication.raw_sha256
+                ),
+                "allocation_ledger_raw_sha256": (
+                    interrupted.allocation_ledger.raw_sha256
+                ),
+                "allocation_audit_sha256": sha256_bytes(
+                    interrupted.allocation_audit_bytes
+                ),
+                "steering_registry_raw_sha256": (
+                    interrupted.steering_registry.raw_sha256
+                ),
+                "terminal_session_count": 1,
+                "terminal_session_sha256": sha256_bytes(
+                    interrupted.terminal_session_bytes
+                ),
+                "terminal_facts_raw_sha256": interrupted.terminal_facts.raw_sha256,
+                "terminal_facts_canonical_sha256": interrupted.terminal_facts.value.get(
+                    "canonical_terminal_facts_sha256"
+                ),
+                "generation11_runner_source_sha256": sha256_bytes(
+                    interrupted.generation11_runner_source_bytes
+                ),
+                "generation11_session_boundary_source_sha256": sha256_bytes(
+                    interrupted.generation11_session_boundary_source_bytes
+                ),
+                "recovery_cause_analysis_sha256": sha256_bytes(
+                    interrupted.recovery_cause_analysis_bytes
+                ),
+                "recovery_steering_receipt_raw_sha256": (
+                    interrupted.recovery_steering_receipt.raw_sha256
+                ),
+                "recovery_steering_receipt_canonical_sha256": (
+                    interrupted.recovery_steering_receipt.value.get(
+                        "canonical_receipt_sha256"
+                    )
+                ),
+                "recovery_steering_session_sha256": sha256_bytes(
+                    interrupted.recovery_steering_session_bytes
+                ),
+                "outer_authority_raw_sha256": (
+                    interrupted.outer_authority.raw_sha256
+                ),
+                "independent_validation_receipt_raw_sha256": (
+                    interrupted.independent_validation_receipt.raw_sha256
+                ),
+                "independent_validation_session_sha256": sha256_bytes(
+                    interrupted.independent_validation_session_bytes
+                ),
+                "authorization_recovery_cause_evidence_raw_sha256": (
+                    interrupted.authorization_recovery_cause_evidence.raw_sha256
+                ),
+                "authorization_recovery_cause_source_analysis_sha256": (
+                    sha256_bytes(
+                        interrupted.authorization_recovery_cause_source_analysis
+                    )
+                ),
+                "initial_empty_boundary_sha256": bindings.get(
+                    "predecessor_initial_empty_boundary_sha256"
+                ),
+                "recovery_entry_sha256": bindings.get(
+                    "predecessor_recovery_entry_sha256"
+                ),
+                "interrupted_terminal_event_sha256": bindings.get(
+                    "predecessor_interrupted_terminal_event_sha256"
+                ),
+                "no_replacement_read_sha256": bindings.get(
+                    "predecessor_no_replacement_read_sha256"
+                ),
+                "accepting_completion": False,
+                "operative_authority": False,
+            },
+            "ancestor_launch_claim_sha256": interrupted.global_claim.value.get(
+                "launch_claim_sha256"
+            ),
+            "ancestor_proof_root_authorization_sha256": (
+                interrupted.ancestor.authorization.raw_sha256
+            ),
+        },
+        "steering": {
+            "pre_mutation_receipt_raw_sha256": (
+                inputs.pre_mutation_receipt.raw_sha256
+            ),
+            "pre_mutation_receipt_canonical_sha256": (
+                inputs.pre_mutation_receipt.value.get("canonical_receipt_sha256")
+            ),
+            "pre_live_receipt_raw_sha256": inputs.pre_live_receipt.raw_sha256,
+            "pre_live_receipt_canonical_sha256": (
+                inputs.pre_live_receipt.value.get("canonical_receipt_sha256")
+            ),
+            "pre_mutation_adjudication_raw_sha256": (
+                inputs.pre_mutation_adjudication.raw_sha256
+            ),
+            "pre_live_adjudication_raw_sha256": (
+                inputs.pre_live_adjudication.raw_sha256
+            ),
+        },
+        "outside_review": {
+            "opus_evidence_raw_sha256": inputs.opus_review_evidence.raw_sha256,
+            "opus_adjudication_raw_sha256": inputs.opus_adjudication.raw_sha256,
+            "exact_model": inputs.opus_review_evidence.value.get("exact_model"),
+            "glm_5_2_used": inputs.opus_review_evidence.value.get("glm_5_2_used"),
+            "model_synthesis_used": inputs.opus_review_evidence.value.get(
+                "model_synthesis_used"
+            ),
+            "main_architect_decision": inputs.opus_adjudication.value.get(
+                "main_architect_decision"
+            ),
+        },
+        "source_file_sha256s": generation12_source_file_sha256s(inputs),
+        "output_basenames": output_basenames,
+        "output_paths": {
+            "evidence": str(output.resolve(strict=False)),
+            "authorization_state": str(authorization_state.resolve(strict=False)),
+            "steering_registry": str(steering_registry.resolve(strict=False)),
+            "allocation_ledger": str(allocation_ledger.resolve(strict=False)),
+        },
+        "validator_contract_sha256": bindings.get("validator_contract_sha256"),
+    }
+
+
 def campaign_launch_claim_payload_v5(
     inputs: CampaignLaunchInputs,
     *,
@@ -7040,6 +8224,17 @@ def campaign_launch_claim_sha256(
     """Seal one immutable versioned launch claim under its exact domain."""
 
     authorization_version = inputs.authorization.value.get("version")
+    if authorization_version == 11:
+        claim = campaign_launch_claim_payload_v6(
+            inputs,
+            output=output,
+            authorization_state=authorization_state,
+            steering_registry=steering_registry,
+            allocation_ledger=allocation_ledger,
+        )
+        return domain_sha256(
+            claim, domain="native-live-campaign-launch-claim-v6"
+        )
     if authorization_version == 10:
         claim = campaign_launch_claim_payload_v5(
             inputs,
@@ -7219,14 +8414,26 @@ def safe_allocation_ledger_summary(
 
 
 def require_operative_campaign_contract(
-    authorization_version: Any, manifest_version: Any
+    authorization_version: Any,
+    manifest_version: Any,
+    launch_claim_version: Any = 6,
+    validator_contract_version: Any = 6,
 ) -> None:
     """Keep historical contracts inspectable but outside the live launcher."""
 
-    if authorization_version != 10:
+    errors = validate_operative_version_tuple(
+        authorization_version,
+        manifest_version,
+        launch_claim_version,
+        validator_contract_version,
+    )
+    if not errors:
+        return
+    if authorization_version != 11:
         raise AppServerError("campaign-authorization-version-historical-only")
-    if manifest_version != 7:
-        raise AppServerError("campaign-contract-version-mismatch")
+    raise AppServerError(
+        "campaign-contract-version-mismatch:" + ";".join(errors)
+    )
 
 
 GENERATION8_REQUIRED_PROOF_PATHS = {
@@ -7434,12 +8641,122 @@ def require_generation11_proof_path_set(
     )
 
 
+GENERATION12_INTERRUPTED_PROOF_PATHS = {
+    "interrupted-failed-predecessor-authorization",
+    "interrupted-failed-predecessor-manifest",
+    "interrupted-failed-predecessor-authorization-state",
+    "interrupted-failed-predecessor-failure-evidence",
+    "interrupted-failed-predecessor-containment",
+    "interrupted-failed-predecessor-global-claim",
+    "interrupted-failed-predecessor-authorization-marker",
+    "interrupted-failed-predecessor-nonce-marker",
+    "interrupted-failed-predecessor-scope-state",
+    "interrupted-failed-predecessor-preflight",
+    "interrupted-failed-predecessor-pre-mutation-receipt",
+    "interrupted-failed-predecessor-pre-mutation-adjudication",
+    "interrupted-failed-predecessor-pre-live-receipt",
+    "interrupted-failed-predecessor-pre-live-adjudication",
+    "interrupted-failed-predecessor-allocation-ledger",
+    "interrupted-failed-predecessor-allocation-audit",
+    "interrupted-failed-predecessor-steering-registry",
+    "interrupted-failed-predecessor-terminal-session",
+    "interrupted-failed-predecessor-terminal-facts",
+    "interrupted-failed-predecessor-generation11-runner-source",
+    "interrupted-failed-predecessor-generation11-session-boundary-source",
+    "interrupted-failed-predecessor-recovery-cause-analysis",
+    "interrupted-failed-predecessor-recovery-steering-receipt",
+    "interrupted-failed-predecessor-recovery-steering-session",
+    "interrupted-failed-predecessor-outer-authority",
+    "interrupted-failed-predecessor-independent-validation-receipt",
+    "interrupted-failed-predecessor-independent-validation-session",
+    "interrupted-failed-predecessor-recovery-cause-evidence",
+    "interrupted-failed-predecessor-recovery-cause-source-analysis",
+}
+GENERATION12_REQUIRED_PROOF_PATHS = (
+    GENERATION11_REQUIRED_PROOF_PATHS | GENERATION12_INTERRUPTED_PROOF_PATHS
+)
+
+
+def require_generation12_proof_path_set(
+    paths: Mapping[str, Path],
+    *,
+    failed_predecessor_contained_sessions: int,
+    predecessor_contained_sessions: int,
+    ancestor_contained_sessions: int,
+    grandancestor_contained_sessions: int,
+) -> None:
+    """Reject incomplete, mixed, or multi-session terminal Gen11 leaves."""
+
+    terminal_session_labels = {
+        label
+        for label in paths
+        if label.startswith("interrupted-failed-predecessor-terminal-session")
+    }
+    forbidden_immediate_sessions = {
+        label
+        for label in paths
+        if label.startswith("interrupted-failed-predecessor-contained-session-")
+    }
+    if (
+        not GENERATION12_REQUIRED_PROOF_PATHS.issubset(paths)
+        or terminal_session_labels
+        != {"interrupted-failed-predecessor-terminal-session"}
+        or forbidden_immediate_sessions
+    ):
+        raise AppServerError("campaign-generation12-proof-path-set-invalid")
+    require_generation11_proof_path_set(
+        paths,
+        failed_predecessor_contained_sessions=(
+            failed_predecessor_contained_sessions
+        ),
+        predecessor_contained_sessions=predecessor_contained_sessions,
+        ancestor_contained_sessions=ancestor_contained_sessions,
+        grandancestor_contained_sessions=grandancestor_contained_sessions,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True)
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--campaign-manifest", type=Path, required=True)
     parser.add_argument("--outer-authority", type=Path, required=True)
+    for suffix in (
+        "authorization",
+        "manifest",
+        "authorization-state",
+        "failure-evidence",
+        "containment",
+        "global-claim",
+        "authorization-marker",
+        "nonce-marker",
+        "scope-state",
+        "preflight",
+        "pre-mutation-receipt",
+        "pre-mutation-adjudication",
+        "pre-live-receipt",
+        "pre-live-adjudication",
+        "allocation-ledger",
+        "allocation-audit",
+        "steering-registry",
+        "terminal-session",
+        "terminal-facts",
+        "generation11-runner-source",
+        "generation11-session-boundary-source",
+        "recovery-cause-analysis",
+        "recovery-steering-receipt",
+        "recovery-steering-session",
+        "outer-authority",
+        "independent-validation-receipt",
+        "independent-validation-session",
+        "recovery-cause-evidence",
+        "recovery-cause-source-analysis",
+    ):
+        parser.add_argument(
+            f"--interrupted-failed-predecessor-{suffix}",
+            type=Path,
+            required=True,
+        )
     parser.add_argument(
         "--preallocation-failed-predecessor-authorization",
         type=Path,
@@ -7689,6 +9006,93 @@ def main() -> int:
             "authorization": args.authorization,
             "campaign-manifest": args.campaign_manifest,
             "outer-authority": args.outer_authority,
+            "interrupted-failed-predecessor-authorization": (
+                args.interrupted_failed_predecessor_authorization
+            ),
+            "interrupted-failed-predecessor-manifest": (
+                args.interrupted_failed_predecessor_manifest
+            ),
+            "interrupted-failed-predecessor-authorization-state": (
+                args.interrupted_failed_predecessor_authorization_state
+            ),
+            "interrupted-failed-predecessor-failure-evidence": (
+                args.interrupted_failed_predecessor_failure_evidence
+            ),
+            "interrupted-failed-predecessor-containment": (
+                args.interrupted_failed_predecessor_containment
+            ),
+            "interrupted-failed-predecessor-global-claim": (
+                args.interrupted_failed_predecessor_global_claim
+            ),
+            "interrupted-failed-predecessor-authorization-marker": (
+                args.interrupted_failed_predecessor_authorization_marker
+            ),
+            "interrupted-failed-predecessor-nonce-marker": (
+                args.interrupted_failed_predecessor_nonce_marker
+            ),
+            "interrupted-failed-predecessor-scope-state": (
+                args.interrupted_failed_predecessor_scope_state
+            ),
+            "interrupted-failed-predecessor-preflight": (
+                args.interrupted_failed_predecessor_preflight
+            ),
+            "interrupted-failed-predecessor-pre-mutation-receipt": (
+                args.interrupted_failed_predecessor_pre_mutation_receipt
+            ),
+            "interrupted-failed-predecessor-pre-mutation-adjudication": (
+                args.interrupted_failed_predecessor_pre_mutation_adjudication
+            ),
+            "interrupted-failed-predecessor-pre-live-receipt": (
+                args.interrupted_failed_predecessor_pre_live_receipt
+            ),
+            "interrupted-failed-predecessor-pre-live-adjudication": (
+                args.interrupted_failed_predecessor_pre_live_adjudication
+            ),
+            "interrupted-failed-predecessor-allocation-ledger": (
+                args.interrupted_failed_predecessor_allocation_ledger
+            ),
+            "interrupted-failed-predecessor-allocation-audit": (
+                args.interrupted_failed_predecessor_allocation_audit
+            ),
+            "interrupted-failed-predecessor-steering-registry": (
+                args.interrupted_failed_predecessor_steering_registry
+            ),
+            "interrupted-failed-predecessor-terminal-session": (
+                args.interrupted_failed_predecessor_terminal_session
+            ),
+            "interrupted-failed-predecessor-terminal-facts": (
+                args.interrupted_failed_predecessor_terminal_facts
+            ),
+            "interrupted-failed-predecessor-generation11-runner-source": (
+                args.interrupted_failed_predecessor_generation11_runner_source
+            ),
+            "interrupted-failed-predecessor-generation11-session-boundary-source": (
+                args.interrupted_failed_predecessor_generation11_session_boundary_source
+            ),
+            "interrupted-failed-predecessor-recovery-cause-analysis": (
+                args.interrupted_failed_predecessor_recovery_cause_analysis
+            ),
+            "interrupted-failed-predecessor-recovery-steering-receipt": (
+                args.interrupted_failed_predecessor_recovery_steering_receipt
+            ),
+            "interrupted-failed-predecessor-recovery-steering-session": (
+                args.interrupted_failed_predecessor_recovery_steering_session
+            ),
+            "interrupted-failed-predecessor-outer-authority": (
+                args.interrupted_failed_predecessor_outer_authority
+            ),
+            "interrupted-failed-predecessor-independent-validation-receipt": (
+                args.interrupted_failed_predecessor_independent_validation_receipt
+            ),
+            "interrupted-failed-predecessor-independent-validation-session": (
+                args.interrupted_failed_predecessor_independent_validation_session
+            ),
+            "interrupted-failed-predecessor-recovery-cause-evidence": (
+                args.interrupted_failed_predecessor_recovery_cause_evidence
+            ),
+            "interrupted-failed-predecessor-recovery-cause-source-analysis": (
+                args.interrupted_failed_predecessor_recovery_cause_source_analysis
+            ),
             "preallocation-failed-predecessor-authorization": (
                 args.preallocation_failed_predecessor_authorization
             ),
@@ -7957,8 +9361,10 @@ def main() -> int:
         authorization = dict(authorization_snapshot.value)
         manifest = dict(manifest_snapshot.value)
         version = authorization.get("version")
-        require_operative_campaign_contract(version, manifest.get("version"))
-        require_generation11_proof_path_set(
+        require_operative_campaign_contract(
+            version, manifest.get("version"), 6, 6
+        )
+        require_generation12_proof_path_set(
             paths,
             failed_predecessor_contained_sessions=len(
                 args.failed_predecessor_contained_session or []
@@ -8222,6 +9628,96 @@ def main() -> int:
             ),
             ancestor=predecessor_proof,
         )
+        interrupted_proof = Version10InterruptedEmptyBoundaryPredecessorProofInputs(
+            authorization=private_json_snapshot(
+                "interrupted-failed-predecessor-authorization"
+            ),
+            manifest=private_json_snapshot(
+                "interrupted-failed-predecessor-manifest"
+            ),
+            authorization_state=private_json_snapshot(
+                "interrupted-failed-predecessor-authorization-state"
+            ),
+            failure_evidence=private_json_snapshot(
+                "interrupted-failed-predecessor-failure-evidence"
+            ),
+            global_claim=private_json_snapshot(
+                "interrupted-failed-predecessor-global-claim"
+            ),
+            authorization_marker=private_json_snapshot(
+                "interrupted-failed-predecessor-authorization-marker"
+            ),
+            nonce_marker=private_json_snapshot(
+                "interrupted-failed-predecessor-nonce-marker"
+            ),
+            scope_state=private_json_snapshot(
+                "interrupted-failed-predecessor-scope-state"
+            ),
+            preflight=private_json_snapshot(
+                "interrupted-failed-predecessor-preflight"
+            ),
+            pre_mutation_receipt=private_json_snapshot(
+                "interrupted-failed-predecessor-pre-mutation-receipt"
+            ),
+            pre_mutation_adjudication=private_json_snapshot(
+                "interrupted-failed-predecessor-pre-mutation-adjudication"
+            ),
+            pre_live_receipt=private_json_snapshot(
+                "interrupted-failed-predecessor-pre-live-receipt"
+            ),
+            pre_live_adjudication=private_json_snapshot(
+                "interrupted-failed-predecessor-pre-live-adjudication"
+            ),
+            allocation_ledger=private_json_snapshot(
+                "interrupted-failed-predecessor-allocation-ledger"
+            ),
+            allocation_audit_bytes=private_bytes_snapshot(
+                "interrupted-failed-predecessor-allocation-audit"
+            ),
+            steering_registry=private_json_snapshot(
+                "interrupted-failed-predecessor-steering-registry"
+            ),
+            terminal_session_bytes=trusted_session_snapshot(
+                "interrupted-failed-predecessor-terminal-session"
+            ),
+            containment=private_json_snapshot(
+                "interrupted-failed-predecessor-containment"
+            ),
+            terminal_facts=private_json_snapshot(
+                "interrupted-failed-predecessor-terminal-facts"
+            ),
+            generation11_runner_source_bytes=private_bytes_snapshot(
+                "interrupted-failed-predecessor-generation11-runner-source"
+            ),
+            generation11_session_boundary_source_bytes=private_bytes_snapshot(
+                "interrupted-failed-predecessor-generation11-session-boundary-source"
+            ),
+            recovery_cause_analysis_bytes=private_bytes_snapshot(
+                "interrupted-failed-predecessor-recovery-cause-analysis"
+            ),
+            recovery_steering_receipt=private_json_snapshot(
+                "interrupted-failed-predecessor-recovery-steering-receipt"
+            ),
+            recovery_steering_session_bytes=trusted_session_snapshot(
+                "interrupted-failed-predecessor-recovery-steering-session"
+            ),
+            authorization_recovery_cause_evidence=private_json_snapshot(
+                "interrupted-failed-predecessor-recovery-cause-evidence"
+            ),
+            authorization_recovery_cause_source_analysis=private_bytes_snapshot(
+                "interrupted-failed-predecessor-recovery-cause-source-analysis"
+            ),
+            outer_authority=private_json_snapshot(
+                "interrupted-failed-predecessor-outer-authority"
+            ),
+            independent_validation_receipt=private_json_snapshot(
+                "interrupted-failed-predecessor-independent-validation-receipt"
+            ),
+            independent_validation_session_bytes=trusted_session_snapshot(
+                "interrupted-failed-predecessor-independent-validation-session"
+            ),
+            ancestor=preallocation_proof,
+        )
         recovery_cause_evidence = private_json_snapshot("cause-evidence")
         recovery_cause_source_analysis_bytes = private_bytes_snapshot(
             "cause-source-analysis"
@@ -8253,7 +9749,7 @@ def main() -> int:
             spark_validation_session_bytes=trusted_session_snapshot(
                 "spark-validation-session"
             ),
-            predecessor_proof=preallocation_proof,
+            predecessor_proof=interrupted_proof,
             recovery_cause_evidence=recovery_cause_evidence,
             recovery_cause_source_analysis_bytes=(
                 recovery_cause_source_analysis_bytes
@@ -8264,24 +9760,17 @@ def main() -> int:
         authorization_id, repo_head = validate_full_auto_authorization(
             authorization,
             args.campaign_nonce,
-            predecessor_proof=preallocation_proof,
+            predecessor_proof=interrupted_proof,
             recovery_cause_evidence=recovery_cause_evidence,
             recovery_cause_source_analysis=recovery_cause_source_analysis_bytes,
-            expected_validator_contract_sha256=validator_contract_sha256_v5(
+            expected_validator_contract_sha256=validator_contract_sha256_v6(
                 ROOT, authorization.get("bindings", {}).get("checkpoint_tree")
             ),
             repo_root=ROOT,
         )
 
-        outer_authority = dict(launch_inputs.outer_authority.value)
         pre_mutation_receipt = dict(launch_inputs.pre_mutation_receipt.value)
         pre_live_receipt = dict(launch_inputs.pre_live_receipt.value)
-        pre_mutation_adjudication = dict(
-            launch_inputs.pre_mutation_adjudication.value
-        )
-        pre_live_adjudication = dict(launch_inputs.pre_live_adjudication.value)
-        opus_review_evidence = dict(launch_inputs.opus_review_evidence.value)
-        opus_adjudication = dict(launch_inputs.opus_adjudication.value)
         spark_validation_receipt = dict(
             launch_inputs.spark_validation_receipt.value
         )
@@ -8360,7 +9849,7 @@ def main() -> int:
                 != candidate.get("origin_main_commit")
                 or guarded_diff_sha256(args.guarded_primary.absolute())
                 != artifact_bindings["guarded_primary_diff_sha256"]
-                or validator_contract_sha256_v5(ROOT, str(candidate.get("tree")))
+                or validator_contract_sha256_v6(ROOT, str(candidate.get("tree")))
                 != artifact_bindings["validator_contract_sha256"]
             ):
                 raise AppServerError("campaign-allocation-watermark-changed")
@@ -8431,7 +9920,7 @@ def main() -> int:
                 != manifest["candidate"]["tree"]
                 or guarded_diff_sha256(args.guarded_primary.absolute())
                 != artifact_bindings["guarded_primary_diff_sha256"]
-                or validator_contract_sha256_v5(
+                or validator_contract_sha256_v6(
                     ROOT, manifest["candidate"]["tree"]
                 )
                 != artifact_bindings["validator_contract_sha256"]

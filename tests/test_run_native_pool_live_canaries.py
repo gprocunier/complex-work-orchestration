@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime as dt
 from dataclasses import replace
 import importlib.util
 import io
@@ -74,6 +73,7 @@ class FakeCalibrationServer:
         read_delays: Mapping[int, float] | None = None,
         materialize_before_fault_read: int | None = None,
         materialize_before_read: int | None = None,
+        empty_initial_session: bool = False,
     ) -> None:
         self.codex_home = root / "codex-home"
         self.active = self.codex_home / "sessions" / "2026" / "07"
@@ -90,6 +90,7 @@ class FakeCalibrationServer:
         self.read_delays = dict(read_delays or {})
         self.materialize_before_fault_read = materialize_before_fault_read
         self.materialize_before_read = materialize_before_read
+        self.empty_initial_session = empty_initial_session
         self.read_started: list[float] = []
         self.read_timeouts: list[float] = []
         self.interrupted = False
@@ -122,6 +123,7 @@ class FakeCalibrationServer:
 
     def _write(self, records: list[dict]) -> None:
         self.path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
+        self.path.chmod(0o600)
 
     def start_thread(
         self, _cwd: Path, *, mutable: bool, role: str | None = None
@@ -144,13 +146,17 @@ class FakeCalibrationServer:
         if thread_id != self.thread_id:
             raise AssertionError("thread mismatch")
         self.turn_start_count += 1
-        self._write(
-            [
-                {"type": "session_meta", "payload": {"id": self.thread_id}},
-                {"type": "event_msg", "payload": {"type": "task_started", "turn_id": self.turn_id}},
-                {"type": "response_item", "payload": {"type": "message", "role": "user"}},
-            ]
-        )
+        if self.empty_initial_session:
+            self.path.touch(mode=0o600)
+            self.path.chmod(0o600)
+        else:
+            self._write(
+                [
+                    {"type": "session_meta", "payload": {"id": self.thread_id}},
+                    {"type": "event_msg", "payload": {"type": "task_started", "turn_id": self.turn_id}},
+                    {"type": "response_item", "payload": {"type": "message", "role": "user"}},
+                ]
+            )
         return {"id": self.turn_id}, 1.0
 
     def _thread(self) -> dict:
@@ -162,6 +168,14 @@ class FakeCalibrationServer:
         }
 
     def _materialize(self) -> None:
+        if self.path.exists() and self.path.stat().st_size == 0:
+            self._write(
+                [
+                    {"type": "session_meta", "payload": {"id": self.thread_id}},
+                    {"type": "event_msg", "payload": {"type": "task_started", "turn_id": self.turn_id}},
+                    {"type": "response_item", "payload": {"type": "message", "role": "user"}},
+                ]
+            )
         records = [
             {
                 "type": "turn_context",
@@ -631,6 +645,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             server = FakeCalibrationServer(
                 root,
                 read_faults={1: ("thread/read", -32603, 137.0)},
+                empty_initial_session=True,
             )
             connection_epoch = server.connection_epoch_sha256
             receipt, evidence = LIVE.calibration(
@@ -654,12 +669,12 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertEqual(telemetry["code"], -32603)
             self.assertEqual(telemetry["phase"], "materialization")
             self.assertFalse(telemetry["attestation_observed_at_fault"])
-            self.assertNotEqual(
+            self.assertEqual(
                 telemetry["prior_boundary_sha256"],
                 LIVE.sha256_bytes(b""),
             )
-            self.assertEqual(telemetry["fault_boundary_record_count"], 3)
-            self.assertGreater(telemetry["fault_boundary_byte_offset"], 0)
+            self.assertEqual(telemetry["fault_boundary_record_count"], 0)
+            self.assertEqual(telemetry["fault_boundary_byte_offset"], 0)
             self.assertRegex(
                 telemetry["prior_source_identity_sha256"], r"^[0-9a-f]{64}$"
             )
@@ -671,7 +686,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 telemetry["pre_attempt_boundary_sha256"],
                 telemetry["prior_boundary_sha256"],
             )
-            self.assertEqual(telemetry["pre_attempt_boundary_record_count"], 3)
+            self.assertEqual(telemetry["pre_attempt_boundary_record_count"], 0)
             self.assertEqual(
                 telemetry["pre_attempt_boundary_byte_offset"],
                 telemetry["fault_boundary_byte_offset"],
@@ -718,7 +733,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 }
             )
             self.assertIn(
-                "read-recovery-pre-attempt-record-count-regressed",
+                "read-recovery-zero-boundary-edge-mismatch",
                 LIVE.validate_calibration_read_recovery_telemetry(regressed_count),
             )
 
@@ -761,6 +776,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 root,
                 read_faults={1: ("thread/read", -32603, 1.0)},
                 materialize_before_fault_read=1,
+                empty_initial_session=True,
             )
             with self.assertRaisesRegex(
                 LIVE.AppServerError,
@@ -789,6 +805,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             server = FakeCalibrationServer(
                 root,
                 read_faults={1: ("thread/read", -32603, 1.0)},
+                empty_initial_session=True,
             )
             real_sleep = LIVE.time.sleep
             materialized = False
@@ -827,6 +844,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 root,
                 read_faults={1: ("thread/read", -32603, 1.0)},
                 materialize_before_read=2,
+                empty_initial_session=True,
             )
             with self.assertRaisesRegex(
                 LIVE.AppServerError,
@@ -850,7 +868,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "read_faults": {
                         1: ("thread/read", -32603, 1.0),
                         2: ("thread/read", -32603, 1.0),
-                    }
+                    },
+                    "empty_initial_session": True,
                 },
                 2,
                 "app-server-request-failed:thread/read:-32603",
@@ -897,6 +916,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 {
                     "read_faults": {1: ("thread/read", -32603, 1.0)},
                     "read_delays": {1: 0.26},
+                    "empty_initial_session": True,
                 },
                 1,
             ),
@@ -904,6 +924,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 {
                     "read_faults": {1: ("thread/read", -32603, 1.0)},
                     "read_delays": {2: 0.26},
+                    "empty_initial_session": True,
                 },
                 2,
             ),
@@ -5596,6 +5617,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             (7, 4),
             (8, 5),
             (9, 6),
+            (10, 7),
         ):
             with self.subTest(
                 authorization_version=authorization_version,
@@ -5610,8 +5632,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(
             LIVE.AppServerError, "campaign-contract-version-mismatch"
         ):
-            LIVE.require_operative_campaign_contract(10, 6)
-        LIVE.require_operative_campaign_contract(10, 7)
+            LIVE.require_operative_campaign_contract(11, 7, 6, 6)
+        LIVE.require_operative_campaign_contract(11, 8, 6, 6)
 
     def test_legacy_authority_history_requires_complete_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

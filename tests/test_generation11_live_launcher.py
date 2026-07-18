@@ -97,9 +97,9 @@ class Generation11LiveLauncherTests(unittest.TestCase):
             "allocation_ledger": root / "ledger",
         }
 
-    def test_only_v10_v7_is_operative(self) -> None:
-        LIVE.require_operative_campaign_contract(10, 7)
-        for pair in ((9, 6), (10, 6), (9, 7), (11, 7), (10, 8)):
+    def test_v10_v7_is_historical_after_v11_v8_activation(self) -> None:
+        LIVE.require_operative_campaign_contract(11, 8, 6, 6)
+        for pair in ((9, 6), (10, 6), (9, 7), (11, 7), (10, 8), (10, 7)):
             with self.subTest(pair=pair), self.assertRaises(LIVE.AppServerError):
                 LIVE.require_operative_campaign_contract(*pair)
 

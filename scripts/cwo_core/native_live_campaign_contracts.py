@@ -1,5 +1,7 @@
 """Strict successor authority and manifest contracts for native live campaigns."""
 
+# ruff: noqa: F841
+
 from __future__ import annotations
 
 import datetime as dt
@@ -39,6 +41,8 @@ AUTHORIZATION_VERSION_V9 = 9
 AUTHORIZATION_SCHEMA_V9 = "schemas/full-auto-run-authorization-v9.schema.json"
 AUTHORIZATION_VERSION_V10 = 10
 AUTHORIZATION_SCHEMA_V10 = "schemas/full-auto-run-authorization-v10.schema.json"
+AUTHORIZATION_VERSION_V11 = 11
+AUTHORIZATION_SCHEMA_V11 = "schemas/full-auto-run-authorization-v11.schema.json"
 MANIFEST_TYPE = "cwo-native-live-campaign-manifest"
 MANIFEST_VERSION = 2
 MANIFEST_SCHEMA = "schemas/native-live-campaign-manifest.schema.json"
@@ -52,6 +56,16 @@ MANIFEST_VERSION_V6 = 6
 MANIFEST_SCHEMA_V6 = "schemas/native-live-campaign-manifest-v6.schema.json"
 MANIFEST_VERSION_V7 = 7
 MANIFEST_SCHEMA_V7 = "schemas/native-live-campaign-manifest-v7.schema.json"
+MANIFEST_VERSION_V8 = 8
+MANIFEST_SCHEMA_V8 = "schemas/native-live-campaign-manifest-v8.schema.json"
+LAUNCH_CLAIM_VERSION_V6 = 6
+VALIDATOR_CONTRACT_VERSION_V6 = 6
+OPERATIVE_VERSION_TUPLE = (
+    AUTHORIZATION_VERSION_V11,
+    MANIFEST_VERSION_V8,
+    LAUNCH_CLAIM_VERSION_V6,
+    VALIDATOR_CONTRACT_VERSION_V6,
+)
 EXACT_STEERING_MODEL = "gpt-5.6-sol"
 EXACT_STEERING_EFFORT = "max"
 EXACT_OPERATIVE_MODEL = "gpt-5.3-codex-spark"
@@ -195,6 +209,40 @@ BINDING_FIELDS_V10 = (
     "predecessor_pre_live_receipt_file_sha256",
     "predecessor_pre_live_receipt_canonical_sha256",
 }
+BINDING_FIELDS_V11 = set(BINDING_FIELDS_V10) | {
+    "predecessor_allocation_ledger_file_sha256",
+    "predecessor_allocation_ledger_state_sha256",
+    "predecessor_allocation_ledger_head_entry_sha256",
+    "predecessor_allocation_audit_file_sha256",
+    "predecessor_steering_registry_file_sha256",
+    "predecessor_terminal_session_file_sha256",
+    "predecessor_terminal_session_id",
+    "predecessor_terminal_turn_id",
+    "predecessor_initial_empty_boundary_sha256",
+    "predecessor_recovery_entry_sha256",
+    "predecessor_interrupted_terminal_event_sha256",
+    "predecessor_no_replacement_read_sha256",
+    "predecessor_outer_authority_file_sha256",
+    "predecessor_outer_authority_canonical_sha256",
+    "predecessor_independent_validation_receipt_file_sha256",
+    "predecessor_independent_validation_receipt_canonical_sha256",
+    "predecessor_independent_validation_session_file_sha256",
+    "predecessor_authorization_recovery_cause_evidence_file_sha256",
+    "predecessor_authorization_recovery_cause_evidence_canonical_sha256",
+    "predecessor_authorization_recovery_cause_source_analysis_sha256",
+    "predecessor_terminal_facts_file_sha256",
+    "predecessor_terminal_facts_canonical_sha256",
+    "predecessor_generation11_runner_source_sha256",
+    "predecessor_generation11_session_boundary_source_sha256",
+    "predecessor_pre_mutation_adjudication_file_sha256",
+    "predecessor_pre_mutation_adjudication_canonical_sha256",
+    "predecessor_pre_live_adjudication_file_sha256",
+    "predecessor_pre_live_adjudication_canonical_sha256",
+    "predecessor_recovery_cause_analysis_sha256",
+    "predecessor_recovery_steering_receipt_file_sha256",
+    "predecessor_recovery_steering_receipt_canonical_sha256",
+    "predecessor_recovery_steering_session_file_sha256",
+}
 SUPERSESSION_FIELDS = {
     "prior_authorization_id",
     "prior_terminal_state",
@@ -301,6 +349,16 @@ MANDATORY_GATE_FIELDS_V10 = (
     "campaign_manifest_v7",
     "preallocation_fault_predecessor_proof",
     "shared_preclaim_steering_binding",
+}
+MANDATORY_GATE_FIELDS_V11 = (
+    MANDATORY_GATE_FIELDS_V7
+    - {"strict_authorization_v7", "campaign_manifest_v4"}
+) | {
+    "strict_authorization_v11",
+    "campaign_manifest_v8",
+    "interrupted_empty_boundary_predecessor_proof",
+    "terminal_recovery_facts_binding",
+    "consumed_steering_receipts_binding",
 }
 PERSISTENCE_FIELDS = {
     "run_level_full_auto_survives_recoverable_failure",
@@ -448,6 +506,10 @@ MANIFEST_PREDECESSOR_FIELDS_V7 = (
     "pre_mutation_receipt_canonical_sha256",
     "pre_live_receipt_file_sha256",
     "pre_live_receipt_canonical_sha256",
+}
+MANIFEST_PREDECESSOR_FIELDS_V8 = set(MANIFEST_PREDECESSOR_FIELDS_V7) | {
+    field.removeprefix("predecessor_")
+    for field in BINDING_FIELDS_V11 - BINDING_FIELDS_V10
 }
 MANIFEST_OUTER_AUTHORITY_FIELDS = {
     "authority_id",
@@ -697,6 +759,149 @@ MODERN_FAILURE_EVIDENCE_FIELDS = {
     "model_synthesis_used",
     "evidence_sha256",
 }
+GENERATION11_FAILURE_MESSAGE_SHA256 = (
+    "585a72e5ebc2ab85317272de36f26b47e10cd0850a30d0c9681f8a6523f8451f"
+)
+GENERATION11_RUNNER_SOURCE_SHA256 = (
+    "6bc88446cd12722244378ee9eff616f0056ff2d14375dd5391f7ba575c249e5c"
+)
+GENERATION11_SESSION_BOUNDARY_SOURCE_SHA256 = (
+    "ea0f587f7ec6b38898393b16201afe8b05decd29ad343d406a22e7a6daebfc37"
+)
+GENERATION11_CONTAINMENT_FIELDS = {
+    "allocation_ledger",
+    "bead_id",
+    "canonical_recovery_sha256",
+    "claim_v5_and_scope",
+    "contained_session",
+    "containment",
+    "control_plane_recheck",
+    "control_turn_id",
+    "disposition",
+    "failed_authority",
+    "generation12_recovery_contract",
+    "recorded_at",
+    "root_cause",
+    "schema",
+    "steering_consumptions",
+    "terminal_failure",
+    "version",
+}
+GENERATION11_INITIAL_EMPTY_BOUNDARY = {
+    "availability": "materialized-empty",
+    "boundary_sha256": hashlib.sha256(b"").hexdigest(),
+    "byte_offset": 0,
+    "invalid_record_count": 0,
+    "record_count": 0,
+    "trailing_partial": False,
+}
+GENERATION11_RECOVERY_ENTRY = {
+    "entered": True,
+    "operation": "thread/read",
+    "trigger": "transient-rpc-fault",
+    "before_trusted_attestation": True,
+    "before_operative_activity": True,
+}
+GENERATION11_NO_REPLACEMENT_READ = {
+    "replacement_attempted": False,
+    "replacement_thread_count": 0,
+    "replacement_turn_count": 0,
+    "replacement_session_count": 0,
+}
+GENERATION11_TERMINAL_FACTS_FIELDS = {
+    "artifact_type",
+    "version",
+    "schema",
+    "recorded_at",
+    "identity",
+    "source_bindings",
+    "facts",
+    "source_root_sha256",
+    "canonical_terminal_facts_sha256",
+}
+GENERATION11_TERMINAL_FACT_IDENTITY_FIELDS = {
+    "authorization_id",
+    "manifest_id",
+    "campaign_nonce",
+    "control_turn_id",
+    "bead_id",
+    "work_unit_id",
+    "live_generation",
+    "session_id",
+    "turn_id",
+    "candidate_commit",
+    "candidate_tree",
+}
+GENERATION11_TERMINAL_FACT_SOURCE_FIELDS = {
+    "authorization_file_sha256",
+    "manifest_file_sha256",
+    "authorization_state_file_sha256",
+    "failure_evidence_file_sha256",
+    "containment_file_sha256",
+    "global_claim_file_sha256",
+    "authorization_marker_file_sha256",
+    "nonce_marker_file_sha256",
+    "scope_state_file_sha256",
+    "preflight_file_sha256",
+    "pre_mutation_receipt_file_sha256",
+    "pre_mutation_adjudication_file_sha256",
+    "pre_live_receipt_file_sha256",
+    "pre_live_adjudication_file_sha256",
+    "allocation_ledger_file_sha256",
+    "allocation_audit_file_sha256",
+    "steering_registry_file_sha256",
+    "terminal_session_file_sha256",
+    "outer_authority_file_sha256",
+    "recovery_cause_analysis_sha256",
+    "recovery_steering_receipt_file_sha256",
+    "recovery_steering_session_file_sha256",
+    "generation11_runner_source_sha256",
+    "generation11_session_boundary_source_sha256",
+}
+GENERATION11_TERMINAL_FACT_NAMES = {
+    "initial_empty_boundary",
+    "recovery_entry",
+    "interrupted_terminal_event",
+    "no_replacement_read",
+}
+GENERATION11_STEERING_ADJUDICATION_FIELDS = {
+    "adjudication_type",
+    "recorded_at",
+    "bead_id",
+    "control_turn_id",
+    "gate",
+    "authorization_id",
+    "authorization_file_sha256",
+    "candidate_commit",
+    "candidate_tree",
+    "sol_receipt_file_sha256",
+    "sol_receipt_canonical_sha256",
+    "sol_session_file_sha256",
+    "sol_session_id",
+    "sol_recommendation",
+    "sol_confidence",
+    "opus_evidence_file_sha256",
+    "opus_adjudication_file_sha256",
+    "spark_validation_receipt_file_sha256",
+    "spark_validation_receipt_canonical_sha256",
+    "main_architect_decision",
+    "main_confidence",
+    "combined_confidence",
+    "combined_confidence_formula",
+    "condition_adjudication",
+    "unresolved_high_findings",
+    "unresolved_medium_findings",
+    "zero_allocation_preflight_required",
+    "manifest_authorized",
+    "live_campaign_authorized",
+    "live_campaign_single_shot",
+    "live_campaign_start_count_exact",
+    "release_authorized",
+    "publication_authorized",
+    "glm52",
+    "synthesis",
+    "canonical_adjudication_sha256",
+}
 
 
 @dataclass(frozen=True)
@@ -840,6 +1045,49 @@ class Version9PreallocationFaultPredecessorProofInputs:
     ancestor: Version8ProtectedFaultPredecessorProofInputs
 
 
+@dataclass(frozen=True)
+class Version10InterruptedEmptyBoundaryPredecessorProofInputs:
+    """Read-once terminal Generation-11 leaf for a v11/v8 successor.
+
+    The immediate predecessor is evidence only.  Its one archived Spark/LOW
+    session, terminal-facts seal, allocation ledger, and steering-consumption
+    registry prove that the empty-boundary recovery fault was interrupted and
+    contained without a replacement read or operative activity.  The fixed
+    v10/v7 ancestor preserves the complete historical proof DAG.
+    """
+
+    authorization: JsonArtifactSnapshot
+    manifest: JsonArtifactSnapshot
+    authorization_state: JsonArtifactSnapshot
+    failure_evidence: JsonArtifactSnapshot
+    global_claim: JsonArtifactSnapshot
+    authorization_marker: JsonArtifactSnapshot
+    nonce_marker: JsonArtifactSnapshot
+    scope_state: JsonArtifactSnapshot
+    preflight: JsonArtifactSnapshot
+    pre_mutation_receipt: JsonArtifactSnapshot
+    pre_mutation_adjudication: JsonArtifactSnapshot
+    pre_live_receipt: JsonArtifactSnapshot
+    pre_live_adjudication: JsonArtifactSnapshot
+    allocation_ledger: JsonArtifactSnapshot
+    allocation_audit_bytes: bytes
+    steering_registry: JsonArtifactSnapshot
+    terminal_session_bytes: bytes
+    containment: JsonArtifactSnapshot
+    terminal_facts: JsonArtifactSnapshot
+    generation11_runner_source_bytes: bytes
+    generation11_session_boundary_source_bytes: bytes
+    recovery_cause_analysis_bytes: bytes
+    recovery_steering_receipt: JsonArtifactSnapshot
+    recovery_steering_session_bytes: bytes
+    authorization_recovery_cause_evidence: JsonArtifactSnapshot
+    authorization_recovery_cause_source_analysis: bytes
+    outer_authority: JsonArtifactSnapshot
+    independent_validation_receipt: JsonArtifactSnapshot
+    independent_validation_session_bytes: bytes
+    ancestor: Version9PreallocationFaultPredecessorProofInputs
+
+
 PREDECESSOR_LEDGER_EVENT_SEQUENCE = (
     "allocation-intent",
     "thread-bound",
@@ -873,6 +1121,14 @@ QUARANTINE_LEDGER_OUTCOME_SEQUENCE = (
     "bound",
     "archive-request-accepted",
     "contained",
+)
+GENERATION11_TERMINAL_LEDGER_GRAMMAR = (
+    ("capability-calibration", "allocation-intent", "pending"),
+    ("capability-calibration", "thread-bound", "bound"),
+    ("capability-calibration", "turn-intent", "pending"),
+    ("capability-calibration", "turn-bound", "bound"),
+    ("capability-calibration", "archive-observed", "archive-request-accepted"),
+    ("capability-calibration", "containment-audited", "contained"),
 )
 
 
@@ -993,6 +1249,11 @@ VALIDATOR_CONTRACT_PATHS_V4 = VALIDATOR_CONTRACT_PATHS_V3 + (
 VALIDATOR_CONTRACT_PATHS_V5 = VALIDATOR_CONTRACT_PATHS_V4 + (
     "schemas/full-auto-run-authorization-v10.schema.json",
     "schemas/native-live-campaign-manifest-v7.schema.json",
+)
+VALIDATOR_CONTRACT_PATHS_V6 = VALIDATOR_CONTRACT_PATHS_V5 + (
+    "schemas/full-auto-run-authorization-v11.schema.json",
+    "schemas/native-live-campaign-manifest-v8.schema.json",
+    "schemas/generation11-terminal-facts.schema.json",
 )
 # Historical callers imported this name when v1 was the only contract. Keep the
 # alias immutable; Generation 8 must opt in to the explicitly versioned v2 API.
@@ -1157,6 +1418,30 @@ def validator_contract_sha256_v5(
             "v4/v1",
         ),
         ancestor_depth_exact=5,
+    )
+
+
+def validator_contract_sha256_v6(
+    repo_root: Path, checkpoint_tree: str | None = None
+) -> str:
+    """Bind the v11/v8 DAG and terminal interrupted-empty-boundary leaf."""
+
+    return _validator_contract_sha256(
+        repo_root,
+        checkpoint_tree,
+        paths=VALIDATOR_CONTRACT_PATHS_V6,
+        contract="cwo-live-successor-validator:v6",
+        proof_dag=(
+            "v11/v8",
+            "v10/v7",
+            "v9/v6",
+            "v8/v5",
+            "v7/v4",
+            "v6/v3",
+            "v5/v2",
+            "v4/v1",
+        ),
+        ancestor_depth_exact=6,
     )
 
 
@@ -1398,6 +1683,51 @@ def _predecessor_lineage_v10(
     return lineage
 
 
+def _predecessor_lineage_v11(
+    bindings: Mapping[str, Any],
+    progress: Mapping[str, Any],
+    predecessor_live_generation: Any,
+) -> dict[str, Any]:
+    """Identity for v11's terminal Generation-11 recovery-fault leaf."""
+
+    lineage = _predecessor_lineage_v10(
+        bindings, progress, predecessor_live_generation
+    )
+    lineage.update(
+        {
+            field.removeprefix("predecessor_"): bindings.get(field)
+            for field in BINDING_FIELDS_V11 - BINDING_FIELDS_V10
+        }
+    )
+    return lineage
+
+
+def validate_operative_version_tuple(
+    authorization_version: Any,
+    manifest_version: Any,
+    launch_claim_version: Any,
+    validator_contract_version: Any,
+) -> list[str]:
+    """Accept only the current fail-closed operative compatibility tuple.
+
+    Historical authorization and manifest validators remain available for
+    predecessor inspection, but no historical or mixed tuple authorizes a
+    live campaign.
+    """
+
+    observed = (
+        authorization_version,
+        manifest_version,
+        launch_claim_version,
+        validator_contract_version,
+    )
+    if any(not _is_int(item, 1) for item in observed):
+        return ["operative-version-tuple-malformed"]
+    if observed != OPERATIVE_VERSION_TUPLE:
+        return ["operative-version-tuple-incompatible"]
+    return []
+
+
 def contained_session_family_sha256(
     session_accounting: list[Mapping[str, Any]],
     raw_sessions: tuple[bytes, ...],
@@ -1626,6 +1956,132 @@ def _validate_recovery_cause_evidence(
         or evidence.get("repair_tree") != bindings.get("checkpoint_tree")
     ):
         errors.append("authorization-recovery-cause-evidence-binding-invalid")
+    return sorted(set(errors))
+
+
+def _validate_v11_recovery_cause_evidence(
+    value: Any,
+    *,
+    raw_sha256: str,
+    bindings: Mapping[str, Any],
+    progress: Mapping[str, Any],
+    predecessor: Version10InterruptedEmptyBoundaryPredecessorProofInputs,
+    source_analysis_bytes: bytes,
+) -> list[str]:
+    """Validate Generation-12 cause evidence without changing frozen history."""
+
+    errors: list[str] = []
+    evidence = _strict(
+        value,
+        RECOVERY_CAUSE_EVIDENCE_FIELDS,
+        "authorization-v11-recovery-cause-evidence",
+        errors,
+    )
+    if not evidence:
+        return sorted(set(errors))
+    if (
+        evidence.get("evidence_type")
+        != "cwo-native-live-campaign-cause-evidence"
+        or evidence.get("version") != 1
+        or evidence.get("schema")
+        != "schemas/native-live-campaign-cause-evidence.schema.json"
+        or not _is_uuid(evidence.get("evidence_id"))
+        or _parse_utc(evidence.get("recorded_at")) is None
+    ):
+        errors.append("authorization-v11-recovery-cause-evidence-header-invalid")
+    for field in (
+        "failure_evidence_file_sha256",
+        "failure_evidence_canonical_sha256",
+        "containment_file_sha256",
+        "containment_canonical_sha256",
+        "failure_message_sha256",
+        "source_analysis_sha256",
+        "canonical_cause_evidence_sha256",
+    ):
+        if not _is_hash(evidence.get(field)):
+            errors.append(
+                "authorization-v11-recovery-cause-evidence-"
+                f"{field.replace('_', '-')}-invalid"
+            )
+    for field in ("repair_commit", "repair_tree"):
+        if not _is_commit(evidence.get(field)):
+            errors.append(
+                "authorization-v11-recovery-cause-evidence-"
+                f"{field.replace('_', '-')}-invalid"
+            )
+    prior_authorization = predecessor.authorization.value
+    prior_manifest = predecessor.manifest.value
+    prior_failure = predecessor.failure_evidence.value
+    prior_containment = predecessor.containment.value
+    root_cause = (
+        prior_containment.get("root_cause")
+        if isinstance(prior_containment.get("root_cause"), Mapping)
+        else {}
+    )
+    terminal_failure = (
+        prior_containment.get("terminal_failure")
+        if isinstance(prior_containment.get("terminal_failure"), Mapping)
+        else {}
+    )
+    source_sha256 = (
+        hashlib.sha256(source_analysis_bytes).hexdigest()
+        if isinstance(source_analysis_bytes, bytes) and source_analysis_bytes
+        else None
+    )
+    if (
+        not _is_int(evidence.get("live_generation"), 1)
+        or not _is_int(evidence.get("focused_tests_passed"), 1)
+        or any(
+            evidence.get(field) is not True
+            for field in (
+                "repository_validation_passed",
+                "compileall_passed",
+                "diff_check_passed",
+            )
+        )
+        or not isinstance(evidence.get("failure_class"), str)
+        or not evidence.get("failure_class", "").strip()
+        or not isinstance(evidence.get("falsifiable_cause"), str)
+        or not evidence.get("falsifiable_cause", "").strip()
+    ):
+        errors.append("authorization-v11-recovery-cause-evidence-content-invalid")
+    if (
+        raw_sha256 != bindings.get("recovery_cause_evidence_file_sha256")
+        or evidence.get("canonical_cause_evidence_sha256")
+        != bindings.get("recovery_cause_evidence_canonical_sha256")
+        or evidence.get("canonical_cause_evidence_sha256")
+        != _canonical_artifact_hash(evidence, "canonical_cause_evidence_sha256")
+        or progress.get("cause_evidence_sha256") != raw_sha256
+        or evidence.get("failed_authorization_id")
+        != prior_authorization.get("authorization_id")
+        or evidence.get("failed_manifest_id") != prior_manifest.get("manifest_id")
+        or evidence.get("live_generation") != prior_authorization.get("live_generation")
+        or evidence.get("failure_evidence_file_sha256")
+        != predecessor.failure_evidence.raw_sha256
+        or evidence.get("failure_evidence_canonical_sha256")
+        != prior_failure.get("evidence_sha256")
+        or evidence.get("containment_file_sha256")
+        != predecessor.containment.raw_sha256
+        or evidence.get("containment_canonical_sha256")
+        != prior_containment.get("canonical_recovery_sha256")
+        or evidence.get("failure_class")
+        != progress.get("predecessor_failure_class")
+        or evidence.get("failure_class") != root_cause.get("cause_class")
+        or evidence.get("failure_message_sha256")
+        != prior_failure.get("failure_message_sha256")
+        or evidence.get("failure_message_sha256")
+        != terminal_failure.get("failure_message_sha256")
+        or evidence.get("falsifiable_cause") != progress.get("new_falsifiable_cause")
+        or terminal_failure.get("failure_class") != prior_failure.get("failure_class")
+        or terminal_failure.get("failure_code") != prior_failure.get("failure_code")
+        or root_cause.get("failed_edge") != "capability-read-recovery:at-fault"
+        or root_cause.get("replacement_read_attempted") is not False
+        or root_cause.get("source_analysis_file_sha256") != source_sha256
+        or evidence.get("source_analysis_sha256") != source_sha256
+        or evidence.get("repair_commit") != bindings.get("checkpoint_commit")
+        or evidence.get("repair_tree") != bindings.get("checkpoint_tree")
+    ):
+        errors.append("authorization-v11-recovery-cause-evidence-binding-invalid")
     return sorted(set(errors))
 
 
@@ -5688,6 +6144,215 @@ def _validate_full_auto_authorization_v10(
     return sorted(set(errors))
 
 
+def _v11_common_shadow(authorization: Mapping[str, Any]) -> dict[str, Any]:
+    """Project v11 common fields through the frozen v10-to-v5 validator."""
+
+    shadow = json.loads(json.dumps(dict(authorization)))
+    shadow["version"] = AUTHORIZATION_VERSION_V10
+    shadow["schema"] = AUTHORIZATION_SCHEMA_V10
+    bindings = (
+        dict(shadow.get("bindings"))
+        if isinstance(shadow.get("bindings"), Mapping)
+        else {}
+    )
+    shadow["bindings"] = bindings
+    for field in BINDING_FIELDS_V11 - BINDING_FIELDS_V10:
+        bindings.pop(field, None)
+    gates = (
+        dict(shadow.get("mandatory_gates"))
+        if isinstance(shadow.get("mandatory_gates"), Mapping)
+        else {}
+    )
+    shadow["mandatory_gates"] = gates
+    gates.pop("strict_authorization_v11", None)
+    gates.pop("campaign_manifest_v8", None)
+    gates.pop("interrupted_empty_boundary_predecessor_proof", None)
+    gates.pop("terminal_recovery_facts_binding", None)
+    gates.pop("consumed_steering_receipts_binding", None)
+    gates["strict_authorization_v10"] = True
+    gates["campaign_manifest_v7"] = True
+    gates["preallocation_fault_predecessor_proof"] = True
+    gates["shared_preclaim_steering_binding"] = True
+    progress = (
+        dict(shadow.get("progress_gate"))
+        if isinstance(shadow.get("progress_gate"), Mapping)
+        else {}
+    )
+    shadow["progress_gate"] = progress
+    progress["predecessor_lineage_sha256"] = canonical_sha256(
+        _predecessor_lineage_v10(
+            bindings, progress, shadow.get("predecessor_live_generation")
+        )
+    )
+    progress.pop("qualification_sha256", None)
+    progress["qualification_sha256"] = canonical_sha256(progress)
+    shadow.pop("canonical_authorization_sha256", None)
+    shadow["canonical_authorization_sha256"] = canonical_sha256(shadow)
+    return _v10_common_shadow(shadow)
+
+
+def _validate_full_auto_authorization_v11(
+    value: Any,
+    *,
+    expected_campaign_nonce: str | None = None,
+    predecessor_proof: (
+        Version10InterruptedEmptyBoundaryPredecessorProofInputs | None
+    ) = None,
+    recovery_cause_evidence: JsonArtifactSnapshot | None = None,
+    recovery_cause_source_analysis: bytes | None = None,
+    expected_validator_contract_sha256: str | None = None,
+    repo_root: Path | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    authorization = _strict(value, AUTHORIZATION_FIELDS, "authorization-v11", errors)
+    if not authorization:
+        return sorted(set(errors))
+    if (
+        authorization.get("authorization_type") != AUTHORIZATION_TYPE
+        or authorization.get("version") != AUTHORIZATION_VERSION_V11
+        or authorization.get("schema") != AUTHORIZATION_SCHEMA_V11
+    ):
+        errors.append("authorization-v11-header-invalid")
+    try:
+        common_errors = _validate_full_auto_authorization_v5(
+            _v11_common_shadow(authorization),
+            expected_campaign_nonce=expected_campaign_nonce,
+            repo_root=repo_root,
+        )
+    except (AttributeError, KeyError, TypeError, ValueError):
+        common_errors = ["authorization-v11-common-scalar-invalid"]
+    errors.extend(f"authorization-v11-common:{item}" for item in common_errors)
+    bindings = _strict(
+        authorization.get("bindings"),
+        BINDING_FIELDS_V11,
+        "authorization-v11-bindings",
+        errors,
+    )
+    progress = _strict(
+        authorization.get("progress_gate"),
+        PROGRESS_GATE_FIELDS,
+        "authorization-v11-progress-gate",
+        errors,
+    )
+    supersession = _strict(
+        authorization.get("supersession"),
+        SUPERSESSION_FIELDS,
+        "authorization-v11-supersession",
+        errors,
+    )
+    gates = _strict(
+        authorization.get("mandatory_gates"),
+        MANDATORY_GATE_FIELDS_V11,
+        "authorization-v11-mandatory-gates",
+        errors,
+    )
+    if any(gates.get(field) is not True for field in MANDATORY_GATE_FIELDS_V11):
+        errors.append("authorization-v11-mandatory-gate-disabled")
+    non_hash_fields = {
+        "checkpoint_commit",
+        "checkpoint_tree",
+        "origin_main_commit",
+        "pickup_path",
+        "recovery_plan_path",
+        "campaign_nonce",
+        "predecessor_authorization_id",
+        "predecessor_terminal_session_id",
+        "predecessor_terminal_turn_id",
+        "backup_ref",
+        "outer_authority_id",
+    }
+    for field in BINDING_FIELDS_V11 - non_hash_fields:
+        if not _is_hash(bindings.get(field)):
+            errors.append(
+                f"authorization-v11-binding-{field.replace('_', '-')}-invalid"
+            )
+    for field in (
+        "campaign_nonce",
+        "predecessor_authorization_id",
+        "predecessor_terminal_session_id",
+        "predecessor_terminal_turn_id",
+        "outer_authority_id",
+    ):
+        if not _is_uuid(bindings.get(field)):
+            errors.append(
+                f"authorization-v11-binding-{field.replace('_', '-')}-invalid"
+            )
+    expected_lineage = _predecessor_lineage_v11(
+        bindings, progress, authorization.get("predecessor_live_generation")
+    )
+    if progress.get("predecessor_lineage_sha256") != canonical_sha256(
+        expected_lineage
+    ):
+        errors.append("authorization-v11-predecessor-lineage-sha256-mismatch")
+    unsigned_progress = dict(progress)
+    unsigned_progress.pop("qualification_sha256", None)
+    if progress.get("qualification_sha256") != canonical_sha256(unsigned_progress):
+        errors.append("authorization-v11-progress-qualification-sha256-mismatch")
+    unsigned = dict(authorization)
+    unsigned.pop("canonical_authorization_sha256", None)
+    if authorization.get("canonical_authorization_sha256") != canonical_sha256(
+        unsigned
+    ):
+        errors.append("authorization-v11-canonical-sha256-mismatch")
+    if repo_root is not None:
+        try:
+            observed_contract = validator_contract_sha256_v6(
+                Path(repo_root), bindings.get("checkpoint_tree")
+            )
+        except (OSError, ValueError):
+            observed_contract = None
+            errors.append("authorization-v11-validator-contract-unavailable")
+        if bindings.get("validator_contract_sha256") != observed_contract:
+            errors.append("authorization-v11-validator-contract-mismatch")
+    if (
+        expected_validator_contract_sha256 is not None
+        and bindings.get("validator_contract_sha256")
+        != expected_validator_contract_sha256
+    ):
+        errors.append("authorization-v11-expected-validator-contract-mismatch")
+    if not isinstance(
+        predecessor_proof, Version10InterruptedEmptyBoundaryPredecessorProofInputs
+    ):
+        errors.append("authorization-v11-predecessor-terminal-proof-missing")
+    else:
+        errors.extend(
+            _validate_v10_interrupted_empty_boundary_predecessor_proof(
+                bindings=bindings,
+                progress=progress,
+                supersession=supersession,
+                predecessor_live_generation=_generation_or_invalid(
+                    authorization.get("predecessor_live_generation")
+                ),
+                proof=predecessor_proof,
+                repo_root=repo_root,
+            )
+        )
+    if not isinstance(recovery_cause_evidence, JsonArtifactSnapshot):
+        errors.append("authorization-v11-recovery-cause-evidence-missing")
+    elif not isinstance(recovery_cause_source_analysis, bytes):
+        errors.append("authorization-v11-recovery-cause-source-analysis-missing")
+    elif isinstance(
+        predecessor_proof, Version10InterruptedEmptyBoundaryPredecessorProofInputs
+    ):
+        errors.extend(
+            _validate_json_snapshot(
+                recovery_cause_evidence,
+                "authorization-v11-recovery-cause-evidence",
+            )
+        )
+        errors.extend(
+            _validate_v11_recovery_cause_evidence(
+                recovery_cause_evidence.value,
+                raw_sha256=recovery_cause_evidence.raw_sha256,
+                bindings=bindings,
+                progress=progress,
+                predecessor=predecessor_proof,
+                source_analysis_bytes=recovery_cause_source_analysis,
+            )
+        )
+    return sorted(set(errors))
+
+
 def _dispatch_validate_full_auto_authorization(
     value: Any,
     *,
@@ -5697,6 +6362,7 @@ def _dispatch_validate_full_auto_authorization(
         | Version7QuarantinePredecessorProofInputs
         | Version8ProtectedFaultPredecessorProofInputs
         | Version9PreallocationFaultPredecessorProofInputs
+        | Version10InterruptedEmptyBoundaryPredecessorProofInputs
         | None
     ) = None,
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
@@ -5840,6 +6506,33 @@ def _dispatch_validate_full_auto_authorization(
                 if isinstance(
                     predecessor_proof,
                     Version9PreallocationFaultPredecessorProofInputs,
+                )
+                else None
+            ),
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            expected_validator_contract_sha256=expected_validator_contract_sha256,
+            repo_root=legacy_kwargs.get("repo_root"),
+        )
+    if version == AUTHORIZATION_VERSION_V11:
+        legacy_predecessor_keys = {
+            key
+            for key, item in legacy_kwargs.items()
+            if key.startswith("predecessor_") and item is not None
+        }
+        if legacy_predecessor_keys:
+            return ["authorization-v11-legacy-proof-input-forbidden"]
+        allowed = {"expected_campaign_nonce", "repo_root"}
+        if set(legacy_kwargs) - allowed:
+            return ["authorization-v11-validator-arguments-invalid"]
+        return _validate_full_auto_authorization_v11(
+            value,
+            expected_campaign_nonce=legacy_kwargs.get("expected_campaign_nonce"),
+            predecessor_proof=(
+                predecessor_proof
+                if isinstance(
+                    predecessor_proof,
+                    Version10InterruptedEmptyBoundaryPredecessorProofInputs,
                 )
                 else None
             ),
@@ -9306,6 +9999,2241 @@ def _validate_v9_preallocation_fault_predecessor_proof(
     return sorted(set(errors))
 
 
+def _generation11_fact_sha256(value: Mapping[str, Any], *, leaf: str) -> str:
+    return _domain_sha256(value, domain=f"native-live-generation11-{leaf}")
+
+
+def _validate_generation11_steering_adjudication(
+    snapshot: JsonArtifactSnapshot,
+    *,
+    gate: str,
+    authorization: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    receipt: JsonArtifactSnapshot,
+    source_hashes: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Bind a consumed Gen11 steering receipt to its main-thread decision."""
+
+    errors = _validate_json_snapshot(
+        snapshot, f"authorization-predecessor-v10-{gate}-adjudication"
+    )
+    value = _strict(
+        snapshot.value,
+        GENERATION11_STEERING_ADJUDICATION_FIELDS,
+        f"authorization-predecessor-v10-{gate}-adjudication",
+        errors,
+    )
+    candidate = (
+        manifest.get("candidate")
+        if isinstance(manifest.get("candidate"), Mapping)
+        else {}
+    )
+    receipt_opinion = (
+        receipt.value.get("opinion")
+        if isinstance(receipt.value.get("opinion"), Mapping)
+        else {}
+    )
+    authorization_scope = (
+        authorization.get("scope")
+        if isinstance(authorization.get("scope"), Mapping)
+        else {}
+    )
+    receipt_boundary = (
+        receipt.value.get("boundary")
+        if isinstance(receipt.value.get("boundary"), Mapping)
+        else {}
+    )
+    receipt_terminal = (
+        receipt_boundary.get("terminal")
+        if isinstance(receipt_boundary.get("terminal"), Mapping)
+        else {}
+    )
+    receipt_conditions = (
+        receipt_opinion.get("conditions")
+        if isinstance(receipt_opinion.get("conditions"), list)
+        else []
+    )
+    expected_condition_adjudication = [
+        {
+            "condition": condition,
+            "status": "satisfied-by-frozen-generation11-launch-contract",
+        }
+        for condition in receipt_conditions
+        if isinstance(condition, str)
+    ]
+    expected_source_hashes = source_hashes if isinstance(source_hashes, Mapping) else {}
+    unsigned = dict(value)
+    unsigned.pop("canonical_adjudication_sha256", None)
+    expected_live_authorized = gate == "pre-live"
+    if (
+        value.get("adjudication_type")
+        != "cwo-main-architect-inner-steering-adjudication:v1"
+        or _parse_utc(value.get("recorded_at")) is None
+        or value.get("bead_id") != receipt.value.get("bead_id")
+        or value.get("control_turn_id") != receipt.value.get("control_turn_id")
+        or value.get("bead_id") not in authorization_scope.get(
+            "ordered_work_units", []
+        )
+        or value.get("gate") != gate
+        or value.get("authorization_id") != authorization.get("authorization_id")
+        or value.get("authorization_file_sha256")
+        != receipt.value.get("authorization_sha256")
+        or value.get("candidate_commit") != candidate.get("commit")
+        or value.get("candidate_tree") != candidate.get("tree")
+        or value.get("sol_receipt_file_sha256") != receipt.raw_sha256
+        or value.get("sol_receipt_canonical_sha256")
+        != receipt.value.get("canonical_receipt_sha256")
+        or value.get("sol_session_file_sha256")
+        != receipt_terminal.get("boundary_sha256")
+        or value.get("sol_session_id") != receipt.value.get("session_id")
+        or value.get("sol_recommendation")
+        != receipt_opinion.get("recommendation")
+        or value.get("sol_confidence")
+        != receipt_opinion.get("confidence")
+        or not isinstance(value.get("sol_confidence"), (int, float))
+        or isinstance(value.get("sol_confidence"), bool)
+        or value.get("main_architect_decision") != "go"
+        or not isinstance(value.get("main_confidence"), (int, float))
+        or isinstance(value.get("main_confidence"), bool)
+        or value.get("main_confidence", 0) < 0.5
+        or value.get("combined_confidence_formula") != "min(main,sol)"
+        or value.get("combined_confidence")
+        != min(value.get("main_confidence", 0), value.get("sol_confidence", 0))
+        or value.get("condition_adjudication")
+        != expected_condition_adjudication
+        or value.get("opus_evidence_file_sha256")
+        != expected_source_hashes.get("opus-review-evidence")
+        or value.get("opus_adjudication_file_sha256")
+        != expected_source_hashes.get("opus-adjudication")
+        or value.get("unresolved_high_findings") != []
+        or value.get("unresolved_medium_findings") != []
+        or value.get("zero_allocation_preflight_required") is not True
+        or value.get("manifest_authorized") is not True
+        or value.get("live_campaign_authorized") is not expected_live_authorized
+        or value.get("live_campaign_single_shot") is not True
+        or value.get("live_campaign_start_count_exact") != 7
+        or value.get("release_authorized") is not False
+        or value.get("publication_authorized") is not False
+        or value.get("glm52") != "forbidden"
+        or value.get("synthesis") != "forbidden"
+        or value.get("canonical_adjudication_sha256") != canonical_sha256(unsigned)
+    ):
+        errors.append(
+            f"authorization-predecessor-v10-{gate}-adjudication-binding-invalid"
+        )
+    return sorted(set(errors))
+
+
+def _validate_generation11_recovery_steering(
+    receipt_snapshot: JsonArtifactSnapshot,
+    session_bytes: bytes,
+    *,
+    bindings: Mapping[str, Any],
+    authorization: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    expected_control_turn_id: Any,
+) -> list[str]:
+    """Validate the exact zero-tool Sol/MAX recovery turn and opinion."""
+
+    errors = _validate_json_snapshot(
+        receipt_snapshot, "authorization-predecessor-v10-recovery-steering"
+    )
+    receipt = receipt_snapshot.value
+    errors.extend(
+        f"authorization-predecessor-v10-recovery-steering:{item}"
+        for item in validate_steering_receipt(receipt)
+    )
+    opinion = receipt.get("opinion") if isinstance(receipt.get("opinion"), Mapping) else {}
+    findings = opinion.get("findings") if isinstance(opinion.get("findings"), list) else []
+    finding_severities = [
+        (item.get("code"), item.get("severity"))
+        for item in findings
+        if isinstance(item, Mapping)
+    ]
+    conditions = (
+        opinion.get("conditions")
+        if isinstance(opinion.get("conditions"), list)
+        else []
+    )
+    work_units = (
+        manifest.get("work_units")
+        if isinstance(manifest.get("work_units"), Mapping)
+        else {}
+    )
+    if (
+        receipt_snapshot.raw_sha256
+        != bindings.get("predecessor_recovery_steering_receipt_file_sha256")
+        or receipt.get("canonical_receipt_sha256")
+        != bindings.get("predecessor_recovery_steering_receipt_canonical_sha256")
+        or receipt.get("gate") != "recovery-steering"
+        or receipt.get("authorization_id") != authorization.get("authorization_id")
+        or receipt.get("authorization_sha256")
+        != bindings.get("predecessor_authorization_file_sha256")
+        or receipt.get("bead_id")
+        != work_units.get("live_work_unit_id")
+        or receipt.get("control_turn_id")
+        != expected_control_turn_id
+        or receipt.get("model") != EXACT_STEERING_MODEL
+        or receipt.get("effort") != EXACT_STEERING_EFFORT
+        or receipt.get("disposition") != "conditional"
+        or opinion.get("recommendation") != "conditional-go"
+        or opinion.get("confidence") != 0.94
+        or finding_severities
+        != [
+            ("EMPTY_FILE_RACE", "high"),
+            ("TERMINAL_LEAVES", "medium"),
+            ("VERSION_DISPATCH", "medium"),
+            ("AUTONOMY_BOUNDARY", "low"),
+        ]
+        or len(conditions) != 4
+        or any(not isinstance(item, str) or not item.strip() for item in conditions)
+    ):
+        errors.append(
+            "authorization-predecessor-v10-recovery-steering-binding-invalid"
+        )
+    if not isinstance(session_bytes, bytes) or not session_bytes.endswith(b"\n"):
+        return sorted(
+            set(
+                errors
+                + ["authorization-predecessor-v10-recovery-steering-session-boundary-invalid"]
+            )
+        )
+    try:
+        records = [json.loads(line) for line in session_bytes.splitlines()]
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return sorted(
+            set(
+                errors
+                + ["authorization-predecessor-v10-recovery-steering-session-json-invalid"]
+            )
+        )
+    if any(not isinstance(record, Mapping) for record in records):
+        return sorted(
+            set(
+                errors
+                + ["authorization-predecessor-v10-recovery-steering-session-record-invalid"]
+            )
+        )
+    expected_grammar = (
+        ("session_meta", None, None),
+        ("event_msg", "task_started", None),
+        ("response_item", "message", "developer"),
+        ("response_item", "message", "developer"),
+        ("response_item", "message", "developer"),
+        ("response_item", "message", "user"),
+        ("world_state", None, None),
+        ("turn_context", None, None),
+        ("response_item", "message", "user"),
+        ("event_msg", "user_message", None),
+        ("response_item", "reasoning", None),
+        ("response_item", "reasoning", None),
+        ("event_msg", "agent_message", None),
+        ("response_item", "message", "assistant"),
+        ("event_msg", "token_count", None),
+        ("event_msg", "task_complete", None),
+    )
+    observed: list[tuple[Any, Any, Any]] = []
+    for record in records:
+        payload = record.get("payload") if isinstance(record, Mapping) else None
+        payload = payload if isinstance(payload, Mapping) else {}
+        payload_type = payload.get("type")
+        observed.append(
+            (
+                record.get("type") if isinstance(record, Mapping) else None,
+                payload_type,
+                payload.get("role") if payload_type == "message" else None,
+            )
+        )
+    positional_payloads = [
+        record.get("payload") if isinstance(record.get("payload"), Mapping) else {}
+        for record in records
+    ]
+    meta = positional_payloads[0] if positional_payloads else {}
+    start = positional_payloads[1] if len(positional_payloads) > 1 else {}
+    context = positional_payloads[7] if len(positional_payloads) > 7 else {}
+    event_final = positional_payloads[12] if len(positional_payloads) > 12 else {}
+    response_final = positional_payloads[13] if len(positional_payloads) > 13 else {}
+    terminal = positional_payloads[-1] if positional_payloads else {}
+    response_content = response_final.get("content")
+    response_texts = [
+        item.get("text")
+        for item in response_content
+        if isinstance(item, Mapping)
+        and item.get("type") == "output_text"
+        and isinstance(item.get("text"), str)
+    ] if isinstance(response_content, list) else []
+    event_text = event_final.get("message")
+    final_text = response_texts[0] if len(response_texts) == 1 else None
+    try:
+        final_opinion = json.loads(final_text) if isinstance(final_text, str) else None
+    except json.JSONDecodeError:
+        final_opinion = None
+    session_sha256 = hashlib.sha256(session_bytes).hexdigest()
+    terminal_boundary = (
+        receipt.get("boundary", {}).get("terminal", {})
+        if isinstance(receipt.get("boundary"), Mapping)
+        else {}
+    )
+    if (
+        tuple(observed) != expected_grammar
+        or not isinstance(meta, Mapping)
+        or meta.get("id") != receipt.get("session_id")
+        or not isinstance(start, Mapping)
+        or not _is_uuid(start.get("turn_id"))
+        or start.get("turn_id") != receipt.get("submission_id")
+        or not isinstance(context, Mapping)
+        or context.get("turn_id") != start.get("turn_id")
+        or "turnId" in context
+        or context.get("model") != EXACT_STEERING_MODEL
+        or (context.get("effort") or context.get("reasoning_effort"))
+        != EXACT_STEERING_EFFORT
+        or not isinstance(terminal, Mapping)
+        or terminal.get("turn_id") != start.get("turn_id")
+        or event_final.get("phase") != "final_answer"
+        or response_final.get("phase") != "final_answer"
+        or event_text != final_text
+        or final_opinion != opinion
+        or not isinstance(final_text, str)
+        or hashlib.sha256(final_text.encode()).hexdigest()
+        != receipt.get("final_response_sha256")
+        or session_sha256
+        != bindings.get("predecessor_recovery_steering_session_file_sha256")
+        or terminal_boundary.get("boundary_sha256") != session_sha256
+        or terminal_boundary.get("record_count") != len(records)
+        or terminal_boundary.get("byte_offset") != len(session_bytes)
+        or terminal_boundary.get("invalid_record_count") != 0
+        or terminal_boundary.get("trailing_partial") is not False
+    ):
+        errors.append(
+            "authorization-predecessor-v10-recovery-steering-session-binding-invalid"
+        )
+    return sorted(set(errors))
+
+
+def _validate_generation11_terminal_facts(
+    snapshot: JsonArtifactSnapshot,
+    *,
+    bindings: Mapping[str, Any],
+    proof: Version10InterruptedEmptyBoundaryPredecessorProofInputs,
+    authorization: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    failure: Mapping[str, Any],
+    repo_root: Path | None,
+) -> list[str]:
+    """Derive the four terminal leaves from immutable Generation-11 sources."""
+
+    errors = _validate_json_snapshot(
+        snapshot, "authorization-predecessor-v10-terminal-facts"
+    )
+    artifact = _strict(
+        snapshot.value,
+        GENERATION11_TERMINAL_FACTS_FIELDS,
+        "authorization-predecessor-v10-terminal-facts",
+        errors,
+    )
+    identity = _strict(
+        artifact.get("identity"),
+        GENERATION11_TERMINAL_FACT_IDENTITY_FIELDS,
+        "authorization-predecessor-v10-terminal-facts-identity",
+        errors,
+    )
+    sources = _strict(
+        artifact.get("source_bindings"),
+        GENERATION11_TERMINAL_FACT_SOURCE_FIELDS,
+        "authorization-predecessor-v10-terminal-facts-sources",
+        errors,
+    )
+    facts = _strict(
+        artifact.get("facts"),
+        GENERATION11_TERMINAL_FACT_NAMES,
+        "authorization-predecessor-v10-terminal-facts-facts",
+        errors,
+    )
+    prior_bindings = (
+        authorization.get("bindings")
+        if isinstance(authorization.get("bindings"), Mapping)
+        else {}
+    )
+    candidate = manifest.get("candidate") if isinstance(manifest.get("candidate"), Mapping) else {}
+    work_units = manifest.get("work_units") if isinstance(manifest.get("work_units"), Mapping) else {}
+    session_sha256 = hashlib.sha256(proof.terminal_session_bytes).hexdigest()
+    try:
+        terminal_records = [json.loads(line) for line in proof.terminal_session_bytes.splitlines()]
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        terminal_records = []
+    terminal_payload = (
+        terminal_records[-1].get("payload")
+        if terminal_records
+        and isinstance(terminal_records[-1], Mapping)
+        and isinstance(terminal_records[-1].get("payload"), Mapping)
+        else {}
+    )
+    expected_identity = {
+        "authorization_id": authorization.get("authorization_id"),
+        "manifest_id": manifest.get("manifest_id"),
+        "campaign_nonce": prior_bindings.get("campaign_nonce"),
+        "control_turn_id": manifest.get("control_turn_id"),
+        "bead_id": work_units.get("epic_id"),
+        "work_unit_id": work_units.get("live_work_unit_id"),
+        "live_generation": 11,
+        "session_id": bindings.get("predecessor_terminal_session_id"),
+        "turn_id": bindings.get("predecessor_terminal_turn_id"),
+        "candidate_commit": candidate.get("commit"),
+        "candidate_tree": candidate.get("tree"),
+    }
+    expected_sources = {
+        "authorization_file_sha256": proof.authorization.raw_sha256,
+        "manifest_file_sha256": proof.manifest.raw_sha256,
+        "authorization_state_file_sha256": proof.authorization_state.raw_sha256,
+        "failure_evidence_file_sha256": proof.failure_evidence.raw_sha256,
+        "containment_file_sha256": proof.containment.raw_sha256,
+        "global_claim_file_sha256": proof.global_claim.raw_sha256,
+        "authorization_marker_file_sha256": proof.authorization_marker.raw_sha256,
+        "nonce_marker_file_sha256": proof.nonce_marker.raw_sha256,
+        "scope_state_file_sha256": proof.scope_state.raw_sha256,
+        "preflight_file_sha256": proof.preflight.raw_sha256,
+        "pre_mutation_receipt_file_sha256": proof.pre_mutation_receipt.raw_sha256,
+        "pre_mutation_adjudication_file_sha256": proof.pre_mutation_adjudication.raw_sha256,
+        "pre_live_receipt_file_sha256": proof.pre_live_receipt.raw_sha256,
+        "pre_live_adjudication_file_sha256": proof.pre_live_adjudication.raw_sha256,
+        "allocation_ledger_file_sha256": proof.allocation_ledger.raw_sha256,
+        "allocation_audit_file_sha256": hashlib.sha256(proof.allocation_audit_bytes).hexdigest(),
+        "steering_registry_file_sha256": proof.steering_registry.raw_sha256,
+        "terminal_session_file_sha256": session_sha256,
+        "outer_authority_file_sha256": proof.outer_authority.raw_sha256,
+        "recovery_cause_analysis_sha256": hashlib.sha256(proof.recovery_cause_analysis_bytes).hexdigest(),
+        "recovery_steering_receipt_file_sha256": proof.recovery_steering_receipt.raw_sha256,
+        "recovery_steering_session_file_sha256": hashlib.sha256(proof.recovery_steering_session_bytes).hexdigest(),
+        "generation11_runner_source_sha256": hashlib.sha256(proof.generation11_runner_source_bytes).hexdigest(),
+        "generation11_session_boundary_source_sha256": hashlib.sha256(
+            proof.generation11_session_boundary_source_bytes
+        ).hexdigest(),
+    }
+    expected_fact_values: dict[str, tuple[Mapping[str, Any], str, list[str]]] = {
+        "initial_empty_boundary": (
+            GENERATION11_INITIAL_EMPTY_BOUNDARY,
+            "source-code-derived-inference",
+            [
+                "generation11-runner-source",
+                "generation11-session-boundary-source",
+                "failure-evidence",
+            ],
+        ),
+        "recovery_entry": (
+            GENERATION11_RECOVERY_ENTRY,
+            "source-code-derived-inference",
+            ["generation11-runner-source", "failure-evidence"],
+        ),
+        "interrupted_terminal_event": (
+            terminal_payload,
+            "direct-session-telemetry",
+            ["terminal-session", "allocation-ledger"],
+        ),
+        "no_replacement_read": (
+            GENERATION11_NO_REPLACEMENT_READ,
+            "source-code-derived-inference",
+            ["generation11-runner-source", "allocation-ledger", "steering-registry"],
+        ),
+    }
+    fact_binding_fields = {
+        "initial_empty_boundary": "predecessor_initial_empty_boundary_sha256",
+        "recovery_entry": "predecessor_recovery_entry_sha256",
+        "interrupted_terminal_event": "predecessor_interrupted_terminal_event_sha256",
+        "no_replacement_read": "predecessor_no_replacement_read_sha256",
+    }
+    for name, (expected_value, provenance, source_labels) in expected_fact_values.items():
+        item = _strict(
+            facts.get(name),
+            {"provenance", "source_labels", "value", "fact_sha256"},
+            f"authorization-predecessor-v10-terminal-fact-{name}",
+            errors,
+        )
+        fact_hash = _generation11_fact_sha256(
+            expected_value, leaf=name.replace("_", "-")
+        )
+        if (
+            item.get("provenance") != provenance
+            or item.get("source_labels") != source_labels
+            or item.get("value") != expected_value
+            or item.get("fact_sha256") != fact_hash
+            or bindings.get(fact_binding_fields[name]) != fact_hash
+        ):
+            errors.append(
+                f"authorization-predecessor-v10-terminal-fact-{name}-binding-invalid"
+            )
+    runner_markers = (
+        b'"replacement_attempt_count": 0',
+        b'read_recovery_pending = True',
+        b'capture_recovery_boundary("at-fault")',
+    )
+    boundary_markers = (
+        b"session file has no complete records",
+        b"if not raw:",
+    )
+    if (
+        not isinstance(proof.generation11_runner_source_bytes, bytes)
+        or not proof.generation11_runner_source_bytes
+        or not all(marker in proof.generation11_runner_source_bytes for marker in runner_markers)
+        or not isinstance(proof.generation11_session_boundary_source_bytes, bytes)
+        or not proof.generation11_session_boundary_source_bytes
+        or not all(
+            marker in proof.generation11_session_boundary_source_bytes
+            for marker in boundary_markers
+        )
+    ):
+        errors.append("authorization-predecessor-v10-terminal-facts-source-semantics-invalid")
+    if repo_root is not None and _is_commit(candidate.get("commit")):
+        root = Path(repo_root).resolve()
+        for path, observed in (
+            ("scripts/run_native_pool_live_canaries.py", proof.generation11_runner_source_bytes),
+            ("scripts/cwo_core/native_session_boundary.py", proof.generation11_session_boundary_source_bytes),
+        ):
+            completed = subprocess.run(
+                ["git", "show", f"{candidate.get('commit')}:{path}"],
+                cwd=root,
+                capture_output=True,
+            )
+            if completed.returncode != 0 or completed.stdout != observed:
+                errors.append(
+                    "authorization-predecessor-v10-terminal-facts-source-blob-mismatch"
+                )
+    unsigned = dict(artifact)
+    unsigned.pop("canonical_terminal_facts_sha256", None)
+    if (
+        snapshot.raw_sha256 != bindings.get("predecessor_terminal_facts_file_sha256")
+        or artifact.get("canonical_terminal_facts_sha256")
+        != bindings.get("predecessor_terminal_facts_canonical_sha256")
+        or artifact.get("canonical_terminal_facts_sha256") != canonical_sha256(unsigned)
+        or artifact.get("artifact_type") != "cwo-generation11-terminal-facts"
+        or artifact.get("version") != 1
+        or artifact.get("schema") != "schemas/generation11-terminal-facts.schema.json"
+        or _parse_utc(artifact.get("recorded_at")) is None
+        or identity != expected_identity
+        or sources != expected_sources
+        or artifact.get("source_root_sha256") != canonical_sha256(expected_sources)
+        or failure.get("failure_message_sha256") != GENERATION11_FAILURE_MESSAGE_SHA256
+        or expected_sources["generation11_runner_source_sha256"]
+        != bindings.get("predecessor_generation11_runner_source_sha256")
+        or expected_sources["generation11_runner_source_sha256"]
+        != GENERATION11_RUNNER_SOURCE_SHA256
+        or expected_sources["generation11_session_boundary_source_sha256"]
+        != bindings.get("predecessor_generation11_session_boundary_source_sha256")
+        or expected_sources["generation11_session_boundary_source_sha256"]
+        != GENERATION11_SESSION_BOUNDARY_SOURCE_SHA256
+    ):
+        errors.append("authorization-predecessor-v10-terminal-facts-binding-invalid")
+    return sorted(set(errors))
+
+
+def _validate_generation11_terminal_session(
+    raw: bytes,
+    *,
+    ledger: Mapping[str, Any],
+    facts: Mapping[str, Any],
+    expected_file_sha256: Any,
+    expected_event_sha256: Any,
+) -> list[str]:
+    """Validate the only archived Generation-11 session and interrupted event."""
+
+    errors: list[str] = []
+    if not isinstance(raw, bytes) or not raw or not raw.endswith(b"\n"):
+        return ["authorization-predecessor-v10-terminal-session-boundary-invalid"]
+    try:
+        records = [json.loads(line) for line in raw.splitlines()]
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return ["authorization-predecessor-v10-terminal-session-json-invalid"]
+    if not records or any(not isinstance(record, Mapping) for record in records):
+        return ["authorization-predecessor-v10-terminal-session-record-invalid"]
+    raw_sha256 = hashlib.sha256(raw).hexdigest()
+    metas = [
+        record.get("payload")
+        for record in records
+        if record.get("type") == "session_meta"
+        and isinstance(record.get("payload"), Mapping)
+    ]
+    starts = [
+        (index, record.get("payload"))
+        for index, record in enumerate(records)
+        if record.get("type") == "event_msg"
+        and isinstance(record.get("payload"), Mapping)
+        and record["payload"].get("type") == "task_started"
+    ]
+    contexts = [
+        record.get("payload")
+        for record in records
+        if record.get("type") == "turn_context"
+        and isinstance(record.get("payload"), Mapping)
+    ]
+    aborts = [
+        (index, record.get("payload"))
+        for index, record in enumerate(records)
+        if record.get("type") == "event_msg"
+        and isinstance(record.get("payload"), Mapping)
+        and record["payload"].get("type") == "turn_aborted"
+    ]
+    expected_grammar = (
+        ("session_meta", None, None),
+        ("event_msg", "task_started", None),
+        ("response_item", "message", "developer"),
+        ("response_item", "message", "user"),
+        ("world_state", None, None),
+        ("turn_context", None, None),
+        ("response_item", "message", "user"),
+        ("event_msg", "user_message", None),
+        ("response_item", "message", "user"),
+        ("event_msg", "turn_aborted", None),
+    )
+    observed_grammar: list[tuple[Any, Any, Any]] = []
+    assistant_messages = 0
+    function_calls = 0
+    custom_tool_calls = 0
+    patch_events = 0
+    compactions = 0
+    reroutes = 0
+    for record in records:
+        record_type = record.get("type")
+        payload = record.get("payload")
+        if not isinstance(payload, Mapping):
+            observed_grammar.append((record_type, None, None))
+            errors.append(
+                "authorization-predecessor-v10-terminal-session-activity-invalid"
+            )
+            continue
+        payload_type = payload.get("type")
+        role = payload.get("role") if payload_type == "message" else None
+        observed_grammar.append((record_type, payload_type, role))
+        marker = f"{record_type}:{payload_type}".lower()
+        assistant_messages += int(payload_type == "message" and role == "assistant")
+        function_calls += int(payload_type in {"function_call", "function_call_output"})
+        custom_tool_calls += int(
+            payload_type in {"custom_tool_call", "custom_tool_call_output"}
+        )
+        patch_events += int(payload_type == "patch_apply_end")
+        compactions += int("compact" in marker)
+        reroutes += int("rerout" in marker)
+    if tuple(observed_grammar) != expected_grammar:
+        errors.append(
+            "authorization-predecessor-v10-terminal-session-activity-invalid"
+        )
+    session_id = metas[0].get("id") if len(metas) == 1 else None
+    start_payload = starts[0][1] if len(starts) == 1 else {}
+    turn_id = (
+        start_payload.get("turn_id")
+        if isinstance(start_payload, Mapping)
+        else None
+    )
+    terminal_index, terminal_payload = aborts[0] if len(aborts) == 1 else (-1, {})
+    terminal_payload = (
+        terminal_payload if isinstance(terminal_payload, Mapping) else {}
+    )
+    event_sha256 = _generation11_fact_sha256(
+        terminal_payload, leaf="interrupted-terminal-event"
+    )
+    entries = ledger.get("entries")
+    entries = entries if isinstance(entries, list) else []
+    thread_bound = [
+        item
+        for item in entries
+        if isinstance(item, Mapping) and item.get("event") == "thread-bound"
+    ]
+    turn_bound = [
+        item
+        for item in entries
+        if isinstance(item, Mapping) and item.get("event") == "turn-bound"
+    ]
+    terminal_fact = (
+        facts.get("terminal_event")
+        if isinstance(facts.get("terminal_event"), Mapping)
+        else {}
+    )
+    if (
+        len(metas) != 1
+        or not _is_uuid(session_id)
+        or len(starts) != 1
+        or starts[0][0] != 1
+        or not _is_uuid(turn_id)
+        or len(contexts) != 1
+        or contexts[0].get("turn_id") != turn_id
+        or "turnId" in contexts[0]
+        or contexts[0].get("model") != EXACT_OPERATIVE_MODEL
+        or (contexts[0].get("effort") or contexts[0].get("reasoning_effort"))
+        != EXACT_OPERATIVE_EFFORT
+        or len(aborts) != 1
+        or terminal_index != len(records) - 1
+        or set(terminal_payload)
+        != {"type", "turn_id", "reason", "completed_at", "duration_ms"}
+        or terminal_payload.get("turn_id") != turn_id
+        or terminal_payload.get("reason") != "interrupted"
+        or isinstance(terminal_payload.get("completed_at"), bool)
+        or not isinstance(terminal_payload.get("completed_at"), (int, float))
+        or isinstance(terminal_payload.get("duration_ms"), bool)
+        or not isinstance(terminal_payload.get("duration_ms"), (int, float))
+        or terminal_payload.get("duration_ms", -1) < 0
+        or len(thread_bound) != 1
+        or thread_bound[0].get("thread_id") != session_id
+        or len(turn_bound) != 1
+        or turn_bound[0].get("thread_id") != session_id
+        or turn_bound[0].get("turn_id") != turn_id
+        or raw_sha256 != expected_file_sha256
+        or facts.get("file_sha256") != raw_sha256
+        or facts.get("session_id") != session_id
+        or facts.get("turn_id") != turn_id
+        or terminal_fact
+        != {
+            "count": 1,
+            "event_type": "turn_aborted",
+            "record_index": terminal_index,
+            "status": "interrupted",
+        }
+        or event_sha256 != expected_event_sha256
+        or facts.get("record_count") != len(records)
+        or facts.get("byte_offset") != len(raw)
+        or facts.get("assistant_messages") != assistant_messages
+        or facts.get("function_calls") != function_calls
+        or facts.get("custom_tool_calls") != custom_tool_calls
+        or facts.get("patch_events") != patch_events
+        or facts.get("compactions") != compactions
+        or facts.get("reroutes") != reroutes
+        or facts.get("trusted_turn_context_count") != len(contexts)
+        or facts.get("turn_context_record_index") != 5
+        or facts.get("attested_model") != EXACT_OPERATIVE_MODEL
+        or facts.get("attested_effort") != EXACT_OPERATIVE_EFFORT
+        or facts.get("active_match_count") != 0
+        or facts.get("archive_match_count") != 1
+        or facts.get("store") != "archived_sessions"
+        or facts.get("workspace_mutation_evidence")
+        != "zero-tool-plus-stable-checkout-guards"
+    ):
+        errors.append(
+            "authorization-predecessor-v10-terminal-session-binding-invalid"
+        )
+    return sorted(set(errors))
+
+
+def _validate_generation11_containment(
+    snapshot: JsonArtifactSnapshot,
+    *,
+    bindings: Mapping[str, Any],
+    prior_authorization: Mapping[str, Any],
+    prior_manifest: Mapping[str, Any],
+    failure: Mapping[str, Any],
+    proof: Version10InterruptedEmptyBoundaryPredecessorProofInputs,
+    ledger_summary: Mapping[str, Any] | None,
+    expected_containment: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    ledger = proof.allocation_ledger.value
+    terminal_session_bytes = proof.terminal_session_bytes
+    errors.extend(
+        _validate_json_snapshot(snapshot, "authorization-predecessor-v10-containment")
+    )
+    containment = _strict(
+        snapshot.value,
+        GENERATION11_CONTAINMENT_FIELDS,
+        "authorization-predecessor-v10-containment",
+        errors,
+    )
+    allocation_ledger = _strict(
+        containment.get("allocation_ledger"),
+        {
+            "audit_anchor_count",
+            "audit_chain_valid",
+            "audit_file_sha256",
+            "exact_lifecycle",
+            "head_entry_sha256",
+            "ledger_file_sha256",
+            "ledger_id",
+            "sequence",
+            "state_sha256",
+            "unresolved_allocation_intents",
+            "unresolved_turn_intents",
+        },
+        "authorization-predecessor-v10-containment-allocation-ledger",
+        errors,
+    )
+    claim_v5_and_scope = _strict(
+        containment.get("claim_v5_and_scope"),
+        {
+            "authorization_marker_canonical_sha256",
+            "authorization_marker_file_sha256",
+            "authorization_state",
+            "authorization_state_canonical_sha256",
+            "authorization_state_file_sha256",
+            "global_claim_canonical_sha256",
+            "global_claim_file_sha256",
+            "launch_claim_sha256",
+            "launch_claim_version",
+            "nonce_marker_canonical_sha256",
+            "nonce_marker_file_sha256",
+            "preflight_canonical_sha256",
+            "preflight_file_sha256",
+            "scope_key",
+            "scope_phase",
+            "scope_snapshot_basename",
+            "scope_snapshot_canonical_sha256",
+            "scope_snapshot_file_sha256",
+            "scope_state_canonical_sha256",
+            "scope_state_file_sha256",
+            "terminal_evidence_canonical_sha256",
+            "tombstones_permanent",
+        },
+        "authorization-predecessor-v10-containment-claim-scope",
+        errors,
+    )
+    containment_summary = _strict(
+        containment.get("containment"),
+        set(expected_containment),
+        "authorization-predecessor-v10-containment-summary",
+        errors,
+    )
+    steering_consumptions = _strict(
+        containment.get("steering_consumptions"),
+        {"pre-mutation", "pre-live"},
+        "authorization-predecessor-v10-containment-steering-consumptions",
+        errors,
+    )
+    root_cause = _strict(
+        containment.get("root_cause"),
+        {
+            "cause_class",
+            "existing_zero_byte_session_boundary_accepted",
+            "failed_edge",
+            "independently_reproduced_failure_message_hash",
+            "missing_session_boundary_accepted",
+            "replacement_read_attempted",
+            "source_analysis_file_sha256",
+        },
+        "authorization-predecessor-v10-containment-root-cause",
+        errors,
+    )
+    failed_authority = _strict(
+        containment.get("failed_authority"),
+        {
+            "authorization_canonical_sha256",
+            "authorization_file_sha256",
+            "authorization_id",
+            "authorization_version",
+            "campaign_nonce",
+            "live_generation",
+            "manifest_canonical_sha256",
+            "manifest_file_sha256",
+            "manifest_id",
+            "manifest_version",
+            "outer_authority_canonical_sha256",
+            "outer_authority_file_sha256",
+            "outer_authority_id",
+            "run_generation",
+        },
+        "authorization-predecessor-v10-containment-failed-authority",
+        errors,
+    )
+    terminal_failure = _strict(
+        containment.get("terminal_failure"),
+        {
+            "failure_class",
+            "failure_code",
+            "failure_evidence_canonical_sha256",
+            "failure_evidence_file_sha256",
+            "failure_message",
+            "failure_message_sha256",
+            "first_protected_fault",
+            "validation_outcome",
+        },
+        "authorization-predecessor-v10-containment-terminal-failure",
+        errors,
+    )
+    contained_session = _strict(
+        containment.get("contained_session"),
+        {
+            "active_match_count",
+            "archive_match_count",
+            "assistant_messages",
+            "attested_effort",
+            "attested_model",
+            "byte_offset",
+            "compactions",
+            "custom_tool_calls",
+            "file_sha256",
+            "function_calls",
+            "patch_events",
+            "record_count",
+            "reroutes",
+            "session_id",
+            "store",
+            "terminal_event",
+            "trusted_turn_context_count",
+            "turn_context_record_index",
+            "turn_id",
+            "workspace_mutation_evidence",
+        },
+        "authorization-predecessor-v10-containment-session",
+        errors,
+    )
+    generation12_contract = _strict(
+        containment.get("generation12_recovery_contract"),
+        {
+            "accepted_finding_codes",
+            "cause_analysis_file_sha256",
+            "fresh_authority_required",
+            "implementation_conditions_are_mandatory",
+            "live_launch_authorized_by_this_artifact",
+            "required_authorization_version",
+            "required_launch_claim_version",
+            "required_manifest_version",
+            "required_validator_version",
+            "sol_confidence",
+            "sol_receipt_canonical_sha256",
+            "sol_receipt_file_sha256",
+            "sol_recommendation",
+            "sol_session",
+        },
+        "authorization-predecessor-v10-containment-generation12-contract",
+        errors,
+    )
+    recovery_sol_session = _strict(
+        generation12_contract.get("sol_session"),
+        {
+            "archived",
+            "attested_effort",
+            "attested_model",
+            "boundary_sha256",
+            "byte_offset",
+            "compactions",
+            "custom_tool_calls",
+            "file_sha256",
+            "function_calls",
+            "record_count",
+            "reroutes",
+            "session_id",
+            "terminal_event",
+            "turn_id",
+        },
+        "authorization-predecessor-v10-containment-recovery-sol-session",
+        errors,
+    )
+    disposition = _strict(
+        containment.get("disposition"),
+        {
+            "authorization_state",
+            "generation11_retry_resume_substitute_bridge_salvage",
+            "generation11_state",
+            "glm_5_2_used",
+            "model_synthesis_used",
+            "operative_dispatch_authorized",
+            "publish_push_install_authorized",
+            "release_gate_passed",
+            "requires_fresh_live_generation",
+        },
+        "authorization-predecessor-v10-containment-disposition",
+        errors,
+    )
+    control_recheck = _strict(
+        containment.get("control_plane_recheck"),
+        {
+            "cap_two_operative_release",
+            "current_successor_implementation_in_progress",
+            "failure_time_tracked_clean",
+            "isolated_checkout_head",
+            "isolated_checkout_tree",
+            "native_supervision_pool_status",
+            "operative_dispatch_authorized",
+            "origin_main_commit",
+            "protected_primary_diff_sha256",
+            "release_gate_passed",
+            "transient_successor_worktree_diff_bound",
+            "workspace_mutations_observed",
+        },
+        "authorization-predecessor-v10-containment-control-recheck",
+        errors,
+    )
+    initial_sha256 = _generation11_fact_sha256(
+        GENERATION11_INITIAL_EMPTY_BOUNDARY, leaf="initial-empty-boundary"
+    )
+    recovery_sha256 = _generation11_fact_sha256(
+        GENERATION11_RECOVERY_ENTRY, leaf="recovery-entry"
+    )
+    no_replacement_sha256 = _generation11_fact_sha256(
+        GENERATION11_NO_REPLACEMENT_READ, leaf="no-replacement-read"
+    )
+    prior_state = proof.authorization_state.value
+    claim = proof.global_claim.value
+    scope = proof.scope_state.value
+    preflight = proof.preflight.value
+    registry = proof.steering_registry.value
+    outer = proof.outer_authority.value
+    ledger_entries = (
+        ledger.get("entries") if isinstance(ledger.get("entries"), list) else []
+    )
+    audit_records: list[Any] = []
+    try:
+        audit_records = [json.loads(line) for line in proof.allocation_audit_bytes.splitlines()]
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        pass
+    expected_allocation_ledger = {
+        "audit_anchor_count": len(audit_records),
+        "audit_chain_valid": True,
+        "audit_file_sha256": hashlib.sha256(proof.allocation_audit_bytes).hexdigest(),
+        "exact_lifecycle": [
+            item.get("event") for item in ledger_entries if isinstance(item, Mapping)
+        ],
+        "head_entry_sha256": ledger.get("head_entry_sha256"),
+        "ledger_file_sha256": proof.allocation_ledger.raw_sha256,
+        "ledger_id": ledger.get("ledger_id"),
+        "sequence": ledger.get("sequence"),
+        "state_sha256": ledger.get("state_sha256"),
+        "unresolved_allocation_intents": (
+            ledger_summary.get("unresolved_allocation_intent_count")
+            if isinstance(ledger_summary, Mapping)
+            else None
+        ),
+        "unresolved_turn_intents": (
+            ledger_summary.get("unresolved_turn_intent_count")
+            if isinstance(ledger_summary, Mapping)
+            else None
+        ),
+    }
+    expected_claim_scope = {
+        "authorization_marker_canonical_sha256": proof.authorization_marker.value.get(
+            "canonical_marker_sha256"
+        ),
+        "authorization_marker_file_sha256": proof.authorization_marker.raw_sha256,
+        "authorization_state": prior_state.get("state"),
+        "authorization_state_canonical_sha256": prior_state.get("state_sha256"),
+        "authorization_state_file_sha256": proof.authorization_state.raw_sha256,
+        "global_claim_canonical_sha256": claim.get("canonical_claim_sha256"),
+        "global_claim_file_sha256": proof.global_claim.raw_sha256,
+        "launch_claim_sha256": claim.get("launch_claim_sha256"),
+        "launch_claim_version": 5,
+        "nonce_marker_canonical_sha256": proof.nonce_marker.value.get(
+            "canonical_marker_sha256"
+        ),
+        "nonce_marker_file_sha256": proof.nonce_marker.raw_sha256,
+        "preflight_canonical_sha256": preflight.get("canonical_preflight_sha256"),
+        "preflight_file_sha256": proof.preflight.raw_sha256,
+        "scope_key": scope.get("scope_key"),
+        "scope_phase": scope.get("phase"),
+        "scope_snapshot_basename": "generation11-contained-scope-state-v32.json",
+        "scope_snapshot_canonical_sha256": scope.get("canonical_state_sha256"),
+        "scope_snapshot_file_sha256": proof.scope_state.raw_sha256,
+        "scope_state_canonical_sha256": scope.get("canonical_state_sha256"),
+        "scope_state_file_sha256": proof.scope_state.raw_sha256,
+        "terminal_evidence_canonical_sha256": failure.get("evidence_sha256"),
+        "tombstones_permanent": True,
+    }
+    consumed = registry.get("consumed") if isinstance(registry.get("consumed"), list) else []
+    phase_inputs = {
+        "pre-mutation": (
+            proof.pre_mutation_receipt,
+            proof.pre_mutation_adjudication,
+            consumed[0] if len(consumed) > 0 and isinstance(consumed[0], Mapping) else {},
+        ),
+        "pre-live": (
+            proof.pre_live_receipt,
+            proof.pre_live_adjudication,
+            consumed[1] if len(consumed) > 1 and isinstance(consumed[1], Mapping) else {},
+        ),
+    }
+    expected_steering_consumptions: dict[str, dict[str, Any]] = {}
+    for phase, (receipt, adjudication, consumption) in phase_inputs.items():
+        phase_nonce = consumption.get("phase_nonce")
+        expected_consumption_sha256 = _domain_sha256(
+            {
+                "receipt": receipt.value.get("canonical_receipt_sha256"),
+                "run": receipt.value.get("authorization_id"),
+                "attempt": receipt.value.get("submission_id"),
+                "gate": receipt.value.get("gate"),
+                "phase_nonce": phase_nonce,
+                "adjudication": adjudication.value.get(
+                    "canonical_adjudication_sha256"
+                ),
+            },
+            domain="steering-receipt-consumption",
+        )
+        expected_steering_consumptions[phase] = {
+            "adjudication_file_sha256": adjudication.raw_sha256,
+            "consumed_exactly_once": True,
+            "consumption_sha256": expected_consumption_sha256,
+            "phase_nonce": phase_nonce,
+            "receipt_canonical_sha256": receipt.value.get(
+                "canonical_receipt_sha256"
+            ),
+            "receipt_file_sha256": receipt.raw_sha256,
+        }
+    recovery_receipt = proof.recovery_steering_receipt.value
+    recovery_opinion = (
+        recovery_receipt.get("opinion")
+        if isinstance(recovery_receipt.get("opinion"), Mapping)
+        else {}
+    )
+    try:
+        recovery_records = [
+            json.loads(line) for line in proof.recovery_steering_session_bytes.splitlines()
+        ]
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        recovery_records = []
+    recovery_start = (
+        recovery_records[1].get("payload")
+        if len(recovery_records) > 1
+        and isinstance(recovery_records[1], Mapping)
+        and isinstance(recovery_records[1].get("payload"), Mapping)
+        else {}
+    )
+    recovery_session_sha256 = hashlib.sha256(
+        proof.recovery_steering_session_bytes
+    ).hexdigest()
+    expected_recovery_sol_session = {
+        "archived": True,
+        "attested_effort": EXACT_STEERING_EFFORT,
+        "attested_model": EXACT_STEERING_MODEL,
+        "boundary_sha256": recovery_session_sha256,
+        "byte_offset": len(proof.recovery_steering_session_bytes),
+        "compactions": 0,
+        "custom_tool_calls": 0,
+        "file_sha256": recovery_session_sha256,
+        "function_calls": 0,
+        "record_count": len(recovery_records),
+        "reroutes": 0,
+        "session_id": recovery_receipt.get("session_id"),
+        "terminal_event": {
+            "count": 1,
+            "event_type": "task_complete",
+            "record_index": len(recovery_records) - 1,
+            "status": "completed",
+        },
+        "turn_id": recovery_start.get("turn_id"),
+    }
+    expected_generation12_contract = {
+        "accepted_finding_codes": [
+            "EMPTY_FILE_RACE",
+            "TERMINAL_LEAVES",
+            "VERSION_DISPATCH",
+            "AUTONOMY_BOUNDARY",
+        ],
+        "cause_analysis_file_sha256": hashlib.sha256(
+            proof.recovery_cause_analysis_bytes
+        ).hexdigest(),
+        "fresh_authority_required": True,
+        "implementation_conditions_are_mandatory": True,
+        "live_launch_authorized_by_this_artifact": False,
+        "required_authorization_version": AUTHORIZATION_VERSION_V11,
+        "required_launch_claim_version": LAUNCH_CLAIM_VERSION_V6,
+        "required_manifest_version": MANIFEST_VERSION_V8,
+        "required_validator_version": VALIDATOR_CONTRACT_VERSION_V6,
+        "sol_confidence": recovery_opinion.get("confidence"),
+        "sol_receipt_canonical_sha256": recovery_receipt.get(
+            "canonical_receipt_sha256"
+        ),
+        "sol_receipt_file_sha256": proof.recovery_steering_receipt.raw_sha256,
+        "sol_recommendation": recovery_opinion.get("recommendation"),
+        "sol_session": expected_recovery_sol_session,
+    }
+    prior_bindings = (
+        prior_authorization.get("bindings")
+        if isinstance(prior_authorization.get("bindings"), Mapping)
+        else {}
+    )
+    prior_candidate = (
+        prior_manifest.get("candidate")
+        if isinstance(prior_manifest.get("candidate"), Mapping)
+        else {}
+    )
+    expected_control_recheck = {
+        "cap_two_operative_release": False,
+        "current_successor_implementation_in_progress": True,
+        "failure_time_tracked_clean": True,
+        "isolated_checkout_head": prior_candidate.get("commit"),
+        "isolated_checkout_tree": prior_candidate.get("tree"),
+        "native_supervision_pool_status": "canary-gated",
+        "operative_dispatch_authorized": False,
+        "origin_main_commit": prior_bindings.get("origin_main_commit"),
+        "protected_primary_diff_sha256": prior_bindings.get(
+            "guarded_primary_diff_sha256"
+        ),
+        "release_gate_passed": False,
+        "transient_successor_worktree_diff_bound": False,
+        "workspace_mutations_observed": 0,
+    }
+    if (
+        snapshot.raw_sha256 != bindings.get("predecessor_containment_file_sha256")
+        or containment.get("canonical_recovery_sha256")
+        != bindings.get("predecessor_containment_canonical_sha256")
+        or containment.get("canonical_recovery_sha256")
+        != _canonical_artifact_hash(containment, "canonical_recovery_sha256")
+        or containment.get("schema")
+        != "cwo-live-campaign-containment-recovery:v5"
+        or containment.get("version") != 5
+        or _parse_utc(containment.get("recorded_at")) is None
+        or failed_authority.get("authorization_id")
+        != prior_authorization.get("authorization_id")
+        or failed_authority.get("authorization_file_sha256")
+        != bindings.get("predecessor_authorization_file_sha256")
+        or failed_authority.get("authorization_canonical_sha256")
+        != bindings.get("predecessor_authorization_canonical_sha256")
+        or failed_authority.get("authorization_version") != AUTHORIZATION_VERSION_V10
+        or failed_authority.get("manifest_id") != prior_manifest.get("manifest_id")
+        or failed_authority.get("manifest_file_sha256")
+        != bindings.get("predecessor_manifest_file_sha256")
+        or failed_authority.get("manifest_canonical_sha256")
+        != bindings.get("predecessor_manifest_canonical_sha256")
+        or failed_authority.get("manifest_version") != MANIFEST_VERSION_V7
+        or failed_authority.get("live_generation") != 11
+        or failed_authority.get("campaign_nonce")
+        != prior_authorization.get("bindings", {}).get("campaign_nonce")
+        or terminal_failure.get("failure_evidence_file_sha256")
+        != bindings.get("predecessor_failure_evidence_file_sha256")
+        or terminal_failure.get("failure_evidence_canonical_sha256")
+        != bindings.get("predecessor_failure_evidence_canonical_sha256")
+        or terminal_failure.get("failure_class") != "AppServerError"
+        or terminal_failure.get("failure_code") != "AppServerError"
+        or terminal_failure.get("failure_message")
+        != "capability-read-recovery-fault-boundary-invalid:session file has no complete records"
+        or terminal_failure.get("failure_message_sha256")
+        != GENERATION11_FAILURE_MESSAGE_SHA256
+        or terminal_failure.get("first_protected_fault") is not None
+        or terminal_failure.get("validation_outcome") != "rejected"
+        or failure.get("failure_message_sha256")
+        != terminal_failure.get("failure_message_sha256")
+        or root_cause
+        != {
+            "cause_class": "empty-materialized-session-boundary-rejected",
+            "existing_zero_byte_session_boundary_accepted": False,
+            "failed_edge": "capability-read-recovery:at-fault",
+            "independently_reproduced_failure_message_hash": True,
+            "missing_session_boundary_accepted": True,
+            "replacement_read_attempted": False,
+            "source_analysis_file_sha256": root_cause.get(
+                "source_analysis_file_sha256"
+            ),
+        }
+        or not _is_hash(root_cause.get("source_analysis_file_sha256"))
+        or contained_session.get("file_sha256")
+        != bindings.get("predecessor_terminal_session_file_sha256")
+        or contained_session.get("session_id")
+        != bindings.get("predecessor_terminal_session_id")
+        or contained_session.get("turn_id")
+        != bindings.get("predecessor_terminal_turn_id")
+        or generation12_contract.get("fresh_authority_required") is not True
+        or generation12_contract.get("implementation_conditions_are_mandatory")
+        is not True
+        or generation12_contract.get("live_launch_authorized_by_this_artifact")
+        is not False
+        or validate_operative_version_tuple(
+            generation12_contract.get("required_authorization_version"),
+            generation12_contract.get("required_manifest_version"),
+            generation12_contract.get("required_launch_claim_version"),
+            generation12_contract.get("required_validator_version"),
+        )
+        or disposition
+        != {
+            "authorization_state": "containment-only",
+            "generation11_retry_resume_substitute_bridge_salvage": False,
+            "generation11_state": "terminal-contained",
+            "glm_5_2_used": False,
+            "model_synthesis_used": False,
+            "operative_dispatch_authorized": False,
+            "publish_push_install_authorized": False,
+            "release_gate_passed": False,
+            "requires_fresh_live_generation": 12,
+        }
+        or control_recheck.get("operative_dispatch_authorized") is not False
+        or control_recheck.get("release_gate_passed") is not False
+        or control_recheck.get("cap_two_operative_release") is not False
+        or control_recheck.get("workspace_mutations_observed") != 0
+        or initial_sha256
+        != bindings.get("predecessor_initial_empty_boundary_sha256")
+        or recovery_sha256 != bindings.get("predecessor_recovery_entry_sha256")
+        or no_replacement_sha256
+        != bindings.get("predecessor_no_replacement_read_sha256")
+    ):
+        errors.append("authorization-predecessor-v10-containment-binding-invalid")
+    work_units = (
+        prior_manifest.get("work_units")
+        if isinstance(prior_manifest.get("work_units"), Mapping)
+        else {}
+    )
+    if (
+        containment.get("bead_id") != work_units.get("live_work_unit_id")
+        or containment.get("control_turn_id") != prior_manifest.get("control_turn_id")
+        or allocation_ledger != expected_allocation_ledger
+        or containment_summary != dict(expected_containment)
+        or containment_summary != failure.get("containment")
+    ):
+        errors.append(
+            "authorization-predecessor-v10-containment-derived-summary-invalid"
+        )
+    if claim_v5_and_scope != expected_claim_scope:
+        errors.append(
+            "authorization-predecessor-v10-containment-claim-scope-binding-invalid"
+        )
+    if steering_consumptions != expected_steering_consumptions:
+        errors.append(
+            "authorization-predecessor-v10-containment-steering-binding-invalid"
+        )
+    if (
+        generation12_contract != expected_generation12_contract
+        or recovery_sol_session != expected_recovery_sol_session
+        or root_cause.get("source_analysis_file_sha256")
+        != hashlib.sha256(proof.recovery_cause_analysis_bytes).hexdigest()
+    ):
+        errors.append(
+            "authorization-predecessor-v10-containment-recovery-contract-binding-invalid"
+        )
+    if (
+        failed_authority.get("outer_authority_id") != outer.get("authority_id")
+        or failed_authority.get("outer_authority_file_sha256")
+        != proof.outer_authority.raw_sha256
+        or failed_authority.get("outer_authority_canonical_sha256")
+        != outer.get("canonical_outer_authority_sha256")
+        or failed_authority.get("run_generation")
+        != prior_authorization.get("run_generation")
+        or failed_authority.get("outer_authority_id")
+        != prior_bindings.get("outer_authority_id")
+        or failed_authority.get("outer_authority_file_sha256")
+        != prior_bindings.get("outer_authority_file_sha256")
+        or failed_authority.get("outer_authority_canonical_sha256")
+        != prior_bindings.get("outer_authority_canonical_sha256")
+    ):
+        errors.append(
+            "authorization-predecessor-v10-containment-outer-authority-binding-invalid"
+        )
+    if control_recheck != expected_control_recheck:
+        errors.append(
+            "authorization-predecessor-v10-containment-control-recheck-binding-invalid"
+        )
+    errors.extend(
+        _validate_generation11_terminal_session(
+            terminal_session_bytes,
+            ledger=ledger,
+            facts=contained_session,
+            expected_file_sha256=bindings.get(
+                "predecessor_terminal_session_file_sha256"
+            ),
+            expected_event_sha256=bindings.get(
+                "predecessor_interrupted_terminal_event_sha256"
+            ),
+        )
+    )
+    return sorted(set(errors))
+
+
+def _validate_v10_interrupted_empty_boundary_predecessor_proof(
+    *,
+    bindings: Mapping[str, Any],
+    progress: Mapping[str, Any],
+    supersession: Mapping[str, Any],
+    predecessor_live_generation: int,
+    proof: Version10InterruptedEmptyBoundaryPredecessorProofInputs,
+    repo_root: Path | None,
+) -> list[str]:
+    """Validate the exact terminal Generation-11 v10/v7 predecessor leaf."""
+
+    errors: list[str] = []
+    if not isinstance(proof.ancestor, Version9PreallocationFaultPredecessorProofInputs):
+        return ["authorization-predecessor-v10-ancestor-proof-type-invalid"]
+    snapshots = {
+        "authorization-predecessor-v10-authorization": proof.authorization,
+        "authorization-predecessor-v10-manifest": proof.manifest,
+        "authorization-predecessor-v10-state": proof.authorization_state,
+        "authorization-predecessor-v10-failure": proof.failure_evidence,
+        "authorization-predecessor-v10-containment": proof.containment,
+        "authorization-predecessor-v10-global-claim": proof.global_claim,
+        "authorization-predecessor-v10-authorization-marker": proof.authorization_marker,
+        "authorization-predecessor-v10-nonce-marker": proof.nonce_marker,
+        "authorization-predecessor-v10-scope-state": proof.scope_state,
+        "authorization-predecessor-v10-preflight": proof.preflight,
+        "authorization-predecessor-v10-pre-mutation-receipt": proof.pre_mutation_receipt,
+        "authorization-predecessor-v10-pre-mutation-adjudication": proof.pre_mutation_adjudication,
+        "authorization-predecessor-v10-pre-live-receipt": proof.pre_live_receipt,
+        "authorization-predecessor-v10-pre-live-adjudication": proof.pre_live_adjudication,
+        "authorization-predecessor-v10-allocation-ledger": proof.allocation_ledger,
+        "authorization-predecessor-v10-steering-registry": proof.steering_registry,
+        "authorization-predecessor-v10-terminal-facts": proof.terminal_facts,
+        "authorization-predecessor-v10-recovery-steering": proof.recovery_steering_receipt,
+        "authorization-predecessor-v10-cause": proof.authorization_recovery_cause_evidence,
+        "authorization-predecessor-v10-outer-authority": proof.outer_authority,
+        "authorization-predecessor-v10-independent-validation": proof.independent_validation_receipt,
+    }
+    for label, snapshot in snapshots.items():
+        errors.extend(_validate_json_snapshot(snapshot, label))
+    if any(
+        not isinstance(raw, bytes) or not raw
+        for raw in (
+            proof.allocation_audit_bytes,
+            proof.terminal_session_bytes,
+            proof.generation11_runner_source_bytes,
+            proof.generation11_session_boundary_source_bytes,
+            proof.recovery_cause_analysis_bytes,
+            proof.recovery_steering_session_bytes,
+            proof.authorization_recovery_cause_source_analysis,
+            proof.independent_validation_session_bytes,
+        )
+    ):
+        errors.append("authorization-predecessor-v10-byte-snapshot-invalid")
+        return sorted(set(errors))
+
+    prior_authorization = dict(proof.authorization.value)
+    prior_manifest = dict(proof.manifest.value)
+    prior_state = dict(proof.authorization_state.value)
+    failure = dict(proof.failure_evidence.value)
+    claim = dict(proof.global_claim.value)
+    scope = dict(proof.scope_state.value)
+    preflight = dict(proof.preflight.value)
+    ledger = dict(proof.allocation_ledger.value)
+    registry = dict(proof.steering_registry.value)
+    prior_bindings = (
+        prior_authorization.get("bindings")
+        if isinstance(prior_authorization.get("bindings"), Mapping)
+        else {}
+    )
+    prior_progress = (
+        prior_authorization.get("progress_gate")
+        if isinstance(prior_authorization.get("progress_gate"), Mapping)
+        else {}
+    )
+    prior_supersession = (
+        prior_authorization.get("supersession")
+        if isinstance(prior_authorization.get("supersession"), Mapping)
+        else {}
+    )
+    prior_candidate = (
+        prior_manifest.get("candidate")
+        if isinstance(prior_manifest.get("candidate"), Mapping)
+        else {}
+    )
+    prior_outputs = (
+        prior_manifest.get("outputs")
+        if isinstance(prior_manifest.get("outputs"), Mapping)
+        else {}
+    )
+    prior_work_units = (
+        prior_manifest.get("work_units")
+        if isinstance(prior_manifest.get("work_units"), Mapping)
+        else {}
+    )
+    prior_id = prior_authorization.get("authorization_id")
+    prior_nonce = prior_bindings.get("campaign_nonce")
+    prior_raw = proof.authorization.raw_sha256
+    predecessor_launch_claim_sha256 = bindings.get(
+        "predecessor_launch_claim_sha256"
+    )
+    errors.extend(
+        f"authorization-predecessor-v10-contract:{item}"
+        for item in _validate_full_auto_authorization_v10(
+            prior_authorization,
+            predecessor_proof=proof.ancestor,
+            recovery_cause_evidence=proof.authorization_recovery_cause_evidence,
+            recovery_cause_source_analysis=(
+                proof.authorization_recovery_cause_source_analysis
+            ),
+            expected_validator_contract_sha256=prior_bindings.get(
+                "validator_contract_sha256"
+            ),
+            repo_root=None,
+        )
+    )
+    errors.extend(
+        f"authorization-predecessor-v10-manifest-contract:{item}"
+        for item in _validate_campaign_manifest_v7(
+            prior_manifest,
+            authorization=prior_authorization,
+            authorization_raw_sha256=prior_raw,
+            outer_authority=proof.outer_authority.value,
+            outer_authority_raw_sha256=proof.outer_authority.raw_sha256,
+            predecessor_proof=proof.ancestor,
+            recovery_cause_evidence=proof.authorization_recovery_cause_evidence,
+            recovery_cause_source_analysis=(
+                proof.authorization_recovery_cause_source_analysis
+            ),
+            independent_validation_receipt=proof.independent_validation_receipt.value,
+            independent_validation_receipt_raw_sha256=(
+                proof.independent_validation_receipt.raw_sha256
+            ),
+            expected_validator_contract_sha256=prior_bindings.get(
+                "validator_contract_sha256"
+            ),
+            repo_root=None,
+            expected_primary_diff_sha256=None,
+        )
+    )
+    errors.extend(
+        _validate_independent_validation_session_snapshot(
+            proof.independent_validation_receipt.value,
+            proof.independent_validation_session_bytes,
+        )
+    )
+    if (
+        bindings.get("campaign_nonce") == prior_nonce
+        or predecessor_live_generation != 11
+        or prior_authorization.get("version") != AUTHORIZATION_VERSION_V10
+        or prior_manifest.get("version") != MANIFEST_VERSION_V7
+        or prior_authorization.get("live_generation") != 11
+        or prior_id != bindings.get("predecessor_authorization_id")
+        or prior_raw != bindings.get("predecessor_authorization_file_sha256")
+        or prior_authorization.get("canonical_authorization_sha256")
+        != bindings.get("predecessor_authorization_canonical_sha256")
+        or proof.manifest.raw_sha256
+        != bindings.get("predecessor_manifest_file_sha256")
+        or prior_manifest.get("manifest_sha256")
+        != bindings.get("predecessor_manifest_canonical_sha256")
+        or prior_candidate.get("commit")
+        != progress.get("predecessor_candidate_commit")
+        or prior_candidate.get("tree")
+        != progress.get("predecessor_candidate_tree")
+    ):
+        errors.append("authorization-predecessor-v10-v7-binding-invalid")
+
+    required_revocations = {
+        "install",
+        "publish",
+        "push",
+        "relaunch",
+        "release-enable",
+        "replacement",
+        "retry",
+        "tracked-mutation",
+    }
+    allowed_actions = prior_state.get("allowed_actions")
+    revoked_actions = prior_state.get("revoked_actions")
+    if (
+        proof.authorization_state.raw_sha256
+        != bindings.get("predecessor_authorization_state_file_sha256")
+        or prior_state.get("state_sha256")
+        != bindings.get("predecessor_authorization_state_canonical_sha256")
+        or validate_authorization_state(prior_state)
+        or prior_state.get("authorization_id") != prior_id
+        or prior_state.get("run_nonce") != prior_nonce
+        or prior_state.get("launch_claim_sha256")
+        != predecessor_launch_claim_sha256
+        or prior_state.get("state") != "containment-only"
+        or not isinstance(allowed_actions, list)
+        or not all(isinstance(item, str) for item in allowed_actions)
+        or required_revocations.intersection(set(allowed_actions))
+        or not isinstance(revoked_actions, list)
+        or not all(isinstance(item, str) for item in revoked_actions)
+        or not required_revocations.issubset(set(revoked_actions))
+    ):
+        errors.append("authorization-predecessor-v10-state-binding-invalid")
+
+    claim_fields = {
+        "claim_type",
+        "version",
+        "identity",
+        "identity_sha256",
+        "launch_claim_sha256",
+        "outer_authority_id",
+        "candidate_commit",
+        "candidate_tree",
+        "output_paths",
+        "claimed_at",
+        "canonical_claim_sha256",
+    }
+    claim_value = _strict(
+        claim, claim_fields, "authorization-predecessor-v10-global-claim", errors
+    )
+    claim_unsigned = dict(claim_value)
+    claim_canonical = claim_unsigned.pop("canonical_claim_sha256", None)
+    expected_identity = {
+        "authorization_id": prior_id,
+        "run_generation": prior_authorization.get("run_generation"),
+        "live_generation": 11,
+        "campaign_nonce": prior_nonce,
+    }
+    claim_output_paths = _strict(
+        claim_value.get("output_paths"),
+        {"allocation_ledger", "authorization_state", "evidence", "steering_registry"},
+        "authorization-predecessor-v10-global-claim-output-paths",
+        errors,
+    )
+    expected_output_basenames = {
+        "allocation_ledger": prior_outputs.get("allocation_ledger_basename"),
+        "authorization_state": prior_outputs.get("authorization_state_basename"),
+        "evidence": prior_outputs.get("evidence_basename"),
+        "steering_registry": prior_outputs.get("steering_registry_basename"),
+    }
+    if (
+        proof.global_claim.raw_sha256
+        != bindings.get("predecessor_global_claim_file_sha256")
+        or claim_canonical
+        != bindings.get("predecessor_global_claim_canonical_sha256")
+        or claim_canonical
+        != _domain_sha256(claim_unsigned, domain="native-live-global-claim-artifact")
+        or claim.get("claim_type") != "cwo-native-live-campaign-global-claim"
+        or claim.get("version") != 1
+        or claim.get("identity") != expected_identity
+        or claim.get("identity_sha256")
+        != _domain_sha256(expected_identity, domain="native-live-global-claim")
+        or claim.get("launch_claim_sha256") != predecessor_launch_claim_sha256
+        or claim.get("outer_authority_id") != prior_bindings.get("outer_authority_id")
+        or claim.get("candidate_commit") != prior_candidate.get("commit")
+        or claim.get("candidate_tree") != prior_candidate.get("tree")
+        or _parse_utc(claim.get("claimed_at")) is None
+        or any(
+            not isinstance(claim_output_paths.get(label), str)
+            or not Path(str(claim_output_paths.get(label))).is_absolute()
+            or Path(str(claim_output_paths.get(label))).name != basename
+            for label, basename in expected_output_basenames.items()
+        )
+    ):
+        errors.append("authorization-predecessor-v10-global-claim-binding-invalid")
+
+    marker_fields = {
+        "marker_type",
+        "version",
+        "kind",
+        "identifier",
+        "identifier_sha256",
+        "claim_canonical_sha256",
+        "created_at",
+        "canonical_marker_sha256",
+    }
+    for label, marker_snapshot, kind, identifier in (
+        ("authorization", proof.authorization_marker, "authorization", prior_id),
+        ("nonce", proof.nonce_marker, "nonce", prior_nonce),
+    ):
+        marker = _strict(
+            marker_snapshot.value,
+            marker_fields,
+            f"authorization-predecessor-v10-{label}-marker",
+            errors,
+        )
+        marker_unsigned = dict(marker)
+        marker_canonical = marker_unsigned.pop("canonical_marker_sha256", None)
+        if (
+            marker_snapshot.raw_sha256
+            != bindings.get(f"predecessor_{label}_marker_file_sha256")
+            or marker_canonical
+            != bindings.get(f"predecessor_{label}_marker_canonical_sha256")
+            or marker_canonical != canonical_sha256(marker_unsigned)
+            or marker.get("marker_type")
+            != "cwo-native-live-global-claim-identifier"
+            or marker.get("version") != 1
+            or marker.get("kind") != kind
+            or marker.get("identifier") != identifier
+            or marker.get("identifier_sha256")
+            != _domain_sha256(
+                {"kind": kind, "identifier": identifier},
+                domain="native-live-global-claim-identifier",
+            )
+            or marker.get("claim_canonical_sha256") != claim_canonical
+            or _parse_utc(marker.get("created_at")) is None
+        ):
+            errors.append(
+                f"authorization-predecessor-v10-{label}-marker-binding-invalid"
+            )
+
+    scope_fields = {
+        "state_type",
+        "version",
+        "scope_key",
+        "phase",
+        "outer_authority_id",
+        "authorization_id",
+        "campaign_nonce",
+        "launch_claim_sha256",
+        "candidate_commit",
+        "candidate_tree",
+        "previous_state_sha256",
+        "reserved_at",
+        "updated_at",
+        "terminal_evidence_sha256",
+        "canonical_state_sha256",
+    }
+    scope_value = _strict(
+        scope, scope_fields, "authorization-predecessor-v10-scope-state", errors
+    )
+    try:
+        expected_scope_key = active_outer_authority_scope_key(
+            prior_work_units.get("epic_id"),
+            prior_work_units.get("parent_work_unit_id"),
+        )
+    except ValueError:
+        expected_scope_key = None
+    if (
+        proof.scope_state.raw_sha256
+        != bindings.get("predecessor_scope_state_file_sha256")
+        or scope.get("canonical_state_sha256")
+        != bindings.get("predecessor_scope_state_canonical_sha256")
+        or scope.get("canonical_state_sha256")
+        != _canonical_artifact_hash(scope_value, "canonical_state_sha256")
+        or scope.get("state_type") != "cwo-native-live-scope-campaign-state"
+        or scope.get("version") != 1
+        or scope.get("scope_key") != expected_scope_key
+        or scope.get("phase") != "contained"
+        or scope.get("outer_authority_id") != prior_bindings.get("outer_authority_id")
+        or scope.get("authorization_id") != prior_id
+        or scope.get("campaign_nonce") != prior_nonce
+        or scope.get("launch_claim_sha256") != predecessor_launch_claim_sha256
+        or scope.get("candidate_commit") != prior_candidate.get("commit")
+        or scope.get("candidate_tree") != prior_candidate.get("tree")
+        or scope.get("terminal_evidence_sha256") != failure.get("evidence_sha256")
+        or not _is_hash(scope.get("previous_state_sha256"))
+        or _parse_utc(scope.get("reserved_at")) is None
+        or _parse_utc(scope.get("updated_at")) is None
+    ):
+        errors.append("authorization-predecessor-v10-scope-state-binding-invalid")
+
+    preflight_fields = {
+        "active_outer_registry_sha256",
+        "allocation_intents",
+        "authorization_and_preallocation_fault_proof_valid",
+        "authorization_id",
+        "authorization_version",
+        "bound_manifest_validation_sha256",
+        "campaign_artifacts_created",
+        "campaign_claim_created",
+        "campaign_nonce",
+        "candidate_commit",
+        "candidate_tree",
+        "canonical_preflight_sha256",
+        "current_authorization_marker_absent",
+        "current_nonce_marker_absent",
+        "current_pair_claim_absent",
+        "declared_outputs_absent",
+        "exact_spark_available",
+        "generation10_base_input_count",
+        "generation10_contained_scope_snapshot_exact",
+        "glm_5_2_used",
+        "guarded_primary_diff_sha256",
+        "immediate_predecessor_leaf_count",
+        "input_count",
+        "input_inodes_unique",
+        "input_paths_unique",
+        "input_source_identities_captured",
+        "launch_claim_sha256",
+        "launch_claim_version",
+        "live_campaign_authorized",
+        "manifest_and_launch_bindings_valid",
+        "manifest_version",
+        "model_discovery",
+        "model_synthesis_used",
+        "protected_workspace_rechecked",
+        "recorded_at",
+        "release_authorized",
+        "release_prospective_tree",
+        "schema",
+        "sessions_created",
+        "source_snapshots_rechecked",
+        "steering_dry_run_consumptions_planned",
+        "steering_launch_bindings_valid",
+        "successful_turn_starts_exact",
+        "thread_start_requests",
+        "trusted_session_snapshots_rechecked",
+        "validator_contract_sha256_v5",
+    }
+    preflight_value = _strict(
+        preflight,
+        preflight_fields,
+        "authorization-predecessor-v10-preflight",
+        errors,
+    )
+    preflight_unsigned = dict(preflight_value)
+    preflight_canonical = preflight_unsigned.pop("canonical_preflight_sha256", None)
+    model_discovery = (
+        preflight.get("model_discovery")
+        if isinstance(preflight.get("model_discovery"), Mapping)
+        else {}
+    )
+    if (
+        proof.preflight.raw_sha256
+        != bindings.get("predecessor_preflight_file_sha256")
+        or preflight_canonical
+        != bindings.get("predecessor_preflight_canonical_sha256")
+        or preflight_canonical != canonical_sha256(preflight_unsigned)
+        or preflight.get("schema")
+        != "cwo-generation11-live-zero-allocation-preflight:v1"
+        or preflight.get("authorization_id") != prior_id
+        or preflight.get("authorization_version") != AUTHORIZATION_VERSION_V10
+        or preflight.get("manifest_version") != MANIFEST_VERSION_V7
+        or preflight.get("launch_claim_version") != 5
+        or preflight.get("campaign_nonce") != prior_nonce
+        or preflight.get("candidate_commit") != prior_candidate.get("commit")
+        or preflight.get("candidate_tree") != prior_candidate.get("tree")
+        or preflight.get("guarded_primary_diff_sha256")
+        != prior_bindings.get("guarded_primary_diff_sha256")
+        or preflight.get("launch_claim_sha256")
+        != predecessor_launch_claim_sha256
+        or preflight.get("validator_contract_sha256_v5")
+        != prior_bindings.get("validator_contract_sha256")
+        or preflight.get("generation10_base_input_count") != 81
+        or preflight.get("immediate_predecessor_leaf_count") != 17
+        or preflight.get("input_count") != 98
+        or preflight.get("input_source_identities_captured") != 98
+        or preflight.get("allocation_intents") != 0
+        or preflight.get("thread_start_requests") != 0
+        or preflight.get("sessions_created") != 0
+        or preflight.get("campaign_claim_created") is not False
+        or preflight.get("campaign_artifacts_created") is not False
+        or preflight.get("release_authorized") is not False
+        or preflight.get("glm_5_2_used") is not False
+        or preflight.get("model_synthesis_used") is not False
+        or preflight.get("steering_dry_run_consumptions_planned")
+        != ["pre-live", "pre-mutation"]
+        or any(
+            preflight.get(field) is not True
+            for field in (
+                "authorization_and_preallocation_fault_proof_valid",
+                "current_authorization_marker_absent",
+                "current_nonce_marker_absent",
+                "current_pair_claim_absent",
+                "declared_outputs_absent",
+                "exact_spark_available",
+                "generation10_contained_scope_snapshot_exact",
+                "input_inodes_unique",
+                "input_paths_unique",
+                "live_campaign_authorized",
+                "manifest_and_launch_bindings_valid",
+                "protected_workspace_rechecked",
+                "source_snapshots_rechecked",
+                "steering_launch_bindings_valid",
+                "trusted_session_snapshots_rechecked",
+            )
+        )
+        or model_discovery.get("id") != EXACT_OPERATIVE_MODEL
+        or model_discovery.get("model") != EXACT_OPERATIVE_MODEL
+    ):
+        errors.append("authorization-predecessor-v10-preflight-binding-invalid")
+
+    for label, receipt_snapshot, gate in (
+        ("pre_mutation", proof.pre_mutation_receipt, "pre-mutation"),
+        ("pre_live", proof.pre_live_receipt, "pre-live"),
+    ):
+        receipt = receipt_snapshot.value
+        if (
+            validate_steering_receipt(receipt, require_accepting=True)
+            or receipt_snapshot.raw_sha256
+            != bindings.get(f"predecessor_{label}_receipt_file_sha256")
+            or receipt.get("canonical_receipt_sha256")
+            != bindings.get(f"predecessor_{label}_receipt_canonical_sha256")
+            or receipt.get("gate") != gate
+            or receipt.get("authorization_id") != prior_id
+            or receipt.get("authorization_sha256") != prior_raw
+        ):
+            errors.append(
+                f"authorization-predecessor-v10-{label.replace('_', '-')}-receipt-binding-invalid"
+            )
+    generation11_failure_bindings = (
+        failure.get("campaign_bindings")
+        if isinstance(failure.get("campaign_bindings"), Mapping)
+        else {}
+    )
+    generation11_source_hashes = (
+        generation11_failure_bindings.get("source_file_sha256s")
+        if isinstance(
+            generation11_failure_bindings.get("source_file_sha256s"), Mapping
+        )
+        else {}
+    )
+    for label, adjudication_snapshot, receipt_snapshot, gate in (
+        (
+            "pre_mutation",
+            proof.pre_mutation_adjudication,
+            proof.pre_mutation_receipt,
+            "pre-mutation",
+        ),
+        (
+            "pre_live",
+            proof.pre_live_adjudication,
+            proof.pre_live_receipt,
+            "pre-live",
+        ),
+    ):
+        errors.extend(
+            _validate_generation11_steering_adjudication(
+                adjudication_snapshot,
+                gate=gate,
+                authorization=prior_authorization,
+                manifest=prior_manifest,
+                receipt=receipt_snapshot,
+                source_hashes=generation11_source_hashes,
+            )
+        )
+        if (
+            adjudication_snapshot.raw_sha256
+            != bindings.get(f"predecessor_{label}_adjudication_file_sha256")
+            or adjudication_snapshot.value.get("canonical_adjudication_sha256")
+            != bindings.get(
+                f"predecessor_{label}_adjudication_canonical_sha256"
+            )
+            or adjudication_snapshot.value.get(
+                "spark_validation_receipt_file_sha256"
+            )
+            != proof.independent_validation_receipt.raw_sha256
+            or adjudication_snapshot.value.get(
+                "spark_validation_receipt_canonical_sha256"
+            )
+            != proof.independent_validation_receipt.value.get(
+                "canonical_receipt_sha256"
+            )
+        ):
+            errors.append(
+                f"authorization-predecessor-v10-{label.replace('_', '-')}-adjudication-direct-binding-invalid"
+            )
+    consumed = registry.get("consumed")
+    consumed = consumed if isinstance(consumed, list) else []
+    expected_receipt_hashes = [
+        proof.pre_mutation_receipt.value.get("canonical_receipt_sha256"),
+        proof.pre_live_receipt.value.get("canonical_receipt_sha256"),
+    ]
+    consumption_hashes = [
+        item.get("consumption_sha256")
+        for item in consumed
+        if isinstance(item, Mapping)
+    ]
+    if (
+        set(registry) != {"consumed"}
+        or proof.steering_registry.raw_sha256
+        != bindings.get("predecessor_steering_registry_file_sha256")
+        or len(consumed) != 2
+        or any(
+            not isinstance(item, Mapping)
+            or set(item)
+            != {"consumption_sha256", "phase_nonce", "receipt_sha256"}
+            or not _is_hash(item.get("consumption_sha256"))
+            or not _is_uuid(item.get("phase_nonce"))
+            for item in consumed
+        )
+        or [item.get("receipt_sha256") for item in consumed]
+        != expected_receipt_hashes
+        or failure.get("steering_consumptions")
+        != {
+            "pre-mutation": consumption_hashes[0] if len(consumption_hashes) > 0 else None,
+            "pre-live": consumption_hashes[1] if len(consumption_hashes) > 1 else None,
+        }
+    ):
+        errors.append("authorization-predecessor-v10-steering-consumption-invalid")
+
+    try:
+        ledger_errors = validate_live_allocation_ledger(
+            ledger, audit_bytes=proof.allocation_audit_bytes
+        )
+        ledger_summary = {
+            "available": True,
+            **summarize_live_allocation_ledger(
+                ledger, ledger_file_sha256=proof.allocation_ledger.raw_sha256
+            ),
+        }
+    except (NativeLiveAllocationLedgerError, OSError, SystemExit, ValueError):
+        ledger_errors = ["ledger-audit-unavailable"]
+        ledger_summary = None
+    entries = ledger.get("entries")
+    observed_grammar = (
+        tuple(
+            (item.get("role"), item.get("event"), item.get("outcome"))
+            for item in entries
+            if isinstance(item, Mapping)
+        )
+        if isinstance(entries, list)
+        else ()
+    )
+    if (
+        ledger_errors
+        or proof.allocation_ledger.raw_sha256
+        != bindings.get("predecessor_allocation_ledger_file_sha256")
+        or ledger.get("state_sha256")
+        != bindings.get("predecessor_allocation_ledger_state_sha256")
+        or ledger.get("head_entry_sha256")
+        != bindings.get("predecessor_allocation_ledger_head_entry_sha256")
+        or hashlib.sha256(proof.allocation_audit_bytes).hexdigest()
+        != bindings.get("predecessor_allocation_audit_file_sha256")
+        or observed_grammar != GENERATION11_TERMINAL_LEDGER_GRAMMAR
+        or ledger.get("sequence") != len(GENERATION11_TERMINAL_LEDGER_GRAMMAR)
+        or ledger.get("bindings", {}).get("authorization_id") != prior_id
+        or ledger.get("bindings", {}).get("authorization_raw_sha256") != prior_raw
+        or ledger.get("bindings", {}).get("campaign_nonce") != prior_nonce
+        or ledger.get("bindings", {}).get("live_generation") != 11
+    ):
+        errors.append("authorization-predecessor-v10-allocation-ledger-invalid")
+
+    expected_containment = {
+        "all_contained": True,
+        "allocated_count": 1,
+        "already_contained_count": 0,
+        "ambiguous_count": 0,
+        "archived_count": 1,
+        "identified_thread_count": 1,
+        "interrupted_count": 0,
+        "ledger_consistent": True,
+        "ledger_error_sha256": [],
+        "unresolved_allocation_intent_count": 0,
+        "unresolved_turn_intent_count": 0,
+    }
+    failure_value = _strict(
+        failure,
+        MODERN_FAILURE_EVIDENCE_FIELDS,
+        "authorization-predecessor-v10-failure",
+        errors,
+    )
+    failure_bindings = (
+        failure_value.get("campaign_bindings")
+        if isinstance(failure_value.get("campaign_bindings"), Mapping)
+        else {}
+    )
+    source_hashes = (
+        failure_bindings.get("source_file_sha256s")
+        if isinstance(failure_bindings.get("source_file_sha256s"), Mapping)
+        else {}
+    )
+    expected_source_hashes = {
+        "authorization": prior_raw,
+        "campaign-manifest": proof.manifest.raw_sha256,
+        "cause-evidence": proof.authorization_recovery_cause_evidence.raw_sha256,
+        "cause-source-analysis": hashlib.sha256(
+            proof.authorization_recovery_cause_source_analysis
+        ).hexdigest(),
+        "outer-authority": proof.outer_authority.raw_sha256,
+        "pre-live-steering-receipt": proof.pre_live_receipt.raw_sha256,
+        "pre-mutation-steering-receipt": proof.pre_mutation_receipt.raw_sha256,
+        "spark-validation-receipt": proof.independent_validation_receipt.raw_sha256,
+        "spark-validation-session": hashlib.sha256(
+            proof.independent_validation_session_bytes
+        ).hexdigest(),
+        "preallocation-failed-predecessor-authorization": proof.ancestor.authorization.raw_sha256,
+        "preallocation-failed-predecessor-manifest": proof.ancestor.manifest.raw_sha256,
+        "preallocation-failed-predecessor-authorization-state": proof.ancestor.authorization_state.raw_sha256,
+        "preallocation-failed-predecessor-failure-evidence": proof.ancestor.failure_evidence.raw_sha256,
+        "preallocation-failed-predecessor-containment": proof.ancestor.containment.raw_sha256,
+        "preallocation-failed-predecessor-global-claim": proof.ancestor.global_claim.raw_sha256,
+        "preallocation-failed-predecessor-authorization-marker": proof.ancestor.authorization_marker.raw_sha256,
+        "preallocation-failed-predecessor-nonce-marker": proof.ancestor.nonce_marker.raw_sha256,
+        "preallocation-failed-predecessor-scope-state": proof.ancestor.scope_state.raw_sha256,
+        "preallocation-failed-predecessor-preflight": proof.ancestor.preflight.raw_sha256,
+        "preallocation-failed-predecessor-pre-mutation-receipt": proof.ancestor.pre_mutation_receipt.raw_sha256,
+        "preallocation-failed-predecessor-pre-live-receipt": proof.ancestor.pre_live_receipt.raw_sha256,
+        "preallocation-failed-predecessor-recovery-cause-evidence": proof.ancestor.authorization_recovery_cause_evidence.raw_sha256,
+        "preallocation-failed-predecessor-recovery-cause-source-analysis": hashlib.sha256(
+            proof.ancestor.authorization_recovery_cause_source_analysis
+        ).hexdigest(),
+        "preallocation-failed-predecessor-outer-authority": proof.ancestor.outer_authority.raw_sha256,
+        "preallocation-failed-predecessor-independent-validation-receipt": proof.ancestor.independent_validation_receipt.raw_sha256,
+        "preallocation-failed-predecessor-independent-validation-session": hashlib.sha256(
+            proof.ancestor.independent_validation_session_bytes
+        ).hexdigest(),
+    }
+    if (
+        proof.failure_evidence.raw_sha256
+        != bindings.get("predecessor_failure_evidence_file_sha256")
+        or failure.get("evidence_sha256")
+        != bindings.get("predecessor_failure_evidence_canonical_sha256")
+        or failure.get("evidence_sha256")
+        != _canonical_artifact_hash(failure, "evidence_sha256")
+        or failure.get("result_type")
+        != "cwo-native-supervision-pool-live-canary-failure"
+        or failure.get("version") != 1
+        or failure.get("failure_class") != "AppServerError"
+        or failure.get("failure_code") != "AppServerError"
+        or failure.get("failure_message_sha256")
+        != GENERATION11_FAILURE_MESSAGE_SHA256
+        or failure.get("first_protected_fault") is not None
+        or failure.get("exact_model") != EXACT_OPERATIVE_MODEL
+        or failure.get("containment") != expected_containment
+        or failure.get("allocation_ledger") != ledger_summary
+        or failure.get("authorization_state_sha256") != prior_state.get("state_sha256")
+        or failure.get("validation_outcome") != "rejected"
+        or failure.get("release_gate_passed") is not False
+        or failure.get("no_resume_or_salvage") is not True
+        or failure.get("glm_5_2_used") is not False
+        or failure.get("model_synthesis_used") is not False
+        or failure.get("bead_id") != prior_work_units.get("epic_id")
+        or failure.get("work_unit_id") != prior_work_units.get("live_work_unit_id")
+        or failure.get("control_turn_id") != prior_manifest.get("control_turn_id")
+        or failure_bindings.get("authorization_raw_sha256") != prior_raw
+        or failure_bindings.get("manifest_file_sha256") != proof.manifest.raw_sha256
+        or failure_bindings.get("manifest_sha256")
+        != prior_manifest.get("manifest_sha256")
+        or failure_bindings.get("candidate_commit") != prior_candidate.get("commit")
+        or failure_bindings.get("candidate_tree") != prior_candidate.get("tree")
+        or failure_bindings.get("launch_claim_sha256")
+        != predecessor_launch_claim_sha256
+        or failure_bindings.get("outer_authority_file_sha256")
+        != proof.outer_authority.raw_sha256
+        or failure_bindings.get("spark_validation_receipt_file_sha256")
+        != proof.independent_validation_receipt.raw_sha256
+        or failure_bindings.get("spark_validation_session_file_sha256")
+        != hashlib.sha256(proof.independent_validation_session_bytes).hexdigest()
+        or failure_bindings.get("recovery_cause_evidence_file_sha256")
+        != proof.authorization_recovery_cause_evidence.raw_sha256
+        or failure_bindings.get("recovery_cause_source_analysis_file_sha256")
+        != hashlib.sha256(
+            proof.authorization_recovery_cause_source_analysis
+        ).hexdigest()
+        or failure_bindings.get("validator_contract_sha256")
+        != prior_bindings.get("validator_contract_sha256")
+        or any(source_hashes.get(key) != value for key, value in expected_source_hashes.items())
+    ):
+        errors.append("authorization-predecessor-v10-failure-binding-invalid")
+
+    errors.extend(
+        _validate_generation11_recovery_steering(
+            proof.recovery_steering_receipt,
+            proof.recovery_steering_session_bytes,
+            bindings=bindings,
+            authorization=prior_authorization,
+            manifest=prior_manifest,
+            expected_control_turn_id=proof.pre_mutation_receipt.value.get(
+                "control_turn_id"
+            ),
+        )
+    )
+    errors.extend(
+        _validate_generation11_terminal_facts(
+            proof.terminal_facts,
+            bindings=bindings,
+            proof=proof,
+            authorization=prior_authorization,
+            manifest=prior_manifest,
+            failure=failure,
+            repo_root=repo_root,
+        )
+    )
+    errors.extend(
+        _validate_generation11_containment(
+            proof.containment,
+            bindings=bindings,
+            prior_authorization=prior_authorization,
+            prior_manifest=prior_manifest,
+            failure=failure,
+            proof=proof,
+            ledger_summary=ledger_summary,
+            expected_containment=expected_containment,
+        )
+    )
+
+    if (
+        supersession.get("prior_authorization_id") != prior_id
+        or supersession.get("prior_terminal_state") != "containment-only"
+        or supersession.get("prior_live_generation") != 11
+        or supersession.get("prior_allocations") != 1
+        or supersession.get("prior_ambiguities") != 0
+        or supersession.get("prior_allowed_actions")
+        != (len(allowed_actions) if isinstance(allowed_actions, list) else -1)
+        or supersession.get("reuse_resume_retry_substitution_salvage_bridge")
+        is not False
+    ):
+        errors.append("authorization-predecessor-v10-supersession-invalid")
+    if (
+        proof.outer_authority.raw_sha256
+        != bindings.get("predecessor_outer_authority_file_sha256")
+        or proof.outer_authority.value.get("canonical_outer_authority_sha256")
+        != bindings.get("predecessor_outer_authority_canonical_sha256")
+        or proof.outer_authority.raw_sha256
+        != prior_bindings.get("outer_authority_file_sha256")
+        or proof.independent_validation_receipt.raw_sha256
+        != bindings.get("predecessor_independent_validation_receipt_file_sha256")
+        or proof.independent_validation_receipt.value.get("canonical_receipt_sha256")
+        != bindings.get("predecessor_independent_validation_receipt_canonical_sha256")
+        or hashlib.sha256(proof.independent_validation_session_bytes).hexdigest()
+        != bindings.get("predecessor_independent_validation_session_file_sha256")
+        or proof.authorization_recovery_cause_evidence.raw_sha256
+        != bindings.get(
+            "predecessor_authorization_recovery_cause_evidence_file_sha256"
+        )
+        or proof.authorization_recovery_cause_evidence.value.get(
+            "canonical_cause_evidence_sha256"
+        )
+        != bindings.get(
+            "predecessor_authorization_recovery_cause_evidence_canonical_sha256"
+        )
+        or hashlib.sha256(
+            proof.authorization_recovery_cause_source_analysis
+        ).hexdigest()
+        != bindings.get(
+            "predecessor_authorization_recovery_cause_source_analysis_sha256"
+        )
+        or proof.terminal_facts.raw_sha256
+        != bindings.get("predecessor_terminal_facts_file_sha256")
+        or proof.terminal_facts.value.get("canonical_terminal_facts_sha256")
+        != bindings.get("predecessor_terminal_facts_canonical_sha256")
+        or hashlib.sha256(proof.generation11_runner_source_bytes).hexdigest()
+        != bindings.get("predecessor_generation11_runner_source_sha256")
+        or hashlib.sha256(
+            proof.generation11_session_boundary_source_bytes
+        ).hexdigest()
+        != bindings.get(
+            "predecessor_generation11_session_boundary_source_sha256"
+        )
+        or proof.pre_mutation_adjudication.raw_sha256
+        != bindings.get("predecessor_pre_mutation_adjudication_file_sha256")
+        or proof.pre_mutation_adjudication.value.get(
+            "canonical_adjudication_sha256"
+        )
+        != bindings.get("predecessor_pre_mutation_adjudication_canonical_sha256")
+        or proof.pre_live_adjudication.raw_sha256
+        != bindings.get("predecessor_pre_live_adjudication_file_sha256")
+        or proof.pre_live_adjudication.value.get("canonical_adjudication_sha256")
+        != bindings.get("predecessor_pre_live_adjudication_canonical_sha256")
+        or hashlib.sha256(proof.recovery_cause_analysis_bytes).hexdigest()
+        != bindings.get("predecessor_recovery_cause_analysis_sha256")
+        or proof.recovery_steering_receipt.raw_sha256
+        != bindings.get("predecessor_recovery_steering_receipt_file_sha256")
+        or proof.recovery_steering_receipt.value.get("canonical_receipt_sha256")
+        != bindings.get(
+            "predecessor_recovery_steering_receipt_canonical_sha256"
+        )
+        or hashlib.sha256(proof.recovery_steering_session_bytes).hexdigest()
+        != bindings.get("predecessor_recovery_steering_session_file_sha256")
+    ):
+        errors.append("authorization-predecessor-v10-direct-source-binding-invalid")
+    if (
+        prior_progress.get("predecessor_lineage_sha256")
+        != bindings.get("predecessor_ancestor_lineage_sha256")
+    ):
+        errors.append("authorization-predecessor-v10-ancestor-lineage-invalid")
+
+    if repo_root is not None:
+        root = Path(repo_root).resolve()
+        errors.extend(
+            f"authorization-predecessor-v10-ancestor:{item}"
+            for item in _validate_v9_preallocation_fault_predecessor_proof(
+                bindings=prior_bindings,
+                progress=prior_progress,
+                supersession=prior_supersession,
+                predecessor_live_generation=_generation_or_invalid(
+                    prior_authorization.get("predecessor_live_generation")
+                ),
+                proof=proof.ancestor,
+                repo_root=root,
+            )
+        )
+        try:
+            prior_checkpoint = str(prior_bindings["checkpoint_commit"])
+            current_checkpoint = str(bindings["checkpoint_commit"])
+            if (
+                _run_git(root, "rev-parse", f"{prior_checkpoint}^{{tree}}")
+                != prior_bindings.get("checkpoint_tree")
+                or _run_git(
+                    root, "rev-parse", f"{prior_candidate.get('commit')}^{{tree}}"
+                )
+                != prior_candidate.get("tree")
+                or _run_git(root, "rev-parse", f"{current_checkpoint}^{{tree}}")
+                != bindings.get("checkpoint_tree")
+            ):
+                errors.append("authorization-predecessor-v10-anchor-tree-mismatch")
+            for ancestor_commit, descendant_commit in (
+                (str(prior_candidate.get("commit")), prior_checkpoint),
+                (prior_checkpoint, current_checkpoint),
+            ):
+                if subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", ancestor_commit, descendant_commit],
+                    cwd=root,
+                    capture_output=True,
+                ).returncode != 0:
+                    errors.append("authorization-predecessor-v10-anchor-lineage-invalid")
+            if (
+                prior_bindings.get("origin_main_commit")
+                != bindings.get("origin_main_commit")
+                or _run_git(root, "rev-parse", "origin/main")
+                != bindings.get("origin_main_commit")
+                or prior_bindings.get("validator_contract_sha256")
+                != validator_contract_sha256_v5(
+                    root, prior_bindings.get("checkpoint_tree")
+                )
+            ):
+                errors.append("authorization-predecessor-v10-anchor-binding-invalid")
+        except (KeyError, subprocess.CalledProcessError, ValueError):
+            errors.append("authorization-predecessor-v10-anchor-invalid")
+    return sorted(set(errors))
+
+
 def _v4_common_shadow(
     manifest: Mapping[str, Any], authorization: Mapping[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], str]:
@@ -10241,6 +13169,251 @@ def _validate_campaign_manifest_v7(
     return sorted(set(errors))
 
 
+def _v8_manifest_common_shadow(
+    manifest: Mapping[str, Any], authorization: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    """Project v8/v11 common fields into the frozen v2/v5 validators."""
+
+    shadow_authorization = _v11_common_shadow(authorization)
+    shadow_authorization_raw = json.dumps(
+        shadow_authorization,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode()
+    shadow_authorization_raw_sha256 = hashlib.sha256(
+        shadow_authorization_raw
+    ).hexdigest()
+    shadow = json.loads(json.dumps(dict(manifest)))
+    shadow["version"] = MANIFEST_VERSION
+    shadow["schema"] = MANIFEST_SCHEMA
+    shadow["authorization_raw_sha256"] = shadow_authorization_raw_sha256
+    shadow["authorization_canonical_sha256"] = shadow_authorization[
+        "canonical_authorization_sha256"
+    ]
+    shadow["progress_qualification_sha256"] = shadow_authorization[
+        "progress_gate"
+    ]["qualification_sha256"]
+    predecessor = (
+        dict(shadow.get("predecessor"))
+        if isinstance(shadow.get("predecessor"), Mapping)
+        else {}
+    )
+    shadow["predecessor"] = predecessor
+    for field in MANIFEST_PREDECESSOR_FIELDS_V8 - MANIFEST_PREDECESSOR_FIELDS_V4:
+        predecessor.pop(field, None)
+    predecessor["original_containment_file_sha256"] = predecessor.pop(
+        "recovery_cause_evidence_file_sha256", None
+    )
+    predecessor["original_containment_canonical_sha256"] = predecessor.pop(
+        "recovery_cause_evidence_canonical_sha256", None
+    )
+    predecessor.pop("ancestor_lineage_sha256", None)
+    predecessor.pop("validator_contract_sha256", None)
+    predecessor["lineage_sha256"] = shadow_authorization["progress_gate"][
+        "predecessor_lineage_sha256"
+    ]
+    shadow.pop("manifest_sha256", None)
+    shadow["manifest_sha256"] = canonical_sha256(shadow)
+    return shadow, shadow_authorization, shadow_authorization_raw_sha256
+
+
+def _validate_campaign_manifest_v8(
+    value: Any,
+    *,
+    authorization: Mapping[str, Any] | None,
+    authorization_raw_sha256: str | None,
+    outer_authority: Mapping[str, Any] | None,
+    outer_authority_raw_sha256: str | None,
+    predecessor_proof: (
+        Version10InterruptedEmptyBoundaryPredecessorProofInputs | None
+    ),
+    recovery_cause_evidence: JsonArtifactSnapshot | None,
+    recovery_cause_source_analysis: bytes | None,
+    independent_validation_receipt: Mapping[str, Any] | None,
+    independent_validation_receipt_raw_sha256: str | None,
+    expected_validator_contract_sha256: str | None,
+    repo_root: Path | None,
+    expected_primary_diff_sha256: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    manifest = _strict(value, MANIFEST_FIELDS, "campaign-manifest-v8", errors)
+    if not manifest:
+        return sorted(set(errors))
+    if (
+        manifest.get("manifest_type") != MANIFEST_TYPE
+        or manifest.get("version") != MANIFEST_VERSION_V8
+        or manifest.get("schema") != MANIFEST_SCHEMA_V8
+    ):
+        errors.append("campaign-manifest-v8-header-invalid")
+    unsigned = dict(manifest)
+    unsigned.pop("manifest_sha256", None)
+    if manifest.get("manifest_sha256") != canonical_sha256(unsigned):
+        errors.append("campaign-manifest-v8-sha256-mismatch")
+    if not isinstance(authorization, Mapping):
+        return sorted(set(errors + ["campaign-manifest-v8-authorization-missing"]))
+    try:
+        shadow, shadow_authorization, shadow_authorization_raw_sha256 = (
+            _v8_manifest_common_shadow(manifest, authorization)
+        )
+        common_errors = _validate_campaign_manifest_v2(
+            shadow,
+            authorization=shadow_authorization,
+            authorization_raw_sha256=shadow_authorization_raw_sha256,
+            outer_authority=outer_authority,
+            outer_authority_raw_sha256=outer_authority_raw_sha256,
+            independent_validation_receipt=independent_validation_receipt,
+            independent_validation_receipt_raw_sha256=(
+                independent_validation_receipt_raw_sha256
+            ),
+            repo_root=repo_root,
+            expected_primary_diff_sha256=expected_primary_diff_sha256,
+        )
+    except (AttributeError, KeyError, TypeError, ValueError):
+        common_errors = ["campaign-manifest-v8-common-scalar-invalid"]
+    errors.extend(f"campaign-manifest-v8-common:{item}" for item in common_errors)
+    errors.extend(
+        f"campaign-manifest-v8-authorization:{item}"
+        for item in _validate_full_auto_authorization_v11(
+            authorization,
+            predecessor_proof=predecessor_proof,
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            expected_validator_contract_sha256=expected_validator_contract_sha256,
+            repo_root=repo_root,
+        )
+    )
+    work_units = (
+        manifest.get("work_units")
+        if isinstance(manifest.get("work_units"), Mapping)
+        else {}
+    )
+    registry = (
+        outer_authority.get("active_registry")
+        if isinstance(outer_authority, Mapping)
+        else None
+    )
+    try:
+        expected_scope_key = active_outer_authority_scope_key(
+            work_units.get("epic_id"), work_units.get("parent_work_unit_id")
+        )
+    except ValueError:
+        expected_scope_key = None
+    if (
+        not isinstance(registry, Mapping)
+        or set(registry) != {"contract", "scope_key"}
+        or registry.get("contract") != "cwo-active-outer-authority-registry:v1"
+        or registry.get("scope_key") != expected_scope_key
+    ):
+        errors.append("campaign-manifest-v8-outer-authority-registry-invalid")
+    bindings = (
+        authorization.get("bindings")
+        if isinstance(authorization.get("bindings"), Mapping)
+        else {}
+    )
+    progress = (
+        authorization.get("progress_gate")
+        if isinstance(authorization.get("progress_gate"), Mapping)
+        else {}
+    )
+    predecessor = _strict(
+        manifest.get("predecessor"),
+        MANIFEST_PREDECESSOR_FIELDS_V8,
+        "campaign-manifest-v8-predecessor",
+        errors,
+    )
+    non_hash_fields = {
+        "authorization_id",
+        "candidate_commit",
+        "candidate_tree",
+        "terminal_session_id",
+        "terminal_turn_id",
+    }
+    if (
+        not _is_uuid(predecessor.get("authorization_id"))
+        or not _is_uuid(predecessor.get("terminal_session_id"))
+        or not _is_uuid(predecessor.get("terminal_turn_id"))
+        or any(
+            not _is_hash(predecessor.get(field))
+            for field in MANIFEST_PREDECESSOR_FIELDS_V8 - non_hash_fields
+        )
+        or any(
+            not _is_commit(predecessor.get(field))
+            for field in ("candidate_commit", "candidate_tree")
+        )
+    ):
+        errors.append("campaign-manifest-v8-predecessor-invalid")
+    expected_predecessor = {
+        "authorization_id": bindings.get("predecessor_authorization_id"),
+        "authorization_file_sha256": bindings.get(
+            "predecessor_authorization_file_sha256"
+        ),
+        "authorization_canonical_sha256": bindings.get(
+            "predecessor_authorization_canonical_sha256"
+        ),
+        "manifest_file_sha256": bindings.get("predecessor_manifest_file_sha256"),
+        "manifest_canonical_sha256": bindings.get(
+            "predecessor_manifest_canonical_sha256"
+        ),
+        "authorization_state_file_sha256": bindings.get(
+            "predecessor_authorization_state_file_sha256"
+        ),
+        "authorization_state_canonical_sha256": bindings.get(
+            "predecessor_authorization_state_canonical_sha256"
+        ),
+        "candidate_commit": progress.get("predecessor_candidate_commit"),
+        "candidate_tree": progress.get("predecessor_candidate_tree"),
+        "lineage_sha256": progress.get("predecessor_lineage_sha256"),
+        "failure_evidence_file_sha256": bindings.get(
+            "predecessor_failure_evidence_file_sha256"
+        ),
+        "failure_evidence_canonical_sha256": bindings.get(
+            "predecessor_failure_evidence_canonical_sha256"
+        ),
+        "containment_file_sha256": bindings.get(
+            "predecessor_containment_file_sha256"
+        ),
+        "containment_canonical_sha256": bindings.get(
+            "predecessor_containment_canonical_sha256"
+        ),
+        "recovery_cause_evidence_file_sha256": bindings.get(
+            "recovery_cause_evidence_file_sha256"
+        ),
+        "recovery_cause_evidence_canonical_sha256": bindings.get(
+            "recovery_cause_evidence_canonical_sha256"
+        ),
+        "ancestor_lineage_sha256": bindings.get(
+            "predecessor_ancestor_lineage_sha256"
+        ),
+        "validator_contract_sha256": bindings.get("validator_contract_sha256"),
+        "allocation_ledger_file_sha256": bindings.get(
+            "predecessor_allocation_ledger_file_sha256"
+        ),
+        "allocation_ledger_state_sha256": bindings.get(
+            "predecessor_allocation_ledger_state_sha256"
+        ),
+        "allocation_audit_file_sha256": bindings.get(
+            "predecessor_allocation_audit_file_sha256"
+        ),
+        **{
+            field.removeprefix("predecessor_"): bindings.get(field)
+            for field in BINDING_FIELDS_V11 - BINDING_FIELDS_V7
+        },
+    }
+    if predecessor != expected_predecessor:
+        errors.append("campaign-manifest-v8-predecessor-authorization-mismatch")
+    if (
+        manifest.get("authorization_id") != authorization.get("authorization_id")
+        or manifest.get("authorization_raw_sha256") != authorization_raw_sha256
+        or manifest.get("authorization_canonical_sha256")
+        != authorization.get("canonical_authorization_sha256")
+        or manifest.get("progress_qualification_sha256")
+        != progress.get("qualification_sha256")
+    ):
+        errors.append("campaign-manifest-v8-authorization-binding-mismatch")
+    return sorted(set(errors))
+
+
 def _dispatch_validate_campaign_manifest(
     value: Any,
     *,
@@ -10250,6 +13423,7 @@ def _dispatch_validate_campaign_manifest(
         | Version7QuarantinePredecessorProofInputs
         | Version8ProtectedFaultPredecessorProofInputs
         | Version9PreallocationFaultPredecessorProofInputs
+        | Version10InterruptedEmptyBoundaryPredecessorProofInputs
         | None
     ) = None,
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
@@ -10501,6 +13675,58 @@ def _dispatch_validate_campaign_manifest(
                 if isinstance(
                     predecessor_proof,
                     Version9PreallocationFaultPredecessorProofInputs,
+                )
+                else None
+            ),
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            independent_validation_receipt=legacy_kwargs.get(
+                "independent_validation_receipt"
+            ),
+            independent_validation_receipt_raw_sha256=legacy_kwargs.get(
+                "independent_validation_receipt_raw_sha256"
+            ),
+            expected_validator_contract_sha256=expected_validator_contract_sha256,
+            repo_root=legacy_kwargs.get("repo_root"),
+            expected_primary_diff_sha256=legacy_kwargs.get(
+                "expected_primary_diff_sha256"
+            ),
+        )
+    if version == MANIFEST_VERSION_V8:
+        legacy_predecessor_keys = {
+            key
+            for key, item in legacy_kwargs.items()
+            if key.startswith("predecessor_") and item is not None
+        }
+        if legacy_predecessor_keys:
+            return ["campaign-manifest-v8-legacy-proof-input-forbidden"]
+        allowed = {
+            "authorization",
+            "authorization_raw_sha256",
+            "outer_authority",
+            "outer_authority_raw_sha256",
+            "independent_validation_receipt",
+            "independent_validation_receipt_raw_sha256",
+            "repo_root",
+            "expected_primary_diff_sha256",
+        }
+        if set(legacy_kwargs) - allowed:
+            return ["campaign-manifest-v8-validator-arguments-invalid"]
+        return _validate_campaign_manifest_v8(
+            value,
+            authorization=legacy_kwargs.get("authorization"),
+            authorization_raw_sha256=legacy_kwargs.get(
+                "authorization_raw_sha256"
+            ),
+            outer_authority=legacy_kwargs.get("outer_authority"),
+            outer_authority_raw_sha256=legacy_kwargs.get(
+                "outer_authority_raw_sha256"
+            ),
+            predecessor_proof=(
+                predecessor_proof
+                if isinstance(
+                    predecessor_proof,
+                    Version10InterruptedEmptyBoundaryPredecessorProofInputs,
                 )
                 else None
             ),
