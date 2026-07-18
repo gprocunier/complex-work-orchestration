@@ -10,7 +10,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -229,7 +228,7 @@ class NativePoolConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(NativePoolConfigError, "worker-state-not-newly-created"):
                 build_pool_contract(fixture.request)
 
-    def test_manifest_bound_canary_path_is_narrow_and_fail_closed(self) -> None:
+    def test_historical_manifest_versions_are_not_live_renderable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fixture = RenderFixture(root, 2)
@@ -256,26 +255,23 @@ class NativePoolConfigTests(unittest.TestCase):
             payload["control_turn_id"] = manifest["control_turn_id"]
             capability = seal_artifact(payload, "receipt_sha256")
             now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
-            contract = build_live_canary_pool_contract(
-                fixture.request,
-                campaign_manifest=manifest,
-                capability_receipt=capability,
-                owner_pid=owner["pid"],
-                now=now,
-            )
-            self.assertEqual(validate_pool_contract(contract), [])
-            mismatched_request = copy.deepcopy(fixture.request)
-            mismatched_request["control_turn_id"] = "different-control-turn"
-            with self.assertRaisesRegex(NativePoolConfigError, "control-turn-mismatch"):
+            with self.assertRaisesRegex(
+                NativePoolConfigError, "manifest-version-historical-only"
+            ):
                 build_live_canary_pool_contract(
-                    mismatched_request,
+                    fixture.request,
                     campaign_manifest=manifest,
                     capability_receipt=capability,
                     owner_pid=owner["pid"],
                     now=now,
                 )
-            manifest["successful_turn_starts_exact"] = 6
-            with self.assertRaisesRegex(NativePoolConfigError, "campaign-manifest-invalid"):
+            manifest["version"] = 3
+            manifest["schema"] = "schemas/native-live-campaign-manifest-v3.schema.json"
+            manifest.pop("manifest_sha256", None)
+            manifest["manifest_sha256"] = canonical_sha256(manifest)
+            with self.assertRaisesRegex(
+                NativePoolConfigError, "manifest-version-historical-only"
+            ):
                 build_live_canary_pool_contract(
                     fixture.request,
                     campaign_manifest=manifest,
@@ -284,7 +280,7 @@ class NativePoolConfigTests(unittest.TestCase):
                     now=now,
                 )
 
-    def test_v3_manifest_requires_exact_full_binding_receipt(self) -> None:
+    def test_v4_manifest_requires_exact_full_binding_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fixture = RenderFixture(root, 2)
@@ -304,8 +300,8 @@ class NativePoolConfigTests(unittest.TestCase):
                     text=True,
                 ).stdout.strip(),
             )
-            manifest["version"] = 3
-            manifest["schema"] = "schemas/native-live-campaign-manifest-v3.schema.json"
+            manifest["version"] = 4
+            manifest["schema"] = "schemas/native-live-campaign-manifest-v4.schema.json"
             manifest.pop("manifest_sha256", None)
             manifest["manifest_sha256"] = canonical_sha256(manifest)
             fixture.request["control_turn_id"] = manifest["control_turn_id"]
@@ -333,19 +329,15 @@ class NativePoolConfigTests(unittest.TestCase):
                     now=now,
                 )
 
-            with mock.patch(
-                "cwo_core.native_pool_config.validate_campaign_manifest",
-                side_effect=AssertionError("context-free-v3-validator-called"),
-            ):
-                contract = build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=manifest,
-                    capability_receipt=capability,
-                    bound_manifest_validation=bound,
-                    expected_bound_manifest_validation=bound,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
+            contract = build_live_canary_pool_contract(
+                fixture.request,
+                campaign_manifest=manifest,
+                capability_receipt=capability,
+                bound_manifest_validation=bound,
+                expected_bound_manifest_validation=bound,
+                owner_pid=owner["pid"],
+                now=now,
+            )
             self.assertEqual(validate_pool_contract(contract), [])
 
             for field, replacement in (

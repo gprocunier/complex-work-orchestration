@@ -11,7 +11,7 @@ from typing import Any, Mapping
 from .native_live_campaign_contracts import (
     MANIFEST_VERSION,
     MANIFEST_VERSION_V3,
-    validate_campaign_manifest,
+    MANIFEST_VERSION_V4,
 )
 from .native_control import validate_control_turn_contract
 from .native_pool_contracts import (
@@ -146,13 +146,13 @@ def seal_bound_manifest_validation(
     """Seal the result of the launcher's complete v3 binding validation.
 
     This record is evidence from the trusted launch callback, not a replacement
-    for that callback.  The shared pool renderer consumes it so a v3 manifest is
+    for that callback.  The shared pool renderer consumes it so a modern manifest is
     never revalidated without the authorization and predecessor proof inputs.
     """
 
     candidate = campaign_manifest.get("candidate")
     if (
-        campaign_manifest.get("version") != MANIFEST_VERSION_V3
+        campaign_manifest.get("version") != MANIFEST_VERSION_V4
         or not isinstance(candidate, Mapping)
     ):
         raise NativePoolConfigError("bound-manifest-validation-source-invalid")
@@ -184,7 +184,7 @@ def validate_bound_manifest_validation(
     value: Any,
     campaign_manifest: Mapping[str, Any],
 ) -> list[str]:
-    """Validate an exact full-binding receipt against the current v3 manifest."""
+    """Validate an exact full-binding receipt against the current manifest."""
 
     errors: list[str] = []
     receipt = _strict_fields(
@@ -238,7 +238,7 @@ def validate_live_canary_manifest_gate(
     """Validate the manifest gate that must run before any live allocation."""
 
     manifest_version = campaign_manifest.get("version")
-    if manifest_version == MANIFEST_VERSION_V3:
+    if manifest_version == MANIFEST_VERSION_V4:
         errors: list[str] = []
         for label, receipt in (
             ("observed", bound_manifest_validation),
@@ -259,13 +259,8 @@ def validate_live_canary_manifest_gate(
         ):
             errors.append("observed-expected-receipt-mismatch")
         return sorted(set(errors))
-    if manifest_version == MANIFEST_VERSION:
-        if (
-            bound_manifest_validation is not None
-            or expected_bound_manifest_validation is not None
-        ):
-            return ["campaign-manifest-v2-bound-validation-forbidden"]
-        return validate_campaign_manifest(campaign_manifest)
+    if manifest_version in {MANIFEST_VERSION, MANIFEST_VERSION_V3}:
+        return ["campaign-manifest-version-historical-only"]
     return ["campaign-manifest-version-invalid"]
 
 
@@ -704,7 +699,7 @@ def build_live_canary_pool_contract(
     if manifest_errors:
         error_prefix = (
             "campaign-manifest-bound-validation-invalid"
-            if campaign_manifest.get("version") == MANIFEST_VERSION_V3
+            if campaign_manifest.get("version") == MANIFEST_VERSION_V4
             else "campaign-manifest-invalid"
         )
         raise NativePoolConfigError(

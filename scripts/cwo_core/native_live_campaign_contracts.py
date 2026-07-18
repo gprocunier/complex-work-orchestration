@@ -26,11 +26,15 @@ AUTHORIZATION_VERSION = 5
 AUTHORIZATION_SCHEMA = "schemas/full-auto-run-authorization.schema.json"
 AUTHORIZATION_VERSION_V6 = 6
 AUTHORIZATION_SCHEMA_V6 = "schemas/full-auto-run-authorization-v6.schema.json"
+AUTHORIZATION_VERSION_V7 = 7
+AUTHORIZATION_SCHEMA_V7 = "schemas/full-auto-run-authorization-v7.schema.json"
 MANIFEST_TYPE = "cwo-native-live-campaign-manifest"
 MANIFEST_VERSION = 2
 MANIFEST_SCHEMA = "schemas/native-live-campaign-manifest.schema.json"
 MANIFEST_VERSION_V3 = 3
 MANIFEST_SCHEMA_V3 = "schemas/native-live-campaign-manifest-v3.schema.json"
+MANIFEST_VERSION_V4 = 4
+MANIFEST_SCHEMA_V4 = "schemas/native-live-campaign-manifest-v4.schema.json"
 EXACT_STEERING_MODEL = "gpt-5.6-sol"
 EXACT_STEERING_EFFORT = "max"
 EXACT_OPERATIVE_MODEL = "gpt-5.3-codex-spark"
@@ -139,6 +143,7 @@ BINDING_FIELDS_V6 = (
     "predecessor_ancestor_lineage_sha256",
     "validator_contract_sha256",
 }
+BINDING_FIELDS_V7 = set(BINDING_FIELDS_V6)
 SUPERSESSION_FIELDS = {
     "prior_authorization_id",
     "prior_terminal_state",
@@ -213,6 +218,13 @@ MANDATORY_GATE_FIELDS_V6 = (
     "finite_predecessor_proof_dag",
     "read_once_predecessor_snapshots",
     "atomic_launch_claim",
+}
+MANDATORY_GATE_FIELDS_V7 = (
+    MANDATORY_GATE_FIELDS_V6
+    - {"strict_authorization_v6", "campaign_manifest_v3"}
+) | {
+    "strict_authorization_v7",
+    "campaign_manifest_v4",
 }
 PERSISTENCE_FIELDS = {
     "run_level_full_auto_survives_recoverable_failure",
@@ -326,6 +338,7 @@ MANIFEST_PREDECESSOR_FIELDS_V3 = (
     "ancestor_lineage_sha256",
     "validator_contract_sha256",
 }
+MANIFEST_PREDECESSOR_FIELDS_V4 = set(MANIFEST_PREDECESSOR_FIELDS_V3)
 MANIFEST_OUTER_AUTHORITY_FIELDS = {
     "authority_id",
     "canonical_sha256",
@@ -620,6 +633,26 @@ class Version5PredecessorProofInputs:
     independent_validation_session_bytes: bytes
     ancestor: HistoricalV4V1ProofInputs
     contained_session_bytes: tuple[bytes, ...] = ()
+
+
+@dataclass(frozen=True)
+class Version6PredecessorProofInputs:
+    """Read-once inputs for one v6/v3 predecessor and its fixed v5/v2 DAG."""
+
+    authorization: JsonArtifactSnapshot
+    manifest: JsonArtifactSnapshot
+    authorization_state: JsonArtifactSnapshot
+    failure_evidence: JsonArtifactSnapshot
+    containment: JsonArtifactSnapshot
+    allocation_ledger: JsonArtifactSnapshot
+    allocation_audit_bytes: bytes
+    authorization_recovery_cause_evidence: JsonArtifactSnapshot
+    authorization_recovery_cause_source_analysis: bytes
+    outer_authority: JsonArtifactSnapshot
+    independent_validation_receipt: JsonArtifactSnapshot
+    independent_validation_session_bytes: bytes
+    ancestor: Version5PredecessorProofInputs
+    contained_session_bytes: tuple[bytes, ...] = ()
 PREDECESSOR_LEDGER_EVENT_SEQUENCE = (
     "allocation-intent",
     "thread-bound",
@@ -722,7 +755,7 @@ def _validate_json_snapshot(
     return errors
 
 
-VALIDATOR_CONTRACT_PATHS = (
+VALIDATOR_CONTRACT_PATHS_V1 = (
     "scripts/cwo_core/audit.py",
     "scripts/cwo_core/native_canary_contracts.py",
     "scripts/cwo_core/native_live_allocation_ledger.py",
@@ -737,10 +770,23 @@ VALIDATOR_CONTRACT_PATHS = (
     "schemas/native-canary-authorization-state-v2.schema.json",
     "schemas/native-live-allocation-ledger-v2.schema.json",
 )
+VALIDATOR_CONTRACT_PATHS_V2 = VALIDATOR_CONTRACT_PATHS_V1 + (
+    "schemas/full-auto-run-authorization-v7.schema.json",
+    "schemas/native-live-campaign-manifest-v4.schema.json",
+)
+# Historical callers imported this name when v1 was the only contract. Keep the
+# alias immutable; Generation 8 must opt in to the explicitly versioned v2 API.
+VALIDATOR_CONTRACT_PATHS = VALIDATOR_CONTRACT_PATHS_V1
 
 
-def validator_contract_sha256(
-    repo_root: Path, checkpoint_tree: str | None = None
+def _validator_contract_sha256(
+    repo_root: Path,
+    checkpoint_tree: str | None,
+    *,
+    paths: tuple[str, ...],
+    contract: str,
+    proof_dag: tuple[str, ...],
+    ancestor_depth_exact: int,
 ) -> str:
     """Bind validator blobs from one immutable checkpoint tree.
 
@@ -762,7 +808,7 @@ def validator_contract_sha256(
     if not _is_commit(checkpoint_tree):
         raise ValueError("validator-contract-tree-invalid")
     files: list[dict[str, str]] = []
-    for relative in VALIDATOR_CONTRACT_PATHS:
+    for relative in paths:
         entry = subprocess.run(
             ["git", "ls-tree", checkpoint_tree, "--", relative],
             cwd=root,
@@ -795,12 +841,42 @@ def validator_contract_sha256(
         )
     return canonical_sha256(
         {
-            "contract": "cwo-live-successor-validator:v1",
-            "proof_dag": ["v6/v3", "v5/v2", "v4/v1"],
-            "ancestor_depth_exact": 1,
+            "contract": contract,
+            "proof_dag": list(proof_dag),
+            "ancestor_depth_exact": ancestor_depth_exact,
             "checkpoint_tree": checkpoint_tree,
             "files": files,
         }
+    )
+
+
+def validator_contract_sha256(
+    repo_root: Path, checkpoint_tree: str | None = None
+) -> str:
+    """Reproduce the frozen Generation-7 validator-contract v1 digest."""
+
+    return _validator_contract_sha256(
+        repo_root,
+        checkpoint_tree,
+        paths=VALIDATOR_CONTRACT_PATHS_V1,
+        contract="cwo-live-successor-validator:v1",
+        proof_dag=("v6/v3", "v5/v2", "v4/v1"),
+        ancestor_depth_exact=1,
+    )
+
+
+def validator_contract_sha256_v2(
+    repo_root: Path, checkpoint_tree: str | None = None
+) -> str:
+    """Bind the fixed Generation-8 v7/v4 finite predecessor proof DAG."""
+
+    return _validator_contract_sha256(
+        repo_root,
+        checkpoint_tree,
+        paths=VALIDATOR_CONTRACT_PATHS_V2,
+        contract="cwo-live-successor-validator:v2",
+        proof_dag=("v7/v4", "v6/v3", "v5/v2", "v4/v1"),
+        ancestor_depth_exact=2,
     )
 
 
@@ -941,6 +1017,20 @@ def _predecessor_lineage_v6(
     }
 
 
+def _predecessor_lineage_v7(
+    bindings: Mapping[str, Any],
+    progress: Mapping[str, Any],
+    predecessor_live_generation: Any,
+) -> dict[str, Any]:
+    """Ordered identity for the fixed v7 -> v6 -> v5 -> v4 proof DAG."""
+
+    return dict(
+        _predecessor_lineage_v6(
+            bindings, progress, predecessor_live_generation
+        )
+    )
+
+
 def _independent_validation_binding(
     authorization: Mapping[str, Any], progress: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -984,7 +1074,7 @@ def _validate_recovery_cause_evidence(
     raw_sha256: str,
     bindings: Mapping[str, Any],
     progress: Mapping[str, Any],
-    predecessor: Version5PredecessorProofInputs,
+    predecessor: Version5PredecessorProofInputs | Version6PredecessorProofInputs,
     source_analysis_bytes: bytes,
 ) -> list[str]:
     errors: list[str] = []
@@ -3841,10 +3931,192 @@ def _validate_full_auto_authorization_v6(
     return sorted(set(errors))
 
 
+def _v7_common_shadow(authorization: Mapping[str, Any]) -> dict[str, Any]:
+    """Project v7 common fields into the frozen v5 structural validator."""
+
+    shadow = json.loads(json.dumps(dict(authorization)))
+    shadow["version"] = AUTHORIZATION_VERSION
+    shadow["schema"] = AUTHORIZATION_SCHEMA
+    bindings = shadow.get("bindings", {})
+    bindings["predecessor_original_containment_file_sha256"] = bindings.pop(
+        "recovery_cause_evidence_file_sha256", None
+    )
+    bindings["predecessor_original_containment_canonical_sha256"] = bindings.pop(
+        "recovery_cause_evidence_canonical_sha256", None
+    )
+    bindings.pop("predecessor_ancestor_lineage_sha256", None)
+    bindings.pop("validator_contract_sha256", None)
+    gates = shadow.get("mandatory_gates", {})
+    gates.pop("strict_authorization_v7", None)
+    gates.pop("campaign_manifest_v4", None)
+    gates.pop("finite_predecessor_proof_dag", None)
+    gates.pop("read_once_predecessor_snapshots", None)
+    gates.pop("atomic_launch_claim", None)
+    gates["strict_authorization_v5"] = True
+    gates["campaign_manifest_v2"] = True
+    progress = shadow.get("progress_gate", {})
+    progress["predecessor_lineage_sha256"] = canonical_sha256(
+        _predecessor_lineage(
+            bindings, progress, shadow.get("predecessor_live_generation")
+        )
+    )
+    progress.pop("qualification_sha256", None)
+    progress["qualification_sha256"] = canonical_sha256(progress)
+    shadow.pop("canonical_authorization_sha256", None)
+    shadow["canonical_authorization_sha256"] = canonical_sha256(shadow)
+    return shadow
+
+
+def _validate_full_auto_authorization_v7(
+    value: Any,
+    *,
+    expected_campaign_nonce: str | None = None,
+    predecessor_proof: Version6PredecessorProofInputs | None = None,
+    recovery_cause_evidence: JsonArtifactSnapshot | None = None,
+    recovery_cause_source_analysis: bytes | None = None,
+    expected_validator_contract_sha256: str | None = None,
+    repo_root: Path | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    authorization = _strict(value, AUTHORIZATION_FIELDS, "authorization-v7", errors)
+    if not authorization:
+        return sorted(set(errors))
+    if (
+        authorization.get("authorization_type") != AUTHORIZATION_TYPE
+        or authorization.get("version") != AUTHORIZATION_VERSION_V7
+        or authorization.get("schema") != AUTHORIZATION_SCHEMA_V7
+    ):
+        errors.append("authorization-v7-header-invalid")
+    common_shadow = _v7_common_shadow(authorization)
+    errors.extend(
+        f"authorization-v7-common:{item}"
+        for item in _validate_full_auto_authorization_v5(
+            common_shadow,
+            expected_campaign_nonce=expected_campaign_nonce,
+            repo_root=repo_root,
+        )
+    )
+    bindings = _strict(
+        authorization.get("bindings"),
+        BINDING_FIELDS_V7,
+        "authorization-v7-bindings",
+        errors,
+    )
+    progress = _strict(
+        authorization.get("progress_gate"),
+        PROGRESS_GATE_FIELDS,
+        "authorization-v7-progress-gate",
+        errors,
+    )
+    supersession = _strict(
+        authorization.get("supersession"),
+        SUPERSESSION_FIELDS,
+        "authorization-v7-supersession",
+        errors,
+    )
+    gates = _strict(
+        authorization.get("mandatory_gates"),
+        MANDATORY_GATE_FIELDS_V7,
+        "authorization-v7-mandatory-gates",
+        errors,
+    )
+    if any(gates.get(field) is not True for field in MANDATORY_GATE_FIELDS_V7):
+        errors.append("authorization-v7-mandatory-gate-disabled")
+    for field in BINDING_FIELDS_V7 - {
+        "checkpoint_commit",
+        "checkpoint_tree",
+        "origin_main_commit",
+        "pickup_path",
+        "recovery_plan_path",
+        "campaign_nonce",
+        "predecessor_authorization_id",
+        "backup_ref",
+        "outer_authority_id",
+    }:
+        if not _is_hash(bindings.get(field)):
+            errors.append(
+                f"authorization-v7-binding-{field.replace('_', '-')}-invalid"
+            )
+    expected_lineage = _predecessor_lineage_v7(
+        bindings, progress, authorization.get("predecessor_live_generation")
+    )
+    if progress.get("predecessor_lineage_sha256") != canonical_sha256(
+        expected_lineage
+    ):
+        errors.append("authorization-v7-predecessor-lineage-sha256-mismatch")
+    unsigned_progress = dict(progress)
+    unsigned_progress.pop("qualification_sha256", None)
+    if progress.get("qualification_sha256") != canonical_sha256(unsigned_progress):
+        errors.append("authorization-v7-progress-qualification-sha256-mismatch")
+    unsigned = dict(authorization)
+    unsigned.pop("canonical_authorization_sha256", None)
+    if authorization.get("canonical_authorization_sha256") != canonical_sha256(
+        unsigned
+    ):
+        errors.append("authorization-v7-canonical-sha256-mismatch")
+
+    if repo_root is not None:
+        try:
+            observed_contract = validator_contract_sha256_v2(
+                Path(repo_root), bindings.get("checkpoint_tree")
+            )
+        except (OSError, ValueError):
+            observed_contract = None
+            errors.append("authorization-v7-validator-contract-unavailable")
+        if bindings.get("validator_contract_sha256") != observed_contract:
+            errors.append("authorization-v7-validator-contract-mismatch")
+    if (
+        expected_validator_contract_sha256 is not None
+        and bindings.get("validator_contract_sha256")
+        != expected_validator_contract_sha256
+    ):
+        errors.append("authorization-v7-expected-validator-contract-mismatch")
+
+    if not isinstance(predecessor_proof, Version6PredecessorProofInputs):
+        errors.append("authorization-v7-predecessor-proof-missing")
+    else:
+        errors.extend(
+            _validate_v6_v3_predecessor_proof(
+                bindings=bindings,
+                progress=progress,
+                supersession=supersession,
+                predecessor_live_generation=int(
+                    authorization.get("predecessor_live_generation", -1)
+                ),
+                proof=predecessor_proof,
+                repo_root=repo_root,
+            )
+        )
+    if not isinstance(recovery_cause_evidence, JsonArtifactSnapshot):
+        errors.append("authorization-v7-recovery-cause-evidence-missing")
+    elif not isinstance(recovery_cause_source_analysis, bytes):
+        errors.append("authorization-v7-recovery-cause-source-analysis-missing")
+    elif isinstance(predecessor_proof, Version6PredecessorProofInputs):
+        errors.extend(
+            _validate_json_snapshot(
+                recovery_cause_evidence,
+                "authorization-v7-recovery-cause-evidence",
+            )
+        )
+        errors.extend(
+            _validate_recovery_cause_evidence(
+                recovery_cause_evidence.value,
+                raw_sha256=recovery_cause_evidence.raw_sha256,
+                bindings=bindings,
+                progress=progress,
+                predecessor=predecessor_proof,
+                source_analysis_bytes=recovery_cause_source_analysis,
+            )
+        )
+    return sorted(set(errors))
+
+
 def validate_full_auto_authorization(
     value: Any,
     *,
-    predecessor_proof: Version5PredecessorProofInputs | None = None,
+    predecessor_proof: (
+        Version5PredecessorProofInputs | Version6PredecessorProofInputs | None
+    ) = None,
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
     recovery_cause_source_analysis: bytes | None = None,
     expected_validator_contract_sha256: str | None = None,
@@ -3880,6 +4152,34 @@ def validate_full_auto_authorization(
             value,
             expected_campaign_nonce=legacy_kwargs.get("expected_campaign_nonce"),
             predecessor_proof=predecessor_proof,
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            expected_validator_contract_sha256=expected_validator_contract_sha256,
+            repo_root=legacy_kwargs.get("repo_root"),
+        )
+    if version == AUTHORIZATION_VERSION_V7:
+        legacy_predecessor_keys = {
+            key
+            for key, item in legacy_kwargs.items()
+            if key.startswith("predecessor_") and item is not None
+        }
+        if legacy_predecessor_keys:
+            return ["authorization-v7-legacy-proof-input-forbidden"]
+        allowed = {
+            "expected_campaign_nonce",
+            "repo_root",
+        }
+        unknown = set(legacy_kwargs) - allowed
+        if unknown:
+            return ["authorization-v7-validator-arguments-invalid"]
+        return _validate_full_auto_authorization_v7(
+            value,
+            expected_campaign_nonce=legacy_kwargs.get("expected_campaign_nonce"),
+            predecessor_proof=(
+                predecessor_proof
+                if isinstance(predecessor_proof, Version6PredecessorProofInputs)
+                else None
+            ),
             recovery_cause_evidence=recovery_cause_evidence,
             recovery_cause_source_analysis=recovery_cause_source_analysis,
             expected_validator_contract_sha256=expected_validator_contract_sha256,
@@ -4569,10 +4869,821 @@ def _validate_campaign_manifest_v3(
     return sorted(set(errors))
 
 
+def _validate_v6_v3_predecessor_proof(
+    *,
+    bindings: Mapping[str, Any],
+    progress: Mapping[str, Any],
+    supersession: Mapping[str, Any],
+    predecessor_live_generation: int,
+    proof: Version6PredecessorProofInputs,
+    repo_root: Path | None,
+) -> list[str]:
+    """Validate the fixed v7/v4 -> v6/v3 -> v5/v2 -> v4/v1 DAG."""
+
+    errors: list[str] = []
+    if not isinstance(proof.ancestor, Version5PredecessorProofInputs):
+        return ["authorization-predecessor-v6-ancestor-proof-type-invalid"]
+    if not isinstance(proof.ancestor.ancestor, HistoricalV4V1ProofInputs):
+        return ["authorization-predecessor-v5-historical-proof-type-invalid"]
+    snapshots = {
+        "authorization-predecessor-v6-authorization": proof.authorization,
+        "authorization-predecessor-v3-manifest": proof.manifest,
+        "authorization-predecessor-state": proof.authorization_state,
+        "authorization-predecessor-failure": proof.failure_evidence,
+        "authorization-predecessor-containment": proof.containment,
+        "authorization-predecessor-ledger": proof.allocation_ledger,
+        "authorization-predecessor-v6-cause": (
+            proof.authorization_recovery_cause_evidence
+        ),
+        "authorization-predecessor-outer-authority": proof.outer_authority,
+        "authorization-predecessor-independent-validation": (
+            proof.independent_validation_receipt
+        ),
+    }
+    for label, snapshot in snapshots.items():
+        errors.extend(_validate_json_snapshot(snapshot, label))
+    if (
+        not isinstance(proof.allocation_audit_bytes, bytes)
+        or not isinstance(
+            proof.authorization_recovery_cause_source_analysis, bytes
+        )
+        or not isinstance(proof.independent_validation_session_bytes, bytes)
+    ):
+        errors.append("authorization-predecessor-v6-byte-snapshot-invalid")
+        return sorted(set(errors))
+
+    prior_authorization = dict(proof.authorization.value)
+    prior_manifest = dict(proof.manifest.value)
+    prior_state = dict(proof.authorization_state.value)
+    prior_failure = dict(proof.failure_evidence.value)
+    prior_containment = dict(proof.containment.value)
+    prior_ledger = dict(proof.allocation_ledger.value)
+    prior_bindings = (
+        prior_authorization.get("bindings")
+        if isinstance(prior_authorization.get("bindings"), Mapping)
+        else {}
+    )
+    prior_progress = (
+        prior_authorization.get("progress_gate")
+        if isinstance(prior_authorization.get("progress_gate"), Mapping)
+        else {}
+    )
+    prior_supersession = (
+        prior_authorization.get("supersession")
+        if isinstance(prior_authorization.get("supersession"), Mapping)
+        else {}
+    )
+    prior_candidate = (
+        prior_manifest.get("candidate")
+        if isinstance(prior_manifest.get("candidate"), Mapping)
+        else {}
+    )
+    prior_reviews = (
+        prior_manifest.get("reviews")
+        if isinstance(prior_manifest.get("reviews"), Mapping)
+        else {}
+    )
+    prior_release = (
+        prior_manifest.get("release")
+        if isinstance(prior_manifest.get("release"), Mapping)
+        else {}
+    )
+
+    errors.extend(
+        f"authorization-predecessor-v6-contract:{item}"
+        for item in _validate_full_auto_authorization_v6(
+            prior_authorization,
+            predecessor_proof=proof.ancestor,
+            recovery_cause_evidence=(
+                proof.authorization_recovery_cause_evidence
+            ),
+            recovery_cause_source_analysis=(
+                proof.authorization_recovery_cause_source_analysis
+            ),
+            expected_validator_contract_sha256=prior_bindings.get(
+                "validator_contract_sha256"
+            ),
+            repo_root=None,
+        )
+    )
+    errors.extend(
+        f"authorization-predecessor-v3-contract:{item}"
+        for item in _validate_campaign_manifest_v3(
+            prior_manifest,
+            authorization=prior_authorization,
+            authorization_raw_sha256=proof.authorization.raw_sha256,
+            outer_authority=proof.outer_authority.value,
+            outer_authority_raw_sha256=proof.outer_authority.raw_sha256,
+            predecessor_proof=proof.ancestor,
+            recovery_cause_evidence=(
+                proof.authorization_recovery_cause_evidence
+            ),
+            recovery_cause_source_analysis=(
+                proof.authorization_recovery_cause_source_analysis
+            ),
+            independent_validation_receipt=(
+                proof.independent_validation_receipt.value
+            ),
+            independent_validation_receipt_raw_sha256=(
+                proof.independent_validation_receipt.raw_sha256
+            ),
+            expected_validator_contract_sha256=prior_bindings.get(
+                "validator_contract_sha256"
+            ),
+            repo_root=None,
+            expected_primary_diff_sha256=None,
+        )
+    )
+    errors.extend(
+        _validate_independent_validation_session_snapshot(
+            proof.independent_validation_receipt.value,
+            proof.independent_validation_session_bytes,
+        )
+    )
+
+    prior_authorization_id = prior_authorization.get("authorization_id")
+    prior_nonce = prior_bindings.get("campaign_nonce")
+    if bindings.get("campaign_nonce") == prior_nonce:
+        errors.append("authorization-v7-predecessor-campaign-nonce-reused")
+    if (
+        proof.authorization.raw_sha256
+        != bindings.get("predecessor_authorization_file_sha256")
+        or prior_authorization.get("canonical_authorization_sha256")
+        != bindings.get("predecessor_authorization_canonical_sha256")
+        or prior_authorization_id != bindings.get("predecessor_authorization_id")
+        or prior_authorization.get("version") != AUTHORIZATION_VERSION_V6
+        or prior_authorization.get("live_generation")
+        != predecessor_live_generation
+        or proof.manifest.raw_sha256
+        != bindings.get("predecessor_manifest_file_sha256")
+        or prior_manifest.get("manifest_sha256")
+        != bindings.get("predecessor_manifest_canonical_sha256")
+        or prior_manifest.get("version") != MANIFEST_VERSION_V3
+        or prior_candidate.get("commit")
+        != progress.get("predecessor_candidate_commit")
+        or prior_candidate.get("tree")
+        != progress.get("predecessor_candidate_tree")
+    ):
+        errors.append("authorization-predecessor-v6-v3-binding-invalid")
+
+    ancestor_lineage = prior_progress.get("predecessor_lineage_sha256")
+    prior_manifest_predecessor = (
+        prior_manifest.get("predecessor")
+        if isinstance(prior_manifest.get("predecessor"), Mapping)
+        else {}
+    )
+    if (
+        not _is_hash(ancestor_lineage)
+        or ancestor_lineage
+        != bindings.get("predecessor_ancestor_lineage_sha256")
+        or prior_manifest_predecessor.get("lineage_sha256") != ancestor_lineage
+    ):
+        errors.append("authorization-predecessor-v6-ancestor-lineage-invalid")
+
+    required_revocations = {
+        "install",
+        "publish",
+        "push",
+        "relaunch",
+        "release-enable",
+        "replacement",
+        "retry",
+        "tracked-mutation",
+    }
+    if (
+        proof.authorization_state.raw_sha256
+        != bindings.get("predecessor_authorization_state_file_sha256")
+        or prior_state.get("state_sha256")
+        != bindings.get("predecessor_authorization_state_canonical_sha256")
+        or validate_authorization_state(prior_state)
+        or prior_state.get("authorization_id") != prior_authorization_id
+        or prior_state.get("run_nonce") != prior_nonce
+        or prior_state.get("state") != "containment-only"
+        or required_revocations.intersection(prior_state.get("allowed_actions", []))
+        or not required_revocations.issubset(
+            set(prior_state.get("revoked_actions", []))
+        )
+    ):
+        errors.append("authorization-predecessor-v6-state-binding-invalid")
+
+    audit_sha256 = hashlib.sha256(proof.allocation_audit_bytes).hexdigest()
+    ledger_errors = validate_live_allocation_ledger(
+        prior_ledger, audit_bytes=proof.allocation_audit_bytes
+    )
+    if ledger_errors:
+        errors.append(
+            "authorization-predecessor-v6-ledger-invalid:"
+            + ",".join(ledger_errors)
+        )
+    try:
+        ledger_summary = summarize_live_allocation_ledger(
+            prior_ledger,
+            ledger_file_sha256=proof.allocation_ledger.raw_sha256,
+        )
+    except (KeyError, NativeLiveAllocationLedgerError, ValueError):
+        ledger_summary = {}
+    errors.extend(
+        _validate_modern_ledger_semantics(
+            prior_ledger,
+            int(ledger_summary.get("allocation_intent_count") or 0),
+        )
+    )
+    if (
+        proof.allocation_ledger.raw_sha256
+        != bindings.get("predecessor_allocation_ledger_file_sha256")
+        or prior_ledger.get("state_sha256")
+        != bindings.get("predecessor_allocation_ledger_state_sha256")
+        or audit_sha256 != bindings.get("predecessor_allocation_audit_file_sha256")
+        or supersession.get("prior_allocations")
+        != ledger_summary.get("allocation_intent_count")
+        or ledger_summary.get("unresolved_allocation_intent_count") != 0
+        or ledger_summary.get("unresolved_turn_intent_count") != 0
+    ):
+        errors.append("authorization-predecessor-v6-ledger-binding-invalid")
+    ledger_bindings = (
+        prior_ledger.get("bindings")
+        if isinstance(prior_ledger.get("bindings"), Mapping)
+        else {}
+    )
+    expected_ledger_bindings = {
+        "authorization_id": prior_authorization_id,
+        "authorization_raw_sha256": proof.authorization.raw_sha256,
+        "authorization_canonical_sha256": prior_authorization.get(
+            "canonical_authorization_sha256"
+        ),
+        "campaign_manifest_sha256": prior_manifest.get("manifest_sha256"),
+        "campaign_nonce": prior_nonce,
+        "live_generation": predecessor_live_generation,
+        "predecessor_generation": predecessor_live_generation - 1,
+        "candidate_commit": prior_candidate.get("commit"),
+        "candidate_tree": prior_candidate.get("tree"),
+        "origin_main_commit": prior_candidate.get("origin_main_commit"),
+        "guarded_primary_diff_sha256": prior_candidate.get(
+            "guarded_primary_diff_sha256"
+        ),
+        "predecessor_containment_sha256": prior_bindings.get(
+            "predecessor_containment_canonical_sha256"
+        ),
+        "frozen_release_patch_sha256": prior_release.get("patch_file_sha256"),
+        "pre_mutation_steering_receipt_sha256": prior_reviews.get(
+            "pre_mutation_receipt_canonical_sha256"
+        ),
+        "pre_live_steering_receipt_sha256": prior_reviews.get(
+            "pre_live_receipt_canonical_sha256"
+        ),
+        "opus_review_sha256": prior_reviews.get("opus_evidence_file_sha256"),
+    }
+    if any(
+        ledger_bindings.get(field) != expected
+        for field, expected in expected_ledger_bindings.items()
+    ):
+        errors.append("authorization-predecessor-v6-ledger-authority-mismatch")
+
+    failure = _strict(
+        prior_failure,
+        MODERN_FAILURE_EVIDENCE_FIELDS,
+        "authorization-predecessor-v6-failure",
+        errors,
+    )
+    failure_bindings = (
+        failure.get("campaign_bindings")
+        if isinstance(failure.get("campaign_bindings"), Mapping)
+        else {}
+    )
+    failure_containment = (
+        failure.get("containment")
+        if isinstance(failure.get("containment"), Mapping)
+        else {}
+    )
+    if (
+        proof.failure_evidence.raw_sha256
+        != bindings.get("predecessor_failure_evidence_file_sha256")
+        or failure.get("evidence_sha256")
+        != bindings.get("predecessor_failure_evidence_canonical_sha256")
+        or failure.get("evidence_sha256")
+        != _canonical_artifact_hash(failure, "evidence_sha256")
+        or failure.get("authorization_state_sha256")
+        != prior_state.get("state_sha256")
+        or failure.get("release_gate_passed") is not False
+        or failure.get("validation_outcome") != "rejected"
+        or failure.get("no_resume_or_salvage") is not True
+        or failure.get("glm_5_2_used") is not False
+        or failure.get("model_synthesis_used") is not False
+        or failure.get("exact_model") != EXACT_OPERATIVE_MODEL
+        or failure.get("allocation_ledger") != {"available": True, **ledger_summary}
+        or failure_bindings.get("authorization_raw_sha256")
+        != proof.authorization.raw_sha256
+        or failure_bindings.get("manifest_file_sha256")
+        != proof.manifest.raw_sha256
+        or failure_bindings.get("manifest_sha256")
+        != prior_manifest.get("manifest_sha256")
+        or failure_bindings.get("candidate_commit") != prior_candidate.get("commit")
+        or failure_bindings.get("candidate_tree") != prior_candidate.get("tree")
+        or failure_bindings.get("spark_validation_session_file_sha256")
+        != hashlib.sha256(proof.independent_validation_session_bytes).hexdigest()
+        or failure_containment.get("allocated_count")
+        != ledger_summary.get("allocation_intent_count")
+        or failure_containment.get("all_contained") is not True
+        or failure_containment.get("ambiguous_count") != 0
+        or failure_containment.get("ledger_consistent") is not True
+        or failure_containment.get("unresolved_allocation_intent_count") != 0
+        or failure_containment.get("unresolved_turn_intent_count") != 0
+    ):
+        errors.append("authorization-predecessor-v6-failure-binding-invalid")
+
+    containment = _strict(
+        prior_containment,
+        MODERN_CONTAINMENT_FIELDS,
+        "authorization-predecessor-v6-containment",
+        errors,
+    )
+    failed_authorization = (
+        containment.get("failed_authorization")
+        if isinstance(containment.get("failed_authorization"), Mapping)
+        else {}
+    )
+    failed_manifest = (
+        containment.get("failed_manifest")
+        if isinstance(containment.get("failed_manifest"), Mapping)
+        else {}
+    )
+    failed_evidence = (
+        containment.get("failed_evidence")
+        if isinstance(containment.get("failed_evidence"), Mapping)
+        else {}
+    )
+    containment_summary = (
+        containment.get("containment")
+        if isinstance(containment.get("containment"), Mapping)
+        else {}
+    )
+    containment_ledger = (
+        containment.get("allocation_ledger")
+        if isinstance(containment.get("allocation_ledger"), Mapping)
+        else {}
+    )
+    control = (
+        containment.get("control_plane_recheck")
+        if isinstance(containment.get("control_plane_recheck"), Mapping)
+        else {}
+    )
+    disposition = (
+        containment.get("disposition")
+        if isinstance(containment.get("disposition"), Mapping)
+        else {}
+    )
+    root_cause = (
+        containment.get("root_cause")
+        if isinstance(containment.get("root_cause"), Mapping)
+        else {}
+    )
+    sessions = containment.get("session_accounting")
+    allocated = ledger_summary.get("allocation_intent_count")
+    ledger_entries = prior_ledger.get("entries")
+    containment_audits = [
+        item
+        for item in ledger_entries or []
+        if isinstance(item, Mapping) and item.get("event") == "containment-audited"
+    ]
+    contained_count = len(
+        [item for item in containment_audits if item.get("outcome") == "contained"]
+    )
+    already_contained_count = len(
+        [
+            item
+            for item in containment_audits
+            if item.get("outcome") == "already-contained"
+        ]
+    )
+    derived_containment_summary = {
+        "allocated_count": allocated,
+        "identified_thread_count": ledger_summary.get("thread_bound_count"),
+        "interrupted_count": contained_count,
+        "archived_count": contained_count,
+        "already_contained_count": already_contained_count,
+        "unresolved_allocation_intent_count": ledger_summary.get(
+            "unresolved_allocation_intent_count"
+        ),
+        "unresolved_turn_intent_count": ledger_summary.get(
+            "unresolved_turn_intent_count"
+        ),
+        "ambiguous_count": 0,
+        "all_contained": (
+            len(containment_audits) == allocated
+            and contained_count + already_contained_count == allocated
+        ),
+        "ledger_consistent": True,
+        "ledger_error_sha256": [],
+    }
+    if (
+        containment.get("schema")
+        != "cwo-live-campaign-containment-recovery:v2"
+        or proof.containment.raw_sha256
+        != bindings.get("predecessor_containment_file_sha256")
+        or containment.get("canonical_recovery_sha256")
+        != bindings.get("predecessor_containment_canonical_sha256")
+        or containment.get("canonical_recovery_sha256")
+        != _canonical_artifact_hash(containment, "canonical_recovery_sha256")
+        or failed_authorization
+        != {
+            "authorization_id": prior_authorization_id,
+            "campaign_nonce": prior_nonce,
+            "canonical_sha256": prior_authorization.get(
+                "canonical_authorization_sha256"
+            ),
+            "file_sha256": proof.authorization.raw_sha256,
+            "live_generation": predecessor_live_generation,
+        }
+        or failed_manifest.get("canonical_sha256")
+        != prior_manifest.get("manifest_sha256")
+        or failed_manifest.get("file_sha256") != proof.manifest.raw_sha256
+        or failed_manifest.get("manifest_id") != prior_manifest.get("manifest_id")
+        or failed_evidence.get("canonical_sha256") != failure.get("evidence_sha256")
+        or failed_evidence.get("file_sha256") != proof.failure_evidence.raw_sha256
+        or failed_evidence.get("authorization_state_canonical_sha256")
+        != prior_state.get("state_sha256")
+        or failed_evidence.get("authorization_state_file_sha256")
+        != proof.authorization_state.raw_sha256
+        or containment_summary.get("allocated_count") != allocated
+        or containment_summary.get("identified_thread_count") != allocated
+        or containment_summary.get("all_contained") is not True
+        or containment_summary.get("ambiguous_count") != 0
+        or containment_summary.get("ledger_consistent") is not True
+        or containment_summary.get("unresolved_allocation_intent_count") != 0
+        or containment_summary.get("unresolved_turn_intent_count") != 0
+        or dict(containment_summary) != derived_containment_summary
+        or not isinstance(failure_containment, Mapping)
+        or dict(failure_containment) != derived_containment_summary
+        or containment_ledger.get("ledger_file_sha256")
+        != proof.allocation_ledger.raw_sha256
+        or containment_ledger.get("audit_file_sha256") != audit_sha256
+        or containment_ledger.get("state_sha256") != prior_ledger.get("state_sha256")
+        or containment_ledger.get("allocation_intent_count") != allocated
+        or containment_ledger.get("validation_errors") != []
+        or control.get("isolated_checkout_head") != prior_candidate.get("commit")
+        or control.get("isolated_checkout_tree") != prior_candidate.get("tree")
+        or control.get("origin_main_commit") != prior_candidate.get("origin_main_commit")
+        or control.get("protected_primary_diff_sha256")
+        != prior_candidate.get("guarded_primary_diff_sha256")
+        or control.get("isolated_checkout_tracked_clean") is not True
+        or control.get("operative_dispatch_authorized") is not False
+        or control.get("release_policy_status") != "canary-gated"
+        or disposition.get("authorization_state") != "containment-only"
+        or disposition.get("release_gate_passed") is not False
+        or disposition.get("requires_fresh_live_generation")
+        != predecessor_live_generation + 1
+        or disposition.get("requires_validated_candidate_repair") is not True
+        or disposition.get("reuse_resume_retry_substitution_salvage_bridge")
+        is not False
+        or root_cause.get("failure_class")
+        != progress.get("predecessor_failure_class")
+        or root_cause.get("message_sha256")
+        != failure.get("failure_message_sha256")
+        or root_cause.get("independent_reproduction") is not True
+    ):
+        errors.append("authorization-predecessor-v6-containment-binding-invalid")
+    if (
+        not isinstance(sessions, list)
+        or len(sessions) != allocated
+        or len(
+            {
+                item.get("session_id")
+                for item in sessions
+                if isinstance(item, Mapping)
+            }
+        )
+        != allocated
+        or any(
+            not isinstance(item, Mapping)
+            or not _is_uuid(item.get("session_id"))
+            or item.get("active_match_count") != 0
+            or item.get("archive_match_count") != 1
+            or not _is_hash(item.get("archived_session_file_sha256"))
+            for item in sessions or []
+        )
+    ):
+        errors.append("authorization-predecessor-v6-session-accounting-invalid")
+    errors.extend(
+        _validate_contained_session_snapshots(
+            session_accounting=sessions,
+            ledger=prior_ledger,
+            raw_sessions=proof.contained_session_bytes,
+            label="authorization-predecessor-v6",
+            historical=False,
+        )
+    )
+
+    if (
+        proof.authorization_recovery_cause_evidence.raw_sha256
+        != prior_progress.get("cause_evidence_sha256")
+    ):
+        errors.append("authorization-predecessor-v6-cause-evidence-binding-invalid")
+    if (
+        proof.outer_authority.raw_sha256
+        != prior_bindings.get("outer_authority_file_sha256")
+        or proof.outer_authority.value.get("canonical_outer_authority_sha256")
+        != prior_bindings.get("outer_authority_canonical_sha256")
+        or proof.outer_authority.value.get("authority_id")
+        != prior_bindings.get("outer_authority_id")
+    ):
+        errors.append("authorization-predecessor-v6-outer-authority-binding-invalid")
+
+    if repo_root is not None:
+        root = Path(repo_root).resolve()
+        errors.extend(
+            f"authorization-predecessor-v6-ancestor:{item}"
+            for item in _validate_v5_v2_predecessor_proof(
+                bindings=prior_bindings,
+                progress=prior_progress,
+                supersession=prior_supersession,
+                predecessor_live_generation=int(
+                    prior_authorization.get("predecessor_live_generation", -1)
+                ),
+                proof=proof.ancestor,
+                repo_root=root,
+            )
+        )
+        try:
+            prior_checkpoint = str(prior_bindings["checkpoint_commit"])
+            current_checkpoint = str(bindings["checkpoint_commit"])
+            if (
+                _run_git(root, "rev-parse", f"{prior_checkpoint}^{{tree}}")
+                != prior_bindings.get("checkpoint_tree")
+                or _run_git(
+                    root,
+                    "rev-parse",
+                    f"{prior_candidate.get('commit')}^{{tree}}",
+                )
+                != prior_candidate.get("tree")
+                or _run_git(root, "rev-parse", f"{current_checkpoint}^{{tree}}")
+                != bindings.get("checkpoint_tree")
+            ):
+                errors.append("authorization-predecessor-v6-anchor-tree-mismatch")
+            for ancestor_commit, descendant_commit in (
+                (str(prior_candidate.get("commit")), prior_checkpoint),
+                (prior_checkpoint, current_checkpoint),
+            ):
+                if subprocess.run(
+                    [
+                        "git",
+                        "merge-base",
+                        "--is-ancestor",
+                        ancestor_commit,
+                        descendant_commit,
+                    ],
+                    cwd=root,
+                    capture_output=True,
+                ).returncode != 0:
+                    errors.append("authorization-predecessor-v6-anchor-lineage-invalid")
+            recorded_origin = bindings.get("origin_main_commit")
+            if (
+                prior_bindings.get("origin_main_commit") != recorded_origin
+                or _run_git(root, "rev-parse", "origin/main") != recorded_origin
+            ):
+                errors.append("authorization-predecessor-v6-anchor-origin-mismatch")
+            observed_v1_contract = validator_contract_sha256(
+                root, prior_bindings.get("checkpoint_tree")
+            )
+            if (
+                prior_bindings.get("validator_contract_sha256")
+                != observed_v1_contract
+            ):
+                errors.append("authorization-predecessor-v6-validator-contract-mismatch")
+        except (KeyError, subprocess.CalledProcessError, ValueError):
+            errors.append("authorization-predecessor-v6-anchor-invalid")
+    return sorted(set(errors))
+
+
+def _v4_common_shadow(
+    manifest: Mapping[str, Any], authorization: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    """Project v4/v7 common fields into the frozen v2/v5 validators."""
+
+    shadow_authorization = _v7_common_shadow(authorization)
+    shadow_authorization_raw = json.dumps(
+        shadow_authorization,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode()
+    shadow_authorization_raw_sha256 = hashlib.sha256(
+        shadow_authorization_raw
+    ).hexdigest()
+    shadow = json.loads(json.dumps(dict(manifest)))
+    shadow["version"] = MANIFEST_VERSION
+    shadow["schema"] = MANIFEST_SCHEMA
+    shadow["authorization_raw_sha256"] = shadow_authorization_raw_sha256
+    shadow["authorization_canonical_sha256"] = shadow_authorization[
+        "canonical_authorization_sha256"
+    ]
+    shadow["progress_qualification_sha256"] = shadow_authorization[
+        "progress_gate"
+    ]["qualification_sha256"]
+    predecessor = shadow.get("predecessor", {})
+    predecessor["original_containment_file_sha256"] = predecessor.pop(
+        "recovery_cause_evidence_file_sha256", None
+    )
+    predecessor["original_containment_canonical_sha256"] = predecessor.pop(
+        "recovery_cause_evidence_canonical_sha256", None
+    )
+    predecessor.pop("ancestor_lineage_sha256", None)
+    predecessor.pop("validator_contract_sha256", None)
+    predecessor["lineage_sha256"] = shadow_authorization["progress_gate"][
+        "predecessor_lineage_sha256"
+    ]
+    shadow.pop("manifest_sha256", None)
+    shadow["manifest_sha256"] = canonical_sha256(shadow)
+    return shadow, shadow_authorization, shadow_authorization_raw_sha256
+
+
+def _validate_campaign_manifest_v4(
+    value: Any,
+    *,
+    authorization: Mapping[str, Any] | None,
+    authorization_raw_sha256: str | None,
+    outer_authority: Mapping[str, Any] | None,
+    outer_authority_raw_sha256: str | None,
+    predecessor_proof: Version6PredecessorProofInputs | None,
+    recovery_cause_evidence: JsonArtifactSnapshot | None,
+    recovery_cause_source_analysis: bytes | None,
+    independent_validation_receipt: Mapping[str, Any] | None,
+    independent_validation_receipt_raw_sha256: str | None,
+    expected_validator_contract_sha256: str | None,
+    repo_root: Path | None,
+    expected_primary_diff_sha256: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    manifest = _strict(value, MANIFEST_FIELDS, "campaign-manifest-v4", errors)
+    if not manifest:
+        return sorted(set(errors))
+    if (
+        manifest.get("manifest_type") != MANIFEST_TYPE
+        or manifest.get("version") != MANIFEST_VERSION_V4
+        or manifest.get("schema") != MANIFEST_SCHEMA_V4
+    ):
+        errors.append("campaign-manifest-v4-header-invalid")
+    unsigned = dict(manifest)
+    unsigned.pop("manifest_sha256", None)
+    if manifest.get("manifest_sha256") != canonical_sha256(unsigned):
+        errors.append("campaign-manifest-v4-sha256-mismatch")
+    if not isinstance(authorization, Mapping):
+        return sorted(set(errors + ["campaign-manifest-v4-authorization-missing"]))
+
+    shadow, shadow_authorization, shadow_authorization_raw_sha256 = _v4_common_shadow(
+        manifest, authorization
+    )
+    errors.extend(
+        f"campaign-manifest-v4-common:{item}"
+        for item in _validate_campaign_manifest_v2(
+            shadow,
+            authorization=shadow_authorization,
+            authorization_raw_sha256=shadow_authorization_raw_sha256,
+            outer_authority=outer_authority,
+            outer_authority_raw_sha256=outer_authority_raw_sha256,
+            independent_validation_receipt=independent_validation_receipt,
+            independent_validation_receipt_raw_sha256=(
+                independent_validation_receipt_raw_sha256
+            ),
+            repo_root=repo_root,
+            expected_primary_diff_sha256=expected_primary_diff_sha256,
+        )
+    )
+    errors.extend(
+        f"campaign-manifest-v4-authorization:{item}"
+        for item in _validate_full_auto_authorization_v7(
+            authorization,
+            predecessor_proof=predecessor_proof,
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            expected_validator_contract_sha256=expected_validator_contract_sha256,
+            repo_root=repo_root,
+        )
+    )
+    work_units = (
+        manifest.get("work_units")
+        if isinstance(manifest.get("work_units"), Mapping)
+        else {}
+    )
+    registry = (
+        outer_authority.get("active_registry")
+        if isinstance(outer_authority, Mapping)
+        else None
+    )
+    expected_scope_key: str | None = None
+    try:
+        expected_scope_key = active_outer_authority_scope_key(
+            work_units.get("epic_id"), work_units.get("parent_work_unit_id")
+        )
+    except ValueError:
+        pass
+    if (
+        not isinstance(registry, Mapping)
+        or set(registry) != {"contract", "scope_key"}
+        or registry.get("contract")
+        != "cwo-active-outer-authority-registry:v1"
+        or registry.get("scope_key") != expected_scope_key
+    ):
+        errors.append("campaign-manifest-v4-outer-authority-registry-invalid")
+    bindings = (
+        authorization.get("bindings")
+        if isinstance(authorization.get("bindings"), Mapping)
+        else {}
+    )
+    progress = (
+        authorization.get("progress_gate")
+        if isinstance(authorization.get("progress_gate"), Mapping)
+        else {}
+    )
+    predecessor = _strict(
+        manifest.get("predecessor"),
+        MANIFEST_PREDECESSOR_FIELDS_V4,
+        "campaign-manifest-v4-predecessor",
+        errors,
+    )
+    if not _is_uuid(predecessor.get("authorization_id")) or any(
+        not _is_hash(predecessor.get(field))
+        for field in MANIFEST_PREDECESSOR_FIELDS_V4
+        - {"authorization_id", "candidate_commit", "candidate_tree"}
+    ):
+        errors.append("campaign-manifest-v4-predecessor-invalid")
+    if any(
+        not _is_commit(predecessor.get(field))
+        for field in ("candidate_commit", "candidate_tree")
+    ):
+        errors.append("campaign-manifest-v4-predecessor-invalid")
+    expected_predecessor = {
+        "authorization_id": bindings.get("predecessor_authorization_id"),
+        "authorization_file_sha256": bindings.get(
+            "predecessor_authorization_file_sha256"
+        ),
+        "authorization_canonical_sha256": bindings.get(
+            "predecessor_authorization_canonical_sha256"
+        ),
+        "manifest_file_sha256": bindings.get("predecessor_manifest_file_sha256"),
+        "manifest_canonical_sha256": bindings.get(
+            "predecessor_manifest_canonical_sha256"
+        ),
+        "authorization_state_file_sha256": bindings.get(
+            "predecessor_authorization_state_file_sha256"
+        ),
+        "authorization_state_canonical_sha256": bindings.get(
+            "predecessor_authorization_state_canonical_sha256"
+        ),
+        "candidate_commit": progress.get("predecessor_candidate_commit"),
+        "candidate_tree": progress.get("predecessor_candidate_tree"),
+        "lineage_sha256": progress.get("predecessor_lineage_sha256"),
+        "failure_evidence_file_sha256": bindings.get(
+            "predecessor_failure_evidence_file_sha256"
+        ),
+        "failure_evidence_canonical_sha256": bindings.get(
+            "predecessor_failure_evidence_canonical_sha256"
+        ),
+        "containment_file_sha256": bindings.get(
+            "predecessor_containment_file_sha256"
+        ),
+        "containment_canonical_sha256": bindings.get(
+            "predecessor_containment_canonical_sha256"
+        ),
+        "recovery_cause_evidence_file_sha256": bindings.get(
+            "recovery_cause_evidence_file_sha256"
+        ),
+        "recovery_cause_evidence_canonical_sha256": bindings.get(
+            "recovery_cause_evidence_canonical_sha256"
+        ),
+        "allocation_ledger_file_sha256": bindings.get(
+            "predecessor_allocation_ledger_file_sha256"
+        ),
+        "allocation_ledger_state_sha256": bindings.get(
+            "predecessor_allocation_ledger_state_sha256"
+        ),
+        "allocation_audit_file_sha256": bindings.get(
+            "predecessor_allocation_audit_file_sha256"
+        ),
+        "ancestor_lineage_sha256": bindings.get(
+            "predecessor_ancestor_lineage_sha256"
+        ),
+        "validator_contract_sha256": bindings.get("validator_contract_sha256"),
+    }
+    if predecessor != expected_predecessor:
+        errors.append("campaign-manifest-v4-predecessor-authorization-mismatch")
+    if (
+        manifest.get("authorization_id") != authorization.get("authorization_id")
+        or manifest.get("authorization_raw_sha256") != authorization_raw_sha256
+        or manifest.get("authorization_canonical_sha256")
+        != authorization.get("canonical_authorization_sha256")
+        or manifest.get("progress_qualification_sha256")
+        != progress.get("qualification_sha256")
+    ):
+        errors.append("campaign-manifest-v4-authorization-binding-mismatch")
+    return sorted(set(errors))
+
+
 def validate_campaign_manifest(
     value: Any,
     *,
-    predecessor_proof: Version5PredecessorProofInputs | None = None,
+    predecessor_proof: (
+        Version5PredecessorProofInputs | Version6PredecessorProofInputs | None
+    ) = None,
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
     recovery_cause_source_analysis: bytes | None = None,
     expected_validator_contract_sha256: str | None = None,
@@ -4620,6 +5731,55 @@ def validate_campaign_manifest(
                 "outer_authority_raw_sha256"
             ),
             predecessor_proof=predecessor_proof,
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            independent_validation_receipt=legacy_kwargs.get(
+                "independent_validation_receipt"
+            ),
+            independent_validation_receipt_raw_sha256=legacy_kwargs.get(
+                "independent_validation_receipt_raw_sha256"
+            ),
+            expected_validator_contract_sha256=expected_validator_contract_sha256,
+            repo_root=legacy_kwargs.get("repo_root"),
+            expected_primary_diff_sha256=legacy_kwargs.get(
+                "expected_primary_diff_sha256"
+            ),
+        )
+    if version == MANIFEST_VERSION_V4:
+        legacy_predecessor_keys = {
+            key
+            for key, item in legacy_kwargs.items()
+            if key.startswith("predecessor_") and item is not None
+        }
+        if legacy_predecessor_keys:
+            return ["campaign-manifest-v4-legacy-proof-input-forbidden"]
+        allowed = {
+            "authorization",
+            "authorization_raw_sha256",
+            "outer_authority",
+            "outer_authority_raw_sha256",
+            "independent_validation_receipt",
+            "independent_validation_receipt_raw_sha256",
+            "repo_root",
+            "expected_primary_diff_sha256",
+        }
+        if set(legacy_kwargs) - allowed:
+            return ["campaign-manifest-v4-validator-arguments-invalid"]
+        return _validate_campaign_manifest_v4(
+            value,
+            authorization=legacy_kwargs.get("authorization"),
+            authorization_raw_sha256=legacy_kwargs.get(
+                "authorization_raw_sha256"
+            ),
+            outer_authority=legacy_kwargs.get("outer_authority"),
+            outer_authority_raw_sha256=legacy_kwargs.get(
+                "outer_authority_raw_sha256"
+            ),
+            predecessor_proof=(
+                predecessor_proof
+                if isinstance(predecessor_proof, Version6PredecessorProofInputs)
+                else None
+            ),
             recovery_cause_evidence=recovery_cause_evidence,
             recovery_cause_source_analysis=recovery_cause_source_analysis,
             independent_validation_receipt=legacy_kwargs.get(

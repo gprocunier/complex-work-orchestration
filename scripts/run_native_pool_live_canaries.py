@@ -39,11 +39,13 @@ from cwo_core.native_live_campaign_contracts import (  # noqa: E402
     JsonArtifactSnapshot,
     VALIDATOR_CONTRACT_PATHS,
     Version5PredecessorProofInputs,
+    Version6PredecessorProofInputs,
     active_outer_authority_scope_key,
     validate_campaign_manifest,
     validate_full_auto_authorization as validate_full_auto_authorization_contract,
     validate_release_patch_result,
     validator_contract_sha256,
+    validator_contract_sha256_v2,
 )
 from cwo_core.native_canary_contracts import (  # noqa: E402
     CanaryAuthorizationStore,
@@ -176,7 +178,11 @@ class CampaignLaunchInputs:
         spark_validation_session_path: Path,
         spark_validation_session_bytes: bytes,
         legacy_predecessor: HistoricalV4V1ProofInputs | None = None,
-        predecessor_proof: Version5PredecessorProofInputs | None = None,
+        predecessor_proof: (
+            Version5PredecessorProofInputs
+            | Version6PredecessorProofInputs
+            | None
+        ) = None,
         recovery_cause_evidence: JsonArtifactSnapshot | None = None,
         recovery_cause_source_analysis_bytes: bytes | None = None,
         source_identities: Mapping[str, tuple[int, int, int, int]] | None = None,
@@ -333,13 +339,15 @@ def validate_full_auto_authorization(
     predecessor_allocation_audit_raw_sha256: str | None = None,
     predecessor_allocation_audit_bytes: bytes | None = None,
     cause_evidence: bytes | None = None,
-    predecessor_proof: Version5PredecessorProofInputs | None = None,
+    predecessor_proof: (
+        Version5PredecessorProofInputs | Version6PredecessorProofInputs | None
+    ) = None,
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
     recovery_cause_source_analysis: bytes | None = None,
     expected_validator_contract_sha256: str | None = None,
     repo_root: Path,
 ) -> tuple[str, str]:
-    if authorization.get("version") == 6:
+    if authorization.get("version") in {6, 7}:
         errors = validate_full_auto_authorization_contract(
             authorization,
             expected_campaign_nonce=campaign_nonce,
@@ -2228,26 +2236,30 @@ def build_pool_inputs(
     dict[str, LiveThreadAdapter],
     PoolWorkspaceMonitor,
 ]:
-    bound_manifest_validation = pre_thread_start_check()
-    manifest_gate_errors = validate_live_canary_manifest_gate(
-        campaign_manifest,
-        bound_manifest_validation,
-        expected_bound_manifest_validation,
-    )
-    if manifest_gate_errors:
-        raise AppServerError(
-            "campaign-manifest-invalid-before-thread-start:"
-            + ";".join(manifest_gate_errors)
-        )
-    if campaign_manifest.get("control_turn_id") != CONTROL_TURN_ID:
-        raise AppServerError("campaign-control-turn-invalid-before-thread-start")
     record_dir = root / f"{pool_name}-records"
-    record_dir.mkdir(mode=0o700)
     thread_results = []
+    bound_manifest_validation: Mapping[str, Any] | None = None
     for index, worktree in enumerate(worktrees):
+        # The receipt is validation evidence, not authority.  Re-run the full
+        # bound source check immediately before every allocation; the durable
+        # claim acquired by main remains the one-shot launch authority.
+        bound_manifest_validation = pre_thread_start_check()
+        manifest_gate_errors = validate_live_canary_manifest_gate(
+            campaign_manifest,
+            bound_manifest_validation,
+            expected_bound_manifest_validation,
+        )
+        if manifest_gate_errors:
+            raise AppServerError(
+                "campaign-manifest-invalid-before-thread-start:"
+                + ";".join(manifest_gate_errors)
+            )
+        if campaign_manifest.get("control_turn_id") != CONTROL_TURN_ID:
+            raise AppServerError("campaign-control-turn-invalid-before-thread-start")
         role = f"{pool_name}-{index}"
         result, _latency = server.start_thread(worktree, mutable=mutable, role=role)
         thread_results.append(result)
+    record_dir.mkdir(mode=0o700)
     children = []
     child_contracts: dict[str, dict[str, Any]] = {}
     adapters: dict[str, LiveThreadAdapter] = {}
@@ -3999,33 +4011,172 @@ def campaign_input_requires_private_parent(label: str) -> bool:
     return "session" not in label
 
 
+def require_generation8_launch_inputs(
+    inputs: CampaignLaunchInputs,
+) -> Version6PredecessorProofInputs:
+    """Return the fixed v6 predecessor proof or reject a mixed generation."""
+
+    if (
+        inputs.authorization.value.get("version") != 7
+        or inputs.manifest.value.get("version") != 4
+        or not isinstance(inputs.predecessor_proof, Version6PredecessorProofInputs)
+        or inputs.legacy_predecessor is not None
+        or not isinstance(inputs.recovery_cause_evidence, JsonArtifactSnapshot)
+        or not isinstance(inputs.recovery_cause_source_analysis_bytes, bytes)
+    ):
+        raise AppServerError("campaign-generation8-proof-input-invalid")
+    return inputs.predecessor_proof
+
+
+def generation8_private_source_snapshots(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, bytes]:
+    """Flatten every non-session Generation-8 source from the fixed proof DAG."""
+
+    proof = require_generation8_launch_inputs(inputs)
+    ancestor = proof.ancestor
+    grandancestor = ancestor.ancestor
+    if ancestor.authorization_cause_evidence != grandancestor.cause_evidence:
+        raise AppServerError("campaign-generation8-ancestor-cause-mismatch")
+    return {
+        "authorization": inputs.authorization.raw,
+        "campaign-manifest": inputs.manifest.raw,
+        "outer-authority": inputs.outer_authority.raw,
+        "release-patch": inputs.release_patch_bytes,
+        "pre-mutation-steering-receipt": inputs.pre_mutation_receipt.raw,
+        "pre-mutation-adjudication": inputs.pre_mutation_adjudication.raw,
+        "pre-live-steering-receipt": inputs.pre_live_receipt.raw,
+        "pre-live-adjudication": inputs.pre_live_adjudication.raw,
+        "opus-review-evidence": inputs.opus_review_evidence.raw,
+        "opus-adjudication": inputs.opus_adjudication.raw,
+        "spark-validation-receipt": inputs.spark_validation_receipt.raw,
+        "predecessor-authorization": proof.authorization.raw,
+        "predecessor-manifest": proof.manifest.raw,
+        "predecessor-authorization-state": proof.authorization_state.raw,
+        "predecessor-failure-evidence": proof.failure_evidence.raw,
+        "predecessor-containment": proof.containment.raw,
+        "predecessor-allocation-ledger": proof.allocation_ledger.raw,
+        "predecessor-allocation-audit": proof.allocation_audit_bytes,
+        "predecessor-recovery-cause-evidence": (
+            proof.authorization_recovery_cause_evidence.raw
+        ),
+        "predecessor-recovery-cause-source-analysis": (
+            proof.authorization_recovery_cause_source_analysis
+        ),
+        "predecessor-outer-authority": proof.outer_authority.raw,
+        "predecessor-independent-validation-receipt": (
+            proof.independent_validation_receipt.raw
+        ),
+        "ancestor-authorization": ancestor.authorization.raw,
+        "ancestor-manifest": ancestor.manifest.raw,
+        "ancestor-authorization-state": ancestor.authorization_state.raw,
+        "ancestor-failure-evidence": ancestor.failure_evidence.raw,
+        "ancestor-containment": ancestor.containment.raw,
+        "ancestor-allocation-ledger": ancestor.allocation_ledger.raw,
+        "ancestor-allocation-audit": ancestor.allocation_audit_bytes,
+        "ancestor-authorization-cause-evidence": (
+            ancestor.authorization_cause_evidence
+        ),
+        "ancestor-outer-authority": ancestor.outer_authority.raw,
+        "ancestor-independent-validation-receipt": (
+            ancestor.independent_validation_receipt.raw
+        ),
+        "grandancestor-authorization": grandancestor.authorization.raw,
+        "grandancestor-manifest": grandancestor.manifest.raw,
+        "grandancestor-authorization-state": (
+            grandancestor.authorization_state.raw
+        ),
+        "grandancestor-failure-evidence": grandancestor.failure_evidence.raw,
+        "grandancestor-original-containment": (
+            grandancestor.original_containment.raw
+        ),
+        "grandancestor-containment": grandancestor.containment.raw,
+        "grandancestor-allocation-ledger": grandancestor.allocation_ledger.raw,
+        "grandancestor-allocation-audit": grandancestor.allocation_audit_bytes,
+        "cause-evidence": inputs.recovery_cause_evidence.raw,
+        "cause-source-analysis": inputs.recovery_cause_source_analysis_bytes,
+    }
+
+
+def generation8_trusted_session_snapshots(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, bytes]:
+    """Flatten every JSONL boundary in the fixed Generation-8 proof DAG."""
+
+    proof = require_generation8_launch_inputs(inputs)
+    ancestor = proof.ancestor
+    grandancestor = ancestor.ancestor
+    snapshots = {
+        "spark-validation-session": inputs.spark_validation_session_bytes,
+        "predecessor-independent-validation-session": (
+            proof.independent_validation_session_bytes
+        ),
+        "ancestor-independent-validation-session": (
+            ancestor.independent_validation_session_bytes
+        ),
+    }
+    snapshots.update(
+        {
+            f"predecessor-contained-session-{index}": raw
+            for index, raw in enumerate(proof.contained_session_bytes)
+        }
+    )
+    snapshots.update(
+        {
+            f"ancestor-contained-session-{index}": raw
+            for index, raw in enumerate(ancestor.contained_session_bytes)
+        }
+    )
+    snapshots.update(
+        {
+            f"grandancestor-contained-session-{index}": raw
+            for index, raw in enumerate(grandancestor.contained_session_bytes)
+        }
+    )
+    return snapshots
+
+
+def generation8_source_file_sha256s(
+    inputs: CampaignLaunchInputs,
+) -> dict[str, str]:
+    """Hash every read-once source bound by validation and launch claim v2."""
+
+    return {
+        label: sha256_bytes(raw)
+        for label, raw in sorted(
+            {
+                **generation8_private_source_snapshots(inputs),
+                **generation8_trusted_session_snapshots(inputs),
+            }.items()
+        )
+    }
+
+
 def require_trusted_session_snapshots_unchanged(
     paths: Mapping[str, Path], inputs: CampaignLaunchInputs
 ) -> None:
     """Re-read every trusted JSONL immediately before the first allocation."""
 
-    expected: dict[str, bytes] = {
-        "spark-validation-session": inputs.spark_validation_session_bytes,
-    }
-    proof = inputs.predecessor_proof
-    if proof is not None:
-        expected["predecessor-independent-validation-session"] = (
-            proof.independent_validation_session_bytes
-        )
-        expected.update(
-            {
+    if inputs.authorization.value.get("version") == 7:
+        expected = generation8_trusted_session_snapshots(inputs)
+    else:
+        proof = inputs.predecessor_proof
+        if not isinstance(proof, Version5PredecessorProofInputs):
+            raise AppServerError("campaign-historical-proof-input-invalid")
+        expected = {
+            "spark-validation-session": inputs.spark_validation_session_bytes,
+            "predecessor-independent-validation-session": (
+                proof.independent_validation_session_bytes
+            ),
+            **{
                 f"predecessor-contained-session-{index}": raw
                 for index, raw in enumerate(proof.contained_session_bytes)
-            }
-        )
-        expected.update(
-            {
+            },
+            **{
                 f"ancestor-contained-session-{index}": raw
-                for index, raw in enumerate(
-                    proof.ancestor.contained_session_bytes
-                )
-            }
-        )
+                for index, raw in enumerate(proof.ancestor.contained_session_bytes)
+            },
+        }
     for label, snapshot in expected.items():
         path = paths.get(label)
         if path is None:
@@ -4049,68 +4200,51 @@ def require_launch_source_snapshots_unchanged(
 ) -> None:
     """Recheck every mutable source against the read-once launch snapshots."""
 
-    expected: dict[str, bytes] = {
-        "authorization": inputs.authorization.raw,
-        "campaign-manifest": inputs.manifest.raw,
-        "outer-authority": inputs.outer_authority.raw,
-        "release-patch": inputs.release_patch_bytes,
-        "pre-mutation-steering-receipt": inputs.pre_mutation_receipt.raw,
-        "pre-mutation-adjudication": inputs.pre_mutation_adjudication.raw,
-        "pre-live-steering-receipt": inputs.pre_live_receipt.raw,
-        "pre-live-adjudication": inputs.pre_live_adjudication.raw,
-        "opus-review-evidence": inputs.opus_review_evidence.raw,
-        "opus-adjudication": inputs.opus_adjudication.raw,
-        "spark-validation-receipt": inputs.spark_validation_receipt.raw,
-    }
-    proof = inputs.predecessor_proof
-    legacy = inputs.legacy_predecessor
-    if proof is not None:
-        expected.update(
-            {
-                "predecessor-authorization": proof.authorization.raw,
-                "predecessor-manifest": proof.manifest.raw,
-                "predecessor-authorization-state": proof.authorization_state.raw,
-                "predecessor-failure-evidence": proof.failure_evidence.raw,
-                "predecessor-containment": proof.containment.raw,
-                "predecessor-allocation-ledger": proof.allocation_ledger.raw,
-                "predecessor-allocation-audit": proof.allocation_audit_bytes,
-                "predecessor-outer-authority": proof.outer_authority.raw,
-                "predecessor-independent-validation-receipt": (
-                    proof.independent_validation_receipt.raw
-                ),
-                "predecessor-authorization-cause-evidence": (
-                    proof.authorization_cause_evidence
-                ),
-                "ancestor-authorization": proof.ancestor.authorization.raw,
-                "ancestor-manifest": proof.ancestor.manifest.raw,
-                "ancestor-authorization-state": proof.ancestor.authorization_state.raw,
-                "ancestor-failure-evidence": proof.ancestor.failure_evidence.raw,
-                "ancestor-original-containment": proof.ancestor.original_containment.raw,
-                "ancestor-containment": proof.ancestor.containment.raw,
-                "ancestor-allocation-ledger": proof.ancestor.allocation_ledger.raw,
-                "ancestor-allocation-audit": proof.ancestor.allocation_audit_bytes,
-            }
-        )
-        if inputs.recovery_cause_evidence is not None:
-            expected["cause-evidence"] = inputs.recovery_cause_evidence.raw
-        if inputs.recovery_cause_source_analysis_bytes is not None:
-            expected["cause-source-analysis"] = (
-                inputs.recovery_cause_source_analysis_bytes
-            )
-    elif legacy is not None:
-        expected.update(
-            {
-                "predecessor-authorization": legacy.authorization.raw,
-                "predecessor-manifest": legacy.manifest.raw,
-                "predecessor-authorization-state": legacy.authorization_state.raw,
-                "predecessor-failure-evidence": legacy.failure_evidence.raw,
-                "predecessor-original-containment": legacy.original_containment.raw,
-                "predecessor-containment": legacy.containment.raw,
-                "predecessor-allocation-ledger": legacy.allocation_ledger.raw,
-                "predecessor-allocation-audit": legacy.allocation_audit_bytes,
-                "cause-evidence": legacy.cause_evidence,
-            }
-        )
+    if inputs.authorization.value.get("version") == 7:
+        expected = generation8_private_source_snapshots(inputs)
+    else:
+        proof = inputs.predecessor_proof
+        if not isinstance(proof, Version5PredecessorProofInputs):
+            raise AppServerError("campaign-historical-proof-input-invalid")
+        expected = {
+            "authorization": inputs.authorization.raw,
+            "campaign-manifest": inputs.manifest.raw,
+            "outer-authority": inputs.outer_authority.raw,
+            "release-patch": inputs.release_patch_bytes,
+            "pre-mutation-steering-receipt": inputs.pre_mutation_receipt.raw,
+            "pre-mutation-adjudication": inputs.pre_mutation_adjudication.raw,
+            "pre-live-steering-receipt": inputs.pre_live_receipt.raw,
+            "pre-live-adjudication": inputs.pre_live_adjudication.raw,
+            "opus-review-evidence": inputs.opus_review_evidence.raw,
+            "opus-adjudication": inputs.opus_adjudication.raw,
+            "spark-validation-receipt": inputs.spark_validation_receipt.raw,
+            "predecessor-authorization": proof.authorization.raw,
+            "predecessor-manifest": proof.manifest.raw,
+            "predecessor-authorization-state": proof.authorization_state.raw,
+            "predecessor-failure-evidence": proof.failure_evidence.raw,
+            "predecessor-containment": proof.containment.raw,
+            "predecessor-allocation-ledger": proof.allocation_ledger.raw,
+            "predecessor-allocation-audit": proof.allocation_audit_bytes,
+            "predecessor-outer-authority": proof.outer_authority.raw,
+            "predecessor-independent-validation-receipt": (
+                proof.independent_validation_receipt.raw
+            ),
+            "predecessor-authorization-cause-evidence": (
+                proof.authorization_cause_evidence
+            ),
+            "ancestor-authorization": proof.ancestor.authorization.raw,
+            "ancestor-manifest": proof.ancestor.manifest.raw,
+            "ancestor-authorization-state": proof.ancestor.authorization_state.raw,
+            "ancestor-failure-evidence": proof.ancestor.failure_evidence.raw,
+            "ancestor-original-containment": (
+                proof.ancestor.original_containment.raw
+            ),
+            "ancestor-containment": proof.ancestor.containment.raw,
+            "ancestor-allocation-ledger": proof.ancestor.allocation_ledger.raw,
+            "ancestor-allocation-audit": proof.ancestor.allocation_audit_bytes,
+            "cause-evidence": inputs.recovery_cause_evidence.raw,
+            "cause-source-analysis": inputs.recovery_cause_source_analysis_bytes,
+        }
     for label, snapshot in expected.items():
         path = paths.get(label)
         expected_identity = inputs.source_identities.get(label)
@@ -4431,7 +4565,10 @@ def validate_campaign_launch_bindings(
         inputs.spark_validation_session_bytes,
     )
     primary_diff_sha256 = guarded_diff_sha256(guarded_primary)
-    validator_sha256 = validator_contract_sha256(
+    proof = require_generation8_launch_inputs(inputs)
+    ancestor = proof.ancestor
+    grandancestor = ancestor.ancestor
+    validator_sha256 = validator_contract_sha256_v2(
         ROOT, manifest.get("candidate", {}).get("tree")
     )
     common_manifest_kwargs = {
@@ -4446,133 +4583,110 @@ def validate_campaign_launch_bindings(
         "repo_root": ROOT,
         "expected_primary_diff_sha256": primary_diff_sha256,
     }
-    predecessor_bindings: dict[str, Any]
-    if manifest.get("version") == 3:
-        errors = validate_campaign_manifest(
-            manifest,
-            predecessor_proof=inputs.predecessor_proof,
-            recovery_cause_evidence=inputs.recovery_cause_evidence,
-            recovery_cause_source_analysis=(
-                inputs.recovery_cause_source_analysis_bytes
-            ),
-            expected_validator_contract_sha256=validator_sha256,
-            **common_manifest_kwargs,
-        )
-        proof = inputs.predecessor_proof
-        cause = inputs.recovery_cause_evidence
-        if (
-            proof is None
-            or cause is None
-            or inputs.legacy_predecessor is not None
-        ):
-            raise AppServerError("campaign-modern-proof-input-invalid")
-        predecessor_bindings = {
-            "predecessor_authorization_file_sha256": proof.authorization.raw_sha256,
-            "predecessor_manifest_file_sha256": proof.manifest.raw_sha256,
-            "predecessor_authorization_state_file_sha256": (
-                proof.authorization_state.raw_sha256
-            ),
-            "predecessor_failure_evidence_file_sha256": proof.failure_evidence.raw_sha256,
-            "predecessor_containment_file_sha256": proof.containment.raw_sha256,
-            "predecessor_allocation_ledger_file_sha256": proof.allocation_ledger.raw_sha256,
-            "predecessor_allocation_audit_file_sha256": sha256_bytes(
-                proof.allocation_audit_bytes
-            ),
-            "predecessor_outer_authority_file_sha256": proof.outer_authority.raw_sha256,
-            "predecessor_independent_validation_receipt_file_sha256": (
-                proof.independent_validation_receipt.raw_sha256
-            ),
-            "predecessor_independent_validation_session_file_sha256": sha256_bytes(
-                proof.independent_validation_session_bytes
-            ),
-            "predecessor_authorization_cause_evidence_file_sha256": sha256_bytes(
-                proof.authorization_cause_evidence
-            ),
-            "predecessor_contained_session_file_sha256s": [
-                sha256_bytes(raw) for raw in proof.contained_session_bytes
-            ],
-            "recovery_cause_evidence_file_sha256": cause.raw_sha256,
-            "recovery_cause_source_analysis_file_sha256": sha256_bytes(
-                inputs.recovery_cause_source_analysis_bytes or b""
-            ),
-            "cause_evidence_file_sha256": cause.raw_sha256,
-            "ancestor_authorization_file_sha256": proof.ancestor.authorization.raw_sha256,
-            "ancestor_manifest_file_sha256": proof.ancestor.manifest.raw_sha256,
-            "ancestor_authorization_state_file_sha256": (
-                proof.ancestor.authorization_state.raw_sha256
-            ),
-            "ancestor_failure_evidence_file_sha256": proof.ancestor.failure_evidence.raw_sha256,
-            "ancestor_original_containment_file_sha256": (
-                proof.ancestor.original_containment.raw_sha256
-            ),
-            "ancestor_containment_file_sha256": proof.ancestor.containment.raw_sha256,
-            "ancestor_allocation_ledger_file_sha256": (
-                proof.ancestor.allocation_ledger.raw_sha256
-            ),
-            "ancestor_allocation_audit_file_sha256": sha256_bytes(
-                proof.ancestor.allocation_audit_bytes
-            ),
-            "ancestor_contained_session_file_sha256s": [
-                sha256_bytes(raw)
-                for raw in proof.ancestor.contained_session_bytes
-            ],
-            "ancestor_cause_evidence_file_sha256": sha256_bytes(
-                proof.ancestor.cause_evidence
-            ),
-            "validator_contract_sha256": validator_sha256,
-        }
-    else:
-        proof = inputs.legacy_predecessor
-        if (
-            proof is None
-            or inputs.predecessor_proof is not None
-            or inputs.recovery_cause_evidence is not None
-        ):
-            raise AppServerError("campaign-legacy-proof-input-invalid")
-        errors = validate_campaign_manifest(
-            manifest,
-            predecessor_authorization=proof.authorization.value,
-            predecessor_authorization_raw_sha256=proof.authorization.raw_sha256,
-            predecessor_manifest=proof.manifest.value,
-            predecessor_manifest_raw_sha256=proof.manifest.raw_sha256,
-            predecessor_authorization_state=proof.authorization_state.value,
-            predecessor_authorization_state_raw_sha256=(
-                proof.authorization_state.raw_sha256
-            ),
-            predecessor_failure_evidence=proof.failure_evidence.value,
-            predecessor_failure_evidence_raw_sha256=proof.failure_evidence.raw_sha256,
-            predecessor_original_containment=proof.original_containment.value,
-            predecessor_original_containment_raw_sha256=(
-                proof.original_containment.raw_sha256
-            ),
-            predecessor_containment=proof.containment.value,
-            predecessor_containment_raw_sha256=proof.containment.raw_sha256,
-            predecessor_allocation_ledger=proof.allocation_ledger.value,
-            predecessor_allocation_ledger_raw_sha256=proof.allocation_ledger.raw_sha256,
-            predecessor_allocation_audit_raw_sha256=sha256_bytes(
-                proof.allocation_audit_bytes
-            ),
-            predecessor_allocation_audit_bytes=proof.allocation_audit_bytes,
-            cause_evidence=proof.cause_evidence,
-            **common_manifest_kwargs,
-        )
-        predecessor_bindings = {
-            "predecessor_authorization_file_sha256": proof.authorization.raw_sha256,
-            "predecessor_manifest_file_sha256": proof.manifest.raw_sha256,
-            "predecessor_authorization_state_file_sha256": (
-                proof.authorization_state.raw_sha256
-            ),
-            "predecessor_failure_evidence_file_sha256": proof.failure_evidence.raw_sha256,
-            "predecessor_original_containment_file_sha256": (
-                proof.original_containment.raw_sha256
-            ),
-            "predecessor_containment_file_sha256": proof.containment.raw_sha256,
-            "predecessor_allocation_ledger_file_sha256": proof.allocation_ledger.raw_sha256,
-            "predecessor_allocation_audit_file_sha256": sha256_bytes(
-                proof.allocation_audit_bytes
-            ),
-            "cause_evidence_file_sha256": sha256_bytes(proof.cause_evidence),
-        }
+    errors = validate_campaign_manifest(
+        manifest,
+        predecessor_proof=proof,
+        recovery_cause_evidence=inputs.recovery_cause_evidence,
+        recovery_cause_source_analysis=inputs.recovery_cause_source_analysis_bytes,
+        expected_validator_contract_sha256=validator_sha256,
+        **common_manifest_kwargs,
+    )
+    predecessor_bindings = {
+        "predecessor_authorization_file_sha256": proof.authorization.raw_sha256,
+        "predecessor_manifest_file_sha256": proof.manifest.raw_sha256,
+        "predecessor_authorization_state_file_sha256": (
+            proof.authorization_state.raw_sha256
+        ),
+        "predecessor_failure_evidence_file_sha256": (
+            proof.failure_evidence.raw_sha256
+        ),
+        "predecessor_containment_file_sha256": proof.containment.raw_sha256,
+        "predecessor_allocation_ledger_file_sha256": (
+            proof.allocation_ledger.raw_sha256
+        ),
+        "predecessor_allocation_audit_file_sha256": sha256_bytes(
+            proof.allocation_audit_bytes
+        ),
+        "predecessor_recovery_cause_evidence_file_sha256": (
+            proof.authorization_recovery_cause_evidence.raw_sha256
+        ),
+        "predecessor_recovery_cause_source_analysis_file_sha256": sha256_bytes(
+            proof.authorization_recovery_cause_source_analysis
+        ),
+        "predecessor_outer_authority_file_sha256": proof.outer_authority.raw_sha256,
+        "predecessor_independent_validation_receipt_file_sha256": (
+            proof.independent_validation_receipt.raw_sha256
+        ),
+        "predecessor_independent_validation_session_file_sha256": sha256_bytes(
+            proof.independent_validation_session_bytes
+        ),
+        "predecessor_contained_session_file_sha256s": [
+            sha256_bytes(raw) for raw in proof.contained_session_bytes
+        ],
+        "ancestor_authorization_file_sha256": ancestor.authorization.raw_sha256,
+        "ancestor_manifest_file_sha256": ancestor.manifest.raw_sha256,
+        "ancestor_authorization_state_file_sha256": (
+            ancestor.authorization_state.raw_sha256
+        ),
+        "ancestor_failure_evidence_file_sha256": (
+            ancestor.failure_evidence.raw_sha256
+        ),
+        "ancestor_containment_file_sha256": ancestor.containment.raw_sha256,
+        "ancestor_allocation_ledger_file_sha256": (
+            ancestor.allocation_ledger.raw_sha256
+        ),
+        "ancestor_allocation_audit_file_sha256": sha256_bytes(
+            ancestor.allocation_audit_bytes
+        ),
+        "ancestor_authorization_cause_evidence_file_sha256": sha256_bytes(
+            ancestor.authorization_cause_evidence
+        ),
+        "ancestor_outer_authority_file_sha256": ancestor.outer_authority.raw_sha256,
+        "ancestor_independent_validation_receipt_file_sha256": (
+            ancestor.independent_validation_receipt.raw_sha256
+        ),
+        "ancestor_independent_validation_session_file_sha256": sha256_bytes(
+            ancestor.independent_validation_session_bytes
+        ),
+        "ancestor_contained_session_file_sha256s": [
+            sha256_bytes(raw) for raw in ancestor.contained_session_bytes
+        ],
+        "grandancestor_authorization_file_sha256": (
+            grandancestor.authorization.raw_sha256
+        ),
+        "grandancestor_manifest_file_sha256": grandancestor.manifest.raw_sha256,
+        "grandancestor_authorization_state_file_sha256": (
+            grandancestor.authorization_state.raw_sha256
+        ),
+        "grandancestor_failure_evidence_file_sha256": (
+            grandancestor.failure_evidence.raw_sha256
+        ),
+        "grandancestor_original_containment_file_sha256": (
+            grandancestor.original_containment.raw_sha256
+        ),
+        "grandancestor_containment_file_sha256": (
+            grandancestor.containment.raw_sha256
+        ),
+        "grandancestor_allocation_ledger_file_sha256": (
+            grandancestor.allocation_ledger.raw_sha256
+        ),
+        "grandancestor_allocation_audit_file_sha256": sha256_bytes(
+            grandancestor.allocation_audit_bytes
+        ),
+        "grandancestor_cause_evidence_file_sha256": sha256_bytes(
+            grandancestor.cause_evidence
+        ),
+        "grandancestor_contained_session_file_sha256s": [
+            sha256_bytes(raw) for raw in grandancestor.contained_session_bytes
+        ],
+        "recovery_cause_evidence_file_sha256": (
+            inputs.recovery_cause_evidence.raw_sha256
+        ),
+        "recovery_cause_source_analysis_file_sha256": sha256_bytes(
+            inputs.recovery_cause_source_analysis_bytes
+        ),
+        "validator_contract_sha256": validator_sha256,
+    }
     if errors:
         raise AppServerError("campaign-manifest-invalid:" + ";".join(errors))
     if manifest.get("control_turn_id") != CONTROL_TURN_ID:
@@ -4643,6 +4757,7 @@ def validate_campaign_launch_bindings(
     }
     if current_policy != manifest["release"]["policy_before"]:
         raise AppServerError("campaign-policy-before-mismatch")
+    all_source_file_sha256s = generation8_source_file_sha256s(inputs)
     return {
         "authorization_raw_sha256": inputs.authorization.raw_sha256,
         "manifest_file_sha256": inputs.manifest.raw_sha256,
@@ -4663,19 +4778,23 @@ def validate_campaign_launch_bindings(
         "opus_adjudication_file_sha256": observed_reviews[
             "opus_adjudication_file_sha256"
         ],
+        "source_file_sha256s": all_source_file_sha256s,
     }
 
 
-def campaign_launch_claim_sha256(
+def campaign_launch_claim_payload(
     inputs: CampaignLaunchInputs,
     *,
     output: Path,
     authorization_state: Path,
     steering_registry: Path,
     allocation_ledger: Path,
-) -> str:
-    """Bind one authorization and all immutable launch inputs to one claim."""
+) -> dict[str, Any]:
+    """Bind every read-once Generation-8 source to the v2 launch claim."""
 
+    proof = require_generation8_launch_inputs(inputs)
+    ancestor = proof.ancestor
+    grandancestor = ancestor.ancestor
     authorization = inputs.authorization.value
     manifest = inputs.manifest.value
     outer = inputs.outer_authority.value
@@ -4694,9 +4813,16 @@ def campaign_launch_claim_sha256(
     bindings = authorization.get("bindings")
     if not isinstance(bindings, Mapping):
         raise AppServerError("campaign-launch-claim-authorization-invalid")
+    source_file_sha256s = generation8_source_file_sha256s(inputs)
     claim = {
         "claim_type": "cwo-native-live-campaign-launch-claim",
-        "version": 1,
+        "version": 2,
+        "authority_semantics": {
+            "durable_one_shot_claim_is_launch_authority": True,
+            "authorization_and_nonce_tombstones_are_permanent": True,
+            "bound_manifest_validation_is_evidence_only": True,
+            "resume_retry_replay_salvage_forbidden": True,
+        },
         "authorization": {
             "authorization_id": authorization.get("authorization_id"),
             "raw_sha256": inputs.authorization.raw_sha256,
@@ -4729,32 +4855,35 @@ def campaign_launch_claim_sha256(
             ),
         },
         "successor_proof": {
+            "proof_dag": ["v7/v4", "v6/v3", "v5/v2", "v4/v1"],
             "recovery_cause_evidence_raw_sha256": (
                 inputs.recovery_cause_evidence.raw_sha256
-                if inputs.recovery_cause_evidence is not None
-                else None
             ),
-            "recovery_cause_source_analysis_sha256": (
-                sha256_bytes(inputs.recovery_cause_source_analysis_bytes)
-                if isinstance(inputs.recovery_cause_source_analysis_bytes, bytes)
-                else None
+            "recovery_cause_source_analysis_sha256": sha256_bytes(
+                inputs.recovery_cause_source_analysis_bytes
             ),
-            "predecessor_contained_session_sha256s": (
-                [
-                    sha256_bytes(raw)
-                    for raw in inputs.predecessor_proof.contained_session_bytes
-                ]
-                if inputs.predecessor_proof is not None
-                else []
+            "predecessor_recovery_cause_evidence_raw_sha256": (
+                proof.authorization_recovery_cause_evidence.raw_sha256
             ),
-            "ancestor_contained_session_sha256s": (
-                [
-                    sha256_bytes(raw)
-                    for raw in inputs.predecessor_proof.ancestor.contained_session_bytes
-                ]
-                if inputs.predecessor_proof is not None
-                else []
+            "predecessor_recovery_cause_source_analysis_sha256": sha256_bytes(
+                proof.authorization_recovery_cause_source_analysis
             ),
+            "ancestor_authorization_cause_evidence_sha256": sha256_bytes(
+                ancestor.authorization_cause_evidence
+            ),
+            "grandancestor_cause_evidence_sha256": sha256_bytes(
+                grandancestor.cause_evidence
+            ),
+            "predecessor_contained_session_sha256s": [
+                sha256_bytes(raw) for raw in proof.contained_session_bytes
+            ],
+            "ancestor_contained_session_sha256s": [
+                sha256_bytes(raw) for raw in ancestor.contained_session_bytes
+            ],
+            "grandancestor_contained_session_sha256s": [
+                sha256_bytes(raw)
+                for raw in grandancestor.contained_session_bytes
+            ],
         },
         "steering": {
             "pre_mutation_receipt_raw_sha256": (
@@ -4767,7 +4896,26 @@ def campaign_launch_claim_sha256(
             "pre_live_receipt_canonical_sha256": inputs.pre_live_receipt.value.get(
                 "canonical_receipt_sha256"
             ),
+            "pre_mutation_adjudication_raw_sha256": (
+                inputs.pre_mutation_adjudication.raw_sha256
+            ),
+            "pre_live_adjudication_raw_sha256": (
+                inputs.pre_live_adjudication.raw_sha256
+            ),
         },
+        "outside_review": {
+            "opus_evidence_raw_sha256": inputs.opus_review_evidence.raw_sha256,
+            "opus_adjudication_raw_sha256": inputs.opus_adjudication.raw_sha256,
+            "exact_model": inputs.opus_review_evidence.value.get("exact_model"),
+            "glm_5_2_used": inputs.opus_review_evidence.value.get("glm_5_2_used"),
+            "model_synthesis_used": inputs.opus_review_evidence.value.get(
+                "model_synthesis_used"
+            ),
+            "main_architect_decision": inputs.opus_adjudication.value.get(
+                "main_architect_decision"
+            ),
+        },
+        "source_file_sha256s": source_file_sha256s,
         "output_basenames": output_basenames,
         "output_paths": {
             "evidence": str(output.resolve(strict=False)),
@@ -4777,7 +4925,79 @@ def campaign_launch_claim_sha256(
         },
         "validator_contract_sha256": bindings.get("validator_contract_sha256"),
     }
-    return domain_sha256(claim, domain="native-live-campaign-launch-claim")
+    return claim
+
+
+def campaign_launch_claim_sha256(
+    inputs: CampaignLaunchInputs,
+    *,
+    output: Path,
+    authorization_state: Path,
+    steering_registry: Path,
+    allocation_ledger: Path,
+) -> str:
+    """Seal one immutable Generation-8 launch claim under the v2 domain."""
+
+    if inputs.authorization.value.get("version") != 7:
+        proof = inputs.predecessor_proof
+        if not isinstance(proof, Version5PredecessorProofInputs):
+            raise AppServerError("campaign-historical-proof-input-invalid")
+        historical_claim = {
+            "claim_type": "cwo-native-live-campaign-launch-claim",
+            "version": 1,
+            "authorization_raw_sha256": inputs.authorization.raw_sha256,
+            "manifest_raw_sha256": inputs.manifest.raw_sha256,
+            "outer_authority_raw_sha256": inputs.outer_authority.raw_sha256,
+            "release_patch_sha256": sha256_bytes(inputs.release_patch_bytes),
+            "pre_mutation_receipt_raw_sha256": (
+                inputs.pre_mutation_receipt.raw_sha256
+            ),
+            "pre_live_receipt_raw_sha256": inputs.pre_live_receipt.raw_sha256,
+            "opus_evidence_raw_sha256": inputs.opus_review_evidence.raw_sha256,
+            "spark_receipt_raw_sha256": (
+                inputs.spark_validation_receipt.raw_sha256
+            ),
+            "spark_session_sha256": sha256_bytes(
+                inputs.spark_validation_session_bytes
+            ),
+            "predecessor_authorization_raw_sha256": proof.authorization.raw_sha256,
+            "predecessor_manifest_raw_sha256": proof.manifest.raw_sha256,
+            "predecessor_contained_session_sha256s": [
+                sha256_bytes(raw) for raw in proof.contained_session_bytes
+            ],
+            "ancestor_contained_session_sha256s": [
+                sha256_bytes(raw) for raw in proof.ancestor.contained_session_bytes
+            ],
+            "recovery_cause_evidence_raw_sha256": (
+                inputs.recovery_cause_evidence.raw_sha256
+                if inputs.recovery_cause_evidence is not None
+                else None
+            ),
+            "recovery_cause_source_analysis_sha256": (
+                sha256_bytes(inputs.recovery_cause_source_analysis_bytes)
+                if inputs.recovery_cause_source_analysis_bytes is not None
+                else None
+            ),
+            "output_paths": {
+                "evidence": str(output.resolve(strict=False)),
+                "authorization_state": str(
+                    authorization_state.resolve(strict=False)
+                ),
+                "steering_registry": str(steering_registry.resolve(strict=False)),
+                "allocation_ledger": str(allocation_ledger.resolve(strict=False)),
+            },
+        }
+        return domain_sha256(
+            historical_claim, domain="native-live-campaign-launch-claim"
+        )
+    claim = campaign_launch_claim_payload(
+        inputs,
+        output=output,
+        authorization_state=authorization_state,
+        steering_registry=steering_registry,
+        allocation_ledger=allocation_ledger,
+    )
+    return domain_sha256(claim, domain="native-live-campaign-launch-claim-v2")
 
 
 def safe_allocation_ledger_summary(
@@ -4799,10 +5019,71 @@ def require_operative_campaign_contract(
 ) -> None:
     """Keep historical contracts inspectable but outside the live launcher."""
 
-    if authorization_version != 6:
+    if authorization_version != 7:
         raise AppServerError("campaign-authorization-version-historical-only")
-    if manifest_version != 3:
+    if manifest_version != 4:
         raise AppServerError("campaign-contract-version-mismatch")
+
+
+GENERATION8_REQUIRED_PROOF_PATHS = {
+    "predecessor-authorization",
+    "predecessor-manifest",
+    "predecessor-authorization-state",
+    "predecessor-failure-evidence",
+    "predecessor-containment",
+    "predecessor-allocation-ledger",
+    "predecessor-allocation-audit",
+    "predecessor-outer-authority",
+    "predecessor-independent-validation-receipt",
+    "predecessor-independent-validation-session",
+    "predecessor-recovery-cause-evidence",
+    "predecessor-recovery-cause-source-analysis",
+    "ancestor-authorization",
+    "ancestor-manifest",
+    "ancestor-authorization-state",
+    "ancestor-failure-evidence",
+    "ancestor-containment",
+    "ancestor-allocation-ledger",
+    "ancestor-allocation-audit",
+    "ancestor-outer-authority",
+    "ancestor-independent-validation-receipt",
+    "ancestor-independent-validation-session",
+    "ancestor-authorization-cause-evidence",
+    "grandancestor-authorization",
+    "grandancestor-manifest",
+    "grandancestor-authorization-state",
+    "grandancestor-failure-evidence",
+    "grandancestor-original-containment",
+    "grandancestor-containment",
+    "grandancestor-allocation-ledger",
+    "grandancestor-allocation-audit",
+    "cause-evidence",
+    "cause-source-analysis",
+}
+GENERATION8_FORBIDDEN_MIXED_PROOF_PATHS = {
+    "predecessor-original-containment",
+    "predecessor-authorization-cause-evidence",
+    "ancestor-original-containment",
+}
+
+
+def require_generation8_proof_path_set(
+    paths: Mapping[str, Path],
+    *,
+    predecessor_contained_sessions: int,
+    ancestor_contained_sessions: int,
+    grandancestor_contained_sessions: int,
+) -> None:
+    """Reject an incomplete, historical, or mixed proof before allocation."""
+
+    if (
+        not GENERATION8_REQUIRED_PROOF_PATHS.issubset(paths)
+        or GENERATION8_FORBIDDEN_MIXED_PROOF_PATHS.intersection(paths)
+        or predecessor_contained_sessions < 1
+        or ancestor_contained_sessions < 1
+        or grandancestor_contained_sessions < 1
+    ):
+        raise AppServerError("campaign-generation8-proof-path-set-invalid")
 
 
 def main() -> int:
@@ -4822,6 +5103,8 @@ def main() -> int:
     parser.add_argument("--predecessor-outer-authority", type=Path)
     parser.add_argument("--predecessor-independent-validation-receipt", type=Path)
     parser.add_argument("--predecessor-independent-validation-session", type=Path)
+    parser.add_argument("--predecessor-recovery-cause-evidence", type=Path)
+    parser.add_argument("--predecessor-recovery-cause-source-analysis", type=Path)
     parser.add_argument("--predecessor-authorization-cause-evidence", type=Path)
     parser.add_argument(
         "--predecessor-contained-session", type=Path, action="append"
@@ -4834,7 +5117,22 @@ def main() -> int:
     parser.add_argument("--ancestor-containment", type=Path)
     parser.add_argument("--ancestor-allocation-ledger", type=Path)
     parser.add_argument("--ancestor-allocation-audit", type=Path)
+    parser.add_argument("--ancestor-outer-authority", type=Path)
+    parser.add_argument("--ancestor-independent-validation-receipt", type=Path)
+    parser.add_argument("--ancestor-independent-validation-session", type=Path)
+    parser.add_argument("--ancestor-authorization-cause-evidence", type=Path)
     parser.add_argument("--ancestor-contained-session", type=Path, action="append")
+    parser.add_argument("--grandancestor-authorization", type=Path)
+    parser.add_argument("--grandancestor-manifest", type=Path)
+    parser.add_argument("--grandancestor-authorization-state", type=Path)
+    parser.add_argument("--grandancestor-failure-evidence", type=Path)
+    parser.add_argument("--grandancestor-original-containment", type=Path)
+    parser.add_argument("--grandancestor-containment", type=Path)
+    parser.add_argument("--grandancestor-allocation-ledger", type=Path)
+    parser.add_argument("--grandancestor-allocation-audit", type=Path)
+    parser.add_argument(
+        "--grandancestor-contained-session", type=Path, action="append"
+    )
     parser.add_argument("--cause-evidence", type=Path, required=True)
     parser.add_argument("--cause-source-analysis", type=Path)
     parser.add_argument("--guarded-primary", type=Path, required=True)
@@ -4895,6 +5193,12 @@ def main() -> int:
             "predecessor-independent-validation-session": (
                 args.predecessor_independent_validation_session
             ),
+            "predecessor-recovery-cause-evidence": (
+                args.predecessor_recovery_cause_evidence
+            ),
+            "predecessor-recovery-cause-source-analysis": (
+                args.predecessor_recovery_cause_source_analysis
+            ),
             "predecessor-authorization-cause-evidence": (
                 args.predecessor_authorization_cause_evidence
             ),
@@ -4906,6 +5210,34 @@ def main() -> int:
             "ancestor-containment": args.ancestor_containment,
             "ancestor-allocation-ledger": args.ancestor_allocation_ledger,
             "ancestor-allocation-audit": args.ancestor_allocation_audit,
+            "ancestor-outer-authority": args.ancestor_outer_authority,
+            "ancestor-independent-validation-receipt": (
+                args.ancestor_independent_validation_receipt
+            ),
+            "ancestor-independent-validation-session": (
+                args.ancestor_independent_validation_session
+            ),
+            "ancestor-authorization-cause-evidence": (
+                args.ancestor_authorization_cause_evidence
+            ),
+            "grandancestor-authorization": args.grandancestor_authorization,
+            "grandancestor-manifest": args.grandancestor_manifest,
+            "grandancestor-authorization-state": (
+                args.grandancestor_authorization_state
+            ),
+            "grandancestor-failure-evidence": (
+                args.grandancestor_failure_evidence
+            ),
+            "grandancestor-original-containment": (
+                args.grandancestor_original_containment
+            ),
+            "grandancestor-containment": args.grandancestor_containment,
+            "grandancestor-allocation-ledger": (
+                args.grandancestor_allocation_ledger
+            ),
+            "grandancestor-allocation-audit": (
+                args.grandancestor_allocation_audit
+            ),
             "cause-source-analysis": args.cause_source_analysis,
         }
         path_arguments.update(
@@ -4927,6 +5259,14 @@ def main() -> int:
             {
                 f"ancestor-contained-session-{index}": path
                 for index, path in enumerate(args.ancestor_contained_session or [])
+            }
+        )
+        path_arguments.update(
+            {
+                f"grandancestor-contained-session-{index}": path
+                for index, path in enumerate(
+                    args.grandancestor_contained_session or []
+                )
             }
         )
         paths = require_unique_input_paths(path_arguments)
@@ -4962,36 +5302,16 @@ def main() -> int:
         manifest = dict(manifest_snapshot.value)
         version = authorization.get("version")
         require_operative_campaign_contract(version, manifest.get("version"))
-        modern_labels = {
-            "predecessor-outer-authority",
-            "predecessor-independent-validation-receipt",
-            "predecessor-independent-validation-session",
-            "predecessor-authorization-cause-evidence",
-            "ancestor-authorization",
-            "ancestor-manifest",
-            "ancestor-authorization-state",
-            "ancestor-failure-evidence",
-            "ancestor-original-containment",
-            "ancestor-containment",
-            "ancestor-allocation-ledger",
-            "ancestor-allocation-audit",
-            "cause-source-analysis",
-        }
-        if version == 6:
-            if (
-                "predecessor-original-containment" in paths
-                or not modern_labels.issubset(paths)
-                or not args.predecessor_contained_session
-                or not args.ancestor_contained_session
-            ):
-                raise AppServerError("campaign-modern-proof-path-set-invalid")
-        elif (
-            "predecessor-original-containment" not in paths
-            or modern_labels.intersection(paths)
-            or args.predecessor_contained_session
-            or args.ancestor_contained_session
-        ):
-            raise AppServerError("campaign-legacy-proof-path-set-invalid")
+        require_generation8_proof_path_set(
+            paths,
+            predecessor_contained_sessions=len(
+                args.predecessor_contained_session or []
+            ),
+            ancestor_contained_sessions=len(args.ancestor_contained_session or []),
+            grandancestor_contained_sessions=len(
+                args.grandancestor_contained_session or []
+            ),
+        )
 
         predecessor_common = {
             label: private_json_snapshot(label)
@@ -5004,102 +5324,107 @@ def main() -> int:
                 "predecessor-allocation-ledger",
             )
         }
-        predecessor_audit_bytes = private_bytes_snapshot(
-            "predecessor-allocation-audit"
+        ancestor_authorization_cause = private_bytes_snapshot(
+            "ancestor-authorization-cause-evidence"
         )
-        legacy_predecessor: HistoricalV4V1ProofInputs | None = None
-        predecessor_proof: Version5PredecessorProofInputs | None = None
-        recovery_cause_evidence: JsonArtifactSnapshot | None = None
-        recovery_cause_source_analysis_bytes: bytes | None = None
-        if version == 6:
-            authorization_cause_evidence = private_bytes_snapshot(
-                "predecessor-authorization-cause-evidence"
-            )
-            ancestor = HistoricalV4V1ProofInputs(
-                authorization=private_json_snapshot("ancestor-authorization"),
-                manifest=private_json_snapshot("ancestor-manifest"),
-                authorization_state=private_json_snapshot(
-                    "ancestor-authorization-state"
-                ),
-                failure_evidence=private_json_snapshot(
-                    "ancestor-failure-evidence"
-                ),
-                original_containment=private_json_snapshot(
-                    "ancestor-original-containment"
-                ),
-                containment=private_json_snapshot("ancestor-containment"),
-                allocation_ledger=private_json_snapshot(
-                    "ancestor-allocation-ledger"
-                ),
-                allocation_audit_bytes=private_bytes_snapshot(
-                    "ancestor-allocation-audit"
-                ),
-                cause_evidence=authorization_cause_evidence,
-                contained_session_bytes=tuple(
-                    trusted_session_snapshot(
-                        f"ancestor-contained-session-{index}"
-                    )
-                    for index in range(len(args.ancestor_contained_session or []))
-                ),
-            )
-            predecessor_proof = Version5PredecessorProofInputs(
-                authorization=predecessor_common["predecessor-authorization"],
-                manifest=predecessor_common["predecessor-manifest"],
-                authorization_state=predecessor_common[
-                    "predecessor-authorization-state"
-                ],
-                failure_evidence=predecessor_common[
-                    "predecessor-failure-evidence"
-                ],
-                containment=predecessor_common["predecessor-containment"],
-                allocation_ledger=predecessor_common[
-                    "predecessor-allocation-ledger"
-                ],
-                allocation_audit_bytes=predecessor_audit_bytes,
-                authorization_cause_evidence=authorization_cause_evidence,
-                outer_authority=private_json_snapshot(
-                    "predecessor-outer-authority"
-                ),
-                independent_validation_receipt=private_json_snapshot(
-                    "predecessor-independent-validation-receipt"
-                ),
-                independent_validation_session_bytes=trusted_session_snapshot(
-                    "predecessor-independent-validation-session"
-                ),
-                ancestor=ancestor,
-                contained_session_bytes=tuple(
-                    trusted_session_snapshot(
-                        f"predecessor-contained-session-{index}"
-                    )
-                    for index in range(
-                        len(args.predecessor_contained_session or [])
-                    )
-                ),
-            )
-            recovery_cause_evidence = private_json_snapshot("cause-evidence")
-            recovery_cause_source_analysis_bytes = private_bytes_snapshot(
-                "cause-source-analysis"
-            )
-        else:
-            legacy_predecessor = HistoricalV4V1ProofInputs(
-                authorization=predecessor_common["predecessor-authorization"],
-                manifest=predecessor_common["predecessor-manifest"],
-                authorization_state=predecessor_common[
-                    "predecessor-authorization-state"
-                ],
-                failure_evidence=predecessor_common[
-                    "predecessor-failure-evidence"
-                ],
-                original_containment=private_json_snapshot(
-                    "predecessor-original-containment"
-                ),
-                containment=predecessor_common["predecessor-containment"],
-                allocation_ledger=predecessor_common[
-                    "predecessor-allocation-ledger"
-                ],
-                allocation_audit_bytes=predecessor_audit_bytes,
-                cause_evidence=private_bytes_snapshot("cause-evidence"),
-            )
+        grandancestor = HistoricalV4V1ProofInputs(
+            authorization=private_json_snapshot("grandancestor-authorization"),
+            manifest=private_json_snapshot("grandancestor-manifest"),
+            authorization_state=private_json_snapshot(
+                "grandancestor-authorization-state"
+            ),
+            failure_evidence=private_json_snapshot(
+                "grandancestor-failure-evidence"
+            ),
+            original_containment=private_json_snapshot(
+                "grandancestor-original-containment"
+            ),
+            containment=private_json_snapshot("grandancestor-containment"),
+            allocation_ledger=private_json_snapshot(
+                "grandancestor-allocation-ledger"
+            ),
+            allocation_audit_bytes=private_bytes_snapshot(
+                "grandancestor-allocation-audit"
+            ),
+            cause_evidence=ancestor_authorization_cause,
+            contained_session_bytes=tuple(
+                trusted_session_snapshot(
+                    f"grandancestor-contained-session-{index}"
+                )
+                for index in range(
+                    len(args.grandancestor_contained_session or [])
+                )
+            ),
+        )
+        ancestor = Version5PredecessorProofInputs(
+            authorization=private_json_snapshot("ancestor-authorization"),
+            manifest=private_json_snapshot("ancestor-manifest"),
+            authorization_state=private_json_snapshot(
+                "ancestor-authorization-state"
+            ),
+            failure_evidence=private_json_snapshot("ancestor-failure-evidence"),
+            containment=private_json_snapshot("ancestor-containment"),
+            allocation_ledger=private_json_snapshot(
+                "ancestor-allocation-ledger"
+            ),
+            allocation_audit_bytes=private_bytes_snapshot(
+                "ancestor-allocation-audit"
+            ),
+            authorization_cause_evidence=ancestor_authorization_cause,
+            outer_authority=private_json_snapshot("ancestor-outer-authority"),
+            independent_validation_receipt=private_json_snapshot(
+                "ancestor-independent-validation-receipt"
+            ),
+            independent_validation_session_bytes=trusted_session_snapshot(
+                "ancestor-independent-validation-session"
+            ),
+            ancestor=grandancestor,
+            contained_session_bytes=tuple(
+                trusted_session_snapshot(f"ancestor-contained-session-{index}")
+                for index in range(len(args.ancestor_contained_session or []))
+            ),
+        )
+        predecessor_proof = Version6PredecessorProofInputs(
+            authorization=predecessor_common["predecessor-authorization"],
+            manifest=predecessor_common["predecessor-manifest"],
+            authorization_state=predecessor_common[
+                "predecessor-authorization-state"
+            ],
+            failure_evidence=predecessor_common["predecessor-failure-evidence"],
+            containment=predecessor_common["predecessor-containment"],
+            allocation_ledger=predecessor_common[
+                "predecessor-allocation-ledger"
+            ],
+            allocation_audit_bytes=private_bytes_snapshot(
+                "predecessor-allocation-audit"
+            ),
+            authorization_recovery_cause_evidence=private_json_snapshot(
+                "predecessor-recovery-cause-evidence"
+            ),
+            authorization_recovery_cause_source_analysis=private_bytes_snapshot(
+                "predecessor-recovery-cause-source-analysis"
+            ),
+            outer_authority=private_json_snapshot("predecessor-outer-authority"),
+            independent_validation_receipt=private_json_snapshot(
+                "predecessor-independent-validation-receipt"
+            ),
+            independent_validation_session_bytes=trusted_session_snapshot(
+                "predecessor-independent-validation-session"
+            ),
+            ancestor=ancestor,
+            contained_session_bytes=tuple(
+                trusted_session_snapshot(
+                    f"predecessor-contained-session-{index}"
+                )
+                for index in range(
+                    len(args.predecessor_contained_session or [])
+                )
+            ),
+        )
+        recovery_cause_evidence = private_json_snapshot("cause-evidence")
+        recovery_cause_source_analysis_bytes = private_bytes_snapshot(
+            "cause-source-analysis"
+        )
 
         launch_inputs = CampaignLaunchInputs(
             authorization=authorization_snapshot,
@@ -5127,7 +5452,6 @@ def main() -> int:
             spark_validation_session_bytes=trusted_session_snapshot(
                 "spark-validation-session"
             ),
-            legacy_predecessor=legacy_predecessor,
             predecessor_proof=predecessor_proof,
             recovery_cause_evidence=recovery_cause_evidence,
             recovery_cause_source_analysis_bytes=(
@@ -5136,61 +5460,17 @@ def main() -> int:
             source_identities=source_identities,
         )
         authorization_sha256 = launch_inputs.authorization.raw_sha256
-        if version == 6:
-            authorization_id, repo_head = validate_full_auto_authorization(
-                authorization,
-                args.campaign_nonce,
-                predecessor_proof=predecessor_proof,
-                recovery_cause_evidence=recovery_cause_evidence,
-                recovery_cause_source_analysis=(
-                    recovery_cause_source_analysis_bytes
-                ),
-                expected_validator_contract_sha256=validator_contract_sha256(
-                    ROOT, authorization.get("bindings", {}).get("checkpoint_tree")
-                ),
-                repo_root=ROOT,
-            )
-        else:
-            if legacy_predecessor is None:
-                raise AppServerError("campaign-legacy-proof-input-invalid")
-            authorization_id, repo_head = validate_full_auto_authorization(
-                authorization,
-                args.campaign_nonce,
-                predecessor_authorization=legacy_predecessor.authorization.value,
-                predecessor_authorization_raw_sha256=(
-                    legacy_predecessor.authorization.raw_sha256
-                ),
-                predecessor_manifest=legacy_predecessor.manifest.value,
-                predecessor_manifest_raw_sha256=legacy_predecessor.manifest.raw_sha256,
-                predecessor_authorization_state=legacy_predecessor.authorization_state.value,
-                predecessor_authorization_state_raw_sha256=(
-                    legacy_predecessor.authorization_state.raw_sha256
-                ),
-                predecessor_failure_evidence=legacy_predecessor.failure_evidence.value,
-                predecessor_failure_evidence_raw_sha256=(
-                    legacy_predecessor.failure_evidence.raw_sha256
-                ),
-                predecessor_original_containment=legacy_predecessor.original_containment.value,
-                predecessor_original_containment_raw_sha256=(
-                    legacy_predecessor.original_containment.raw_sha256
-                ),
-                predecessor_containment=legacy_predecessor.containment.value,
-                predecessor_containment_raw_sha256=(
-                    legacy_predecessor.containment.raw_sha256
-                ),
-                predecessor_allocation_ledger=legacy_predecessor.allocation_ledger.value,
-                predecessor_allocation_ledger_raw_sha256=(
-                    legacy_predecessor.allocation_ledger.raw_sha256
-                ),
-                predecessor_allocation_audit_raw_sha256=sha256_bytes(
-                    legacy_predecessor.allocation_audit_bytes
-                ),
-                predecessor_allocation_audit_bytes=(
-                    legacy_predecessor.allocation_audit_bytes
-                ),
-                cause_evidence=legacy_predecessor.cause_evidence,
-                repo_root=ROOT,
-            )
+        authorization_id, repo_head = validate_full_auto_authorization(
+            authorization,
+            args.campaign_nonce,
+            predecessor_proof=predecessor_proof,
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis_bytes,
+            expected_validator_contract_sha256=validator_contract_sha256_v2(
+                ROOT, authorization.get("bindings", {}).get("checkpoint_tree")
+            ),
+            repo_root=ROOT,
+        )
 
         outer_authority = dict(launch_inputs.outer_authority.value)
         pre_mutation_receipt = dict(launch_inputs.pre_mutation_receipt.value)
@@ -5225,31 +5505,25 @@ def main() -> int:
             require_private_parent(path, label)
             if path in set(paths.values()):
                 raise AppServerError("campaign-output-input-path-collision")
-        launch_claim_sha256 = (
-            campaign_launch_claim_sha256(
-                launch_inputs,
-                output=output,
-                authorization_state=state_path,
-                steering_registry=registry_path,
-                allocation_ledger=ledger_path,
-            )
-            if version == 6
-            else None
+        launch_claim_sha256 = campaign_launch_claim_sha256(
+            launch_inputs,
+            output=output,
+            authorization_state=state_path,
+            steering_registry=registry_path,
+            allocation_ledger=ledger_path,
         )
-        expected_bound_manifest_validation: dict[str, Any] | None = None
-        if launch_claim_sha256 is not None:
-            artifact_bindings["launch_claim_sha256"] = launch_claim_sha256
-            expected_bound_manifest_validation = seal_bound_manifest_validation(
-                manifest, artifact_bindings
-            )
-            campaign_reservation = acquire_global_campaign_claim(
-                launch_inputs,
-                launch_claim_sha256=launch_claim_sha256,
-                output=output,
-                authorization_state=state_path,
-                steering_registry=registry_path,
-                allocation_ledger=ledger_path,
-            )
+        artifact_bindings["launch_claim_sha256"] = launch_claim_sha256
+        expected_bound_manifest_validation = seal_bound_manifest_validation(
+            manifest, artifact_bindings
+        )
+        campaign_reservation = acquire_global_campaign_claim(
+            launch_inputs,
+            launch_claim_sha256=launch_claim_sha256,
+            output=output,
+            authorization_state=state_path,
+            steering_registry=registry_path,
+            allocation_ledger=ledger_path,
+        )
         authorization_store = CanaryAuthorizationStore(state_path)
         authorization_state = authorization_store.initialize(
             new_authorization_state(
@@ -5313,16 +5587,14 @@ def main() -> int:
                 raise AppServerError(
                     "campaign-artifact-binding-changed-before-thread-start"
                 )
-            if version == 6:
-                refreshed_receipt = seal_bound_manifest_validation(
-                    manifest, refreshed_bindings
+            refreshed_receipt = seal_bound_manifest_validation(
+                manifest, refreshed_bindings
+            )
+            if refreshed_receipt != expected_bound_manifest_validation:
+                raise AppServerError(
+                    "campaign-bound-validation-changed-before-thread-start"
                 )
-                if refreshed_receipt != expected_bound_manifest_validation:
-                    raise AppServerError(
-                        "campaign-bound-validation-changed-before-thread-start"
-                    )
-                return refreshed_receipt
-            return None
+            return refreshed_receipt
 
         with tempfile.TemporaryDirectory(prefix="cwo-18w6-live-") as temporary:
             temp_root = Path(temporary)
@@ -5356,13 +5628,10 @@ def main() -> int:
                 != manifest["candidate"]["tree"]
                 or guarded_diff_sha256(args.guarded_primary.absolute())
                 != artifact_bindings["guarded_primary_diff_sha256"]
-                or (
-                    version == 6
-                    and validator_contract_sha256(
-                        ROOT, manifest["candidate"]["tree"]
-                    )
-                    != artifact_bindings["validator_contract_sha256"]
+                or validator_contract_sha256_v2(
+                    ROOT, manifest["candidate"]["tree"]
                 )
+                != artifact_bindings["validator_contract_sha256"]
             ):
                 raise AppServerError("campaign-watermark-changed-before-allocation")
             require_repository_checkpoint(ROOT, manifest["candidate"]["commit"])
@@ -5415,16 +5684,15 @@ def main() -> int:
             )
             server.attach_allocation_ledger(allocation_ledger)
             require_launch_source_snapshots_unchanged(paths, launch_inputs)
-            if version == 6:
-                if campaign_reservation is None:
-                    raise AppServerError("scope-campaign-reservation-missing")
-                transition_global_campaign_state(
-                    campaign_reservation,
-                    "active",
-                    outer_authority=launch_inputs.outer_authority,
-                    candidate_commit=manifest["candidate"]["commit"],
-                    candidate_tree=manifest["candidate"]["tree"],
-                )
+            if campaign_reservation is None:
+                raise AppServerError("scope-campaign-reservation-missing")
+            transition_global_campaign_state(
+                campaign_reservation,
+                "active",
+                outer_authority=launch_inputs.outer_authority,
+                candidate_commit=manifest["candidate"]["commit"],
+                candidate_tree=manifest["candidate"]["tree"],
+            )
             require_bound_campaign_inputs_before_thread_start()
             capability, calibration_evidence = calibration(
                 server,
