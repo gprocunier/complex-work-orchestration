@@ -1278,6 +1278,35 @@ class Generation12ContractTests(unittest.TestCase):
             ["operative-version-tuple-malformed"],
         )
 
+    def test_v11_common_shadow_projects_only_legacy_allowed_actions(self) -> None:
+        supersession = {
+            "prior_authorization_id": str(uuid.uuid4()),
+            "prior_terminal_state": "containment-only",
+            "prior_live_generation": 11,
+            "prior_allocations": 1,
+            "prior_ambiguities": 0,
+            "prior_allowed_actions": 8,
+            "reuse_resume_retry_substitution_salvage_bridge": False,
+        }
+        authorization = {
+            "version": CONTRACTS.AUTHORIZATION_VERSION_V11,
+            "schema": CONTRACTS.AUTHORIZATION_SCHEMA_V11,
+            "bindings": {},
+            "mandatory_gates": {},
+            "progress_gate": {},
+            "supersession": supersession,
+        }
+        original = deepcopy(authorization)
+
+        shadow = CONTRACTS._v11_common_shadow(authorization)
+
+        self.assertEqual(authorization, original)
+        self.assertEqual(authorization["supersession"]["prior_allowed_actions"], 8)
+        self.assertEqual(shadow["supersession"]["prior_allowed_actions"], 0)
+        expected_shadow_supersession = deepcopy(supersession)
+        expected_shadow_supersession["prior_allowed_actions"] = 0
+        self.assertEqual(shadow["supersession"], expected_shadow_supersession)
+
     def test_malformed_v11_v8_inputs_fail_closed(self) -> None:
         for malformed in ({}, [], "11", True, None):
             with self.subTest(authorization=malformed):
