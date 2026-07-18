@@ -8,7 +8,11 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from .native_live_campaign_contracts import validate_campaign_manifest
+from .native_live_campaign_contracts import (
+    MANIFEST_VERSION,
+    MANIFEST_VERSION_V3,
+    validate_campaign_manifest,
+)
 from .native_control import validate_control_turn_contract
 from .native_pool_contracts import (
     CAPABILITY_CERTIFICATION_ENVELOPE,
@@ -25,6 +29,7 @@ from .native_pool_contracts import (
     POOL_POLL_INTERVAL_MS,
     POOL_POLL_LAG_TOLERANCE_MS,
     VERSION,
+    canonical_sha256,
     callback_certification_policy_sha256,
     seal_artifact,
     validate_capability_receipt,
@@ -87,6 +92,21 @@ _STATE_BINDING_FIELDS = {
     "control_adapter",
     "required_capabilities",
 }
+BOUND_MANIFEST_VALIDATION_TYPE = "cwo-bound-campaign-manifest-validation"
+BOUND_MANIFEST_VALIDATION_VERSION = 1
+BOUND_MANIFEST_VALIDATION_FIELDS = {
+    "validation_type",
+    "version",
+    "manifest_id",
+    "manifest_sha256",
+    "authorization_id",
+    "control_turn_id",
+    "candidate_commit",
+    "candidate_tree",
+    "launch_claim_sha256",
+    "artifact_bindings_sha256",
+    "validation_sha256",
+}
 
 
 class NativePoolConfigError(ValueError):
@@ -117,6 +137,136 @@ def _aware_datetime(value: Any) -> bool:
     except ValueError:
         return False
     return parsed.tzinfo is not None
+
+
+def seal_bound_manifest_validation(
+    campaign_manifest: Mapping[str, Any],
+    artifact_bindings: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Seal the result of the launcher's complete v3 binding validation.
+
+    This record is evidence from the trusted launch callback, not a replacement
+    for that callback.  The shared pool renderer consumes it so a v3 manifest is
+    never revalidated without the authorization and predecessor proof inputs.
+    """
+
+    candidate = campaign_manifest.get("candidate")
+    if (
+        campaign_manifest.get("version") != MANIFEST_VERSION_V3
+        or not isinstance(candidate, Mapping)
+    ):
+        raise NativePoolConfigError("bound-manifest-validation-source-invalid")
+    launch_claim_sha256 = artifact_bindings.get("launch_claim_sha256")
+    if not _sha256(launch_claim_sha256):
+        raise NativePoolConfigError("bound-manifest-validation-launch-claim-invalid")
+    receipt = {
+        "validation_type": BOUND_MANIFEST_VALIDATION_TYPE,
+        "version": BOUND_MANIFEST_VALIDATION_VERSION,
+        "manifest_id": campaign_manifest.get("manifest_id"),
+        "manifest_sha256": campaign_manifest.get("manifest_sha256"),
+        "authorization_id": campaign_manifest.get("authorization_id"),
+        "control_turn_id": campaign_manifest.get("control_turn_id"),
+        "candidate_commit": candidate.get("commit"),
+        "candidate_tree": candidate.get("tree"),
+        "launch_claim_sha256": launch_claim_sha256,
+        "artifact_bindings_sha256": canonical_sha256(dict(artifact_bindings)),
+    }
+    receipt["validation_sha256"] = canonical_sha256(receipt)
+    errors = validate_bound_manifest_validation(receipt, campaign_manifest)
+    if errors:
+        raise NativePoolConfigError(
+            "bound-manifest-validation-invalid:" + ";".join(errors)
+        )
+    return receipt
+
+
+def validate_bound_manifest_validation(
+    value: Any,
+    campaign_manifest: Mapping[str, Any],
+) -> list[str]:
+    """Validate an exact full-binding receipt against the current v3 manifest."""
+
+    errors: list[str] = []
+    receipt = _strict_fields(
+        value,
+        BOUND_MANIFEST_VALIDATION_FIELDS,
+        "bound-manifest-validation",
+        errors,
+    )
+    if receipt is None:
+        return errors
+    if (
+        receipt.get("validation_type") != BOUND_MANIFEST_VALIDATION_TYPE
+        or receipt.get("version") != BOUND_MANIFEST_VALIDATION_VERSION
+    ):
+        errors.append("bound-manifest-validation-header-invalid")
+    candidate = campaign_manifest.get("candidate")
+    expected = {
+        "manifest_id": campaign_manifest.get("manifest_id"),
+        "manifest_sha256": campaign_manifest.get("manifest_sha256"),
+        "authorization_id": campaign_manifest.get("authorization_id"),
+        "control_turn_id": campaign_manifest.get("control_turn_id"),
+        "candidate_commit": (
+            candidate.get("commit") if isinstance(candidate, Mapping) else None
+        ),
+        "candidate_tree": (
+            candidate.get("tree") if isinstance(candidate, Mapping) else None
+        ),
+    }
+    if any(receipt.get(field) != expected_value for field, expected_value in expected.items()):
+        errors.append("bound-manifest-validation-binding-mismatch")
+    for field in (
+        "manifest_sha256",
+        "launch_claim_sha256",
+        "artifact_bindings_sha256",
+        "validation_sha256",
+    ):
+        if not _sha256(receipt.get(field)):
+            errors.append(f"bound-manifest-validation-{field.replace('_', '-')}-invalid")
+    unsigned = dict(receipt)
+    unsigned.pop("validation_sha256", None)
+    if receipt.get("validation_sha256") != canonical_sha256(unsigned):
+        errors.append("bound-manifest-validation-sha256-mismatch")
+    return sorted(set(errors))
+
+
+def validate_live_canary_manifest_gate(
+    campaign_manifest: Mapping[str, Any],
+    bound_manifest_validation: Mapping[str, Any] | None,
+    expected_bound_manifest_validation: Mapping[str, Any] | None,
+) -> list[str]:
+    """Validate the manifest gate that must run before any live allocation."""
+
+    manifest_version = campaign_manifest.get("version")
+    if manifest_version == MANIFEST_VERSION_V3:
+        errors: list[str] = []
+        for label, receipt in (
+            ("observed", bound_manifest_validation),
+            ("expected", expected_bound_manifest_validation),
+        ):
+            errors.extend(
+                f"{label}:{item}"
+                for item in validate_bound_manifest_validation(
+                    receipt,
+                    campaign_manifest,
+                )
+            )
+        if (
+            isinstance(bound_manifest_validation, Mapping)
+            and isinstance(expected_bound_manifest_validation, Mapping)
+            and dict(bound_manifest_validation)
+            != dict(expected_bound_manifest_validation)
+        ):
+            errors.append("observed-expected-receipt-mismatch")
+        return sorted(set(errors))
+    if manifest_version == MANIFEST_VERSION:
+        if (
+            bound_manifest_validation is not None
+            or expected_bound_manifest_validation is not None
+        ):
+            return ["campaign-manifest-v2-bound-validation-forbidden"]
+        return validate_campaign_manifest(campaign_manifest)
+    return ["campaign-manifest-version-invalid"]
 
 
 def _strict_fields(value: Any, expected: set[str], prefix: str, errors: list[str]) -> Mapping[str, Any] | None:
@@ -539,15 +689,26 @@ def build_live_canary_pool_contract(
     *,
     campaign_manifest: Mapping[str, Any],
     capability_receipt: Mapping[str, Any],
+    bound_manifest_validation: Mapping[str, Any] | None = None,
+    expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     owner_pid: int | None = None,
     now: dt.datetime | None = None,
     policy_document: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Render the one manifest-bound cap-two canary before operative release."""
-    manifest_errors = validate_campaign_manifest(campaign_manifest)
+    manifest_errors = validate_live_canary_manifest_gate(
+        campaign_manifest,
+        bound_manifest_validation,
+        expected_bound_manifest_validation,
+    )
     if manifest_errors:
+        error_prefix = (
+            "campaign-manifest-bound-validation-invalid"
+            if campaign_manifest.get("version") == MANIFEST_VERSION_V3
+            else "campaign-manifest-invalid"
+        )
         raise NativePoolConfigError(
-            "campaign-manifest-invalid:" + ";".join(manifest_errors)
+            error_prefix + ":" + ";".join(manifest_errors)
         )
     if request.get("max_active_workers") != 2:
         raise NativePoolConfigError("live-canary-requires-cap-two")

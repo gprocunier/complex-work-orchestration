@@ -65,7 +65,11 @@ from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     NativeLiveAllocationLedgerError,
     NativeLiveAllocationLedgerStore,
 )
-from cwo_core.native_pool_config import build_live_canary_pool_contract  # noqa: E402
+from cwo_core.native_pool_config import (  # noqa: E402
+    build_live_canary_pool_contract,
+    seal_bound_manifest_validation,
+    validate_live_canary_manifest_gate,
+)
 from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_CERTIFICATION_ENVELOPE,
     CAPABILITY_CERTIFICATION_VERSION,
@@ -2215,6 +2219,8 @@ def build_pool_inputs(
     mutable: bool,
     prompts: list[str],
     expected_tokens: list[str],
+    pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
+    expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     interrupt_after: list[int | None] | None = None,
 ) -> tuple[
     dict[str, Any],
@@ -2222,11 +2228,16 @@ def build_pool_inputs(
     dict[str, LiveThreadAdapter],
     PoolWorkspaceMonitor,
 ]:
-    manifest_errors = validate_campaign_manifest(campaign_manifest)
-    if manifest_errors:
+    bound_manifest_validation = pre_thread_start_check()
+    manifest_gate_errors = validate_live_canary_manifest_gate(
+        campaign_manifest,
+        bound_manifest_validation,
+        expected_bound_manifest_validation,
+    )
+    if manifest_gate_errors:
         raise AppServerError(
             "campaign-manifest-invalid-before-thread-start:"
-            + ";".join(manifest_errors)
+            + ";".join(manifest_gate_errors)
         )
     if campaign_manifest.get("control_turn_id") != CONTROL_TURN_ID:
         raise AppServerError("campaign-control-turn-invalid-before-thread-start")
@@ -2335,6 +2346,8 @@ def build_pool_inputs(
         request,
         campaign_manifest=campaign_manifest,
         capability_receipt=capability_receipt,
+        bound_manifest_validation=bound_manifest_validation,
+        expected_bound_manifest_validation=expected_bound_manifest_validation,
         owner_pid=os.getpid(),
         now=utc_now(),
     )
@@ -2358,6 +2371,8 @@ def run_pool_canary(
     mutable: bool,
     prompts: list[str],
     expected_tokens: list[str],
+    pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
+    expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     interrupt_after: list[int | None] | None = None,
 ) -> dict[str, Any]:
     contract, child_contracts, adapters, monitor = build_pool_inputs(
@@ -2371,6 +2386,8 @@ def run_pool_canary(
         mutable=mutable,
         prompts=prompts,
         expected_tokens=expected_tokens,
+        pre_thread_start_check=pre_thread_start_check,
+        expected_bound_manifest_validation=expected_bound_manifest_validation,
         interrupt_after=interrupt_after,
     )
     child_ids = list(adapters)
@@ -5219,8 +5236,12 @@ def main() -> int:
             if version == 6
             else None
         )
+        expected_bound_manifest_validation: dict[str, Any] | None = None
         if launch_claim_sha256 is not None:
             artifact_bindings["launch_claim_sha256"] = launch_claim_sha256
+            expected_bound_manifest_validation = seal_bound_manifest_validation(
+                manifest, artifact_bindings
+            )
             campaign_reservation = acquire_global_campaign_claim(
                 launch_inputs,
                 launch_claim_sha256=launch_claim_sha256,
@@ -5272,23 +5293,37 @@ def main() -> int:
             and active_state.get("launch_claim_sha256") != launch_claim_sha256
         ):
             raise AppServerError("campaign-launch-claim-state-mismatch")
-        require_launch_source_snapshots_unchanged(paths, launch_inputs)
-        refreshed_bindings = validate_campaign_launch_bindings(
-            inputs=launch_inputs,
-            guarded_primary=args.guarded_primary.absolute(),
-        )
-        if launch_claim_sha256 is not None:
-            refreshed_bindings["launch_claim_sha256"] = (
-                campaign_launch_claim_sha256(
-                    launch_inputs,
-                    output=output,
-                    authorization_state=state_path,
-                    steering_registry=registry_path,
-                    allocation_ledger=ledger_path,
-                )
+        def require_bound_campaign_inputs_before_thread_start() -> dict[str, Any] | None:
+            require_launch_source_snapshots_unchanged(paths, launch_inputs)
+            refreshed_bindings = validate_campaign_launch_bindings(
+                inputs=launch_inputs,
+                guarded_primary=args.guarded_primary.absolute(),
             )
-        if refreshed_bindings != artifact_bindings:
-            raise AppServerError("campaign-artifact-binding-changed-before-allocation")
+            if launch_claim_sha256 is not None:
+                refreshed_bindings["launch_claim_sha256"] = (
+                    campaign_launch_claim_sha256(
+                        launch_inputs,
+                        output=output,
+                        authorization_state=state_path,
+                        steering_registry=registry_path,
+                        allocation_ledger=ledger_path,
+                    )
+                )
+            if refreshed_bindings != artifact_bindings:
+                raise AppServerError(
+                    "campaign-artifact-binding-changed-before-thread-start"
+                )
+            if version == 6:
+                refreshed_receipt = seal_bound_manifest_validation(
+                    manifest, refreshed_bindings
+                )
+                if refreshed_receipt != expected_bound_manifest_validation:
+                    raise AppServerError(
+                        "campaign-bound-validation-changed-before-thread-start"
+                    )
+                return refreshed_receipt
+            return None
+
         with tempfile.TemporaryDirectory(prefix="cwo-18w6-live-") as temporary:
             temp_root = Path(temporary)
             temp_root.chmod(0o700)
@@ -5390,6 +5425,7 @@ def main() -> int:
                     candidate_commit=manifest["candidate"]["commit"],
                     candidate_tree=manifest["candidate"]["tree"],
                 )
+            require_bound_campaign_inputs_before_thread_start()
             capability, calibration_evidence = calibration(
                 server,
                 layout["read-shared"],
@@ -5419,6 +5455,12 @@ def main() -> int:
                 mutable=False,
                 prompts=read_prompts,
                 expected_tokens=["READ_ONLY_CHILD_0_OK", "READ_ONLY_CHILD_1_OK"],
+                pre_thread_start_check=(
+                    require_bound_campaign_inputs_before_thread_start
+                ),
+                expected_bound_manifest_validation=(
+                    expected_bound_manifest_validation
+                ),
             )
 
             mutable_prompts = [
@@ -5440,6 +5482,12 @@ def main() -> int:
                 mutable=True,
                 prompts=mutable_prompts,
                 expected_tokens=["MUTABLE_CHILD_0_OK", "MUTABLE_CHILD_1_OK"],
+                pre_thread_start_check=(
+                    require_bound_campaign_inputs_before_thread_start
+                ),
+                expected_bound_manifest_validation=(
+                    expected_bound_manifest_validation
+                ),
             )
 
             interrupt_prompts = [
@@ -5463,6 +5511,12 @@ def main() -> int:
                 mutable=False,
                 prompts=interrupt_prompts,
                 expected_tokens=["INTERRUPT_LONG_UNEXPECTED_COMPLETION", "INTERRUPT_PEER_OK"],
+                pre_thread_start_check=(
+                    require_bound_campaign_inputs_before_thread_start
+                ),
+                expected_bound_manifest_validation=(
+                    expected_bound_manifest_validation
+                ),
                 interrupt_after=[2, None],
             )
             canaries = [read_canary, mutable_canary, interrupt_canary]

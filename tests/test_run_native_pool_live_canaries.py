@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import replace
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 import shutil
@@ -1218,6 +1219,151 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
     def test_launcher_root_is_repository_root(self) -> None:
         self.assertEqual(LIVE.ROOT, ROOT)
+
+    def test_pool_threads_require_bound_manifest_revalidation_first(self) -> None:
+        class NoThreadStartServer:
+            started = False
+
+            def start_thread(
+                self, _worktree: Path, *, mutable: bool, role: str | None = None
+            ) -> tuple[dict, float]:
+                self.started = True
+                raise AssertionError("thread-started-before-bound-validation")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = NoThreadStartServer()
+            checks: list[str] = []
+
+            def reject_unbound_manifest() -> dict[str, object]:
+                checks.append("full-bound-v3-validation")
+                raise LIVE.AppServerError("campaign-bound-inputs-changed")
+
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "campaign-bound-inputs-changed"
+            ):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    {},
+                    root=root,
+                    integration=root,
+                    pool_name="read-only",
+                    worktrees=[root, root],
+                    mutable=False,
+                    prompts=["one", "two"],
+                    expected_tokens=["ONE", "TWO"],
+                    pre_thread_start_check=reject_unbound_manifest,
+                    expected_bound_manifest_validation={},
+                )
+            self.assertEqual(checks, ["full-bound-v3-validation"])
+            self.assertFalse(server.started)
+            self.assertFalse((root / "read-only-records").exists())
+
+            manifest = {
+                "version": 3,
+                "manifest_id": str(uuid.uuid4()),
+                "manifest_sha256": LIVE.sha256_text("manifest"),
+                "authorization_id": str(uuid.uuid4()),
+                "control_turn_id": LIVE.CONTROL_TURN_ID,
+                "candidate": {"commit": "a" * 40, "tree": "b" * 40},
+            }
+            expected = LIVE.seal_bound_manifest_validation(
+                manifest,
+                {"launch_claim_sha256": LIVE.sha256_text("expected-claim")},
+            )
+            stale = LIVE.seal_bound_manifest_validation(
+                manifest,
+                {"launch_claim_sha256": LIVE.sha256_text("stale-claim")},
+            )
+            for label, observed in (("missing", None), ("stale", stale)):
+                server.started = False
+                with self.subTest(label=label), self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    "campaign-manifest-invalid-before-thread-start",
+                ):
+                    LIVE.build_pool_inputs(
+                        server,
+                        {},
+                        manifest,
+                        root=root,
+                        integration=root,
+                        pool_name="read-only",
+                        worktrees=[root, root],
+                        mutable=False,
+                        prompts=["one", "two"],
+                        expected_tokens=["ONE", "TWO"],
+                        pre_thread_start_check=lambda observed=observed: observed,
+                        expected_bound_manifest_validation=expected,
+                    )
+                self.assertFalse(server.started)
+                self.assertFalse((root / "read-only-records").exists())
+
+    def test_pool_setup_forwards_bound_receipt_without_context_free_validation(self) -> None:
+        class ThreadStartSentinelServer:
+            starts = 0
+
+            def start_thread(
+                self, _worktree: Path, *, mutable: bool, role: str | None = None
+            ) -> tuple[dict, float]:
+                self.starts += 1
+                return {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": f"thread-{self.starts}", "turns": []},
+                }, 0.0
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest = {
+                "version": 3,
+                "manifest_id": str(uuid.uuid4()),
+                "manifest_sha256": LIVE.sha256_text("manifest"),
+                "authorization_id": str(uuid.uuid4()),
+                "control_turn_id": LIVE.CONTROL_TURN_ID,
+                "candidate": {"commit": "a" * 40, "tree": "b" * 40},
+            }
+            bound = LIVE.seal_bound_manifest_validation(
+                manifest,
+                {"launch_claim_sha256": LIVE.sha256_text("launch-claim")},
+            )
+            rendered = {"children": []}
+            with mock.patch.object(
+                LIVE,
+                "build_live_canary_pool_contract",
+                return_value=rendered,
+            ) as builder, mock.patch.object(
+                LIVE,
+                "PoolWorkspaceMonitor",
+                return_value=mock.sentinel.monitor,
+            ):
+                contract, _controls, _adapters, monitor = LIVE.build_pool_inputs(
+                    ThreadStartSentinelServer(),
+                    {},
+                    manifest,
+                    root=root,
+                    integration=root,
+                    pool_name="read-only",
+                    worktrees=[root, root],
+                    mutable=False,
+                    prompts=["one", "two"],
+                    expected_tokens=["ONE", "TWO"],
+                    pre_thread_start_check=lambda: bound,
+                    expected_bound_manifest_validation=bound,
+                )
+            self.assertIs(contract, rendered)
+            self.assertIs(monitor, mock.sentinel.monitor)
+            self.assertIs(
+                builder.call_args.kwargs["bound_manifest_validation"], bound
+            )
+
+    def test_full_bound_gate_is_immediately_before_capability_allocation(self) -> None:
+        source = inspect.getsource(LIVE.main)
+        gate = "require_bound_campaign_inputs_before_thread_start()"
+        calibration_call = "capability, calibration_evidence = calibration("
+        self.assertIn(gate + "\n            " + calibration_call, source)
+        self.assertNotIn(
+            "validate_campaign_manifest(", inspect.getsource(LIVE.build_pool_inputs)
+        )
 
     def make_repo(self, root: Path) -> tuple[str, str]:
         subprocess.run(["git", "init", "-q"], cwd=root, check=True, stdout=subprocess.DEVNULL)
