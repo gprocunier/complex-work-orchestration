@@ -175,30 +175,32 @@ class NativePoolConfigTests(unittest.TestCase):
                     capability_receipt=capability,
                     now=now,
                 )
-            with self.assertRaisesRegex(NativePoolConfigError, "operative-release-required"):
+            canary_policy = json.loads(
+                (ROOT / "policy" / "native-worker-execution.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            canary_policy["native_supervision_pool"]["status"] = "canary-gated"
+            canary_policy["native_supervision_pool"][
+                "cap_two_operative_release"
+            ] = False
+            with self.assertRaisesRegex(
+                NativePoolConfigError, "operative-release-required"
+            ):
                 build_pool_contract(
                     fixture.request,
                     capability_receipt=capability,
                     enable_concurrency=True,
                     owner_pid=owner["pid"],
                     now=now,
+                    policy_document=canary_policy,
                 )
-            policy_document = json.loads(
-                (ROOT / "policy" / "native-worker-execution.yaml").read_text(
-                    encoding="utf-8"
-                )
-            )
-            policy_document["native_supervision_pool"]["status"] = "operative-authorized"
-            policy_document["native_supervision_pool"][
-                "cap_two_operative_release"
-            ] = True
             contract = build_pool_contract(
                 fixture.request,
                 capability_receipt=capability,
                 enable_concurrency=True,
                 owner_pid=owner["pid"],
                 now=now,
-                policy_document=policy_document,
             )
             self.assertEqual(validate_pool_contract(contract), [])
             self.assertEqual(contract["owner"], owner)
@@ -215,7 +217,6 @@ class NativePoolConfigTests(unittest.TestCase):
                     enable_concurrency=True,
                     owner_pid=owner["pid"],
                     now=now,
-                    policy_document=policy_document,
                 )
 
     def test_worker_state_identity_or_status_mismatch_fails_before_render(self) -> None:

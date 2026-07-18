@@ -121,12 +121,14 @@
   "native_supervision_pool": {
     "version": 1,
     "enabled": true,
-    "status": "canary-gated",
+    "maturity": "experimental",
+    "cap_two_enabled_by_default": false,
+    "status": "operative-authorized",
     "default_max_active_workers": 1,
     "hard_max_active_workers": 2,
     "cap_two_requires_explicit_opt_in": true,
     "cap_two_requires_fresh_capability": true,
-    "cap_two_operative_release": false,
+    "cap_two_operative_release": true,
     "release_requires": "complex-work-orchestration-18w.6",
     "required_control_adapter": "native-multi-agent-v1",
     "allowed_execution_surfaces": [

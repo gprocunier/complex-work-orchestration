@@ -54,15 +54,17 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             {"emitted": 2, "historical": [1], "dispatchable": [2]},
         )
 
-    def test_native_pool_is_opt_in_bounded_and_canary_gated(self) -> None:
+    def test_native_pool_is_opt_in_bounded_and_operative_authorized(self) -> None:
         pool = self.__class__.policy["native_supervision_pool"]
         self.assertTrue(pool["enabled"])
-        self.assertEqual(pool["status"], "canary-gated")
+        self.assertEqual(pool["maturity"], "experimental")
+        self.assertFalse(pool["cap_two_enabled_by_default"])
+        self.assertEqual(pool["status"], "operative-authorized")
         self.assertEqual(pool["default_max_active_workers"], 1)
         self.assertEqual(pool["hard_max_active_workers"], 2)
         self.assertTrue(pool["cap_two_requires_explicit_opt_in"])
         self.assertTrue(pool["cap_two_requires_fresh_capability"])
-        self.assertFalse(pool["cap_two_operative_release"])
+        self.assertTrue(pool["cap_two_operative_release"])
         self.assertEqual(pool["release_requires"], "complex-work-orchestration-18w.6")
         self.assertEqual(pool["scheduler"]["poll_interval_ms"], 1000)
         self.assertEqual(pool["scheduler"]["poll_lag_tolerance_ms"], 1500)

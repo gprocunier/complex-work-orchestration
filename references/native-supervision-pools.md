@@ -10,14 +10,17 @@ The public contract is deliberately small:
 - Capacity one is the default and preserves single-worker behavior.
 - Capacity two requires `--enable-concurrency` and a fresh trusted adapter
   capability receipt from the same live host process.
+- Capacity two is experimental and disabled by default. Operative release
+  makes explicit opt-in available; it does not silently raise capacity.
 - Capacity above two, threads, hot admission, replacement children, and a
   second coordinator are rejected.
 - The cohort, worker sessions, nonces, control turns, state files, worktree
   identities, target paths, aggregate allowance, scheduler, and capability
   evidence are immutable after contract rendering.
-- Capacity two remains canary-gated until
-  `complex-work-orchestration-18w.6` records successful live canaries and the
-  policy release marker changes. Structural support is not operative release.
+- Capacity two is operative only when policy records `operative-authorized`
+  with `cap_two_operative_release=true`. The marker is released only after the
+  `complex-work-orchestration-18w.6` live campaign is accepted; structural
+  support alone is not operative release.
 
 ## Trusted Live Canary Gate
 
@@ -33,11 +36,12 @@ allocation. Each steering receipt is validated against trusted session JSONL,
 consumed once under a private process lock, and cannot authorize repository
 work by itself.
 
-The only operative successor contract is authorization v8 with campaign
-manifest v5. Versions v5-v7 and manifests v2-v4 remain inspection-only, and a
-mixed authorization/manifest pair fails before allocation. The v3 validator
-contract binds the finite proof DAG
-`v8/v5 -> v7/v4 -> v6/v3 -> v5/v2 -> v4/v1` to one checkpoint tree.
+The public live launcher accepts only its current v11/v8/v6/v6 contract tuple;
+historical tuples remain inspection-only and mixed tuples fail before
+allocation. The accepted practical release used a fresh one-use, Bead-scoped
+authority around the v8 renderer envelope and bound only the immediate
+Generation-12 terminal-facts and containment roots. It did not make any prior
+live authority reusable.
 
 Generation 8 is represented by a dedicated quarantine predecessor leaf, never
 by the accepting-session parser. The leaf requires its exact two-record archive
@@ -80,12 +84,36 @@ an owner-only directory and files, records exactly seven campaign roles, and
 survives deletion of the disposable worktrees. An unresolved intent is
 ambiguous allocation evidence and rejects the campaign.
 
-The campaign has exactly seven fresh turn starts: capability interruption, two
-concurrent read-only workers, two concurrent disjoint mutable workers in
-disposable worktrees, and an interrupted worker while its peer completes. No
-turn is resumed or salvaged. The policy remains
-`cap_two_operative_release=false` until this evidence is accepted and the
-release sprint changes it explicitly.
+The release campaign has exactly seven fresh turn starts: capability
+interruption, two concurrent read-only workers, two concurrent disjoint mutable
+workers in disposable worktrees, and an interrupted worker while its peer
+completes. No turn is resumed or salvaged. The canary path requires
+`cap_two_operative_release=false`; after its evidence is accepted, the release
+sprint changes the policy pair together to `operative-authorized` and `true`.
+Ordinary capacity-two rendering rejects the canary-gated pair and requires the
+released pair.
+
+## Experimental Status And Deferred Hardening
+
+Capacity two is a practical experimental capability for a trusted same-user
+control plane. It remains bounded to two fixed workers, explicit opt-in, one
+connected host process, immutable admission, and isolated mutable worktrees or
+strictly shared read-only topology.
+
+The accepted campaign proved same-epoch application-level recovery for the
+observed pre-attestation startup scaffold, with one guarded wire request, one
+consumed retry token, unchanged identity and workspace, and the normal trusted
+validators restored afterward. The following work is deliberately deferred and
+tracked separately:
+
+- transport-level exactly-once guarantees below the app-server API;
+- atomic serialization with concurrent session-log ingestion;
+- exhaustive rejection of every harmless unknown JSONL extension;
+- recursive inclusion of the complete historical proof DAG in each campaign;
+- broader optimization and refactoring beyond the fixed capacity-two path.
+
+These limitations do not relax wrong-model, control-loss, mutation-attribution,
+ambiguous-dispatch, terminal-boundary, or second-failure rejection.
 
 ## Topology
 
@@ -102,7 +130,7 @@ worktree only when both declare no write or integration target paths.
 | Integration target paths | Scoped, non-symlinked | Scoped and non-overlapping |
 | Adapter capability receipt | Must be absent | Fresh, exact, trusted, and same-host |
 | Explicit opt-in | No | `--enable-concurrency` |
-| Operative release | Existing single-worker policy | Canary-gated through 18w.6 |
+| Operative release | Existing single-worker policy | Requires `operative-authorized` and a true marker |
 
 Physical device/inode identity, canonical-path hash, Git common-directory hash,
 and a complete clean baseline are captured before the pool contract is sealed.
@@ -277,7 +305,7 @@ continues to block overlapping work.
 Rollback does not require deleting artifacts or weakening validation:
 
 1. Stop admitting capacity-two cohorts.
-2. Leave `default_max_active_workers=1` and
+2. Leave `default_max_active_workers=1`, set `status=canary-gated`, and set
    `cap_two_operative_release=false` in policy.
 3. Interrupt any active pool through its bound control file.
 4. Preserve nonaccepting receipts and release-pending leases for adjudication.

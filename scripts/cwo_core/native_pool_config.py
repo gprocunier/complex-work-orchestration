@@ -431,6 +431,8 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
     required = {
         "version": 1,
         "enabled": True,
+        "maturity": "experimental",
+        "cap_two_enabled_by_default": False,
         "default_max_active_workers": 1,
         "hard_max_active_workers": 2,
         "cap_two_requires_explicit_opt_in": True,
