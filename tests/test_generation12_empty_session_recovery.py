@@ -51,6 +51,44 @@ class EmptySessionCalibrationServer(FakeCalibrationServer):
         super()._materialize()
 
 
+class StartupScaffoldCalibrationServer(EmptySessionCalibrationServer):
+    """Observed two-record startup scaffold, including harmless extra metadata."""
+
+    def start_turn(self, thread_id: str, _prompt: str) -> tuple[dict, float]:
+        if thread_id != self.thread_id:
+            raise AssertionError("thread mismatch")
+        if self.started_cwd is None:
+            raise AssertionError("thread cwd missing")
+        self.turn_start_count += 1
+        self._write(
+            [
+                {
+                    "timestamp": "2026-07-18T00:00:00Z",
+                    "type": "session_meta",
+                    "harmless_top_level_extension": {"format": 1},
+                    "payload": {
+                        "id": self.thread_id,
+                        "session_id": self.thread_id,
+                        "cwd": str(self.started_cwd),
+                        "history_mode": "legacy",
+                        "harmless_payload_extension": "retained",
+                    },
+                },
+                {
+                    "timestamp": "2026-07-18T00:00:00Z",
+                    "type": "event_msg",
+                    "harmless_top_level_extension": True,
+                    "payload": {
+                        "type": "task_started",
+                        "turn_id": self.turn_id,
+                        "harmless_payload_extension": 7,
+                    },
+                },
+            ]
+        )
+        return {"id": self.turn_id}, 1.0
+
+
 class OperativeActivityAtFaultServer(EmptySessionCalibrationServer):
     def start_turn(self, thread_id: str, _prompt: str) -> tuple[dict, float]:
         if thread_id != self.thread_id:
@@ -492,10 +530,46 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                 }
             )
             self.assertIn(
-                "read-recovery-zero-boundary-edge-mismatch",
+                "read-recovery-pre-attempt-boundary-changed",
                 LIVE.validate_calibration_read_recovery_telemetry(
                     materialized_pre_attempt
                 ),
+            )
+
+    def test_observed_two_record_scaffold_recovers_once_without_new_work(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = StartupScaffoldCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 137.0)},
+            )
+            receipt, evidence = self.run_calibration(server, root)
+            recovery = evidence["thread_read_recovery"]
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertEqual(recovery["outcome"], "recovered")
+            self.assertEqual(
+                recovery["fault_boundary_classification"],
+                "canonical-session-meta-task-started",
+            )
+            self.assertEqual(recovery["fault_boundary_record_count"], 2)
+            self.assertGreater(recovery["fault_boundary_byte_offset"], 0)
+            self.assertEqual(
+                recovery["pre_attempt_boundary_sha256"],
+                recovery["prior_boundary_sha256"],
+            )
+            self.assertEqual(
+                recovery["pre_dispatch_boundary_sha256"],
+                recovery["prior_boundary_sha256"],
+            )
+            self.assertEqual(recovery["wire_dispatch_count"], 1)
+            self.assertEqual(recovery["transport_outcome"], "response-correlated")
+            self.assertEqual(server.guarded_read_count, 1)
+            self.assertEqual(server.thread_start_count, 1)
+            self.assertEqual(server.turn_start_count, 1)
+            self.assertEqual(
+                LIVE.validate_calibration_read_recovery_telemetry(recovery), []
             )
 
     def test_recovery_rejects_missing_source_at_either_authorization_edge(
@@ -520,22 +594,22 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                 root,
                 read_faults={1: ("thread/read", -32603, 1.0)},
             )
-            real_sleep = LIVE.time.sleep
             removed = False
+            original_guarded_read = server.read_thread_once_with_guard
 
-            def remove_before_replacement(seconds: float) -> None:
+            def remove_before_dispatch(*args, **kwargs):
                 nonlocal removed
-                if server.read_count == 1 and server.path.exists() and not removed:
+                if server.path.exists() and not removed:
                     server.path.unlink()
                     removed = True
-                real_sleep(seconds)
+                return original_guarded_read(*args, **kwargs)
 
             record_dir = root / "records"
             record_dir.mkdir()
             with mock.patch.object(
-                LIVE.time,
-                "sleep",
-                side_effect=remove_before_replacement,
+                server,
+                "read_thread_once_with_guard",
+                side_effect=remove_before_dispatch,
             ), self.assertRaisesRegex(
                 LIVE.AppServerError, "pinned-session-source-missing"
             ):
@@ -557,12 +631,12 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                 root,
                 read_faults={1: ("thread/read", -32603, 1.0)},
             )
-            real_sleep = LIVE.time.sleep
             materialized = False
+            original_guarded_read = server.read_thread_once_with_guard
 
-            def materialize_benign_records(seconds: float) -> None:
+            def materialize_before_dispatch(*args, **kwargs):
                 nonlocal materialized
-                if server.read_count == 1 and not materialized:
+                if not materialized:
                     server._write(
                         [
                             {
@@ -586,17 +660,17 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                         ]
                     )
                     materialized = True
-                real_sleep(seconds)
+                return original_guarded_read(*args, **kwargs)
 
             record_dir = root / "records"
             record_dir.mkdir()
             with mock.patch.object(
-                LIVE.time,
-                "sleep",
-                side_effect=materialize_benign_records,
+                server,
+                "read_thread_once_with_guard",
+                side_effect=materialize_before_dispatch,
             ), self.assertRaisesRegex(
                 LIVE.AppServerError,
-                "boundary-not-exact-zero-before-replacement",
+                "operative-activity-observed-before-dispatch",
             ):
                 LIVE.calibration(
                     server,
@@ -621,7 +695,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
             record_dir.mkdir()
             with self.assertRaisesRegex(
                 LIVE.AppServerError,
-                "read-recovery-boundary-not-exact-zero-at-fault",
+                "read-recovery-operative-activity-observed-at-fault",
             ):
                 LIVE.calibration(
                     server,
@@ -660,7 +734,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
     def test_fault_boundary_still_rejects_partial_bytes_and_activity(self) -> None:
         for kind, expected in (
             ("partial", "trailing partial record"),
-            ("activity", "operative-activity-at-fault"),
+            ("activity", "operative-activity-observed-at-fault"),
         ):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)

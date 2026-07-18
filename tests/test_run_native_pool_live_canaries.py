@@ -93,6 +93,8 @@ class FakeCalibrationServer:
         self.empty_initial_session = empty_initial_session
         self.read_started: list[float] = []
         self.read_timeouts: list[float] = []
+        self.guarded_read_count = 0
+        self.guarded_read_snapshots: list[dict] = []
         self.interrupted = False
         self.early_status = early_status
         self.command_status = command_status
@@ -344,6 +346,30 @@ class FakeCalibrationServer:
         if self.replace_notification_at_read == self.read_count and self._notifications:
             self._notifications[0][1]["params"]["item"]["command"] = "sleep 20"
         return self._thread(), 1.0
+
+    def read_thread_once_with_guard(
+        self,
+        thread_id: str,
+        *,
+        timeout: float,
+        pre_dispatch_guard,
+    ) -> tuple[dict, float, dict, int, str]:
+        """Model the production client's single guarded application request."""
+
+        guarded = dict(pre_dispatch_guard())
+        self.guarded_read_count += 1
+        self.guarded_read_snapshots.append(guarded)
+        thread, latency = self.read_thread(thread_id, timeout=timeout)
+        request_id = self.read_count
+        request_sha256 = LIVE.domain_sha256(
+            {
+                "id": request_id,
+                "method": "thread/read",
+                "params": {"threadId": thread_id, "includeTurns": True},
+            },
+            domain="app-server-single-wire-request",
+        )
+        return thread, latency, guarded, request_id, request_sha256
 
     def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
         if (thread_id, turn_id) != (self.thread_id, self.turn_id):
@@ -702,8 +728,11 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertGreaterEqual(len(server.read_timeouts), 2)
             self.assertTrue(all(0 < timeout <= 3.0 for timeout in server.read_timeouts[:2]))
             retry_gap = server.read_started[1] - server.read_started[0]
-            self.assertGreaterEqual(retry_gap, 0.18)
+            self.assertGreaterEqual(retry_gap, 0.0)
             self.assertLessEqual(retry_gap, LIVE.CALIBRATION_POLL_GAP_MAX_SECONDS)
+            self.assertEqual(server.guarded_read_count, 1)
+            self.assertEqual(telemetry["wire_dispatch_count"], 1)
+            self.assertEqual(telemetry["transport_outcome"], "response-correlated")
             self.assertEqual(
                 evidence["materialization_evidence"]["control_observations"][0][
                     "ordinal"
@@ -733,7 +762,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 }
             )
             self.assertIn(
-                "read-recovery-zero-boundary-edge-mismatch",
+                "read-recovery-pre-attempt-boundary-changed",
                 LIVE.validate_calibration_read_recovery_telemetry(regressed_count),
             )
 
@@ -749,7 +778,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 }
             )
             self.assertIn(
-                "read-recovery-pre-attempt-byte-offset-regressed",
+                "read-recovery-pre-attempt-boundary-changed",
                 LIVE.validate_calibration_read_recovery_telemetry(regressed_offset),
             )
 
@@ -795,7 +824,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertEqual(server.thread_start_count, 1)
             self.assertEqual(server.turn_start_count, 1)
 
-    def test_read_recovery_rejects_attestation_before_or_during_replacement(
+    def test_read_recovery_rejects_attestation_before_dispatch_and_then_uses_normal_validation(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -807,23 +836,23 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 read_faults={1: ("thread/read", -32603, 1.0)},
                 empty_initial_session=True,
             )
-            real_sleep = LIVE.time.sleep
             materialized = False
+            original_guarded_read = server.read_thread_once_with_guard
 
-            def materialize_during_retry_gap(seconds: float) -> None:
+            def materialize_before_dispatch(*args, **kwargs):
                 nonlocal materialized
-                if server.read_count == 1 and not materialized:
+                if not materialized:
                     server._materialize()
                     materialized = True
-                real_sleep(seconds)
+                return original_guarded_read(*args, **kwargs)
 
             with mock.patch.object(
-                LIVE.time,
-                "sleep",
-                side_effect=materialize_during_retry_gap,
+                server,
+                "read_thread_once_with_guard",
+                side_effect=materialize_before_dispatch,
             ), self.assertRaisesRegex(
                 LIVE.AppServerError,
-                "attestation-observed-before-replacement",
+                "attestation-observed-before-dispatch",
             ):
                 LIVE.calibration(
                     server,
@@ -846,20 +875,31 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 materialize_before_read=2,
                 empty_initial_session=True,
             )
-            with self.assertRaisesRegex(
-                LIVE.AppServerError,
-                "attestation-observed-during-replacement",
-            ):
-                LIVE.calibration(
-                    server,
-                    root,
-                    record_dir,
-                    self.owner(),
-                    run_nonce=str(uuid.uuid4()),
-                    phase_nonce=str(uuid.uuid4()),
-                    materialization_timeout_seconds=3.0,
-                )
-            self.assertEqual(server.read_count, 2)
+            original_materialize = server._materialize
+            materialized_once = False
+
+            def materialize_once() -> None:
+                nonlocal materialized_once
+                if materialized_once:
+                    return
+                materialized_once = True
+                original_materialize()
+
+            server._materialize = materialize_once  # type: ignore[method-assign]
+            receipt, evidence = LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+                materialization_timeout_seconds=3.0,
+            )
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertEqual(
+                evidence["thread_read_recovery"]["outcome"], "recovered"
+            )
+            self.assertEqual(server.guarded_read_count, 1)
 
     def test_read_recovery_is_single_use_pre_attestation_and_exact_error_only(self) -> None:
         cases = (
@@ -896,7 +936,9 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 record_dir = root / "records"
                 record_dir.mkdir()
                 server = FakeCalibrationServer(root, **options)
-                with self.assertRaisesRegex(LIVE.AppServerRpcError, expected):
+                with self.assertRaisesRegex(
+                    LIVE.AppServerRpcError, expected
+                ) as caught:
                     LIVE.calibration(
                         server,
                         root,
@@ -909,6 +951,116 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 self.assertEqual(server.read_count, expected_reads)
                 self.assertEqual(server.thread_start_count, 1)
                 self.assertEqual(server.turn_start_count, 1)
+                if expected_reads == 2:
+                    fault = getattr(
+                        caught.exception, "first_protected_fault", None
+                    )
+                    self.assertIsInstance(fault, dict)
+                    self.assertEqual(
+                        fault["fault_type"],
+                        "calibration-thread-read-recovery",
+                    )
+                    self.assertEqual(
+                        fault["recovery_telemetry"]["wire_dispatch_count"], 1
+                    )
+
+    def test_read_recovery_rejects_epoch_drift_and_workspace_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 1.0)},
+                empty_initial_session=True,
+            )
+            original_guarded_read = server.read_thread_once_with_guard
+
+            def drift_epoch(*args, **kwargs):
+                server.connection_epoch_sha256 = "c" * 64
+                return original_guarded_read(*args, **kwargs)
+
+            with mock.patch.object(
+                server,
+                "read_thread_once_with_guard",
+                side_effect=drift_epoch,
+            ), self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "read-recovery-predispatch-state-invalid",
+            ) as caught:
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    materialization_timeout_seconds=3.0,
+                )
+            self.assertEqual(server.read_count, 1)
+            self.assertIsInstance(
+                getattr(caught.exception, "first_protected_fault", None), dict
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=workspace, check=True)
+            subprocess.run(
+                ["git", "config", "user.name", "CWO Test"],
+                cwd=workspace,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "cwo@example.invalid"],
+                cwd=workspace,
+                check=True,
+            )
+            (workspace / "tracked.txt").write_text("baseline\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=workspace, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "baseline"],
+                cwd=workspace,
+                check=True,
+            )
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 1.0)},
+                empty_initial_session=True,
+            )
+            original_guarded_read = server.read_thread_once_with_guard
+
+            def mutate_workspace(*args, **kwargs):
+                (workspace / "mutation.txt").write_text(
+                    "unexpected\n", encoding="utf-8"
+                )
+                return original_guarded_read(*args, **kwargs)
+
+            with mock.patch.object(
+                server,
+                "read_thread_once_with_guard",
+                side_effect=mutate_workspace,
+            ), self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "read-recovery-workspace-mutated-before-dispatch",
+            ) as caught:
+                LIVE.calibration(
+                    server,
+                    workspace,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    materialization_timeout_seconds=3.0,
+                )
+            fault = caught.exception.first_protected_fault
+            self.assertTrue(
+                fault["recovery_telemetry"]["workspace_mutation_observed"]
+            )
+            self.assertEqual(server.read_count, 1)
 
     def test_read_recovery_rejects_late_precheck_and_post_attempt(self) -> None:
         cases = (

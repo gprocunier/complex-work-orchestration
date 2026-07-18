@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/generation12-live-containment.schema.json",
+  "title": "Generation 12 Live Containment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type", "version", "schema", "recorded_at", "identity",
+    "terminal_facts_file_sha256", "terminal_facts_canonical_sha256",
+    "failure_evidence_file_sha256", "failure_evidence_canonical_sha256",
+    "authorization_state_file_sha256", "allocation_ledger_file_sha256",
+    "allocation_audit_file_sha256", "global_claim_file_sha256",
+    "authorization_marker_file_sha256", "nonce_marker_file_sha256",
+    "scope_state_file_sha256", "terminal_session_file_sha256",
+    "startup_scaffold_prefix_file_sha256", "containment", "durable_state",
+    "disposition", "canonical_containment_sha256"
+  ],
+  "properties": {
+    "artifact_type": {"const": "cwo-generation12-live-containment"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/generation12-live-containment.schema.json"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "identity": {"$ref": "generation12-terminal-facts.schema.json#/$defs/identity"},
+    "terminal_facts_file_sha256": {"$ref": "#/$defs/sha256"},
+    "terminal_facts_canonical_sha256": {"$ref": "#/$defs/sha256"},
+    "failure_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
+    "failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
+    "authorization_state_file_sha256": {"$ref": "#/$defs/sha256"},
+    "allocation_ledger_file_sha256": {"$ref": "#/$defs/sha256"},
+    "allocation_audit_file_sha256": {"$ref": "#/$defs/sha256"},
+    "global_claim_file_sha256": {"$ref": "#/$defs/sha256"},
+    "authorization_marker_file_sha256": {"$ref": "#/$defs/sha256"},
+    "nonce_marker_file_sha256": {"$ref": "#/$defs/sha256"},
+    "scope_state_file_sha256": {"$ref": "#/$defs/sha256"},
+    "terminal_session_file_sha256": {"$ref": "#/$defs/sha256"},
+    "startup_scaffold_prefix_file_sha256": {"$ref": "#/$defs/sha256"},
+    "containment": {"$ref": "#/$defs/containment"},
+    "durable_state": {"$ref": "#/$defs/durable_state"},
+    "disposition": {"const": "terminal-contained-nonaccepting-predecessor-only"},
+    "canonical_containment_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "containment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allocated_count", "identified_thread_count", "interrupted_count",
+        "archived_count", "already_contained_count",
+        "unresolved_allocation_intent_count", "unresolved_turn_intent_count",
+        "ambiguous_count", "all_contained", "ledger_consistent",
+        "ledger_error_sha256"
+      ],
+      "properties": {
+        "allocated_count": {"const": 1},
+        "identified_thread_count": {"const": 1},
+        "interrupted_count": {"const": 1},
+        "archived_count": {"const": 1},
+        "already_contained_count": {"const": 0},
+        "unresolved_allocation_intent_count": {"const": 0},
+        "unresolved_turn_intent_count": {"const": 0},
+        "ambiguous_count": {"const": 0},
+        "all_contained": {"const": true},
+        "ledger_consistent": {"const": true},
+        "ledger_error_sha256": {"type": "array", "maxItems": 0}
+      }
+    },
+    "durable_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorization_state", "scope_phase", "terminal_evidence_sha256",
+        "ledger_sequence", "steering_consumption_count",
+        "all_allocations_contained", "ambiguity_count", "release_gate_passed",
+        "retry_resume_bridge_salvage_forbidden"
+      ],
+      "properties": {
+        "authorization_state": {"const": "containment-only"},
+        "scope_phase": {"const": "contained"},
+        "terminal_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "ledger_sequence": {"const": 7},
+        "steering_consumption_count": {"const": 2},
+        "all_allocations_contained": {"const": true},
+        "ambiguity_count": {"const": 0},
+        "release_gate_passed": {"const": false},
+        "retry_resume_bridge_salvage_forbidden": {"const": true}
+      }
+    }
+  }
+}

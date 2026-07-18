@@ -122,10 +122,10 @@ THREAD_READ_TIMEOUT_SECONDS = 15.0
 CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
 CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
 CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE = (
-    "cwo-calibration-thread-read-recovery-telemetry:v1"
+    "cwo-calibration-thread-read-recovery-telemetry:v2"
 )
 CALIBRATION_READ_RECOVERY_POLICY = (
-    "single-calibration-wide-replacement-pre-attestation-materialization"
+    "single-application-retry-for-pinned-pre-attestation-startup-scaffold"
 )
 CALIBRATION_READ_RECOVERY_TELEMETRY_FIELDS = {
     "telemetry_type",
@@ -150,8 +150,39 @@ CALIBRATION_READ_RECOVERY_TELEMETRY_FIELDS = {
     "pre_attempt_boundary_sha256",
     "pre_attempt_boundary_record_count",
     "pre_attempt_boundary_byte_offset",
+    "fault_boundary_classification",
+    "pre_dispatch_source_identity_sha256",
+    "pre_dispatch_boundary_sha256",
+    "pre_dispatch_boundary_record_count",
+    "pre_dispatch_boundary_byte_offset",
+    "pre_dispatch_boundary_classification",
+    "wire_dispatch_count",
+    "wire_request_id",
+    "wire_request_sha256",
+    "wire_response_correlation_sha256",
+    "post_read_boundary_sha256",
+    "post_read_boundary_record_count",
+    "post_read_boundary_byte_offset",
+    "workspace_monitoring_status",
+    "workspace_baseline_sha256",
+    "fault_workspace_sha256",
+    "pre_dispatch_workspace_sha256",
+    "post_read_workspace_sha256",
+    "workspace_mutation_observed",
+    "transport_outcome",
     "outcome",
     "telemetry_sha256",
+}
+STARTUP_SCAFFOLD_RECORD_TYPES = ("session_meta", "event_msg:task_started")
+STARTUP_SCAFFOLD_TOP_LEVEL_FIELDS = {"type", "payload"}
+STARTUP_SCAFFOLD_SESSION_META_FIELDS = {
+    "cwd",
+    "id",
+    "session_id",
+}
+STARTUP_SCAFFOLD_TASK_STARTED_FIELDS = {
+    "turn_id",
+    "type",
 }
 OPERATIVE_ITEM_TYPES = {
     "commandExecution",
@@ -297,6 +328,142 @@ def sha256_bytes(value: bytes) -> str:
 
 def sha256_text(value: str) -> str:
     return sha256_bytes(value.encode("utf-8"))
+
+
+def _strict_json_object_pairs(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    """Reject duplicate JSON names at every nesting level."""
+
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise NativeSessionBoundaryError("session record has duplicate object keys")
+        value[key] = item
+    return value
+
+
+def _strict_session_json_record(line: bytes, number: int) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            line.decode("utf-8"),
+            object_pairs_hook=_strict_json_object_pairs,
+        )
+    except NativeSessionBoundaryError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise NativeSessionBoundaryError(
+            f"session record {number} is invalid: {exc}"
+        ) from exc
+    if not isinstance(value, dict):
+        raise NativeSessionBoundaryError(
+            f"session record {number} is not an object"
+        )
+    return value
+
+
+def validate_startup_scaffold_records(
+    records: list[Mapping[str, Any]],
+    *,
+    session_id: str,
+    turn_id: str,
+    expected_cwd: Path,
+) -> dict[str, Any]:
+    """Validate the only nonempty pre-attestation read-recovery grammar."""
+
+    if len(records) != 2:
+        raise NativeSessionBoundaryError(
+            "startup scaffold record count is not exact"
+        )
+    session_record, started_record = records
+    if (
+        not STARTUP_SCAFFOLD_TOP_LEVEL_FIELDS.issubset(session_record)
+        or session_record.get("type") != "session_meta"
+        or not isinstance(session_record.get("payload"), Mapping)
+    ):
+        raise NativeSessionBoundaryError("startup scaffold session_meta invalid")
+    session_timestamp = session_record.get("timestamp")
+    if session_timestamp is not None and (
+        not isinstance(session_timestamp, str) or not session_timestamp
+    ):
+        raise NativeSessionBoundaryError(
+            "startup scaffold session_meta timestamp invalid"
+        )
+    session_payload = session_record["payload"]
+    if not STARTUP_SCAFFOLD_SESSION_META_FIELDS.issubset(session_payload):
+        raise NativeSessionBoundaryError(
+            "startup scaffold session_meta identity fields missing"
+        )
+    if (
+        session_payload.get("id") != session_id
+        or session_payload.get("session_id") != session_id
+        or session_payload.get("cwd") != str(expected_cwd.resolve())
+    ):
+        raise NativeSessionBoundaryError(
+            "startup scaffold session_meta semantics invalid"
+        )
+    if (
+        not STARTUP_SCAFFOLD_TOP_LEVEL_FIELDS.issubset(started_record)
+        or started_record.get("type") != "event_msg"
+        or not isinstance(started_record.get("payload"), Mapping)
+    ):
+        raise NativeSessionBoundaryError("startup scaffold task_started invalid")
+    started_timestamp = started_record.get("timestamp")
+    if started_timestamp is not None and (
+        not isinstance(started_timestamp, str) or not started_timestamp
+    ):
+        raise NativeSessionBoundaryError(
+            "startup scaffold task_started timestamp invalid"
+        )
+    started_payload = started_record["payload"]
+    if not STARTUP_SCAFFOLD_TASK_STARTED_FIELDS.issubset(started_payload):
+        raise NativeSessionBoundaryError(
+            "startup scaffold task_started identity fields missing"
+        )
+    if (
+        started_payload.get("type") != "task_started"
+        or started_payload.get("turn_id") != turn_id
+    ):
+        raise NativeSessionBoundaryError(
+            "startup scaffold task_started semantics invalid"
+        )
+    for record in records:
+        payload = record.get("payload")
+        assert isinstance(payload, Mapping)
+        for container in (record, payload):
+            for field in ("session_id", "thread_id"):
+                identity = container.get(field)
+                if identity is not None and identity != session_id:
+                    raise NativeSessionBoundaryError(
+                        "startup scaffold session identity changed"
+                    )
+            explicit_turn = container.get("turn_id")
+            if explicit_turn is not None and explicit_turn != turn_id:
+                raise NativeSessionBoundaryError(
+                    "startup scaffold turn identity changed"
+                )
+            explicit_cwd = container.get("cwd")
+            if (
+                explicit_cwd is not None
+                and explicit_cwd != str(expected_cwd.resolve())
+            ):
+                raise NativeSessionBoundaryError(
+                    "startup scaffold workspace identity changed"
+                )
+    if _record_token_snapshot(dict(session_record)) is not None or _record_token_snapshot(
+        dict(started_record)
+    ) is not None:
+        raise NativeSessionBoundaryError("startup scaffold token telemetry invalid")
+    return {
+        "classification": "canonical-session-meta-task-started",
+        "record_types": list(STARTUP_SCAFFOLD_RECORD_TYPES),
+        "session_id": session_id,
+        "turn_id": turn_id,
+        "attestation_count": 0,
+        "assistant_output_count": 0,
+        "tool_activity_count": 0,
+        "terminal_event_count": 0,
+    }
 
 
 class PreAttestationSessionBoundaryTracker:
@@ -508,17 +675,10 @@ class PreAttestationSessionBoundaryTracker:
         records: list[dict[str, Any]] = []
         for number, line in enumerate(raw.splitlines(keepends=True), 1):
             if not line.strip():
-                continue
-            try:
-                value = json.loads(line.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise NativeSessionBoundaryError(
-                    f"session record {number} is invalid: {exc}"
-                ) from exc
-            if not isinstance(value, dict):
-                raise NativeSessionBoundaryError(
-                    f"session record {number} is not an object"
+                    f"session record {number} is blank"
                 )
+            value = _strict_session_json_record(line, number)
             explicit = value.get("session_id")
             if (
                 isinstance(explicit, str)
@@ -1055,7 +1215,7 @@ def validate_calibration_read_recovery_telemetry(
         errors.append("read-recovery-telemetry-fields-invalid")
     if telemetry.get("telemetry_type") != CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE:
         errors.append("read-recovery-telemetry-type-invalid")
-    if type(telemetry.get("version")) is not int or telemetry.get("version") != 1:
+    if type(telemetry.get("version")) is not int or telemetry.get("version") != 2:
         errors.append("read-recovery-telemetry-version-invalid")
     if telemetry.get("policy") != CALIBRATION_READ_RECOVERY_POLICY:
         errors.append("read-recovery-telemetry-policy-invalid")
@@ -1092,6 +1252,7 @@ def validate_calibration_read_recovery_telemetry(
     for field in (
         "prior_source_identity_sha256",
         "pre_attempt_source_identity_sha256",
+        "pre_dispatch_source_identity_sha256",
     ):
         current = telemetry.get(field)
         if current is not None and (
@@ -1101,6 +1262,14 @@ def validate_calibration_read_recovery_telemetry(
             errors.append(f"read-recovery-{field.replace('_', '-')}-invalid")
     for field in (
         "pre_attempt_boundary_sha256",
+        "pre_dispatch_boundary_sha256",
+        "wire_request_sha256",
+        "wire_response_correlation_sha256",
+        "post_read_boundary_sha256",
+        "workspace_baseline_sha256",
+        "fault_workspace_sha256",
+        "pre_dispatch_workspace_sha256",
+        "post_read_workspace_sha256",
     ):
         current = telemetry.get(field)
         if current is not None and (
@@ -1113,6 +1282,10 @@ def validate_calibration_read_recovery_telemetry(
         "fault_boundary_byte_offset",
         "pre_attempt_boundary_record_count",
         "pre_attempt_boundary_byte_offset",
+        "pre_dispatch_boundary_record_count",
+        "pre_dispatch_boundary_byte_offset",
+        "post_read_boundary_record_count",
+        "post_read_boundary_byte_offset",
     ):
         current = telemetry.get(field)
         if current is not None and (
@@ -1122,6 +1295,42 @@ def validate_calibration_read_recovery_telemetry(
     outcome = telemetry.get("outcome")
     if outcome not in {"not-needed", "recovered"}:
         errors.append("read-recovery-outcome-invalid")
+    if telemetry.get("fault_boundary_classification") not in {
+        None,
+        "exact-empty-pinned-source",
+        "canonical-session-meta-task-started",
+    }:
+        errors.append("read-recovery-fault-classification-invalid")
+    if telemetry.get("pre_dispatch_boundary_classification") not in {
+        None,
+        "exact-empty-pinned-source",
+        "canonical-session-meta-task-started",
+    }:
+        errors.append("read-recovery-predispatch-classification-invalid")
+    wire_dispatch_count = telemetry.get("wire_dispatch_count")
+    if type(wire_dispatch_count) is not int or wire_dispatch_count not in {0, 1}:
+        errors.append("read-recovery-wire-dispatch-count-invalid")
+    wire_request_id = telemetry.get("wire_request_id")
+    if wire_request_id is not None and (
+        type(wire_request_id) is not int or wire_request_id < 1
+    ):
+        errors.append("read-recovery-wire-request-id-invalid")
+    if telemetry.get("transport_outcome") not in {
+        "not-needed",
+        "dispatch-attempted",
+        "response-correlated",
+    }:
+        errors.append("read-recovery-transport-outcome-invalid")
+    workspace_status = telemetry.get("workspace_monitoring_status")
+    if workspace_status not in {"available", "unavailable-not-git"}:
+        errors.append("read-recovery-workspace-monitoring-status-invalid")
+    if not isinstance(telemetry.get("workspace_mutation_observed"), bool):
+        errors.append("read-recovery-workspace-mutation-state-invalid")
+    if workspace_status == "available":
+        if telemetry.get("workspace_baseline_sha256") is None:
+            errors.append("read-recovery-workspace-baseline-missing")
+    elif telemetry.get("workspace_baseline_sha256") is not None:
+        errors.append("read-recovery-workspace-baseline-unexpected")
     if outcome == "not-needed":
         if any(
             telemetry.get(field) is not None
@@ -1140,10 +1349,31 @@ def validate_calibration_read_recovery_telemetry(
                 "pre_attempt_boundary_sha256",
                 "pre_attempt_boundary_record_count",
                 "pre_attempt_boundary_byte_offset",
+                "fault_boundary_classification",
+                "pre_dispatch_source_identity_sha256",
+                "pre_dispatch_boundary_sha256",
+                "pre_dispatch_boundary_record_count",
+                "pre_dispatch_boundary_byte_offset",
+                "pre_dispatch_boundary_classification",
+                "wire_request_id",
+                "wire_request_sha256",
+                "wire_response_correlation_sha256",
+                "post_read_boundary_sha256",
+                "post_read_boundary_record_count",
+                "post_read_boundary_byte_offset",
+                "fault_workspace_sha256",
+                "pre_dispatch_workspace_sha256",
+                "post_read_workspace_sha256",
             )
         ):
             errors.append("read-recovery-unused-fields-invalid")
-        if telemetry.get("token_consumed") is not False or attempt_count != 0:
+        if (
+            telemetry.get("token_consumed") is not False
+            or attempt_count != 0
+            or wire_dispatch_count != 0
+            or telemetry.get("transport_outcome") != "not-needed"
+            or telemetry.get("workspace_mutation_observed") is not False
+        ):
             errors.append("read-recovery-unused-budget-invalid")
     elif outcome == "recovered":
         if telemetry.get("method") != "thread/read":
@@ -1157,6 +1387,21 @@ def validate_calibration_read_recovery_telemetry(
             errors.append("read-recovery-attestation-state-invalid")
         if telemetry.get("token_consumed") is not True or attempt_count != 1:
             errors.append("read-recovery-consumption-invalid")
+        if telemetry.get("workspace_mutation_observed") is not False:
+            errors.append("read-recovery-workspace-mutation-observed")
+        workspace_hashes = [
+            telemetry.get("fault_workspace_sha256"),
+            telemetry.get("pre_dispatch_workspace_sha256"),
+            telemetry.get("post_read_workspace_sha256"),
+        ]
+        if workspace_status == "available":
+            if any(
+                current != telemetry.get("workspace_baseline_sha256")
+                for current in workspace_hashes
+            ):
+                errors.append("read-recovery-workspace-boundary-changed")
+        elif any(current is not None for current in workspace_hashes):
+            errors.append("read-recovery-workspace-boundary-unexpected")
         if any(
             telemetry.get(field) is None
             for field in (
@@ -1168,23 +1413,43 @@ def validate_calibration_read_recovery_telemetry(
                 "pre_attempt_boundary_sha256",
                 "pre_attempt_boundary_record_count",
                 "pre_attempt_boundary_byte_offset",
+                "fault_boundary_classification",
+                "pre_dispatch_source_identity_sha256",
+                "pre_dispatch_boundary_sha256",
+                "pre_dispatch_boundary_record_count",
+                "pre_dispatch_boundary_byte_offset",
+                "pre_dispatch_boundary_classification",
+                "wire_request_id",
+                "wire_request_sha256",
+                "wire_response_correlation_sha256",
+                "post_read_boundary_sha256",
+                "post_read_boundary_record_count",
+                "post_read_boundary_byte_offset",
             )
         ):
             errors.append("read-recovery-timing-missing")
         prior_source = telemetry.get("prior_source_identity_sha256")
         record_count = telemetry.get("fault_boundary_record_count")
         byte_offset = telemetry.get("fault_boundary_byte_offset")
+        fault_classification = telemetry.get("fault_boundary_classification")
         if record_count == 0:
             if (
                 byte_offset != 0
                 or prior_source is None
                 or telemetry.get("prior_boundary_sha256") != sha256_bytes(b"")
+                or fault_classification != "exact-empty-pinned-source"
             ):
                 errors.append("read-recovery-empty-fault-boundary-invalid")
         elif (
             type(record_count) is int
-            and record_count > 0
-            and (type(byte_offset) is not int or byte_offset <= 0 or prior_source is None)
+            and (
+                record_count != 2
+                or type(byte_offset) is not int
+                or byte_offset <= 0
+                or prior_source is None
+                or fault_classification
+                != "canonical-session-meta-task-started"
+            )
         ):
             errors.append("read-recovery-materialized-fault-boundary-invalid")
         pre_attempt_source = telemetry.get("pre_attempt_source_identity_sha256")
@@ -1211,24 +1476,45 @@ def validate_calibration_read_recovery_telemetry(
                 "read-recovery-materialized-pre-attempt-boundary-invalid"
             )
         if (
-            type(record_count) is int
-            and type(pre_attempt_count) is int
-            and pre_attempt_count < record_count
+            pre_attempt_count != record_count
+            or pre_attempt_offset != byte_offset
+            or telemetry.get("pre_attempt_boundary_sha256")
+            != telemetry.get("prior_boundary_sha256")
         ):
-            errors.append("read-recovery-pre-attempt-record-count-regressed")
-        if record_count == 0 and pre_attempt_count != 0:
-            errors.append("read-recovery-zero-boundary-edge-mismatch")
-        if (
-            type(byte_offset) is int
-            and type(pre_attempt_offset) is int
-            and pre_attempt_offset < byte_offset
-        ):
-            errors.append("read-recovery-pre-attempt-byte-offset-regressed")
-        if (
-            prior_source is not None
-            and pre_attempt_source != prior_source
-        ):
+            errors.append("read-recovery-pre-attempt-boundary-changed")
+        if prior_source is not None and pre_attempt_source != prior_source:
             errors.append("read-recovery-pre-attempt-source-changed")
+        if (
+            telemetry.get("pre_dispatch_source_identity_sha256") != prior_source
+            or telemetry.get("pre_dispatch_boundary_sha256")
+            != telemetry.get("prior_boundary_sha256")
+            or telemetry.get("pre_dispatch_boundary_record_count")
+            != record_count
+            or telemetry.get("pre_dispatch_boundary_byte_offset") != byte_offset
+            or telemetry.get("pre_dispatch_boundary_classification")
+            != fault_classification
+        ):
+            errors.append("read-recovery-predispatch-boundary-changed")
+        if (
+            wire_dispatch_count != 1
+            or wire_request_id is None
+            or telemetry.get("wire_request_sha256") is None
+            or telemetry.get("wire_response_correlation_sha256") is None
+            or telemetry.get("transport_outcome") != "response-correlated"
+        ):
+            errors.append("read-recovery-wire-proof-invalid")
+        post_count = telemetry.get("post_read_boundary_record_count")
+        post_offset = telemetry.get("post_read_boundary_byte_offset")
+        if (
+            type(post_count) is not int
+            or type(post_offset) is not int
+            or type(record_count) is not int
+            or type(byte_offset) is not int
+            or post_count < record_count
+            or post_offset < byte_offset
+            or telemetry.get("post_read_boundary_sha256") is None
+        ):
+            errors.append("read-recovery-post-read-boundary-invalid")
     expected_sha256 = canonical_sha256(
         {key: item for key, item in telemetry.items() if key != "telemetry_sha256"}
     )
@@ -1403,6 +1689,81 @@ class AppServer:
             raise AppServerError(f"app-server-result-invalid:{method}")
         return result, latency_ms
 
+    def request_once_with_guard(
+        self,
+        method: str,
+        params: Mapping[str, Any],
+        *,
+        timeout: float,
+        pre_dispatch_guard: Callable[[], Mapping[str, Any]],
+    ) -> tuple[dict[str, Any], float, dict[str, Any], int, str]:
+        """Issue one non-replayable wire request after an in-lock guard."""
+
+        assert self.process.stdin is not None
+        with self._condition:
+            if self.process.poll() is not None:
+                raise AppServerError(
+                    f"app-server-exited-before-guarded-request:{method}:"
+                    f"{self.process.returncode}"
+                )
+            if self._reader_error:
+                raise AppServerError(self._reader_error)
+            guarded = dict(pre_dispatch_guard())
+            self._request_id += 1
+            request_id = self._request_id
+            payload = {"id": request_id, "method": method, "params": dict(params)}
+            payload_sha256 = domain_sha256(
+                payload, domain="app-server-single-wire-request"
+            )
+            started = time.monotonic_ns()
+            # There is deliberately one write and one flush.  This client has
+            # no reconnect, redirect, timeout retry, or implicit replay path.
+            try:
+                self.process.stdin.write(
+                    json.dumps(payload, separators=(",", ":")) + "\n"
+                )
+                self.process.stdin.flush()
+            except OSError as exc:
+                raise AppServerError(
+                    f"app-server-guarded-request-dispatch-ambiguous:{method}"
+                ) from exc
+            deadline = time.monotonic() + timeout
+            while request_id not in self._responses:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise AppServerError(
+                        f"app-server-guarded-request-response-ambiguous:{method}"
+                    )
+                if self.process.poll() is not None:
+                    raise AppServerError(
+                        f"app-server-guarded-request-response-ambiguous:{method}"
+                    )
+                if self._reader_error:
+                    raise AppServerError(self._reader_error)
+                self._condition.wait(timeout=remaining)
+            message = self._responses.pop(request_id)
+        latency_ms = (time.monotonic_ns() - started) / 1_000_000
+        self.rpc_latencies.setdefault(method, []).append(latency_ms)
+        if type(message.get("id")) is not int or message.get("id") != request_id:
+            raise AppServerError(f"app-server-response-id-invalid:{method}")
+        if "error" in message:
+            if "result" in message or not isinstance(message.get("error"), Mapping):
+                raise AppServerError(f"app-server-error-response-invalid:{method}")
+            error = message["error"]
+            code = error.get("code")
+            if type(code) is not int or not isinstance(error.get("message"), str):
+                raise AppServerError(f"app-server-error-response-invalid:{method}")
+            raise AppServerRpcError(
+                method=method,
+                code=code,
+                request_id=request_id,
+                latency_ms=latency_ms,
+            )
+        result = message.get("result")
+        if not isinstance(result, dict):
+            raise AppServerError(f"app-server-result-invalid:{method}")
+        return result, latency_ms, guarded, request_id, payload_sha256
+
     def model_discovery(self) -> dict[str, Any]:
         result, latency = self.request("model/list", {"includeHidden": True})
         models = result.get("data")
@@ -1474,6 +1835,26 @@ class AppServer:
         if not isinstance(thread, Mapping) or thread.get("id") != thread_id:
             raise AppServerError("thread-read-response-invalid")
         return dict(thread), latency
+
+    def read_thread_once_with_guard(
+        self,
+        thread_id: str,
+        *,
+        timeout: float,
+        pre_dispatch_guard: Callable[[], Mapping[str, Any]],
+    ) -> tuple[dict[str, Any], float, dict[str, Any], int, str]:
+        result, latency, guarded, request_id, payload_sha256 = (
+            self.request_once_with_guard(
+                "thread/read",
+                {"threadId": thread_id, "includeTurns": True},
+                timeout=timeout,
+                pre_dispatch_guard=pre_dispatch_guard,
+            )
+        )
+        thread = result.get("thread")
+        if not isinstance(thread, Mapping) or thread.get("id") != thread_id:
+            raise AppServerError("thread-read-response-invalid")
+        return dict(thread), latency, guarded, request_id, payload_sha256
 
     def start_turn(self, thread_id: str, prompt: str) -> tuple[dict[str, Any], float]:
         turn_intent_id: str | None = None
@@ -2287,6 +2668,21 @@ def _run_calibration(
     pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     samples: dict[str, list[float]] = {}
+
+    def workspace_snapshot() -> tuple[str, str | None]:
+        completed = subprocess.run(
+            ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            cwd=cwd,
+            check=False,
+            capture_output=True,
+        )
+        if completed.returncode == 0:
+            return "available", sha256_bytes(completed.stdout)
+        if completed.returncode == 128:
+            return "unavailable-not-git", None
+        raise AppServerError("capability-workspace-comparison-failed")
+
+    workspace_monitoring_status, workspace_baseline_sha256 = workspace_snapshot()
     if pre_allocation_check is not None:
         pre_allocation_check()
     result, preallocation_latency = server.start_thread(
@@ -2353,7 +2749,7 @@ def _run_calibration(
     read_recovery_pending = False
     read_recovery: dict[str, Any] = {
         "telemetry_type": CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE,
-        "version": 1,
+        "version": 2,
         "policy": CALIBRATION_READ_RECOVERY_POLICY,
         "method": None,
         "code": None,
@@ -2374,8 +2770,66 @@ def _run_calibration(
         "pre_attempt_boundary_sha256": None,
         "pre_attempt_boundary_record_count": None,
         "pre_attempt_boundary_byte_offset": None,
+        "fault_boundary_classification": None,
+        "pre_dispatch_source_identity_sha256": None,
+        "pre_dispatch_boundary_sha256": None,
+        "pre_dispatch_boundary_record_count": None,
+        "pre_dispatch_boundary_byte_offset": None,
+        "pre_dispatch_boundary_classification": None,
+        "wire_dispatch_count": 0,
+        "wire_request_id": None,
+        "wire_request_sha256": None,
+        "wire_response_correlation_sha256": None,
+        "post_read_boundary_sha256": None,
+        "post_read_boundary_record_count": None,
+        "post_read_boundary_byte_offset": None,
+        "workspace_monitoring_status": workspace_monitoring_status,
+        "workspace_baseline_sha256": workspace_baseline_sha256,
+        "fault_workspace_sha256": None,
+        "pre_dispatch_workspace_sha256": None,
+        "post_read_workspace_sha256": None,
+        "workspace_mutation_observed": False,
+        "transport_outcome": "not-needed",
         "outcome": "not-needed",
     }
+
+    def capture_recovery_workspace(stage: str) -> str | None:
+        status, current = workspace_snapshot()
+        if status != workspace_monitoring_status:
+            read_recovery["workspace_mutation_observed"] = True
+            raise AppServerError(
+                f"capability-read-recovery-workspace-monitor-changed-{stage}"
+            )
+        field = {
+            "at-fault": "fault_workspace_sha256",
+            "before-dispatch": "pre_dispatch_workspace_sha256",
+            "post-read": "post_read_workspace_sha256",
+        }[stage]
+        read_recovery[field] = current
+        if current != workspace_baseline_sha256:
+            read_recovery["workspace_mutation_observed"] = True
+            raise AppServerError(
+                f"capability-read-recovery-workspace-mutated-{stage}"
+            )
+        return current
+
+    def attach_recovery_fault(exc: BaseException) -> BaseException:
+        """Attach privacy-safe bounded-retry state to every terminal fault."""
+
+        if getattr(exc, "first_protected_fault", None) is not None:
+            return exc
+        snapshot = dict(read_recovery)
+        snapshot.pop("telemetry_sha256", None)
+        fault = {
+            "fault_type": "calibration-thread-read-recovery",
+            "failure_code": str(exc),
+            "thread_id_sha256": sha256_text(thread_id),
+            "turn_id_sha256": sha256_text(turn_id),
+            "recovery_telemetry": snapshot,
+            "recovery_telemetry_sha256": canonical_sha256(snapshot),
+        }
+        setattr(exc, "first_protected_fault", fault)
+        return exc
 
     def public_boundary(value: Mapping[str, Any]) -> dict[str, Any]:
         return {
@@ -2487,12 +2941,115 @@ def _run_calibration(
         phase: str = "materialization",
         *,
         read_timeout_seconds: float = THREAD_READ_TIMEOUT_SECONDS,
+        guarded_recovery_read: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        thread, _latency = server.read_thread(
-            thread_id,
-            timeout=read_timeout_seconds,
-        )
         nonlocal attestation_observed, trusted_source_identity, observed_prefix
+        if guarded_recovery_read:
+            def pre_dispatch_guard() -> Mapping[str, Any]:
+                if (
+                    read_recovery.get("token_consumed") is not True
+                    or read_recovery.get("replacement_attempt_count") != 1
+                    or read_recovery.get("wire_dispatch_count") != 0
+                    or attestation_observed
+                    or server.connection_epoch_sha256
+                    != read_recovery.get("connection_epoch_sha256")
+                ):
+                    raise AppServerError(
+                        "capability-read-recovery-predispatch-state-invalid"
+                    )
+                capture_recovery_workspace("before-dispatch")
+                dispatch_boundary, classification = capture_recovery_boundary(
+                    "before-dispatch"
+                )
+                if (
+                    dispatch_boundary.get("record_count")
+                    != read_recovery.get("fault_boundary_record_count")
+                    or dispatch_boundary.get("byte_offset")
+                    != read_recovery.get("fault_boundary_byte_offset")
+                    or dispatch_boundary.get("boundary_sha256")
+                    != read_recovery.get("prior_boundary_sha256")
+                    or trusted_source_identity
+                    != read_recovery.get("prior_source_identity_sha256")
+                    or classification
+                    != read_recovery.get("fault_boundary_classification")
+                ):
+                    raise AppServerError(
+                        "capability-read-recovery-boundary-changed-before-dispatch"
+                    )
+                read_recovery.update(
+                    {
+                        "pre_dispatch_source_identity_sha256": (
+                            trusted_source_identity
+                        ),
+                        "pre_dispatch_boundary_sha256": dispatch_boundary[
+                            "boundary_sha256"
+                        ],
+                        "pre_dispatch_boundary_record_count": int(
+                            dispatch_boundary["record_count"]
+                        ),
+                        "pre_dispatch_boundary_byte_offset": int(
+                            dispatch_boundary["byte_offset"]
+                        ),
+                        "pre_dispatch_boundary_classification": classification,
+                        # Consumed before the one write.  Any write or response
+                        # ambiguity remains a terminal consumed attempt.
+                        "wire_dispatch_count": 1,
+                        "transport_outcome": "dispatch-attempted",
+                    }
+                )
+                return {
+                    "boundary_sha256": dispatch_boundary["boundary_sha256"],
+                    "byte_offset": dispatch_boundary["byte_offset"],
+                    "record_count": dispatch_boundary["record_count"],
+                    "source_identity_sha256": trusted_source_identity,
+                    "classification": classification,
+                    "connection_epoch_sha256": server.connection_epoch_sha256,
+                }
+
+            (
+                thread,
+                _latency,
+                guarded_boundary,
+                wire_request_id,
+                wire_request_sha256,
+            ) = server.read_thread_once_with_guard(
+                thread_id,
+                timeout=read_timeout_seconds,
+                pre_dispatch_guard=pre_dispatch_guard,
+            )
+            if (
+                guarded_boundary.get("boundary_sha256")
+                != read_recovery.get("pre_dispatch_boundary_sha256")
+                or guarded_boundary.get("connection_epoch_sha256")
+                != server.connection_epoch_sha256
+            ):
+                raise AppServerError(
+                    "capability-read-recovery-guard-return-invalid"
+                )
+            read_recovery.update(
+                {
+                    "wire_request_id": wire_request_id,
+                    "wire_request_sha256": wire_request_sha256,
+                    "wire_response_correlation_sha256": domain_sha256(
+                        {
+                            "connection_epoch_sha256": (
+                                server.connection_epoch_sha256
+                            ),
+                            "thread_id": thread_id,
+                            "turn_id": turn_id,
+                            "request_id": wire_request_id,
+                            "request_sha256": wire_request_sha256,
+                        },
+                        domain="calibration-thread-read-recovery-response",
+                    ),
+                    "transport_outcome": "response-correlated",
+                }
+            )
+        else:
+            thread, _latency = server.read_thread(
+                thread_id,
+                timeout=read_timeout_seconds,
+            )
         projected_status = normalize_projected_status(turn_status(thread, turn_id))
         previous_boundary = dict(observed_prefix)
         try:
@@ -2526,6 +3083,17 @@ def _run_calibration(
         ):
             raise AppServerError("capability-session-source-identity-changed")
         observed_prefix = dict(boundary)
+        if guarded_recovery_read:
+            capture_recovery_workspace("post-read")
+            read_recovery.update(
+                {
+                    "post_read_boundary_sha256": boundary["boundary_sha256"],
+                    "post_read_boundary_record_count": int(
+                        boundary["record_count"]
+                    ),
+                    "post_read_boundary_byte_offset": int(boundary["byte_offset"]),
+                }
+            )
         if not materialized:
             record_nonterminal_projection(
                 phase=phase,
@@ -2746,10 +3314,10 @@ def _run_calibration(
             "ambiguous_event_count": 0,
         })
 
-    def capture_recovery_boundary(stage: str) -> dict[str, Any]:
-        """Pin durable JSONL truth at both replacement-eligibility edges."""
+    def capture_recovery_boundary(stage: str) -> tuple[dict[str, Any], str]:
+        """Pin exact-empty or canonical startup truth at every recovery edge."""
 
-        if stage not in {"at-fault", "before-replacement"}:
+        if stage not in {"at-fault", "before-replacement", "before-dispatch"}:
             raise AppServerError("capability-read-recovery-stage-invalid")
 
         nonlocal attestation_observed, trusted_source_identity, observed_prefix
@@ -2811,65 +3379,69 @@ def _run_calibration(
                 boundary=boundary,
                 decision="continue-pending",
             )
-            return dict(boundary)
+            return dict(boundary), "exact-empty-pinned-source"
         assert located is not None
-        try:
-            terminal_event = trusted_terminal_event(records, turn_id=turn_id)
-        except NativeSessionBoundaryError as exc:
-            raise AppServerError(
-                f"capability-read-recovery-terminal-grammar-invalid:{exc}"
-            ) from exc
-        contexts = [
-            record["payload"]
-            for record in records
-            if record.get("type") == "turn_context"
+        if any(
+            record.get("type") == "turn_context"
             and isinstance(record.get("payload"), Mapping)
             and (
                 record["payload"].get("turn_id")
                 or record["payload"].get("turnId")
             )
             == turn_id
-        ]
-        if contexts and any(
-            context.get("model") != EXACT_MODEL
-            or (context.get("effort") or context.get("reasoning_effort"))
-            != "low"
-            for context in contexts
+            for record in records
         ):
-            raise AppServerError("capability-trusted-model-effort-mismatch")
-        if len(contexts) > 1:
-            raise AppServerError("capability-current-turn-context-not-singular")
-        markers = telemetry_markers(records, turn_id=turn_id)
-        if markers["compaction_indices"] or markers["reroute_indices"]:
-            raise AppServerError("capability-session-containment-failed")
-        if terminal_event is not None:
-            raise AppServerError(
-                "capability-terminal-event-before-deliberate-interrupt:"
-                + str(terminal_event["status"])
-            )
-        if contexts:
             attestation_observed = True
             raise AppServerError(
                 f"capability-read-recovery-attestation-observed-{stage}"
             )
+        markers = telemetry_markers(records, turn_id=turn_id)
+        if markers["compaction_indices"] or markers["reroute_indices"]:
+            raise AppServerError(
+                f"capability-read-recovery-control-activity-observed-{stage}"
+            )
+        try:
+            terminal = trusted_terminal_event(records, turn_id=turn_id)
+        except NativeSessionBoundaryError as exc:
+            raise AppServerError(
+                f"capability-read-recovery-terminal-grammar-invalid-{stage}:{exc}"
+            ) from exc
+        if terminal is not None:
+            raise AppServerError(
+                f"capability-read-recovery-terminal-event-observed-{stage}"
+            )
         if any(
             record.get("type") == "response_item"
-            and isinstance(record.get("payload"), Mapping)
-            and record["payload"].get("type")
-            in {
-                "function_call",
-                "functionCall",
-                "custom_tool_call",
-                "customToolCall",
-            }
             for record in records
         ):
             raise AppServerError(
-                "capability-read-recovery-operative-activity-at-fault"
+                f"capability-read-recovery-operative-activity-observed-{stage}"
             )
-        raise AppServerError(
-            f"capability-read-recovery-boundary-not-exact-zero-{stage}"
+        try:
+            scaffold = validate_startup_scaffold_records(
+                records,
+                session_id=thread_id,
+                turn_id=turn_id,
+                expected_cwd=cwd,
+            )
+        except NativeSessionBoundaryError as exc:
+            raise AppServerError(
+                f"capability-read-recovery-startup-scaffold-invalid-{stage}:{exc}"
+            ) from exc
+        if boundary.get("token_snapshot") is not None:
+            raise AppServerError(
+                f"capability-read-recovery-startup-scaffold-token-invalid-{stage}"
+            )
+        append_control_observation(
+            phase="materialization",
+            projected_status="unknown",
+            durable_status=None,
+            source_identity_sha256=located.source_identity_sha256,
+            previous_boundary=previous_boundary,
+            boundary=boundary,
+            decision="continue-pending",
         )
+        return dict(boundary), str(scaffold["classification"])
 
     observations: list[dict[str, Any]] = []
     last_threads: dict[str, dict[str, Any]] = {}
@@ -2914,27 +3486,44 @@ def _run_calibration(
                 or server.connection_epoch_sha256
                 != read_recovery["connection_epoch_sha256"]
             ):
-                raise AppServerError("capability-read-recovery-identity-invalid")
-            pre_attempt_boundary = capture_recovery_boundary(
-                "before-replacement"
-            )
-            if (
-                read_recovery["fault_boundary_record_count"] == 0
-                and (
-                    pre_attempt_boundary["record_count"] != 0
-                    or pre_attempt_boundary["byte_offset"] != 0
+                raise attach_recovery_fault(
+                    AppServerError("capability-read-recovery-identity-invalid")
                 )
+            try:
+                pre_attempt_boundary, pre_attempt_classification = (
+                    capture_recovery_boundary("before-replacement")
+                )
+            except AppServerError as exc:
+                raise attach_recovery_fault(exc) from exc
+            if (
+                pre_attempt_boundary["record_count"]
+                != read_recovery["fault_boundary_record_count"]
+                or pre_attempt_boundary["byte_offset"]
+                != read_recovery["fault_boundary_byte_offset"]
+                or pre_attempt_boundary["boundary_sha256"]
+                != read_recovery["prior_boundary_sha256"]
+                or trusted_source_identity
+                != read_recovery["prior_source_identity_sha256"]
+                or pre_attempt_classification
+                != read_recovery["fault_boundary_classification"]
             ):
-                raise AppServerError(
-                    "capability-read-recovery-zero-boundary-changed-before-replacement"
+                raise attach_recovery_fault(
+                    AppServerError(
+                        "capability-read-recovery-boundary-changed-before-replacement"
+                    )
                 )
             if attestation_observed:
-                raise AppServerError(
-                    "capability-read-recovery-attestation-observed-before-replacement"
+                raise attach_recovery_fault(
+                    AppServerError(
+                        "capability-read-recovery-attestation-observed-before-replacement"
+                    )
                 )
-            remaining_before_attempt = require_recovery_edge_within_bounds(
-                poll_start
-            )
+            try:
+                remaining_before_attempt = require_recovery_edge_within_bounds(
+                    poll_start
+                )
+            except AppServerError as exc:
+                raise attach_recovery_fault(exc)
             read_recovery_pending = False
             read_recovery["replacement_attempt_count"] = 1
             read_recovery["remaining_deadline_ms_before_attempt"] = round(
@@ -2961,14 +3550,15 @@ def _run_calibration(
                     read_timeout_seconds=min(
                         THREAD_READ_TIMEOUT_SECONDS,
                         remaining_before_attempt,
-                    )
+                    ),
+                    guarded_recovery_read=replacement_attempt,
                 ),
                 guard_seconds=0.0,
             )
         except AppServerRpcError as exc:
             samples.setdefault("check", []).append(exc.latency_ms)
             if replacement_attempt:
-                raise
+                raise attach_recovery_fault(exc)
             eligible = (
                 exc.method == "thread/read"
                 and type(exc.code) is int
@@ -2980,11 +3570,6 @@ def _run_calibration(
             )
             if not eligible:
                 raise
-            fault_boundary = capture_recovery_boundary("at-fault")
-            if attestation_observed:
-                raise AppServerError(
-                    "capability-read-recovery-attestation-observed-at-fault"
-                )
             remaining_before_scheduling = require_recovery_edge_within_bounds(
                 poll_start
             )
@@ -2992,13 +3577,31 @@ def _run_calibration(
                 {
                     "method": exc.method,
                     "code": exc.code,
-                    "token_consumed": True,
                     "phase": "materialization",
                     "failed_callback_latency_ms": round(exc.latency_ms, 3),
                     "remaining_deadline_ms_before_scheduling": round(
                         remaining_before_scheduling * 1000,
                         3,
                     ),
+                    "attestation_observed_at_fault": bool(attestation_observed),
+                }
+            )
+            try:
+                capture_recovery_workspace("at-fault")
+                fault_boundary, fault_classification = capture_recovery_boundary(
+                    "at-fault"
+                )
+            except AppServerError as boundary_exc:
+                raise attach_recovery_fault(boundary_exc) from boundary_exc
+            if attestation_observed:
+                raise attach_recovery_fault(
+                    AppServerError(
+                        "capability-read-recovery-attestation-observed-at-fault"
+                    )
+                )
+            read_recovery.update(
+                {
+                    "token_consumed": True,
                     "attestation_observed_at_fault": False,
                     "prior_source_identity_sha256": trusted_source_identity,
                     "prior_boundary_sha256": fault_boundary["boundary_sha256"],
@@ -3008,24 +3611,26 @@ def _run_calibration(
                     "fault_boundary_byte_offset": int(
                         fault_boundary["byte_offset"]
                     ),
+                    "fault_boundary_classification": fault_classification,
                 }
             )
             read_recovery_pending = True
-            elapsed = time.monotonic() - poll_start
-            time.sleep(
-                max(0.0, CALIBRATION_POLL_INTERVAL_SECONDS - elapsed)
-            )
             continue
+        except AppServerError as exc:
+            if read_recovery.get("token_consumed") is True:
+                raise attach_recovery_fault(exc)
+            raise
         if replacement_attempt:
-            require_recovery_edge_within_bounds(poll_start)
+            try:
+                require_recovery_edge_within_bounds(poll_start)
+            except AppServerError as exc:
+                raise attach_recovery_fault(exc)
             if (
                 server.connection_epoch_sha256
                 != read_recovery["connection_epoch_sha256"]
             ):
-                raise AppServerError("capability-read-recovery-identity-invalid")
-            if attestation_observed:
-                raise AppServerError(
-                    "capability-read-recovery-attestation-observed-during-replacement"
+                raise attach_recovery_fault(
+                    AppServerError("capability-read-recovery-identity-invalid")
                 )
             read_recovery["outcome"] = "recovered"
         last_threads[thread_id] = thread

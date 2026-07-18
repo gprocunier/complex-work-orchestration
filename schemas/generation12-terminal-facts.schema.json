@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/generation12-terminal-facts.schema.json",
+  "title": "Generation 12 Terminal Facts",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type", "version", "schema", "recorded_at", "identity",
+    "terminal_boundary", "source_bindings", "facts", "source_root_sha256",
+    "canonical_terminal_facts_sha256"
+  ],
+  "properties": {
+    "artifact_type": {"const": "cwo-generation12-terminal-facts"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/generation12-terminal-facts.schema.json"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "identity": {"$ref": "#/$defs/identity"},
+    "terminal_boundary": {"$ref": "#/$defs/terminal_boundary"},
+    "source_bindings": {"$ref": "#/$defs/source_bindings"},
+    "facts": {"$ref": "#/$defs/facts"},
+    "source_root_sha256": {"$ref": "#/$defs/sha256"},
+    "canonical_terminal_facts_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_object": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorization_id", "manifest_id", "campaign_nonce",
+        "launch_claim_sha256", "control_turn_id", "bead_id", "work_unit_id",
+        "live_generation", "session_id", "turn_id", "candidate_commit",
+        "candidate_tree"
+      ],
+      "properties": {
+        "authorization_id": {"$ref": "#/$defs/uuid"},
+        "manifest_id": {"$ref": "#/$defs/uuid"},
+        "campaign_nonce": {"$ref": "#/$defs/uuid"},
+        "launch_claim_sha256": {"$ref": "#/$defs/sha256"},
+        "control_turn_id": {"type": "string", "minLength": 1},
+        "bead_id": {"type": "string", "minLength": 1},
+        "work_unit_id": {"type": "string", "minLength": 1},
+        "live_generation": {"const": 12},
+        "session_id": {"$ref": "#/$defs/uuid"},
+        "turn_id": {"$ref": "#/$defs/uuid"},
+        "candidate_commit": {"$ref": "#/$defs/git_object"},
+        "candidate_tree": {"$ref": "#/$defs/git_object"}
+      }
+    },
+    "terminal_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_count", "byte_offset", "boundary_sha256", "token_snapshot",
+        "session_source_identity_sha256", "store"
+      ],
+      "properties": {
+        "record_count": {"const": 4},
+        "byte_offset": {"type": "integer", "minimum": 1},
+        "boundary_sha256": {"$ref": "#/$defs/sha256"},
+        "token_snapshot": {"type": "null"},
+        "session_source_identity_sha256": {"$ref": "#/$defs/sha256"},
+        "store": {"const": "archived_sessions"}
+      }
+    },
+    "source_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allocation_audit_file_sha256", "allocation_ledger_file_sha256",
+        "authorization_file_sha256", "authorization_marker_file_sha256",
+        "authorization_state_file_sha256", "failure_evidence_file_sha256",
+        "generation12_runner_source_file_sha256",
+        "generation12_session_boundary_source_file_sha256",
+        "global_claim_file_sha256", "manifest_file_sha256",
+        "nonce_marker_file_sha256", "opus_adjudication_file_sha256",
+        "opus_review_file_sha256", "outer_authority_file_sha256",
+        "pre_live_adjudication_file_sha256", "pre_live_receipt_file_sha256",
+        "pre_mutation_adjudication_file_sha256",
+        "pre_mutation_receipt_file_sha256", "preflight_file_sha256",
+        "recovery_analysis_file_sha256", "recovery_sol_receipt_file_sha256",
+        "recovery_sol_session_file_sha256", "scope_state_file_sha256",
+        "spark_validation_receipt_file_sha256",
+        "spark_validation_session_file_sha256",
+        "startup_scaffold_prefix_file_sha256", "steering_registry_file_sha256",
+        "terminal_session_file_sha256"
+      ],
+      "properties": {
+        "allocation_audit_file_sha256": {"$ref": "#/$defs/sha256"},
+        "allocation_ledger_file_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_file_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_marker_file_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_state_file_sha256": {"$ref": "#/$defs/sha256"},
+        "failure_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
+        "generation12_runner_source_file_sha256": {"$ref": "#/$defs/sha256"},
+        "generation12_session_boundary_source_file_sha256": {"$ref": "#/$defs/sha256"},
+        "global_claim_file_sha256": {"$ref": "#/$defs/sha256"},
+        "manifest_file_sha256": {"$ref": "#/$defs/sha256"},
+        "nonce_marker_file_sha256": {"$ref": "#/$defs/sha256"},
+        "opus_adjudication_file_sha256": {"$ref": "#/$defs/sha256"},
+        "opus_review_file_sha256": {"$ref": "#/$defs/sha256"},
+        "outer_authority_file_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_live_adjudication_file_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_live_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_mutation_adjudication_file_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_mutation_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "preflight_file_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_analysis_file_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_sol_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_sol_session_file_sha256": {"$ref": "#/$defs/sha256"},
+        "scope_state_file_sha256": {"$ref": "#/$defs/sha256"},
+        "spark_validation_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "spark_validation_session_file_sha256": {"$ref": "#/$defs/sha256"},
+        "startup_scaffold_prefix_file_sha256": {"$ref": "#/$defs/sha256"},
+        "steering_registry_file_sha256": {"$ref": "#/$defs/sha256"},
+        "terminal_session_file_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenance", "source_labels", "value", "fact_sha256"],
+      "properties": {
+        "provenance": {"type": "string", "minLength": 1},
+        "source_labels": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "value": {"type": "object"},
+        "fact_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startup_scaffold", "read_recovery_fault", "terminal_interruption",
+        "containment"
+      ],
+      "properties": {
+        "startup_scaffold": {"$ref": "#/$defs/fact"},
+        "read_recovery_fault": {"$ref": "#/$defs/fact"},
+        "terminal_interruption": {"$ref": "#/$defs/fact"},
+        "containment": {"$ref": "#/$defs/fact"}
+      }
+    }
+  }
+}
