@@ -2463,14 +2463,36 @@ class LiveThreadAdapter:
         self._session_source_identity_sha256 = source_identity
         return dict(boundary)
 
-    def _fresh_nonterminal_thread_locked(self) -> None:
+    def _turn_started_notification_observed_locked(self) -> bool:
         self._pending_window_is_open_locked()
+        for message in self.server.notifications(self.thread_id, "turn/started"):
+            params = (
+                message.get("params")
+                if isinstance(message.get("params"), Mapping)
+                else {}
+            )
+            turn = params.get("turn") if isinstance(params.get("turn"), Mapping) else {}
+            if turn.get("id") == self.turn_id:
+                return True
+        self._pending_window_is_open_locked()
+        return False
+
+    def _fresh_nonterminal_thread_locked(self) -> bool:
+        self._pending_window_is_open_locked()
+        # turn/start acknowledges the submission before the app-server is
+        # necessarily ready to project that turn through thread/read.  The
+        # exact turn/started notification is the trusted readiness witness.
+        # Until it arrives, retain a nonattesting pending boundary and do not
+        # race thread/read against the still-initializing turn.
+        if not self._turn_started_notification_observed_locked():
+            return False
         thread, _latency = self.server.read_thread(self.thread_id)
         if thread.get("id") != self.thread_id:
             raise AppServerError("post-submission-thread-read-identity-mismatch")
         self.last_thread = thread
         self.reported_session_path = thread.get("path") or self.reported_session_path
         self._pending_window_is_open_locked()
+        return True
 
     def _capture_trusted_boundary(self, *, allow_pending: bool) -> dict[str, Any]:
         with self._boundary_lock:
@@ -2511,7 +2533,11 @@ class LiveThreadAdapter:
             # The trusted file was absent or exactly zero bytes. Re-read the
             # control plane after that observation, retry the boundary once,
             # then re-read status immediately before emitting a pending marker.
-            self._fresh_nonterminal_thread_locked()
+            if not self._fresh_nonterminal_thread_locked():
+                boundary["observation_type"] = (
+                    "post-submission-turn-start-pending-nonattesting"
+                )
+                return boundary
             boundary = session_boundary_summary(
                 self.server.codex_home,
                 self.thread_id,
@@ -2523,7 +2549,11 @@ class LiveThreadAdapter:
             )
             if boundary["available"]:
                 return self._record_complete_boundary_locked(boundary)
-            self._fresh_nonterminal_thread_locked()
+            if not self._fresh_nonterminal_thread_locked():
+                boundary["observation_type"] = (
+                    "post-submission-turn-start-pending-nonattesting"
+                )
+                return boundary
             boundary["observation_type"] = (
                 "post-submission-unmaterialized-nonattesting-nonaccepting"
             )

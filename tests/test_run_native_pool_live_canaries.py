@@ -1622,6 +1622,60 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 self.assertFalse(evidence["protected_fault"])
                 self.assertFalse(evidence["control_loss"])
 
+    def test_acknowledged_turn_is_not_read_before_exact_started_notification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root, initial_boundary="missing")
+            adapter = self.adapter(root, server, clock)
+            adapter.send_input(message="bounded prompt")
+            with mock.patch.object(
+                server,
+                "read_thread",
+                side_effect=AssertionError("thread/read raced turn/started"),
+            ) as read_thread, mock.patch.object(
+                adapter, "_workspace_mutations", return_value=[]
+            ):
+                evidence = adapter.evidence()
+            read_thread.assert_not_called()
+            self.assertEqual(
+                evidence["session_disposition"], "accepted-with-warning"
+            )
+            self.assertEqual(
+                adapter._capture_trusted_boundary(allow_pending=True)[
+                    "observation_type"
+                ],
+                "post-submission-turn-start-pending-nonattesting",
+            )
+
+    def test_only_exact_turn_started_notification_unlocks_thread_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root, initial_boundary="missing")
+            adapter = self.adapter(root, server, clock)
+            adapter.send_input(message="bounded prompt")
+            notifications = [
+                {
+                    "method": "turn/started",
+                    "params": {
+                        "threadId": server.thread_id,
+                        "turn": {"id": str(uuid.uuid4())},
+                    },
+                }
+            ]
+            server.notifications = lambda _thread_id, _method=None: notifications
+            with mock.patch.object(server, "read_thread", wraps=server.read_thread) as read_thread:
+                boundary = adapter._capture_trusted_boundary(allow_pending=True)
+                read_thread.assert_not_called()
+                notifications[0]["params"]["turn"]["id"] = server.turn_id
+                boundary = adapter._capture_trusted_boundary(allow_pending=True)
+            self.assertEqual(read_thread.call_count, 2)
+            self.assertEqual(
+                boundary["observation_type"],
+                "post-submission-unmaterialized-nonattesting-nonaccepting",
+            )
+
     def test_materialization_before_deadline_is_irreversible_and_exact(self) -> None:
         for initial_boundary in ("missing", "empty"):
             with self.subTest(initial_boundary=initial_boundary), tempfile.TemporaryDirectory() as temporary:
