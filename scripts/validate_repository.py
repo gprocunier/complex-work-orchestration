@@ -448,6 +448,7 @@ def validate_repository() -> list[str]:
     validate_cwo_core_contract(errors)
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
+    validate_native_supervision_tech_preview_copy(errors)
     validate_closure_pressure_contract(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
@@ -1945,6 +1946,52 @@ def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -
     ]
     if missing:
         errors.append(f"{relative_path} is missing required terms: {', '.join(missing)}")
+
+
+def validate_native_supervision_tech_preview_copy(
+    errors: list[str],
+    content: str | None = None,
+    relative_path: str = "docs/workflows.html",
+) -> None:
+    if content is None:
+        path = REPO_ROOT / relative_path
+        if not path.is_file():
+            errors.append(f"required documentation file is missing: {relative_path}")
+            return
+        content = path.read_text(encoding="utf-8")
+
+    normalized = " ".join(content.split())
+    required_fragments = [
+        ("section anchor", 'id="native-supervision-tech-preview"'),
+        ("page navigation link", 'href="#native-supervision-tech-preview"'),
+        (
+            "stability/default wording",
+            "Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default",
+        ),
+        ("explicit opt-in wording", "requires explicit opt-in"),
+        ("same-host capability wording", "one fresh same-host capability receipt"),
+        ("fixed-cohort wording", "exactly two fixed workers"),
+        ("isolated topology wording", "isolated mutable worktrees"),
+        ("shared topology wording", "shared read-only topology"),
+        (
+            "single-flight boundary wording",
+            "Precommit, critics, integration, retry, replay, publication, and higher capacities remain single-flight or unsupported",
+        ),
+        (
+            "operator link",
+            "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md",
+        ),
+        (
+            "rollback wording",
+            "git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy",
+        ),
+    ]
+    missing = [label for label, fragment in required_fragments if fragment not in normalized]
+    if missing:
+        errors.append(
+            f"{relative_path} is missing the native-supervision Tech Preview contract: "
+            + ", ".join(missing)
+        )
 
 
 def public_copy_validated_path(relative_path: str) -> bool:

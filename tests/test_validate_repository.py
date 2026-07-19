@@ -17,6 +17,7 @@ from validate_repository import (  # noqa: E402
     validate_closure_pressure_contract,
     validate_ci_workflow,
     validate_local_inference_peer_review_guidance,
+    validate_native_supervision_tech_preview_copy,
     validate_public_docs_do_not_expose_hardware_categories,
     validate_repository,
     validate_retired_beads_context_aliases,
@@ -26,8 +27,54 @@ from cwo_core.waivers import require_waiver_reason  # noqa: E402
 
 
 class ValidateRepositoryTests(unittest.TestCase):
+    NATIVE_SUPERVISION_TECH_PREVIEW_COPY = """
+        <nav class="page-nav">
+          <a href="#native-supervision-tech-preview">Native Supervision Tech Preview</a>
+        </nav>
+        <section id="native-supervision-tech-preview">
+          <p>Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default; every capacity-two run requires explicit opt-in.</p>
+          <p>Capacity two requires one fresh same-host capability receipt, exactly two fixed workers, and either isolated mutable worktrees or a shared read-only topology. Precommit, critics, integration, retry, replay, publication, and higher capacities remain single-flight or unsupported.</p>
+          <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Operator reference</a>
+          <p><code>git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy.</p>
+        </section>
+    """
+
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
+
+    def test_native_supervision_tech_preview_copy_is_complete(self) -> None:
+        errors: list[str] = []
+        validate_native_supervision_tech_preview_copy(
+            errors,
+            content=self.NATIVE_SUPERVISION_TECH_PREVIEW_COPY,
+        )
+        self.assertEqual(errors, [])
+
+    def test_native_supervision_tech_preview_copy_rejects_contract_gaps(self) -> None:
+        cases = {
+            "section anchor": ('id="native-supervision-tech-preview"', 'id="native-supervision-preview"'),
+            "page navigation link": ('href="#native-supervision-tech-preview"', 'href="#native-supervision-preview"'),
+            "stability/default wording": (
+                "Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default",
+                "Capacity two is available",
+            ),
+            "operator link": (
+                "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md",
+                "./reference.html",
+            ),
+            "rollback wording": (
+                "git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy",
+                "restore the site later",
+            ),
+        }
+        for expected_label, (required, replacement) in cases.items():
+            with self.subTest(contract=expected_label):
+                errors: list[str] = []
+                validate_native_supervision_tech_preview_copy(
+                    errors,
+                    content=self.NATIVE_SUPERVISION_TECH_PREVIEW_COPY.replace(required, replacement),
+                )
+                self.assertTrue(any(expected_label in error for error in errors), errors)
 
     def test_missing_ci_workflow_is_allowed_for_installed_skill_layout(self) -> None:
         errors: list[str] = []

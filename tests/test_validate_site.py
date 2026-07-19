@@ -72,6 +72,31 @@ class ValidateSiteTests(unittest.TestCase):
         self.assertIn("Red Hat UX reference", rendered)
         self.assertIn("non-source external URL", rendered)
 
+    def test_allows_native_supervision_operator_source_link(self) -> None:
+        url = (
+            "https://github.com/gprocunier/complex-work-orchestration/"
+            "blob/main/references/native-supervision-pools.md"
+        )
+        errors = self.validate_snippet(
+            "workflows.html",
+            f"<section id='preview'><p><a href='{url}'>Operator reference</a></p></section>",
+        )
+        self.assertFalse(any("non-source external URL" in error for error in errors), errors)
+        self.assertFalse(any("GitHub markdown/source blob" in error for error in errors), errors)
+
+    def test_rejects_unapproved_operator_source_blob(self) -> None:
+        url = (
+            "https://github.com/gprocunier/complex-work-orchestration/"
+            "blob/main/references/unapproved.md"
+        )
+        errors = self.validate_snippet(
+            "workflows.html",
+            f"<section id='preview'><p><a href='{url}'>Unapproved source</a></p></section>",
+        )
+        rendered = "\n".join(errors)
+        self.assertIn("non-source external URL", rendered)
+        self.assertIn("GitHub markdown/source blob", rendered)
+
     def test_rejects_contractor_authority_public_copy(self) -> None:
         errors = self.validate_snippet(
             "use-cases.html",

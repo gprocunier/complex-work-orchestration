@@ -2,11 +2,9 @@
 
 ## Unreleased
 
-- Release bounded two-worker native supervision after the accepted seven-turn
-  live campaign. Capacity two still requires explicit opt-in, a fresh trusted
-  same-host capability receipt, aggregate budgets, and isolated or strictly
-  shared-read-only topology. It remains experimental and disabled by default;
-  all other orchestration surfaces remain single-flight.
+- Release bounded two-worker native supervision pool. Capacity two requires
+  explicit opt-in, a fresh capability receipt, and isolated or shared-read-only
+  topology. It remains experimental and disabled by default.
 - Restrict `--snippet-file` contractor-packet inputs to repository-safe files.
   Outside-repository absolute paths are now rejected; use a repo-local ignored
   work-packet file for external review snippets.

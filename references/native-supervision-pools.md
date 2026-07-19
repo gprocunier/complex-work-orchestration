@@ -1,9 +1,20 @@
 # Native Supervision Pools
 
-Native supervision pools let one trusted host control a fixed cohort of one or
-two already-created native worker supervisors. They add bounded concurrency to
-the live supervision layer; they do not make packet construction, precommit,
-critics, integration, retry, replay, or publication concurrent.
+## What This Is
+
+This reference is for operators deciding whether to use CWO's bounded native
+worker supervision. Native supervision lets one trusted host control a fixed
+cohort of one or two already-created native worker supervisors; it does not make
+packet construction, precommit, critics, integration, retry, replay, or
+publication concurrent.
+
+Capacity one remains the default. Capacity two is an opt-in Tech Preview that
+is experimental and disabled by default. It requires one fresh same-host
+capability receipt, exactly two fixed workers, and either isolated mutable
+worktrees or a shared read-only topology. Start with the reader-facing
+[Native Supervision Tech Preview](https://gprocunier.github.io/complex-work-orchestration/workflows.html#native-supervision-tech-preview),
+then review the [deferred hardening](#experimental-status-and-deferred-hardening)
+before opting in.
 
 The public contract is deliberately small:
 
