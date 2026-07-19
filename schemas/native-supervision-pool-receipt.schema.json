@@ -55,7 +55,7 @@
         "properties": {
           "lease_id": {"type": "string", "minLength": 1},
           "lease_sha256": {"$ref": "#/$defs/sha256"},
-          "lifecycle_state": {"enum": ["released", "release-pending", "orphaned-active"]}
+          "lifecycle_state": {"enum": ["acquired", "held", "release-pending", "released", "orphaned-active"]}
         }
       }
     },

@@ -635,6 +635,18 @@ class NativePoolContractTest(unittest.TestCase):
             schema = json.loads((ROOT / POOL_RECEIPT_SCHEMA).read_text(encoding="utf-8"))
             jsonschema.validate(changed, schema)
 
+        for active_state in ("acquired", "held"):
+            active = copy.deepcopy(changed)
+            active["lease_evidence"] = [copy.deepcopy(receipt["lease_evidence"][0])]
+            active["lease_evidence"][0]["lifecycle_state"] = active_state
+            active = seal_artifact(active, "receipt_sha256")
+            self.assertEqual(
+                validate_pool_receipt(active, contract=contract, terminal_state=state),
+                [],
+            )
+            if HAS_JSONSCHEMA:
+                jsonschema.validate(active, schema)
+
         unknown = copy.deepcopy(changed)
         unknown["admission_order"] = ["unknown-child"]
         unknown = seal_artifact(unknown, "receipt_sha256")

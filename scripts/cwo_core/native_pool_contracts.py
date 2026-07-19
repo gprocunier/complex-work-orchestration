@@ -1473,7 +1473,13 @@ def validate_pool_receipt(
                 lease_ids.append(str(entry["lease_id"]))
             if not _is_sha256(entry.get("lease_sha256")):
                 errors.append(f"invalid-lease-evidence[{index}]-sha256")
-            if entry.get("lifecycle_state") not in {"released", "release-pending", "orphaned-active"}:
+            if entry.get("lifecycle_state") not in {
+                "acquired",
+                "held",
+                "release-pending",
+                "released",
+                "orphaned-active",
+            }:
                 errors.append(f"invalid-lease-evidence[{index}]-state")
     if len(lease_ids) != len(set(lease_ids)):
         errors.append("duplicate-lease-evidence")

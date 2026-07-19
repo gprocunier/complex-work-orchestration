@@ -358,6 +358,152 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(receipt["admission_order"], [])
             self.assertEqual(validate_pool_state(harness.coordinator.progress()["state"], contract=harness.contract), [])
 
+    def test_first_poll_hold_failure_becomes_typed_controlled_fault(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=1,
+                decisions=[["continue", "complete"]],
+            )
+            with mock.patch.object(
+                harness.registry,
+                "hold",
+                side_effect=PoolLeaseError(
+                    "lease-registry-unreadable:password=must-not-appear"
+                ),
+            ):
+                receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(
+                harness.registry.snapshot()[0]["lifecycle_state"],
+                "release-pending",
+            )
+            reason = next(
+                reason
+                for reason in receipt["reasons"]
+                if reason.startswith("lease-hold-failed:")
+            )
+            self.assertTrue(
+                reason.startswith(
+                    "lease-hold-failed:child=child-0:lease=lease-0:"
+                    "target=held:error=lease-registry-unreadable:evidence="
+                )
+            )
+            self.assertNotIn("password", reason)
+            self.assertNotIn("must-not-appear", reason)
+            self.assertEqual(
+                harness.coordinator.progress()["state"]["status"],
+                "control-failed",
+            )
+            assert_state_lock_released(self, temporary)
+
+    def test_release_pending_failure_does_not_skip_unaffected_lease(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+            )
+            drive_until_lease_states(harness, ["held", "held"])
+            harness.adapters["child-0"].fail = "check"
+            real_mark_release_pending = harness.registry.mark_release_pending
+
+            def injected_mark_release_pending(
+                lease_id: str,
+                *,
+                terminal_evidence_sha256: str,
+                reason: str,
+            ) -> dict:
+                if lease_id == "lease-0":
+                    raise PoolLeaseError(
+                        "lease-transition-invalid:credential=must-not-appear"
+                    )
+                return real_mark_release_pending(
+                    lease_id,
+                    terminal_evidence_sha256=terminal_evidence_sha256,
+                    reason=reason,
+                )
+
+            with mock.patch.object(
+                harness.registry,
+                "mark_release_pending",
+                side_effect=injected_mark_release_pending,
+            ):
+                receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(
+                [lease["lifecycle_state"] for lease in harness.registry.snapshot()],
+                ["held", "release-pending"],
+            )
+            reason = next(
+                reason
+                for reason in receipt["reasons"]
+                if reason.startswith("lease-release-pending-failed:")
+            )
+            self.assertTrue(
+                reason.startswith(
+                    "lease-release-pending-failed:child=child-0:lease=lease-0:"
+                    "target=release-pending:error=lease-transition-invalid:evidence="
+                )
+            )
+            self.assertNotIn("credential", reason)
+            self.assertNotIn("must-not-appear", reason)
+            assert_state_lock_released(self, temporary)
+
+    def test_release_failure_contains_pool_and_releases_unaffected_peer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=2)
+            real_release = harness.registry.release
+
+            def injected_release(
+                lease_id: str,
+                *,
+                terminal_state: dict,
+                reason: str,
+            ) -> dict:
+                if lease_id == "lease-0":
+                    raise PoolLeaseError(
+                        "lease-transition-invalid:token=must-not-appear"
+                    )
+                return real_release(
+                    lease_id,
+                    terminal_state=terminal_state,
+                    reason=reason,
+                )
+
+            with mock.patch.object(
+                harness.registry,
+                "release",
+                side_effect=injected_release,
+            ):
+                receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(
+                [lease["lifecycle_state"] for lease in harness.registry.snapshot()],
+                ["release-pending", "released"],
+            )
+            reason = next(
+                reason
+                for reason in receipt["reasons"]
+                if reason.startswith("lease-release-failed:")
+            )
+            self.assertTrue(
+                reason.startswith(
+                    "lease-release-failed:child=child-0:lease=lease-0:"
+                    "target=released:error=lease-transition-invalid:evidence="
+                )
+            )
+            self.assertNotIn("token", reason)
+            self.assertNotIn("must-not-appear", reason)
+            self.assertEqual(
+                harness.coordinator.progress()["state"]["status"],
+                "control-failed",
+            )
+            assert_state_lock_released(self, temporary)
+
     def test_unhandled_step_error_persists_control_failure_and_releases_lock(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=1)
@@ -414,7 +560,9 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertTrue(
                 any(
                     reason.startswith(
-                        "coordinator-crash-cleanup-error:release-lease:child-0:PoolLeaseError:"
+                        "lease-release-failed:child=child-0:lease=lease-0:"
+                        "target=released:error=lease-release-requires-completed-or-closed-pool:"
+                        "evidence="
                     )
                     for reason in state["reasons"]
                 )
@@ -534,14 +682,15 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertTrue(
                 any(
                     reason.startswith(
-                        "coordinator-crash-cleanup-error:release-lease:child-0:PoolLeaseError:"
+                        "lease-release-failed:child=child-0:lease=lease-0:"
+                        "target=released:error=unclassified:evidence="
                     )
                     for reason in state_before["reasons"]
                 )
             )
             self.assertFalse(
                 any(
-                    ":release-lease:child-1:" in reason
+                    reason.startswith("lease-release-failed:child=child-1:")
                     for reason in state_before["reasons"]
                 )
             )

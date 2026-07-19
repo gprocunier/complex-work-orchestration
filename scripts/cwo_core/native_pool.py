@@ -67,6 +67,39 @@ ARTIFACT_DISPOSITIONS = {
     "architect-adjudication-required",
     "rejected",
 }
+POOL_LEASE_ERROR_CODES = {
+    "boot-identity-empty",
+    "boot-identity-unavailable",
+    "integration-target-lease-collision",
+    "invalid-lease-time",
+    "lease-child-unknown",
+    "lease-id-already-active",
+    "lease-identity-invalid",
+    "lease-invalid",
+    "lease-not-found",
+    "lease-registry-artifact-invalid",
+    "lease-registry-duplicate-lease-id",
+    "lease-registry-fields-invalid",
+    "lease-registry-header-invalid",
+    "lease-registry-leases-invalid",
+    "lease-registry-lock-is-symlink",
+    "lease-registry-path-is-symlink",
+    "lease-registry-sha256-mismatch",
+    "lease-registry-unreadable",
+    "lease-release-requires-completed-or-closed-pool",
+    "lease-time-must-be-timezone-aware",
+    "lease-transition-invalid",
+    "owner-pid-invalid",
+    "pool-contract-invalid",
+    "process-identity-incomplete",
+    "process-identity-malformed",
+    "process-identity-unavailable",
+    "process-start-ticks-invalid",
+    "released-lease-cannot-transition",
+    "stale-lease-transition-invalid",
+    "terminal-pool-state-invalid",
+    "worktree-lease-collision",
+}
 
 
 class NativePoolError(ValueError):
@@ -142,6 +175,29 @@ def _sanitize_exception_message(error: BaseException) -> str:
         return "message-unavailable"
     message = "".join(character for character in message if character.isprintable())
     return message[:256] or "message-unavailable"
+
+
+def _evidence_identifier(value: Any) -> str:
+    text = str(value)
+    if 1 <= len(text) <= 128 and all(
+        character.isascii() and (character.isalnum() or character in "._-")
+        for character in text
+    ):
+        return text
+    return "sha256-" + canonical_sha256({"identifier": text})
+
+
+def _pool_lease_error_evidence(error: PoolLeaseError) -> tuple[str, str]:
+    message = _sanitize_exception_message(error)
+    candidate = message.partition(":")[0]
+    code = candidate if candidate in POOL_LEASE_ERROR_CODES else "unclassified"
+    digest = canonical_sha256(
+        {
+            "error_type": type(error).__name__,
+            "message": message,
+        }
+    )
+    return code, digest
 
 
 class NativePoolCoordinator:
@@ -692,7 +748,16 @@ class NativePoolCoordinator:
             self._first_poll[child_id] = True
             self._admission_order.append(child_id)
             if child_id in self._leases:
-                self._leases[child_id] = self.lease_registry.hold(child["lease_id"])
+                try:
+                    self._leases[child_id] = self.lease_registry.hold(child["lease_id"])
+                except PoolLeaseError as error:
+                    self._record_lease_failure(
+                        child_id,
+                        "hold",
+                        "held",
+                        error,
+                        control_failed=True,
+                    )
 
     def _update_child_progress(self, child_id: str, progress: Mapping[str, Any]) -> None:
         self._progress[child_id] = dict(progress)
@@ -820,6 +885,30 @@ class NativePoolCoordinator:
             return "draining"
         return "running"
 
+    def _record_lease_failure(
+        self,
+        child_id: str,
+        operation: str,
+        target_state: str,
+        error: PoolLeaseError,
+        *,
+        control_failed: bool,
+    ) -> str:
+        prefix = {
+            "acquire": "lease-acquisition-failed",
+            "hold": "lease-hold-failed",
+            "mark-release-pending": "lease-release-pending-failed",
+            "release": "lease-release-failed",
+        }[operation]
+        error_code, evidence_sha256 = _pool_lease_error_evidence(error)
+        reason = (
+            f"{prefix}:child={_evidence_identifier(child_id)}:"
+            f"lease={_evidence_identifier(self._child_state(child_id)['lease_id'])}:"
+            f"target={target_state}:error={error_code}:evidence={evidence_sha256}"
+        )
+        self._enter_fault(reason, control_failed=control_failed)
+        return reason
+
     def _mark_lease_release_pending(
         self,
         child_id: str,
@@ -855,19 +944,42 @@ class NativePoolCoordinator:
         return True
 
     def _release_next(self) -> bool:
+        attempted = False
         for child_id in self.child_ids:
-            if self._release_lease(child_id, terminal_state=self._state):
-                return True
-        return False
+            lease = self._leases.get(child_id)
+            if lease is None or lease["lifecycle_state"] == "released":
+                continue
+            attempted = True
+            try:
+                if self._release_lease(child_id, terminal_state=self._state):
+                    return True
+            except PoolLeaseError as error:
+                self._record_lease_failure(
+                    child_id,
+                    "release",
+                    "released",
+                    error,
+                    control_failed=True,
+                )
+        return attempted
 
     def _finish_control_failed(self) -> None:
         terminal_hash = self._state["state_sha256"]
         for child_id in self.child_ids:
-            self._mark_lease_release_pending(
-                child_id,
-                terminal_evidence_sha256=terminal_hash,
-                reason="pool-control-failed",
-            )
+            try:
+                self._mark_lease_release_pending(
+                    child_id,
+                    terminal_evidence_sha256=terminal_hash,
+                    reason="pool-control-failed",
+                )
+            except PoolLeaseError as error:
+                self._record_lease_failure(
+                    child_id,
+                    "mark-release-pending",
+                    "release-pending",
+                    error,
+                    control_failed=True,
+                )
         self._refresh_state("control-failed")
         self._receipt = self._build_receipt()
         self._release_state_lock()
@@ -1040,6 +1152,14 @@ class NativePoolCoordinator:
                     terminal_evidence_sha256=terminal_hash,
                     reason="coordinator-crash",
                 )
+            except PoolLeaseError as error:
+                self._record_lease_failure(
+                    child_id,
+                    "mark-release-pending",
+                    "release-pending",
+                    error,
+                    control_failed=True,
+                )
             except BaseException as error:
                 self._record_crash_cleanup_error(
                     "mark-release-pending", error, child_id=child_id
@@ -1051,6 +1171,14 @@ class NativePoolCoordinator:
                     child_id,
                     terminal_state=self._state,
                     reason="coordinator-crash",
+                )
+            except PoolLeaseError as error:
+                self._record_lease_failure(
+                    child_id,
+                    "release",
+                    "released",
+                    error,
+                    control_failed=True,
                 )
             except BaseException as error:
                 self._record_crash_cleanup_error("release-lease", error, child_id=child_id)
@@ -1237,12 +1365,21 @@ class NativePoolCoordinator:
                 )
                 return self.progress()
             if self._release_next():
-                self._refresh_state("completed")
-                self._decision_for(
-                    decision="continue",
-                    selected_child_id=None,
-                    actions=["release-leases"],
-                )
+                if self._control_failed:
+                    self._refresh_state("control-failed")
+                    self._finish_control_failed()
+                    self._decision_for(
+                        decision="control-lost",
+                        selected_child_id=None,
+                        actions=[],
+                    )
+                else:
+                    self._refresh_state("completed")
+                    self._decision_for(
+                        decision="continue",
+                        selected_child_id=None,
+                        actions=["release-leases"],
+                    )
                 return self.progress()
             self._refresh_state("closed")
             self._receipt = self._build_receipt()
@@ -1264,7 +1401,13 @@ class NativePoolCoordinator:
                         self.contract, pending_child
                     )
                 except PoolLeaseError as exc:
-                    self._enter_fault(f"lease-acquisition-failed:{exc}", control_failed=False)
+                    self._record_lease_failure(
+                        pending_child,
+                        "acquire",
+                        "acquired",
+                        exc,
+                        control_failed=False,
+                    )
                 status = self._status_after_action()
                 self._refresh_state(status)
                 decision = "interrupt" if self._protected_fault else "continue"
