@@ -25,7 +25,13 @@ from cwo_core.native_pool_config import (  # noqa: E402
     seal_bound_manifest_validation,
     validate_pool_render_request,
 )
-from cwo_core.native_pool_contracts import canonical_sha256, seal_artifact, validate_pool_contract, write_private_artifact  # noqa: E402
+from cwo_core.native_pool_contracts import (  # noqa: E402
+    canonical_sha256,
+    default_completion_evidence_policy,
+    seal_artifact,
+    validate_pool_contract,
+    write_private_artifact,
+)
 from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload, sha  # noqa: E402
 from tests import test_run_native_pool_live_canaries as live_test_helpers  # noqa: E402
@@ -111,6 +117,9 @@ class RenderFixture:
                     "state_file": str(state_file),
                     "worktree": str(worktree),
                     "isolation_class": "mutable-isolated",
+                    "completion_evidence_policy": default_completion_evidence_policy(
+                        "mutable-isolated"
+                    ),
                     "declared_write_paths": [f"scripts/child_{index}.py"],
                     "integration_target_paths": [f"scripts/child_{index}.py"],
                     "lease_id": f"lease-{index}",

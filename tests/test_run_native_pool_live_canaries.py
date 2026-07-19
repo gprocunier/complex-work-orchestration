@@ -459,6 +459,7 @@ class FakeLiveThreadServer:
         self.path = self.active / f"rollout-{self.thread_id}.jsonl"
         self.started_threads: dict[str, str | None] = {self.thread_id: None}
         self.status = "inProgress"
+        self.items: list[dict] = []
         self.read_statuses = list(read_statuses or [])
         self.turn_result_id: str | None = self.turn_id
         self.bind_turn_result = True
@@ -537,7 +538,13 @@ class FakeLiveThreadServer:
         return {
             "id": self.thread_id,
             "path": str(self.path),
-            "turns": [{"id": self.turn_id, "status": self.status, "items": []}],
+            "turns": [
+                {
+                    "id": self.turn_id,
+                    "status": self.status,
+                    "items": list(self.items),
+                }
+            ],
         }, 1.0
 
     def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
@@ -1421,6 +1428,65 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
 
 
 class LiveThreadBoundaryPhaseTests(unittest.TestCase):
+    @staticmethod
+    def complete_turn(
+        server: FakeLiveThreadServer,
+        *,
+        token: str = "DONE",
+        trusted_tool_calls: int = 0,
+        projected_tool_calls: int = 0,
+    ) -> None:
+        records: list[dict] = []
+        for index in range(trusted_tool_calls):
+            call_id = f"trusted-call-{index}"
+            records.extend(
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": call_id,
+                            "arguments": json.dumps({"cmd": f"rg evidence-{index}"}),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "exit_code": 0,
+                            "output": "bounded",
+                        },
+                    },
+                ]
+            )
+        records.append(
+            {
+                "type": "event_msg",
+                "payload": {
+                    "type": "task_complete",
+                    "turn_id": server.turn_id,
+                },
+            }
+        )
+        with server.path.open("a", encoding="utf-8") as stream:
+            stream.write("".join(json.dumps(record) + "\n" for record in records))
+        server.items = [
+            {
+                "type": "commandExecution",
+                "status": "completed",
+            }
+            for _ in range(projected_tool_calls)
+        ] + [
+            {
+                "type": "agentMessage",
+                "phase": "finalAnswer",
+                "text": token,
+            }
+        ]
+        server.status = "completed"
+
     def test_porcelain_mutation_paths_preserve_status_columns(self) -> None:
         self.assertEqual(
             LIVE.porcelain_mutation_paths(
@@ -1482,6 +1548,44 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             record_dir=root,
             monotonic_ns=clock,
         )
+
+    def test_trusted_tool_evidence_is_scoped_to_the_exact_turn(self) -> None:
+        prior_turn = "prior-turn"
+        current_turn = "current-turn"
+        records = [
+            {"type": "turn_context", "payload": {"turn_id": prior_turn}},
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "call_id": "prior-call",
+                    "arguments": json.dumps({"cmd": "rg stale"}),
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": "prior-call",
+                    "exit_code": 0,
+                    "output": "stale",
+                },
+            },
+            {"type": "turn_context", "payload": {"turn_id": current_turn}},
+            {
+                "type": "event_msg",
+                "payload": {"type": "task_complete", "turn_id": current_turn},
+            },
+        ]
+        summary = LIVE.trusted_tool_evidence_summary(
+            records,
+            turn_id=current_turn,
+            terminal_event={"record_index": 4},
+        )
+        self.assertEqual(summary["trusted_tool_calls"], 0)
+        self.assertEqual(summary["trusted_completed_tool_calls"], 0)
+        self.assertEqual(summary["trusted_tool_evidence_sha256"], [])
 
     def test_pre_dispatch_missing_and_empty_boundaries_are_unavailable(self) -> None:
         for materialization in ("missing", "empty"):
@@ -1770,6 +1874,222 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 adapter = self.adapter(root, server, clock)
                 adapter.send_input(message="bounded prompt")
                 self.assertEqual(adapter.check(), {"decision": expected})
+
+    def test_exact_token_with_zero_trusted_tools_is_interrupted_and_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            self.complete_turn(server)
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                evidence = adapter.evidence()
+                summary = adapter._trusted_summary()
+            self.assertEqual(evidence["usage"]["tool_calls"], 0)
+            self.assertEqual(summary["projected_tool_calls"], 0)
+            self.assertEqual(
+                evidence["reasons"],
+                [
+                    "zero-tool-completion",
+                    "premature-completion",
+                    "required-evidence-missing",
+                ],
+            )
+            self.assertTrue(evidence["protected_fault"])
+            self.assertEqual(evidence["artifact_disposition"], "rejected")
+
+    def test_exact_token_after_trusted_tool_evidence_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            self.complete_turn(server, trusted_tool_calls=1)
+            self.assertEqual(adapter.check(), {"decision": "complete"})
+            with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                evidence = adapter.evidence()
+            self.assertEqual(evidence["usage"]["tool_calls"], 1)
+            self.assertEqual(evidence["reasons"], [])
+            self.assertFalse(evidence["protected_fault"])
+            self.assertEqual(evidence["artifact_disposition"], "accepted")
+
+    def test_required_tool_evidence_hash_must_match_trusted_receipt(self) -> None:
+        for matching in (True, False):
+            with self.subTest(matching=matching), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                records = [
+                    {
+                        "type": "turn_context",
+                        "payload": {"turn_id": server.turn_id},
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "trusted-call-0",
+                            "arguments": json.dumps({"cmd": "rg evidence-0"}),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "trusted-call-0",
+                            "exit_code": 0,
+                            "output": "bounded",
+                        },
+                    },
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "task_complete",
+                            "turn_id": server.turn_id,
+                        },
+                    },
+                ]
+                receipt_hash = LIVE.trusted_tool_evidence_summary(
+                    records,
+                    turn_id=server.turn_id,
+                    terminal_event={"record_index": 3},
+                )["trusted_tool_evidence_sha256"][0]
+                policy = LIVE.default_completion_evidence_policy(
+                    "read-only-shared"
+                )
+                policy["required_evidence"]["sha256"] = [
+                    receipt_hash if matching else "0" * 64
+                ]
+                adapter = LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="bounded prompt",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=False,
+                    expected_mutation=None,
+                    completion_evidence_policy=policy,
+                    record_dir=root,
+                    monotonic_ns=FakeMonotonicClock(),
+                )
+                adapter.send_input(message="bounded prompt")
+                self.complete_turn(server, trusted_tool_calls=1)
+                self.assertEqual(
+                    adapter.check(),
+                    {"decision": "complete" if matching else "interrupt"},
+                )
+                with mock.patch.object(
+                    adapter, "_workspace_mutations", return_value=[]
+                ):
+                    evidence = adapter.evidence()
+                self.assertEqual(
+                    evidence["artifact_disposition"],
+                    "accepted" if matching else "rejected",
+                )
+                self.assertEqual(
+                    "required-evidence-missing" in evidence["reasons"],
+                    not matching,
+                )
+
+    def test_explicit_empty_completion_policy_is_not_defaulted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "completion-evidence-policy-invalid",
+            ):
+                LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="bounded prompt",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=False,
+                    expected_mutation=None,
+                    completion_evidence_policy={},
+                    record_dir=root,
+                    monotonic_ns=FakeMonotonicClock(),
+                )
+
+    def test_projected_or_self_reported_tool_count_cannot_replace_session_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            self.complete_turn(server, projected_tool_calls=7)
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                evidence = adapter.evidence()
+                summary = adapter._trusted_summary()
+            self.assertEqual(summary["projected_tool_calls"], 7)
+            self.assertEqual(evidence["usage"]["tool_calls"], 0)
+            self.assertIn("zero-tool-completion", evidence["reasons"])
+
+    def test_explicit_read_only_tool_free_policy_is_narrowly_accepted(self) -> None:
+        policy = {
+            "minimum_tool_calls": 0,
+            "required_evidence": {
+                "predicates": [
+                    "read-only-workspace-clean",
+                    "trusted-terminal-boundary",
+                ],
+                "sha256": [],
+            },
+            "allow_zero_tool_completion": True,
+            "expected_mutation_mode": "read-only",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                completion_evidence_policy=policy,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message="bounded prompt")
+            self.complete_turn(server)
+            self.assertEqual(adapter.check(), {"decision": "complete"})
+            with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                evidence = adapter.evidence()
+            self.assertEqual(evidence["reasons"], [])
+            self.assertEqual(evidence["artifact_disposition"], "accepted")
+
+    def test_mutable_completion_without_expected_mutation_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="targets/child_0.txt",
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message="bounded prompt")
+            self.complete_turn(server, trusted_tool_calls=1)
+            self.assertEqual(adapter.check(), {"decision": "complete"})
+            with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                evidence = adapter.evidence()
+            self.assertIn("required-evidence-missing", evidence["reasons"])
+            self.assertIn(
+                "mutable-workspace-attribution-mismatch",
+                evidence["reasons"],
+            )
+            self.assertEqual(evidence["artifact_disposition"], "rejected")
 
     def test_terminal_transition_interrupt_close_and_final_summary_are_strict(self) -> None:
 
@@ -4967,8 +5287,9 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 CAMPAIGN_CONTRACTS._validate_modern_ledger_semantics(
                     ledger, allocated
                 ),
-                [],
-            )
+            [],
+        )
+
             missing_lifecycle = json.loads(json.dumps(ledger))
             capability_id = next(
                 item["allocation_intent_id"]

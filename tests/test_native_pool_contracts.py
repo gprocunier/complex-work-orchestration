@@ -41,8 +41,10 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     artifact_sha256,
     canonical_sha256,
     callback_certification_policy_sha256,
+    default_completion_evidence_policy,
     seal_artifact,
     validate_capability_receipt,
+    validate_completion_evidence_policy,
     validate_lease,
     validate_pool_artifact,
     validate_pool_contract,
@@ -92,6 +94,7 @@ def child(index: int, *, isolation: str = "mutable-isolated") -> dict:
         "state_file": f"/tmp/cwo-child-{index}.json",
         "worktree_identity": identity("shared" if read_only else f"worktree:{index}"),
         "isolation_class": isolation,
+        "completion_evidence_policy": default_completion_evidence_policy(isolation),
         "declared_write_paths": target,
         "integration_target_paths": target,
         "lease_id": f"lease-{index}",
@@ -474,6 +477,75 @@ class NativePoolContractTest(unittest.TestCase):
         changed["children"][0]["declared_write_paths"] = ["README.md"]
         changed = seal_artifact(changed, "contract_sha256")
         self.assertTrue(any("paths-must-be-empty" in error for error in validate_pool_contract(changed)))
+
+    def test_completion_evidence_policy_is_strict_and_narrowly_allows_tool_free_work(self) -> None:
+        default = default_completion_evidence_policy("read-only-shared")
+        self.assertEqual(
+            validate_completion_evidence_policy(
+                default,
+                isolation_class="read-only-shared",
+            ),
+            [],
+        )
+        tool_free = {
+            "minimum_tool_calls": 0,
+            "required_evidence": {
+                "predicates": [
+                    "read-only-workspace-clean",
+                    "trusted-terminal-boundary",
+                ],
+                "sha256": [],
+            },
+            "allow_zero_tool_completion": True,
+            "expected_mutation_mode": "read-only",
+        }
+        self.assertEqual(
+            validate_completion_evidence_policy(
+                tool_free,
+                isolation_class="read-only-shared",
+            ),
+            [],
+        )
+        contract, _ = pool_contract(cap=1, read_only=True)
+        contract["children"][0]["completion_evidence_policy"] = tool_free
+        contract = seal_artifact(contract, "contract_sha256")
+        self.assertEqual(validate_pool_contract(contract), [])
+
+        unsafe = copy.deepcopy(tool_free)
+        unsafe["allow_zero_tool_completion"] = False
+        self.assertIn(
+            "completion-evidence-policy-observable-work-requirement-missing",
+            validate_completion_evidence_policy(unsafe),
+        )
+        mismatch = copy.deepcopy(default)
+        mismatch["expected_mutation_mode"] = "mutable-isolated"
+        mismatch["required_evidence"]["predicates"] = [
+            "expected-workspace-mutation",
+            "trusted-terminal-boundary",
+            "trusted-tool-call",
+        ]
+        errors = validate_completion_evidence_policy(
+            mismatch,
+            isolation_class="read-only-shared",
+        )
+        self.assertIn("completion-evidence-policy-isolation-mutation-mode-mismatch", errors)
+
+        malformed = copy.deepcopy(default)
+        malformed["required_evidence"]["predicates"] = [{}]
+        self.assertIn(
+            "completion-evidence-policy-required-evidence-predicates-unknown:{}",
+            validate_completion_evidence_policy(malformed),
+        )
+
+    def test_completion_evidence_minimum_must_fit_aggregate_budget(self) -> None:
+        contract, _ = pool_contract()
+        for child_contract in contract["children"]:
+            child_contract["completion_evidence_policy"]["minimum_tool_calls"] = 40
+        contract = seal_artifact(contract, "contract_sha256")
+        self.assertIn(
+            "completion-evidence-minimum-tool-calls-exceed-aggregate-budget",
+            validate_pool_contract(contract),
+        )
 
     def test_topology_flag_and_declared_write_coverage_are_cross_checked(self) -> None:
         contract, _ = pool_contract()

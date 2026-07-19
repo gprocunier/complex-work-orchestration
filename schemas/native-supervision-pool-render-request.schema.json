@@ -42,7 +42,7 @@
       "required": [
         "child_id", "packet_id", "attempt_nonce", "session_id", "agent_id",
         "control_turn_id", "packet_sha256", "control_contract_file", "state_file",
-        "worktree", "isolation_class", "declared_write_paths",
+        "worktree", "isolation_class", "completion_evidence_policy", "declared_write_paths",
         "integration_target_paths", "lease_id"
       ],
       "properties": {
@@ -57,9 +57,31 @@
         "state_file": {"type": "string", "pattern": "^/", "minLength": 2},
         "worktree": {"type": "string", "pattern": "^/", "minLength": 2},
         "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
+        "completion_evidence_policy": {"$ref": "#/$defs/completion_evidence_policy"},
         "declared_write_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "integration_target_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "lease_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "completion_evidence_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["minimum_tool_calls", "required_evidence", "allow_zero_tool_completion", "expected_mutation_mode"],
+      "properties": {
+        "minimum_tool_calls": {"type": "integer", "minimum": 0},
+        "required_evidence": {"$ref": "#/$defs/required_evidence"},
+        "allow_zero_tool_completion": {"type": "boolean"},
+        "expected_mutation_mode": {"enum": ["read-only", "mutable-isolated"]}
+      }
+    },
+    "required_evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["predicates", "sha256"],
+      "properties": {
+        "predicates": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": ["expected-workspace-mutation", "read-only-workspace-clean", "trusted-terminal-boundary", "trusted-tool-call"]}
+        },
+        "sha256": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/sha256"}}
       }
     }
   }

@@ -90,8 +90,10 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     POOL_POLL_LAG_TOLERANCE_MS,
     canonical_sha256,
     callback_certification_policy_sha256,
+    default_completion_evidence_policy,
     seal_artifact,
     validate_capability_receipt,
+    validate_completion_evidence_policy,
     validate_pool_receipt,
     write_private_artifact,
     zero_token_usage,
@@ -99,6 +101,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
+from cwo_core.native_worker_contracts import normalize_action_receipts  # noqa: E402
 from cwo_core.native_session import _record_token_snapshot  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
     LocatedSession,
@@ -2042,6 +2045,84 @@ def final_message_hash_and_match(
     return sha256_text(final), final.strip() == expected_token
 
 
+def trusted_tool_evidence_summary(
+    records: list[Mapping[str, Any]],
+    *,
+    turn_id: str | None,
+    terminal_event: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Summarize tool activity only from the descriptor-bound session boundary."""
+
+    empty = {
+        "trusted_tool_calls": 0,
+        "trusted_completed_tool_calls": 0,
+        "trusted_tool_evidence_sha256": [],
+    }
+    if turn_id is None:
+        return empty
+    context_indices = [
+        index
+        for index, record in enumerate(records)
+        if record.get("type") == "turn_context"
+        and isinstance(record.get("payload"), Mapping)
+        and (
+            record["payload"].get("turn_id")
+            or record["payload"].get("turnId")
+        )
+        == turn_id
+    ]
+    if not context_indices:
+        return empty
+    if len(context_indices) != 1:
+        raise AppServerError(
+            "session-tool-evidence-grammar-invalid:exact-turn-context-not-singular"
+        )
+    start_index = context_indices[0]
+    end_index = len(records)
+    if terminal_event is not None:
+        terminal_index = terminal_event.get("record_index")
+        if (
+            isinstance(terminal_index, bool)
+            or not isinstance(terminal_index, int)
+            or terminal_index <= start_index
+        ):
+            raise AppServerError(
+                "session-tool-evidence-grammar-invalid:terminal-order-invalid"
+            )
+        end_index = terminal_index + 1
+    receipts = normalize_action_receipts(
+        records[start_index + 1 : end_index],
+        segment_id=turn_id,
+    )
+    calls = [
+        receipt
+        for receipt in receipts
+        if receipt.get("typed_result", {}).get("kind") != "unpaired-output"
+    ]
+    completed = [
+        receipt for receipt in calls if receipt.get("pairing_status") == "paired"
+    ]
+    evidence_sha256 = sorted(
+        canonical_sha256(
+            {
+                "tool": receipt.get("tool"),
+                "canonical_argument_hash": receipt.get("canonical_argument_hash"),
+                "action_class": receipt.get("action_class"),
+                "determinable_target_paths": receipt.get("determinable_target_paths"),
+                "typed_result": receipt.get("typed_result"),
+                "exit_code": receipt.get("exit_code"),
+                "pairing_status": receipt.get("pairing_status"),
+            }
+        )
+        for receipt in completed
+    )
+    return {
+        "trusted_tool_calls": len(calls),
+        "trusted_completed_tool_calls": len(completed),
+        "trusted_tool_evidence_sha256": evidence_sha256,
+    }
+
+
 def session_boundary_summary(
     codex_home: Path,
     thread_id: str,
@@ -2086,6 +2167,9 @@ def session_boundary_summary(
             "reroutes": 0,
             "observation_type": "unmaterialized-nonattesting",
             "terminal_event": None,
+            "trusted_tool_calls": 0,
+            "trusted_completed_tool_calls": 0,
+            "trusted_tool_evidence_sha256": [],
         }
     models: list[str] = []
     efforts: list[str] = []
@@ -2112,6 +2196,11 @@ def session_boundary_summary(
             compactions += 1
         if "rerout" in marker:
             reroutes += 1
+    tool_evidence = trusted_tool_evidence_summary(
+        records,
+        turn_id=turn_id,
+        terminal_event=terminal_event,
+    )
     return {
         "available": True,
         "record_count": boundary["record_count"],
@@ -2126,6 +2215,7 @@ def session_boundary_summary(
         "reroutes": reroutes,
         "observation_type": "trusted-complete-boundary",
         "terminal_event": terminal_event,
+        **tool_evidence,
     }
 
 
@@ -2168,6 +2258,11 @@ def captured_session_boundary_summary(
             compactions += 1
         if "rerout" in marker:
             reroutes += 1
+    tool_evidence = trusted_tool_evidence_summary(
+        records,
+        turn_id=turn_id,
+        terminal_event=terminal_event,
+    )
     return {
         "available": True,
         "record_count": boundary["record_count"],
@@ -2182,6 +2277,7 @@ def captured_session_boundary_summary(
         "reroutes": reroutes,
         "observation_type": "trusted-complete-boundary",
         "terminal_event": terminal_event,
+        **tool_evidence,
     }
 
 
@@ -2196,6 +2292,7 @@ class LiveThreadAdapter:
         worktree: Path,
         mutable: bool,
         expected_mutation: str | None,
+        completion_evidence_policy: Mapping[str, Any] | None = None,
         force_interrupt_after_checks: int | None = None,
         record_dir: Path,
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
@@ -2210,6 +2307,35 @@ class LiveThreadAdapter:
         self.worktree = worktree
         self.mutable = mutable
         self.expected_mutation = expected_mutation
+        isolation_class = "mutable-isolated" if mutable else "read-only-shared"
+        raw_policy = (
+            default_completion_evidence_policy(isolation_class)
+            if completion_evidence_policy is None
+            else completion_evidence_policy
+        )
+        policy_errors = validate_completion_evidence_policy(
+            raw_policy,
+            isolation_class=isolation_class,
+        )
+        if policy_errors:
+            raise AppServerError(
+                "completion-evidence-policy-invalid:" + ";".join(policy_errors)
+            )
+        required = raw_policy["required_evidence"]
+        self.completion_evidence_policy = {
+            "minimum_tool_calls": int(raw_policy["minimum_tool_calls"]),
+            "required_evidence": {
+                "predicates": list(required["predicates"]),
+                "sha256": list(required["sha256"]),
+            },
+            "allow_zero_tool_completion": bool(
+                raw_policy["allow_zero_tool_completion"]
+            ),
+            "expected_mutation_mode": str(raw_policy["expected_mutation_mode"]),
+        }
+        self.completion_evidence_policy_sha256 = canonical_sha256(
+            self.completion_evidence_policy
+        )
         self.force_interrupt_after_checks = force_interrupt_after_checks
         self.record_dir = record_dir
         self.turn_id: str | None = None
@@ -2306,7 +2432,11 @@ class LiveThreadAdapter:
                 _message_hash, matches = final_message_hash_and_match(
                     self.last_thread, self.turn_id, self.expected_token
                 )
-                return {"decision": "complete" if matches else "control-lost"}
+                if not matches:
+                    return {"decision": "control-lost"}
+                if self._known_completion_evidence_missing(boundary):
+                    return {"decision": "interrupt"}
+                return {"decision": "complete"}
             if durable_status == "interrupted":
                 return {"decision": "interrupt"}
             if durable_status == "failed":
@@ -2341,6 +2471,22 @@ class LiveThreadAdapter:
             return {"decision": "control-lost"}
 
         return self._timed("check", action)
+
+    def _known_completion_evidence_missing(
+        self,
+        boundary: Mapping[str, Any],
+    ) -> bool:
+        """Detect terminal evidence deficits knowable without another callback."""
+
+        policy = self.completion_evidence_policy
+        completed_calls = int(boundary.get("trusted_completed_tool_calls", 0))
+        if completed_calls < policy["minimum_tool_calls"]:
+            return True
+        required = policy["required_evidence"]
+        if "trusted-tool-call" in required["predicates"] and completed_calls < 1:
+            return True
+        observed_hashes = set(boundary.get("trusted_tool_evidence_sha256", []))
+        return not set(required["sha256"]).issubset(observed_hashes)
 
     def interrupt(self, **_kwargs: Any) -> dict[str, str]:
         def action() -> dict[str, str]:
@@ -2563,7 +2709,9 @@ class LiveThreadAdapter:
         boundary = self._capture_trusted_boundary(allow_pending=allow_pending)
         items = turn_items(self.last_thread, self.turn_id)
         item_types = [str(item.get("type")) for item in items if item.get("type")]
-        tool_calls = sum(item_type in OPERATIVE_ITEM_TYPES for item_type in item_types)
+        projected_tool_calls = sum(
+            item_type in OPERATIVE_ITEM_TYPES for item_type in item_types
+        )
         compactions = item_types.count("contextCompaction") + len(
             self.server.notifications(self.thread_id, "thread/compacted")
         )
@@ -2611,7 +2759,14 @@ class LiveThreadAdapter:
             "model_exact": model_exact,
             "reroute_count": len(reroutes),
             "compactions": compactions,
-            "tool_calls": tool_calls,
+            "tool_calls": int(boundary.get("trusted_tool_calls", 0)),
+            "completed_tool_calls": int(
+                boundary.get("trusted_completed_tool_calls", 0)
+            ),
+            "projected_tool_calls": projected_tool_calls,
+            "trusted_tool_evidence_sha256": list(
+                boundary.get("trusted_tool_evidence_sha256", [])
+            ),
             "item_types": sorted(set(item_types)),
             "token_telemetry": {
                 "availability": "available" if token_total is not None else "unavailable",
@@ -2623,6 +2778,87 @@ class LiveThreadAdapter:
             "interrupted": self.interrupted,
             "archived": self.archived,
         }
+
+    def _completion_evidence_observation(
+        self,
+        summary: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        policy = self.completion_evidence_policy
+        required = policy["required_evidence"]
+        mutations = list(summary["workspace_mutations"])
+        completed_calls = int(summary["completed_tool_calls"])
+        observed_hashes = set(summary["trusted_tool_evidence_sha256"])
+        observed_predicates: set[str] = set()
+        terminal_event = summary.get("durable_terminal_event")
+        if (
+            summary["session_boundary"].get("available") is True
+            and isinstance(terminal_event, Mapping)
+            and terminal_event.get("status") == "completed"
+        ):
+            observed_predicates.add("trusted-terminal-boundary")
+        if completed_calls:
+            observed_predicates.add("trusted-tool-call")
+        if policy["expected_mutation_mode"] == "read-only" and not mutations:
+            observed_predicates.add("read-only-workspace-clean")
+        if (
+            policy["expected_mutation_mode"] == "mutable-isolated"
+            and self.expected_mutation is not None
+            and mutations == [self.expected_mutation]
+        ):
+            observed_predicates.add("expected-workspace-mutation")
+        missing_predicates = sorted(
+            set(required["predicates"]) - observed_predicates
+        )
+        missing_hashes = sorted(set(required["sha256"]) - observed_hashes)
+        minimum_met = completed_calls >= policy["minimum_tool_calls"]
+        observable_action_required = bool(
+            policy["minimum_tool_calls"]
+            or set(required["predicates"])
+            & {"expected-workspace-mutation", "trusted-tool-call"}
+            or required["sha256"]
+        )
+        return {
+            "minimum_tool_calls_met": minimum_met,
+            "observed_predicates": sorted(observed_predicates),
+            "missing_predicates": missing_predicates,
+            "missing_evidence_sha256": missing_hashes,
+            "observable_action_required": observable_action_required,
+            "satisfied": minimum_met and not missing_predicates and not missing_hashes,
+        }
+
+    def _completion_evidence_reasons(
+        self,
+        summary: Mapping[str, Any],
+        observation: Mapping[str, Any],
+    ) -> list[str]:
+        if (
+            summary["turn_status"] != "completed"
+            or not summary["expected_final_token_observed"]
+        ):
+            return []
+        policy = self.completion_evidence_policy
+        mutations = summary["workspace_mutations"]
+        completed_calls = int(summary["completed_tool_calls"])
+        reasons: list[str] = []
+        if (
+            completed_calls == 0
+            and not policy["allow_zero_tool_completion"]
+            and (
+                policy["minimum_tool_calls"] > 0
+                or "trusted-tool-call"
+                in policy["required_evidence"]["predicates"]
+            )
+        ):
+            reasons.append("zero-tool-completion")
+        if (
+            observation["observable_action_required"]
+            and completed_calls == 0
+            and not mutations
+        ):
+            reasons.append("premature-completion")
+        if not observation["satisfied"]:
+            reasons.append("required-evidence-missing")
+        return reasons
 
     def evidence(self) -> dict[str, Any]:
         self._evidence_sequence += 1
@@ -2646,8 +2882,12 @@ class LiveThreadAdapter:
         if status == "completed" and not summary["expected_final_token_observed"]:
             reasons.append("invalid-final-response")
         mutations = summary["workspace_mutations"]
+        completion_observation = self._completion_evidence_observation(summary)
+        reasons.extend(
+            self._completion_evidence_reasons(summary, completion_observation)
+        )
         if self.mutable:
-            if any(path != self.expected_mutation for path in mutations):
+            if mutations != [self.expected_mutation]:
                 reasons.append("mutable-workspace-attribution-mismatch")
         elif mutations:
             reasons.append("read-only-workspace-mutation")
@@ -2672,6 +2912,10 @@ class LiveThreadAdapter:
             "runtime_seconds": usage["runtime_seconds"],
             "mutations": usage["mutations"],
             "compactions": usage["compactions"],
+            "completion_evidence_policy_sha256": self.completion_evidence_policy_sha256,
+            "trusted_completed_tool_calls": summary["completed_tool_calls"],
+            "trusted_tool_evidence_sha256": summary["trusted_tool_evidence_sha256"],
+            "completion_evidence_satisfied": completion_observation["satisfied"],
             "evidence_sequence": self._evidence_sequence,
         }
         if (
@@ -2707,6 +2951,13 @@ class LiveThreadAdapter:
 
     def final_summary(self) -> dict[str, Any]:
         summary = self._trusted_summary(allow_pending=False)
+        completion_observation = self._completion_evidence_observation(summary)
+        summary["completion_evidence_policy"] = self.completion_evidence_policy
+        summary[
+            "completion_evidence_policy_sha256"
+        ] = self.completion_evidence_policy_sha256
+        summary["completion_evidence_observation"] = completion_observation
+        summary["completion_evidence_satisfied"] = completion_observation["satisfied"]
         summary["callback_stats"] = {
             name: stats(values) for name, values in sorted(self.callback_latencies.items())
         }
@@ -4187,6 +4438,7 @@ def build_pool_inputs(
     mutable: bool,
     prompts: list[str],
     expected_tokens: list[str],
+    completion_evidence_policies: list[Mapping[str, Any]] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
@@ -4198,6 +4450,26 @@ def build_pool_inputs(
     PoolWorkspaceMonitor,
 ]:
     record_dir = root / f"{pool_name}-records"
+    isolation_class = "mutable-isolated" if mutable else "read-only-shared"
+    if completion_evidence_policies is None:
+        policies = [
+            default_completion_evidence_policy(isolation_class)
+            for _ in worktrees
+        ]
+    else:
+        policies = list(completion_evidence_policies)
+    if len(policies) != len(worktrees):
+        raise AppServerError("completion-evidence-policy-cardinality-mismatch")
+    for index, policy in enumerate(policies):
+        errors = validate_completion_evidence_policy(
+            policy,
+            isolation_class=isolation_class,
+            prefix=f"child[{index}]-completion-evidence-policy",
+        )
+        if errors:
+            raise AppServerError(
+                "completion-evidence-policy-invalid:" + ";".join(errors)
+            )
     thread_results = []
     bound_manifest_validation: Mapping[str, Any] | None = None
     for index, worktree in enumerate(worktrees):
@@ -4226,8 +4498,8 @@ def build_pool_inputs(
     children = []
     child_contracts: dict[str, dict[str, Any]] = {}
     adapters: dict[str, LiveThreadAdapter] = {}
-    for index, (result, worktree, prompt, expected_token) in enumerate(
-        zip(thread_results, worktrees, prompts, expected_tokens)
+    for index, (result, worktree, prompt, expected_token, completion_policy) in enumerate(
+        zip(thread_results, worktrees, prompts, expected_tokens, policies)
     ):
         child_id = f"{pool_name}-child-{index}"
         thread_id = str(result["thread"]["id"])
@@ -4281,6 +4553,7 @@ def build_pool_inputs(
             "state_file": str(state_file),
             "worktree": str(worktree),
             "isolation_class": "mutable-isolated" if mutable else "read-only-shared",
+            "completion_evidence_policy": completion_policy,
             "declared_write_paths": [target] if target else [],
             "integration_target_paths": [target] if target else [],
             "lease_id": f"{pool_name}-lease-{uuid.uuid4()}",
@@ -4295,6 +4568,7 @@ def build_pool_inputs(
             worktree=worktree,
             mutable=mutable,
             expected_mutation=target,
+            completion_evidence_policy=completion_policy,
             force_interrupt_after_checks=(interrupt_after or [None, None])[index],
             record_dir=record_dir,
         )
@@ -4346,6 +4620,7 @@ def run_pool_canary(
     mutable: bool,
     prompts: list[str],
     expected_tokens: list[str],
+    completion_evidence_policies: list[Mapping[str, Any]] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
@@ -4362,6 +4637,7 @@ def run_pool_canary(
         mutable=mutable,
         prompts=prompts,
         expected_tokens=expected_tokens,
+        completion_evidence_policies=completion_evidence_policies,
         pre_thread_start_check=pre_thread_start_check,
         pre_allocation_check=pre_allocation_check,
         expected_bound_manifest_validation=expected_bound_manifest_validation,
@@ -4370,10 +4646,16 @@ def run_pool_canary(
     child_ids = list(adapters)
 
     def read_child_evidence(*, child_id: str, state_file: str) -> dict[str, Any]:
-        if state_file != next(
-            child["state_file"] for child in contract["children"] if child["child_id"] == child_id
-        ):
+        child_contract = next(
+            child for child in contract["children"] if child["child_id"] == child_id
+        )
+        if state_file != child_contract["state_file"]:
             raise AppServerError("child-evidence-state-file-mismatch")
+        if (
+            adapters[child_id].completion_evidence_policy
+            != child_contract["completion_evidence_policy"]
+        ):
+            raise AppServerError("child-completion-evidence-policy-mismatch")
         return adapters[child_id].evidence()
 
     coordinator = NativePoolCoordinator(
@@ -10700,6 +10982,13 @@ def main() -> int:
                 mutable=False,
                 prompts=read_prompts,
                 expected_tokens=["READ_ONLY_CHILD_0_OK", "READ_ONLY_CHILD_1_OK"],
+                completion_evidence_policies=[
+                    default_completion_evidence_policy(
+                        "read-only-shared",
+                        minimum_tool_calls=2,
+                    )
+                    for _ in range(2)
+                ],
                 pre_thread_start_check=(
                     require_bound_campaign_inputs_before_thread_start
                 ),
@@ -10728,6 +11017,13 @@ def main() -> int:
                 mutable=True,
                 prompts=mutable_prompts,
                 expected_tokens=["MUTABLE_CHILD_0_OK", "MUTABLE_CHILD_1_OK"],
+                completion_evidence_policies=[
+                    default_completion_evidence_policy(
+                        "mutable-isolated",
+                        minimum_tool_calls=2,
+                    )
+                    for _ in range(2)
+                ],
                 pre_thread_start_check=(
                     require_bound_campaign_inputs_before_thread_start
                 ),
@@ -10758,6 +11054,10 @@ def main() -> int:
                 mutable=False,
                 prompts=interrupt_prompts,
                 expected_tokens=["INTERRUPT_LONG_UNEXPECTED_COMPLETION", "INTERRUPT_PEER_OK"],
+                completion_evidence_policies=[
+                    default_completion_evidence_policy("read-only-shared")
+                    for _ in range(2)
+                ],
                 pre_thread_start_check=(
                     require_bound_campaign_inputs_before_thread_start
                 ),
