@@ -134,6 +134,16 @@ def _normalize_child_evidence(value: Any) -> dict[str, Any]:
     return {**dict(value), "usage": usage, "reasons": list(reasons)}
 
 
+def _sanitize_exception_message(error: BaseException) -> str:
+    """Return bounded, single-line exception evidence safe for JSON artifacts."""
+    try:
+        message = " ".join(str(error).split())
+    except BaseException:
+        return "message-unavailable"
+    message = "".join(character for character in message if character.isprintable())
+    return message[:256] or "message-unavailable"
+
+
 class NativePoolCoordinator:
     """Drive a bounded cohort with one native adapter callback per step."""
 
@@ -229,6 +239,8 @@ class NativePoolCoordinator:
         self._terminal_comparison_complete = False
         self._receipt: dict[str, Any] | None = None
         self._decision: dict[str, Any] | None = None
+        self._crash_cleanup_started = False
+        self._crash_cleanup_complete = False
 
         self._certified_callback_max_ms: Mapping[str, Any] = {}
         self._certified_scheduler_overhead_ms = 0.0
@@ -304,9 +316,15 @@ class NativePoolCoordinator:
         handle = self._state_lock_handle
         if handle is None:
             return
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        handle.close()
         self._state_lock_handle = None
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            try:
+                handle.close()
+            finally:
+                if not handle.closed:
+                    self._state_lock_handle = handle
 
     def _verify_state_watermark(self) -> None:
         if self.state_file is None:
@@ -802,28 +820,259 @@ class NativePoolCoordinator:
             return "draining"
         return "running"
 
+    def _mark_lease_release_pending(
+        self,
+        child_id: str,
+        *,
+        terminal_evidence_sha256: str,
+        reason: str,
+    ) -> bool:
+        lease = self._leases.get(child_id)
+        if lease is None or lease["lifecycle_state"] in {"released", "release-pending"}:
+            return False
+        self._leases[child_id] = self.lease_registry.mark_release_pending(
+            lease["lease_id"],
+            terminal_evidence_sha256=terminal_evidence_sha256,
+            reason=reason,
+        )
+        return True
+
+    def _release_lease(
+        self,
+        child_id: str,
+        *,
+        terminal_state: Mapping[str, Any],
+        reason: str = "pool-closed",
+    ) -> bool:
+        lease = self._leases.get(child_id)
+        if lease is None or lease["lifecycle_state"] == "released":
+            return False
+        self._leases[child_id] = self.lease_registry.release(
+            lease["lease_id"],
+            terminal_state=terminal_state,
+            reason=reason,
+        )
+        return True
+
     def _release_next(self) -> bool:
         for child_id in self.child_ids:
-            lease = self._leases.get(child_id)
-            if lease is not None and lease["lifecycle_state"] != "released":
-                self._leases[child_id] = self.lease_registry.release(
-                    lease["lease_id"], terminal_state=self._state
-                )
+            if self._release_lease(child_id, terminal_state=self._state):
                 return True
         return False
 
     def _finish_control_failed(self) -> None:
         terminal_hash = self._state["state_sha256"]
-        for child_id, lease in list(self._leases.items()):
-            if lease["lifecycle_state"] not in {"released", "release-pending"}:
-                self._leases[child_id] = self.lease_registry.mark_release_pending(
-                    lease["lease_id"],
-                    terminal_evidence_sha256=terminal_hash,
-                    reason="pool-control-failed",
-                )
+        for child_id in self.child_ids:
+            self._mark_lease_release_pending(
+                child_id,
+                terminal_evidence_sha256=terminal_hash,
+                reason="pool-control-failed",
+            )
         self._refresh_state("control-failed")
         self._receipt = self._build_receipt()
         self._release_state_lock()
+
+    def _record_crash_cleanup_error(
+        self,
+        stage: str,
+        error: BaseException,
+        *,
+        child_id: str | None = None,
+    ) -> None:
+        child = f":{child_id}" if child_id is not None else ""
+        self._add_reason(
+            f"coordinator-crash-cleanup-error:{stage}{child}:"
+            f"{type(error).__name__}:{_sanitize_exception_message(error)}"
+        )
+
+    def _seal_crash_state(self, *, increment: bool) -> None:
+        aggregate_usage = zero_usage()
+        token_values: list[Mapping[str, Any]] = []
+        for child in self._state["children"]:
+            usage = child.get("last_cumulative_usage")
+            if isinstance(usage, Mapping):
+                for field in (
+                    "tool_calls",
+                    "runtime_seconds",
+                    "compactions",
+                    "full_suite_runs",
+                    "mutations",
+                ):
+                    value = usage.get(field)
+                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                        aggregate_usage[field] += value
+                tokens = usage.get("tokens")
+                if isinstance(tokens, Mapping):
+                    token_values.append(tokens)
+        token_fields = ("input", "cached_input", "output", "reasoning", "total")
+        if len(token_values) == len(self._state["children"]) and all(
+            tokens.get("availability") == "available"
+            and all(
+                isinstance(tokens.get(field), int)
+                and not isinstance(tokens.get(field), bool)
+                and tokens[field] >= 0
+                for field in token_fields
+            )
+            for tokens in token_values
+        ):
+            aggregate_usage["tokens"] = {
+                "availability": "available",
+                **{
+                    field: sum(tokens[field] for tokens in token_values)
+                    for field in token_fields
+                },
+                "unavailable_reason": None,
+            }
+        self._state.update(
+            {
+                "state_sequence": self._state["state_sequence"] + (1 if increment else 0),
+                "status": "control-failed",
+                "active_children": [],
+                "terminal_children": list(self.child_ids),
+                "aggregate_usage": aggregate_usage,
+                "worker_seconds": aggregate_usage["runtime_seconds"],
+                "poll_overhead_seconds": self._poll_overhead_seconds,
+                "lease_bindings": [
+                    self._leases[child_id]["lease_sha256"]
+                    for child_id in self.child_ids
+                    if child_id in self._leases
+                ],
+                "reasons": list(self._reasons),
+                "first_protected_fault": (
+                    dict(self._first_protected_fault)
+                    if self._first_protected_fault is not None
+                    else None
+                ),
+                "control_loss_scope": "pool",
+            }
+        )
+        self._state = seal_artifact(self._state, "state_sha256")
+
+    def _persist_crash_state(self) -> bool:
+        for stage in ("persist-state", "persist-state-retry"):
+            try:
+                self._seal_crash_state(increment=False)
+                self._persist_state()
+                return True
+            except BaseException as error:
+                self._record_crash_cleanup_error(stage, error)
+        return False
+
+    def _classify_crash(
+        self,
+        original_error: BaseException,
+        *,
+        crash_reason: str,
+        affected_child_ids: Sequence[str],
+    ) -> None:
+        if self._first_protected_fault is None:
+            self._first_protected_fault = {
+                "code": crash_reason,
+                "operation": None,
+                "observed_callback_latency_ms": None,
+                "certified_callback_max_ms": None,
+                "latched_state_sequence": self._state["state_sequence"],
+            }
+        self._add_reason(crash_reason)
+        affected = ",".join(affected_child_ids) if affected_child_ids else "none"
+        self._add_reason(f"coordinator-crash-affected-children:{affected}")
+        self._protected_fault = True
+        self._control_failed = True
+        self._receipt = None
+        self._decision = None
+        for child_id in self.child_ids:
+            progress = self._progress[child_id]
+            child = self._child_state(child_id)
+            if progress["status"] != "terminal":
+                receipt = {
+                    "terminal_state": "control-failed",
+                    "errors": [f"coordinator-crash:{type(original_error).__name__}"],
+                }
+                progress.update(
+                    {
+                        "status": "terminal",
+                        "phase": "terminal",
+                        "wait_required": False,
+                        "wait_seconds": None,
+                        "receipt": receipt,
+                    }
+                )
+                child["child_receipt_sha256"] = canonical_sha256(receipt)
+            if child["status"] not in {"closed", "control-failed"}:
+                child["status"] = "control-failed"
+            child["next_deadline_ns"] = None
+            if child_id not in self._terminal_order:
+                self._terminal_order.append(child_id)
+        self._seal_crash_state(increment=not self._crash_cleanup_started)
+
+    def _cleanup_on_crash(self, original_error: BaseException) -> None:
+        """Contain an unhandled coordinator failure without replacing its exception."""
+        if self._crash_cleanup_complete:
+            return
+        affected_child_ids = [
+            child_id
+            for child_id in self.child_ids
+            if self._progress[child_id]["status"] != "terminal"
+            or (
+                child_id in self._leases
+                and self._leases[child_id]["lifecycle_state"] != "released"
+            )
+        ]
+        crash_reason = (
+            f"coordinator-crash:{type(original_error).__name__}:"
+            f"{_sanitize_exception_message(original_error)}"
+        )
+        try:
+            self._classify_crash(
+                original_error,
+                crash_reason=crash_reason,
+                affected_child_ids=affected_child_ids,
+            )
+        except BaseException as error:
+            self._record_crash_cleanup_error("classify", error)
+        self._crash_cleanup_started = True
+
+        terminal_hash = self._state["state_sha256"]
+        for child_id in self.child_ids:
+            try:
+                self._mark_lease_release_pending(
+                    child_id,
+                    terminal_evidence_sha256=terminal_hash,
+                    reason="coordinator-crash",
+                )
+            except BaseException as error:
+                self._record_crash_cleanup_error(
+                    "mark-release-pending", error, child_id=child_id
+                )
+
+        for child_id in self.child_ids:
+            try:
+                self._release_lease(
+                    child_id,
+                    terminal_state=self._state,
+                    reason="coordinator-crash",
+                )
+            except BaseException as error:
+                self._record_crash_cleanup_error("release-lease", error, child_id=child_id)
+
+        persisted = self._persist_crash_state()
+        try:
+            self._release_state_lock()
+        except BaseException as error:
+            self._record_crash_cleanup_error("release-state-lock", error)
+            persisted = self._persist_crash_state()
+            try:
+                self._release_state_lock()
+            except BaseException as retry_error:
+                self._record_crash_cleanup_error("release-state-lock-retry", retry_error)
+                persisted = self._persist_crash_state()
+        leases_contained = all(
+            lease["lifecycle_state"] in {"release-pending", "released"}
+            for lease in self._leases.values()
+        )
+        self._crash_cleanup_complete = (
+            persisted and self._state_lock_handle is None and leases_contained
+        )
 
     def _build_receipt(self) -> dict[str, Any]:
         child_receipts = []
@@ -1070,14 +1319,33 @@ class NativePoolCoordinator:
 
     def run(self) -> dict[str, Any]:
         """Blocking compatibility wrapper; only this method sleeps."""
-        progress = self.step()
-        while progress["status"] not in {"closed", "control-failed"}:
-            if progress["wait_required"]:
-                self.pool_callbacks["sleep"](seconds=progress["wait_seconds"])
+        crashed = False
+        try:
             progress = self.step()
-        if self._receipt is None:
-            self._receipt = self._build_receipt()
-        return dict(self._receipt)
+            while progress["status"] not in {"closed", "control-failed"}:
+                if progress["wait_required"]:
+                    self.pool_callbacks["sleep"](seconds=progress["wait_seconds"])
+                progress = self.step()
+            if self._receipt is None:
+                self._receipt = self._build_receipt()
+            return dict(self._receipt)
+        except BaseException as error:
+            crashed = True
+            try:
+                self._cleanup_on_crash(error)
+            except BaseException:
+                # A cleanup defect must not replace the root failure. The
+                # finally block still makes one last lock-release attempt.
+                pass
+            raise
+        finally:
+            if crashed and self._state_lock_handle is not None:
+                try:
+                    self._release_state_lock()
+                except BaseException:
+                    # Cleanup evidence already records the primary lock-release
+                    # failure; this guard must never replace the root exception.
+                    pass
 
     def progress(self) -> dict[str, Any]:
         next_deadline = min(

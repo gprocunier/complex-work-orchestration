@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
+import fcntl
 import hashlib
+import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +25,11 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     write_private_artifact,
     zero_usage,
 )
-from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
+from cwo_core.native_pool_leases import (  # noqa: E402
+    PoolLeaseError,
+    PoolLeaseRegistry,
+    capture_owner_identity,
+)
 from tests.test_native_pool_contracts import control_request, pool_contract, sha  # noqa: E402
 
 
@@ -211,6 +218,33 @@ class PoolHarness:
         return {**evidence, "evidence_sha256": canonical_sha256(evidence)}
 
 
+def drive_until_lease_states(
+    harness: PoolHarness,
+    expected_states: list[str],
+) -> dict:
+    progress: dict = harness.coordinator.progress()
+    for _ in range(64):
+        if [lease["lifecycle_state"] for lease in harness.registry.snapshot()] == expected_states:
+            return progress
+        progress = harness.coordinator.step()
+        if [lease["lifecycle_state"] for lease in harness.registry.snapshot()] == expected_states:
+            return progress
+        if progress["wait_required"]:
+            harness.clock.sleep(seconds=progress["wait_seconds"])
+    raise AssertionError(f"lease states did not reach {expected_states!r}")
+
+
+def assert_state_lock_released(test: unittest.TestCase, temporary: str) -> None:
+    lock_path = Path(temporary) / "pool-state.json.lock"
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            test.fail(f"pool state lock remained held: {error}")
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 class NativePoolCoordinatorTests(unittest.TestCase):
     def test_first_child_protected_fault_reason_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -323,6 +357,199 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(receipt["terminal_order"], ["child-0"])
             self.assertEqual(receipt["admission_order"], [])
             self.assertEqual(validate_pool_state(harness.coordinator.progress()["state"], contract=harness.contract), [])
+
+    def test_unhandled_step_error_persists_control_failure_and_releases_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            original_error = RuntimeError("step failure\nwith control text")
+            with mock.patch.object(harness.coordinator, "step", side_effect=original_error):
+                with self.assertRaises(RuntimeError) as raised:
+                    harness.coordinator.run()
+
+            self.assertIs(raised.exception, original_error)
+            self.assertEqual(harness.adapters["child-0"].calls, [])
+            self.assertEqual(harness.registry.snapshot(), [])
+            state = json.loads((Path(temporary) / "pool-state.json").read_text(encoding="utf-8"))
+            self.assertEqual(validate_pool_state(state, contract=harness.contract), [])
+            self.assertEqual(state["status"], "control-failed")
+            self.assertIn(
+                "coordinator-crash:RuntimeError:step failure with control text",
+                state["reasons"],
+            )
+            self.assertIn(
+                "coordinator-crash-affected-children:child-0",
+                state["reasons"],
+            )
+            self.assertIsNone(harness.coordinator._state_lock_handle)
+            assert_state_lock_released(self, temporary)
+
+    def test_keyboard_interrupt_after_lease_hold_uses_crash_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=1,
+                decisions=[["continue", "complete"]],
+            )
+            progress = drive_until_lease_states(harness, ["held"])
+            self.assertTrue(progress["wait_required"])
+            original_error = KeyboardInterrupt("operator interrupt")
+            harness.coordinator.pool_callbacks["sleep"] = mock.Mock(
+                side_effect=original_error
+            )
+
+            with self.assertRaises(KeyboardInterrupt) as raised:
+                harness.coordinator.run()
+
+            self.assertIs(raised.exception, original_error)
+            self.assertEqual(
+                harness.registry.snapshot()[0]["lifecycle_state"],
+                "release-pending",
+            )
+            state = json.loads((Path(temporary) / "pool-state.json").read_text(encoding="utf-8"))
+            self.assertEqual(validate_pool_state(state, contract=harness.contract), [])
+            self.assertIn(
+                "coordinator-crash:KeyboardInterrupt:operator interrupt",
+                state["reasons"],
+            )
+            self.assertTrue(
+                any(
+                    reason.startswith(
+                        "coordinator-crash-cleanup-error:release-lease:child-0:PoolLeaseError:"
+                    )
+                    for reason in state["reasons"]
+                )
+            )
+            assert_state_lock_released(self, temporary)
+
+    def test_crash_cleanup_retries_state_persistence_without_masking_root_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            original_error = RuntimeError("root failure")
+            real_persist = harness.coordinator._persist_state
+            attempts = 0
+
+            def flaky_persist() -> None:
+                nonlocal attempts
+                attempts += 1
+                if attempts == 1:
+                    raise OSError("state write\nfailed")
+                real_persist()
+
+            with (
+                mock.patch.object(harness.coordinator, "step", side_effect=original_error),
+                mock.patch.object(
+                    harness.coordinator,
+                    "_persist_state",
+                    side_effect=flaky_persist,
+                ),
+            ):
+                with self.assertRaises(RuntimeError) as raised:
+                    harness.coordinator.run()
+
+            self.assertIs(raised.exception, original_error)
+            self.assertEqual(attempts, 2)
+            state = json.loads((Path(temporary) / "pool-state.json").read_text(encoding="utf-8"))
+            self.assertEqual(validate_pool_state(state, contract=harness.contract), [])
+            self.assertIn(
+                "coordinator-crash-cleanup-error:persist-state:OSError:state write failed",
+                state["reasons"],
+            )
+            assert_state_lock_released(self, temporary)
+
+    def test_crash_cleanup_records_unlock_error_and_still_closes_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            original_error = RuntimeError("root failure")
+            real_flock = fcntl.flock
+            unlock_failed = False
+
+            def flaky_flock(file_descriptor: int, operation: int) -> None:
+                nonlocal unlock_failed
+                if operation == fcntl.LOCK_UN and not unlock_failed:
+                    unlock_failed = True
+                    raise OSError("unlock failed")
+                real_flock(file_descriptor, operation)
+
+            with (
+                mock.patch.object(harness.coordinator, "step", side_effect=original_error),
+                mock.patch("cwo_core.native_pool.fcntl.flock", side_effect=flaky_flock),
+            ):
+                with self.assertRaises(RuntimeError) as raised:
+                    harness.coordinator.run()
+
+            self.assertIs(raised.exception, original_error)
+            self.assertTrue(unlock_failed)
+            state = json.loads((Path(temporary) / "pool-state.json").read_text(encoding="utf-8"))
+            self.assertEqual(validate_pool_state(state, contract=harness.contract), [])
+            self.assertIn(
+                "coordinator-crash-cleanup-error:release-state-lock:OSError:unlock failed",
+                state["reasons"],
+            )
+            self.assertIsNone(harness.coordinator._state_lock_handle)
+            assert_state_lock_released(self, temporary)
+
+    def test_crash_cleanup_continues_after_one_release_error_and_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+            )
+            drive_until_lease_states(harness, ["held", "held"])
+            original_error = RuntimeError("coordinator boundary failed")
+
+            def injected_release(
+                lease_id: str,
+                *,
+                terminal_state: dict,
+                reason: str,
+            ) -> dict:
+                if lease_id == "lease-0":
+                    raise PoolLeaseError("injected release failure")
+                return harness.registry._transition(
+                    lease_id,
+                    lifecycle_state="released",
+                    terminal_evidence_sha256=terminal_state["state_sha256"],
+                    release_reason=reason,
+                )
+
+            with (
+                mock.patch.object(harness.coordinator, "step", side_effect=original_error),
+                mock.patch.object(
+                    harness.registry,
+                    "release",
+                    side_effect=injected_release,
+                ),
+            ):
+                with self.assertRaises(RuntimeError) as raised:
+                    harness.coordinator.run()
+
+            self.assertIs(raised.exception, original_error)
+            self.assertEqual(
+                [lease["lifecycle_state"] for lease in harness.registry.snapshot()],
+                ["release-pending", "released"],
+            )
+            state_before = copy.deepcopy(harness.coordinator._state)
+            registry_before = harness.registry.snapshot()
+            self.assertTrue(
+                any(
+                    reason.startswith(
+                        "coordinator-crash-cleanup-error:release-lease:child-0:PoolLeaseError:"
+                    )
+                    for reason in state_before["reasons"]
+                )
+            )
+            self.assertFalse(
+                any(
+                    ":release-lease:child-1:" in reason
+                    for reason in state_before["reasons"]
+                )
+            )
+
+            harness.coordinator._cleanup_on_crash(original_error)
+            self.assertEqual(harness.coordinator._state, state_before)
+            self.assertEqual(harness.registry.snapshot(), registry_before)
+            assert_state_lock_released(self, temporary)
 
     def test_cap_two_callback_overrun_interrupts_entire_pool(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
