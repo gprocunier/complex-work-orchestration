@@ -101,6 +101,17 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
+from cwo_core.native_tool_isolation import (  # noqa: E402
+    NativeToolIsolationError,
+    build_tool_surface_snapshot,
+    default_tool_policy,
+    forbidden_tool_activity,
+    normalize_tool_policy,
+    require_prompt_preflight,
+    require_unchanged_tool_surface,
+    validate_tool_policy,
+    validate_tool_surface_snapshot,
+)
 from cwo_core.native_worker_contracts import normalize_action_receipts  # noqa: E402
 from cwo_core.native_session import _record_token_snapshot  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
@@ -1223,6 +1234,48 @@ class AppServerError(RuntimeError):
     pass
 
 
+def capture_server_tool_surface(
+    server: Any,
+    tool_policy: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Capture one strict, truthful tool-surface snapshot from a server."""
+
+    policy = normalize_tool_policy(tool_policy)
+    reader = getattr(server, "tool_surface_capability", None)
+    if reader is None:
+        capability: Mapping[str, Any] = {
+            "source": "legacy-app-server-interface-no-allowlist",
+            "server_allowlist_supported": False,
+            "allowlist_parameter": None,
+            "effective_allowlist": None,
+        }
+    else:
+        raw = reader(permitted_tools=list(policy["permitted_tools"]))
+        if not isinstance(raw, Mapping):
+            raise AppServerError("tool-surface-capability-invalid")
+        expected = {
+            "source",
+            "server_allowlist_supported",
+            "allowlist_parameter",
+            "effective_allowlist",
+        }
+        if set(raw) != expected:
+            raise AppServerError("tool-surface-capability-fields-invalid")
+        capability = raw
+    try:
+        return build_tool_surface_snapshot(
+            policy,
+            source=capability.get("source"),
+            server_allowlist_supported=capability.get(
+                "server_allowlist_supported"
+            ),
+            allowlist_parameter=capability.get("allowlist_parameter"),
+            effective_allowlist=capability.get("effective_allowlist"),
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
+
+
 class AppServerRpcError(AppServerError):
     """One request-correlated JSON-RPC error with trusted local method context."""
 
@@ -1831,34 +1884,70 @@ class AppServer:
             "latency_ms": round(latency, 3),
         }
 
+    @staticmethod
+    def tool_surface_capability(
+        *, permitted_tools: list[str]
+    ) -> dict[str, Any]:
+        _ = permitted_tools
+        # Codex app-server v2 ThreadStartParams in the pinned runtime has no
+        # built-in tool allowlist.  `dynamicTools` adds tools and therefore is
+        # not a restriction mechanism.
+        return {
+            "source": "codex-app-server-v2-thread-start-schema",
+            "server_allowlist_supported": False,
+            "allowlist_parameter": None,
+            "effective_allowlist": None,
+        }
+
     def start_thread(
         self,
         cwd: Path,
         *,
         mutable: bool,
         role: str | None = None,
+        permitted_tools: list[str] | None = None,
+        allowlist_parameter: str | None = None,
     ) -> tuple[dict[str, Any], float]:
         allocation_intent_id: str | None = None
         if self.allocation_ledger is not None:
             if role not in EXPECTED_ROLES:
                 raise AppServerError("allocation-ledger-role-required")
             allocation_intent_id = self.allocation_ledger.allocation_intent(str(role))
+        params: dict[str, Any] = {
+            "model": EXACT_MODEL,
+            "allowProviderModelFallback": False,
+            "cwd": str(cwd.resolve()),
+            "runtimeWorkspaceRoots": [str(cwd.resolve())],
+            "approvalPolicy": "never",
+            "sandbox": "workspace-write" if mutable else "read-only",
+            "ephemeral": False,
+            "historyMode": "legacy",
+            "developerInstructions": (
+                "This is a bounded CWO live canary. Do not spawn subagents, use network access, "
+                "or access paths outside the supplied workspace. Follow the user task exactly."
+            ),
+        }
+        if permitted_tools is not None:
+            if (
+                not isinstance(allowlist_parameter, str)
+                or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,127}", allowlist_parameter)
+                is None
+            ):
+                raise AppServerError("thread-start-tool-allowlist-parameter-missing")
+            if allowlist_parameter in params:
+                raise AppServerError("thread-start-tool-allowlist-parameter-collision")
+            if (
+                not permitted_tools
+                or permitted_tools != sorted(permitted_tools)
+                or len(permitted_tools) != len(set(permitted_tools))
+            ):
+                raise AppServerError("thread-start-tool-allowlist-invalid")
+            params[allowlist_parameter] = list(permitted_tools)
+        elif allowlist_parameter is not None:
+            raise AppServerError("thread-start-tool-allowlist-without-tools")
         result, latency = self.request(
             "thread/start",
-            {
-                "model": EXACT_MODEL,
-                "allowProviderModelFallback": False,
-                "cwd": str(cwd.resolve()),
-                "runtimeWorkspaceRoots": [str(cwd.resolve())],
-                "approvalPolicy": "never",
-                "sandbox": "workspace-write" if mutable else "read-only",
-                "ephemeral": False,
-                "historyMode": "legacy",
-                "developerInstructions": (
-                    "This is a bounded CWO live canary. Do not spawn subagents, use network access, "
-                    "or access paths outside the supplied workspace. Follow the user task exactly."
-                ),
-            },
+            params,
             timeout=30,
         )
         thread = result.get("thread")
@@ -2057,6 +2146,8 @@ def trusted_tool_evidence_summary(
         "trusted_tool_calls": 0,
         "trusted_completed_tool_calls": 0,
         "trusted_tool_evidence_sha256": [],
+        "trusted_tool_names": [],
+        "trusted_tool_activity": [],
     }
     if turn_id is None:
         return empty
@@ -2102,6 +2193,28 @@ def trusted_tool_evidence_summary(
     completed = [
         receipt for receipt in calls if receipt.get("pairing_status") == "paired"
     ]
+    trusted_activity = []
+    for receipt in calls:
+        raw_tool = str(receipt.get("tool") or "").strip().lower()
+        tool = raw_tool if re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", raw_tool) else "unknown"
+        activity_payload = {
+            "tool": tool,
+            "call_id_sha256": (
+                hashlib.sha256(str(receipt["call_id"]).encode("utf-8")).hexdigest()
+                if receipt.get("call_id")
+                else None
+            ),
+            "canonical_argument_hash": receipt.get("canonical_argument_hash"),
+            "action_class": receipt.get("action_class"),
+            "determinable_target_paths": receipt.get("determinable_target_paths"),
+            "pairing_status": receipt.get("pairing_status"),
+        }
+        trusted_activity.append(
+            {
+                "tool": tool,
+                "evidence_sha256": canonical_sha256(activity_payload),
+            }
+        )
     evidence_sha256 = sorted(
         canonical_sha256(
             {
@@ -2120,6 +2233,8 @@ def trusted_tool_evidence_summary(
         "trusted_tool_calls": len(calls),
         "trusted_completed_tool_calls": len(completed),
         "trusted_tool_evidence_sha256": evidence_sha256,
+        "trusted_tool_names": sorted({item["tool"] for item in trusted_activity}),
+        "trusted_tool_activity": trusted_activity,
     }
 
 
@@ -2170,6 +2285,8 @@ def session_boundary_summary(
             "trusted_tool_calls": 0,
             "trusted_completed_tool_calls": 0,
             "trusted_tool_evidence_sha256": [],
+            "trusted_tool_names": [],
+            "trusted_tool_activity": [],
         }
     models: list[str] = []
     efforts: list[str] = []
@@ -2293,6 +2410,10 @@ class LiveThreadAdapter:
         mutable: bool,
         expected_mutation: str | None,
         completion_evidence_policy: Mapping[str, Any] | None = None,
+        tool_policy: Mapping[str, Any] | None = None,
+        prompt_preflight_receipt: Mapping[str, Any] | None = None,
+        preflight_tool_surface: Mapping[str, Any] | None = None,
+        tool_surface_reader: Callable[[], Mapping[str, Any]] | None = None,
         force_interrupt_after_checks: int | None = None,
         record_dir: Path,
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
@@ -2336,6 +2457,46 @@ class LiveThreadAdapter:
         self.completion_evidence_policy_sha256 = canonical_sha256(
             self.completion_evidence_policy
         )
+        raw_tool_policy = (
+            default_tool_policy(
+                mutable=mutable,
+                workload_class="safety-canary",
+            )
+            if tool_policy is None
+            else tool_policy
+        )
+        try:
+            self.tool_policy = normalize_tool_policy(raw_tool_policy)
+            observed_prompt_preflight = require_prompt_preflight(
+                prompt, self.tool_policy
+            )
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        if (
+            prompt_preflight_receipt is not None
+            and dict(prompt_preflight_receipt) != observed_prompt_preflight
+        ):
+            raise AppServerError("prompt-preflight-receipt-mismatch")
+        self.prompt_preflight = observed_prompt_preflight
+        self.tool_policy_sha256 = canonical_sha256(self.tool_policy)
+        self._tool_surface_reader = tool_surface_reader or (
+            lambda: capture_server_tool_surface(self.server, self.tool_policy)
+        )
+        initial_surface = (
+            dict(preflight_tool_surface)
+            if preflight_tool_surface is not None
+            else dict(self._tool_surface_reader())
+        )
+        surface_errors = validate_tool_surface_snapshot(
+            initial_surface, self.tool_policy
+        )
+        if surface_errors:
+            raise AppServerError(
+                "preflight-tool-surface-invalid:" + ";".join(surface_errors)
+            )
+        self.preflight_tool_surface = initial_surface
+        self.pre_dispatch_tool_surface: dict[str, Any] | None = None
+        self._forbidden_tool_activity: list[dict[str, str]] = []
         self.force_interrupt_after_checks = force_interrupt_after_checks
         self.record_dir = record_dir
         self.turn_id: str | None = None
@@ -2376,6 +2537,30 @@ class LiveThreadAdapter:
         def action() -> dict[str, str]:
             if message != self.prompt:
                 raise AppServerError("turn-prompt-binding-mismatch")
+            try:
+                current_prompt_preflight = require_prompt_preflight(
+                    message, self.tool_policy
+                )
+            except NativeToolIsolationError as exc:
+                raise AppServerError(str(exc)) from exc
+            if current_prompt_preflight != self.prompt_preflight:
+                raise AppServerError("prompt-preflight-changed-before-dispatch")
+            current_surface = dict(self._tool_surface_reader())
+            surface_errors = validate_tool_surface_snapshot(
+                current_surface, self.tool_policy
+            )
+            if surface_errors:
+                raise AppServerError(
+                    "pre-dispatch-tool-surface-invalid:"
+                    + ";".join(surface_errors)
+                )
+            try:
+                require_unchanged_tool_surface(
+                    self.preflight_tool_surface, current_surface
+                )
+            except NativeToolIsolationError as exc:
+                raise AppServerError(str(exc)) from exc
+            self.pre_dispatch_tool_surface = current_surface
             with self._boundary_lock:
                 # Revoke the pre-dispatch allowance before the RPC. Failed or
                 # ambiguous submission can never recover it from a missing id.
@@ -2421,6 +2606,8 @@ class LiveThreadAdapter:
             self.last_thread = thread
             self.reported_session_path = thread.get("path") or self.reported_session_path
             boundary = self._capture_trusted_boundary(allow_pending=True)
+            if self._observe_forbidden_tool_activity(boundary):
+                return {"decision": "interrupt"}
             status = turn_status(self.last_thread, self.turn_id)
             terminal_event = boundary.get("terminal_event")
             durable_status = (
@@ -2471,6 +2658,24 @@ class LiveThreadAdapter:
             return {"decision": "control-lost"}
 
         return self._timed("check", action)
+
+    def _observe_forbidden_tool_activity(
+        self, boundary: Mapping[str, Any]
+    ) -> list[dict[str, str]]:
+        try:
+            observed = forbidden_tool_activity(
+                boundary.get("trusted_tool_activity", []), self.tool_policy
+            )
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        combined = {
+            (item["tool"], item["evidence_sha256"]): item
+            for item in [*self._forbidden_tool_activity, *observed]
+        }
+        self._forbidden_tool_activity = [
+            combined[key] for key in sorted(combined)
+        ]
+        return list(self._forbidden_tool_activity)
 
     def _known_completion_evidence_missing(
         self,
@@ -2707,6 +2912,7 @@ class LiveThreadAdapter:
 
     def _trusted_summary(self, *, allow_pending: bool = True) -> dict[str, Any]:
         boundary = self._capture_trusted_boundary(allow_pending=allow_pending)
+        violations = self._observe_forbidden_tool_activity(boundary)
         items = turn_items(self.last_thread, self.turn_id)
         item_types = [str(item.get("type")) for item in items if item.get("type")]
         projected_tool_calls = sum(
@@ -2767,6 +2973,11 @@ class LiveThreadAdapter:
             "trusted_tool_evidence_sha256": list(
                 boundary.get("trusted_tool_evidence_sha256", [])
             ),
+            "trusted_tool_names": list(boundary.get("trusted_tool_names", [])),
+            "trusted_tool_activity": list(
+                boundary.get("trusted_tool_activity", [])
+            ),
+            "forbidden_tool_activity": violations,
             "item_types": sorted(set(item_types)),
             "token_telemetry": {
                 "availability": "available" if token_total is not None else "unavailable",
@@ -2866,6 +3077,8 @@ class LiveThreadAdapter:
         status = summary["turn_status"]
         terminal = status in {"completed", "interrupted", "failed"}
         reasons: list[str] = []
+        if summary["forbidden_tool_activity"]:
+            reasons.append("forbidden-tool-activity")
         if terminal and not summary["model_exact"]:
             reasons.append("trusted-model-attestation-mismatch")
         if (
@@ -2913,8 +3126,18 @@ class LiveThreadAdapter:
             "mutations": usage["mutations"],
             "compactions": usage["compactions"],
             "completion_evidence_policy_sha256": self.completion_evidence_policy_sha256,
+            "tool_policy_sha256": self.tool_policy_sha256,
+            "preflight_tool_surface_sha256": self.preflight_tool_surface[
+                "surface_sha256"
+            ],
+            "pre_dispatch_tool_surface_sha256": (
+                self.pre_dispatch_tool_surface.get("surface_sha256")
+                if self.pre_dispatch_tool_surface is not None
+                else None
+            ),
             "trusted_completed_tool_calls": summary["completed_tool_calls"],
             "trusted_tool_evidence_sha256": summary["trusted_tool_evidence_sha256"],
+            "forbidden_tool_activity": summary["forbidden_tool_activity"],
             "completion_evidence_satisfied": completion_observation["satisfied"],
             "evidence_sequence": self._evidence_sequence,
         }
@@ -2958,6 +3181,12 @@ class LiveThreadAdapter:
         ] = self.completion_evidence_policy_sha256
         summary["completion_evidence_observation"] = completion_observation
         summary["completion_evidence_satisfied"] = completion_observation["satisfied"]
+        summary["tool_policy"] = self.tool_policy
+        summary["tool_policy_sha256"] = self.tool_policy_sha256
+        summary["prompt_preflight"] = self.prompt_preflight
+        summary["preflight_tool_surface"] = self.preflight_tool_surface
+        summary["pre_dispatch_tool_surface"] = self.pre_dispatch_tool_surface
+        summary["override_provenance"] = self.tool_policy["override_provenance"]
         summary["callback_stats"] = {
             name: stats(values) for name, values in sorted(self.callback_latencies.items())
         }
@@ -2998,6 +3227,24 @@ def _run_calibration(
     pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     samples: dict[str, list[float]] = {}
+    prompt = (
+        "Use the exec_command tool exactly once to run `sleep 20`. After it finishes, return "
+        "exactly CAPABILITY_LONG_DONE. Do not use any other tool."
+    )
+    calibration_tool_policy = default_tool_policy(
+        mutable=False,
+        workload_class="safety-canary",
+        permitted_tools=["exec_command"],
+    )
+    try:
+        calibration_prompt_preflight = require_prompt_preflight(
+            prompt, calibration_tool_policy
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
+    calibration_preflight_surface = capture_server_tool_surface(
+        server, calibration_tool_policy
+    )
 
     def workspace_snapshot() -> tuple[str, str | None]:
         completed = subprocess.run(
@@ -3015,9 +3262,31 @@ def _run_calibration(
     workspace_monitoring_status, workspace_baseline_sha256 = workspace_snapshot()
     if pre_allocation_check is not None:
         pre_allocation_check()
-    result, preallocation_latency = server.start_thread(
-        cwd, mutable=False, role="capability-calibration"
+    allocation_surface = capture_server_tool_surface(
+        server, calibration_tool_policy
     )
+    try:
+        require_unchanged_tool_surface(
+            calibration_preflight_surface, allocation_surface
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
+    start_kwargs: dict[str, Any] = {
+        "mutable": False,
+        "role": "capability-calibration",
+    }
+    if allocation_surface["server_allowlist_supported"]:
+        start_kwargs.update(
+            {
+                "permitted_tools": list(
+                    calibration_tool_policy["permitted_tools"]
+                ),
+                "allowlist_parameter": allocation_surface[
+                    "allowlist_parameter"
+                ],
+            }
+        )
+    result, preallocation_latency = server.start_thread(cwd, **start_kwargs)
     thread_id = str(result["thread"]["id"])
     guarded_measure(
         samples,
@@ -3030,10 +3299,15 @@ def _run_calibration(
         or (_ for _ in ()).throw(AppServerError("prearmed-thread-binding-invalid")),
         guard_seconds=0.0,
     )
-    prompt = (
-        "Use the exec_command tool exactly once to run `sleep 20`. After it finishes, return "
-        "exactly CAPABILITY_LONG_DONE. Do not use any other tool."
+    calibration_pre_dispatch_surface = capture_server_tool_surface(
+        server, calibration_tool_policy
     )
+    try:
+        require_unchanged_tool_surface(
+            calibration_preflight_surface, calibration_pre_dispatch_surface
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
     notification_floor = server.notification_cursor()
     turn = guarded_measure(
         samples,
@@ -4328,6 +4602,12 @@ def _run_calibration(
         "reroute_count": len(server.notifications(thread_id, "model/rerouted")),
         "compactions": len(server.notifications(thread_id, "thread/compacted"))
         + int(boundary.get("compactions", 0)),
+        "tool_policy": calibration_tool_policy,
+        "tool_policy_sha256": canonical_sha256(calibration_tool_policy),
+        "prompt_preflight": calibration_prompt_preflight,
+        "preflight_tool_surface": calibration_preflight_surface,
+        "pre_dispatch_tool_surface": calibration_pre_dispatch_surface,
+        "override_provenance": calibration_tool_policy["override_provenance"],
     }
     if summary["thread_start_model"] != EXACT_MODEL:
         raise AppServerError("capability-thread-start-model-mismatch")
@@ -4337,6 +4617,12 @@ def _run_calibration(
         raise AppServerError("capability-session-effort-mismatch")
     if summary["compactions"] or summary["reroute_count"]:
         raise AppServerError("capability-session-containment-failed")
+    calibration_violations = forbidden_tool_activity(
+        boundary.get("trusted_tool_activity", []), calibration_tool_policy
+    )
+    summary["forbidden_tool_activity"] = calibration_violations
+    if calibration_violations:
+        raise AppServerError("capability-forbidden-tool-activity")
 
     evidence = {
         "thread_preallocation_stats": stats([preallocation_latency]),
@@ -4439,6 +4725,7 @@ def build_pool_inputs(
     prompts: list[str],
     expected_tokens: list[str],
     completion_evidence_policies: list[Mapping[str, Any]] | None = None,
+    tool_policies: list[Mapping[str, Any]] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
@@ -4460,6 +4747,8 @@ def build_pool_inputs(
         policies = list(completion_evidence_policies)
     if len(policies) != len(worktrees):
         raise AppServerError("completion-evidence-policy-cardinality-mismatch")
+    if len(prompts) != len(worktrees) or len(expected_tokens) != len(worktrees):
+        raise AppServerError("pool-input-cardinality-mismatch")
     for index, policy in enumerate(policies):
         errors = validate_completion_evidence_policy(
             policy,
@@ -4470,6 +4759,42 @@ def build_pool_inputs(
             raise AppServerError(
                 "completion-evidence-policy-invalid:" + ";".join(errors)
             )
+    raw_tool_policies = (
+        [
+            default_tool_policy(
+                mutable=mutable,
+                workload_class="safety-canary",
+            )
+            for _ in worktrees
+        ]
+        if tool_policies is None
+        else list(tool_policies)
+    )
+    if len(raw_tool_policies) != len(worktrees):
+        raise AppServerError("tool-policy-cardinality-mismatch")
+    normalized_tool_policies: list[dict[str, Any]] = []
+    prompt_preflights: list[dict[str, Any]] = []
+    preflight_tool_surfaces: list[dict[str, Any]] = []
+    for index, (prompt, raw_tool_policy) in enumerate(
+        zip(prompts, raw_tool_policies)
+    ):
+        policy_errors = validate_tool_policy(
+            raw_tool_policy, prefix=f"child[{index}]-tool-policy"
+        )
+        if policy_errors:
+            raise AppServerError(
+                "tool-policy-invalid:" + ";".join(policy_errors)
+            )
+        try:
+            normalized_policy = normalize_tool_policy(raw_tool_policy)
+            prompt_receipt = require_prompt_preflight(prompt, normalized_policy)
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        normalized_tool_policies.append(normalized_policy)
+        prompt_preflights.append(prompt_receipt)
+        preflight_tool_surfaces.append(
+            capture_server_tool_surface(server, normalized_policy)
+        )
     thread_results = []
     bound_manifest_validation: Mapping[str, Any] | None = None
     for index, worktree in enumerate(worktrees):
@@ -4492,14 +4817,56 @@ def build_pool_inputs(
         role = f"{pool_name}-{index}"
         if pre_allocation_check is not None:
             pre_allocation_check()
-        result, _latency = server.start_thread(worktree, mutable=mutable, role=role)
+        current_surface = capture_server_tool_surface(
+            server, normalized_tool_policies[index]
+        )
+        try:
+            require_unchanged_tool_surface(
+                preflight_tool_surfaces[index], current_surface
+            )
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        start_kwargs: dict[str, Any] = {
+            "mutable": mutable,
+            "role": role,
+        }
+        if current_surface["server_allowlist_supported"]:
+            start_kwargs.update(
+                {
+                    "permitted_tools": list(
+                        normalized_tool_policies[index]["permitted_tools"]
+                    ),
+                    "allowlist_parameter": current_surface[
+                        "allowlist_parameter"
+                    ],
+                }
+            )
+        result, _latency = server.start_thread(worktree, **start_kwargs)
         thread_results.append(result)
     record_dir.mkdir(mode=0o700)
     children = []
     child_contracts: dict[str, dict[str, Any]] = {}
     adapters: dict[str, LiveThreadAdapter] = {}
-    for index, (result, worktree, prompt, expected_token, completion_policy) in enumerate(
-        zip(thread_results, worktrees, prompts, expected_tokens, policies)
+    for index, (
+        result,
+        worktree,
+        prompt,
+        expected_token,
+        completion_policy,
+        tool_policy,
+        prompt_receipt,
+        preflight_surface,
+    ) in enumerate(
+        zip(
+            thread_results,
+            worktrees,
+            prompts,
+            expected_tokens,
+            policies,
+            normalized_tool_policies,
+            prompt_preflights,
+            preflight_tool_surfaces,
+        )
     ):
         child_id = f"{pool_name}-child-{index}"
         thread_id = str(result["thread"]["id"])
@@ -4512,6 +4879,11 @@ def build_pool_inputs(
                     "pool": pool_name,
                     "child": index,
                     "prompt_sha256": sha256_text(prompt),
+                    "tool_policy_sha256": canonical_sha256(tool_policy),
+                    "prompt_preflight_sha256": prompt_receipt[
+                        "preflight_sha256"
+                    ],
+                    "tool_surface_sha256": preflight_surface["surface_sha256"],
                     "thread_id": thread_id,
                 },
                 sort_keys=True,
@@ -4554,6 +4926,7 @@ def build_pool_inputs(
             "worktree": str(worktree),
             "isolation_class": "mutable-isolated" if mutable else "read-only-shared",
             "completion_evidence_policy": completion_policy,
+            "tool_policy": tool_policy,
             "declared_write_paths": [target] if target else [],
             "integration_target_paths": [target] if target else [],
             "lease_id": f"{pool_name}-lease-{uuid.uuid4()}",
@@ -4569,6 +4942,14 @@ def build_pool_inputs(
             mutable=mutable,
             expected_mutation=target,
             completion_evidence_policy=completion_policy,
+            tool_policy=tool_policy,
+            prompt_preflight_receipt=prompt_receipt,
+            preflight_tool_surface=preflight_surface,
+            tool_surface_reader=(
+                lambda policy=tool_policy: capture_server_tool_surface(
+                    server, policy
+                )
+            ),
             force_interrupt_after_checks=(interrupt_after or [None, None])[index],
             record_dir=record_dir,
         )
@@ -4621,6 +5002,7 @@ def run_pool_canary(
     prompts: list[str],
     expected_tokens: list[str],
     completion_evidence_policies: list[Mapping[str, Any]] | None = None,
+    tool_policies: list[Mapping[str, Any]] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
@@ -4638,6 +5020,7 @@ def run_pool_canary(
         prompts=prompts,
         expected_tokens=expected_tokens,
         completion_evidence_policies=completion_evidence_policies,
+        tool_policies=tool_policies,
         pre_thread_start_check=pre_thread_start_check,
         pre_allocation_check=pre_allocation_check,
         expected_bound_manifest_validation=expected_bound_manifest_validation,
@@ -4656,6 +5039,8 @@ def run_pool_canary(
             != child_contract["completion_evidence_policy"]
         ):
             raise AppServerError("child-completion-evidence-policy-mismatch")
+        if adapters[child_id].tool_policy != child_contract["tool_policy"]:
+            raise AppServerError("child-tool-policy-mismatch")
         return adapters[child_id].evidence()
 
     coordinator = NativePoolCoordinator(
@@ -4746,6 +5131,62 @@ def validate_campaign(
         errors.append("fresh-session-cardinality-or-uniqueness-failed")
     for session in all_sessions:
         boundary = session.get("session_boundary", {})
+        tool_policy = session.get("tool_policy")
+        tool_policy_errors = validate_tool_policy(tool_policy)
+        errors.extend(
+            f"session-tool-policy:{item}" for item in tool_policy_errors
+        )
+        if isinstance(tool_policy, Mapping):
+            if session.get("tool_policy_sha256") != canonical_sha256(tool_policy):
+                errors.append("session-tool-policy-sha256-mismatch")
+            for label in ("preflight_tool_surface", "pre_dispatch_tool_surface"):
+                surface_errors = validate_tool_surface_snapshot(
+                    session.get(label), tool_policy
+                )
+                errors.extend(
+                    f"session-{label.replace('_', '-')}:{item}"
+                    for item in surface_errors
+                )
+            if session.get("preflight_tool_surface") != session.get(
+                "pre_dispatch_tool_surface"
+            ):
+                errors.append("session-tool-surface-changed-before-dispatch")
+            if session.get("override_provenance") != tool_policy.get(
+                "override_provenance"
+            ):
+                errors.append("session-tool-override-provenance-mismatch")
+        prompt_receipt = session.get("prompt_preflight")
+        if not isinstance(prompt_receipt, Mapping):
+            errors.append("session-prompt-preflight-missing")
+        else:
+            unsigned_prompt_receipt = dict(prompt_receipt)
+            prompt_receipt_sha256 = unsigned_prompt_receipt.pop(
+                "preflight_sha256", None
+            )
+            if (
+                set(prompt_receipt)
+                != {
+                    "preflight_type",
+                    "version",
+                    "prompt_sha256",
+                    "tool_policy_sha256",
+                    "findings",
+                    "accepted",
+                    "preflight_sha256",
+                }
+                or prompt_receipt.get("accepted") is not True
+                or prompt_receipt.get("findings") != []
+                or prompt_receipt_sha256
+                != canonical_sha256(unsigned_prompt_receipt)
+                or (
+                    isinstance(tool_policy, Mapping)
+                    and prompt_receipt.get("tool_policy_sha256")
+                    != canonical_sha256(tool_policy)
+                )
+            ):
+                errors.append("session-prompt-preflight-invalid")
+        if session.get("forbidden_tool_activity"):
+            errors.append("session-forbidden-tool-activity")
         if session.get("thread_start_model") != EXACT_MODEL:
             errors.append("session-thread-start-model-mismatch")
         if boundary.get("attested_models") != [EXACT_MODEL]:

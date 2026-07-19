@@ -55,6 +55,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     write_private_artifact,
     zero_usage,
 )
+from cwo_core.native_tool_isolation import default_tool_policy  # noqa: E402
 
 
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -95,6 +96,7 @@ def child(index: int, *, isolation: str = "mutable-isolated") -> dict:
         "worktree_identity": identity("shared" if read_only else f"worktree:{index}"),
         "isolation_class": isolation,
         "completion_evidence_policy": default_completion_evidence_policy(isolation),
+        "tool_policy": default_tool_policy(mutable=not read_only),
         "declared_write_paths": target,
         "integration_target_paths": target,
         "lease_id": f"lease-{index}",
@@ -477,6 +479,18 @@ class NativePoolContractTest(unittest.TestCase):
         changed["children"][0]["declared_write_paths"] = ["README.md"]
         changed = seal_artifact(changed, "contract_sha256")
         self.assertTrue(any("paths-must-be-empty" in error for error in validate_pool_contract(changed)))
+
+        widened = copy.deepcopy(contract)
+        widened["children"][0]["tool_policy"]["permitted_tools"] = [
+            "apply_patch",
+            "exec_command",
+            "write_stdin",
+        ]
+        widened = seal_artifact(widened, "contract_sha256")
+        self.assertIn(
+            "read-only-child[0]-tool-policy-permits-apply-patch",
+            validate_pool_contract(widened),
+        )
 
     def test_completion_evidence_policy_is_strict_and_narrowly_allows_tool_free_work(self) -> None:
         default = default_completion_evidence_policy("read-only-shared")

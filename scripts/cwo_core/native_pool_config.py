@@ -43,6 +43,7 @@ from .native_pool_contracts import (
 from .native_pool_leases import capture_owner_identity, owner_identity_is_live
 from .native_pool_workspace import PoolWorkspaceMonitor, capture_workspace_snapshot
 from .policy import load_policy
+from .native_tool_isolation import validate_tool_policy
 
 
 RENDER_REQUEST_TYPE = "cwo-native-supervision-pool-render-request"
@@ -73,6 +74,7 @@ RENDER_CHILD_FIELDS = {
     "worktree",
     "isolation_class",
     "completion_evidence_policy",
+    "tool_policy",
     "declared_write_paths",
     "integration_target_paths",
     "lease_id",
@@ -379,7 +381,22 @@ def validate_pool_render_request(value: Any) -> list[str]:
                 prefix=f"child[{index}]-completion-evidence-policy",
             )
         )
+        errors.extend(
+            validate_tool_policy(
+                child.get("tool_policy"),
+                prefix=f"child[{index}]-tool-policy",
+            )
+        )
         read_only = isolation == "read-only-shared"
+        child_tool_policy = child.get("tool_policy")
+        if (
+            read_only
+            and isinstance(child_tool_policy, Mapping)
+            and "apply_patch" in child_tool_policy.get("permitted_tools", [])
+        ):
+            errors.append(
+                f"read-only-child[{index}]-tool-policy-permits-apply-patch"
+            )
         _validate_paths(child.get("declared_write_paths"), f"child[{index}]-declared-write-paths", allow_empty=read_only, errors=errors)
         _validate_paths(child.get("integration_target_paths"), f"child[{index}]-integration-target-paths", allow_empty=read_only, errors=errors)
         if read_only and (child.get("declared_write_paths") or child.get("integration_target_paths")):
@@ -628,6 +645,7 @@ def _build_pool_contract(
                 "worktree_identity": snapshot["identity"],
                 "isolation_class": child["isolation_class"],
                 "completion_evidence_policy": dict(child["completion_evidence_policy"]),
+                "tool_policy": dict(child["tool_policy"]),
                 "declared_write_paths": list(child["declared_write_paths"]),
                 "integration_target_paths": list(child["integration_target_paths"]),
                 "lease_id": child["lease_id"],

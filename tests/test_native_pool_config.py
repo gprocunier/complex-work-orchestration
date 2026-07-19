@@ -32,6 +32,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     validate_pool_contract,
     write_private_artifact,
 )
+from cwo_core.native_tool_isolation import default_tool_policy  # noqa: E402
 from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload, sha  # noqa: E402
 from tests import test_run_native_pool_live_canaries as live_test_helpers  # noqa: E402
@@ -120,6 +121,7 @@ class RenderFixture:
                     "completion_evidence_policy": default_completion_evidence_policy(
                         "mutable-isolated"
                     ),
+                    "tool_policy": default_tool_policy(mutable=True),
                     "declared_write_paths": [f"scripts/child_{index}.py"],
                     "integration_target_paths": [f"scripts/child_{index}.py"],
                     "lease_id": f"lease-{index}",
@@ -169,6 +171,21 @@ class NativePoolConfigTests(unittest.TestCase):
             errors = validate_pool_render_request(request)
             self.assertTrue(any("unknown-fields" in error for error in errors))
             self.assertIn("duplicate-child-attempt-nonce", errors)
+
+    def test_read_only_render_request_rejects_mutating_tool_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 1)
+            child = fixture.request["children"][0]
+            child["isolation_class"] = "read-only-shared"
+            child["completion_evidence_policy"] = default_completion_evidence_policy(
+                "read-only-shared"
+            )
+            child["declared_write_paths"] = []
+            child["integration_target_paths"] = []
+            self.assertIn(
+                "read-only-child[0]-tool-policy-permits-apply-patch",
+                validate_pool_render_request(fixture.request),
+            )
 
     def test_cap_two_requires_explicit_opt_in_and_fresh_exact_capability(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

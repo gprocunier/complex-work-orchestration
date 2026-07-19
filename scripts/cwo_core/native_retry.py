@@ -16,6 +16,7 @@ IMMUTABLE_WORK_FIELDS = (
     "bead_id",
     "lane",
     "requested_model",
+    "tool_policy",
     "scope",
     "acceptance_checks",
     "budget",

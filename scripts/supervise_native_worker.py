@@ -30,6 +30,7 @@ from cwo_core.native_retry import (
     evaluate_retry_eligibility,
     validate_retry_authorization,
 )
+from cwo_core.native_worker_contracts import is_tool_call_item, trusted_tool_name
 from cwo_core.policy import load_policy
 from cwo_core.paths import AUDIT_LOG, cwo_temp_path, is_cwo_temp_path
 from cwo_core.util import artifact_hash, atomic_write_text, make_dispatch_id
@@ -468,6 +469,7 @@ def _empty_activity() -> dict[str, Any]:
         "pre_mutation_read_calls": 0,
         "pre_mutation_semantic_units": [],
         "mutation_started": False,
+        "forbidden_tool_activity": [],
         "warnings": [],
         "violations": [],
     }
@@ -495,8 +497,45 @@ def _tool_arguments(item: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _tool_call_id(item: dict[str, Any]) -> str | None:
-    value = item.get("call_id")
-    return value if isinstance(value, str) and value else None
+    for key in ("call_id", "callId", "id"):
+        value = item.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _tool_policy_violation(
+    item: dict[str, Any], packet: dict[str, Any]
+) -> dict[str, str] | None:
+    policy = packet.get("tool_policy")
+    if not isinstance(policy, dict):
+        return {
+            "tool": "unknown",
+            "evidence_sha256": canonical_sha256(
+                {"reason": "tool-policy-missing", "item_type": item.get("type")}
+            ),
+        }
+    raw_name = trusted_tool_name(item).strip().lower()
+    name = raw_name if re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", raw_name) else "unknown"
+    permitted = set(str(value) for value in policy.get("permitted_tools", []))
+    forbidden = set(str(value) for value in policy.get("forbidden_tools", []))
+    if name in permitted and name not in forbidden:
+        return None
+    arguments = _tool_arguments(item)
+    call_id = _tool_call_id(item)
+    evidence = {
+        "tool": name,
+        "item_sha256": canonical_sha256(item),
+        "arguments_sha256": canonical_sha256(
+            arguments if arguments is not None else {"unparseable": True}
+        ),
+        "call_id_sha256": (
+            hashlib.sha256(call_id.encode("utf-8")).hexdigest()
+            if call_id is not None
+            else None
+        ),
+    }
+    return {"tool": name, "evidence_sha256": canonical_sha256(evidence)}
 
 
 def _continuation_session_id(value: Any) -> int | None:
@@ -1052,8 +1091,7 @@ def _classify_native_activity(
         item
         for record in records
         for item in _normalize_response_items(record)
-        if isinstance(item, dict)
-        and item.get("type") in {"function_call", "custom_tool_call"}
+        if isinstance(item, dict) and is_tool_call_item(item)
     ]
     processed = int(activity.get("processed_items", 0) or 0)
     violations = set(str(value) for value in activity.get("violations", []))
@@ -1079,8 +1117,27 @@ def _classify_native_activity(
         packet,
         declared_validation_commands,
     )
+    prior_forbidden = activity.setdefault("forbidden_tool_activity", [])
+    forbidden_activity = {
+        (str(item.get("tool")), str(item.get("evidence_sha256"))): {
+            "tool": str(item.get("tool")),
+            "evidence_sha256": str(item.get("evidence_sha256")),
+        }
+        for item in prior_forbidden
+        if isinstance(item, dict)
+    }
 
     for item in items[processed:]:
+        tool_violation = _tool_policy_violation(item, packet)
+        if tool_violation is not None:
+            forbidden_activity[
+                (tool_violation["tool"], tool_violation["evidence_sha256"])
+            ] = tool_violation
+            category_counts["unrelated"] = int(
+                category_counts.get("unrelated", 0)
+            ) + 1
+            violations.add("forbidden-tool-activity")
+            continue
         command = _extract_command(item) or ""
         workdir_violation = _exec_command_workdir_violation(item, packet)
         if workdir_violation is not None:
@@ -1139,6 +1196,9 @@ def _classify_native_activity(
         warnings.add("pre-mutation-read-warning")
 
     activity["mutation_started"] = mutation_already_started or scoped_mutation
+    activity["forbidden_tool_activity"] = [
+        forbidden_activity[key] for key in sorted(forbidden_activity)
+    ]
     activity["warnings"] = sorted(warnings)
     activity["violations"] = sorted(violations)
     return activity

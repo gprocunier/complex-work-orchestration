@@ -12,6 +12,8 @@ import re
 import tempfile
 from typing import Any, Iterable, Mapping
 
+from .native_tool_isolation import validate_tool_policy
+
 
 VERSION = 1
 POOL_CONTRACT_TYPE = "cwo-native-supervision-pool-contract"
@@ -173,6 +175,7 @@ CHILD_CONTRACT_FIELDS = {
     "worktree_identity",
     "isolation_class",
     "completion_evidence_policy",
+    "tool_policy",
     "declared_write_paths",
     "integration_target_paths",
     "lease_id",
@@ -867,6 +870,21 @@ def validate_pool_contract(
                     prefix=f"child[{index}]-completion-evidence-policy",
                 )
             )
+            errors.extend(
+                validate_tool_policy(
+                    child.get("tool_policy"),
+                    prefix=f"child[{index}]-tool-policy",
+                )
+            )
+            child_tool_policy = child.get("tool_policy")
+            if (
+                isolation == "read-only-shared"
+                and isinstance(child_tool_policy, Mapping)
+                and "apply_patch" in child_tool_policy.get("permitted_tools", [])
+            ):
+                errors.append(
+                    f"read-only-child[{index}]-tool-policy-permits-apply-patch"
+                )
             write_paths = _validate_relative_paths(
                 child.get("declared_write_paths"),
                 f"child[{index}]-declared-write-paths",

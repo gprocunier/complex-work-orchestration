@@ -732,6 +732,53 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertEqual(activity["category_counts"]["unrelated"], 1)
         self.assertIn("unrelated-activity-denied", activity["violations"])
 
+    def test_unpermitted_tool_activity_is_hash_bound_and_interrupting(self) -> None:
+        packet = self.packet()
+        _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        activity = supervisor._classify_native_activity(
+            [tool_record("escape", name="spawn_agent", call_id="forbidden-1")],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertIn("forbidden-tool-activity", activity["violations"])
+        self.assertEqual(
+            activity["forbidden_tool_activity"][0]["tool"], "spawn_agent"
+        )
+        self.assertRegex(
+            activity["forbidden_tool_activity"][0]["evidence_sha256"],
+            r"^[0-9a-f]{64}$",
+        )
+        self.assertNotIn("escape", json.dumps(activity))
+
+    def test_call_shaped_unknown_tool_activity_fails_closed(self) -> None:
+        packet = self.packet()
+        _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        activity = supervisor._classify_native_activity(
+            [
+                {
+                    "response_item": {
+                        "type": "web_search_call",
+                        "name": "exec_command",
+                        "id": "search-1",
+                        "query": "out of contract",
+                    }
+                }
+            ],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertIn("forbidden-tool-activity", activity["violations"])
+        self.assertEqual(
+            activity["forbidden_tool_activity"][0]["tool"], "web_search_call"
+        )
+        self.assertNotIn("out of contract", json.dumps(activity))
+
     def test_declared_long_running_command_authorizes_only_bound_empty_polls(self) -> None:
         command = ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
         packet = self.validation_packet([command])

@@ -618,6 +618,38 @@ class AppServerRpcErrorTests(unittest.TestCase):
             server.request("thread/read", {"threadId": "thread-1"})
         self.assertNotIsInstance(raised.exception, LIVE.AppServerRpcError)
 
+    def test_supported_thread_start_forwards_exact_tool_allowlist_parameter(self) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.allocation_ledger = None
+        server.started_threads = {}
+        server.start_thread(
+            ROOT,
+            mutable=False,
+            permitted_tools=["exec_command"],
+            allowlist_parameter="tools",
+        )
+        wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
+        self.assertEqual(wire["params"]["tools"], ["exec_command"])
+        self.assertNotIn("dynamicTools", wire["params"])
+        with self.assertRaisesRegex(
+            LIVE.AppServerError, "allowlist-parameter-collision"
+        ):
+            server.start_thread(
+                ROOT,
+                mutable=False,
+                permitted_tools=["exec_command"],
+                allowlist_parameter="sandbox",
+            )
+
 
 class LiveCanaryMaterializationTests(unittest.TestCase):
     def owner(self) -> dict:
@@ -1693,6 +1725,33 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             with self.assertRaisesRegex(LIVE.AppServerError, "trusted session file is missing"):
                 adapter._trusted_summary()
 
+    def test_effective_tool_surface_expansion_blocks_turn_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root)
+            reads = 0
+
+            def surface(*, permitted_tools: list[str]) -> dict:
+                nonlocal reads
+                reads += 1
+                effective = list(permitted_tools)
+                if reads > 1:
+                    effective.append("spawn_agent")
+                    effective.sort()
+                return {
+                    "source": "supported-test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                    "effective_allowlist": effective,
+                }
+
+            server.tool_surface_capability = surface
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            with self.assertRaisesRegex(LIVE.AppServerError, "tool-surface-expanded"):
+                adapter.send_input(message="bounded prompt")
+            self.assertIsNone(server.started_threads[server.thread_id])
+            self.assertEqual(adapter._boundary_phase, "pre-dispatch")
+
     def test_bound_turn_missing_boundary_is_rejecting(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1913,6 +1972,74 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             self.assertEqual(evidence["reasons"], [])
             self.assertFalse(evidence["protected_fault"])
             self.assertEqual(evidence["artifact_disposition"], "accepted")
+
+    def test_unpermitted_trusted_tool_activity_interrupts_and_is_classified(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call",
+                                "name": "spawn_agent",
+                                "call_id": "forbidden-call",
+                                "arguments": json.dumps({"task": "escape"}),
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            adapter.interrupt()
+            with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertIn("forbidden-tool-activity", evidence["reasons"])
+            self.assertTrue(evidence["protected_fault"])
+            self.assertEqual(
+                summary["forbidden_tool_activity"][0]["tool"], "spawn_agent"
+            )
+            self.assertEqual(
+                summary["tool_policy"]["permitted_tools"],
+                ["exec_command", "write_stdin"],
+            )
+            self.assertIsNone(summary["override_provenance"])
+
+    def test_call_shaped_unknown_tool_activity_is_detected_from_trusted_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "web_search_call",
+                                "name": "exec_command",
+                                "id": "search-1",
+                                "query": "out of contract",
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            adapter.interrupt()
+            with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
+                summary = adapter.final_summary()
+            self.assertEqual(
+                summary["forbidden_tool_activity"][0]["tool"],
+                "web_search_call",
+            )
+            self.assertNotIn("out of contract", json.dumps(summary))
 
     def test_required_tool_evidence_hash_must_match_trusted_receipt(self) -> None:
         for matching in (True, False):
@@ -2239,6 +2366,102 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
     def test_launcher_root_is_repository_root(self) -> None:
         self.assertEqual(LIVE.ROOT, ROOT)
+
+    def test_pool_prompt_and_unsupported_operative_policy_fail_before_allocation(self) -> None:
+        class NoThreadStartServer:
+            def __init__(self) -> None:
+                self.starts = 0
+
+            def start_thread(self, *_args, **_kwargs):
+                self.starts += 1
+                raise AssertionError("tool preflight must precede allocation")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = NoThreadStartServer()
+            checks: list[str] = []
+            with self.assertRaisesRegex(LIVE.AppServerError, "prompt-trigger-conflict"):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    {},
+                    root=root,
+                    integration=root,
+                    pool_name="prompt-conflict",
+                    worktrees=[root],
+                    mutable=False,
+                    prompts=["Invoke $complex-work-orchestration now"],
+                    expected_tokens=["DONE"],
+                    pre_thread_start_check=lambda: checks.append("manifest"),
+                )
+            self.assertEqual(server.starts, 0)
+            self.assertEqual(checks, [])
+
+            operative = LIVE.default_tool_policy(mutable=False)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "operative-tool-restriction-unsupported"
+            ):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    {},
+                    root=root,
+                    integration=root,
+                    pool_name="operative-unsupported",
+                    worktrees=[root],
+                    mutable=False,
+                    prompts=["Inspect the assigned file."],
+                    expected_tokens=["DONE"],
+                    tool_policies=[operative],
+                    pre_thread_start_check=lambda: checks.append("manifest"),
+                )
+            self.assertEqual(server.starts, 0)
+            self.assertEqual(checks, [])
+
+    def test_tool_surface_expansion_after_pool_preflight_blocks_thread_start(self) -> None:
+        class ExpandingSurfaceServer:
+            def __init__(self) -> None:
+                self.surface_reads = 0
+                self.starts = 0
+
+            def tool_surface_capability(self, *, permitted_tools: list[str]) -> dict:
+                self.surface_reads += 1
+                effective = list(permitted_tools)
+                if self.surface_reads > 1:
+                    effective.append("spawn_agent")
+                    effective.sort()
+                return {
+                    "source": "supported-test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                    "effective_allowlist": effective,
+                }
+
+            def start_thread(self, *_args, **_kwargs):
+                self.starts += 1
+                raise AssertionError("expanded surface must block allocation")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = ExpandingSurfaceServer()
+            campaign = {"control_turn_id": LIVE.CONTROL_TURN_ID}
+            with mock.patch.object(
+                LIVE, "validate_live_canary_manifest_gate", return_value=[]
+            ), self.assertRaisesRegex(LIVE.AppServerError, "tool-surface-expanded"):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    campaign,
+                    root=root,
+                    integration=root,
+                    pool_name="expanded-surface",
+                    worktrees=[root],
+                    mutable=False,
+                    prompts=["Inspect the assigned file."],
+                    expected_tokens=["DONE"],
+                    pre_thread_start_check=lambda: {},
+                )
+            self.assertEqual(server.starts, 0)
 
     def test_pool_threads_require_bound_manifest_revalidation_first(self) -> None:
         class NoThreadStartServer:

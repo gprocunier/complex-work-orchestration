@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
 from prepare_native_worker import (  # noqa: E402
+    _render_prompt,
     _policy_budgets_for_lane,
     _policy_lanes,
     build_native_worker_packet,
@@ -23,6 +24,7 @@ from prepare_native_worker import (  # noqa: E402
 )
 from cwo_core.native_disposition import derive_disposition  # noqa: E402
 from cwo_core import native_worker_contracts as contracts  # noqa: E402
+from cwo_core.native_tool_isolation import TOOL_POLICY_FIELDS  # noqa: E402
 
 
 def set_disposition(packet: dict, result: dict) -> None:
@@ -74,6 +76,10 @@ class NativeWorkerPacketTests(unittest.TestCase):
             contracts.ALLOWED_ATTESTATION_FIELDS,
         )
         self.assertEqual(set(properties["scope"]["properties"].keys()), contracts.ALLOWED_SCOPE_FIELDS)
+        self.assertEqual(
+            set(properties["tool_policy"]["properties"].keys()),
+            TOOL_POLICY_FIELDS,
+        )
         self.assertEqual(set(properties["budget"]["properties"].keys()), contracts.ALLOWED_BUDGET_FIELDS)
         self.assertEqual(set(properties["budget_provenance"]["properties"].keys()), contracts.ALLOWED_BUDGET_PROVENANCE_FIELDS)
         self.assertEqual(set(properties["supervision"]["properties"].keys()), contracts.ALLOWED_SUPERVISION_FIELDS)
@@ -130,6 +136,14 @@ class NativeWorkerPacketTests(unittest.TestCase):
             self.assertEqual(packet["version"], 2)
             self.assertEqual(packet["lane"], "implementation")
             self.assertEqual(packet["requested_model"], "gpt-5.3-codex-spark")
+            self.assertEqual(
+                packet["tool_policy"]["permitted_tools"],
+                ["apply_patch", "exec_command", "write_stdin"],
+            )
+            self.assertEqual(
+                packet["tool_policy"]["enforcement_mode"],
+                "server-allowlist-required",
+            )
             self.assertEqual(packet["budget"], _policy_budgets_for_lane("implementation"))
             self.assertEqual(
                 packet["budget_provenance"],
@@ -175,6 +189,57 @@ class NativeWorkerPacketTests(unittest.TestCase):
                 packet["escalation_triggers"]["compaction"],
                 {"any_compaction": "hard-stop/realignment", "status": "needs-architect-realignment"},
             )
+
+    def test_tool_policy_can_only_narrow_to_a_strict_operative_allowlist(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-tools",
+                lane="review",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["review complete"],
+                permitted_tools=["exec_command"],
+                forbidden_tools=["spawn_agent"],
+            )
+            self.assertEqual(packet["tool_policy"]["permitted_tools"], ["exec_command"])
+            self.assertIn("spawn_agent", packet["tool_policy"]["forbidden_tools"])
+            self.assertEqual(validate_native_worker_packet(packet), [])
+
+            with self.assertRaisesRegex(
+                SystemExit, "unproven-permitted-tool-expansion"
+            ):
+                build_native_worker_packet(
+                    bead_id="bead-tool-expansion",
+                    lane="review",
+                    workdir=workdir,
+                    allowed_paths=[str(allowed)],
+                    acceptance_checks=["review complete"],
+                    permitted_tools=["view_image"],
+                    forbidden_tools=[],
+                )
+
+            missing = copy.deepcopy(packet)
+            missing.pop("tool_policy")
+            self.assertIn(
+                "tool_policy must be an object for packet version 2",
+                validate_native_worker_packet(missing),
+            )
+
+    def test_prompt_trigger_conflict_is_rejected_during_render_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            packet = build_native_worker_packet(
+                bead_id="bead-trigger",
+                lane="review",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["Invoke $complex-work-orchestration now"],
+            )
+            with self.assertRaisesRegex(SystemExit, "prompt-trigger-conflict"):
+                _render_prompt(packet)
 
     def test_build_rejects_unknown_lane(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

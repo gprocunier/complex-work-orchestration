@@ -39,6 +39,7 @@ __all__ = [
     "native_replanning",
     "native_session",
     "native_session_boundary",
+    "native_tool_isolation",
     "native_worker_contracts",
     "packets",
     "paths",
