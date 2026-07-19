@@ -89,6 +89,22 @@ CERTIFIED_SCHEDULER_OVERHEAD_MS = 100
 MAX_CERTIFIED_CHECK_MS = CERTIFIED_CALLBACK_MAX_MS["check"]
 POOL_POLL_INTERVAL_MS = 1000
 POOL_POLL_LAG_TOLERANCE_MS = 1500
+COMPLETION_EVIDENCE_POLICY_FIELDS = {
+    "minimum_tool_calls",
+    "required_evidence",
+    "allow_zero_tool_completion",
+    "expected_mutation_mode",
+}
+REQUIRED_COMPLETION_EVIDENCE_FIELDS = {"predicates", "sha256"}
+COMPLETION_EVIDENCE_PREDICATES = frozenset(
+    {
+        "expected-workspace-mutation",
+        "read-only-workspace-clean",
+        "trusted-terminal-boundary",
+        "trusted-tool-call",
+    }
+)
+COMPLETION_MUTATION_MODES = frozenset({"read-only", "mutable-isolated"})
 
 HASH_FIELDS = {
     POOL_CONTRACT_TYPE: "contract_sha256",
@@ -156,6 +172,7 @@ CHILD_CONTRACT_FIELDS = {
     "state_file",
     "worktree_identity",
     "isolation_class",
+    "completion_evidence_policy",
     "declared_write_paths",
     "integration_target_paths",
     "lease_id",
@@ -403,6 +420,134 @@ def _is_sha256(value: Any) -> bool:
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def default_completion_evidence_policy(
+    isolation_class: str,
+    *,
+    minimum_tool_calls: int = 1,
+) -> dict[str, Any]:
+    """Return the fail-closed observable-work policy for a pool child."""
+
+    if isolation_class == "read-only-shared":
+        expected_mutation_mode = "read-only"
+        predicates = [
+            "read-only-workspace-clean",
+            "trusted-terminal-boundary",
+            "trusted-tool-call",
+        ]
+    elif isolation_class == "mutable-isolated":
+        expected_mutation_mode = "mutable-isolated"
+        predicates = [
+            "expected-workspace-mutation",
+            "trusted-terminal-boundary",
+            "trusted-tool-call",
+        ]
+    else:
+        raise ValueError("completion-evidence-isolation-class-invalid")
+    if not _is_int(minimum_tool_calls, 1):
+        raise ValueError("completion-evidence-minimum-tool-calls-invalid")
+    return {
+        "minimum_tool_calls": minimum_tool_calls,
+        "required_evidence": {"predicates": predicates, "sha256": []},
+        "allow_zero_tool_completion": False,
+        "expected_mutation_mode": expected_mutation_mode,
+    }
+
+
+def validate_completion_evidence_policy(
+    value: Any,
+    *,
+    isolation_class: str | None = None,
+    prefix: str = "completion-evidence-policy",
+) -> list[str]:
+    """Validate one worker's trusted completion-evidence requirements."""
+
+    errors: list[str] = []
+    policy = _strict(value, COMPLETION_EVIDENCE_POLICY_FIELDS, prefix, errors)
+    if policy is None:
+        return errors
+    minimum = policy.get("minimum_tool_calls")
+    if not _is_int(minimum):
+        errors.append(f"{prefix}-minimum-tool-calls-invalid")
+    allow_zero = policy.get("allow_zero_tool_completion")
+    if not isinstance(allow_zero, bool):
+        errors.append(f"{prefix}-allow-zero-tool-completion-invalid")
+    mutation_mode = policy.get("expected_mutation_mode")
+    if mutation_mode not in COMPLETION_MUTATION_MODES:
+        errors.append(f"{prefix}-expected-mutation-mode-invalid")
+    expected_mode = {
+        "read-only-shared": "read-only",
+        "mutable-isolated": "mutable-isolated",
+    }.get(isolation_class)
+    if expected_mode is not None and mutation_mode != expected_mode:
+        errors.append(f"{prefix}-isolation-mutation-mode-mismatch")
+
+    required = _strict(
+        policy.get("required_evidence"),
+        REQUIRED_COMPLETION_EVIDENCE_FIELDS,
+        f"{prefix}-required-evidence",
+        errors,
+    )
+    predicates: list[Any] = []
+    hashes: list[Any] = []
+    if required is not None:
+        raw_predicates = required.get("predicates")
+        raw_hashes = required.get("sha256")
+        if not isinstance(raw_predicates, list):
+            errors.append(f"{prefix}-required-evidence-predicates-invalid")
+        else:
+            predicates = raw_predicates
+            if len(predicates) != len(set(str(item) for item in predicates)):
+                errors.append(f"{prefix}-required-evidence-predicates-duplicate")
+            unknown = sorted(
+                str(item)
+                for item in predicates
+                if not isinstance(item, str)
+                or item not in COMPLETION_EVIDENCE_PREDICATES
+            )
+            if unknown:
+                errors.append(
+                    f"{prefix}-required-evidence-predicates-unknown:" + ",".join(unknown)
+                )
+        if not isinstance(raw_hashes, list):
+            errors.append(f"{prefix}-required-evidence-sha256-invalid")
+        else:
+            hashes = raw_hashes
+            if any(not _is_sha256(item) for item in hashes):
+                errors.append(f"{prefix}-required-evidence-sha256-invalid")
+            if len(hashes) != len(set(str(item) for item in hashes)):
+                errors.append(f"{prefix}-required-evidence-sha256-duplicate")
+
+    predicate_set = {item for item in predicates if isinstance(item, str)}
+    if "trusted-terminal-boundary" not in predicate_set:
+        errors.append(f"{prefix}-trusted-terminal-boundary-required")
+    if mutation_mode == "read-only" and "read-only-workspace-clean" not in predicate_set:
+        errors.append(f"{prefix}-read-only-clean-evidence-required")
+    if mutation_mode == "read-only" and "expected-workspace-mutation" in predicate_set:
+        errors.append(f"{prefix}-read-only-mutation-evidence-forbidden")
+    if mutation_mode == "mutable-isolated" and "expected-workspace-mutation" not in predicate_set:
+        errors.append(f"{prefix}-mutable-mutation-evidence-required")
+    if minimum and "trusted-tool-call" not in predicate_set:
+        errors.append(f"{prefix}-minimum-tool-calls-require-tool-predicate")
+
+    if allow_zero is True:
+        if minimum != 0:
+            errors.append(f"{prefix}-zero-tool-policy-requires-zero-minimum")
+        if mutation_mode != "read-only":
+            errors.append(f"{prefix}-zero-tool-policy-must-be-read-only")
+        if predicate_set - {
+            "read-only-workspace-clean",
+            "trusted-terminal-boundary",
+        }:
+            errors.append(f"{prefix}-zero-tool-policy-observable-action-conflict")
+    elif (
+        minimum == 0
+        and "expected-workspace-mutation" not in predicate_set
+        and not hashes
+    ):
+        errors.append(f"{prefix}-observable-work-requirement-missing")
+    return errors
 
 
 def _datetime(value: Any) -> dt.datetime | None:
@@ -715,6 +860,13 @@ def validate_pool_contract(
             isolation = child.get("isolation_class")
             if isolation not in {"read-only-shared", "mutable-isolated"}:
                 errors.append(f"invalid-child[{index}]-isolation-class")
+            errors.extend(
+                validate_completion_evidence_policy(
+                    child.get("completion_evidence_policy"),
+                    isolation_class=str(isolation),
+                    prefix=f"child[{index}]-completion-evidence-policy",
+                )
+            )
             write_paths = _validate_relative_paths(
                 child.get("declared_write_paths"),
                 f"child[{index}]-declared-write-paths",
@@ -819,6 +971,16 @@ def validate_pool_contract(
         for field in ("compactions", "full_suite_runs", "mutations"):
             if not _is_int(budget.get(field)):
                 errors.append(f"invalid-aggregate-hard-budget-{field.replace('_', '-')}")
+        required_tool_calls = sum(
+            int(child.get("completion_evidence_policy", {}).get("minimum_tool_calls", 0))
+            for child in normalized_children
+            if isinstance(child.get("completion_evidence_policy"), Mapping)
+            and _is_int(
+                child.get("completion_evidence_policy", {}).get("minimum_tool_calls")
+            )
+        )
+        if _is_int(budget.get("tool_calls"), 1) and required_tool_calls > budget["tool_calls"]:
+            errors.append("completion-evidence-minimum-tool-calls-exceed-aggregate-budget")
 
     topology = _strict(
         contract.get("topology"),

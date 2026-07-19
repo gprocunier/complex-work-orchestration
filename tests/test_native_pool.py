@@ -262,6 +262,57 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 "child-protected-fault:unexpected-mutation:targets/child_1.txt",
             )
 
+    def test_zero_work_completion_contains_cohort_before_peer_admission(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                decisions=[["complete"], ["continue", "complete"]],
+                dispositions_by_child={
+                    "child-0": ("quarantined", "rejected"),
+                },
+            )
+            read_child_evidence = harness.read_child_evidence
+
+            def completion_evidence(*, child_id: str, state_file: str) -> dict:
+                if (
+                    child_id == "child-0"
+                    and harness.adapters[child_id].calls[-1] == "check"
+                ):
+                    harness.protected_fault_reasons_by_child[child_id] = [
+                        "zero-tool-completion",
+                        "premature-completion",
+                        "required-evidence-missing",
+                    ]
+                return read_child_evidence(child_id=child_id, state_file=state_file)
+
+            harness.coordinator.pool_callbacks["read_child_evidence"] = (
+                completion_evidence
+            )
+            receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["pool_disposition"], "quarantined")
+            self.assertEqual(
+                receipt["first_protected_fault"]["code"],
+                "child-protected-fault:zero-tool-completion",
+            )
+            self.assertIn("premature-completion", receipt["reasons"])
+            self.assertIn("required-evidence-missing", receipt["reasons"])
+            self.assertEqual(receipt["admission_order"], ["child-0"])
+            self.assertEqual(receipt["terminal_order"], ["child-1", "child-0"])
+            self.assertIn("check", harness.adapters["child-0"].calls)
+            self.assertIn("interrupt", harness.adapters["child-0"].calls)
+            self.assertEqual(harness.adapters["child-1"].calls, [])
+            self.assertEqual(
+                [item["artifact_disposition"] for item in receipt["child_dispositions"]],
+                ["rejected", "rejected"],
+            )
+            self.assertEqual(
+                [item["lifecycle_state"] for item in receipt["lease_evidence"]],
+                ["released"],
+            )
+
     def test_cap_one_runs_to_accepting_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=1, decisions=[["continue", "complete"]])
@@ -763,19 +814,19 @@ class NativePoolCoordinatorTests(unittest.TestCase):
 
     def test_aggregate_exhaustion_interrupts_every_admitted_child(self) -> None:
         usage = zero_usage()
-        usage["tool_calls"] = 2
+        usage["tool_calls"] = 3
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(
                 temporary,
                 cap=2,
                 usage_by_child={"child-0": usage},
-                budget_overrides={"tool_calls": 1},
+                budget_overrides={"tool_calls": 2},
             )
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
             self.assertIn("aggregate-tool-calls-exhausted", receipt["reasons"])
             self.assertIn("aggregate-budget-exhausted", receipt["reasons"])
-            self.assertEqual(receipt["final_aggregate_usage"]["tool_calls"], 2)
+            self.assertEqual(receipt["final_aggregate_usage"]["tool_calls"], 3)
 
     def test_cumulative_counter_reset_is_control_failure(self) -> None:
         first = zero_usage()

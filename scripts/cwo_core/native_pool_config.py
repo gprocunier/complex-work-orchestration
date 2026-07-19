@@ -37,6 +37,7 @@ from .native_pool_contracts import (
     callback_certification_policy_sha256,
     seal_artifact,
     validate_capability_receipt,
+    validate_completion_evidence_policy,
     validate_pool_contract,
 )
 from .native_pool_leases import capture_owner_identity, owner_identity_is_live
@@ -71,6 +72,7 @@ RENDER_CHILD_FIELDS = {
     "state_file",
     "worktree",
     "isolation_class",
+    "completion_evidence_policy",
     "declared_write_paths",
     "integration_target_paths",
     "lease_id",
@@ -370,6 +372,13 @@ def validate_pool_render_request(value: Any) -> list[str]:
         isolation = child.get("isolation_class")
         if isolation not in {"read-only-shared", "mutable-isolated"}:
             errors.append(f"invalid-child[{index}]-isolation-class")
+        errors.extend(
+            validate_completion_evidence_policy(
+                child.get("completion_evidence_policy"),
+                isolation_class=str(isolation),
+                prefix=f"child[{index}]-completion-evidence-policy",
+            )
+        )
         read_only = isolation == "read-only-shared"
         _validate_paths(child.get("declared_write_paths"), f"child[{index}]-declared-write-paths", allow_empty=read_only, errors=errors)
         _validate_paths(child.get("integration_target_paths"), f"child[{index}]-integration-target-paths", allow_empty=read_only, errors=errors)
@@ -378,6 +387,18 @@ def validate_pool_render_request(value: Any) -> list[str]:
     for field, values in identities.items():
         if len(values) != len(set(values)):
             errors.append(f"duplicate-child-{field.replace('_', '-')}")
+    if budget is not None and _integer(budget.get("tool_calls"), 1):
+        required_tool_calls = sum(
+            int(child.get("completion_evidence_policy", {}).get("minimum_tool_calls", 0))
+            for child in children
+            if isinstance(child, Mapping)
+            and isinstance(child.get("completion_evidence_policy"), Mapping)
+            and _integer(
+                child.get("completion_evidence_policy", {}).get("minimum_tool_calls")
+            )
+        )
+        if required_tool_calls > budget["tool_calls"]:
+            errors.append("completion-evidence-minimum-tool-calls-exceed-aggregate-budget")
     return errors
 
 
@@ -606,6 +627,7 @@ def _build_pool_contract(
                 "state_file": child["state_file"],
                 "worktree_identity": snapshot["identity"],
                 "isolation_class": child["isolation_class"],
+                "completion_evidence_policy": dict(child["completion_evidence_policy"]),
                 "declared_write_paths": list(child["declared_write_paths"]),
                 "integration_target_paths": list(child["integration_target_paths"]),
                 "lease_id": child["lease_id"],
