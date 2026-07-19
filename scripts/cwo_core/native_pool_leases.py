@@ -29,6 +29,21 @@ REGISTRY_VERSION = 1
 REGISTRY_FIELDS = {"registry_type", "version", "leases", "registry_sha256"}
 ACTIVE_LEASE_STATES = {"acquired", "held", "release-pending", "orphaned-active"}
 
+# Requested lifecycle changes follow this table exactly. Retried containment and
+# terminal operations are the only same-state requests accepted, and they are
+# no-write no-ops. A verified dead owner may additionally be reclassified from
+# acquired or held to orphaned-active; that observation is not a caller-requested
+# lifecycle transition and must never move release-pending backward.
+LEASE_TRANSITIONS: Mapping[str, frozenset[str]] = {
+    "acquired": frozenset({"held", "release-pending", "released"}),
+    "held": frozenset({"release-pending", "released"}),
+    "release-pending": frozenset({"released"}),
+    "orphaned-active": frozenset({"release-pending", "released"}),
+    "released": frozenset(),
+}
+IDEMPOTENT_LEASE_STATES = frozenset({"release-pending", "released"})
+ORPHAN_RECLASSIFICATION_STATES = frozenset({"acquired", "held"})
+
 
 class PoolLeaseError(ValueError):
     """Base class for fail-closed pool lease errors."""
@@ -36,6 +51,20 @@ class PoolLeaseError(ValueError):
 
 class PoolLeaseCollision(PoolLeaseError):
     """Raised when a worktree or logical integration target is already held."""
+
+
+class PoolLeaseTransitionError(PoolLeaseError):
+    """Raised before persistence when a lease lifecycle request is illegal."""
+
+    code = "lease-transition-not-allowed"
+
+    def __init__(self, lease_id: str, current_state: str, requested_state: str) -> None:
+        self.lease_id = lease_id
+        self.current_state = current_state
+        self.requested_state = requested_state
+        super().__init__(
+            f"{self.code}:lease={lease_id}:current={current_state}:requested={requested_state}"
+        )
 
 
 def _iso(value: dt.datetime | str | None = None) -> str:
@@ -210,6 +239,46 @@ class PoolLeaseRegistry:
     def _write_unlocked(self, leases: list[Mapping[str, Any]]) -> None:
         write_private_artifact(self.path, _seal_registry(leases))
 
+    def _prepare_transition(
+        self,
+        current: dict[str, Any],
+        *,
+        lifecycle_state: str,
+        terminal_evidence_sha256: str | None,
+        release_reason: str | None,
+        allow_orphan_reclassification: bool = False,
+        updated_at: str | None = None,
+        invalid_artifact_code: str = "lease-transition-invalid",
+    ) -> tuple[dict[str, Any], bool]:
+        lease_id = str(current["lease_id"])
+        current_state = str(current["lifecycle_state"])
+        if current_state == lifecycle_state and current_state in IDEMPOTENT_LEASE_STATES:
+            return current, False
+        requested_transition = lifecycle_state in LEASE_TRANSITIONS.get(
+            current_state, frozenset()
+        )
+        orphan_reclassification = (
+            allow_orphan_reclassification
+            and lifecycle_state == "orphaned-active"
+            and current_state in ORPHAN_RECLASSIFICATION_STATES
+        )
+        if not requested_transition and not orphan_reclassification:
+            raise PoolLeaseTransitionError(lease_id, current_state, lifecycle_state)
+        updated = seal_artifact(
+            {
+                **current,
+                "lifecycle_state": lifecycle_state,
+                "updated_at": updated_at or _iso(self._now()),
+                "terminal_evidence_sha256": terminal_evidence_sha256,
+                "release_reason": release_reason,
+            },
+            "lease_sha256",
+        )
+        errors = validate_lease(updated)
+        if errors:
+            raise PoolLeaseError(invalid_artifact_code + ":" + ";".join(errors))
+        return updated, True
+
     def snapshot(self) -> list[dict[str, Any]]:
         with self._locked():
             return self._load_unlocked()
@@ -264,13 +333,20 @@ class PoolLeaseRegistry:
             for index, existing in enumerate(leases):
                 if existing["lifecycle_state"] not in ACTIVE_LEASE_STATES:
                     continue
-                if not self._owner_alive(existing["owner"]) and existing["lifecycle_state"] != "orphaned-active":
-                    existing = seal_artifact(
-                        {**existing, "lifecycle_state": "orphaned-active", "updated_at": now},
-                        "lease_sha256",
+                if (
+                    not self._owner_alive(existing["owner"])
+                    and existing["lifecycle_state"] in ORPHAN_RECLASSIFICATION_STATES
+                ):
+                    existing, reclassified = self._prepare_transition(
+                        existing,
+                        lifecycle_state="orphaned-active",
+                        terminal_evidence_sha256=None,
+                        release_reason=None,
+                        allow_orphan_reclassification=True,
+                        updated_at=now,
                     )
                     leases[index] = existing
-                    changed = True
+                    changed = changed or reclassified
                 if existing["lease_id"] == lease["lease_id"]:
                     if changed:
                         self._write_unlocked(leases)
@@ -312,23 +388,14 @@ class PoolLeaseRegistry:
             if index is None:
                 raise PoolLeaseError("lease-not-found")
             current = leases[index]
-            if current["lifecycle_state"] == "released":
-                if lifecycle_state == "released":
-                    return current
-                raise PoolLeaseError("released-lease-cannot-transition")
-            updated = seal_artifact(
-                {
-                    **current,
-                    "lifecycle_state": lifecycle_state,
-                    "updated_at": _iso(self._now()),
-                    "terminal_evidence_sha256": terminal_evidence_sha256,
-                    "release_reason": release_reason,
-                },
-                "lease_sha256",
+            updated, changed = self._prepare_transition(
+                current,
+                lifecycle_state=lifecycle_state,
+                terminal_evidence_sha256=terminal_evidence_sha256,
+                release_reason=release_reason,
             )
-            errors = validate_lease(updated)
-            if errors:
-                raise PoolLeaseError("lease-transition-invalid:" + ";".join(errors))
+            if not changed:
+                return current
             leases[index] = updated
             self._write_unlocked(leases)
             return updated
@@ -382,13 +449,16 @@ class PoolLeaseRegistry:
         changed: list[dict[str, Any]] = []
         with self._locked():
             leases = self._load_unlocked()
-            now = _iso(self._now())
+            now: str | None = None
             for index, lease in enumerate(leases):
                 if lease["lifecycle_state"] == "released" or self._owner_alive(lease["owner"]):
                     continue
+                current_state = str(lease["lifecycle_state"])
                 state = terminal_states.get(str(lease["pool_id"]))
                 state_errors = validate_pool_state(state) if isinstance(state, Mapping) else ["missing"]
                 if state_errors or state.get("pool_epoch") != lease["pool_epoch"]:
+                    if current_state not in ORPHAN_RECLASSIFICATION_STATES:
+                        continue
                     lifecycle = "orphaned-active"
                     terminal_hash = None
                     reason = None
@@ -401,22 +471,24 @@ class PoolLeaseRegistry:
                     terminal_hash = state["state_sha256"]
                     reason = "manual-containment-required"
                 else:
+                    if current_state not in ORPHAN_RECLASSIFICATION_STATES:
+                        continue
                     lifecycle = "orphaned-active"
                     terminal_hash = None
                     reason = None
-                updated = seal_artifact(
-                    {
-                        **lease,
-                        "lifecycle_state": lifecycle,
-                        "updated_at": now,
-                        "terminal_evidence_sha256": terminal_hash,
-                        "release_reason": reason,
-                    },
-                    "lease_sha256",
+                if now is None:
+                    now = _iso(self._now())
+                updated, did_change = self._prepare_transition(
+                    lease,
+                    lifecycle_state=lifecycle,
+                    terminal_evidence_sha256=terminal_hash,
+                    release_reason=reason,
+                    allow_orphan_reclassification=True,
+                    updated_at=now,
+                    invalid_artifact_code="stale-lease-transition-invalid",
                 )
-                errors = validate_lease(updated)
-                if errors:
-                    raise PoolLeaseError("stale-lease-transition-invalid:" + ";".join(errors))
+                if not did_change:
+                    continue
                 leases[index] = updated
                 changed.append(updated)
             if changed:

@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,9 +24,12 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     zero_usage,
 )
 from cwo_core.native_pool_leases import (  # noqa: E402
+    IDEMPOTENT_LEASE_STATES,
+    LEASE_TRANSITIONS,
     PoolLeaseCollision,
     PoolLeaseError,
     PoolLeaseRegistry,
+    PoolLeaseTransitionError,
     capture_owner_identity,
     owner_identity_is_live,
 )
@@ -118,7 +122,168 @@ def alternate_contract(contract: dict, *, nested_target: bool = False, same_work
     return seal_artifact(changed, "contract_sha256")
 
 
+def transition_fields(state: str, *, evidence: str) -> dict[str, str | None]:
+    terminal = state in {"release-pending", "released"}
+    return {
+        "terminal_evidence_sha256": sha(evidence) if terminal else None,
+        "release_reason": f"transition-to-{state}" if terminal else None,
+    }
+
+
+def registry_in_state(
+    path: Path,
+    contract: dict,
+    state: str,
+) -> tuple[PoolLeaseRegistry, dict, dict[str, bool]]:
+    alive = {"value": True}
+    registry = PoolLeaseRegistry(
+        path,
+        owner_alive=lambda _: alive["value"],
+        now=lambda: NOW,
+    )
+    lease = registry.acquire(contract, "child-0")
+    if state == "held":
+        lease = registry.hold("lease-0")
+    elif state == "release-pending":
+        lease = registry.mark_release_pending(
+            "lease-0",
+            terminal_evidence_sha256=sha("pending-evidence"),
+            reason="pending-test",
+        )
+    elif state == "released":
+        lease = registry.release("lease-0", terminal_state=terminal_state(contract, [lease]))
+    elif state == "orphaned-active":
+        alive["value"] = False
+        lease = registry.cleanup_stale({})[0]
+    elif state != "acquired":
+        raise AssertionError(f"unsupported test lease state: {state}")
+    return registry, lease, alive
+
+
 class NativePoolLeaseTests(unittest.TestCase):
+    def test_transition_table_matches_adjudicated_model_and_retry_policy(self) -> None:
+        self.assertEqual(
+            LEASE_TRANSITIONS,
+            {
+                "acquired": frozenset({"held", "release-pending", "released"}),
+                "held": frozenset({"release-pending", "released"}),
+                "release-pending": frozenset({"released"}),
+                "orphaned-active": frozenset({"release-pending", "released"}),
+                "released": frozenset(),
+            },
+        )
+        self.assertEqual(IDEMPOTENT_LEASE_STATES, frozenset({"release-pending", "released"}))
+
+    def test_every_allowed_transition_persists_once_or_is_idempotent(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        allowed = {
+            (current, requested)
+            for current, requested_states in LEASE_TRANSITIONS.items()
+            for requested in requested_states
+        }
+        allowed.update((state, state) for state in IDEMPOTENT_LEASE_STATES)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for current, requested in sorted(allowed):
+                with self.subTest(current=current, requested=requested):
+                    path = root / f"{current}-{requested}.json"
+                    registry, lease, _ = registry_in_state(path, contract, current)
+                    before = path.read_bytes()
+                    with mock.patch.object(
+                        registry,
+                        "_write_unlocked",
+                        wraps=registry._write_unlocked,
+                    ) as write:
+                        updated = registry._transition(
+                            "lease-0",
+                            lifecycle_state=requested,
+                            **transition_fields(
+                                requested,
+                                evidence=f"allowed:{current}:{requested}",
+                            ),
+                        )
+                    self.assertEqual(updated["lifecycle_state"], requested)
+                    self.assertEqual(validate_lease(updated, contract=contract), [])
+                    if current == requested:
+                        write.assert_not_called()
+                        self.assertEqual(updated, lease)
+                        self.assertEqual(path.read_bytes(), before)
+                    else:
+                        write.assert_called_once()
+                        self.assertNotEqual(path.read_bytes(), before)
+
+    def test_every_invalid_transition_is_typed_and_cannot_write(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        states = frozenset(LEASE_TRANSITIONS)
+        allowed = {
+            (current, requested)
+            for current, requested_states in LEASE_TRANSITIONS.items()
+            for requested in requested_states
+        }
+        allowed.update((state, state) for state in IDEMPOTENT_LEASE_STATES)
+        invalid = sorted(
+            (current, requested)
+            for current in states
+            for requested in states
+            if (current, requested) not in allowed
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for current, requested in invalid:
+                with self.subTest(current=current, requested=requested):
+                    path = root / f"{current}-{requested}.json"
+                    registry, _, _ = registry_in_state(path, contract, current)
+                    before_snapshot = registry.snapshot()
+                    before_bytes = path.read_bytes()
+                    with mock.patch.object(
+                        registry,
+                        "_write_unlocked",
+                        wraps=registry._write_unlocked,
+                    ) as write:
+                        with self.assertRaises(PoolLeaseTransitionError) as raised:
+                            registry._transition(
+                                "lease-0",
+                                lifecycle_state=requested,
+                                **transition_fields(
+                                    requested,
+                                    evidence=f"invalid:{current}:{requested}",
+                                ),
+                            )
+                    write.assert_not_called()
+                    self.assertEqual(raised.exception.lease_id, "lease-0")
+                    self.assertEqual(raised.exception.current_state, current)
+                    self.assertEqual(raised.exception.requested_state, requested)
+                    self.assertEqual(
+                        str(raised.exception),
+                        "lease-transition-not-allowed:"
+                        f"lease=lease-0:current={current}:requested={requested}",
+                    )
+                    self.assertEqual(registry.snapshot(), before_snapshot)
+                    self.assertEqual(path.read_bytes(), before_bytes)
+
+    def test_unknown_transition_target_is_typed_and_cannot_write(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "leases.json"
+            registry, _, _ = registry_in_state(path, contract, "acquired")
+            before = path.read_bytes()
+            with mock.patch.object(
+                registry,
+                "_write_unlocked",
+                wraps=registry._write_unlocked,
+            ) as write:
+                with self.assertRaises(PoolLeaseTransitionError) as raised:
+                    registry._transition(
+                        "lease-0",
+                        lifecycle_state="unknown",
+                        terminal_evidence_sha256=None,
+                        release_reason=None,
+                    )
+            write.assert_not_called()
+            self.assertEqual(raised.exception.current_state, "acquired")
+            self.assertEqual(raised.exception.requested_state, "unknown")
+            self.assertEqual(path.read_bytes(), before)
+
     def test_process_owner_identity_is_strong_and_live(self) -> None:
         owner = capture_owner_identity()
         self.assertTrue(owner_identity_is_live(owner))
@@ -191,6 +356,46 @@ class NativePoolLeaseTests(unittest.TestCase):
             changed = registry.cleanup_stale({contract["pool_id"]: state})
             self.assertEqual(changed[0]["lifecycle_state"], "released")
             self.assertEqual(changed[0]["release_reason"], "stale-owner-terminal-pool")
+
+    def test_dead_owner_observation_orphans_held_but_never_regresses_pending(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            held_registry, _, held_alive = registry_in_state(
+                root / "held.json",
+                contract,
+                "held",
+            )
+            held_alive["value"] = False
+            changed = held_registry.cleanup_stale({})
+            self.assertEqual([lease["lifecycle_state"] for lease in changed], ["orphaned-active"])
+
+            pending_path = root / "pending.json"
+            pending_registry, pending, pending_alive = registry_in_state(
+                pending_path,
+                contract,
+                "release-pending",
+            )
+            pending_alive["value"] = False
+            before = pending_path.read_bytes()
+            self.assertEqual(pending_registry.cleanup_stale({}), [])
+            self.assertEqual(pending_registry.snapshot(), [pending])
+            self.assertEqual(pending_path.read_bytes(), before)
+
+            state = terminal_state(contract, [pending])
+            changed = pending_registry.cleanup_stale({contract["pool_id"]: state})
+            self.assertEqual([lease["lifecycle_state"] for lease in changed], ["released"])
+
+            lazy_path = root / "lazy-acquire.json"
+            lazy_registry, lazy_pending, lazy_alive = registry_in_state(
+                lazy_path,
+                contract,
+                "release-pending",
+            )
+            lazy_alive["value"] = False
+            other = alternate_contract(contract)
+            lazy_registry.acquire(other, "other-child")
+            self.assertEqual(lazy_registry.snapshot()[0], lazy_pending)
 
     def test_control_failed_terminal_evidence_stays_release_pending(self) -> None:
         contract, _ = pool_contract(cap=1)
