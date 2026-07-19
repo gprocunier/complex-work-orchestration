@@ -367,6 +367,215 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
                 tracker.capture(baseline=baseline)
             self.assertTrue(substituted)
 
+    def test_descriptor_capture_retries_one_append_to_a_stable_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            codex_home, session_id, path = self.session_layout(Path(temporary))
+            first = (
+                json.dumps({"type": "session_meta", "payload": {"id": session_id}})
+                + "\n"
+            ).encode("utf-8")
+            second = (
+                json.dumps({"type": "event_msg", "payload": {"type": "task_started"}})
+                + "\n"
+            ).encode("utf-8")
+            path.write_bytes(first)
+            path.chmod(0o600)
+            tracker = LIVE.PreAttestationSessionBoundaryTracker(
+                codex_home, session_id
+            )
+            real_pread = os.pread
+            appended = False
+
+            def append_after_first_read(fd: int, length: int, offset: int) -> bytes:
+                nonlocal appended
+                result = real_pread(fd, length, offset)
+                if not appended:
+                    with path.open("ab") as handle:
+                        handle.write(second)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    appended = True
+                return result
+
+            with mock.patch.object(
+                LIVE.os,
+                "pread",
+                side_effect=append_after_first_read,
+            ), mock.patch.object(
+                LIVE,
+                "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
+                0.0,
+            ):
+                _located, boundary, records, materialized = tracker.capture(
+                    baseline=self.baseline()
+                )
+            self.assertTrue(appended)
+            self.assertTrue(materialized)
+            self.assertEqual(boundary["record_count"], 2)
+            self.assertEqual(len(records), 2)
+            self.assertEqual(boundary["byte_offset"], len(first + second))
+
+    def test_descriptor_capture_rejects_rewrite_hidden_by_growth(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            codex_home, session_id, path = self.session_layout(Path(temporary))
+            first = (
+                json.dumps({"type": "session_meta", "payload": {"id": session_id}})
+                + "\n"
+            ).encode("utf-8")
+            rewritten = (
+                json.dumps(
+                    {"type": "session_meta", "payload": {"id": session_id}},
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8")
+            appended = b'{"type":"event_msg","payload":{"type":"task_started"}}\n'
+            path.write_bytes(first)
+            path.chmod(0o600)
+            tracker = LIVE.PreAttestationSessionBoundaryTracker(
+                codex_home, session_id
+            )
+            real_pread = os.pread
+            replaced = False
+
+            def rewrite_and_grow(fd: int, length: int, offset: int) -> bytes:
+                nonlocal replaced
+                result = real_pread(fd, length, offset)
+                if not replaced:
+                    path.write_bytes(rewritten + appended)
+                    replaced = True
+                return result
+
+            with mock.patch.object(
+                LIVE.os,
+                "pread",
+                side_effect=rewrite_and_grow,
+            ), mock.patch.object(
+                LIVE,
+                "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
+                0.0,
+            ), self.assertRaisesRegex(
+                LIVE.NativeSessionBoundaryError,
+                "prefix was rewritten during append retry",
+            ):
+                tracker.capture(baseline=self.baseline())
+            self.assertTrue(replaced)
+
+    def test_descriptor_capture_bounds_continuous_append_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            codex_home, session_id, path = self.session_layout(Path(temporary))
+            path.write_text(
+                json.dumps({"type": "session_meta", "payload": {"id": session_id}})
+                + "\n",
+                encoding="utf-8",
+            )
+            path.chmod(0o600)
+            tracker = LIVE.PreAttestationSessionBoundaryTracker(
+                codex_home, session_id
+            )
+            real_pread = os.pread
+            append_count = 0
+
+            def keep_appending(fd: int, length: int, offset: int) -> bytes:
+                nonlocal append_count
+                result = real_pread(fd, length, offset)
+                with path.open("ab") as handle:
+                    handle.write(
+                        (
+                            json.dumps(
+                                {
+                                    "type": "event_msg",
+                                    "payload": {
+                                        "type": "progress",
+                                        "ordinal": append_count,
+                                    },
+                                }
+                            )
+                            + "\n"
+                        ).encode("utf-8")
+                    )
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                append_count += 1
+                return result
+
+            with mock.patch.object(
+                LIVE.os,
+                "pread",
+                side_effect=keep_appending,
+            ), mock.patch.object(
+                LIVE,
+                "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
+                0.0,
+            ), self.assertRaisesRegex(
+                LIVE.NativeSessionBoundaryError,
+                "did not stabilize after append retries",
+            ):
+                tracker.capture(baseline=self.baseline())
+            self.assertEqual(append_count, LIVE.DESCRIPTOR_CAPTURE_ATTEMPT_MAX)
+
+    def test_descriptor_capture_rejects_same_size_rewrite_during_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            codex_home, session_id, path = self.session_layout(Path(temporary))
+            first = (
+                json.dumps({"type": "session_meta", "payload": {"id": session_id}})
+                + "\n"
+            ).encode("utf-8")
+            second = (
+                json.dumps({"type": "event_msg", "payload": {"type": "task_started"}})
+                + "\n"
+            ).encode("utf-8")
+            path.write_bytes(first)
+            path.chmod(0o600)
+            tracker = LIVE.PreAttestationSessionBoundaryTracker(
+                codex_home, session_id
+            )
+            real_pread = os.pread
+            real_pin = tracker._pin_or_verify
+            appended = False
+            pin_count = 0
+
+            def append_after_first_read(fd: int, length: int, offset: int) -> bytes:
+                nonlocal appended
+                result = real_pread(fd, length, offset)
+                if not appended:
+                    with path.open("ab") as handle:
+                        handle.write(second)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    appended = True
+                return result
+
+            def rewrite_after_post_read_stat(located: object) -> os.stat_result:
+                nonlocal pin_count
+                current = real_pin(located)  # type: ignore[arg-type]
+                pin_count += 1
+                if pin_count == 2:
+                    raw = bytearray(path.read_bytes())
+                    raw[-2] = ord(" ")
+                    path.write_bytes(raw)
+                return current
+
+            with mock.patch.object(
+                LIVE.os,
+                "pread",
+                side_effect=append_after_first_read,
+            ), mock.patch.object(
+                tracker,
+                "_pin_or_verify",
+                side_effect=rewrite_after_post_read_stat,
+            ), mock.patch.object(
+                LIVE,
+                "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
+                0.0,
+            ), self.assertRaisesRegex(
+                LIVE.NativeSessionBoundaryError,
+                "changed during descriptor capture",
+            ):
+                tracker.capture(baseline=self.baseline())
+            self.assertTrue(appended)
+            self.assertGreaterEqual(pin_count, 3)
+
     def test_same_pinned_object_allows_only_explicit_archive_transition(
         self,
     ) -> None:

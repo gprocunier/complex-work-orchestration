@@ -121,6 +121,8 @@ PROVISIONAL_TERMINAL_GRACE_SECONDS = 5.0
 THREAD_READ_TIMEOUT_SECONDS = 15.0
 CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
 CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
+DESCRIPTOR_CAPTURE_ATTEMPT_MAX = 8
+DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS = 0.01
 CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE = (
     "cwo-calibration-thread-read-recovery-telemetry:v2"
 )
@@ -515,6 +517,20 @@ class PreAttestationSessionBoundaryTracker:
                 "trusted session source is not private"
             )
 
+    @classmethod
+    def _require_append_only_transition(
+        cls,
+        previous: os.stat_result,
+        current: os.stat_result,
+    ) -> None:
+        if current.st_size < previous.st_size or (
+            current.st_size == previous.st_size
+            and cls._stat_signature(current) != cls._stat_signature(previous)
+        ):
+            raise NativeSessionBoundaryError(
+                "trusted session source changed during descriptor capture"
+            )
+
     def _pin_or_verify(self, located: LocatedSession) -> os.stat_result:
         flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(
             os, "O_NOFOLLOW", 0
@@ -741,7 +757,12 @@ class PreAttestationSessionBoundaryTracker:
             records,
         )
 
-    def _pread_stable(self, expected: os.stat_result) -> bytes:
+    def _pread_snapshot(
+        self,
+        expected: os.stat_result,
+    ) -> tuple[bytes, os.stat_result]:
+        """Read one exact stat-sized prefix and report concurrent growth."""
+
         if self._fd is None:
             raise NativeSessionBoundaryError(
                 "trusted session source is not pinned"
@@ -759,11 +780,16 @@ class PreAttestationSessionBoundaryTracker:
                 )
             raw.extend(chunk)
         after = os.fstat(self._fd)
-        if self._stat_signature(after) != self._stat_signature(expected):
+        self._require_owner_regular_unaliased(after)
+        self._require_private(after)
+        if after.st_size < expected.st_size or (
+            after.st_size == expected.st_size
+            and self._stat_signature(after) != self._stat_signature(expected)
+        ):
             raise NativeSessionBoundaryError(
                 "trusted session source changed during descriptor read"
             )
-        return bytes(raw)
+        return bytes(raw), after
 
     def capture(
         self,
@@ -803,53 +829,76 @@ class PreAttestationSessionBoundaryTracker:
             raise NativeSessionBoundaryError(
                 "trusted session store changed outside authorized archive transition"
             )
-        before = self._pin_or_verify(located)
-        self._require_change_history_valid(
-            before,
-            allow_archive_metadata_change=archive_transition,
-        )
-        raw = self._pread_stable(before)
-        try:
-            boundary, records = self._parse_pinned_boundary(
-                raw,
-                baseline=baseline,
+        retained_prefix: bytes | None = None
+        retry_anchor: os.stat_result | None = None
+        for attempt in range(DESCRIPTOR_CAPTURE_ATTEMPT_MAX):
+            before = self._pin_or_verify(located)
+            if retry_anchor is not None:
+                self._require_append_only_transition(retry_anchor, before)
+            self._require_change_history_valid(
+                before,
+                allow_archive_metadata_change=archive_transition,
             )
-        except NativeSessionBoundaryError as exc:
-            if str(exc) != "session file has no complete records":
-                raise
-            if self._fd is None:
+            raw, read_after = self._pread_snapshot(before)
+            if retained_prefix is not None and not raw.startswith(retained_prefix):
                 raise NativeSessionBoundaryError(
-                    "trusted empty session source is not pinned"
-                ) from exc
-            boundary = empty_boundary
-            records = []
+                    "session JSONL prefix was rewritten during append retry"
+                )
+            try:
+                boundary, records = self._parse_pinned_boundary(
+                    raw,
+                    baseline=baseline,
+                )
+            except NativeSessionBoundaryError as exc:
+                if str(exc) != "session file has no complete records":
+                    raise
+                if self._fd is None:
+                    raise NativeSessionBoundaryError(
+                        "trusted empty session source is not pinned"
+                    ) from exc
+                boundary = empty_boundary
+                records = []
 
-        refreshed = self._locate_current()
-        if refreshed.store != located.store:
-            raise NativeSessionBoundaryError(
-                "trusted session store changed during descriptor capture"
-            )
-        after = self._pin_or_verify(refreshed)
-        if self._stat_signature(after) != self._stat_signature(before):
-            raise NativeSessionBoundaryError(
-                "trusted session source changed during descriptor capture"
-            )
-        # Parsing is deliberately inside the identity bracket: an ancestor or
-        # leaf substitution during JSON decoding must be observed before the
-        # boundary can become accepting.
-        final_location = self._locate_current()
-        if final_location.store != refreshed.store:
-            raise NativeSessionBoundaryError(
-                "trusted session store changed during descriptor capture"
-            )
-        final_stat = self._pin_or_verify(final_location)
-        if self._stat_signature(final_stat) != self._stat_signature(before):
-            raise NativeSessionBoundaryError(
-                "trusted session source changed during descriptor capture"
-            )
-        self._last_stat_signature = self._stat_signature(final_stat)
-        self._last_store = final_location.store
-        return final_location, boundary, records, bool(records)
+            refreshed = self._locate_current()
+            if refreshed.store != located.store:
+                raise NativeSessionBoundaryError(
+                    "trusted session store changed during descriptor capture"
+                )
+            after = self._pin_or_verify(refreshed)
+            # Parsing is deliberately inside the identity bracket: an ancestor
+            # or leaf substitution during JSON decoding must be observed before
+            # the boundary can become accepting.
+            final_location = self._locate_current()
+            if final_location.store != refreshed.store:
+                raise NativeSessionBoundaryError(
+                    "trusted session store changed during descriptor capture"
+                )
+            final_stat = self._pin_or_verify(final_location)
+
+            before_signature = self._stat_signature(before)
+            observed = (read_after, after, final_stat)
+            if all(
+                self._stat_signature(current) == before_signature
+                for current in observed
+            ):
+                self._last_stat_signature = before_signature
+                self._last_store = final_location.store
+                return final_location, boundary, records, bool(records)
+
+            previous = before
+            for current in observed:
+                self._require_append_only_transition(previous, current)
+                previous = current
+            retained_prefix = raw
+            retry_anchor = final_stat
+            located = final_location
+            if attempt + 1 >= DESCRIPTOR_CAPTURE_ATTEMPT_MAX:
+                raise NativeSessionBoundaryError(
+                    "trusted session source did not stabilize after append retries"
+                )
+            time.sleep(DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS)
+
+        raise AssertionError("descriptor capture retry bound was not enforced")
 
     def close(self) -> None:
         if self._fd is not None:
