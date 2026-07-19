@@ -88,6 +88,7 @@ POOL_LEASE_ERROR_CODES = {
     "lease-registry-unreadable",
     "lease-release-requires-completed-or-closed-pool",
     "lease-time-must-be-timezone-aware",
+    "lease-transition-not-allowed",
     "lease-transition-invalid",
     "owner-pid-invalid",
     "pool-contract-invalid",
