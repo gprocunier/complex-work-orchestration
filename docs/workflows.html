@@ -436,16 +436,19 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
             <section id="native-supervision-tech-preview">
               <h3>Native Supervision Tech Preview</h3>
               <p>
-                Capacity one is the default. Capacity two is an experimental
-                Tech Preview and is disabled by default; every capacity-two run
-                requires explicit opt-in.
+                A single worker is the default. Concurrent native supervision
+                remains an experimental Tech Preview and is disabled by
+                default; every concurrent run requires explicit opt-in.
               </p>
               <p>
-                Capacity two also requires one fresh same-host capability
-                receipt, exactly two fixed workers, and either isolated mutable
-                worktrees or a shared read-only topology. Precommit, critics,
-                integration, retry, replay, publication, and higher capacities
-                remain single-flight or unsupported.
+                Concurrent execution also requires one fresh same-host
+                capability receipt, a fixed cohort, and either isolated mutable
+                worktrees or a shared read-only topology. The currently
+                released ceiling is two workers; the hard design ceiling is
+                three. N=3 remains blocked pending the Phase 1 technical gate
+                and explicit operator activation. Precommit, critics,
+                integration, retry, replay, and publication remain
+                single-flight.
               </p>
               <p>
                 Before opting in, read the

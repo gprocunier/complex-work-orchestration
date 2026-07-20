@@ -58,13 +58,20 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         pool = self.__class__.policy["native_supervision_pool"]
         self.assertTrue(pool["enabled"])
         self.assertEqual(pool["maturity"], "experimental")
-        self.assertFalse(pool["cap_two_enabled_by_default"])
         self.assertEqual(pool["status"], "operative-authorized")
-        self.assertEqual(pool["default_max_active_workers"], 1)
-        self.assertEqual(pool["hard_max_active_workers"], 2)
-        self.assertTrue(pool["cap_two_requires_explicit_opt_in"])
-        self.assertTrue(pool["cap_two_requires_fresh_capability"])
-        self.assertTrue(pool["cap_two_operative_release"])
+        self.assertEqual(
+            pool["capacity"],
+            {
+                "version": 1,
+                "default_max_active_workers": 1,
+                "released_max_active_workers": 2,
+                "hard_max_active_workers": 3,
+                "concurrency_enabled_by_default": False,
+                "requires_explicit_opt_in": True,
+                "requires_fresh_capability_receipt": True,
+                "operator_activation_required_for_increase": True,
+            },
+        )
         self.assertEqual(pool["release_requires"], "complex-work-orchestration-18w.6")
         self.assertEqual(pool["scheduler"]["poll_interval_ms"], 1000)
         self.assertEqual(pool["scheduler"]["poll_lag_tolerance_ms"], 1500)
@@ -86,7 +93,7 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(certification["certified_scheduler_overhead_ms"], 100)
         self.assertEqual(
             certification["response_time_equation"],
-            "max_lifecycle+2*check+scheduler<=poll_interval",
+            "max_lifecycle+N*check+scheduler<=poll_interval",
         )
         self.assertEqual(pool["max_certified_check_ms"], 200)
         live = pool["trusted_live_canary"]

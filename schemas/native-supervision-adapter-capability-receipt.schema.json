@@ -22,7 +22,7 @@
     "measured_at": {"type": "string", "format": "date-time"},
     "expires_at": {"type": "string", "format": "date-time"},
     "sample_count": {"type": "integer", "minimum": 1},
-    "requested_cap": {"const": 2},
+    "requested_cap": {"type": "integer", "minimum": 2, "maximum": 3},
     "clock": {"const": "monotonic_ns"},
     "callbacks": {
       "type": "object", "additionalProperties": false,
@@ -46,10 +46,10 @@
         "certified_callback_max_ms", "certified_scheduler_overhead_ms"
       ],
       "properties": {
-        "version": {"const": "live-thread-adapter-callback-certification:v1"},
+        "version": {"const": "live-thread-adapter-callback-certification:v2"},
         "envelope": {"const": "live-thread-adapter-callback-v1"},
-        "scheduler_model": {"const": "nonpreemptive-edf-cap2-v1"},
-        "response_time_equation": {"const": "max_lifecycle+2*check+scheduler<=poll_interval"},
+        "scheduler_model": {"const": "nonpreemptive-edf-generalized-v2"},
+        "response_time_equation": {"const": "max_lifecycle+N*check+scheduler<=poll_interval"},
         "observation_authority": {"const": "telemetry-only-non-authoritative"},
         "policy_sha256": {"$ref": "#/$defs/sha256"},
         "adapter_implementation_sha256": {"$ref": "#/$defs/sha256"},

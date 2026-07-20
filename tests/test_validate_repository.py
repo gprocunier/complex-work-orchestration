@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,7 @@ from validate_repository import (  # noqa: E402
     validate_closure_pressure_contract,
     validate_ci_workflow,
     validate_local_inference_peer_review_guidance,
+    validate_native_pool_capacity_invariants,
     validate_native_supervision_tech_preview_copy,
     validate_public_docs_do_not_expose_hardware_categories,
     validate_repository,
@@ -32,8 +34,8 @@ class ValidateRepositoryTests(unittest.TestCase):
           <a href="#native-supervision-tech-preview">Native Supervision Tech Preview</a>
         </nav>
         <section id="native-supervision-tech-preview">
-          <p>Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default; every capacity-two run requires explicit opt-in.</p>
-          <p>Capacity two requires one fresh same-host capability receipt, exactly two fixed workers, and either isolated mutable worktrees or a shared read-only topology. Precommit, critics, integration, retry, replay, publication, and higher capacities remain single-flight or unsupported.</p>
+          <p>A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default; every concurrent run requires explicit opt-in.</p>
+          <p>Concurrent execution requires one fresh same-host capability receipt, a fixed cohort, and either isolated mutable worktrees or a shared read-only topology. The currently released ceiling is two workers; the hard design ceiling is three. N=3 remains blocked pending the Phase 1 technical gate and explicit operator activation. Precommit, critics, integration, retry, replay, and publication remain single-flight.</p>
           <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Operator reference</a>
           <p><code>git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy.</p>
         </section>
@@ -41,6 +43,26 @@ class ValidateRepositoryTests(unittest.TestCase):
 
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
+
+    def test_native_pool_capacity_validator_rejects_divergent_literal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "policy").mkdir()
+            shutil.copy2(
+                ROOT / "policy/native-worker-execution.yaml",
+                root / "policy/native-worker-execution.yaml",
+            )
+            shutil.copytree(ROOT / "schemas", root / "schemas")
+            source = root / "scripts/cwo_core/native_pool.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("MAX_ACTIVE_WORKERS = 99\n", encoding="utf-8")
+            errors: list[str] = []
+            validate_native_pool_capacity_invariants(errors, repo_root=root)
+        self.assertIn(
+            "active native-pool source uses deprecated MAX_ACTIVE_WORKERS: "
+            "scripts/cwo_core/native_pool.py",
+            errors,
+        )
 
     def test_native_supervision_tech_preview_copy_is_complete(self) -> None:
         errors: list[str] = []
@@ -55,8 +77,8 @@ class ValidateRepositoryTests(unittest.TestCase):
             "section anchor": ('id="native-supervision-tech-preview"', 'id="native-supervision-preview"'),
             "page navigation link": ('href="#native-supervision-tech-preview"', 'href="#native-supervision-preview"'),
             "stability/default wording": (
-                "Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default",
-                "Capacity two is available",
+                "A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default",
+                "Concurrent supervision is available",
             ),
             "operator link": (
                 "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md",

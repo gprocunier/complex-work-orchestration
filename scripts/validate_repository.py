@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,11 @@ from cwo_core.packets import (
 from cwo_core.paths import (
     POLICY_DIR,
     REPO_ROOT,
+)
+from cwo_core.native_pool_capacity import (
+    NativePoolCapacityPolicyError,
+    capacity_schema_errors,
+    load_pool_capacity,
 )
 from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS
 from cwo_core.harness import (
@@ -101,13 +107,22 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_control": set(),
     "native_tool_isolation": set(),
     "native_stop_scope": {"native_authority"},
-    "native_pool_contracts": {"native_authority", "native_stop_scope", "native_tool_isolation"},
+    "native_pool_capacity": {"paths", "policy"},
+    "native_pool_capacity_compat": set(),
+    "native_pool_contracts": {
+        "native_authority",
+        "native_pool_capacity",
+        "native_pool_capacity_compat",
+        "native_stop_scope",
+        "native_tool_isolation",
+    },
     "native_pool_scheduler": {"native_pool_contracts"},
     "native_pool_leases": {"native_pool_contracts"},
     "native_pool_workspace": {"native_pool_contracts", "workspace"},
     "native_pool": {
         "native_authority",
         "native_control",
+        "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_scheduler",
@@ -116,6 +131,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_pool_config": {
         "native_control",
         "native_live_campaign_contracts",
+        "native_pool_capacity",
+        "native_pool_capacity_compat",
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_workspace",
@@ -124,6 +141,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     },
     "native_pool_preflight": {
         "native_authority",
+        "native_pool_capacity",
         "native_pool_contracts",
         "native_tool_isolation",
     },
@@ -455,9 +473,88 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
             )
 
 
+_CAPACITY_SOURCE_GLOBS = (
+    "scripts/cwo_core/native_pool*.py",
+    "scripts/run_native_pool_live_canaries.py",
+    "scripts/supervise_native_pool.py",
+)
+_CAPACITY_COMPATIBILITY_SOURCES = {
+    "scripts/cwo_core/native_pool_capacity_compat.py",
+}
+_DEPRECATED_CAPACITY_PATTERNS = (
+    ("MAX_ACTIVE_WORKERS", re.compile(r"\bMAX_ACTIVE_WORKERS\b")),
+    ("cap_two field", re.compile(r"\bcap_two_[a-z0-9_]*\b")),
+    ("cap-two diagnostic", re.compile(r"cap-two")),
+    (
+        "capacity-two scheduler model",
+        re.compile(r"nonpreemptive-edf-cap2|max_lifecycle\+2\*check"),
+    ),
+    (
+        "literal capacity-two branch",
+        re.compile(
+            r"(?:max_active_workers|requested_cap)[^\n]{0,120}(?:==|!=)\s*2"
+        ),
+    ),
+)
+
+
+def validate_native_pool_capacity_invariants(
+    errors: list[str],
+    *,
+    repo_root: Path = REPO_ROOT,
+    policy_document: dict[str, Any] | None = None,
+) -> None:
+    """Keep runtime, schemas, and active naming bound to one policy source."""
+
+    document = policy_document
+    if document is None:
+        policy_path = repo_root / "policy/native-worker-execution.yaml"
+        try:
+            loaded = json.loads(policy_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            errors.append(
+                "pool-capacity-policy-unreadable:"
+                f"{type(error).__name__}"
+            )
+            return
+        if not isinstance(loaded, dict):
+            errors.append("pool-capacity-policy-not-object")
+            return
+        document = loaded
+    try:
+        limits = load_pool_capacity(document)
+    except NativePoolCapacityPolicyError as error:
+        errors.append(str(error))
+        return
+    try:
+        errors.extend(
+            capacity_schema_errors(
+                repo_root=repo_root,
+                limits=limits,
+            )
+        )
+    except NativePoolCapacityPolicyError as error:
+        errors.append(str(error))
+
+    source_paths: set[Path] = set()
+    for pattern in _CAPACITY_SOURCE_GLOBS:
+        source_paths.update(path for path in repo_root.glob(pattern) if path.is_file())
+    for path in sorted(source_paths):
+        relative = path.relative_to(repo_root).as_posix()
+        if relative in _CAPACITY_COMPATIBILITY_SOURCES:
+            continue
+        content = path.read_text(encoding="utf-8")
+        for label, pattern in _DEPRECATED_CAPACITY_PATTERNS:
+            if pattern.search(content):
+                errors.append(
+                    f"active native-pool source uses deprecated {label}: {relative}"
+                )
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
     validate_cwo_core_contract(errors)
+    validate_native_pool_capacity_invariants(errors)
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
     validate_native_supervision_tech_preview_copy(errors)
@@ -1978,16 +2075,22 @@ def validate_native_supervision_tech_preview_copy(
         ("page navigation link", 'href="#native-supervision-tech-preview"'),
         (
             "stability/default wording",
-            "Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default",
+            "A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default",
         ),
         ("explicit opt-in wording", "requires explicit opt-in"),
         ("same-host capability wording", "one fresh same-host capability receipt"),
-        ("fixed-cohort wording", "exactly two fixed workers"),
+        ("fixed-cohort wording", "a fixed cohort"),
+        ("released ceiling wording", "currently released ceiling is two workers"),
+        ("hard ceiling wording", "hard design ceiling is three"),
+        (
+            "activation gate wording",
+            "N=3 remains blocked pending the Phase 1 technical gate and explicit operator activation",
+        ),
         ("isolated topology wording", "isolated mutable worktrees"),
         ("shared topology wording", "shared read-only topology"),
         (
             "single-flight boundary wording",
-            "Precommit, critics, integration, retry, replay, publication, and higher capacities remain single-flight or unsupported",
+            "Precommit, critics, integration, retry, replay, and publication remain single-flight",
         ),
         (
             "operator link",

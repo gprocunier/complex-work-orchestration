@@ -13,6 +13,14 @@ import tempfile
 from typing import Any, Iterable, Mapping
 
 from .native_authority import validate_authority_provenance
+from .native_pool_capacity import PoolCapacityLimits, load_pool_capacity
+from .native_pool_capacity_compat import (
+    LEGACY_CONCURRENT_CAPACITY,
+    LEGACY_CERTIFICATION_VERSION,
+    LEGACY_RESPONSE_TIME_EQUATION,
+    LEGACY_SCHEDULER_MODEL,
+    is_legacy_capability_certification,
+)
 from .native_tool_isolation import validate_tool_policy
 from .native_stop_scope import STOP_METADATA_FIELDS, validate_stop_metadata
 
@@ -73,12 +81,13 @@ REQUIRED_CAPABILITY_CALLBACKS = (
     "close",
     "finalize",
 )
-MAX_ACTIVE_WORKERS = 2
 MAX_CAPABILITY_TTL_SECONDS = 3600
-CAPABILITY_CERTIFICATION_VERSION = "live-thread-adapter-callback-certification:v1"
+CAPABILITY_CERTIFICATION_VERSION = "live-thread-adapter-callback-certification:v2"
 CAPABILITY_CERTIFICATION_ENVELOPE = "live-thread-adapter-callback-v1"
-CAPABILITY_SCHEDULER_MODEL = "nonpreemptive-edf-cap2-v1"
-CAPABILITY_RESPONSE_TIME_EQUATION = "max_lifecycle+2*check+scheduler<=poll_interval"
+CAPABILITY_SCHEDULER_MODEL = "nonpreemptive-edf-generalized-v2"
+CAPABILITY_RESPONSE_TIME_EQUATION = (
+    "max_lifecycle+N*check+scheduler<=poll_interval"
+)
 CAPABILITY_OBSERVATION_AUTHORITY = "telemetry-only-non-authoritative"
 CERTIFIED_CALLBACK_MAX_MS = {
     "arm": 100,
@@ -764,15 +773,31 @@ def callback_certification_policy_sha256(value: Mapping[str, Any]) -> str:
     return canonical_sha256(dict(value))
 
 
-def _validate_certification(value: Any, errors: list[str]) -> Mapping[str, Any] | None:
+def _validate_certification(
+    value: Any,
+    errors: list[str],
+    *,
+    allow_legacy: bool = False,
+) -> Mapping[str, Any] | None:
     certification = _strict(value, CERTIFICATION_FIELDS, "certification", errors)
     if certification is None:
         return None
+    legacy = allow_legacy and is_legacy_capability_certification(certification)
     expected_scalars = {
-        "version": CAPABILITY_CERTIFICATION_VERSION,
+        "version": (
+            LEGACY_CERTIFICATION_VERSION
+            if legacy
+            else CAPABILITY_CERTIFICATION_VERSION
+        ),
         "envelope": CAPABILITY_CERTIFICATION_ENVELOPE,
-        "scheduler_model": CAPABILITY_SCHEDULER_MODEL,
-        "response_time_equation": CAPABILITY_RESPONSE_TIME_EQUATION,
+        "scheduler_model": (
+            LEGACY_SCHEDULER_MODEL if legacy else CAPABILITY_SCHEDULER_MODEL
+        ),
+        "response_time_equation": (
+            LEGACY_RESPONSE_TIME_EQUATION
+            if legacy
+            else CAPABILITY_RESPONSE_TIME_EQUATION
+        ),
         "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
         "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
     }
@@ -850,9 +875,13 @@ def _identity_key(value: Any) -> str:
 
 
 def validate_pool_contract(
-    value: Any, *, seen_hashes: Iterable[str] | None = None
+    value: Any,
+    *,
+    seen_hashes: Iterable[str] | None = None,
+    capacity_limits: PoolCapacityLimits | None = None,
 ) -> list[str]:
     errors: list[str] = []
+    limits = capacity_limits or load_pool_capacity()
     contract = _strict(value, POOL_CONTRACT_FIELDS, "pool-contract", errors)
     if contract is None:
         return errors
@@ -872,7 +901,10 @@ def validate_pool_contract(
 
     children = contract.get("children")
     normalized_children: list[Mapping[str, Any]] = []
-    if not isinstance(children, list) or not 1 <= len(children) <= MAX_ACTIVE_WORKERS:
+    if (
+        not isinstance(children, list)
+        or not 1 <= len(children) <= limits.hard_max_active_workers
+    ):
         errors.append("invalid-children")
     else:
         for index, item in enumerate(children):
@@ -974,7 +1006,7 @@ def validate_pool_contract(
                     errors.append(f"cross-child-target-overlap:{left_child}:{left}:{right_child}:{right}")
 
     cap = contract.get("max_active_workers")
-    if not _is_int(cap, 1) or cap > MAX_ACTIVE_WORKERS:
+    if not limits.validates_requested_capacity(cap):
         errors.append("invalid-max-active-workers")
     elif isinstance(children, list) and cap != len(children):
         errors.append("max-active-workers-must-equal-fixed-cohort")
@@ -1005,16 +1037,16 @@ def validate_pool_contract(
         check_ms = scheduler.get("certified_max_check_ms")
         overhead_ms = scheduler.get("certified_max_scheduler_overhead_ms")
         if cap == 1 and (check_ms is not None or overhead_ms is not None):
-            errors.append("cap-one-scheduler-certification-must-be-null")
-        if cap == 2:
+            errors.append("single-worker-scheduler-certification-must-be-null")
+        if limits.requires_capability_receipt(cap):
             if check_ms != CERTIFIED_CALLBACK_MAX_MS["check"]:
-                errors.append("cap-two-check-certification-invalid")
+                errors.append("concurrent-check-certification-invalid")
             if overhead_ms != CERTIFIED_SCHEDULER_OVERHEAD_MS:
-                errors.append("cap-two-overhead-certification-invalid")
+                errors.append("concurrent-overhead-certification-invalid")
             if _is_number(check_ms) and _is_number(overhead_ms) and _is_int(scheduler.get("poll_interval_ms"), 1):
                 lifecycle_max = max(CERTIFIED_CALLBACK_MAX_MS.values())
                 if lifecycle_max + cap * check_ms + overhead_ms > scheduler["poll_interval_ms"]:
-                    errors.append("cap-two-response-time-bound-failed")
+                    errors.append("concurrent-response-time-bound-failed")
 
     budget = _strict(
         contract.get("aggregate_hard_budget"),
@@ -1069,9 +1101,9 @@ def validate_pool_contract(
         errors.append("invalid-allowed-actions")
     capability_hash = contract.get("capability_receipt_sha256")
     if cap == 1 and capability_hash is not None:
-        errors.append("cap-one-capability-receipt-must-be-null")
-    if cap == 2 and not _is_sha256(capability_hash):
-        errors.append("cap-two-capability-receipt-required")
+        errors.append("single-worker-capability-receipt-must-be-null")
+    if limits.requires_capability_receipt(cap) and not _is_sha256(capability_hash):
+        errors.append("concurrent-capability-receipt-required")
     _validate_hash(contract, "contract_sha256", errors)
     _validate_replay(contract, "contract_sha256", seen_hashes, errors)
     return errors
@@ -1083,8 +1115,10 @@ def validate_capability_receipt(
     expected_contract: Mapping[str, Any] | None = None,
     now: dt.datetime | None = None,
     seen_hashes: Iterable[str] | None = None,
+    capacity_limits: PoolCapacityLimits | None = None,
 ) -> list[str]:
     errors: list[str] = []
+    limits = capacity_limits or load_pool_capacity()
     receipt = _strict(value, CAPABILITY_FIELDS, "capability-receipt", errors)
     if receipt is None:
         return errors
@@ -1115,7 +1149,11 @@ def validate_capability_receipt(
             errors.append("capability-receipt-stale")
     if not _is_int(receipt.get("sample_count"), 1):
         errors.append("invalid-sample-count")
-    if receipt.get("requested_cap") != 2:
+    requested_cap = receipt.get("requested_cap")
+    if (
+        not limits.validates_requested_capacity(requested_cap)
+        or not limits.requires_capability_receipt(requested_cap)
+    ):
         errors.append("invalid-requested-cap")
     if receipt.get("clock") != "monotonic_ns":
         errors.append("invalid-clock")
@@ -1133,7 +1171,14 @@ def validate_capability_receipt(
             if name in callbacks:
                 _validate_stats(callbacks[name], f"callback-{name}", errors)
     scheduler_stats = _validate_stats(receipt.get("scheduler_overhead"), "scheduler-overhead", errors)
-    certification = _validate_certification(receipt.get("certification"), errors)
+    certification = _validate_certification(
+        receipt.get("certification"),
+        errors,
+        allow_legacy=(
+            expected_contract is None
+            and requested_cap == LEGACY_CONCURRENT_CAPACITY
+        ),
+    )
     capabilities = _strict(
         receipt.get("capabilities"),
         {"interrupt", "close", "wait", "trusted_telemetry"},
@@ -1170,10 +1215,20 @@ def validate_capability_receipt(
             )
             if not _is_number(interval, 1):
                 interval = POOL_POLL_INTERVAL_MS
+            response_time_workers = (
+                expected_contract.get("max_active_workers")
+                if expected_contract is not None
+                else requested_cap
+            )
             if (
                 _is_number(check_max)
                 and _is_number(overhead_max)
-                and lifecycle_max + 2 * float(check_max) + float(overhead_max) > float(interval)
+                and isinstance(response_time_workers, int)
+                and not isinstance(response_time_workers, bool)
+                and lifecycle_max
+                + response_time_workers * float(check_max)
+                + float(overhead_max)
+                > float(interval)
             ):
                 errors.append("capability-response-time-bound-failed")
             if expected_contract is not None and isinstance(scheduler, Mapping):
@@ -1276,7 +1331,11 @@ def validate_pool_state(
 
     children_value = state.get("children")
     children: list[Mapping[str, Any]] = []
-    if not isinstance(children_value, list) or not 1 <= len(children_value) <= MAX_ACTIVE_WORKERS:
+    hard_capacity = load_pool_capacity().hard_max_active_workers
+    if (
+        not isinstance(children_value, list)
+        or not 1 <= len(children_value) <= hard_capacity
+    ):
         errors.append("invalid-children")
     else:
         for index, item in enumerate(children_value):

@@ -69,6 +69,11 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     validate_materialization_evidence,
 )
 from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402
+from cwo_core.native_pool_capacity import load_pool_capacity  # noqa: E402
+from cwo_core.native_pool_capacity_compat import (  # noqa: E402
+    LEGACY_CONCURRENT_CAPACITY,
+    historical_release_snapshot,
+)
 from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     EXPECTED_ROLES,
     NativeLiveAllocationLedgerStore,
@@ -88,7 +93,6 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_RECEIPT_TYPE,
     CERTIFIED_CALLBACK_MAX_MS,
     CERTIFIED_SCHEDULER_OVERHEAD_MS,
-    MAX_ACTIVE_WORKERS,
     POOL_POLL_INTERVAL_MS,
     POOL_POLL_LAG_TOLERANCE_MS,
     canonical_sha256,
@@ -4561,7 +4565,7 @@ def _run_calibration(
             "measured_at": iso(measured_at),
             "expires_at": iso(measured_at + dt.timedelta(minutes=55)),
             "sample_count": min(len(values) for values in samples.values()),
-            "requested_cap": 2,
+            "requested_cap": LEGACY_CONCURRENT_CAPACITY,
             "clock": "monotonic_ns",
             "callbacks": {name: stats(samples[name]) for name in sorted(samples)},
             "scheduler_overhead": stats(scheduler_samples),
@@ -4897,7 +4901,7 @@ def build_pool_inputs(
         "integration_root": str(integration),
         "artifact_directories": [str(record_dir)],
         "requested_workers": requested_workers,
-        "released_capacity": MAX_ACTIVE_WORKERS,
+        "released_capacity": load_pool_capacity().released_max_active_workers,
         "aggregate_hard_budget": aggregate_hard_budget,
         "children": planned_children,
         "fallback": {
@@ -8790,14 +8794,15 @@ def validate_campaign_launch_bindings(
         if isinstance(policy_document, Mapping)
         else None
     )
-    current_policy = {
-        "status": pool_policy.get("status") if isinstance(pool_policy, Mapping) else None,
-        "cap_two_operative_release": (
-            pool_policy.get("cap_two_operative_release")
-            if isinstance(pool_policy, Mapping)
-            else None
+    capacity_limits = load_pool_capacity(policy_document)
+    current_policy = historical_release_snapshot(
+        status=(
+            pool_policy.get("status") if isinstance(pool_policy, Mapping) else None
         ),
-    }
+        released_max_active_workers=(
+            capacity_limits.released_max_active_workers
+        ),
+    )
     if current_policy != manifest["release"]["policy_before"]:
         raise AppServerError("campaign-policy-before-mismatch")
     all_source_file_sha256s = (

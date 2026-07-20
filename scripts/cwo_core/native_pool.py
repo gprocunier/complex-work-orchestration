@@ -7,10 +7,10 @@ import fcntl
 import json
 import os
 from pathlib import Path
-import time
 from typing import Any, Callable, Mapping, Sequence
 
 from .native_control import NativeControlTurn, validate_control_turn_contract
+from .native_pool_capacity import load_pool_capacity
 from .native_pool_contracts import (
     POOL_DECISION_SCHEMA,
     POOL_DECISION_TYPE,
@@ -233,10 +233,19 @@ class NativePoolCoordinator:
         state_file: Path | str | None = None,
         decision_file: Path | str | None = None,
         control_file: Path | str | None = None,
+        policy_document: Mapping[str, Any] | None = None,
     ) -> None:
-        contract_errors = validate_pool_contract(contract)
+        self.capacity_limits = load_pool_capacity(policy_document)
+        contract_errors = validate_pool_contract(
+            contract,
+            capacity_limits=self.capacity_limits,
+        )
         if contract_errors:
             raise NativePoolError("pool-contract-invalid:" + ";".join(contract_errors))
+        if not self.capacity_limits.is_released(
+            contract.get("max_active_workers")
+        ):
+            raise NativePoolError("requested-capacity-not-released")
         self.contract = dict(contract)
         self.children = [dict(child) for child in self.contract["children"]]
         self.child_ids = [str(child["child_id"]) for child in self.children]
@@ -324,13 +333,15 @@ class NativePoolCoordinator:
 
         self._certified_callback_max_ms: Mapping[str, Any] = {}
         self._certified_scheduler_overhead_ms = 0.0
-        if self.contract["max_active_workers"] == 2:
+        configured_capacity = self.contract["max_active_workers"]
+        if self.capacity_limits.requires_capability_receipt(configured_capacity):
             if self.capability_receipt is None:
-                raise NativePoolError("cap-two-capability-receipt-required")
+                raise NativePoolError("concurrent-capability-receipt-required")
             capability_errors = validate_capability_receipt(
                 self.capability_receipt,
                 expected_contract=self.contract,
                 now=_normalize_now(self.pool_callbacks["now_utc"]()),
+                capacity_limits=self.capacity_limits,
             )
             if capability_errors:
                 raise NativePoolError("capability-receipt-invalid:" + ";".join(capability_errors))
@@ -340,7 +351,7 @@ class NativePoolCoordinator:
                 certification["certified_scheduler_overhead_ms"]
             )
         elif self.capability_receipt is not None:
-            raise NativePoolError("cap-one-capability-receipt-forbidden")
+            raise NativePoolError("single-worker-capability-receipt-forbidden")
 
         for child in self.children:
             child_id = child["child_id"]
@@ -1562,7 +1573,13 @@ class NativePoolCoordinator:
                 self._refresh_state(self._status_after_action())
                 self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
                 return self.progress()
-            status = "capability-validated" if self.contract["max_active_workers"] == 2 else "admitting"
+            status = (
+                "capability-validated"
+                if self.capacity_limits.requires_capability_receipt(
+                    self.contract["max_active_workers"]
+                )
+                else "admitting"
+            )
             self._refresh_state(status)
             self._decision_for(decision="continue", selected_child_id=None, actions=["admit"])
             return self.progress()

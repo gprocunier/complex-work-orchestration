@@ -22,7 +22,7 @@
     "decision": {"enum": ["continue", "warn", "complete", "interrupt", "control-lost"]},
     "selected_child_id": {"type": ["string", "null"], "minLength": 1},
     "deadlines": {
-      "type": "array", "minItems": 1, "maxItems": 2,
+      "type": "array", "minItems": 1, "maxItems": 3,
       "items": {
         "type": "object", "additionalProperties": false,
         "required": ["child_id", "next_deadline_ns"],

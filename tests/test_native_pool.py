@@ -116,6 +116,7 @@ class PoolHarness:
         budget_overrides: dict[str, int] | None = None,
         read_only: bool = False,
         control_file: Path | None = None,
+        policy_document: dict | None = None,
     ) -> None:
         self.clock = FakeClock()
         self.contract, self.capability = pool_contract(cap=cap, read_only=read_only)
@@ -185,6 +186,7 @@ class PoolHarness:
             state_file=Path(temporary) / "pool-state.json",
             decision_file=Path(temporary) / "pool-decision.json",
             control_file=control_file,
+            policy_document=policy_document,
         )
 
     def read_child_evidence(self, *, child_id: str, state_file: str) -> dict:
@@ -251,6 +253,40 @@ def assert_state_lock_released(test: unittest.TestCase, temporary: str) -> None:
 
 
 class NativePoolCoordinatorTests(unittest.TestCase):
+    def test_capacity_three_requires_release_and_runs_when_candidate_policy_allows(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                NativePoolError,
+                "requested-capacity-not-released",
+            ):
+                PoolHarness(temporary, cap=3)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            policy_document = json.loads(
+                (ROOT / "policy/native-worker-execution.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            policy_document["native_supervision_pool"]["capacity"][
+                "released_max_active_workers"
+            ] = 3
+            harness = PoolHarness(
+                temporary,
+                cap=3,
+                decisions=[
+                    ["continue", "complete"],
+                    ["continue", "complete"],
+                    ["continue", "complete"],
+                ],
+                policy_document=policy_document,
+            )
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(
+                receipt["admission_order"],
+                ["child-0", "child-1", "child-2"],
+            )
+
     def test_first_child_protected_fault_reason_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(

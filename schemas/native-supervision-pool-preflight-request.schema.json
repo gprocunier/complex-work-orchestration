@@ -28,7 +28,7 @@
       "items": {"type": "string", "pattern": "^/", "minLength": 2}
     },
     "requested_workers": {"type": "integer", "minimum": 1},
-    "released_capacity": {"type": "integer", "minimum": 1, "maximum": 2},
+    "released_capacity": {"type": "integer", "minimum": 1, "maximum": 3},
     "aggregate_hard_budget": {"$ref": "#/$defs/budget"},
     "children": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/child"}},
     "fallback": {

@@ -23,10 +23,10 @@ from .native_authority import (
     validate_authority_provenance,
     verify_operator_directive,
 )
+from .native_pool_capacity import load_pool_capacity
 from .native_pool_contracts import (
     CERTIFIED_CALLBACK_MAX_MS,
     CERTIFIED_SCHEDULER_OVERHEAD_MS,
-    MAX_ACTIVE_WORKERS,
     REQUIRED_CAPABILITY_CALLBACKS,
     canonical_sha256,
     validate_completion_evidence_policy,
@@ -752,6 +752,7 @@ def run_pool_preflight(
 ) -> dict[str, Any]:
     """Return a deterministic result; no model or worker session is consulted."""
 
+    capacity_limits = load_pool_capacity()
     request_sha256 = _safe_request_sha256(request)
     findings: list[dict[str, Any]] = []
     if not isinstance(request, Mapping):
@@ -850,7 +851,8 @@ def run_pool_preflight(
         )
     if (
         not _integer(released_capacity, 1)
-        or int(released_capacity) > MAX_ACTIVE_WORKERS
+        or int(released_capacity)
+        > capacity_limits.released_max_active_workers
     ):
         findings.append(
             _finding(
@@ -858,7 +860,12 @@ def run_pool_preflight(
                 "error",
                 {
                     "released_capacity": released_capacity,
-                    "hard_max_active_workers": MAX_ACTIVE_WORKERS,
+                    "released_max_active_workers": (
+                        capacity_limits.released_max_active_workers
+                    ),
+                    "hard_max_active_workers": (
+                        capacity_limits.hard_max_active_workers
+                    ),
                 },
                 "Use the capacity currently released by repository policy.",
             )
@@ -1408,7 +1415,10 @@ def run_pool_preflight(
                 if isinstance(contract.get("contract_sha256"), str)
                 else None
             )
-            contract_errors = validate_pool_contract(contract)
+            contract_errors = validate_pool_contract(
+                contract,
+                capacity_limits=capacity_limits,
+            )
             if contract_errors:
                 findings.append(
                     _finding(
@@ -1463,12 +1473,16 @@ def run_pool_preflight(
                 expected_check = (
                     callback_max.get("check")
                     if isinstance(callback_max, Mapping)
-                    and request_map.get("requested_workers") == 2
+                    and capacity_limits.requires_capability_receipt(
+                        request_map.get("requested_workers")
+                    )
                     else None
                 )
                 expected_overhead = (
                     certification.get("certified_scheduler_overhead_ms")
-                    if request_map.get("requested_workers") == 2
+                    if capacity_limits.requires_capability_receipt(
+                        request_map.get("requested_workers")
+                    )
                     else None
                 )
                 if scheduler.get("certified_max_check_ms") != expected_check:

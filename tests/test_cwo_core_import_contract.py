@@ -52,7 +52,15 @@ ALLOWED_IMPORTS = {
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
     "native_tool_isolation": set(),
     "native_stop_scope": {"native_authority"},
-    "native_pool_contracts": {"native_authority", "native_stop_scope", "native_tool_isolation"},
+    "native_pool_capacity": {"paths", "policy"},
+    "native_pool_capacity_compat": set(),
+    "native_pool_contracts": {
+        "native_authority",
+        "native_pool_capacity",
+        "native_pool_capacity_compat",
+        "native_stop_scope",
+        "native_tool_isolation",
+    },
     "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
     "native_pool_scheduler": {"native_pool_contracts"},
     "native_pool_leases": {"native_pool_contracts"},
@@ -60,6 +68,7 @@ ALLOWED_IMPORTS = {
     "native_pool": {
         "native_authority",
         "native_control",
+        "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_scheduler",
@@ -68,6 +77,8 @@ ALLOWED_IMPORTS = {
     "native_pool_config": {
         "native_control",
         "native_live_campaign_contracts",
+        "native_pool_capacity",
+        "native_pool_capacity_compat",
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_workspace",
@@ -76,6 +87,7 @@ ALLOWED_IMPORTS = {
     },
     "native_pool_preflight": {
         "native_authority",
+        "native_pool_capacity",
         "native_pool_contracts",
         "native_tool_isolation",
     },

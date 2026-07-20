@@ -195,7 +195,7 @@ class NativePoolConfigTests(unittest.TestCase):
                 validate_pool_render_request(fixture.request),
             )
 
-    def test_cap_two_requires_explicit_opt_in_and_fresh_exact_capability(self) -> None:
+    def test_concurrency_requires_explicit_opt_in_and_fresh_exact_capability(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = RenderFixture(Path(temporary), 2)
             owner = capture_owner_identity()
@@ -216,10 +216,10 @@ class NativePoolConfigTests(unittest.TestCase):
             )
             canary_policy["native_supervision_pool"]["status"] = "canary-gated"
             canary_policy["native_supervision_pool"][
-                "cap_two_operative_release"
-            ] = False
+                "capacity"
+            ]["released_max_active_workers"] = 1
             with self.assertRaisesRegex(
-                NativePoolConfigError, "operative-release-required"
+                NativePoolConfigError, "requested-capacity-not-released"
             ):
                 build_pool_contract(
                     fixture.request,
@@ -252,6 +252,45 @@ class NativePoolConfigTests(unittest.TestCase):
                     owner_pid=owner["pid"],
                     now=now,
                 )
+
+    def test_capacity_three_is_structurally_supported_but_not_yet_released(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 3)
+            owner = capture_owner_identity()
+            payload = capability_payload(requested_cap=3)
+            payload["host_identity"] = owner
+            capability = seal_artifact(payload, "receipt_sha256")
+            now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
+            with self.assertRaisesRegex(
+                NativePoolConfigError,
+                "requested-capacity-not-released",
+            ):
+                build_pool_contract(
+                    fixture.request,
+                    capability_receipt=capability,
+                    enable_concurrency=True,
+                    owner_pid=owner["pid"],
+                    now=now,
+                )
+
+            candidate_policy = json.loads(
+                (ROOT / "policy" / "native-worker-execution.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            candidate_policy["native_supervision_pool"]["capacity"][
+                "released_max_active_workers"
+            ] = 3
+            contract = build_pool_contract(
+                fixture.request,
+                capability_receipt=capability,
+                enable_concurrency=True,
+                owner_pid=owner["pid"],
+                now=now,
+                policy_document=candidate_policy,
+            )
+            self.assertEqual(contract["max_active_workers"], 3)
+            self.assertEqual(validate_pool_contract(contract), [])
 
     def test_worker_state_identity_or_status_mismatch_fails_before_render(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -4,34 +4,41 @@
 
 This reference is for operators deciding whether to use CWO's bounded native
 worker supervision. Native supervision lets one trusted host control a fixed
-cohort of one or two already-created native worker supervisors; it does not make
+cohort of already-created native worker supervisors within the policy ceiling;
+it does not make
 packet construction, precommit, critics, integration, retry, replay, or
 publication concurrent.
 
-Capacity one remains the default. Capacity two is an opt-in Tech Preview that
-is experimental and disabled by default. It requires one fresh same-host
-capability receipt, exactly two fixed workers, and either isolated mutable
-worktrees or a shared read-only topology. Start with the reader-facing
+One worker remains the default. Concurrent native supervision is an opt-in Tech
+Preview that is experimental and disabled by default. It requires one fresh
+same-host capability receipt, a fixed cohort, and either isolated mutable
+worktrees or a shared read-only topology. The canonical policy has a hard design
+ceiling of three but a released ceiling of two. N=3 remains blocked pending the
+Phase 1 technical gate and explicit operator activation. Start with the reader-facing
 [Native Supervision Tech Preview](https://gprocunier.github.io/complex-work-orchestration/workflows.html#native-supervision-tech-preview),
 then review the [deferred hardening](#experimental-status-and-deferred-hardening)
 before opting in.
 
 The public contract is deliberately small:
 
-- Capacity one is the default and preserves single-worker behavior.
-- Capacity two requires `--enable-concurrency` and a fresh trusted adapter
+- One worker is the default and preserves single-worker behavior.
+- Every concurrent pool requires `--enable-concurrency` and a fresh trusted adapter
   capability receipt from the same live host process.
-- Capacity two is experimental and disabled by default. Operative release
-  makes explicit opt-in available; it does not silently raise capacity.
-- Capacity above two, threads, hot admission, replacement children, and a
-  second coordinator are rejected.
+- The currently released ceiling is two. The schema hard ceiling of three is a
+  Phase 1 candidate boundary, not permission to dispatch N=3.
+- Capacity above the policy hard ceiling, capacity above the released ceiling,
+  threads, hot admission, replacement children, and a second coordinator are
+  rejected.
 - The cohort, worker sessions, nonces, control turns, state files, worktree
   identities, target paths, aggregate allowance, scheduler, and capability
   evidence are immutable after contract rendering.
-- Capacity two is operative only when policy records `operative-authorized`
-  with `cap_two_operative_release=true`. The marker is released only after the
-  `complex-work-orchestration-18w.6` live campaign is accepted; structural
-  support alone is not operative release.
+- The operative ceiling is read from
+  `native_supervision_pool.capacity.released_max_active_workers`. Increasing it
+  requires an explicit operator activation; structural support alone is not
+  operative release.
+
+See [Pool Capacity Naming Migration](native-pool-capacity-migration.md) for the
+canonical field inventory and the bounded historical-read compatibility window.
 
 ## Trusted Live Canary Gate
 
@@ -80,7 +87,7 @@ monotonic. A protected fault durably changes `active` to `containment-only`
 before returning; only interrupt, close, sanitized evidence, reserved steering,
 Beads updates, local checkpoint, pickup, and handoff remain possible.
 
-Callback observations are telemetry, not timing authority. A capacity-two
+Callback observations are telemetry, not timing authority. A concurrent-pool
 receipt separately binds the exact production envelope and policy digest, the
 adapter implementation digest, fixed per-operation ceilings, and a 100 ms
 scheduler ceiling. The frozen ceilings are 100 ms for arm, dispatch marking,
@@ -95,21 +102,22 @@ an owner-only directory and files, records exactly seven campaign roles, and
 survives deletion of the disposable worktrees. An unresolved intent is
 ambiguous allocation evidence and rejects the campaign.
 
-The release campaign has exactly seven fresh turn starts: capability
+The historical capacity-two release campaign has exactly seven fresh turn starts: capability
 interruption, two concurrent read-only workers, two concurrent disjoint mutable
 workers in disposable worktrees, and an interrupted worker while its peer
 completes. No turn is resumed or salvaged. The canary path requires
-`cap_two_operative_release=false`; after its evidence is accepted, the release
-sprint changes the policy pair together to `operative-authorized` and `true`.
-Ordinary capacity-two rendering rejects the canary-gated pair and requires the
-released pair.
+the frozen `cap_two_operative_release=false` manifest field; after its evidence
+was accepted, that historical release sprint changed its policy pair together.
+This alias is inspection-only now. New policy and pool artifacts use the
+generalized capacity fields.
 
 ## Experimental Status And Deferred Hardening
 
-Capacity two is a practical experimental capability for a trusted same-user
-control plane. It remains bounded to two fixed workers, explicit opt-in, one
-connected host process, immutable admission, and isolated mutable worktrees or
-strictly shared read-only topology.
+Concurrent capacity is a practical experimental capability for a trusted
+same-user control plane. The released path remains bounded to two fixed workers,
+explicit opt-in, one connected host process, immutable admission, and isolated
+mutable worktrees or strictly shared read-only topology. The hard ceiling of
+three is preparatory and remains non-operative.
 
 The accepted campaign proved same-epoch application-level recovery for the
 observed pre-attestation startup scaffold, with one guarded wire request, one
@@ -121,7 +129,7 @@ tracked separately:
 - atomic serialization with concurrent session-log ingestion;
 - exhaustive rejection of every harmless unknown JSONL extension;
 - recursive inclusion of the complete historical proof DAG in each campaign;
-- broader optimization and refactoring beyond the fixed capacity-two path.
+- broader optimization and refactoring beyond the currently released cohort.
 
 These limitations do not relax wrong-model, control-loss, mutation-attribution,
 ambiguous-dispatch, terminal-boundary, or second-failure rejection.
@@ -133,15 +141,15 @@ integration target paths. The integration checkout is monitored and must remain
 clean during worker execution. Two read-only children may share one clean
 worktree only when both declare no write or integration target paths.
 
-| Surface | Capacity one | Capacity two |
+| Surface | Single worker | Concurrent pool |
 | --- | --- | --- |
-| Fixed cohort | Required | Required, exactly two children |
+| Fixed cohort | Required | Required; currently released up to two children |
 | Mutable worker worktree | Isolated from integration | One distinct worktree per child |
-| Shared read-only worktree | Allowed | Allowed only for two read-only children |
+| Shared read-only worktree | Allowed | Allowed only when every child is read-only |
 | Integration target paths | Scoped, non-symlinked | Scoped and non-overlapping |
 | Adapter capability receipt | Must be absent | Fresh, exact, trusted, and same-host |
 | Explicit opt-in | No | `--enable-concurrency` |
-| Operative release | Existing single-worker policy | Requires `operative-authorized` and a true marker |
+| Operative release | Existing single-worker policy | Must not exceed `released_max_active_workers` |
 
 Physical device/inode identity, canonical-path hash, Git common-directory hash,
 and a complete clean baseline are captured before the pool contract is sealed.
@@ -157,19 +165,22 @@ created -> capability-validated -> admitting -> running -> draining
         -> interrupt-pending | completed | control-failed -> closed
 ```
 
-Capacity-one pools skip `capability-validated`. Admission is sequential: a
+Single-worker pools skip `capability-validated`. Admission is sequential: a
 child lease is acquired before that child's first adapter callback. Scheduling
 uses earliest deadline with deterministic rotation for ties. `step()` invokes
 at most one adapter callback and never sleeps; only the host's `run()` wrapper
 sleeps. The v1 timing contract is exactly a 1000 ms poll interval with 1500 ms
-lag tolerance. Capacity two also proves the non-preemptive worst-case response
+lag tolerance. Concurrent admission uses the requested N in the conservative
+non-preemptive worst-case response
 bound:
 
 ```text
-max_lifecycle_ms + 2 * certified_check_max_ms
+max_lifecycle_ms + N * certified_check_max_ms
   + certified_scheduler_overhead_max_ms <= 1000
 
 250 + 2 * 200 + 100 = 750 <= 1000
+250 + 3 * 200 + 100 = 950 <= 1000  # candidate proof; N=3 not released
+250 + 4 * 200 + 100 = 1150 > 1000  # rejected
 ```
 
 Peer-deadline protection includes both the proposed operation ceiling and the
@@ -198,7 +209,7 @@ python3 scripts/supervise_native_pool.py render \
   --output /path/to/private/pool-contract.json
 ```
 
-For capacity two, the connected host supplies its fresh capability receipt and
+For any concurrent request, the connected host supplies its fresh capability receipt and
 opts in explicitly:
 
 ```bash
@@ -211,10 +222,10 @@ python3 scripts/supervise_native_pool.py render \
 ```
 
 `HOST_PID` is the long-running process that will own the coordinator. For
-capacity two it must match the capability receipt's live process identity.
+concurrent work it must match the capability receipt's live process identity.
 When rendering and execution happen in one Python host, call
 `cwo_core.native_pool_config.build_pool_contract()` directly and omit
-`owner_pid`; the current process is used for capacity one.
+`owner_pid`; the current process is used for a single worker.
 
 The connected native adapter callbacks cannot be serialized into a subprocess.
 Execution therefore remains a host API:
@@ -315,12 +326,13 @@ continues to block overlapping work.
 
 Rollback does not require deleting artifacts or weakening validation:
 
-1. Stop admitting capacity-two cohorts.
-2. Leave `default_max_active_workers=1`, set `status=canary-gated`, and set
-   `cap_two_operative_release=false` in policy.
+1. Stop admitting concurrent cohorts.
+2. Leave `capacity.default_max_active_workers=1` and set
+   `capacity.released_max_active_workers=1` in policy through the protected
+   operator-approved policy path.
 3. Interrupt any active pool through its bound control file.
 4. Preserve nonaccepting receipts and release-pending leases for adjudication.
-5. Run capacity one through the same coordinator, schemas, telemetry, and
+5. Run one worker through the same coordinator, schemas, telemetry, and
    workspace checks.
 
 Precommit, candidate packet construction, prompt rendering, retry, resume,

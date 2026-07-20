@@ -4,7 +4,6 @@ import copy
 import datetime as dt
 import importlib.util
 import json
-import os
 from pathlib import Path
 import sys
 import tempfile
@@ -54,6 +53,11 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     validate_pool_state,
     write_private_artifact,
     zero_usage,
+)
+from cwo_core.native_pool_capacity_compat import (  # noqa: E402
+    LEGACY_CERTIFICATION_VERSION,
+    LEGACY_RESPONSE_TIME_EQUATION,
+    LEGACY_SCHEDULER_MODEL,
 )
 from cwo_core.native_tool_isolation import default_tool_policy  # noqa: E402
 from cwo_core.native_authority import build_reason_records  # noqa: E402
@@ -118,7 +122,7 @@ def child(index: int, *, isolation: str = "mutable-isolated") -> dict:
     }
 
 
-def capability_payload() -> dict:
+def capability_payload(*, requested_cap: int = 2) -> dict:
     stats = {"p50_ms": 20, "p90_ms": 40, "p99_ms": 80, "max_ms": 100}
     callbacks = {
         name: dict(stats)
@@ -145,7 +149,7 @@ def capability_payload() -> dict:
         "measured_at": "2026-07-16T00:00:00Z",
         "expires_at": "2026-07-16T00:30:00Z",
         "sample_count": 20,
-        "requested_cap": 2,
+        "requested_cap": requested_cap,
         "clock": "monotonic_ns",
         "callbacks": callbacks,
         "scheduler_overhead": {"p50_ms": 10, "p90_ms": 20, "p99_ms": 30, "max_ms": 50},
@@ -161,7 +165,14 @@ def capability_payload() -> dict:
 
 
 def pool_contract(*, cap: int = 2, read_only: bool = False) -> tuple[dict, dict | None]:
-    capability = seal_artifact(capability_payload(), "receipt_sha256") if cap == 2 else None
+    capability = (
+        seal_artifact(
+            capability_payload(requested_cap=cap),
+            "receipt_sha256",
+        )
+        if cap > 1
+        else None
+    )
     isolation = "read-only-shared" if read_only else "mutable-isolated"
     children = [child(index, isolation=isolation) for index in range(cap)]
     payload = {
@@ -179,8 +190,8 @@ def pool_contract(*, cap: int = 2, read_only: bool = False) -> tuple[dict, dict 
             "kind": "earliest-deadline-rotating-v1",
             "poll_interval_ms": 1000,
             "poll_lag_tolerance_ms": 1500,
-            "certified_max_check_ms": 200 if cap == 2 else None,
-            "certified_max_scheduler_overhead_ms": 100 if cap == 2 else None,
+            "certified_max_check_ms": 200 if cap > 1 else None,
+            "certified_max_scheduler_overhead_ms": 100 if cap > 1 else None,
         },
         "aggregate_hard_budget": {
             "tool_calls": 56,
@@ -466,7 +477,10 @@ class NativePoolContractTest(unittest.TestCase):
         changed = copy.deepcopy(contract)
         changed["capability_receipt_sha256"] = sha("unexpected")
         changed = seal_artifact(changed, "contract_sha256")
-        self.assertIn("cap-one-capability-receipt-must-be-null", validate_pool_contract(changed))
+        self.assertIn(
+            "single-worker-capability-receipt-must-be-null",
+            validate_pool_contract(changed),
+        )
 
     def test_cap_must_equal_fixed_cohort_and_schema_matches(self) -> None:
         contract, _ = pool_contract()
@@ -481,6 +495,36 @@ class NativePoolContractTest(unittest.TestCase):
             with self.assertRaises(jsonschema.ValidationError):
                 jsonschema.validate(changed, schema)
 
+    def test_capacity_three_contract_and_capability_match_policy_bound_schema(self) -> None:
+        contract, capability = pool_contract(cap=3)
+        self.assertIsNotNone(capability)
+        self.assertEqual(validate_pool_contract(contract), [])
+        self.assertEqual(
+            validate_capability_receipt(
+                capability,
+                expected_contract=contract,
+                now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc),
+            ),
+            [],
+        )
+        if HAS_JSONSCHEMA:
+            import jsonschema
+
+            contract_schema = json.loads(
+                (ROOT / POOL_CONTRACT_SCHEMA).read_text(encoding="utf-8")
+            )
+            capability_schema = json.loads(
+                (ROOT / CAPABILITY_RECEIPT_SCHEMA).read_text(encoding="utf-8")
+            )
+            jsonschema.validate(contract, contract_schema)
+            jsonschema.validate(capability, capability_schema)
+
+        over_limit, _ = pool_contract(cap=4)
+        self.assertIn("invalid-max-active-workers", validate_pool_contract(over_limit))
+        if HAS_JSONSCHEMA:
+            with self.assertRaises(jsonschema.ValidationError):
+                jsonschema.validate(over_limit, contract_schema)
+
     def test_v1_poll_contract_is_exact_and_cap_one_has_no_certification(self) -> None:
         contract, _ = pool_contract(cap=1)
         changed = copy.deepcopy(contract)
@@ -491,7 +535,7 @@ class NativePoolContractTest(unittest.TestCase):
         errors = validate_pool_contract(changed)
         self.assertIn("invalid-scheduler-poll-interval-ms", errors)
         self.assertIn("invalid-scheduler-poll-lag-tolerance-ms", errors)
-        self.assertIn("cap-one-scheduler-certification-must-be-null", errors)
+        self.assertIn("single-worker-scheduler-certification-must-be-null", errors)
 
     def test_read_only_contract_rejects_any_declared_mutation(self) -> None:
         contract, _ = pool_contract(read_only=True)
@@ -670,6 +714,40 @@ class NativePoolContractTest(unittest.TestCase):
         nonfinite["callbacks"]["check"]["max_ms"] = float("inf")
         nonfinite = seal_artifact(nonfinite, "receipt_sha256")
         self.assertIn("invalid-callback-check-values", validate_capability_receipt(nonfinite, now=now))
+
+    def test_legacy_capacity_two_receipt_is_readable_but_not_operative(self) -> None:
+        legacy = capability_payload()
+        certification = legacy["certification"]
+        certification["version"] = LEGACY_CERTIFICATION_VERSION
+        certification["scheduler_model"] = LEGACY_SCHEDULER_MODEL
+        certification["response_time_equation"] = LEGACY_RESPONSE_TIME_EQUATION
+        certification_policy = {
+            field: value
+            for field, value in certification.items()
+            if field not in {"policy_sha256", "adapter_implementation_sha256"}
+        }
+        certification["policy_sha256"] = callback_certification_policy_sha256(
+            certification_policy
+        )
+        legacy = seal_artifact(legacy, "receipt_sha256")
+        now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
+        self.assertEqual(validate_capability_receipt(legacy, now=now), [])
+
+        contract, _ = pool_contract()
+        operative_contract = copy.deepcopy(contract)
+        operative_contract["capability_receipt_sha256"] = legacy["receipt_sha256"]
+        operative_contract = seal_artifact(
+            operative_contract,
+            "contract_sha256",
+        )
+        errors = validate_capability_receipt(
+            legacy,
+            expected_contract=operative_contract,
+            now=now,
+        )
+        self.assertIn("certification-version-mismatch", errors)
+        self.assertIn("certification-scheduler-model-mismatch", errors)
+        self.assertIn("certification-response-time-equation-mismatch", errors)
 
     def test_state_decision_lease_and_receipt_cross_binding_fail_closed(self) -> None:
         contract, _, leases, state, decision, receipt = self.artifacts()

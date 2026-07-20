@@ -16,11 +16,11 @@
     "pool_epoch": {"type": "string", "minLength": 1},
     "control_turn_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
-    "max_active_workers": {"enum": [1, 2]},
+    "max_active_workers": {"enum": [1, 2, 3]},
     "aggregate_hard_budget": {"$ref": "#/$defs/budget"},
     "integration_root": {"type": "string", "pattern": "^/", "minLength": 2},
     "children": {
-      "type": "array", "minItems": 1, "maxItems": 2,
+      "type": "array", "minItems": 1, "maxItems": 3,
       "items": {"$ref": "#/$defs/child"}
     }
   },
