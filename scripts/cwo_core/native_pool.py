@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime as dt
 import fcntl
 import json
@@ -83,6 +84,25 @@ ARTIFACT_DISPOSITIONS = {
     "architect-adjudication-required",
     "rejected",
 }
+
+
+def _read_only_fast_path_child_ids(
+    children: Sequence[Mapping[str, Any]],
+) -> frozenset[str]:
+    """Return the immutable admission-validated read-only fast-path cohort."""
+
+    return frozenset(
+        str(child["child_id"])
+        for child in children
+        if child.get("isolation_class") == "read-only-shared"
+        and isinstance(child.get("completion_evidence_policy"), Mapping)
+        and child["completion_evidence_policy"].get("expected_mutation_mode")
+        == "read-only"
+        and child.get("declared_write_paths") == []
+        and child.get("integration_target_paths") == []
+    )
+
+
 FAULT_SCOPE_POLICY_CAPS = {
     "child-fault": "child",
     "cohort-budget": "cohort",
@@ -252,9 +272,15 @@ class NativePoolCoordinator:
             contract.get("max_active_workers")
         ):
             raise NativePoolError("requested-capacity-not-released")
-        self.contract = dict(contract)
+        # Keep the validated admission artifact isolated from caller mutation.
+        # The fast-path cohort below must never widen after admission.
+        self.contract = copy.deepcopy(dict(contract))
         self.children = [dict(child) for child in self.contract["children"]]
         self.child_ids = [str(child["child_id"]) for child in self.children]
+        self._read_only_fast_path_children = _read_only_fast_path_child_ids(
+            self.children
+        )
+        self._deferred_read_only_workspace_check = False
         if set(child_contracts) != set(self.child_ids):
             raise NativePoolError("child-control-contract-set-mismatch")
         if set(task_inputs) != set(self.child_ids) or any(not isinstance(value, str) for value in task_inputs.values()):
@@ -563,6 +589,15 @@ class NativePoolCoordinator:
         except (TypeError, ValueError, PoolSchedulingError) as exc:
             raise NativePoolError(f"workspace-comparison-failed:{exc}") from exc
         return dict(value)
+
+    def _quarantine_deferred_read_only_cohort(self) -> None:
+        """Fail closed without attributing a shared-worktree mutation to one child."""
+
+        for child_id in self._read_only_fast_path_children:
+            self._dispositions[child_id] = {
+                "session_disposition": "quarantined",
+                "artifact_disposition": "rejected",
+            }
 
     def _wrap_callbacks(
         self,
@@ -1110,30 +1145,44 @@ class NativePoolCoordinator:
                     observed_callback_latency_ms=detail.get("observed_callback_latency_ms"),
                     certified_callback_max_ms=detail.get("certified_callback_max_ms"),
                 )
-            try:
-                mutation = self._compare_workspaces(f"after-{child_id}-{self._last_callback_name}")
-                self._last_mutation_evidence = mutation
-                if not all(
-                    mutation[field]
-                    for field in (
-                        "integration_root_clean",
-                        "shared_read_only_clean",
-                        "child_worktrees_clean",
+            if child_id in self._read_only_fast_path_children:
+                self._deferred_read_only_workspace_check = True
+            else:
+                try:
+                    mutation = self._compare_workspaces(
+                        f"after-{child_id}-{self._last_callback_name}"
                     )
-                ):
+                    self._last_mutation_evidence = mutation
+                    if not all(
+                        mutation[field]
+                        for field in (
+                            "integration_root_clean",
+                            "shared_read_only_clean",
+                            "child_worktrees_clean",
+                        )
+                    ):
+                        if (
+                            self._deferred_read_only_workspace_check
+                            or not mutation["shared_read_only_clean"]
+                        ):
+                            self._quarantine_deferred_read_only_cohort()
+                        self._enter_fault(
+                            "workspace-mutation-attribution-failed",
+                            control_failed=False,
+                            requested_stop_scope="execution-path",
+                            scope_policy_rule="execution-integrity",
+                        )
+                    else:
+                        self._deferred_read_only_workspace_check = False
+                except NativePoolError as exc:
+                    if self._read_only_fast_path_children:
+                        self._quarantine_deferred_read_only_cohort()
                     self._enter_fault(
-                        "workspace-mutation-attribution-failed",
-                        control_failed=False,
+                        str(exc),
+                        control_failed=True,
                         requested_stop_scope="execution-path",
                         scope_policy_rule="execution-integrity",
                     )
-            except NativePoolError as exc:
-                self._enter_fault(
-                    str(exc),
-                    control_failed=True,
-                    requested_stop_scope="execution-path",
-                    scope_policy_rule="execution-integrity",
-                )
 
     def _next_lifecycle_child(self, now_ns: int) -> tuple[str | None, bool, float]:
         state_children = self._state["children"]
@@ -1699,6 +1748,13 @@ class NativePoolCoordinator:
                             "child_worktrees_clean",
                         )
                     ):
+                        if (
+                            self._deferred_read_only_workspace_check
+                            or not self._last_mutation_evidence[
+                                "shared_read_only_clean"
+                            ]
+                        ):
+                            self._quarantine_deferred_read_only_cohort()
                         self._enter_fault(
                             "terminal-workspace-comparison-failed",
                             control_failed=False,
@@ -1707,6 +1763,8 @@ class NativePoolCoordinator:
                         )
                     self._terminal_comparison_complete = True
                 except NativePoolError as exc:
+                    if self._read_only_fast_path_children:
+                        self._quarantine_deferred_read_only_cohort()
                     self._enter_fault(
                         str(exc),
                         control_failed=True,

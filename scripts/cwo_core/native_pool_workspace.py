@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from pathlib import Path
 import subprocess
@@ -72,6 +73,30 @@ def _physical_identity(identity: Mapping[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _snapshot_cache_key(
+    root: str,
+    child: Mapping[str, Any],
+    *,
+    contract_sha256: Any,
+    shared_read_only_worktree: Any,
+) -> tuple[Any, ...]:
+    policy = child.get("completion_evidence_policy")
+    mutation_mode = (
+        policy.get("expected_mutation_mode")
+        if isinstance(policy, Mapping)
+        else None
+    )
+    return (
+        root,
+        contract_sha256,
+        shared_read_only_worktree,
+        child.get("isolation_class"),
+        mutation_mode,
+        tuple(child.get("declared_write_paths", ())),
+        tuple(child.get("integration_target_paths", ())),
+    )
+
+
 def validate_integration_target_paths(root: Path | str, paths: Sequence[str]) -> None:
     """Reject target components that escape or traverse a symlink."""
     integration_root = Path(root).resolve()
@@ -120,7 +145,7 @@ class PoolWorkspaceMonitor:
         errors = validate_pool_contract(contract)
         if errors:
             raise PoolWorkspaceError("pool-contract-invalid:" + ";".join(errors))
-        self.contract = dict(contract)
+        self.contract = copy.deepcopy(dict(contract))
         children = [dict(child) for child in self.contract["children"]]
         child_ids = [str(child["child_id"]) for child in children]
         if set(child_worktrees) != set(child_ids):
@@ -131,7 +156,8 @@ class PoolWorkspaceMonitor:
             raise PoolWorkspaceError("integration-root-identity-mismatch")
 
         self.children: dict[str, dict[str, Any]] = {}
-        snapshots_by_root: dict[str, dict[str, Any]] = {}
+        snapshots_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
+        cache_key_by_root: dict[str, tuple[Any, ...]] = {}
         for child in children:
             child_id = str(child["child_id"])
             root = Path(child_worktrees[child_id]).resolve()
@@ -140,10 +166,24 @@ class PoolWorkspaceMonitor:
             validate_integration_target_paths(
                 self.integration["root"], child["integration_target_paths"]
             )
-            snapshot = snapshots_by_root.get(root_key)
+            cache_key = _snapshot_cache_key(
+                root_key,
+                child,
+                contract_sha256=self.contract.get("contract_sha256"),
+                shared_read_only_worktree=self.contract["topology"].get(
+                    "shared_read_only_worktree"
+                ),
+            )
+            previous_key = cache_key_by_root.get(root_key)
+            if previous_key is not None and previous_key != cache_key:
+                raise PoolWorkspaceError(
+                    f"incompatible-physical-worktree-reuse:{child_id}"
+                )
+            cache_key_by_root[root_key] = cache_key
+            snapshot = snapshots_by_key.get(cache_key)
             if snapshot is None:
                 snapshot = capture_workspace_snapshot(root, allowed_paths=allowed)
-                snapshots_by_root[root_key] = snapshot
+                snapshots_by_key[cache_key] = snapshot
             if snapshot["identity"] != child["worktree_identity"]:
                 raise PoolWorkspaceError(f"child-worktree-identity-mismatch:{child_id}")
             if _physical_identity(snapshot["identity"]) == _physical_identity(
@@ -154,6 +194,7 @@ class PoolWorkspaceMonitor:
                 "contract": child,
                 "snapshot": snapshot,
                 "root": root_key,
+                "cache_key": cache_key,
             }
 
         mutable_roots = [
@@ -175,6 +216,8 @@ class PoolWorkspaceMonitor:
     def compare(self, *, contract: Mapping[str, Any], phase: str) -> dict[str, Any]:
         if contract.get("contract_sha256") != self.contract.get("contract_sha256"):
             raise PoolWorkspaceError("workspace-contract-hash-mismatch")
+        if dict(contract) != self.contract:
+            raise PoolWorkspaceError("workspace-contract-content-mismatch")
         if not isinstance(phase, str) or not phase:
             raise PoolWorkspaceError("workspace-comparison-phase-invalid")
 
@@ -192,17 +235,18 @@ class PoolWorkspaceMonitor:
 
         reports: dict[str, Any] = {}
         child_clean = True
-        after_by_root: dict[str, dict[str, Any]] = {}
+        after_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
         for child_id, entry in self.children.items():
             child = entry["contract"]
             root = entry["root"]
             allowed = list(child["declared_write_paths"])
-            after = after_by_root.get(root)
+            cache_key = entry["cache_key"]
+            after = after_by_key.get(cache_key)
             if after is None:
                 after = capture_workspace_baseline(
                     root, allowed_paths=allowed, include_untracked=True
                 )
-                after_by_root[root] = after
+                after_by_key[cache_key] = after
             report = compare_workspace_baseline(
                 entry["snapshot"]["baseline"], after, allowed_paths=allowed
             )

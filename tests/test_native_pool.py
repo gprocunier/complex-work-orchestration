@@ -35,7 +35,12 @@ from cwo_core.native_stop_scope import (  # noqa: E402
     policy_scope_authority,
     verify_operator_scope_directive,
 )
-from tests.test_native_pool_contracts import control_request, pool_contract, sha  # noqa: E402
+from tests.test_native_pool_contracts import (  # noqa: E402
+    child as pool_child,
+    control_request,
+    pool_contract,
+    sha,
+)
 
 
 class FakeClock:
@@ -118,11 +123,18 @@ class PoolHarness:
         protected_fault_reasons_by_child: dict[str, list[str]] | None = None,
         budget_overrides: dict[str, int] | None = None,
         read_only: bool = False,
+        read_only_children: set[str] | None = None,
         control_file: Path | None = None,
         policy_document: dict | None = None,
     ) -> None:
         self.clock = FakeClock()
         self.contract, self.capability = pool_contract(cap=cap, read_only=read_only)
+        for index, existing_child in enumerate(self.contract["children"]):
+            if existing_child["child_id"] in (read_only_children or set()):
+                self.contract["children"][index] = pool_child(
+                    index,
+                    isolation="read-only-shared",
+                )
         live_owner = capture_owner_identity()
         self.contract["owner"] = live_owner
         if budget_overrides:
@@ -634,6 +646,69 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertIn("initial-workspace-comparison-failed", receipt["reasons"])
             self.assertEqual(harness.adapters["child-0"].calls, [])
             self.assertEqual(receipt["lease_evidence"], [])
+
+    def test_read_only_fast_path_retains_only_boundary_comparisons(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                read_only=True,
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(harness.compare_phases, ["create", "close"])
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset({"child-0", "child-1"}),
+            )
+
+    def test_mixed_topology_skips_only_validated_read_only_child(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                read_only_children={"child-0"},
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertTrue(receipt["accepting"])
+            self.assertFalse(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases
+                )
+            )
+            self.assertTrue(
+                any(
+                    phase.startswith("after-child-1-")
+                    for phase in harness.compare_phases
+                )
+            )
+
+    def test_post_admission_contract_tampering_cannot_widen_fast_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            replacement = pool_child(0, isolation="read-only-shared")
+            harness.contract["children"][0].update(replacement)
+
+            receipt = harness.coordinator.run()
+
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset(),
+            )
+            self.assertTrue(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases
+                )
+            )
 
     def test_callback_failure_marks_lease_release_pending(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1325,21 +1400,32 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(harness.registry.snapshot()[0]["lifecycle_state"], "released")
             harness.coordinator.run()
 
-    def test_shared_read_only_mutation_quarantines_both_children(self) -> None:
+    def test_deferred_shared_read_only_mutation_quarantines_cohort(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(
                 temporary,
                 cap=2,
                 read_only=True,
-                dirty_phases={"after-child-0-check", "close"},
+                dirty_phases={"close"},
             )
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
             self.assertEqual(receipt["pool_disposition"], "quarantined")
-            self.assertIn("interrupt", harness.adapters["child-0"].calls)
-            self.assertEqual(harness.adapters["child-1"].calls, [])
+            self.assertIn("terminal-workspace-comparison-failed", receipt["reasons"])
+            self.assertFalse(
+                any(phase.startswith("after-") for phase in harness.compare_phases)
+            )
+            self.assertTrue(harness.adapters["child-0"].calls)
+            self.assertTrue(harness.adapters["child-1"].calls)
             dispositions = {item["child_id"]: item for item in receipt["child_dispositions"]}
-            self.assertEqual(dispositions["child-1"]["session_disposition"], "quarantined")
+            self.assertEqual(
+                {item["session_disposition"] for item in dispositions.values()},
+                {"quarantined"},
+            )
+            self.assertEqual(
+                {item["artifact_disposition"] for item in dispositions.values()},
+                {"rejected"},
+            )
 
 
 if __name__ == "__main__":
