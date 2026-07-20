@@ -13,6 +13,20 @@ from .paths import REPO_ROOT, cwo_temp_dir
 from .util import metadata_json
 
 DEFAULT_BEADS_TIMEOUT_SECONDS = 300
+BEADS_DEPENDENCY_TYPES = frozenset(
+    {
+        "blocks",
+        "tracks",
+        "related",
+        "parent-child",
+        "discovered-from",
+        "until",
+        "caused-by",
+        "validates",
+        "relates-to",
+        "supersedes",
+    }
+)
 
 
 def require_bd() -> None:
@@ -164,5 +178,28 @@ def show_bead_json(bead_id: str, *, include_comments: bool = False, include_depe
     return json.loads(output)
 
 
-def add_dependency(blocked: str, blocker: str) -> None:
-    run_bd(["dep", "add", blocked, blocker])
+def normalize_dependency_type(value: str) -> str:
+    dependency_type = str(value or "").strip().lower().replace("_", "-")
+    if dependency_type not in BEADS_DEPENDENCY_TYPES:
+        raise ValueError(
+            "dependency_type must be one of "
+            + ", ".join(sorted(BEADS_DEPENDENCY_TYPES))
+        )
+    return dependency_type
+
+
+def add_dependency(
+    blocked: str,
+    blocker: str,
+    *,
+    dependency_type: str = "blocks",
+) -> None:
+    """Add one explicit typed Beads relationship.
+
+    Only ``blocks`` (and Beads' time-oriented ``until`` relation) should be
+    used as readiness prerequisites.  Tracking, validation, publication, and
+    provenance relationships must retain their nonblocking type.
+    """
+
+    normalized = normalize_dependency_type(dependency_type)
+    run_bd(["dep", "add", blocked, blocker, "--type", normalized])

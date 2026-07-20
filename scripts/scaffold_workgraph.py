@@ -10,6 +10,7 @@ from typing import Any
 from cwo_core.beads import (
     add_dependency,
     create_bead,
+    normalize_dependency_type,
 )
 from cwo_core.coach import (
     _normalize_workerbee_planned_delegation,
@@ -312,6 +313,8 @@ def _lane_metadata(
     merged["closure_pressure"] = closure_pressure
     merged["closure_pressure_active"] = bool(closure_pressure.get("active"))
     merged["routine_repair_child_forbidden"] = bool(closure_pressure.get("active"))
+    merged["dependency_semantics_version"] = 1
+    merged["ready_set_admission_required"] = lane in OPERATIONAL_WORKER_BEAD_LANES
     return merged
 
 
@@ -937,6 +940,24 @@ def item_priority(item: dict[str, Any], index: int) -> int:
     return 2
 
 
+def dependency_spec(value: object) -> tuple[str, str]:
+    """Normalize legacy lane strings and explicit typed relationships."""
+
+    if isinstance(value, str):
+        lane = value.strip()
+        dependency_type = "blocks"
+    elif isinstance(value, dict):
+        lane = str(value.get("lane") or value.get("key") or "").strip()
+        dependency_type = normalize_dependency_type(
+            str(value.get("type") or value.get("dependency_type") or "blocks")
+        )
+    else:
+        raise ValueError("dependency entry must be a lane string or mapping")
+    if not lane:
+        raise ValueError("dependency lane must be a non-empty string")
+    return lane, dependency_type
+
+
 def string_metadata(item: dict[str, Any]) -> dict[str, str]:
     result = {
         "cwo_lane": str(item.get("lane") or "epic"),
@@ -998,14 +1019,14 @@ def beads_graph_plan(plan: list[dict[str, Any]]) -> dict[str, list[dict[str, Any
             node["parent_key"] = "epic"
         nodes.append(node)
 
-        for blocker_lane in item.get("depends_on_lanes", []):
-            blocker_key = str(blocker_lane)
+        for dependency in item.get("depends_on_lanes", []):
+            blocker_key, dependency_type = dependency_spec(dependency)
             if blocker_key in keys:
                 edges.append(
                     {
                         "from_key": key,
                         "to_key": blocker_key,
-                        "type": "blocks",
+                        "type": dependency_type,
                     }
                 )
 
@@ -1075,11 +1096,22 @@ def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def try_dep(blocked: str, blocker: str) -> None:
+def try_dep(
+    blocked: str,
+    blocker: str,
+    dependency_type: str = "blocks",
+) -> None:
     try:
-        add_dependency(blocked, blocker)
+        add_dependency(
+            blocked,
+            blocker,
+            dependency_type=dependency_type,
+        )
     except (SystemExit, Exception) as exc:
-        raise SystemExit(f"could not add dependency {blocked} -> {blocker}: {exc}") from exc
+        raise SystemExit(
+            f"could not add dependency {blocked} -> {blocker} "
+            f"({dependency_type}): {exc}"
+        ) from exc
 
 
 def recovery_summary(created: dict[str, str], failed_step: str, error: object) -> str:
@@ -1266,11 +1298,15 @@ def main() -> None:
             blocked = created.get(item["lane"])
             if not blocked:
                 continue
-            for blocker_lane in item.get("depends_on_lanes", []):
+            for dependency in item.get("depends_on_lanes", []):
+                blocker_lane, dependency_type = dependency_spec(dependency)
                 blocker = created.get(blocker_lane)
                 if blocker:
-                    failed_step = f"add dependency {item['lane']} -> {blocker_lane}"
-                    try_dep(blocked, blocker)
+                    failed_step = (
+                        f"add dependency {item['lane']} -> {blocker_lane} "
+                        f"({dependency_type})"
+                    )
+                    try_dep(blocked, blocker, dependency_type)
     except SystemExit as exc:
         if created:
             print(recovery_summary(created, failed_step, exc), file=sys.stderr)

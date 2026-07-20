@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -19,9 +20,47 @@ from continue_sprint import (  # noqa: E402
 )
 
 BD_PATH = shutil.which("bd")
+HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
+V2_READY_SET_FIELDS = {
+    "ranked_ready_issues",
+    "recommended_ready_set",
+    "excluded_ready_issues",
+    "beads_readiness_snapshot",
+    "beads_readiness_snapshot_sha256",
+    "fanout_decision",
+    "fanout_reasons",
+    "candidate_capacity_evidence",
+    "ready_set_authority",
+    "dispatch_authorized",
+}
 
 
 class ContinueSprintTests(unittest.TestCase):
+    @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
+    def test_v2_output_and_historical_v1_shape_validate(self) -> None:
+        from jsonschema import Draft202012Validator
+
+        result = build_continuation_brief(
+            [
+                {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
+                {"id": "task", "title": "Do Work", "type": "task", "status": "open"},
+            ],
+            epic_id="epic",
+        )
+        schema = json.loads(
+            (ROOT / "schemas" / "sprint-continuation.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        validator = Draft202012Validator(schema)
+
+        validator.validate(result)
+        historical = {
+            key: value for key, value in result.items() if key not in V2_READY_SET_FIELDS
+        }
+        historical["version"] = 1
+        validator.validate(historical)
+
     def test_ranks_ready_issues_by_priority_then_unblocking_value(self) -> None:
         items = [
             {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
@@ -77,6 +116,29 @@ class ContinueSprintTests(unittest.TestCase):
 
         self.assertEqual(result["recommended_next_issue"]["id"], "architect")
         self.assertEqual(blockers["implementation"], ["depends on architect (open)"])
+
+    def test_nonblocking_relationship_types_do_not_suppress_ready_work(self) -> None:
+        items = [
+            {"id": "epic", "title": "Continuation", "issue_type": "epic", "status": "open"},
+            {"id": "publication", "title": "Publication parent", "issue_type": "feature", "status": "open"},
+            {
+                "id": "implementation",
+                "title": "Implement",
+                "issue_type": "task",
+                "status": "open",
+                "priority": 1,
+                "dependencies": [
+                    {"depends_on_id": "publication", "type": "tracks"},
+                    {"depends_on_id": "publication", "type": "validates"},
+                    {"depends_on_id": "publication", "type": "related"},
+                ],
+            },
+        ]
+
+        result = build_continuation_brief(items, epic_id="epic")
+
+        self.assertEqual(result["recommended_next_issue"]["id"], "implementation")
+        self.assertEqual(result["recommended_next_issue"]["dependencies"], [])
 
     def test_epic_typed_items_are_not_recommended_as_next_work(self) -> None:
         items = [
@@ -186,6 +248,11 @@ class ContinueSprintTests(unittest.TestCase):
             result["operator_handoff_packet"]["exact_command_resume"],
             "python3 scripts/cwo.py continue --epic epic --markdown-workgraph <path>",
         )
+        self.assertEqual(result["version"], 2)
+        self.assertEqual(result["fanout_decision"], "single")
+        self.assertEqual(result["recommended_ready_set"], [])
+        self.assertIsNone(result["beads_readiness_snapshot_sha256"])
+        self.assertFalse(result["dispatch_authorized"])
 
     def test_cli_json_uses_markdown_workgraph_without_bd(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -318,13 +385,26 @@ class ContinueSprintTests(unittest.TestCase):
                 "orchestration",
                 "--silent",
             )
+            package = bd_output(
+                "create",
+                "Open package parent",
+                "--type",
+                "feature",
+                "--parent",
+                epic,
+                "--priority",
+                "1",
+                "--labels",
+                "publication-parent",
+                "--silent",
+            )
             architect = bd_output(
                 "create",
                 "Architect frame",
                 "--type",
                 "task",
                 "--parent",
-                epic,
+                package,
                 "--priority",
                 "1",
                 "--labels",
@@ -337,7 +417,7 @@ class ContinueSprintTests(unittest.TestCase):
                 "--type",
                 "task",
                 "--parent",
-                epic,
+                package,
                 "--priority",
                 "2",
                 "--labels",
@@ -367,8 +447,24 @@ class ContinueSprintTests(unittest.TestCase):
 
         self.assertEqual(result["source"], "beads")
         self.assertEqual(result["durability"], "durable")
+        self.assertEqual(result["version"], 2)
         self.assertEqual(result["recommended_next_issue"]["id"], architect)
         self.assertEqual(blockers[implementation], [f"depends on {architect} (open)"])
+        self.assertIn(package, blockers)
+        self.assertIn("grouping container", " ".join(blockers[package]))
+        self.assertEqual(
+            [item["id"] for item in result["ranked_ready_issues"]],
+            [architect],
+        )
+        self.assertEqual(
+            result["beads_readiness_snapshot"]["snapshot_type"],
+            "cwo-beads-ready-set-snapshot:v1",
+        )
+        self.assertEqual(
+            result["beads_readiness_snapshot_sha256"],
+            result["beads_readiness_snapshot"]["snapshot_sha256"],
+        )
+        self.assertFalse(result["dispatch_authorized"])
         self.assertIn("operator_handoff_packet", result)
 
 

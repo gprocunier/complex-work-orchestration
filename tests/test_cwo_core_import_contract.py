@@ -38,6 +38,12 @@ ALLOWED_IMPORTS = {
     "audit": {"paths", "policy", "telemetry", "util"},
     "waivers": set(),
     "beads": {"paths", "util"},
+    "beads_ready_set": {
+        "native_pool_capacity",
+        "native_pool_schedulability",
+        "policy",
+        "work_sizing",
+    },
     "harness": {"access_profiles", "policy", "util"},
     "native_authority": set(),
     "native_capability": {"native_authority"},

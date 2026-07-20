@@ -25,7 +25,7 @@
   ],
   "properties": {
     "continuation_result_type": {"const": "complex-work-orchestration-sprint-continuation"},
-    "version": {"type": "integer"},
+    "version": {"enum": [1, 2]},
     "source": {"enum": ["beads", "markdown-workgraph"]},
     "durability": {"enum": ["durable", "reduced"]},
     "epic_id": {"type": "string"},
@@ -45,6 +45,42 @@
     },
     "why_next": {"type": "string"},
     "ready_issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "ranked_ready_issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "recommended_ready_set": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/ready_candidate"}
+    },
+    "excluded_ready_issues": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/excluded_issue"}
+    },
+    "beads_readiness_snapshot": {
+      "oneOf": [
+        {"$ref": "#/$defs/readiness_snapshot"},
+        {"type": "null"}
+      ]
+    },
+    "beads_readiness_snapshot_sha256": {
+      "oneOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "fanout_decision": {"enum": ["single", "pool", "blocked"]},
+    "fanout_reasons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/fanout_reason"}
+    },
+    "candidate_capacity_evidence": {
+      "oneOf": [
+        {"$ref": "#/$defs/candidate_capacity_evidence"},
+        {"type": "null"}
+      ]
+    },
+    "ready_set_authority": {"const": "candidate-evidence-only"},
+    "dispatch_authorized": {"const": false},
     "blocked_issues": {"type": "array", "items": {"$ref": "#/$defs/blocked_issue"}},
     "carry_forward": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
     "definition_of_ready": {"type": "array", "items": {"$ref": "#/$defs/check"}},
@@ -76,7 +112,30 @@
     },
     "warnings": {"type": "array", "items": {"type": "string"}}
   },
+  "allOf": [
+    {
+      "if": {"properties": {"version": {"const": 2}}, "required": ["version"]},
+      "then": {
+        "required": [
+          "ranked_ready_issues",
+          "recommended_ready_set",
+          "excluded_ready_issues",
+          "beads_readiness_snapshot",
+          "beads_readiness_snapshot_sha256",
+          "fanout_decision",
+          "fanout_reasons",
+          "candidate_capacity_evidence",
+          "ready_set_authority",
+          "dispatch_authorized"
+        ]
+      }
+    }
+  ],
   "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "issue": {
       "type": "object",
       "required": ["id", "title", "type", "status", "labels", "priority", "dependencies"],
@@ -102,6 +161,130 @@
         "priority": {"type": "integer"},
         "dependencies": {"type": "array", "items": {"type": "string"}},
         "blockers": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": ["tool_calls", "runtime_seconds", "compactions", "full_suite_runs", "mutations"],
+      "properties": {
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "runtime_seconds": {"type": "integer", "minimum": 0},
+        "compactions": {"type": "integer", "minimum": 0},
+        "full_suite_runs": {"type": "integer", "minimum": 0},
+        "mutations": {"type": "integer", "minimum": 0}
+      }
+    },
+    "ready_candidate": {
+      "type": "object",
+      "required": [
+        "id",
+        "work_estimate_sha256",
+        "worker_commitment_sha256",
+        "admission_metadata_sha256",
+        "declared_read_paths",
+        "declared_write_paths",
+        "integration_target_paths",
+        "protected_domains",
+        "topology",
+        "isolation_class",
+        "architecture_authority",
+        "execution_authority",
+        "share_boundary",
+        "requested_model",
+        "required_tools",
+        "tool_surface_id",
+        "hard_budget",
+        "aggregate_hard_budget"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "work_estimate_sha256": {"$ref": "#/$defs/sha256"},
+        "worker_commitment_sha256": {"$ref": "#/$defs/sha256"},
+        "admission_metadata_sha256": {"$ref": "#/$defs/sha256"},
+        "declared_read_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "declared_write_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "integration_target_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "protected_domains": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "topology": {"type": "string", "minLength": 1},
+        "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
+        "architecture_authority": {"type": "string", "minLength": 1},
+        "execution_authority": {"type": "string", "minLength": 1},
+        "share_boundary": {"type": "string", "minLength": 1},
+        "requested_model": {"type": "string", "minLength": 1},
+        "required_tools": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "tool_surface_id": {"type": "string", "minLength": 1},
+        "hard_budget": {"$ref": "#/$defs/budget"},
+        "aggregate_hard_budget": {"$ref": "#/$defs/budget"}
+      }
+    },
+    "exclusion_reason": {
+      "type": "object",
+      "required": ["code", "detail"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "detail": {"type": "string", "minLength": 1}
+      }
+    },
+    "excluded_issue": {
+      "type": "object",
+      "required": ["id", "reasons"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "reasons": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/exclusion_reason"}}
+      }
+    },
+    "fanout_reason": {
+      "type": "object",
+      "required": ["code", "issue_ids", "provenance", "detail"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "issue_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "provenance": {"type": "string", "minLength": 1},
+        "detail": {"type": "string", "minLength": 1},
+        "evidence": {"type": "array"}
+      }
+    },
+    "readiness_snapshot": {
+      "type": "object",
+      "required": ["snapshot_type", "version", "epic_id", "ready_issue_projections", "snapshot_sha256"],
+      "properties": {
+        "snapshot_type": {"const": "cwo-beads-ready-set-snapshot:v1"},
+        "version": {"const": 1},
+        "epic_id": {"type": "string", "minLength": 1},
+        "ready_issue_projections": {"type": "array", "items": {"type": "object"}},
+        "snapshot_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "candidate_capacity_evidence": {
+      "type": "object",
+      "required": [
+        "requested_workers",
+        "released_max_active_workers",
+        "hard_max_active_workers",
+        "phase1_candidate_ceiling",
+        "bounded_candidate_capacity",
+        "released_capacity_is_dispatch_gate",
+        "schedulability_proofs",
+        "selected_workers",
+        "selected_exceeds_released_capacity",
+        "selected_released_for_dispatch"
+      ],
+      "properties": {
+        "requested_workers": {"type": "integer", "minimum": 1},
+        "released_max_active_workers": {"type": "integer", "minimum": 1},
+        "hard_max_active_workers": {"type": "integer", "minimum": 1},
+        "phase1_candidate_ceiling": {"const": 3},
+        "bounded_candidate_capacity": {"type": "integer", "minimum": 1, "maximum": 3},
+        "released_capacity_is_dispatch_gate": {"const": true},
+        "schedulability_proofs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {"type": "object"}
+        },
+        "selected_workers": {"type": "integer", "minimum": 0, "maximum": 3},
+        "selected_exceeds_released_capacity": {"type": "boolean"},
+        "selected_released_for_dispatch": {"type": "boolean"}
       }
     },
     "check": {

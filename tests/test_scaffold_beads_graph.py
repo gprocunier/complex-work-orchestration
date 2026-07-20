@@ -57,6 +57,62 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertTrue(cwo["cwo_design"])
         self.assertTrue(cwo["cwo_notes"])
 
+    def test_beads_graph_plan_preserves_explicit_nonblocking_relationships(self) -> None:
+        plan = [
+            {
+                "title": "Typed relationships",
+                "type": "epic",
+                "labels": ["orchestration"],
+                "metadata": {},
+                "skills": [],
+                "acceptance": "complete",
+                "design": "typed",
+                "notes": "test",
+            },
+            {
+                "title": "Implementation",
+                "type": "task",
+                "lane": "implementation",
+                "labels": ["implementation"],
+                "depends_on_lanes": [],
+                "metadata": {},
+                "skills": [],
+                "acceptance": "complete",
+                "design": "typed",
+                "notes": "test",
+            },
+            {
+                "title": "Publication",
+                "type": "task",
+                "lane": "publication",
+                "labels": ["publication"],
+                "depends_on_lanes": [
+                    {"lane": "implementation", "type": "validates"},
+                ],
+                "metadata": {},
+                "skills": [],
+                "acceptance": "complete",
+                "design": "typed",
+                "notes": "test",
+            },
+        ]
+
+        graph = beads_graph_plan(plan)
+
+        self.assertIn(
+            {
+                "from_key": "publication",
+                "to_key": "implementation",
+                "type": "validates",
+            },
+            graph["edges"],
+        )
+        publication = next(node for node in graph["nodes"] if node["key"] == "publication")
+        self.assertEqual(
+            json.loads(publication["metadata"]["cwo_depends_on_lanes"]),
+            [{"lane": "implementation", "type": "validates"}],
+        )
+
     def test_markdown_workgraph_plan_preserves_lane_fields(self) -> None:
         route = classify_work("Document Markdown fallback workgraph behavior.")
         cwo_graph = planned_graph("Markdown Example", route)

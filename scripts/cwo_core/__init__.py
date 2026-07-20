@@ -10,6 +10,7 @@ __all__ = [
     "checked_command",
     "checked_command_sequence",
     "beads",
+    "beads_ready_set",
     "chatgpt_urls",
     "coach",
     "epic_convergence",
