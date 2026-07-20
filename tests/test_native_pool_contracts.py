@@ -56,6 +56,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     zero_usage,
 )
 from cwo_core.native_tool_isolation import default_tool_policy  # noqa: E402
+from cwo_core.native_authority import build_reason_records  # noqa: E402
 from cwo_core.native_stop_scope import (  # noqa: E402
     build_stop_metadata,
     policy_scope_authority,
@@ -262,6 +263,7 @@ def closed_state(contract: dict, leases: list[dict]) -> dict:
             "poll_overhead_seconds": 0,
             "lease_bindings": [lease["lease_sha256"] for lease in leases],
             "reasons": [],
+            "reason_records": [],
             "first_protected_fault": None,
             "control_loss_scope": None,
             **baseline_stop_metadata(),
@@ -290,6 +292,7 @@ def complete_decision(contract: dict, state: dict) -> dict:
             "observed_callback_latency_ms": 100,
             "aggregate_usage": state["aggregate_usage"],
             "reasons": [],
+            "reason_records": [],
             "required_control_actions": ["finalize"],
             **baseline_stop_metadata(),
         },
@@ -336,6 +339,7 @@ def accepting_receipt(contract: dict, state: dict, leases: list[dict]) -> dict:
             ],
             "mutation_evidence": {**mutation, "evidence_sha256": canonical_sha256(mutation)},
             "reasons": [],
+            "reason_records": [],
             "first_protected_fault": None,
             "child_dispositions": [
                 {"child_id": child_id, "session_disposition": "accepted", "artifact_disposition": "accepted"}
@@ -719,6 +723,11 @@ class NativePoolContractTest(unittest.TestCase):
         }
         state = copy.deepcopy(state)
         state["reasons"] = [fault["code"]]
+        state["reason_records"] = build_reason_records(
+            state["reasons"],
+            state["scope_authority"],
+            detected_by="native-pool-contract-test",
+        )
         state["first_protected_fault"] = fault
         state = seal_artifact(state, "state_sha256")
         changed = copy.deepcopy(receipt)
@@ -727,6 +736,11 @@ class NativePoolContractTest(unittest.TestCase):
         changed["poll_order"] = []
         changed["lease_evidence"] = []
         changed["reasons"] = ["lease-acquisition-failed"]
+        changed["reason_records"] = build_reason_records(
+            changed["reasons"],
+            changed["scope_authority"],
+            detected_by="native-pool-contract-test",
+        )
         changed["first_protected_fault"] = fault
         changed["pool_disposition"] = "quarantined"
         changed["accepting"] = False

@@ -5,6 +5,7 @@ from copy import deepcopy
 from math import ceil, isfinite
 from typing import Any
 
+from .native_authority import build_reason_records
 from .policy import load_policy
 from .native_stop_scope import (
     build_stop_metadata,
@@ -271,20 +272,23 @@ def evaluate_worker_progress(
                 conditions=["pm-decision-recorded", pm_action],
             )
         ]
+    reason_values = sorted(set(reasons))
+    warning_values = sorted(set(warnings))
+    progress_authority = policy_scope_authority(
+        "native-progress-outcome-policy-v1",
+        authorized_scope="child",
+        source_sha256=canonical_scope_sha256(
+            {
+                "outcome": outcome,
+                "pm_action": pm_action,
+                "reasons": reason_values,
+                "warnings": warning_values,
+            }
+        ),
+    )
     stop_metadata = build_stop_metadata(
         "child",
-        authority=policy_scope_authority(
-            "native-progress-outcome-policy-v1",
-            authorized_scope="child",
-            source_sha256=canonical_scope_sha256(
-                {
-                    "outcome": outcome,
-                    "pm_action": pm_action,
-                    "reasons": sorted(set(reasons)),
-                    "warnings": sorted(set(warnings)),
-                }
-            ),
-        ),
+        authority=progress_authority,
         authorized_continuation_paths=continuation_paths,
     )
     return {
@@ -292,8 +296,13 @@ def evaluate_worker_progress(
         "version": VERSION,
         "outcome": outcome,
         "pm_action": pm_action,
-        "reasons": sorted(set(reasons)),
-        "warnings": sorted(set(warnings)),
+        "reasons": reason_values,
+        "reason_records": build_reason_records(
+            reason_values,
+            progress_authority,
+            detected_by="native-progress-policy",
+        ),
+        "warnings": warning_values,
         "planned": planned,
         "actual": observed,
         "calibration": calibration,

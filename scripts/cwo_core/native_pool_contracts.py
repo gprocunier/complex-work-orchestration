@@ -12,6 +12,7 @@ import re
 import tempfile
 from typing import Any, Iterable, Mapping
 
+from .native_authority import validate_authority_provenance
 from .native_tool_isolation import validate_tool_policy
 from .native_stop_scope import STOP_METADATA_FIELDS, validate_stop_metadata
 
@@ -232,6 +233,7 @@ POOL_STATE_FIELDS = {
     "poll_overhead_seconds",
     "lease_bindings",
     "reasons",
+    "reason_records",
     "first_protected_fault",
     "control_loss_scope",
     *STOP_METADATA_FIELDS,
@@ -252,6 +254,7 @@ POOL_DECISION_FIELDS = {
     "observed_callback_latency_ms",
     "aggregate_usage",
     "reasons",
+    "reason_records",
     "required_control_actions",
     *STOP_METADATA_FIELDS,
     "decision_sha256",
@@ -332,6 +335,7 @@ POOL_RECEIPT_FIELDS = {
     "lease_evidence",
     "mutation_evidence",
     "reasons",
+    "reason_records",
     "first_protected_fault",
     "child_dispositions",
     "pool_disposition",
@@ -590,6 +594,38 @@ def _validate_hash(value: Mapping[str, Any], hash_field: str, errors: list[str])
         errors.append(f"invalid-{hash_field.replace('_', '-')}")
     elif actual != artifact_sha256(value, hash_field):
         errors.append(f"{hash_field.replace('_', '-')}-mismatch")
+
+
+def _validate_reason_records(
+    value: Any,
+    reasons: Any,
+    authority_provenance: Any,
+    errors: list[str],
+) -> None:
+    if not isinstance(reasons, list) or not all(
+        isinstance(reason, str) and reason for reason in reasons
+    ):
+        return
+    if not isinstance(value, list) or len(value) != len(reasons):
+        errors.append("reason-records-lineage-mismatch")
+        return
+    if validate_authority_provenance(authority_provenance):
+        errors.append("reason-records-authority-invalid")
+        return
+    for index, (record, reason) in enumerate(zip(value, reasons)):
+        if not isinstance(record, Mapping) or set(record) != {
+            "reason",
+            "authority_provenance",
+            "detected_by",
+        }:
+            errors.append(f"reason-record[{index}]-fields-invalid")
+            continue
+        if record.get("reason") != reason:
+            errors.append(f"reason-record[{index}]-reason-mismatch")
+        if record.get("authority_provenance") != authority_provenance:
+            errors.append(f"reason-record[{index}]-authority-mismatch")
+        if not isinstance(record.get("detected_by"), str) or not record["detected_by"]:
+            errors.append(f"reason-record[{index}]-detector-invalid")
 
 
 def _validate_replay(
@@ -1321,6 +1357,12 @@ def validate_pool_state(
         errors.append("invalid-control-loss-scope")
     state_stop_metadata = {field: state.get(field) for field in STOP_METADATA_FIELDS}
     errors.extend(validate_stop_metadata(state_stop_metadata))
+    _validate_reason_records(
+        state.get("reason_records"),
+        reasons,
+        state.get("scope_authority"),
+        errors,
+    )
     if state.get("status") == "control-failed" and not reasons:
         errors.append("control-failed-requires-reason")
     if state.get("status") == "completed" and set(terminal) != set(child_ids):
@@ -1411,6 +1453,12 @@ def validate_pool_decision(
         errors.append("duplicate-required-control-action")
     decision_stop_metadata = {field: decision.get(field) for field in STOP_METADATA_FIELDS}
     errors.extend(validate_stop_metadata(decision_stop_metadata))
+    _validate_reason_records(
+        decision.get("reason_records"),
+        reasons,
+        decision.get("scope_authority"),
+        errors,
+    )
     if contract is not None:
         for field in ("pool_id", "pool_epoch", "contract_sha256"):
             if decision.get(field) != contract.get(field):
@@ -1431,6 +1479,8 @@ def validate_pool_decision(
             errors.append("decision-aggregate-usage-mismatch")
         if any(decision.get(field) != state.get(field) for field in STOP_METADATA_FIELDS):
             errors.append("decision-stop-metadata-mismatch")
+        if decision.get("reason_records") != state.get("reason_records"):
+            errors.append("decision-reason-records-mismatch")
     _validate_hash(decision, "decision_sha256", errors)
     _validate_replay(decision, "decision_sha256", seen_hashes, errors)
     return errors
@@ -1715,6 +1765,12 @@ def validate_pool_receipt(
         errors.append("first-protected-fault-reason-mismatch")
     receipt_stop_metadata = {field: receipt.get(field) for field in STOP_METADATA_FIELDS}
     errors.extend(validate_stop_metadata(receipt_stop_metadata))
+    _validate_reason_records(
+        receipt.get("reason_records"),
+        reasons,
+        receipt.get("scope_authority"),
+        errors,
+    )
     dispositions = receipt.get("child_dispositions")
     disposition_ids: list[str] = []
     if not isinstance(dispositions, list):

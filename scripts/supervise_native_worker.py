@@ -30,6 +30,7 @@ from cwo_core.native_retry import (
     evaluate_retry_eligibility,
     validate_retry_authorization,
 )
+from cwo_core.native_authority import build_reason_records
 from cwo_core.native_stop_scope import (
     STOP_METADATA_FIELDS,
     build_stop_metadata,
@@ -1366,12 +1367,17 @@ def _supervision_stop_metadata(
 
 
 def _apply_supervision_stop_metadata(state: dict[str, Any]) -> None:
-    state.update(
-        _supervision_stop_metadata(
-            str(state.get("decision", "continue")),
-            [str(value) for value in state.get("reasons", [])],
-            agent_id=state.get("agent_id"),
-        )
+    reasons = [str(value) for value in state.get("reasons", [])]
+    metadata = _supervision_stop_metadata(
+        str(state.get("decision", "continue")),
+        reasons,
+        agent_id=state.get("agent_id"),
+    )
+    state.update(metadata)
+    state["reason_records"] = build_reason_records(
+        reasons,
+        metadata["scope_authority"],
+        detected_by="native-worker-supervision",
     )
 
 
@@ -1382,6 +1388,12 @@ def _write_state(path: Path, state: dict[str, Any]) -> None:
                 state,
                 legacy_source_id="native-worker-supervision-state-v1",
             )
+        )
+    if "reason_records" not in state:
+        state["reason_records"] = build_reason_records(
+            [str(value) for value in state.get("reasons", [])],
+            state["scope_authority"],
+            detected_by="native-worker-supervision-compatible-read",
         )
     lock, _ = acquire_audit_lock(path)
     try:
@@ -1405,6 +1417,7 @@ def _decision(state: dict[str, Any]) -> dict[str, Any]:
         "session_id": state["session_id"],
         "decision": state["decision"],
         "reasons": list(state.get("reasons", [])),
+        "reason_records": list(state.get("reason_records", [])),
         "immutable_work_sha256": state.get("immutable_work_sha256"),
         "observed": dict(state.get("observed", {})),
         "interrupt_thresholds": dict(state["interrupt_thresholds"]),
@@ -1750,6 +1763,12 @@ def _load_control_state(path_value: str) -> tuple[Path, dict[str, Any]]:
                 state,
                 legacy_source_id="native-worker-supervision-state-v1",
             )
+        )
+    if "reason_records" not in state:
+        state["reason_records"] = build_reason_records(
+            [str(value) for value in state.get("reasons", [])],
+            state["scope_authority"],
+            detected_by="native-worker-supervision-compatible-read",
         )
     return path, state
 

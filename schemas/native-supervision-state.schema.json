@@ -9,7 +9,7 @@
     "budget_provenance", "interrupt_thresholds", "poll_interval_ms", "poll_lag_tolerance_ms", "arm_to_dispatch_max_ms",
     "control_turn_required", "segment_start_grace_seconds", "control_adapter",
     "immutable_work_sha256", "recovery",
-    "required_capabilities", "validation_lineage", "audit_file", "control_turn_id", "submission_id", "control_timing", "status", "decision", "reasons",
+    "required_capabilities", "validation_lineage", "audit_file", "control_turn_id", "submission_id", "control_timing", "status", "decision", "reasons", "reason_records",
     "control_action_required", "control_receipts", "observed", "session_disposition",
     "artifact_disposition", "artifact_validation", "trailing_partial_record_ignored",
     "started_at", "updated_at", "finalized_at", "last_audited_decision",
@@ -63,6 +63,7 @@
     "status": {"enum": ["created", "armed", "running", "interrupt-pending", "interrupt-confirmed", "completed", "closed", "control-failed"]},
     "decision": {"enum": ["continue", "warn", "interrupt", "complete", "control-lost"]},
     "reasons": {"type": "array", "items": {"type": "string"}},
+    "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
     "immutable_work_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "recovery": {
       "type": "object",
@@ -132,6 +133,15 @@
           }
         },
         "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reason_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "authority_provenance", "detected_by"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "authority_provenance": {"$ref": "#/$defs/scope_authority"},
+        "detected_by": {"type": "string", "minLength": 1}
       }
     }
   }

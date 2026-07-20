@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import hmac
 import json
 from pathlib import Path
 import unittest
@@ -9,10 +11,113 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cwo_core.native_replanning import build_replanning_state, transition_replanning_state  # noqa: E402
+from cwo_core.native_authority import (  # noqa: E402
+    canonical_authority_sha256,
+    trusted_actor_authority,
+    verify_operator_directive,
+)
+from cwo_core.native_replanning import (  # noqa: E402
+    build_replanning_state as _build_replanning_state,
+    read_replanning_state,
+    transition_replanning_state as _transition_replanning_state,
+)
 
 POLICY = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
 WORK_SIZING = POLICY["work_sizing"]["enforcement"]["foundation-canary"]["autonomous_replanning"]
+
+
+def _sha(label: str) -> str:
+    return canonical_authority_sha256({"label": label})
+
+
+def _trusted_authority(level: str):
+    source_type, actor_role = {
+        "worker": ("worker-discovery", "operative-worker"),
+        "pm": ("pm-observation", "project-manager"),
+        "architect": ("architect-judgment", "architect"),
+    }[level]
+    return trusted_actor_authority(
+        source_type=source_type,
+        source_id=f"{level}-session",
+        source_sha256=_sha(f"{level}-session"),
+        actor_id=f"{level}-1",
+        actor_role=actor_role,
+        identity_source="trusted-session-jsonl",
+    )
+
+
+def _operator_authority(event: str):
+    key = b"test-only-replanning-operator-key"
+    body = {
+        "version": 1,
+        "directive_id": f"operator-{event}",
+        "action_sha256": _sha(f"replanning:{event}"),
+        "actor_id": "operator-1",
+        "identity_source": "trusted-control-session",
+        "authorized_scope": "complete-task",
+        "parent_receipt_sha256": None,
+        "issued_at": "2026-07-20T00:00:00Z",
+        "nonce": f"nonce-{event}",
+    }
+    body["signature"] = hmac.new(
+        key,
+        json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return verify_operator_directive(
+        body,
+        verification_key=key,
+        expected_actor_id="operator-1",
+        expected_identity_source="trusted-control-session",
+        expected_action_sha256=_sha(f"replanning:{event}"),
+    )
+
+
+def _authority_for_event(event: str):
+    if event in {
+        "model-mismatch",
+        "control-loss",
+        "security-or-authority-ambiguity",
+        "out-of-scope-mutation",
+        "tainted-mutation",
+        "operator-trigger",
+    }:
+        return _operator_authority(event)
+    if event in {"worker-compaction", "architect-refined"}:
+        return _trusted_authority("architect")
+    if event in {"exploration-limit", "clean-no-artifact", "pm-refined", "fresh-worker-assigned"}:
+        return _trusted_authority("pm")
+    return _trusted_authority("worker")
+
+
+def build_replanning_state(state: dict, *, policy: dict | None = None) -> dict:
+    return _build_replanning_state(
+        state,
+        caller_authority=_trusted_authority("worker"),
+        policy=policy,
+    )
+
+
+def transition_replanning_state(
+    state: dict,
+    event: str,
+    evidence,
+    *,
+    policy: dict | None = None,
+) -> dict:
+    return _transition_replanning_state(
+        state,
+        event,
+        evidence,
+        caller_authority=_authority_for_event(event),
+        policy=policy,
+    )
 
 
 def _policy_with(overrides: dict[str, int] | None = None) -> dict:
@@ -32,7 +137,6 @@ def _base_state() -> dict:
         "requested_model": "gpt-5.3-codex-spark",
         "objective": "native replanning validation",
         "security_context": "standard",
-        "authority": "worker",
         "model_match": True,
         "control_healthy": True,
         "counters": {
@@ -327,11 +431,67 @@ class NativeReplanningTest(unittest.TestCase):
 
     def test_invalid_state_event_evidence_fails_closed(self) -> None:
         with self.assertRaises(ValueError):
-            build_replanning_state({"state": "executing", "work_unit_id": "wu", "bead_id": "bead", "packet_id": "pkt", "requested_model": "gpt-5.3-codex-spark", "objective": "x", "security_context": "x", "authority": "x", "aggregate_allowance": {"tool_calls_hard": 1, "runtime_seconds_hard": 1}})
+            build_replanning_state({"state": "executing", "work_unit_id": "wu", "bead_id": "bead", "packet_id": "pkt", "requested_model": "gpt-5.3-codex-spark", "objective": "x", "security_context": "x", "aggregate_allowance": {"tool_calls_hard": 1, "runtime_seconds_hard": 1}})
         with self.assertRaises(ValueError):
             transition_replanning_state(_state_with_overrides(), "no-such-event", {})
         with self.assertRaises(ValueError):
             transition_replanning_state(_state_with_overrides(), "accepted", 42)
+
+    def test_event_name_and_authority_string_cannot_authorize_transition(self) -> None:
+        state = _state_with_overrides({"state": "pm-realignment"})
+        with self.assertRaisesRegex(ValueError, "insufficient-authority"):
+            _transition_replanning_state(
+                state,
+                "pm-refined",
+                {"requires_architect_cycle": False},
+                caller_authority=_trusted_authority("worker"),
+            )
+        with self.assertRaisesRegex(ValueError, "verified-authority-required"):
+            _transition_replanning_state(
+                state,
+                "pm-refined",
+                {"requires_architect_cycle": False},
+                caller_authority="pm",
+            )
+
+    def test_receipt_carries_verified_provenance_and_structured_reasons(self) -> None:
+        result = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        receipt = result["cwo_native_replanning_receipt"]
+        self.assertNotIn("authority", receipt)
+        self.assertEqual(
+            receipt["authority_provenance"]["actor_role"],
+            "operative-worker",
+        )
+        self.assertEqual(
+            [record["reason"] for record in receipt["reason_records"]],
+            receipt["reason_codes"],
+        )
+        self.assertTrue(
+            all(record["detected_by"] == "native-replanning:needs-replan" for record in receipt["reason_records"])
+        )
+
+    def test_version_one_state_is_readable_but_cannot_create_new_write(self) -> None:
+        legacy = _state_with_overrides()
+        legacy["version"] = 1
+        legacy["authority"] = "operator"
+        del legacy["authority_provenance"]
+        legacy_receipt = legacy["cwo_native_replanning_receipt"]
+        legacy_receipt["version"] = 1
+        legacy_receipt["authority"] = "operator"
+        del legacy_receipt["authority_provenance"]
+        del legacy_receipt["reason_records"]
+        self.assertEqual(read_replanning_state(legacy), legacy)
+        with self.assertRaisesRegex(ValueError, "historical-only"):
+            _transition_replanning_state(
+                legacy,
+                "completed",
+                {"completed": True},
+                caller_authority=_operator_authority("operator-trigger"),
+            )
 
     def test_schema_and_policy_load_checks(self) -> None:
         policy = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
@@ -345,4 +505,6 @@ class NativeReplanningTest(unittest.TestCase):
         required = set(schema["required"])
         self.assertIn("cwo_native_replanning_receipt", required)
         state = _state_with_overrides()
+        self.assertEqual(state["version"], 2)
+        self.assertIn("authority_provenance", state)
         self.assertEqual(state["schema"], "schemas/native-replanning-state.schema.json")

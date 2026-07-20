@@ -42,6 +42,7 @@ from .native_pool_scheduler import (
     select_earliest_deadline,
     wait_seconds,
 )
+from .native_authority import build_reason_records
 from .native_stop_scope import (
     STOP_SCOPE_RANK,
     STOP_SCOPES,
@@ -552,6 +553,7 @@ class NativePoolCoordinator:
             "poll_overhead_seconds": 0.0,
             "lease_bindings": [],
             "reasons": [],
+            "reason_records": [],
             "first_protected_fault": None,
             "control_loss_scope": None,
             **self._stop_metadata,
@@ -596,6 +598,11 @@ class NativePoolCoordinator:
                     if child_id in self._leases
                 ],
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "first_protected_fault": (
                     dict(self._first_protected_fault)
                     if self._first_protected_fault is not None
@@ -637,6 +644,11 @@ class NativePoolCoordinator:
                 "observed_callback_latency_ms": self._last_callback_latency_ms,
                 "aggregate_usage": self._state["aggregate_usage"],
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "required_control_actions": list(actions),
                 **self._stop_metadata,
             },
@@ -1225,6 +1237,11 @@ class NativePoolCoordinator:
                     if child_id in self._leases
                 ],
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "first_protected_fault": (
                     dict(self._first_protected_fault)
                     if self._first_protected_fault is not None
@@ -1477,6 +1494,11 @@ class NativePoolCoordinator:
                 "lease_evidence": lease_evidence,
                 "mutation_evidence": dict(self._last_mutation_evidence),
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "first_protected_fault": (
                     dict(self._first_protected_fault)
                     if self._first_protected_fault is not None

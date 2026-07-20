@@ -10,6 +10,7 @@
     "outcome": {"enum": ["continue", "early-warning", "pm-realignment", "protected-stop", "completed"]},
     "pm_action": {"enum": ["none", "packet-refinement", "architect-question", "material-split", "protected-stop"]},
     "reasons": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
     "warnings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "planned": {"type": "object"},
     "actual": {"type": "object"},
@@ -54,7 +55,7 @@
     },
     "scope_authority": {"$ref": "#/$defs/scope_authority"}
   },
-  "required": ["decision_type", "version", "outcome", "pm_action", "reasons", "warnings", "planned", "actual", "calibration", "realignment", "stop_scope", "authorized_continuation_paths", "scope_authority"],
+  "required": ["decision_type", "version", "outcome", "pm_action", "reasons", "reason_records", "warnings", "planned", "actual", "calibration", "realignment", "stop_scope", "authorized_continuation_paths", "scope_authority"],
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "stop_scope": {"enum": ["child", "cohort", "execution-path", "complete-task", "publication"]},
@@ -89,6 +90,15 @@
           }
         },
         "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reason_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "authority_provenance", "detected_by"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "authority_provenance": {"$ref": "#/$defs/scope_authority"},
+        "detected_by": {"type": "string", "minLength": 1}
       }
     }
   }

@@ -8,7 +8,7 @@
     "terminal_state_sha256", "capability_receipt_sha256", "admission_order", "poll_order",
     "terminal_order", "timing", "child_terminal_receipts", "final_aggregate_usage",
     "pool_wall_seconds", "worker_seconds", "lease_evidence", "mutation_evidence",
-    "reasons", "first_protected_fault", "child_dispositions", "pool_disposition",
+    "reasons", "reason_records", "first_protected_fault", "child_dispositions", "pool_disposition",
     "accepting", "stop_scope", "authorized_continuation_paths", "scope_authority",
     "receipt_sha256"
   ],
@@ -71,6 +71,7 @@
       }
     },
     "reasons": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
     "first_protected_fault": {"oneOf": [{"$ref": "#/$defs/first_fault"}, {"type": "null"}]},
     "child_dispositions": {
       "type": "array", "minItems": 1, "maxItems": 2,
@@ -166,6 +167,15 @@
           }
         },
         "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reason_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "authority_provenance", "detected_by"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "authority_provenance": {"$ref": "#/$defs/scope_authority"},
+        "detected_by": {"type": "string", "minLength": 1}
       }
     }
   }

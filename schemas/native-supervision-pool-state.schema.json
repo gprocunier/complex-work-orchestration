@@ -8,7 +8,7 @@
     "state_sequence", "status", "owner", "coordinator_epoch", "scheduler_cursor",
     "active_children", "terminal_children", "children", "aggregate_usage",
     "pool_started_monotonic_ns", "pool_wall_seconds", "worker_seconds",
-    "poll_overhead_seconds", "lease_bindings", "reasons", "first_protected_fault",
+    "poll_overhead_seconds", "lease_bindings", "reasons", "reason_records", "first_protected_fault",
     "control_loss_scope", "stop_scope", "authorized_continuation_paths",
     "scope_authority", "state_sha256"
   ],
@@ -34,6 +34,7 @@
     "poll_overhead_seconds": {"type": "number", "minimum": 0},
     "lease_bindings": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/sha256"}},
     "reasons": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
     "first_protected_fault": {"oneOf": [{"$ref": "#/$defs/first_fault"}, {"type": "null"}]},
     "control_loss_scope": {"enum": [null, "child", "pool"]},
     "stop_scope": {"$ref": "#/$defs/stop_scope"},
@@ -125,6 +126,15 @@
           }
         },
         "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reason_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "authority_provenance", "detected_by"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "authority_provenance": {"$ref": "#/$defs/scope_authority"},
+        "detected_by": {"type": "string", "minLength": 1}
       }
     },
     "child": {

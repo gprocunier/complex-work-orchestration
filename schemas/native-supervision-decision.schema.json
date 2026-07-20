@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": [
     "result_type", "version", "schema", "state_id", "packet_id", "session_id",
-    "immutable_work_sha256", "recovery", "decision", "reasons", "observed", "interrupt_thresholds", "control_turn_id", "control_timing", "control_action_required",
+    "immutable_work_sha256", "recovery", "decision", "reasons", "reason_records", "observed", "interrupt_thresholds", "control_turn_id", "control_timing", "control_action_required",
     "session_disposition", "artifact_disposition", "artifact_validation",
     "trailing_partial_record_ignored", "stop_scope", "authorized_continuation_paths",
     "scope_authority"
@@ -39,6 +39,7 @@
     },
     "decision": {"enum": ["continue", "warn", "interrupt", "complete", "control-lost"]},
     "reasons": {"type": "array", "items": {"type": "string"}},
+    "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
     "observed": {"type": "object"},
     "interrupt_thresholds": {"type": "object"},
     "control_turn_id": {"type": "string", "minLength": 1},
@@ -86,6 +87,15 @@
           }
         },
         "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reason_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "authority_provenance", "detected_by"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "authority_provenance": {"$ref": "#/$defs/scope_authority"},
+        "detected_by": {"type": "string", "minLength": 1}
       }
     }
   }

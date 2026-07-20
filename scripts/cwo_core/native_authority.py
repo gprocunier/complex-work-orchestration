@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 import re
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 
 AUTHORITY_PROVENANCE_VERSION = 1
@@ -51,6 +51,19 @@ SOURCE_ROLE_BINDINGS = {
     "architect-judgment": frozenset({"architect"}),
     "operator-directive": frozenset({"operator"}),
     "policy-enforcement": frozenset({"supervisor-policy"}),
+}
+
+AUTHORITY_LEVEL_RANK = {
+    "worker": 0,
+    "pm": 1,
+    "architect": 2,
+    "operator": 3,
+}
+ACTOR_AUTHORITY_LEVEL = {
+    "operative-worker": "worker",
+    "project-manager": "pm",
+    "architect": "architect",
+    "operator": "operator",
 }
 
 AUTHORITY_PROVENANCE_FIELDS = frozenset(
@@ -151,8 +164,72 @@ class VerifiedAuthority:
     def actor_role(self) -> str:
         return str(self._payload["actor_role"])
 
+    @property
+    def authority_level(self) -> str | None:
+        return ACTOR_AUTHORITY_LEVEL.get(self.actor_role)
+
     def serialize(self) -> dict[str, Any]:
         return deepcopy(self._payload)
+
+
+def require_minimum_authority(
+    authority: Any,
+    minimum_level: str,
+    *,
+    action: str,
+) -> VerifiedAuthority:
+    """Return verified authority only when its trusted role meets a minimum."""
+
+    if not isinstance(authority, VerifiedAuthority):
+        raise AuthorityProvenanceError(f"{action}-verified-authority-required")
+    if minimum_level not in AUTHORITY_LEVEL_RANK:
+        raise AuthorityProvenanceError("minimum-authority-level-invalid")
+    observed = authority.authority_level
+    if observed is None or AUTHORITY_LEVEL_RANK[observed] < AUTHORITY_LEVEL_RANK[
+        minimum_level
+    ]:
+        raise AuthorityProvenanceError(
+            f"{action}-insufficient-authority:{observed or authority.actor_role}"
+        )
+    return authority
+
+
+def build_reason_records(
+    reasons: Iterable[str],
+    authority: VerifiedAuthority | Mapping[str, Any],
+    *,
+    detected_by: str,
+) -> list[dict[str, Any]]:
+    """Build audit-only reason records from already verified provenance."""
+
+    if isinstance(reasons, (str, bytes)) or not _nonempty(detected_by):
+        raise AuthorityProvenanceError("authority-reason-record-input-invalid")
+    try:
+        reason_values = list(reasons)
+    except TypeError as exc:
+        raise AuthorityProvenanceError("authority-reason-record-input-invalid") from exc
+    if any(not _nonempty(reason) for reason in reason_values):
+        raise AuthorityProvenanceError("authority-reason-record-reason-invalid")
+    provenance = (
+        authority.serialize()
+        if isinstance(authority, VerifiedAuthority)
+        else deepcopy(dict(authority))
+        if isinstance(authority, Mapping)
+        else None
+    )
+    errors = validate_authority_provenance(provenance)
+    if errors:
+        raise AuthorityProvenanceError(
+            "authority-reason-record-provenance-invalid:" + ";".join(errors)
+        )
+    return [
+        {
+            "reason": reason,
+            "authority_provenance": deepcopy(provenance),
+            "detected_by": detected_by,
+        }
+        for reason in reason_values
+    ]
 
 
 def _authority(

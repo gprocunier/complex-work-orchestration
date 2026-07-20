@@ -4,12 +4,19 @@ import copy
 from collections.abc import Mapping
 from typing import Any
 
+from .native_authority import (
+    AuthorityProvenanceError,
+    VerifiedAuthority,
+    build_reason_records,
+    require_minimum_authority,
+    validate_authority_provenance,
+)
 from .policy import load_policy
 
 REPLANNING_STATE_TYPE = "cwo-native-replanning-state"
 REPLANNING_RECEIPT_TYPE = "cwo-native-replanning-receipt"
 SCHEMA_PATH = "schemas/native-replanning-state.schema.json"
-REPLANNING_VERSION = 1
+REPLANNING_VERSION = 2
 MAIN_THREAD_SOURCE_TURN_CONTEXT = "trusted-turn-context"
 MAIN_THREAD_SOURCE_USER = "user-declaration"
 REQUIRED_MAIN_THREAD_RUNTIME_FIELDS = (
@@ -64,7 +71,7 @@ KNOWN_EVENTS = (
     "operator-trigger",
 )
 
-KNOWN_EVENT_BY_AUTHORITY = {
+EVENT_MINIMUM_AUTHORITY = {
     EVENT_ACCEPTED: "worker",
     EVENT_DISPATCH_STARTED: "worker",
     EVENT_NEEDS_REPLAN: "worker",
@@ -758,7 +765,7 @@ def _emit_receipt(
     state_before: str,
     state_after: str,
     event: str,
-    authority: str,
+    authority: VerifiedAuthority,
     decision: str,
     reason_codes: list[str],
     state: Mapping[str, Any],
@@ -771,7 +778,12 @@ def _emit_receipt(
         "state_before": state_before,
         "state_after": state_after,
         "event": event,
-        "authority": authority,
+        "authority_provenance": authority.serialize(),
+        "reason_records": build_reason_records(
+            reason_codes,
+            authority,
+            detected_by=f"native-replanning:{event}",
+        ),
         "decision": decision,
         "reason_codes": reason_codes,
         "work_unit_id": state["work_unit_id"],
@@ -825,6 +837,7 @@ def _to_protected_stop(
     reason_codes: list[str],
     event: str,
     *,
+    caller_authority: VerifiedAuthority,
     next_action: str = "operator-review",
 ) -> dict[str, Any]:
     result = copy.deepcopy(state)
@@ -836,7 +849,7 @@ def _to_protected_stop(
         state_before=prior_state,
         state_after="protected-stop",
         event=event,
-        authority=KNOWN_EVENT_BY_AUTHORITY[event],
+        authority=caller_authority,
         decision="protected-stop",
         reason_codes=reason_codes,
         state=result,
@@ -864,9 +877,18 @@ def _check_aggregate_allowance(state: Mapping[str, Any]) -> list[str]:
 def build_replanning_state(
     state: Any,
     *,
+    caller_authority: VerifiedAuthority,
     policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = _ensure_mapping(state, path="state")
+    try:
+        require_minimum_authority(
+            caller_authority,
+            "worker",
+            action="replanning-bootstrap",
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
     policy_data = _normalize_autonomous_policy(policy)
 
     replanning_state = str(source.get("state", "planned"))
@@ -904,7 +926,7 @@ def build_replanning_state(
         "requested_model": _ensure_nonempty_str(source.get("requested_model"), path="state.requested_model"),
         "objective": _ensure_nonempty_str(source.get("objective"), path="state.objective"),
         "security_context": _ensure_nonempty_str(source.get("security_context"), path="state.security_context"),
-        "authority": _ensure_nonempty_str(source.get("authority"), path="state.authority"),
+        "authority_provenance": caller_authority.serialize(),
         "model_match": _ensure_bool(source.get("model_match", True), path="state.model_match"),
         "control_healthy": _ensure_bool(source.get("control_healthy", True), path="state.control_healthy"),
         "counters": counters,
@@ -925,7 +947,7 @@ def build_replanning_state(
         state_before=replanning_state,
         state_after=replanning_state,
         event="bootstrap",
-        authority="worker",
+        authority=caller_authority,
         decision="initialized",
         reason_codes=[],
         state=result,
@@ -937,11 +959,38 @@ def _validate_replanning_state(state: Mapping[str, Any]) -> None:
     if state.get("result_type") != REPLANNING_STATE_TYPE:
         raise ValueError("malformed state: result_type must be cwo-native-replanning-state")
     if int(state.get("version", 0)) != REPLANNING_VERSION:
-        raise ValueError("malformed state: version must be 1")
+        raise ValueError("malformed state: version must be 2; version 1 is historical-only")
     if state.get("schema") != SCHEMA_PATH:
         raise ValueError("malformed state: schema must be schemas/native-replanning-state.schema.json")
     if str(state.get("state")) not in REQUIRED_STATES:
         raise ValueError("malformed state: state is invalid")
+    authority_errors = validate_authority_provenance(state.get("authority_provenance"))
+    if authority_errors:
+        raise ValueError(
+            "malformed state: authority_provenance invalid: "
+            + ";".join(authority_errors)
+        )
+
+
+def read_replanning_state(state: Any) -> dict[str, Any]:
+    """Read current state or a non-operative historical version-1 artifact."""
+
+    source = _ensure_mapping(state, path="state")
+    version = source.get("version")
+    if version == REPLANNING_VERSION:
+        _validate_replanning_state(source)
+        return copy.deepcopy(dict(source))
+    if version != 1:
+        raise ValueError("malformed state: unsupported replanning version")
+    if source.get("result_type") != REPLANNING_STATE_TYPE:
+        raise ValueError("malformed historical state: result_type invalid")
+    if source.get("schema") != SCHEMA_PATH:
+        raise ValueError("malformed historical state: schema invalid")
+    if source.get("state") not in REQUIRED_STATES:
+        raise ValueError("malformed historical state: state invalid")
+    if not isinstance(source.get("authority"), str) or not source["authority"].strip():
+        raise ValueError("malformed historical state: authority invalid")
+    return copy.deepcopy(dict(source))
 
 
 def transition_replanning_state(
@@ -949,20 +998,34 @@ def transition_replanning_state(
     event: Any,
     evidence: Any,
     *,
+    caller_authority: VerifiedAuthority,
     policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = _ensure_mapping(state, path="state")
     source_is_raw = source.get("result_type") != REPLANNING_STATE_TYPE
     if source_is_raw:
-        source = build_replanning_state(source, policy=policy)
+        source = build_replanning_state(
+            source,
+            caller_authority=caller_authority,
+            policy=policy,
+        )
     else:
         _validate_replanning_state(source)
     normalized_event = _coerce_event(event)
     if normalized_event not in KNOWN_EVENTS:
         raise ValueError("malformed event: unknown event")
+    try:
+        require_minimum_authority(
+            caller_authority,
+            EVENT_MINIMUM_AUTHORITY[normalized_event],
+            action=f"replanning-{normalized_event}",
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
 
     policy_data = _normalize_autonomous_policy(policy)
     next_state = copy.deepcopy(source)
+    next_state["authority_provenance"] = caller_authority.serialize()
     evidence_payload = _ensure_mapping(evidence, path="evidence")
 
     next_state["policy_snapshot"] = {
@@ -985,13 +1048,26 @@ def transition_replanning_state(
     )
     _apply_usage(next_state, evidence_payload)
 
+    def protected_stop(
+        reason_codes: list[str],
+        *,
+        next_action: str = "operator-review",
+    ) -> dict[str, Any]:
+        return _to_protected_stop(
+            next_state,
+            reason_codes,
+            normalized_event,
+            caller_authority=caller_authority,
+            next_action=next_action,
+        )
+
     if normalized_event in {"model-mismatch", "control-loss", "security-or-authority-ambiguity", "out-of-scope-mutation", "tainted-mutation", "operator-trigger"}:
         reason = normalized_event if normalized_event in {"model-mismatch", "control-loss"} else normalized_event
-        return _to_protected_stop(next_state, [reason], normalized_event)
+        return protected_stop([reason])
 
     aggregate_reasons = _check_aggregate_allowance(next_state)
     if aggregate_reasons:
-        return _to_protected_stop(next_state, aggregate_reasons, normalized_event)
+        return protected_stop(aggregate_reasons)
 
     current_state = str(next_state["state"])
     if normalized_event == EVENT_ACCEPTED:
@@ -1001,7 +1077,7 @@ def transition_replanning_state(
         if not isinstance(accepted, bool):
             raise ValueError("malformed evidence: commitment_accepted must be a boolean when provided")
         if not accepted:
-            return _to_protected_stop(next_state, ["invalid-trusted-evidence"], normalized_event)
+            return protected_stop(["invalid-trusted-evidence"])
         next_state["state"] = "dispatchable"
         next_state["next_action"] = "dispatch"
         next_state["reason_codes"] = ["commitment-accepted"]
@@ -1009,7 +1085,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after="dispatchable",
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="advance",
             reason_codes=["commitment-accepted"],
             state=next_state,
@@ -1037,7 +1113,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after="executing",
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="advance",
             reason_codes=reasons,
             state=next_state,
@@ -1088,10 +1164,8 @@ def transition_replanning_state(
 
         if reasons:
             reasons.append("main-thread-adjudication")
-            return _to_protected_stop(
-                next_state,
+            return protected_stop(
                 reasons,
-                normalized_event,
                 next_action=policy_data["worker_compaction"]["ambiguous_route"],
             )
 
@@ -1105,7 +1179,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after="architect-realignment",
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="replan",
             reason_codes=next_state["reason_codes"],
             state=next_state,
@@ -1139,7 +1213,7 @@ def transition_replanning_state(
         if replan_errors:
             reasons.append("invalid-needs-replan-evidence")
         if reasons:
-            return _to_protected_stop(next_state, list(dict.fromkeys(reasons)), normalized_event)
+            return protected_stop(list(dict.fromkeys(reasons)))
 
         assert isinstance(replan, Mapping)
         cumulative = replan["cumulative_usage"]
@@ -1148,28 +1222,20 @@ def transition_replanning_state(
             or cumulative["runtime_seconds"] != next_state["counters"]["runtime_seconds_used"]
             or cumulative["context_compactions"] != next_state["counters"]["context_compactions"]
         ):
-            return _to_protected_stop(
-                next_state,
-                ["invalid-needs-replan-evidence"],
-                normalized_event,
-            )
+            return protected_stop(["invalid-needs-replan-evidence"])
 
         scope_delta = replan["scope_delta"]
         if not scope_delta["within_original_objective"]:
-            return _to_protected_stop(next_state, ["objective-change"], normalized_event)
+            return protected_stop(["objective-change"])
         if not scope_delta["within_aggregate_allowance"]:
-            return _to_protected_stop(next_state, ["aggregate-allowance-exhausted"], normalized_event)
+            return protected_stop(["aggregate-allowance-exhausted"])
 
         calls_remaining, runtime_remaining = _remaining_allowance(next_state)
         for option in replan["bounded_options"]:
             if option["route"] == "protected-stop":
                 continue
             if option["tool_calls_p90"] > calls_remaining or option["runtime_seconds_p90"] > runtime_remaining:
-                return _to_protected_stop(
-                    next_state,
-                    ["invalid-needs-replan-evidence"],
-                    normalized_event,
-                )
+                return protected_stop(["invalid-needs-replan-evidence"])
 
         uncertainty = replan["uncertainty"]
         reason_code = str(replan["reason_code"])
@@ -1179,7 +1245,7 @@ def transition_replanning_state(
             next_state["reason_codes"] = ["worker-needs-replan", reason_code, "architect-reasoning-required"]
         else:
             if next_state["counters"]["pm_replans_used"] >= policy_data["max_pm_replans"]:
-                return _to_protected_stop(next_state, ["pm-replan-exhausted"], normalized_event)
+                return protected_stop(["pm-replan-exhausted"])
             next_state["state"] = "pm-realignment"
             next_state["counters"]["pm_replans_used"] += 1
             next_state["next_action"] = "request-pm-refinement"
@@ -1188,7 +1254,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after=next_state["state"],
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="replan",
             reason_codes=next_state["reason_codes"],
             state=next_state,
@@ -1229,7 +1295,7 @@ def transition_replanning_state(
 
         next_state["reason_codes"] = reasons
         if reasons:
-            return _to_protected_stop(next_state, reasons, normalized_event)
+            return protected_stop(reasons)
 
         next_state["state"] = "pm-realignment"
         next_state["counters"]["pm_replans_used"] += 1
@@ -1239,7 +1305,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after="pm-realignment",
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="replan",
             reason_codes=next_state["reason_codes"],
             state=next_state,
@@ -1267,7 +1333,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after=next_state["state"],
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="advance" if not requires_architect else "replan",
             reason_codes=next_state["reason_codes"],
             state=next_state,
@@ -1278,7 +1344,7 @@ def transition_replanning_state(
         if current_state != "architect-realignment":
             raise ValueError("malformed event: architect-refined is valid only from architect-realignment")
         if next_state["counters"]["architect_cycles_used"] >= policy_data["max_architect_cycles"]:
-            return _to_protected_stop(next_state, ["architect-cycle-exhausted"], normalized_event)
+            return protected_stop(["architect-cycle-exhausted"])
         next_state["counters"]["architect_cycles_used"] += 1
         next_state["state"] = "reassignment-ready"
         next_state["next_action"] = (
@@ -1289,7 +1355,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after="reassignment-ready",
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="advance",
             reason_codes=next_state["reason_codes"],
             state=next_state,
@@ -1306,7 +1372,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after="dispatchable",
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="advance",
             reason_codes=next_state["reason_codes"],
             state=next_state,
@@ -1318,7 +1384,7 @@ def transition_replanning_state(
             raise ValueError("malformed event: completed is valid only from executing")
         completed_ok = bool(evidence_payload.get("completed", False))
         if not completed_ok:
-            return _to_protected_stop(next_state, ["invalid-completion-evidence"], normalized_event)
+            return protected_stop(["invalid-completion-evidence"])
         next_state["state"] = "completed"
         next_state["next_action"] = "finished"
         next_state["reason_codes"] = ["completed"]
@@ -1326,7 +1392,7 @@ def transition_replanning_state(
             state_before=current_state,
             state_after="completed",
             event=normalized_event,
-            authority=KNOWN_EVENT_BY_AUTHORITY[normalized_event],
+            authority=caller_authority,
             decision="complete",
             reason_codes=next_state["reason_codes"],
             state=next_state,

@@ -6,7 +6,7 @@
   "required": [
     "decision_type", "version", "schema", "pool_id", "pool_epoch", "contract_sha256",
     "state_sha256", "decision_sequence", "decision", "selected_child_id", "deadlines",
-    "observed_callback_latency_ms", "aggregate_usage", "reasons",
+    "observed_callback_latency_ms", "aggregate_usage", "reasons", "reason_records",
     "required_control_actions", "stop_scope", "authorized_continuation_paths",
     "scope_authority", "decision_sha256"
   ],
@@ -35,6 +35,7 @@
     "observed_callback_latency_ms": {"type": ["number", "null"], "minimum": 0},
     "aggregate_usage": {"$ref": "#/$defs/usage"},
     "reasons": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
     "required_control_actions": {
       "type": "array",
       "items": {"enum": ["admit", "step", "interrupt", "close", "finalize", "release-leases"]}
@@ -108,6 +109,15 @@
           }
         },
         "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reason_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "authority_provenance", "detected_by"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "authority_provenance": {"$ref": "#/$defs/scope_authority"},
+        "detected_by": {"type": "string", "minLength": 1}
       }
     }
   }

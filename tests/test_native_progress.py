@@ -88,6 +88,17 @@ class NativeProgressTest(unittest.TestCase):
         result = evaluate_worker_progress(plan(), actual(tool_calls=8, context_reads=14, mutations=1))
         self.assertEqual(result["outcome"], "pm-realignment")
         self.assertIn("read-to-mutation-ratio-exceeded", result["reasons"])
+        self.assertEqual(
+            [record["reason"] for record in result["reason_records"]],
+            result["reasons"],
+        )
+        self.assertTrue(
+            all(
+                record["detected_by"] == "native-progress-policy"
+                and record["authority_provenance"] == result["scope_authority"]
+                for record in result["reason_records"]
+            )
+        )
 
     def test_completed_and_retained_artifact_accounting(self):
         result = evaluate_worker_progress(
