@@ -690,6 +690,78 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 )
             )
 
+    def test_mixed_topology_mutation_disables_later_callback_skipping(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            detected_phase = "after-child-1-arm"
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                read_only_children={"child-0"},
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+                dirty_phases={detected_phase},
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            detection_index = harness.compare_phases.index(detected_phase)
+            self.assertFalse(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases[:detection_index]
+                )
+            )
+            self.assertTrue(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases[detection_index + 1 :]
+                )
+            )
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset(),
+            )
+            self.assertEqual(
+                harness.coordinator._invalidated_read_only_fast_path_children,
+                frozenset({"child-0"}),
+            )
+            self.assertFalse(
+                harness.coordinator._deferred_read_only_workspace_check
+            )
+            dispositions = {
+                item["child_id"]: item for item in receipt["child_dispositions"]
+            }
+            self.assertEqual(
+                dispositions["child-0"]["session_disposition"],
+                "quarantined",
+            )
+
+    def test_read_only_control_failure_runs_deferred_terminal_comparison(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=1,
+                read_only=True,
+                fail=(0, "arm"),
+                dirty_phases={"close"},
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(harness.compare_phases, ["create", "close"])
+            self.assertIn(
+                "terminal-workspace-comparison-failed",
+                receipt["reasons"],
+            )
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset(),
+            )
+            self.assertFalse(
+                harness.coordinator._deferred_read_only_workspace_check
+            )
+
     def test_post_admission_contract_tampering_cannot_widen_fast_path(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=1)

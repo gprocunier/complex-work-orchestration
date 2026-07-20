@@ -280,6 +280,9 @@ class NativePoolCoordinator:
         self._read_only_fast_path_children = _read_only_fast_path_child_ids(
             self.children
         )
+        self._invalidated_read_only_fast_path_children: frozenset[str] = (
+            frozenset()
+        )
         self._deferred_read_only_workspace_check = False
         if set(child_contracts) != set(self.child_ids):
             raise NativePoolError("child-control-contract-set-mismatch")
@@ -590,14 +593,55 @@ class NativePoolCoordinator:
             raise NativePoolError(f"workspace-comparison-failed:{exc}") from exc
         return dict(value)
 
-    def _quarantine_deferred_read_only_cohort(self) -> None:
-        """Fail closed without attributing a shared-worktree mutation to one child."""
+    def _invalidate_read_only_fast_path(self) -> None:
+        """Contain the optimized cohort and revoke its fast path for this run."""
 
-        for child_id in self._read_only_fast_path_children:
+        optimized_children = self._read_only_fast_path_children
+        self._invalidated_read_only_fast_path_children = (
+            self._invalidated_read_only_fast_path_children | optimized_children
+        )
+        for child_id in optimized_children:
             self._dispositions[child_id] = {
                 "session_disposition": "quarantined",
                 "artifact_disposition": "rejected",
             }
+        self._read_only_fast_path_children = frozenset()
+        self._deferred_read_only_workspace_check = False
+
+    def _compare_deferred_workspace_on_control_failure(self) -> None:
+        """Close the skipped-check interval before an abnormal terminal receipt."""
+
+        if (
+            not self._deferred_read_only_workspace_check
+            or self._terminal_comparison_complete
+        ):
+            return
+        try:
+            self._last_mutation_evidence = self._compare_workspaces("close")
+            if not all(
+                self._last_mutation_evidence[field]
+                for field in (
+                    "integration_root_clean",
+                    "shared_read_only_clean",
+                    "child_worktrees_clean",
+                )
+            ):
+                self._invalidate_read_only_fast_path()
+                self._enter_fault(
+                    "terminal-workspace-comparison-failed",
+                    control_failed=True,
+                    requested_stop_scope="execution-path",
+                    scope_policy_rule="execution-integrity",
+                )
+            self._terminal_comparison_complete = True
+        except NativePoolError as exc:
+            self._invalidate_read_only_fast_path()
+            self._enter_fault(
+                str(exc),
+                control_failed=True,
+                requested_stop_scope="execution-path",
+                scope_policy_rule="execution-integrity",
+            )
 
     def _wrap_callbacks(
         self,
@@ -978,10 +1022,11 @@ class NativePoolCoordinator:
             child_state = self._child_state(child_id)
             child_state["child_state_sha256"] = evidence["state_sha256"]
             child_state["last_cumulative_usage"] = self._ledger.latest_for(child_id)
-            self._dispositions[child_id] = {
-                "session_disposition": evidence["session_disposition"],
-                "artifact_disposition": evidence["artifact_disposition"],
-            }
+            if child_id not in self._invalidated_read_only_fast_path_children:
+                self._dispositions[child_id] = {
+                    "session_disposition": evidence["session_disposition"],
+                    "artifact_disposition": evidence["artifact_disposition"],
+                }
             for reason in evidence["reasons"]:
                 self._add_reason(reason)
             budget_reasons = exhausted_budget(observation.aggregate, self.contract["aggregate_hard_budget"])
@@ -1161,11 +1206,8 @@ class NativePoolCoordinator:
                             "child_worktrees_clean",
                         )
                     ):
-                        if (
-                            self._deferred_read_only_workspace_check
-                            or not mutation["shared_read_only_clean"]
-                        ):
-                            self._quarantine_deferred_read_only_cohort()
+                        if self._read_only_fast_path_children:
+                            self._invalidate_read_only_fast_path()
                         self._enter_fault(
                             "workspace-mutation-attribution-failed",
                             control_failed=False,
@@ -1176,7 +1218,7 @@ class NativePoolCoordinator:
                         self._deferred_read_only_workspace_check = False
                 except NativePoolError as exc:
                     if self._read_only_fast_path_children:
-                        self._quarantine_deferred_read_only_cohort()
+                        self._invalidate_read_only_fast_path()
                     self._enter_fault(
                         str(exc),
                         control_failed=True,
@@ -1319,6 +1361,7 @@ class NativePoolCoordinator:
         return attempted
 
     def _finish_control_failed(self) -> None:
+        self._compare_deferred_workspace_on_control_failure()
         terminal_hash = self._state["state_sha256"]
         for child_id in self.child_ids:
             try:
@@ -1748,13 +1791,8 @@ class NativePoolCoordinator:
                             "child_worktrees_clean",
                         )
                     ):
-                        if (
-                            self._deferred_read_only_workspace_check
-                            or not self._last_mutation_evidence[
-                                "shared_read_only_clean"
-                            ]
-                        ):
-                            self._quarantine_deferred_read_only_cohort()
+                        if self._read_only_fast_path_children:
+                            self._invalidate_read_only_fast_path()
                         self._enter_fault(
                             "terminal-workspace-comparison-failed",
                             control_failed=False,
@@ -1764,7 +1802,7 @@ class NativePoolCoordinator:
                     self._terminal_comparison_complete = True
                 except NativePoolError as exc:
                     if self._read_only_fast_path_children:
-                        self._quarantine_deferred_read_only_cohort()
+                        self._invalidate_read_only_fast_path()
                     self._enter_fault(
                         str(exc),
                         control_failed=True,
