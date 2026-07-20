@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import dataclass, field as dataclass_field
 import fcntl
 import hashlib
 import json
@@ -10,14 +11,14 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+import threading
+import time
 from typing import Any, Iterator, Mapping
 import uuid
 
 from .audit import (
     audit_event_payload_hash,
-    iter_audit_events,
     record_audit_event,
-    verify_audit_log,
 )
 from .native_canary_contracts import canonical_sha256
 
@@ -124,6 +125,217 @@ class NativeLiveAllocationLedgerError(ValueError):
     """Raised when durable allocation authority cannot be proven."""
 
 
+@dataclass
+class _LedgerSemanticIndex:
+    allocation_intents: dict[str, dict[str, Any]] = dataclass_field(
+        default_factory=dict
+    )
+    bound_threads: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
+    turn_intents: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
+    bound_turns: set[str] = dataclass_field(default_factory=set)
+    roles_seen: set[str] = dataclass_field(default_factory=set)
+    turn_intents_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
+    turn_ids_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
+    lifecycle_events: set[tuple[str, str, str]] = dataclass_field(default_factory=set)
+    lifecycle_kinds: set[tuple[str, str]] = dataclass_field(default_factory=set)
+    certification_count: int = 0
+
+    def clone(self) -> _LedgerSemanticCandidate:
+        """Return a constant-size transactional overlay for one transition."""
+
+        return _LedgerSemanticCandidate(self)
+
+    def allocation_intent(self, allocation_id: str) -> dict[str, Any] | None:
+        return self.allocation_intents.get(allocation_id)
+
+    def role_seen(self, role: str) -> bool:
+        return role in self.roles_seen
+
+    def add_allocation_intent(
+        self, allocation_id: str, role: str, entry: Mapping[str, Any]
+    ) -> None:
+        self.allocation_intents[allocation_id] = dict(entry)
+        self.roles_seen.add(role)
+
+    def thread_binding(self, thread_id: str) -> dict[str, Any] | None:
+        return self.bound_threads.get(thread_id)
+
+    def add_thread_binding(self, thread_id: str, entry: Mapping[str, Any]) -> None:
+        self.bound_threads[thread_id] = dict(entry)
+
+    def turn_intent(self, turn_intent_id: str) -> dict[str, Any] | None:
+        return self.turn_intents.get(turn_intent_id)
+
+    def add_turn_intent(
+        self,
+        turn_intent_id: str,
+        thread_id: str,
+        entry: Mapping[str, Any],
+    ) -> None:
+        self.turn_intents[turn_intent_id] = dict(entry)
+        self.turn_intents_by_thread.setdefault(thread_id, []).append(turn_intent_id)
+
+    def latest_turn_intent_id(self, thread_id: str) -> str | None:
+        values = self.turn_intents_by_thread.get(thread_id, [])
+        return values[-1] if values else None
+
+    def turn_bound(self, turn_id: str) -> bool:
+        return turn_id in self.bound_turns
+
+    def add_bound_turn(self, turn_id: str, thread_id: str) -> None:
+        self.bound_turns.add(turn_id)
+        self.turn_ids_by_thread.setdefault(thread_id, []).append(turn_id)
+
+    def latest_turn_id(self, thread_id: str) -> str | None:
+        values = self.turn_ids_by_thread.get(thread_id, [])
+        return values[-1] if values else None
+
+    def add_lifecycle(self, event: str, thread_id: str, outcome: str) -> None:
+        self.lifecycle_events.add((event, thread_id, outcome))
+        self.lifecycle_kinds.add((event, thread_id))
+
+    def lifecycle_seen(self, event: str, thread_id: str, outcome: str) -> bool:
+        return (event, thread_id, outcome) in self.lifecycle_events
+
+    def lifecycle_kind_seen(self, event: str, thread_id: str) -> bool:
+        return (event, thread_id) in self.lifecycle_kinds
+
+    def increment_certification(self) -> None:
+        self.certification_count += 1
+
+
+@dataclass
+class _LedgerSemanticCandidate:
+    """Copy-on-write semantic clone used until one append is durable."""
+
+    base: _LedgerSemanticIndex
+    allocation_intents: dict[str, dict[str, Any]] = dataclass_field(
+        default_factory=dict
+    )
+    bound_threads: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
+    turn_intents: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
+    bound_turns: set[str] = dataclass_field(default_factory=set)
+    roles_seen: set[str] = dataclass_field(default_factory=set)
+    turn_intents_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
+    turn_ids_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
+    lifecycle_events: set[tuple[str, str, str]] = dataclass_field(default_factory=set)
+    lifecycle_kinds: set[tuple[str, str]] = dataclass_field(default_factory=set)
+    certification_increment: int = 0
+
+    @property
+    def certification_count(self) -> int:
+        return self.base.certification_count + self.certification_increment
+
+    def allocation_intent(self, allocation_id: str) -> dict[str, Any] | None:
+        return self.allocation_intents.get(
+            allocation_id, self.base.allocation_intent(allocation_id)
+        )
+
+    def role_seen(self, role: str) -> bool:
+        return role in self.roles_seen or self.base.role_seen(role)
+
+    def add_allocation_intent(
+        self, allocation_id: str, role: str, entry: Mapping[str, Any]
+    ) -> None:
+        self.allocation_intents[allocation_id] = dict(entry)
+        self.roles_seen.add(role)
+
+    def thread_binding(self, thread_id: str) -> dict[str, Any] | None:
+        return self.bound_threads.get(thread_id, self.base.thread_binding(thread_id))
+
+    def add_thread_binding(self, thread_id: str, entry: Mapping[str, Any]) -> None:
+        self.bound_threads[thread_id] = dict(entry)
+
+    def turn_intent(self, turn_intent_id: str) -> dict[str, Any] | None:
+        return self.turn_intents.get(
+            turn_intent_id, self.base.turn_intent(turn_intent_id)
+        )
+
+    def add_turn_intent(
+        self,
+        turn_intent_id: str,
+        thread_id: str,
+        entry: Mapping[str, Any],
+    ) -> None:
+        self.turn_intents[turn_intent_id] = dict(entry)
+        self.turn_intents_by_thread.setdefault(thread_id, []).append(turn_intent_id)
+
+    def latest_turn_intent_id(self, thread_id: str) -> str | None:
+        values = self.turn_intents_by_thread.get(thread_id, [])
+        return values[-1] if values else self.base.latest_turn_intent_id(thread_id)
+
+    def turn_bound(self, turn_id: str) -> bool:
+        return turn_id in self.bound_turns or self.base.turn_bound(turn_id)
+
+    def add_bound_turn(self, turn_id: str, thread_id: str) -> None:
+        self.bound_turns.add(turn_id)
+        self.turn_ids_by_thread.setdefault(thread_id, []).append(turn_id)
+
+    def latest_turn_id(self, thread_id: str) -> str | None:
+        values = self.turn_ids_by_thread.get(thread_id, [])
+        return values[-1] if values else self.base.latest_turn_id(thread_id)
+
+    def add_lifecycle(self, event: str, thread_id: str, outcome: str) -> None:
+        self.lifecycle_events.add((event, thread_id, outcome))
+        self.lifecycle_kinds.add((event, thread_id))
+
+    def lifecycle_seen(self, event: str, thread_id: str, outcome: str) -> bool:
+        return (event, thread_id, outcome) in self.lifecycle_events or (
+            self.base.lifecycle_seen(event, thread_id, outcome)
+        )
+
+    def lifecycle_kind_seen(self, event: str, thread_id: str) -> bool:
+        return (event, thread_id) in self.lifecycle_kinds or (
+            self.base.lifecycle_kind_seen(event, thread_id)
+        )
+
+    def increment_certification(self) -> None:
+        self.certification_increment += 1
+
+    def commit(self) -> _LedgerSemanticIndex:
+        """Apply the validated constant-size delta to the trusted index."""
+
+        self.base.allocation_intents.update(self.allocation_intents)
+        self.base.bound_threads.update(self.bound_threads)
+        self.base.turn_intents.update(self.turn_intents)
+        self.base.bound_turns.update(self.bound_turns)
+        self.base.roles_seen.update(self.roles_seen)
+        for thread_id, values in self.turn_intents_by_thread.items():
+            self.base.turn_intents_by_thread.setdefault(thread_id, []).extend(values)
+        for thread_id, values in self.turn_ids_by_thread.items():
+            self.base.turn_ids_by_thread.setdefault(thread_id, []).extend(values)
+        self.base.lifecycle_events.update(self.lifecycle_events)
+        self.base.lifecycle_kinds.update(self.lifecycle_kinds)
+        self.base.certification_count += self.certification_increment
+        return self.base
+
+
+@dataclass(frozen=True)
+class _PrivateFileIdentity:
+    device: int
+    inode: int
+    size: int
+    modified_ns: int
+    changed_ns: int
+
+
+@dataclass(frozen=True)
+class _TrustedLedgerCoordinates:
+    ledger_type: Any
+    version: Any
+    schema: Any
+    ledger_id: Any
+    bindings_sha256: str
+    sequence: Any
+    entry_count: int
+    head_entry_sha256: Any
+    state_sha256: Any
+    ledger_file: _PrivateFileIdentity
+    audit_file: _PrivateFileIdentity
+    audit_event_count: int
+    audit_head_sha256: Any
+
+
 def _hash(value: Any, *, domain: str) -> str:
     return canonical_sha256(value, domain=domain)
 
@@ -172,6 +384,41 @@ def _strict_private_regular(path: Path, label: str) -> os.stat_result:
     if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
         raise NativeLiveAllocationLedgerError(f"{label}-permissions-invalid")
     return info
+
+
+def _private_file_identity(info: os.stat_result) -> _PrivateFileIdentity:
+    return _PrivateFileIdentity(
+        device=info.st_dev,
+        inode=info.st_ino,
+        size=info.st_size,
+        modified_ns=info.st_mtime_ns,
+        changed_ns=info.st_ctime_ns,
+    )
+
+
+def _path_private_identity(path: Path, label: str) -> _PrivateFileIdentity:
+    return _private_file_identity(_strict_private_regular(path, label))
+
+
+def _require_private_file_descriptor(
+    descriptor: int,
+    label: str,
+) -> _PrivateFileIdentity:
+    info = os.fstat(descriptor)
+    if not stat.S_ISREG(info.st_mode):
+        raise NativeLiveAllocationLedgerError(f"{label}-not-private-regular-file")
+    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+        raise NativeLiveAllocationLedgerError(f"{label}-permissions-invalid")
+    return _private_file_identity(info)
+
+
+def _require_stable_private_path(
+    path: Path,
+    label: str,
+    expected: _PrivateFileIdentity,
+) -> None:
+    if _path_private_identity(path, label) != expected:
+        raise NativeLiveAllocationLedgerError(f"{label}-identity-changed")
 
 
 def _strict_private_directory(path: Path) -> None:
@@ -235,20 +482,126 @@ def _atomic_private_write(path: Path, value: Mapping[str, Any]) -> None:
 
 
 def _read_private_json(path: Path) -> dict[str, Any]:
-    _strict_private_regular(path, "ledger-file")
+    value, _identity = _read_private_json_with_identity(path)
+    return value
+
+
+def _read_private_json_with_identity(
+    path: Path,
+) -> tuple[dict[str, Any], _PrivateFileIdentity]:
+    before_path = _path_private_identity(path, "ledger-file")
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
     try:
         with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
             descriptor = -1
+            before_read = _require_private_file_descriptor(
+                handle.fileno(), "ledger-file"
+            )
+            if before_read != before_path:
+                raise NativeLiveAllocationLedgerError("ledger-file-identity-changed")
             value = json.load(handle)
+            identity = _require_private_file_descriptor(handle.fileno(), "ledger-file")
+            if identity != before_read:
+                raise NativeLiveAllocationLedgerError("ledger-file-identity-changed")
     except (OSError, json.JSONDecodeError) as exc:
         raise NativeLiveAllocationLedgerError("ledger-file-unreadable") from exc
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+    _require_stable_private_path(path, "ledger-file", identity)
     if not isinstance(value, dict):
         raise NativeLiveAllocationLedgerError("ledger-file-not-object")
-    return value
+    return value, identity
+
+
+def _read_private_bytes_with_identity(
+    path: Path,
+    label: str,
+) -> tuple[bytes, _PrivateFileIdentity]:
+    before_path = _path_private_identity(path, label)
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = -1
+            before_read = _require_private_file_descriptor(handle.fileno(), label)
+            if before_read != before_path:
+                raise NativeLiveAllocationLedgerError(f"{label}-identity-changed")
+            payload = handle.read()
+            identity = _require_private_file_descriptor(handle.fileno(), label)
+            if identity != before_read:
+                raise NativeLiveAllocationLedgerError(f"{label}-identity-changed")
+    except OSError as exc:
+        raise NativeLiveAllocationLedgerError(f"{label}-unavailable") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    _require_stable_private_path(path, label, identity)
+    return payload, identity
+
+
+def _read_private_audit_tail(
+    path: Path,
+) -> tuple[dict[str, Any] | None, _PrivateFileIdentity]:
+    before_path = _path_private_identity(path, "ledger-audit")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        with os.fdopen(descriptor, "rb") as handle:
+            descriptor = -1
+            before_read = _require_private_file_descriptor(
+                handle.fileno(), "ledger-audit"
+            )
+            if before_read != before_path:
+                raise NativeLiveAllocationLedgerError("ledger-audit-identity-changed")
+            if before_read.size == 0:
+                identity = _require_private_file_descriptor(
+                    handle.fileno(), "ledger-audit"
+                )
+                if identity != before_read:
+                    raise NativeLiveAllocationLedgerError(
+                        "ledger-audit-identity-changed"
+                    )
+                value: dict[str, Any] | None = None
+            else:
+                handle.seek(-1, os.SEEK_END)
+                if handle.read(1) != b"\n":
+                    raise NativeLiveAllocationLedgerError("ledger-audit-tail-invalid")
+                end = before_read.size - 1
+                position = end
+                chunks: list[bytes] = []
+                while position > 0:
+                    start = max(0, position - 4096)
+                    handle.seek(start)
+                    chunk = handle.read(position - start)
+                    newline = chunk.rfind(b"\n")
+                    if newline >= 0:
+                        chunks.insert(0, chunk[newline + 1 :])
+                        break
+                    chunks.insert(0, chunk)
+                    position = start
+                raw = b"".join(chunks)
+                if not raw:
+                    raise NativeLiveAllocationLedgerError("ledger-audit-tail-invalid")
+                try:
+                    decoded = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise NativeLiveAllocationLedgerError(
+                        "ledger-audit-tail-invalid"
+                    ) from exc
+                if not isinstance(decoded, dict):
+                    raise NativeLiveAllocationLedgerError("ledger-audit-tail-invalid")
+                value = decoded
+                identity = _require_private_file_descriptor(
+                    handle.fileno(), "ledger-audit"
+                )
+                if identity != before_read:
+                    raise NativeLiveAllocationLedgerError(
+                        "ledger-audit-identity-changed"
+                    )
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    _require_stable_private_path(path, "ledger-audit", identity)
+    return value, identity
 
 
 @contextmanager
@@ -325,7 +678,10 @@ def _validate_bindings(
             errors.append(f"ledger-binding-{field}-invalid")
     live_generation = bindings.get("live_generation")
     predecessor_generation = bindings.get("predecessor_generation")
-    if version == LEDGER_VERSION and (live_generation, predecessor_generation) != (4, 3):
+    if version == LEDGER_VERSION and (live_generation, predecessor_generation) != (
+        4,
+        3,
+    ):
         errors.append("ledger-binding-generation-invalid")
     if version == LEDGER_VERSION_V2 and (
         isinstance(live_generation, bool)
@@ -354,44 +710,23 @@ def _validate_bindings(
     return bindings
 
 
-def validate_live_allocation_ledger(
-    value: Any,
+def _load_audit_events(
     *,
-    audit_file: Path | None = None,
-    audit_bytes: bytes | None = None,
-) -> list[str]:
+    audit_file: Path | None,
+    audit_bytes: bytes | None,
+) -> tuple[list[dict[str, Any]], list[str]]:
     errors: list[str] = []
-    if not isinstance(value, Mapping) or set(value) != LEDGER_FIELDS:
-        return ["ledger-fields-invalid"]
-    ledger = dict(value)
-    version = ledger.get("version")
-    expected_header = {
-        LEDGER_VERSION: (LEDGER_TYPE, LEDGER_SCHEMA),
-        LEDGER_VERSION_V2: (LEDGER_TYPE_V2, LEDGER_SCHEMA_V2),
-    }.get(version)
-    if expected_header is None or (
-        ledger.get("ledger_type"), ledger.get("schema")
-    ) != expected_header:
-        errors.append("ledger-header-invalid")
-        version = 0
-    if not _is_uuid(ledger.get("ledger_id")):
-        errors.append("ledger-id-invalid")
-    _validate_bindings(ledger.get("bindings"), errors, version=version)
-    sequence = ledger.get("sequence")
-    if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
-        errors.append("ledger-sequence-invalid")
-        sequence = -1
-    entries = ledger.get("entries")
-    if not isinstance(entries, list):
-        errors.append("ledger-entries-invalid")
-        entries = []
-    if sequence != len(entries):
-        errors.append("ledger-sequence-count-mismatch")
-
     audits: list[dict[str, Any]] = []
     if audit_file is not None and audit_bytes is not None:
-        errors.append("ledger-audit-source-ambiguous")
-    elif audit_bytes is not None:
+        return audits, ["ledger-audit-source-ambiguous"]
+    if audit_file is not None:
+        try:
+            audit_bytes, _identity = _read_private_bytes_with_identity(
+                audit_file, "ledger-audit"
+            )
+        except NativeLiveAllocationLedgerError:
+            return [], ["ledger-audit-chain-invalid"]
+    if audit_bytes is not None:
         try:
             if not isinstance(audit_bytes, bytes) or (
                 audit_bytes and not audit_bytes.endswith(b"\n")
@@ -415,141 +750,276 @@ def validate_live_allocation_ledger(
                 previous_hash = event.get("event_hash")
                 audits.append(event)
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-            errors.append("ledger-audit-chain-invalid")
-            audits = []
-    elif audit_file is not None:
-        try:
-            _strict_private_regular(audit_file, "ledger-audit")
-            audits = iter_audit_events(audit_file)
-            audit_verification = verify_audit_log(audit_file)
-            if audit_verification.get("valid") is not True:
-                errors.append("ledger-audit-chain-invalid")
-        except (SystemExit, NativeLiveAllocationLedgerError):
-            errors.append("ledger-audit-chain-invalid")
-    allocation_intents: dict[str, tuple[str, int]] = {}
-    bound_threads: dict[str, tuple[str, int, str]] = {}
-    turn_intents: dict[str, tuple[str, str]] = {}
-    bound_turns: set[str] = set()
-    roles_seen: set[str] = set()
-    previous: str | None = None
-    certification_count = 0
-    for index, raw in enumerate(entries, 1):
-        if not isinstance(raw, Mapping) or set(raw) != ENTRY_FIELDS:
-            errors.append(f"ledger-entry-{index}-fields-invalid")
-            continue
-        entry = dict(raw)
-        if entry.get("sequence") != index:
-            errors.append(f"ledger-entry-{index}-sequence-invalid")
-        event = entry.get("event")
-        if event not in EVENTS:
-            errors.append(f"ledger-entry-{index}-event-invalid")
-        if entry.get("previous_entry_sha256") != previous:
-            errors.append(f"ledger-entry-{index}-previous-hash-mismatch")
-        expected_entry_hash = _entry_sha256(entry)
-        if entry.get("entry_sha256") != expected_entry_hash:
-            errors.append(f"ledger-entry-{index}-sha256-mismatch")
-        previous = entry.get("entry_sha256") if _is_hash(entry.get("entry_sha256")) else None
-        if not _is_hash(entry.get("audit_event_hash")):
-            errors.append(f"ledger-entry-{index}-audit-hash-invalid")
-        elif (audit_file is not None or audit_bytes is not None) and not any(
-            audit.get("event_hash") == entry.get("audit_event_hash")
-            and audit.get("event_type") == "native_live_allocation_ledger_entry"
-            and audit.get("dispatch_id") == ledger.get("ledger_id")
-            and audit.get("packet_sha256") == entry.get("entry_sha256")
-            and audit.get("phase") == event
-            and audit.get("validation_lineage_attempt") == index
-            for audit in audits
-        ):
-            errors.append(f"ledger-entry-{index}-audit-anchor-missing")
+            return [], ["ledger-audit-chain-invalid"]
+    return audits, errors
 
-        role = entry.get("role")
-        ordinal = entry.get("ordinal")
-        allocation_id = entry.get("allocation_intent_id")
-        thread_id = entry.get("thread_id")
-        turn_intent_id = entry.get("turn_intent_id")
-        turn_id = entry.get("turn_id")
-        evidence_sha256 = entry.get("evidence_sha256")
-        if event == "certification-bound":
-            certification_count += 1
-            if any(item is not None for item in (role, ordinal, allocation_id, thread_id, turn_intent_id, turn_id)):
-                errors.append(f"ledger-entry-{index}-certification-identity-invalid")
-            if not _is_hash(evidence_sha256) or entry.get("outcome") != "bound":
-                errors.append(f"ledger-entry-{index}-certification-invalid")
-            continue
-        if role not in EXPECTED_ROLES or ordinal != EXPECTED_ROLES.index(role):
-            errors.append(f"ledger-entry-{index}-role-ordinal-invalid")
-            continue
-        if event == "allocation-intent":
-            if (
-                not _is_uuid(allocation_id)
-                or allocation_id in allocation_intents
-                or role in roles_seen
-                or any(item is not None for item in (thread_id, turn_intent_id, turn_id, evidence_sha256))
-                or entry.get("outcome") != "pending"
-            ):
-                errors.append(f"ledger-entry-{index}-allocation-intent-invalid")
-            else:
-                allocation_intents[allocation_id] = (role, ordinal)
-                roles_seen.add(role)
-        elif event == "thread-bound":
-            expected = allocation_intents.get(str(allocation_id))
-            if (
-                expected != (role, ordinal)
-                or not isinstance(thread_id, str)
-                or not thread_id
-                or thread_id in bound_threads
-                or any(item is not None for item in (turn_intent_id, turn_id, evidence_sha256))
-                or entry.get("outcome") != "bound"
-            ):
-                errors.append(f"ledger-entry-{index}-thread-binding-invalid")
-            else:
-                bound_threads[thread_id] = (role, ordinal, str(allocation_id))
-        elif event == "turn-intent":
-            bound = bound_threads.get(str(thread_id))
-            if (
-                bound != (role, ordinal, str(allocation_id))
-                or not _is_uuid(turn_intent_id)
-                or turn_intent_id in turn_intents
-                or turn_id is not None
-                or evidence_sha256 is not None
-                or entry.get("outcome") != "pending"
-            ):
-                errors.append(f"ledger-entry-{index}-turn-intent-invalid")
-            else:
-                turn_intents[turn_intent_id] = (str(thread_id), str(allocation_id))
-        elif event == "turn-bound":
-            if (
-                turn_intents.get(str(turn_intent_id)) != (str(thread_id), str(allocation_id))
-                or not isinstance(turn_id, str)
-                or not turn_id
-                or turn_id in bound_turns
-                or evidence_sha256 is not None
-                or entry.get("outcome") != "bound"
-            ):
-                errors.append(f"ledger-entry-{index}-turn-binding-invalid")
-            else:
-                bound_turns.add(turn_id)
-        elif event in {"interrupt-observed", "archive-observed", "containment-audited"}:
-            if bound_threads.get(str(thread_id)) != (role, ordinal, str(allocation_id)):
-                errors.append(f"ledger-entry-{index}-lifecycle-thread-invalid")
-            if turn_intent_id is not None and turn_intents.get(str(turn_intent_id)) != (
-                str(thread_id),
-                str(allocation_id),
-            ):
-                errors.append(f"ledger-entry-{index}-lifecycle-turn-intent-invalid")
-            if turn_id is not None and turn_id not in bound_turns:
-                errors.append(f"ledger-entry-{index}-lifecycle-turn-invalid")
-            if event == "containment-audited" and not _is_hash(evidence_sha256):
-                errors.append(f"ledger-entry-{index}-containment-evidence-invalid")
-            if not isinstance(entry.get("outcome"), str) or not entry.get("outcome"):
-                errors.append(f"ledger-entry-{index}-lifecycle-outcome-invalid")
-    if certification_count > 1:
+
+def _audit_anchor_matches(
+    audit: Mapping[str, Any] | None,
+    entry: Mapping[str, Any],
+    *,
+    ledger_id: Any,
+    index_number: int,
+) -> bool:
+    return bool(
+        audit is not None
+        and audit.get("event_hash") == entry.get("audit_event_hash")
+        and audit.get("event_type") == "native_live_allocation_ledger_entry"
+        and audit.get("dispatch_id") == ledger_id
+        and audit.get("packet_sha256") == entry.get("entry_sha256")
+        and audit.get("phase") == entry.get("event")
+        and audit.get("validation_lineage_attempt") == index_number
+    )
+
+
+def _validate_entry_transition(
+    raw: Any,
+    *,
+    index_number: int,
+    previous_entry_sha256: str | None,
+    semantic_index: _LedgerSemanticIndex | _LedgerSemanticCandidate,
+    ledger_id: Any,
+    audit: Mapping[str, Any] | None,
+    require_audit_hash: bool,
+    verify_audit_anchor: bool,
+) -> tuple[list[str], str | None]:
+    """Validate one link and apply its semantic transition to ``semantic_index``."""
+
+    errors: list[str] = []
+    if not isinstance(raw, Mapping) or set(raw) != ENTRY_FIELDS:
+        return [f"ledger-entry-{index_number}-fields-invalid"], previous_entry_sha256
+    entry = dict(raw)
+    if entry.get("sequence") != index_number:
+        errors.append(f"ledger-entry-{index_number}-sequence-invalid")
+    event = entry.get("event")
+    if event not in EVENTS:
+        errors.append(f"ledger-entry-{index_number}-event-invalid")
+    if entry.get("previous_entry_sha256") != previous_entry_sha256:
+        errors.append(f"ledger-entry-{index_number}-previous-hash-mismatch")
+    expected_entry_hash = _entry_sha256(entry)
+    if entry.get("entry_sha256") != expected_entry_hash:
+        errors.append(f"ledger-entry-{index_number}-sha256-mismatch")
+    next_previous = (
+        entry.get("entry_sha256") if _is_hash(entry.get("entry_sha256")) else None
+    )
+    if require_audit_hash and not _is_hash(entry.get("audit_event_hash")):
+        errors.append(f"ledger-entry-{index_number}-audit-hash-invalid")
+    elif verify_audit_anchor and not _audit_anchor_matches(
+        audit,
+        entry,
+        ledger_id=ledger_id,
+        index_number=index_number,
+    ):
+        errors.append(f"ledger-entry-{index_number}-audit-anchor-missing")
+
+    role = entry.get("role")
+    ordinal = entry.get("ordinal")
+    allocation_id = entry.get("allocation_intent_id")
+    thread_id = entry.get("thread_id")
+    turn_intent_id = entry.get("turn_intent_id")
+    turn_id = entry.get("turn_id")
+    evidence_sha256 = entry.get("evidence_sha256")
+    if event == "certification-bound":
+        semantic_index.increment_certification()
+        if any(
+            item is not None
+            for item in (
+                role,
+                ordinal,
+                allocation_id,
+                thread_id,
+                turn_intent_id,
+                turn_id,
+            )
+        ):
+            errors.append(f"ledger-entry-{index_number}-certification-identity-invalid")
+        if not _is_hash(evidence_sha256) or entry.get("outcome") != "bound":
+            errors.append(f"ledger-entry-{index_number}-certification-invalid")
+        return errors, next_previous
+    if role not in EXPECTED_ROLES or ordinal != EXPECTED_ROLES.index(role):
+        errors.append(f"ledger-entry-{index_number}-role-ordinal-invalid")
+        return errors, next_previous
+    if event == "allocation-intent":
+        if (
+            not _is_uuid(allocation_id)
+            or semantic_index.allocation_intent(str(allocation_id)) is not None
+            or semantic_index.role_seen(role)
+            or any(
+                item is not None
+                for item in (thread_id, turn_intent_id, turn_id, evidence_sha256)
+            )
+            or entry.get("outcome") != "pending"
+        ):
+            errors.append(f"ledger-entry-{index_number}-allocation-intent-invalid")
+        else:
+            semantic_index.add_allocation_intent(allocation_id, role, entry)
+    elif event == "thread-bound":
+        expected = semantic_index.allocation_intent(str(allocation_id))
+        if (
+            expected is None
+            or (expected.get("role"), expected.get("ordinal")) != (role, ordinal)
+            or not isinstance(thread_id, str)
+            or not thread_id
+            or semantic_index.thread_binding(thread_id) is not None
+            or any(
+                item is not None for item in (turn_intent_id, turn_id, evidence_sha256)
+            )
+            or entry.get("outcome") != "bound"
+        ):
+            errors.append(f"ledger-entry-{index_number}-thread-binding-invalid")
+        else:
+            semantic_index.add_thread_binding(thread_id, entry)
+    elif event == "turn-intent":
+        bound = semantic_index.thread_binding(str(thread_id))
+        if (
+            bound is None
+            or (
+                bound.get("role"),
+                bound.get("ordinal"),
+                bound.get("allocation_intent_id"),
+            )
+            != (role, ordinal, str(allocation_id))
+            or not _is_uuid(turn_intent_id)
+            or semantic_index.turn_intent(str(turn_intent_id)) is not None
+            or turn_id is not None
+            or evidence_sha256 is not None
+            or entry.get("outcome") != "pending"
+        ):
+            errors.append(f"ledger-entry-{index_number}-turn-intent-invalid")
+        else:
+            semantic_index.add_turn_intent(turn_intent_id, str(thread_id), entry)
+    elif event == "turn-bound":
+        intent = semantic_index.turn_intent(str(turn_intent_id))
+        if (
+            intent is None
+            or (intent.get("thread_id"), intent.get("allocation_intent_id"))
+            != (str(thread_id), str(allocation_id))
+            or not isinstance(turn_id, str)
+            or not turn_id
+            or semantic_index.turn_bound(turn_id)
+            or evidence_sha256 is not None
+            or entry.get("outcome") != "bound"
+        ):
+            errors.append(f"ledger-entry-{index_number}-turn-binding-invalid")
+        else:
+            semantic_index.add_bound_turn(turn_id, str(thread_id))
+    elif event in {
+        "interrupt-observed",
+        "archive-observed",
+        "containment-audited",
+    }:
+        bound = semantic_index.thread_binding(str(thread_id))
+        if bound is None or (
+            bound.get("role"),
+            bound.get("ordinal"),
+            bound.get("allocation_intent_id"),
+        ) != (role, ordinal, str(allocation_id)):
+            errors.append(f"ledger-entry-{index_number}-lifecycle-thread-invalid")
+        if turn_intent_id is not None:
+            intent = semantic_index.turn_intent(str(turn_intent_id))
+            if intent is None or (
+                intent.get("thread_id"),
+                intent.get("allocation_intent_id"),
+            ) != (str(thread_id), str(allocation_id)):
+                errors.append(
+                    f"ledger-entry-{index_number}-lifecycle-turn-intent-invalid"
+                )
+        if turn_id is not None and not semantic_index.turn_bound(str(turn_id)):
+            errors.append(f"ledger-entry-{index_number}-lifecycle-turn-invalid")
+        if event == "containment-audited" and not _is_hash(evidence_sha256):
+            errors.append(f"ledger-entry-{index_number}-containment-evidence-invalid")
+        if not isinstance(entry.get("outcome"), str) or not entry.get("outcome"):
+            errors.append(f"ledger-entry-{index_number}-lifecycle-outcome-invalid")
+        if isinstance(thread_id, str) and isinstance(entry.get("outcome"), str):
+            semantic_index.add_lifecycle(event, thread_id, entry["outcome"])
+    return errors, next_previous
+
+
+def _validate_live_allocation_ledger_with_index(
+    value: Any,
+    *,
+    audit_file: Path | None = None,
+    audit_bytes: bytes | None = None,
+) -> tuple[
+    list[str],
+    _LedgerSemanticIndex,
+    list[dict[str, Any]],
+    int,
+]:
+    errors: list[str] = []
+    semantic_index = _LedgerSemanticIndex()
+    if not isinstance(value, Mapping) or set(value) != LEDGER_FIELDS:
+        return ["ledger-fields-invalid"], semantic_index, [], 0
+    ledger = dict(value)
+    version = ledger.get("version")
+    expected_header = {
+        LEDGER_VERSION: (LEDGER_TYPE, LEDGER_SCHEMA),
+        LEDGER_VERSION_V2: (LEDGER_TYPE_V2, LEDGER_SCHEMA_V2),
+    }.get(version)
+    if (
+        expected_header is None
+        or (ledger.get("ledger_type"), ledger.get("schema")) != expected_header
+    ):
+        errors.append("ledger-header-invalid")
+        version = 0
+    if not _is_uuid(ledger.get("ledger_id")):
+        errors.append("ledger-id-invalid")
+    _validate_bindings(ledger.get("bindings"), errors, version=version)
+    sequence = ledger.get("sequence")
+    if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
+        errors.append("ledger-sequence-invalid")
+        sequence = -1
+    entries = ledger.get("entries")
+    if not isinstance(entries, list):
+        errors.append("ledger-entries-invalid")
+        entries = []
+    if sequence != len(entries):
+        errors.append("ledger-sequence-count-mismatch")
+
+    audits, audit_errors = _load_audit_events(
+        audit_file=audit_file,
+        audit_bytes=audit_bytes,
+    )
+    errors.extend(audit_errors)
+    previous: str | None = None
+    verify_audit_anchor = audit_file is not None or audit_bytes is not None
+    if verify_audit_anchor and len(audits) != len(entries):
+        errors.append("ledger-audit-entry-count-mismatch")
+    for index_number, raw in enumerate(entries, 1):
+        entry_errors, previous = _validate_entry_transition(
+            raw,
+            index_number=index_number,
+            previous_entry_sha256=previous,
+            semantic_index=semantic_index,
+            ledger_id=ledger.get("ledger_id"),
+            audit=(audits[index_number - 1] if index_number <= len(audits) else None),
+            require_audit_hash=True,
+            verify_audit_anchor=verify_audit_anchor,
+        )
+        errors.extend(entry_errors)
+    if semantic_index.certification_count > 1:
         errors.append("ledger-certification-binding-duplicate")
     if ledger.get("head_entry_sha256") != previous:
         errors.append("ledger-head-mismatch")
     if ledger.get("state_sha256") != _state_sha256(ledger):
         errors.append("ledger-state-sha256-mismatch")
-    return sorted(set(errors))
+    return sorted(set(errors)), semantic_index, audits, len(entries)
+
+
+def validate_live_allocation_ledger(
+    value: Any,
+    *,
+    audit_file: Path | None = None,
+    audit_bytes: bytes | None = None,
+) -> list[str]:
+    errors, _semantic_index, _audits, _entry_checks = (
+        _validate_live_allocation_ledger_with_index(
+            value,
+            audit_file=audit_file,
+            audit_bytes=audit_bytes,
+        )
+    )
+    return errors
 
 
 def summarize_live_allocation_ledger(
@@ -565,7 +1035,9 @@ def summarize_live_allocation_ledger(
     if errors:
         raise NativeLiveAllocationLedgerError("ledger-invalid:" + ";".join(errors))
     entries = value["entries"]
-    allocation_entries = [entry for entry in entries if entry["event"] == "allocation-intent"]
+    allocation_entries = [
+        entry for entry in entries if entry["event"] == "allocation-intent"
+    ]
     thread_entries = [entry for entry in entries if entry["event"] == "thread-bound"]
     turn_intents = [entry for entry in entries if entry["event"] == "turn-intent"]
     turn_entries = [entry for entry in entries if entry["event"] == "turn-bound"]
@@ -576,9 +1048,7 @@ def summarize_live_allocation_ledger(
         "version": value["version"],
         "ledger_id": value["ledger_id"],
         "live_generation": value["bindings"]["live_generation"],
-        "campaign_manifest_sha256": value["bindings"].get(
-            "campaign_manifest_sha256"
-        ),
+        "campaign_manifest_sha256": value["bindings"].get("campaign_manifest_sha256"),
         "sequence": value["sequence"],
         "head_entry_sha256": value["head_entry_sha256"],
         "state_sha256": value["state_sha256"],
@@ -599,13 +1069,171 @@ def summarize_live_allocation_ledger(
 
 
 class NativeLiveAllocationLedgerStore:
-    """Fsync-backed, no-follow ledger with one external audit anchor per event."""
+    """Fsync-backed ledger with a validated, process-local semantic head.
+
+    Incremental metrics cover only one-entry transition validation. JSON parsing,
+    state hashing/writing, and the shared audit helper remain physical O(n) work.
+    """
 
     def __init__(self, directory: Path | str) -> None:
         self.directory = Path(directory).absolute()
         self.path = self.directory / "ledger.json"
         self.lock_path = self.directory / "ledger.lock"
         self.audit_file = self.directory / "audit.jsonl"
+        self._instance_lock = threading.RLock()
+        self._metrics_lock = threading.Lock()
+        self._trusted: _TrustedLedgerCoordinates | None = None
+        self._semantic_index: _LedgerSemanticIndex | None = None
+        self._metrics: dict[str, int | float] = {
+            "append_attempt_count": 0,
+            "append_success_count": 0,
+            "append_seconds": 0.0,
+            "full_validation_count": 0,
+            "full_validation_entry_count": 0,
+            "full_validation_seconds": 0.0,
+            "incremental_transition_validation_count": 0,
+            "incremental_transition_validation_entry_count": 0,
+            "incremental_transition_validation_seconds": 0.0,
+        }
+
+    def _add_metrics(self, **increments: int | float) -> None:
+        with self._metrics_lock:
+            for key, increment in increments.items():
+                self._metrics[key] += increment
+
+    def metrics(self) -> dict[str, int | float]:
+        """Return process-local validation and physical append measurements."""
+
+        with self._metrics_lock:
+            return dict(self._metrics)
+
+    def _disarm(self) -> None:
+        self._trusted = None
+        self._semantic_index = None
+
+    @staticmethod
+    def _bindings_sha256(state: Mapping[str, Any]) -> str:
+        bindings = state.get("bindings")
+        if not isinstance(bindings, Mapping):
+            return ""
+        return _hash(
+            dict(bindings),
+            domain="native-live-allocation-ledger-trusted-bindings",
+        )
+
+    def _arm(
+        self,
+        state: Mapping[str, Any],
+        semantic_index: _LedgerSemanticIndex,
+        *,
+        ledger_file: _PrivateFileIdentity,
+        audit_file: _PrivateFileIdentity,
+        audit_event_count: int,
+        audit_head_sha256: Any,
+    ) -> None:
+        entries = state["entries"]
+        self._trusted = _TrustedLedgerCoordinates(
+            ledger_type=state.get("ledger_type"),
+            version=state.get("version"),
+            schema=state.get("schema"),
+            ledger_id=state.get("ledger_id"),
+            bindings_sha256=self._bindings_sha256(state),
+            sequence=state.get("sequence"),
+            entry_count=len(entries),
+            head_entry_sha256=state.get("head_entry_sha256"),
+            state_sha256=state.get("state_sha256"),
+            ledger_file=ledger_file,
+            audit_file=audit_file,
+            audit_event_count=audit_event_count,
+            audit_head_sha256=audit_head_sha256,
+        )
+        self._semantic_index = semantic_index
+
+    def _full_validate_locked(self, failure_prefix: str) -> dict[str, Any]:
+        started = time.perf_counter()
+        entry_checks = 0
+        try:
+            state, ledger_identity = _read_private_json_with_identity(self.path)
+            audit_bytes, audit_identity = _read_private_bytes_with_identity(
+                self.audit_file, "ledger-audit"
+            )
+            errors, semantic_index, audits, entry_checks = (
+                _validate_live_allocation_ledger_with_index(
+                    state,
+                    audit_bytes=audit_bytes,
+                )
+            )
+            if errors:
+                raise NativeLiveAllocationLedgerError(
+                    failure_prefix + ":" + ";".join(errors)
+                )
+            _require_stable_private_path(self.path, "ledger-file", ledger_identity)
+            _require_stable_private_path(
+                self.audit_file, "ledger-audit", audit_identity
+            )
+            self._arm(
+                state,
+                semantic_index,
+                ledger_file=ledger_identity,
+                audit_file=audit_identity,
+                audit_event_count=len(audits),
+                audit_head_sha256=(audits[-1].get("event_hash") if audits else None),
+            )
+            return state
+        except BaseException:
+            self._disarm()
+            raise
+        finally:
+            self._add_metrics(
+                full_validation_count=1,
+                full_validation_entry_count=entry_checks,
+                full_validation_seconds=time.perf_counter() - started,
+            )
+
+    def _full_validation_operation(self) -> dict[str, Any]:
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                return self._full_validate_locked("ledger-invalid")
+
+    def _require_trusted_locked(
+        self,
+    ) -> tuple[
+        dict[str, Any],
+        _TrustedLedgerCoordinates,
+        _LedgerSemanticIndex,
+        dict[str, Any] | None,
+    ]:
+        trusted = self._trusted
+        semantic_index = self._semantic_index
+        if trusted is None or semantic_index is None:
+            raise NativeLiveAllocationLedgerError("ledger-store-not-open")
+        try:
+            state, ledger_identity = _read_private_json_with_identity(self.path)
+            audit_tail, audit_identity = _read_private_audit_tail(self.audit_file)
+            entries = state.get("entries")
+            coordinates_match = bool(
+                ledger_identity == trusted.ledger_file
+                and audit_identity == trusted.audit_file
+                and state.get("ledger_type") == trusted.ledger_type
+                and state.get("version") == trusted.version
+                and state.get("schema") == trusted.schema
+                and state.get("ledger_id") == trusted.ledger_id
+                and self._bindings_sha256(state) == trusted.bindings_sha256
+                and state.get("sequence") == trusted.sequence
+                and isinstance(entries, list)
+                and len(entries) == trusted.entry_count
+                and state.get("head_entry_sha256") == trusted.head_entry_sha256
+                and state.get("state_sha256") == trusted.state_sha256
+                and trusted.audit_event_count == trusted.entry_count
+                and (audit_tail.get("event_hash") if audit_tail is not None else None)
+                == trusted.audit_head_sha256
+            )
+            if not coordinates_match:
+                raise NativeLiveAllocationLedgerError("ledger-store-stale")
+            return state, trusted, semantic_index, audit_tail
+        except BaseException:
+            self._disarm()
+            raise
 
     def initialize(
         self,
@@ -613,95 +1241,241 @@ class NativeLiveAllocationLedgerStore:
         *,
         version: int = LEDGER_VERSION,
     ) -> dict[str, Any]:
-        if self.directory.exists() or self.directory.is_symlink():
-            raise NativeLiveAllocationLedgerError("ledger-directory-already-exists")
-        self.directory.mkdir(mode=0o700)
-        _strict_private_directory(self.directory)
-        for path in (self.lock_path, self.audit_file, self.audit_file.with_name("audit.jsonl.lock")):
-            _create_private_file(path)
-        _fsync_directory(self.directory)
-        headers = {
-            LEDGER_VERSION: (LEDGER_TYPE, LEDGER_SCHEMA),
-            LEDGER_VERSION_V2: (LEDGER_TYPE_V2, LEDGER_SCHEMA_V2),
-        }
-        if version not in headers:
-            raise NativeLiveAllocationLedgerError("ledger-version-invalid")
-        ledger_type, schema = headers[version]
-        state = {
-            "ledger_type": ledger_type,
-            "version": version,
-            "schema": schema,
-            "ledger_id": str(uuid.uuid4()),
-            "bindings": dict(bindings),
-            "sequence": 0,
-            "entries": [],
-            "head_entry_sha256": None,
-        }
-        state["state_sha256"] = _state_sha256(state)
-        errors = validate_live_allocation_ledger(state, audit_file=self.audit_file)
-        if errors:
-            raise NativeLiveAllocationLedgerError("ledger-initial-state-invalid:" + ";".join(errors))
-        _atomic_private_write(self.path, state)
-        return state
+        with self._instance_lock:
+            self._disarm()
+            if self.directory.exists() or self.directory.is_symlink():
+                raise NativeLiveAllocationLedgerError("ledger-directory-already-exists")
+            self.directory.mkdir(mode=0o700)
+            _strict_private_directory(self.directory)
+            for path in (
+                self.lock_path,
+                self.audit_file,
+                self.audit_file.with_name("audit.jsonl.lock"),
+            ):
+                _create_private_file(path)
+            _fsync_directory(self.directory)
+            headers = {
+                LEDGER_VERSION: (LEDGER_TYPE, LEDGER_SCHEMA),
+                LEDGER_VERSION_V2: (LEDGER_TYPE_V2, LEDGER_SCHEMA_V2),
+            }
+            if version not in headers:
+                raise NativeLiveAllocationLedgerError("ledger-version-invalid")
+            ledger_type, schema = headers[version]
+            state = {
+                "ledger_type": ledger_type,
+                "version": version,
+                "schema": schema,
+                "ledger_id": str(uuid.uuid4()),
+                "bindings": dict(bindings),
+                "sequence": 0,
+                "entries": [],
+                "head_entry_sha256": None,
+            }
+            state["state_sha256"] = _state_sha256(state)
+            started = time.perf_counter()
+            entry_checks = 0
+            try:
+                errors, _index, _audits, entry_checks = (
+                    _validate_live_allocation_ledger_with_index(
+                        state,
+                        audit_bytes=b"",
+                    )
+                )
+                if errors:
+                    raise NativeLiveAllocationLedgerError(
+                        "ledger-initial-state-invalid:" + ";".join(errors)
+                    )
+            finally:
+                self._add_metrics(
+                    full_validation_count=1,
+                    full_validation_entry_count=entry_checks,
+                    full_validation_seconds=time.perf_counter() - started,
+                )
+            _atomic_private_write(self.path, state)
+            with _exclusive_lock(self.lock_path):
+                return self._full_validate_locked("ledger-initial-state-invalid")
+
+    def open(self) -> dict[str, Any]:
+        """Fully validate an existing ledger and arm its trusted head."""
+
+        return self._full_validation_operation()
 
     def load(self) -> dict[str, Any]:
-        with _exclusive_lock(self.lock_path):
-            state = _read_private_json(self.path)
-            errors = validate_live_allocation_ledger(state, audit_file=self.audit_file)
-            if errors:
-                raise NativeLiveAllocationLedgerError("ledger-invalid:" + ";".join(errors))
-            return state
+        """Compatibility full-validation read; successful loads re-arm trust."""
+
+        return self._full_validation_operation()
+
+    def validate(self) -> dict[str, Any]:
+        """Explicitly perform full ledger and audit validation."""
+
+        return self._full_validation_operation()
+
+    def checkpoint(self) -> dict[str, Any]:
+        """Fully validate and refresh the trusted checkpoint coordinates."""
+
+        return self._full_validation_operation()
+
+    def close(self) -> dict[str, Any]:
+        """Fully validate the final state, then disarm this store instance."""
+
+        with self._instance_lock:
+            try:
+                with _exclusive_lock(self.lock_path):
+                    return self._full_validate_locked("ledger-invalid")
+            finally:
+                self._disarm()
 
     def _append(self, **fields: Any) -> dict[str, Any]:
-        with _exclusive_lock(self.lock_path):
-            state = _read_private_json(self.path)
-            errors = validate_live_allocation_ledger(state, audit_file=self.audit_file)
-            if errors:
-                raise NativeLiveAllocationLedgerError("ledger-invalid:" + ";".join(errors))
-            sequence = state["sequence"] + 1
-            entry = {
-                "sequence": sequence,
-                "event": fields.get("event"),
-                "role": fields.get("role"),
-                "ordinal": fields.get("ordinal"),
-                "allocation_intent_id": fields.get("allocation_intent_id"),
-                "thread_id": fields.get("thread_id"),
-                "turn_intent_id": fields.get("turn_intent_id"),
-                "turn_id": fields.get("turn_id"),
-                "evidence_sha256": fields.get("evidence_sha256"),
-                "outcome": fields.get("outcome"),
-                "previous_entry_sha256": state["head_entry_sha256"],
-            }
-            entry["entry_sha256"] = _entry_sha256(entry)
-            audit = record_audit_event(
-                {
-                    "event_type": "native_live_allocation_ledger_entry",
-                    "bead_id": state["bindings"]["bead_id"],
-                    "dispatch_id": state["ledger_id"],
-                    "packet_sha256": entry["entry_sha256"],
-                    "phase": entry["event"],
-                    "role": entry["role"] or "ledger",
-                    "completion_state": entry["outcome"],
-                    "validation_lineage_attempt": sequence,
-                    "telemetry_target_event_hash": entry["previous_entry_sha256"],
-                },
-                audit_file=self.audit_file,
+        append_started = time.perf_counter()
+        success = False
+        try:
+            with self._instance_lock:
+                with _exclusive_lock(self.lock_path):
+                    side_effects_started = False
+                    try:
+                        state, trusted, semantic_index, _audit_tail = (
+                            self._require_trusted_locked()
+                        )
+                        sequence = trusted.entry_count + 1
+                        entry = {
+                            "sequence": sequence,
+                            "event": fields.get("event"),
+                            "role": fields.get("role"),
+                            "ordinal": fields.get("ordinal"),
+                            "allocation_intent_id": fields.get("allocation_intent_id"),
+                            "thread_id": fields.get("thread_id"),
+                            "turn_intent_id": fields.get("turn_intent_id"),
+                            "turn_id": fields.get("turn_id"),
+                            "evidence_sha256": fields.get("evidence_sha256"),
+                            "outcome": fields.get("outcome"),
+                            "previous_entry_sha256": trusted.head_entry_sha256,
+                            "audit_event_hash": None,
+                        }
+                        entry["entry_sha256"] = _entry_sha256(entry)
+                        candidate_index = semantic_index.clone()
+                        validation_started = time.perf_counter()
+                        try:
+                            errors, next_head = _validate_entry_transition(
+                                entry,
+                                index_number=sequence,
+                                previous_entry_sha256=trusted.head_entry_sha256,
+                                semantic_index=candidate_index,
+                                ledger_id=trusted.ledger_id,
+                                audit=None,
+                                require_audit_hash=False,
+                                verify_audit_anchor=False,
+                            )
+                            if candidate_index.certification_count > 1:
+                                errors.append("ledger-certification-binding-duplicate")
+                            if next_head != entry["entry_sha256"]:
+                                errors.append("ledger-head-mismatch")
+                        finally:
+                            self._add_metrics(
+                                incremental_transition_validation_count=1,
+                                incremental_transition_validation_entry_count=1,
+                                incremental_transition_validation_seconds=(
+                                    time.perf_counter() - validation_started
+                                ),
+                            )
+                        if errors:
+                            raise NativeLiveAllocationLedgerError(
+                                "ledger-transition-invalid:"
+                                + ";".join(sorted(set(errors)))
+                            )
+
+                        # Every remaining operation can mutate durable state. Trust is
+                        # deliberately absent until both writes and their identities
+                        # have been verified.
+                        side_effects_started = True
+                        self._disarm()
+                        audit = record_audit_event(
+                            {
+                                "event_type": ("native_live_allocation_ledger_entry"),
+                                "bead_id": state["bindings"]["bead_id"],
+                                "dispatch_id": trusted.ledger_id,
+                                "packet_sha256": entry["entry_sha256"],
+                                "phase": entry["event"],
+                                "role": entry["role"] or "ledger",
+                                "completion_state": entry["outcome"],
+                                "validation_lineage_attempt": sequence,
+                                "telemetry_target_event_hash": (
+                                    entry["previous_entry_sha256"]
+                                ),
+                            },
+                            audit_file=self.audit_file,
+                        )
+                        os.chmod(self.audit_file, 0o600, follow_symlinks=False)
+                        os.chmod(
+                            self.audit_file.with_name("audit.jsonl.lock"),
+                            0o600,
+                            follow_symlinks=False,
+                        )
+                        audit_tail, audit_identity = _read_private_audit_tail(
+                            self.audit_file
+                        )
+                        expected_audit_bytes = len(
+                            (json.dumps(audit, sort_keys=True) + "\n").encode("utf-8")
+                        )
+                        audit_advanced_once = bool(
+                            audit_tail == audit
+                            and audit_identity.device == trusted.audit_file.device
+                            and audit_identity.inode == trusted.audit_file.inode
+                            and audit_identity.size
+                            == trusted.audit_file.size + expected_audit_bytes
+                            and audit.get("previous_event_hash")
+                            == trusted.audit_head_sha256
+                            and audit.get("event_hash")
+                            == audit_event_payload_hash(audit)
+                        )
+                        entry["audit_event_hash"] = audit.get("event_hash")
+                        if not audit_advanced_once or not _audit_anchor_matches(
+                            audit_tail,
+                            entry,
+                            ledger_id=trusted.ledger_id,
+                            index_number=sequence,
+                        ):
+                            raise NativeLiveAllocationLedgerError(
+                                "ledger-audit-transition-invalid"
+                            )
+
+                        updated = {
+                            **state,
+                            "sequence": sequence,
+                            "entries": [*state["entries"], entry],
+                            "head_entry_sha256": entry["entry_sha256"],
+                        }
+                        updated["state_sha256"] = _state_sha256(updated)
+                        _atomic_private_write(self.path, updated)
+                        ledger_identity = _path_private_identity(
+                            self.path, "ledger-file"
+                        )
+                        _require_stable_private_path(
+                            self.audit_file, "ledger-audit", audit_identity
+                        )
+                        _require_stable_private_path(
+                            self.path, "ledger-file", ledger_identity
+                        )
+                        committed_index = candidate_index.commit()
+                        self._arm(
+                            updated,
+                            committed_index,
+                            ledger_file=ledger_identity,
+                            audit_file=audit_identity,
+                            audit_event_count=trusted.audit_event_count + 1,
+                            audit_head_sha256=audit["event_hash"],
+                        )
+                        success = True
+                        return dict(entry)
+                    except BaseException:
+                        if side_effects_started:
+                            self._disarm()
+                        raise
+        finally:
+            self._add_metrics(
+                append_attempt_count=1,
+                append_success_count=int(success),
+                append_seconds=time.perf_counter() - append_started,
             )
-            os.chmod(self.audit_file, 0o600, follow_symlinks=False)
-            os.chmod(self.audit_file.with_name("audit.jsonl.lock"), 0o600, follow_symlinks=False)
-            entry["audit_event_hash"] = audit["event_hash"]
-            updated = {
-                **state,
-                "sequence": sequence,
-                "entries": [*state["entries"], entry],
-                "head_entry_sha256": entry["entry_sha256"],
-            }
-            updated["state_sha256"] = _state_sha256(updated)
-            errors = validate_live_allocation_ledger(updated, audit_file=self.audit_file)
-            if errors:
-                raise NativeLiveAllocationLedgerError("ledger-transition-invalid:" + ";".join(errors))
-            _atomic_private_write(self.path, updated)
-            return entry
 
     def allocation_intent(self, role: str) -> str:
         if role not in EXPECTED_ROLES:
@@ -717,16 +1491,10 @@ class NativeLiveAllocationLedgerStore:
         return intent_id
 
     def bind_thread(self, allocation_intent_id: str, thread_id: str) -> None:
-        state = self.load()
-        intent = next(
-            (
-                entry
-                for entry in state["entries"]
-                if entry["event"] == "allocation-intent"
-                and entry["allocation_intent_id"] == allocation_intent_id
-            ),
-            None,
-        )
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                intent = semantic_index.allocation_intent(allocation_intent_id)
         if intent is None:
             raise NativeLiveAllocationLedgerError("allocation-intent-missing")
         self._append(
@@ -738,42 +1506,33 @@ class NativeLiveAllocationLedgerStore:
             outcome="bound",
         )
 
-    def _thread_binding(self, thread_id: str) -> tuple[dict[str, Any], str | None, str | None]:
-        state = self.load()
-        binding = next(
-            (
-                entry
-                for entry in state["entries"]
-                if entry["event"] == "thread-bound" and entry["thread_id"] == thread_id
-            ),
-            None,
-        )
-        if binding is None:
-            raise NativeLiveAllocationLedgerError("thread-binding-missing")
-        turn_intent = next(
-            (
-                entry
-                for entry in reversed(state["entries"])
-                if entry["event"] == "turn-intent" and entry["thread_id"] == thread_id
-            ),
-            None,
-        )
-        turn_bound = next(
-            (
-                entry
-                for entry in reversed(state["entries"])
-                if entry["event"] == "turn-bound" and entry["thread_id"] == thread_id
-            ),
-            None,
-        )
-        return (
-            binding,
-            turn_intent["turn_intent_id"] if turn_intent else None,
-            turn_bound["turn_id"] if turn_bound else None,
-        )
+    def _thread_binding(
+        self,
+        thread_id: str,
+        *,
+        lifecycle: tuple[str, str] | None = None,
+    ) -> tuple[dict[str, Any], str | None, str | None, bool]:
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                binding = semantic_index.thread_binding(thread_id)
+                if binding is None:
+                    raise NativeLiveAllocationLedgerError("thread-binding-missing")
+                duplicate = bool(
+                    lifecycle is not None
+                    and semantic_index.lifecycle_seen(
+                        lifecycle[0], thread_id, lifecycle[1]
+                    )
+                )
+                return (
+                    dict(binding),
+                    semantic_index.latest_turn_intent_id(thread_id),
+                    semantic_index.latest_turn_id(thread_id),
+                    duplicate,
+                )
 
     def turn_intent(self, thread_id: str) -> str:
-        binding, existing, _turn_id = self._thread_binding(thread_id)
+        binding, existing, _turn_id, _duplicate = self._thread_binding(thread_id)
         if existing is not None:
             raise NativeLiveAllocationLedgerError("turn-intent-duplicate")
         turn_intent_id = str(uuid.uuid4())
@@ -789,7 +1548,9 @@ class NativeLiveAllocationLedgerStore:
         return turn_intent_id
 
     def bind_turn(self, thread_id: str, turn_intent_id: str, turn_id: str) -> None:
-        binding, expected_intent, existing_turn = self._thread_binding(thread_id)
+        binding, expected_intent, existing_turn, _duplicate = self._thread_binding(
+            thread_id
+        )
         if expected_intent != turn_intent_id or existing_turn is not None:
             raise NativeLiveAllocationLedgerError("turn-intent-binding-mismatch")
         self._append(
@@ -806,14 +1567,11 @@ class NativeLiveAllocationLedgerStore:
     def record_lifecycle(self, thread_id: str, event: str, outcome: str) -> None:
         if event not in {"interrupt-observed", "archive-observed"}:
             raise NativeLiveAllocationLedgerError("lifecycle-event-invalid")
-        binding, turn_intent_id, turn_id = self._thread_binding(thread_id)
-        state = self.load()
-        if any(
-            entry["event"] == event
-            and entry["thread_id"] == thread_id
-            and entry["outcome"] == outcome
-            for entry in state["entries"]
-        ):
+        binding, turn_intent_id, turn_id, duplicate = self._thread_binding(
+            thread_id,
+            lifecycle=(event, outcome),
+        )
+        if duplicate:
             return
         self._append(
             event=event,
@@ -833,7 +1591,7 @@ class NativeLiveAllocationLedgerStore:
         outcome: str,
         evidence: Mapping[str, Any],
     ) -> None:
-        binding, turn_intent_id, turn_id = self._thread_binding(thread_id)
+        binding, turn_intent_id, turn_id, _duplicate = self._thread_binding(thread_id)
         self._append(
             event="containment-audited",
             role=binding["role"],
@@ -842,13 +1600,17 @@ class NativeLiveAllocationLedgerStore:
             thread_id=thread_id,
             turn_intent_id=turn_intent_id,
             turn_id=turn_id,
-            evidence_sha256=_hash(dict(evidence), domain="native-live-containment-audit"),
+            evidence_sha256=_hash(
+                dict(evidence), domain="native-live-containment-audit"
+            ),
             outcome=outcome,
         )
 
     def bind_certification(self, receipt_sha256: str) -> None:
         if not _is_hash(receipt_sha256):
-            raise NativeLiveAllocationLedgerError("certification-receipt-sha256-invalid")
+            raise NativeLiveAllocationLedgerError(
+                "certification-receipt-sha256-invalid"
+            )
         self._append(
             event="certification-bound",
             evidence_sha256=receipt_sha256,
@@ -858,14 +1620,22 @@ class NativeLiveAllocationLedgerStore:
     def has_lifecycle(self, thread_id: str, event: str) -> bool:
         if event not in {"interrupt-observed", "archive-observed"}:
             return False
-        return any(
-            entry["event"] == event and entry["thread_id"] == thread_id
-            for entry in self.load()["entries"]
-        )
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                return semantic_index.lifecycle_kind_seen(event, thread_id)
 
     def summary(self) -> dict[str, Any]:
-        state = self.load()
-        return summarize_live_allocation_ledger(
-            state,
-            ledger_file_sha256=hashlib.sha256(self.path.read_bytes()).hexdigest(),
-        )
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                state = self._full_validate_locked("ledger-invalid")
+                payload, identity = _read_private_bytes_with_identity(
+                    self.path, "ledger-file"
+                )
+                if self._trusted is None or identity != self._trusted.ledger_file:
+                    self._disarm()
+                    raise NativeLiveAllocationLedgerError("ledger-store-stale")
+                return summarize_live_allocation_ledger(
+                    state,
+                    ledger_file_sha256=hashlib.sha256(payload).hexdigest(),
+                )
