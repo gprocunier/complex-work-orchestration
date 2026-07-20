@@ -7,7 +7,8 @@
     "result_type", "version", "schema", "state_id", "packet_id", "session_id",
     "immutable_work_sha256", "recovery", "decision", "reasons", "observed", "interrupt_thresholds", "control_turn_id", "control_timing", "control_action_required",
     "session_disposition", "artifact_disposition", "artifact_validation",
-    "trailing_partial_record_ignored"
+    "trailing_partial_record_ignored", "stop_scope", "authorized_continuation_paths",
+    "scope_authority"
   ],
   "properties": {
     "result_type": {"const": "cwo-native-supervision-decision"},
@@ -46,6 +47,46 @@
     "session_disposition": {"enum": ["accepted", "accepted-with-warning", "quarantined"]},
     "artifact_disposition": {"enum": ["accepted", "independent-validation-required", "architect-adjudication-required", "rejected"]},
     "artifact_validation": {"type": "object"},
-    "trailing_partial_record_ignored": {"type": "boolean"}
+    "trailing_partial_record_ignored": {"type": "boolean"},
+    "stop_scope": {"$ref": "#/$defs/stop_scope"},
+    "authorized_continuation_paths": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/continuation_path"}},
+    "scope_authority": {"$ref": "#/$defs/scope_authority"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stop_scope": {"enum": ["child", "cohort", "execution-path", "complete-task", "publication"]},
+    "continuation_path": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "target_id", "conditions"],
+      "properties": {
+        "path": {"enum": ["retry-child", "replace-child", "continue-cohort", "retry-cohort", "alternate-execution-path", "resume-task", "task-remediation", "publication-review", "operator-adjudication"]},
+        "target_id": {"type": ["string", "null"], "minLength": 1},
+        "conditions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "scope_authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "source_type", "source_id", "source_sha256", "actor_id", "actor_role", "identity_source", "authorized_scope", "parent_receipt_sha256", "verification", "authority_sha256"],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {"enum": ["worker-discovery", "pm-observation", "architect-judgment", "operator-directive", "policy-enforcement"]},
+        "source_id": {"type": "string", "minLength": 1},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "actor_role": {"enum": ["operative-worker", "critic", "project-manager", "architect", "supervisor-policy", "operator"]},
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {"$ref": "#/$defs/stop_scope"},
+        "parent_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "verification": {
+          "type": "object", "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"type": "string", "minLength": 1},
+            "evidence_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
   }
 }

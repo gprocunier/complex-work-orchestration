@@ -30,6 +30,14 @@ from cwo_core.native_retry import (
     evaluate_retry_eligibility,
     validate_retry_authorization,
 )
+from cwo_core.native_stop_scope import (
+    STOP_METADATA_FIELDS,
+    build_stop_metadata,
+    canonical_scope_sha256,
+    continuation_path,
+    policy_scope_authority,
+    read_stop_metadata,
+)
 from cwo_core.native_worker_contracts import is_tool_call_item, trusted_tool_name
 from cwo_core.policy import load_policy
 from cwo_core.paths import AUDIT_LOG, cwo_temp_path, is_cwo_temp_path
@@ -1325,7 +1333,56 @@ def _state_path(packet: dict[str, Any], session_id: str, raw: str | None) -> Pat
     return path
 
 
+def _supervision_stop_metadata(
+    decision: str,
+    reasons: list[str],
+    *,
+    agent_id: str | None,
+) -> dict[str, Any]:
+    paths: list[dict[str, Any]] = []
+    if decision in {"interrupt", "control-lost"}:
+        paths = [
+            continuation_path(
+                "replace-child",
+                target_id=agent_id if isinstance(agent_id, str) and agent_id else None,
+                conditions=["interrupt-confirmed", "fresh-attempt"],
+            ),
+            continuation_path(
+                "continue-cohort",
+                conditions=["healthy-peer-evidence-preserved"],
+            ),
+        ]
+    return build_stop_metadata(
+        "child",
+        authority=policy_scope_authority(
+            "native-worker-supervision-policy-v1",
+            authorized_scope="child",
+            source_sha256=canonical_scope_sha256(
+                {"decision": decision, "reasons": sorted(set(reasons))}
+            ),
+        ),
+        authorized_continuation_paths=paths,
+    )
+
+
+def _apply_supervision_stop_metadata(state: dict[str, Any]) -> None:
+    state.update(
+        _supervision_stop_metadata(
+            str(state.get("decision", "continue")),
+            [str(value) for value in state.get("reasons", [])],
+            agent_id=state.get("agent_id"),
+        )
+    )
+
+
 def _write_state(path: Path, state: dict[str, Any]) -> None:
+    if not STOP_METADATA_FIELDS.issubset(state):
+        state.update(
+            read_stop_metadata(
+                state,
+                legacy_source_id="native-worker-supervision-state-v1",
+            )
+        )
     lock, _ = acquire_audit_lock(path)
     try:
         atomic_write_text(path, json.dumps(state, indent=2, sort_keys=True) + "\n")
@@ -1335,6 +1392,10 @@ def _write_state(path: Path, state: dict[str, Any]) -> None:
 
 def _decision(state: dict[str, Any]) -> dict[str, Any]:
     recovery = _recovery_payload(state.get("recovery"))
+    stop_metadata = read_stop_metadata(
+        state,
+        legacy_source_id="native-worker-supervision-decision-v1",
+    )
     return {
         "result_type": DECISION_TYPE,
         "version": 1,
@@ -1355,6 +1416,7 @@ def _decision(state: dict[str, Any]) -> dict[str, Any]:
         "artifact_disposition": state["artifact_disposition"],
         "artifact_validation": dict(state["artifact_validation"]),
         "trailing_partial_record_ignored": bool(state.get("trailing_partial_record_ignored")),
+        **stop_metadata,
     }
 
 
@@ -1425,6 +1487,10 @@ def _compact_projection(state: dict[str, Any]) -> dict[str, Any]:
         "started_at": state.get("started_at"),
         "updated_at": state.get("updated_at"),
         "finalized_at": state.get("finalized_at"),
+        **read_stop_metadata(
+            state,
+            legacy_source_id="native-worker-supervision-compact-v1",
+        ),
     }
     rendered = json.dumps(compact, sort_keys=True, separators=(",", ":")).encode("utf-8")
     if len(rendered) > 4096:
@@ -1666,6 +1732,7 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
             "late_poll_count": 0,
         },
     }
+    _apply_supervision_stop_metadata(state)
     _write_state(path, state)
     _audit_event(state, "native_supervision_started")
     state["state_file"] = str(path)
@@ -1676,7 +1743,15 @@ def _load_control_state(path_value: str) -> tuple[Path, dict[str, Any]]:
     path = Path(path_value).expanduser().resolve()
     if not is_cwo_temp_path(path):
         _fail("supervision state must be under a CWO-owned temporary directory")
-    return path, _load_json(path, "supervision state")
+    state = _load_json(path, "supervision state")
+    if not STOP_METADATA_FIELDS.issubset(state):
+        state.update(
+            read_stop_metadata(
+                state,
+                legacy_source_id="native-worker-supervision-state-v1",
+            )
+        )
+    return path, state
 
 
 def _require_packet_release(packet: dict[str, Any], operation: str) -> None:
@@ -1764,6 +1839,7 @@ def _set_control_lost(
             "updated_at": _iso(now),
         }
     )
+    _apply_supervision_stop_metadata(state)
 
 
 def arm(args: argparse.Namespace) -> dict[str, Any]:
@@ -2036,6 +2112,7 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 **disposition,
             }
         )
+        _apply_supervision_stop_metadata(state)
     except SystemExit as exc:
         state.update(
             {
@@ -2055,6 +2132,7 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "updated_at": _iso(now),
             }
         )
+        _apply_supervision_stop_metadata(state)
     if state.get("decision") != previous_audited_decision:
         _audit_event(state, "native_supervision_decision")
         state["last_audited_decision"] = state.get("decision")
@@ -2096,6 +2174,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
         state["artifact_disposition"] = "architect-adjudication-required"
         state["control_action_required"] = False
         state["finalized_at"] = _iso(_iso_now(args.now))
+    _apply_supervision_stop_metadata(state)
     state["updated_at"] = _iso(_iso_now(args.now))
     _audit_event(state, "native_supervision_control_receipt", control_action=action)
     _write_state(path, state)

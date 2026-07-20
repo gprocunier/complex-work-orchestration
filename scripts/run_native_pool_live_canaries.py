@@ -100,6 +100,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
 )
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
+from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
 from cwo_core.native_tool_isolation import (  # noqa: E402
     NativeToolIsolationError,
@@ -4909,6 +4910,13 @@ def build_pool_inputs(
             "poll_interval_ms": 1000,
             "control_adapter": "native-multi-agent-v1",
             "required_capabilities": ["interrupt", "close", "wait"],
+            **build_stop_metadata(
+                "child",
+                authority=policy_scope_authority(
+                    "live-canary-child-state-baseline-v1",
+                    authorized_scope="child",
+                ),
+            ),
         }
         write_private_artifact(control_file, control)
         write_private_artifact(state_file, state)

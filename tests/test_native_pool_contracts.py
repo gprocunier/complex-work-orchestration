@@ -56,6 +56,10 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     zero_usage,
 )
 from cwo_core.native_tool_isolation import default_tool_policy  # noqa: E402
+from cwo_core.native_stop_scope import (  # noqa: E402
+    build_stop_metadata,
+    policy_scope_authority,
+)
 
 
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -63,6 +67,16 @@ HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
 def sha(label: str) -> str:
     return canonical_sha256({"label": label})
+
+
+def baseline_stop_metadata() -> dict:
+    return build_stop_metadata(
+        "child",
+        authority=policy_scope_authority(
+            "native-pool-contract-test-baseline-v1",
+            authorized_scope="child",
+        ),
+    )
 
 
 def owner() -> dict:
@@ -250,6 +264,7 @@ def closed_state(contract: dict, leases: list[dict]) -> dict:
             "reasons": [],
             "first_protected_fault": None,
             "control_loss_scope": None,
+            **baseline_stop_metadata(),
         },
         "state_sha256",
     )
@@ -276,6 +291,7 @@ def complete_decision(contract: dict, state: dict) -> dict:
             "aggregate_usage": state["aggregate_usage"],
             "reasons": [],
             "required_control_actions": ["finalize"],
+            **baseline_stop_metadata(),
         },
         "decision_sha256",
     )
@@ -327,6 +343,7 @@ def accepting_receipt(contract: dict, state: dict, leases: list[dict]) -> dict:
             ],
             "pool_disposition": "accepted",
             "accepting": True,
+            **baseline_stop_metadata(),
         },
         "receipt_sha256",
     )

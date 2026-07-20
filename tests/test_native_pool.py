@@ -4,6 +4,7 @@ import copy
 import datetime as dt
 import fcntl
 import hashlib
+import hmac
 import json
 from pathlib import Path
 import sys
@@ -29,6 +30,10 @@ from cwo_core.native_pool_leases import (  # noqa: E402
     PoolLeaseError,
     PoolLeaseRegistry,
     capture_owner_identity,
+)
+from cwo_core.native_stop_scope import (  # noqa: E402
+    policy_scope_authority,
+    verify_operator_scope_directive,
 )
 from tests.test_native_pool_contracts import control_request, pool_contract, sha  # noqa: E402
 
@@ -260,6 +265,13 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(
                 receipt["first_protected_fault"]["code"],
                 "child-protected-fault:unexpected-mutation:targets/child_1.txt",
+            )
+            self.assertEqual(receipt["stop_scope"], "child")
+            self.assertTrue(
+                all(
+                    set(path) == {"path", "target_id", "conditions"}
+                    for path in receipt["authorized_continuation_paths"]
+                )
             )
 
     def test_zero_work_completion_contains_cohort_before_peer_admission(self) -> None:
@@ -577,6 +589,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 "coordinator-crash-affected-children:child-0",
                 state["reasons"],
             )
+            self.assertEqual(state["stop_scope"], "execution-path")
             self.assertIsNone(harness.coordinator._state_lock_handle)
             assert_state_lock_released(self, temporary)
 
@@ -827,6 +840,81 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertIn("aggregate-tool-calls-exhausted", receipt["reasons"])
             self.assertIn("aggregate-budget-exhausted", receipt["reasons"])
             self.assertEqual(receipt["final_aggregate_usage"]["tool_calls"], 3)
+            self.assertEqual(receipt["stop_scope"], "cohort")
+            self.assertNotEqual(receipt["stop_scope"], "publication")
+
+    def test_free_text_interrupt_cannot_authorize_publication_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            harness.coordinator.request_interrupt(
+                "STOP 0.98 block publication",
+                stop_scope="publication",
+            )
+            receipt = harness.coordinator.run()
+            self.assertEqual(receipt["stop_scope"], "cohort")
+            self.assertEqual(receipt["scope_authority"]["authorized_scope"], "cohort")
+
+    def test_public_policy_factory_cannot_broaden_interrupt_api(self) -> None:
+        forged_policy = policy_scope_authority(
+            "caller-asserted-policy",
+            authorized_scope="complete-task",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            with self.assertRaisesRegex(
+                NativePoolError,
+                "broad-interrupt-requires-operator-directive",
+            ):
+                harness.coordinator.request_interrupt(
+                    "caller requests complete task stop",
+                    stop_scope="complete-task",
+                    scope_authority=forged_policy,
+                )
+            harness.coordinator.request_interrupt("test-cleanup")
+            harness.coordinator.run()
+
+    def test_verified_operator_directive_enforces_publication_scope(self) -> None:
+        key = b"test-only-pool-operator-key"
+        action_sha256 = sha("pool-publication-stop-action")
+        directive = {
+            "version": 1,
+            "directive_id": "pool-operator-stop-1",
+            "action_sha256": action_sha256,
+            "actor_id": "operator-1",
+            "identity_source": "trusted-control-session",
+            "authorized_scope": "publication",
+            "parent_receipt_sha256": None,
+            "issued_at": "2026-07-20T00:00:00Z",
+            "nonce": "pool-directive-nonce-1",
+        }
+        directive["signature"] = hmac.new(
+            key,
+            json.dumps(
+                directive,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            ).encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        authority = verify_operator_scope_directive(
+            directive,
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            expected_action_sha256=action_sha256,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            harness.coordinator.request_interrupt(
+                "verified-operator-publication-stop",
+                stop_scope="publication",
+                scope_authority=authority,
+            )
+            receipt = harness.coordinator.run()
+            self.assertEqual(receipt["stop_scope"], "publication")
+            self.assertEqual(receipt["scope_authority"]["source_type"], "operator-directive")
 
     def test_cumulative_counter_reset_is_control_failure(self) -> None:
         first = zero_usage()
@@ -908,6 +996,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             interrupted = harness.coordinator.step()
             self.assertEqual(len(harness.adapters["child-0"].calls), before)
             self.assertTrue(any(reason.startswith("external-control-request:interrupt-1:") for reason in interrupted["state"]["reasons"]))
+            self.assertEqual(interrupted["state"]["stop_scope"], "cohort")
             harness.coordinator.step()
             self.assertEqual(
                 sum(reason.startswith("external-control-request:interrupt-1:") for reason in harness.coordinator.progress()["state"]["reasons"]),

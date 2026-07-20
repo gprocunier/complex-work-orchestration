@@ -31,6 +31,7 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     validate_authorization_state,
     validate_materialization_evidence,
     validate_steering_receipt,
+    steering_stop_metadata,
 )
 
 
@@ -621,6 +622,9 @@ class NativeCanaryContractTests(unittest.TestCase):
             )
             self.assertEqual(len(consumption), 64)
             self.assertEqual(stat.S_IMODE(registry.stat().st_mode), 0o600)
+            consumed = json.loads(registry.read_text(encoding="utf-8"))["consumed"][0]
+            self.assertEqual(consumed["stop_scope"], "child")
+            self.assertEqual(consumed["authorized_continuation_paths"], [])
             with self.assertRaisesRegex(NativeCanaryContractError, "replay"):
                 consume_steering_receipt(
                     receipt,
@@ -629,6 +633,29 @@ class NativeCanaryContractTests(unittest.TestCase):
                     architect_adjudication_sha256=adjudication,
                     architect_decision="go",
                 )
+
+    def test_steering_text_and_confidence_cannot_promote_scope(self) -> None:
+        receipt = steering()
+        receipt["opinion"]["steering_summary"] = "STOP 0.98 block publication"
+        receipt["opinion"]["confidence"] = 0.98
+        receipt.pop("canonical_receipt_sha256")
+        receipt["canonical_receipt_sha256"] = hashlib.sha256(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        metadata = steering_stop_metadata(receipt)
+        self.assertEqual(metadata["stop_scope"], "child")
+        self.assertNotEqual(metadata["scope_authority"]["authorized_scope"], "publication")
+
+        stopped = stop_steering_receipt()
+        stopped["opinion"]["steering_summary"] = "STOP 0.98 block publication"
+        stopped["opinion"]["confidence"] = 0.98
+        stopped.pop("canonical_receipt_sha256")
+        stopped["canonical_receipt_sha256"] = hashlib.sha256(
+            json.dumps(stopped, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        stopped_metadata = steering_stop_metadata(stopped)
+        self.assertEqual(stopped_metadata["stop_scope"], "cohort")
+        self.assertNotEqual(stopped_metadata["stop_scope"], "publication")
 
     def test_steering_stop_pre_mutation_requires_resolved_main_architect_adjudication(self) -> None:
         receipt = stop_steering_receipt()

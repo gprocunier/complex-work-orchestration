@@ -42,6 +42,15 @@ from .native_pool_scheduler import (
     select_earliest_deadline,
     wait_seconds,
 )
+from .native_stop_scope import (
+    STOP_SCOPE_RANK,
+    STOP_SCOPES,
+    VerifiedScopeAuthority,
+    build_stop_metadata,
+    continuation_path,
+    merge_stop_metadata,
+    policy_scope_authority,
+)
 
 
 POOL_CALLBACKS = {
@@ -66,6 +75,12 @@ ARTIFACT_DISPOSITIONS = {
     "independent-validation-required",
     "architect-adjudication-required",
     "rejected",
+}
+FAULT_SCOPE_POLICY_CAPS = {
+    "child-fault": "child",
+    "cohort-budget": "cohort",
+    "cohort-control": "cohort",
+    "execution-integrity": "execution-path",
 }
 POOL_LEASE_ERROR_CODES = {
     "boot-identity-empty",
@@ -298,6 +313,13 @@ class NativePoolCoordinator:
         self._decision: dict[str, Any] | None = None
         self._crash_cleanup_started = False
         self._crash_cleanup_complete = False
+        self._stop_metadata = build_stop_metadata(
+            "child",
+            authority=policy_scope_authority(
+                "native-pool-baseline-v1",
+                authorized_scope="child",
+            ),
+        )
 
         self._certified_callback_max_ms: Mapping[str, Any] = {}
         self._certified_scheduler_overhead_ms = 0.0
@@ -419,18 +441,24 @@ class NativePoolCoordinator:
             self._enter_fault(
                 f"external-control-request:{request_id}:{reason_hash}",
                 control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
             )
             return True
         except NativePoolError as exc:
             self._enter_fault(
                 f"pool-control-request-failed:{type(exc).__name__}:{exc}",
                 control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
             )
             return True
         except (OSError, json.JSONDecodeError, TypeError) as exc:
             self._enter_fault(
                 f"pool-control-request-failed:{type(exc).__name__}",
                 control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
             )
             return True
 
@@ -526,6 +554,7 @@ class NativePoolCoordinator:
             "reasons": [],
             "first_protected_fault": None,
             "control_loss_scope": None,
+            **self._stop_metadata,
         }
         return seal_artifact(state, "state_sha256")
 
@@ -573,6 +602,7 @@ class NativePoolCoordinator:
                     else None
                 ),
                 "control_loss_scope": "pool" if self._control_failed else None,
+                **self._stop_metadata,
             }
         )
         self._state = seal_artifact(self._state, "state_sha256")
@@ -608,6 +638,7 @@ class NativePoolCoordinator:
                 "aggregate_usage": self._state["aggregate_usage"],
                 "reasons": list(self._reasons),
                 "required_control_actions": list(actions),
+                **self._stop_metadata,
             },
             "decision_sha256",
         )
@@ -627,7 +658,88 @@ class NativePoolCoordinator:
         operation: str | None = None,
         observed_callback_latency_ms: float | None = None,
         certified_callback_max_ms: float | None = None,
+        requested_stop_scope: str = "child",
+        scope_authority: VerifiedScopeAuthority | None = None,
+        authorized_continuation_paths: Sequence[Mapping[str, Any]] | None = None,
+        affected_child_id: str | None = None,
+        scope_policy_rule: str = "child-fault",
     ) -> None:
+        if requested_stop_scope not in STOP_SCOPE_RANK:
+            raise NativePoolError("fault-stop-scope-invalid")
+        if scope_authority is not None and not isinstance(
+            scope_authority, VerifiedScopeAuthority
+        ):
+            raise NativePoolError("verified-scope-authority-required")
+        if scope_authority is None:
+            policy_cap = FAULT_SCOPE_POLICY_CAPS.get(scope_policy_rule)
+            if policy_cap is None:
+                raise NativePoolError("fault-scope-policy-rule-invalid")
+            scope_authority = policy_scope_authority(
+                f"native-pool-fault-policy:{scope_policy_rule}",
+                authorized_scope=policy_cap,
+                source_sha256=canonical_sha256(
+                    {
+                        "reason": reason,
+                        "requested_stop_scope": requested_stop_scope,
+                        "scope_policy_rule": scope_policy_rule,
+                        "operation": operation,
+                        "affected_child_id": affected_child_id,
+                    }
+                ),
+            )
+        continuation_scope = STOP_SCOPES[
+            min(
+                STOP_SCOPE_RANK[requested_stop_scope],
+                STOP_SCOPE_RANK[scope_authority.authorized_scope],
+            )
+        ]
+        if authorized_continuation_paths is None:
+            if continuation_scope == "child":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "replace-child",
+                        target_id=affected_child_id,
+                        conditions=["fault-contained", "fresh-attempt"],
+                    ),
+                    continuation_path(
+                        "continue-cohort",
+                        conditions=["healthy-peer-evidence-preserved"],
+                    ),
+                ]
+            elif continuation_scope == "cohort":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "retry-cohort",
+                        conditions=["fault-remediated", "new-pool-epoch"],
+                    )
+                ]
+            elif continuation_scope == "execution-path":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "alternate-execution-path",
+                        conditions=["independent-validation"],
+                    )
+                ]
+            elif continuation_scope == "complete-task":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "task-remediation",
+                        conditions=["architect-approved-remediation"],
+                    )
+                ]
+            else:
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "operator-adjudication",
+                        conditions=["new-verified-operator-directive"],
+                    )
+                ]
+        incoming_stop = build_stop_metadata(
+            requested_stop_scope,
+            authority=scope_authority,
+            authorized_continuation_paths=authorized_continuation_paths,
+        )
+        self._stop_metadata = merge_stop_metadata(self._stop_metadata, incoming_stop)
         if self._first_protected_fault is None:
             state_sequence = self._state["state_sequence"] if hasattr(self, "_state") else 0
             self._first_protected_fault = {
@@ -671,12 +783,35 @@ class NativePoolCoordinator:
                 except ValueError:
                     self._control_failed = True
 
-    def request_interrupt(self, reason: str = "operator-request") -> dict[str, Any]:
+    def request_interrupt(
+        self,
+        reason: str = "operator-request",
+        *,
+        stop_scope: str = "cohort",
+        scope_authority: VerifiedScopeAuthority | None = None,
+    ) -> dict[str, Any]:
         if not isinstance(reason, str) or not reason.strip():
             raise NativePoolError("interrupt-reason-invalid")
         if self._state["status"] in {"closed", "control-failed"}:
             return self.progress()
-        self._enter_fault(f"pool-interrupt:{reason.strip()}", control_failed=False)
+        if scope_authority is None:
+            scope_authority = policy_scope_authority(
+                "native-pool-explicit-interrupt-v1",
+                authorized_scope="cohort",
+                source_sha256=canonical_sha256({"reason": reason.strip()}),
+            )
+        elif (
+            STOP_SCOPE_RANK.get(stop_scope, len(STOP_SCOPES))
+            > STOP_SCOPE_RANK["cohort"]
+            and scope_authority.source_type != "operator-directive"
+        ):
+            raise NativePoolError("broad-interrupt-requires-operator-directive")
+        self._enter_fault(
+            f"pool-interrupt:{reason.strip()}",
+            control_failed=False,
+            requested_stop_scope=stop_scope,
+            scope_authority=scope_authority,
+        )
         self._refresh_state("interrupt-pending")
         self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
         return self.progress()
@@ -709,9 +844,18 @@ class NativePoolCoordinator:
             if budget_reasons:
                 for reason in budget_reasons:
                     self._add_reason(reason)
-                self._enter_fault("aggregate-budget-exhausted", control_failed=False)
+                self._enter_fault(
+                    "aggregate-budget-exhausted",
+                    control_failed=False,
+                    requested_stop_scope="cohort",
+                    scope_policy_rule="cohort-budget",
+                )
             if evidence["control_loss"]:
-                self._enter_fault("child-control-loss", control_failed=True)
+                self._enter_fault(
+                    "child-control-loss",
+                    control_failed=True,
+                    affected_child_id=child_id,
+                )
             elif evidence["protected_fault"]:
                 first_reason = (
                     evidence["reasons"][0]
@@ -719,10 +863,16 @@ class NativePoolCoordinator:
                     else "reason-unavailable"
                 )
                 self._enter_fault(
-                    f"child-protected-fault:{first_reason}", control_failed=False
+                    f"child-protected-fault:{first_reason}",
+                    control_failed=False,
+                    affected_child_id=child_id,
                 )
         except (NativePoolError, PoolAccountingError, TypeError, ValueError) as exc:
-            self._enter_fault(f"child-evidence-failed:{type(exc).__name__}:{exc}", control_failed=True)
+            self._enter_fault(
+                f"child-evidence-failed:{type(exc).__name__}:{exc}",
+                control_failed=True,
+                affected_child_id=child_id,
+            )
 
     def _record_poll(self, child_id: str, now_ns: int) -> None:
         child = self._child_state(child_id)
@@ -732,7 +882,12 @@ class NativePoolCoordinator:
         else:
             gap_ms = (now_ns - previous) / 1_000_000
         if gap_ms < 0:
-            self._enter_fault("nonmonotonic-poll-clock", control_failed=True)
+            self._enter_fault(
+                "nonmonotonic-poll-clock",
+                control_failed=True,
+                requested_stop_scope="execution-path",
+                scope_policy_rule="execution-integrity",
+            )
             gap_ms = 0.0
         self._max_poll_gap_ms = max(self._max_poll_gap_ms, gap_ms)
         maximum = (
@@ -740,7 +895,12 @@ class NativePoolCoordinator:
             + self.contract["scheduler"]["poll_lag_tolerance_ms"]
         )
         if gap_ms > maximum:
-            self._enter_fault("maximum-poll-gap-exceeded", control_failed=False)
+            self._enter_fault(
+                "maximum-poll-gap-exceeded",
+                control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
+            )
         child["last_deadline_ns"] = child["next_deadline_ns"] if child["next_deadline_ns"] is not None else now_ns
         child["next_deadline_ns"] = now_ns + self.contract["scheduler"]["poll_interval_ms"] * 1_000_000
         self._last_poll_ns[child_id] = now_ns
@@ -833,9 +993,19 @@ class NativePoolCoordinator:
                         "child_worktrees_clean",
                     )
                 ):
-                    self._enter_fault("workspace-mutation-attribution-failed", control_failed=False)
+                    self._enter_fault(
+                        "workspace-mutation-attribution-failed",
+                        control_failed=False,
+                        requested_stop_scope="execution-path",
+                        scope_policy_rule="execution-integrity",
+                    )
             except NativePoolError as exc:
-                self._enter_fault(str(exc), control_failed=True)
+                self._enter_fault(
+                    str(exc),
+                    control_failed=True,
+                    requested_stop_scope="execution-path",
+                    scope_policy_rule="execution-integrity",
+                )
 
     def _next_lifecycle_child(self, now_ns: int) -> tuple[str | None, bool, float]:
         state_children = self._state["children"]
@@ -907,7 +1077,11 @@ class NativePoolCoordinator:
             f"lease={_evidence_identifier(self._child_state(child_id)['lease_id'])}:"
             f"target={target_state}:error={error_code}:evidence={evidence_sha256}"
         )
-        self._enter_fault(reason, control_failed=control_failed)
+        self._enter_fault(
+            reason,
+            control_failed=control_failed,
+            affected_child_id=child_id,
+        )
         return reason
 
     def _mark_lease_release_pending(
@@ -1057,6 +1231,7 @@ class NativePoolCoordinator:
                     else None
                 ),
                 "control_loss_scope": "pool",
+                **self._stop_metadata,
             }
         )
         self._state = seal_artifact(self._state, "state_sha256")
@@ -1078,6 +1253,30 @@ class NativePoolCoordinator:
         crash_reason: str,
         affected_child_ids: Sequence[str],
     ) -> None:
+        crash_authority = policy_scope_authority(
+            "native-pool-coordinator-crash-v1",
+            authorized_scope="execution-path",
+            source_sha256=canonical_sha256(
+                {
+                    "crash_reason": crash_reason,
+                    "exception_type": type(original_error).__name__,
+                    "affected_child_ids": list(affected_child_ids),
+                }
+            ),
+        )
+        self._stop_metadata = merge_stop_metadata(
+            self._stop_metadata,
+            build_stop_metadata(
+                "execution-path",
+                authority=crash_authority,
+                authorized_continuation_paths=[
+                    continuation_path(
+                        "alternate-execution-path",
+                        conditions=["coordinator-remediated", "independent-validation"],
+                    )
+                ],
+            ),
+        )
         if self._first_protected_fault is None:
             self._first_protected_fault = {
                 "code": crash_reason,
@@ -1286,6 +1485,7 @@ class NativePoolCoordinator:
                 "child_dispositions": dispositions,
                 "pool_disposition": pool_disposition,
                 "accepting": accepting,
+                **self._stop_metadata,
             },
             "receipt_sha256",
         )
@@ -1295,7 +1495,12 @@ class NativePoolCoordinator:
         return value
 
     def _contain_state_watermark_failure(self, error: NativePoolError) -> dict[str, Any]:
-        self._enter_fault(str(error), control_failed=False)
+        self._enter_fault(
+            str(error),
+            control_failed=False,
+            requested_stop_scope="execution-path",
+            scope_policy_rule="execution-integrity",
+        )
         status = self._status_after_action()
         self._refresh_state(status)
         self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
@@ -1326,7 +1531,12 @@ class NativePoolCoordinator:
 
         if self._state["status"] == "created":
             if self._initial_mutation_fault:
-                self._enter_fault("initial-workspace-comparison-failed", control_failed=False)
+                self._enter_fault(
+                    "initial-workspace-comparison-failed",
+                    control_failed=False,
+                    requested_stop_scope="execution-path",
+                    scope_policy_rule="execution-integrity",
+                )
                 self._refresh_state(self._status_after_action())
                 self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
                 return self.progress()
@@ -1348,11 +1558,19 @@ class NativePoolCoordinator:
                         )
                     ):
                         self._enter_fault(
-                            "terminal-workspace-comparison-failed", control_failed=False
+                            "terminal-workspace-comparison-failed",
+                            control_failed=False,
+                            requested_stop_scope="execution-path",
+                            scope_policy_rule="execution-integrity",
                         )
                     self._terminal_comparison_complete = True
                 except NativePoolError as exc:
-                    self._enter_fault(str(exc), control_failed=True)
+                    self._enter_fault(
+                        str(exc),
+                        control_failed=True,
+                        requested_stop_scope="execution-path",
+                        scope_policy_rule="execution-integrity",
+                    )
                 if self._control_failed:
                     self._refresh_state("control-failed")
                     self._finish_control_failed()

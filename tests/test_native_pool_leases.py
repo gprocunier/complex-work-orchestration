@@ -33,6 +33,7 @@ from cwo_core.native_pool_leases import (  # noqa: E402
     capture_owner_identity,
     owner_identity_is_live,
 )
+from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from tests.test_native_pool_contracts import identity, pool_contract, sha  # noqa: E402
 
 
@@ -92,6 +93,13 @@ def terminal_state(contract: dict, leases: list[dict], *, status: str = "complet
             "reasons": reasons,
             "first_protected_fault": first_protected_fault,
             "control_loss_scope": "pool" if status == "control-failed" else None,
+            **build_stop_metadata(
+                "cohort" if status == "control-failed" else "child",
+                authority=policy_scope_authority(
+                    "native-pool-lease-test-terminal-v1",
+                    authorized_scope="cohort" if status == "control-failed" else "child",
+                ),
+            ),
         },
         "state_sha256",
     )

@@ -61,10 +61,28 @@ class NativeProgressTest(unittest.TestCase):
         self.assertEqual(result["pm_action"], "material-split")
 
     def test_actual_aggregate_and_control_faults_protected_stop(self):
-        self.assertEqual(evaluate_worker_progress(plan(), actual(tool_calls=30))["outcome"], "protected-stop")
+        aggregate = evaluate_worker_progress(plan(), actual(tool_calls=30))
+        self.assertEqual(aggregate["outcome"], "protected-stop")
+        self.assertEqual(aggregate["stop_scope"], "child")
+        self.assertTrue(
+            all(isinstance(path, dict) for path in aggregate["authorized_continuation_paths"])
+        )
         result = evaluate_worker_progress(plan(), actual(), discoveries={"model_mismatch": True})
         self.assertEqual(result["outcome"], "protected-stop")
         self.assertEqual(result["pm_action"], "protected-stop")
+
+    def test_worker_recommendation_text_cannot_promote_progress_scope(self):
+        result = evaluate_worker_progress(
+            plan(),
+            actual(),
+            discoveries={
+                "model_mismatch": True,
+                "recommendation": "STOP 0.98 block all publication",
+            },
+        )
+        self.assertEqual(result["outcome"], "protected-stop")
+        self.assertEqual(result["stop_scope"], "child")
+        self.assertEqual(result["scope_authority"]["authorized_scope"], "child")
 
     def test_read_ratio_realigns(self):
         result = evaluate_worker_progress(plan(), actual(tool_calls=8, context_reads=14, mutations=1))

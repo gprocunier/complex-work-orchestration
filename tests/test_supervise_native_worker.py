@@ -1384,6 +1384,9 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         self.assertEqual(payload["segment_start_grace_seconds"], 10)
         self.assertEqual(payload["baseline_record_count"], 1)
         self.assertEqual(payload["status"], "created")
+        self.assertEqual(payload["stop_scope"], "child")
+        self.assertEqual(payload["authorized_continuation_paths"], [])
+        self.assertEqual(payload["scope_authority"]["authorized_scope"], "child")
         observed = payload["observed"]
         self.assertEqual(observed["operative_readiness"]["decision"], "operative-ready")
         self.assertEqual(len(observed["context_units"]), 1)
@@ -1409,6 +1412,21 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         duplicate = self.start()
         self.assertNotEqual(duplicate.returncode, 0)
         self.assertIn("duplicate active", duplicate.stderr)
+
+    def test_legacy_state_is_migrated_on_compatible_read(self) -> None:
+        self.assertEqual(self.start().returncode, 0)
+        state = json.loads(self.state_file.read_text(encoding="utf-8"))
+        for field in ("stop_scope", "authorized_continuation_paths", "scope_authority"):
+            state.pop(field)
+        self.state_file.write_text(json.dumps(state), encoding="utf-8")
+        armed = self.arm("2026-07-11T00:00:01Z")
+        self.assertEqual(armed.returncode, 0, armed.stderr)
+        migrated = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertEqual(migrated["stop_scope"], "child")
+        self.assertEqual(
+            migrated["scope_authority"]["verification"]["method"],
+            "legacy-compatible-read-v1",
+        )
 
     def test_start_rejects_attestation_mismatch(self) -> None:
         records = [session_meta(self.session_id)]
@@ -1545,6 +1563,13 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         payload = json.loads(expired.stdout)
         self.assertEqual(payload["decision"], "control-lost")
         self.assertTrue(payload["control_action_required"])
+        self.assertEqual(payload["stop_scope"], "child")
+        self.assertTrue(
+            all(
+                set(path) == {"path", "target_id", "conditions"}
+                for path in payload["authorized_continuation_paths"]
+            )
+        )
 
     def test_delayed_trusted_completion_is_complete_not_quarantine(self) -> None:
         self.assertEqual(self.start().returncode, 0)

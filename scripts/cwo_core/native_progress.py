@@ -6,6 +6,12 @@ from math import ceil, isfinite
 from typing import Any
 
 from .policy import load_policy
+from .native_stop_scope import (
+    build_stop_metadata,
+    canonical_scope_sha256,
+    continuation_path,
+    policy_scope_authority,
+)
 
 DECISION_TYPE = "cwo-native-progress-decision"
 VERSION = 1
@@ -246,6 +252,41 @@ def evaluate_worker_progress(
             "recommendation": found["recommendation"] or pm_action,
             "retained_artifacts": retained,
         }
+    continuation_paths: list[dict[str, Any]] = []
+    if outcome == "protected-stop":
+        continuation_paths = [
+            continuation_path(
+                "replace-child",
+                conditions=["fault-contained", "fresh-attempt"],
+            ),
+            continuation_path(
+                "continue-cohort",
+                conditions=["healthy-peer-evidence-preserved"],
+            ),
+        ]
+    elif outcome == "pm-realignment":
+        continuation_paths = [
+            continuation_path(
+                "retry-child",
+                conditions=["pm-decision-recorded", pm_action],
+            )
+        ]
+    stop_metadata = build_stop_metadata(
+        "child",
+        authority=policy_scope_authority(
+            "native-progress-outcome-policy-v1",
+            authorized_scope="child",
+            source_sha256=canonical_scope_sha256(
+                {
+                    "outcome": outcome,
+                    "pm_action": pm_action,
+                    "reasons": sorted(set(reasons)),
+                    "warnings": sorted(set(warnings)),
+                }
+            ),
+        ),
+        authorized_continuation_paths=continuation_paths,
+    )
     return {
         "decision_type": DECISION_TYPE,
         "version": VERSION,
@@ -257,4 +298,5 @@ def evaluate_worker_progress(
         "actual": observed,
         "calibration": calibration,
         "realignment": realignment,
+        **stop_metadata,
     }

@@ -13,6 +13,7 @@ import tempfile
 from typing import Any, Iterable, Mapping
 
 from .native_tool_isolation import validate_tool_policy
+from .native_stop_scope import STOP_METADATA_FIELDS, validate_stop_metadata
 
 
 VERSION = 1
@@ -233,6 +234,7 @@ POOL_STATE_FIELDS = {
     "reasons",
     "first_protected_fault",
     "control_loss_scope",
+    *STOP_METADATA_FIELDS,
     "state_sha256",
 }
 POOL_DECISION_FIELDS = {
@@ -251,6 +253,7 @@ POOL_DECISION_FIELDS = {
     "aggregate_usage",
     "reasons",
     "required_control_actions",
+    *STOP_METADATA_FIELDS,
     "decision_sha256",
 }
 POOL_CONTROL_REQUEST_FIELDS = {
@@ -333,6 +336,7 @@ POOL_RECEIPT_FIELDS = {
     "child_dispositions",
     "pool_disposition",
     "accepting",
+    *STOP_METADATA_FIELDS,
     "receipt_sha256",
 }
 
@@ -1315,6 +1319,8 @@ def validate_pool_state(
         errors.append("first-protected-fault-reason-mismatch")
     if state.get("control_loss_scope") not in {None, "child", "pool"}:
         errors.append("invalid-control-loss-scope")
+    state_stop_metadata = {field: state.get(field) for field in STOP_METADATA_FIELDS}
+    errors.extend(validate_stop_metadata(state_stop_metadata))
     if state.get("status") == "control-failed" and not reasons:
         errors.append("control-failed-requires-reason")
     if state.get("status") == "completed" and set(terminal) != set(child_ids):
@@ -1403,6 +1409,8 @@ def validate_pool_decision(
         errors.append("invalid-required-control-actions")
     elif len(actions) != len(set(actions)):
         errors.append("duplicate-required-control-action")
+    decision_stop_metadata = {field: decision.get(field) for field in STOP_METADATA_FIELDS}
+    errors.extend(validate_stop_metadata(decision_stop_metadata))
     if contract is not None:
         for field in ("pool_id", "pool_epoch", "contract_sha256"):
             if decision.get(field) != contract.get(field):
@@ -1421,6 +1429,8 @@ def validate_pool_decision(
             errors.append("decision-sequence-mismatch")
         if decision.get("aggregate_usage") != state.get("aggregate_usage"):
             errors.append("decision-aggregate-usage-mismatch")
+        if any(decision.get(field) != state.get(field) for field in STOP_METADATA_FIELDS):
+            errors.append("decision-stop-metadata-mismatch")
     _validate_hash(decision, "decision_sha256", errors)
     _validate_replay(decision, "decision_sha256", seen_hashes, errors)
     return errors
@@ -1703,6 +1713,8 @@ def validate_pool_receipt(
         errors.append("first-protected-fault-requires-reason")
     if first_fault is not None and reasons and first_fault.get("code") not in reasons:
         errors.append("first-protected-fault-reason-mismatch")
+    receipt_stop_metadata = {field: receipt.get(field) for field in STOP_METADATA_FIELDS}
+    errors.extend(validate_stop_metadata(receipt_stop_metadata))
     dispositions = receipt.get("child_dispositions")
     disposition_ids: list[str] = []
     if not isinstance(dispositions, list):
@@ -1776,6 +1788,8 @@ def validate_pool_receipt(
             errors.append("receipt-worker-seconds-mismatch")
         if receipt.get("first_protected_fault") != terminal_state.get("first_protected_fault"):
             errors.append("receipt-first-protected-fault-mismatch")
+        if any(receipt.get(field) != terminal_state.get(field) for field in STOP_METADATA_FIELDS):
+            errors.append("receipt-stop-metadata-mismatch")
     if receipt.get("accepting") is True:
         if receipt.get("pool_disposition") != "accepted":
             errors.append("accepting-requires-accepted-disposition")

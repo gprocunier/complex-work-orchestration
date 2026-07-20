@@ -16,6 +16,11 @@ from typing import Any, Iterator, Mapping
 import uuid
 
 from .util import atomic_write_text
+from .native_stop_scope import (
+    build_stop_metadata,
+    continuation_path,
+    trusted_actor_scope_authority,
+)
 
 
 STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v1"
@@ -1046,6 +1051,45 @@ def _exclusive_lock(path: Path) -> Iterator[None]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def steering_stop_metadata(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    """Derive critic-bounded scope without interpreting prose or confidence."""
+
+    receipt_hash = receipt.get("canonical_receipt_sha256")
+    if not _is_hash(receipt_hash):
+        raise NativeCanaryContractError("steering-scope-receipt-hash-invalid")
+    opinion = receipt.get("opinion") if isinstance(receipt.get("opinion"), Mapping) else {}
+    recommendation = opinion.get("recommendation")
+    if recommendation not in {"go", "conditional-go", "stop"}:
+        raise NativeCanaryContractError("steering-scope-recommendation-invalid")
+    authority = trusted_actor_scope_authority(
+        source_type="worker-discovery",
+        source_id=f"steering-receipt:{receipt.get('submission_id')}",
+        source_sha256=str(receipt_hash),
+        actor_id=str(receipt.get("agent")),
+        actor_role="critic",
+        identity_source=str(receipt.get("attestation_source")),
+    )
+    paths = []
+    requested_scope = "child"
+    if recommendation == "stop":
+        requested_scope = "cohort"
+        paths = [
+            continuation_path(
+                "retry-cohort",
+                conditions=["architect-adjudication", "findings-resolved"],
+            ),
+            continuation_path(
+                "alternate-execution-path",
+                conditions=["independent-validation"],
+            ),
+        ]
+    return build_stop_metadata(
+        requested_scope,
+        authority=authority,
+        authorized_continuation_paths=paths,
+    )
+
+
 def consume_steering_receipt(
     receipt: Mapping[str, Any],
     registry_file: Path | str,
@@ -1071,6 +1115,7 @@ def consume_steering_receipt(
         raise NativeCanaryContractError("steering-receipt-invalid:" + ";".join(errors))
     if not _is_canonical_uuid(phase_nonce):
         raise NativeCanaryContractError("phase-nonce-invalid")
+    stop_metadata = steering_stop_metadata(receipt)
     path = Path(registry_file).absolute()
     key = canonical_sha256(
         {
@@ -1080,6 +1125,7 @@ def consume_steering_receipt(
             "gate": receipt["gate"],
             "phase_nonce": phase_nonce,
             "adjudication": architect_adjudication_sha256,
+            "stop_metadata": stop_metadata,
         },
         domain="steering-receipt-consumption",
     )
@@ -1110,6 +1156,7 @@ def consume_steering_receipt(
                 "receipt_sha256": receipt_hash,
                 "consumption_sha256": key,
                 "phase_nonce": phase_nonce,
+                **stop_metadata,
             }
         )
         _private_write(path, {"consumed": consumed})
