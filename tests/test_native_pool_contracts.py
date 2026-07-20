@@ -19,6 +19,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_OBSERVATION_AUTHORITY,
     CAPABILITY_RESPONSE_TIME_EQUATION,
     CAPABILITY_SCHEDULER_MODEL,
+    CAPABILITY_SLACK_WARNING_FRACTION,
     CAPABILITY_RECEIPT_SCHEMA,
     CAPABILITY_RECEIPT_TYPE,
     CERTIFIED_CALLBACK_MAX_MS,
@@ -136,6 +137,7 @@ def capability_payload(*, requested_cap: int = 2) -> dict:
         "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
         "certified_callback_max_ms": dict(CERTIFIED_CALLBACK_MAX_MS),
         "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+        "slack_warning_fraction": CAPABILITY_SLACK_WARNING_FRACTION,
     }
     return {
         "receipt_type": CAPABILITY_RECEIPT_TYPE,
@@ -721,6 +723,7 @@ class NativePoolContractTest(unittest.TestCase):
         certification["version"] = LEGACY_CERTIFICATION_VERSION
         certification["scheduler_model"] = LEGACY_SCHEDULER_MODEL
         certification["response_time_equation"] = LEGACY_RESPONSE_TIME_EQUATION
+        certification.pop("slack_warning_fraction")
         certification_policy = {
             field: value
             for field, value in certification.items()

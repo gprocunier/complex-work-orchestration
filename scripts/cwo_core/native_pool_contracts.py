@@ -21,6 +21,11 @@ from .native_pool_capacity_compat import (
     LEGACY_SCHEDULER_MODEL,
     is_legacy_capability_certification,
 )
+from .native_pool_schedulability import (
+    PoolSchedulabilityError,
+    scheduling_budget_proof,
+    validate_slack_warning_fraction,
+)
 from .native_tool_isolation import validate_tool_policy
 from .native_stop_scope import STOP_METADATA_FIELDS, validate_stop_metadata
 
@@ -99,6 +104,7 @@ CERTIFIED_CALLBACK_MAX_MS = {
     "finalize": 100,
 }
 CERTIFIED_SCHEDULER_OVERHEAD_MS = 100
+CAPABILITY_SLACK_WARNING_FRACTION = 0.8
 MAX_CERTIFIED_CHECK_MS = CERTIFIED_CALLBACK_MAX_MS["check"]
 POOL_POLL_INTERVAL_MS = 1000
 POOL_POLL_LAG_TOLERANCE_MS = 1500
@@ -163,6 +169,10 @@ CERTIFICATION_FIELDS = {
     "adapter_implementation_sha256",
     "certified_callback_max_ms",
     "certified_scheduler_overhead_ms",
+    "slack_warning_fraction",
+}
+LEGACY_CERTIFICATION_FIELDS = CERTIFICATION_FIELDS - {
+    "slack_warning_fraction"
 }
 USAGE_FIELDS = {
     "tool_calls",
@@ -779,10 +789,15 @@ def _validate_certification(
     *,
     allow_legacy: bool = False,
 ) -> Mapping[str, Any] | None:
-    certification = _strict(value, CERTIFICATION_FIELDS, "certification", errors)
+    legacy = allow_legacy and is_legacy_capability_certification(value)
+    certification = _strict(
+        value,
+        LEGACY_CERTIFICATION_FIELDS if legacy else CERTIFICATION_FIELDS,
+        "certification",
+        errors,
+    )
     if certification is None:
         return None
-    legacy = allow_legacy and is_legacy_capability_certification(certification)
     expected_scalars = {
         "version": (
             LEGACY_CERTIFICATION_VERSION
@@ -804,6 +819,16 @@ def _validate_certification(
     for field, expected in expected_scalars.items():
         if certification.get(field) != expected:
             errors.append(f"certification-{field.replace('_', '-')}-mismatch")
+    if not legacy:
+        try:
+            warning_fraction = validate_slack_warning_fraction(
+                certification.get("slack_warning_fraction")
+            )
+        except PoolSchedulabilityError:
+            errors.append("certification-slack-warning-fraction-invalid")
+        else:
+            if warning_fraction != CAPABILITY_SLACK_WARNING_FRACTION:
+                errors.append("certification-slack-warning-fraction-mismatch")
     for field in ("policy_sha256", "adapter_implementation_sha256"):
         if not _is_sha256(certification.get(field)):
             errors.append(f"certification-{field.replace('_', '-')}-invalid")
@@ -1043,10 +1068,23 @@ def validate_pool_contract(
                 errors.append("concurrent-check-certification-invalid")
             if overhead_ms != CERTIFIED_SCHEDULER_OVERHEAD_MS:
                 errors.append("concurrent-overhead-certification-invalid")
-            if _is_number(check_ms) and _is_number(overhead_ms) and _is_int(scheduler.get("poll_interval_ms"), 1):
-                lifecycle_max = max(CERTIFIED_CALLBACK_MAX_MS.values())
-                if lifecycle_max + cap * check_ms + overhead_ms > scheduler["poll_interval_ms"]:
-                    errors.append("concurrent-response-time-bound-failed")
+            if (
+                _is_number(check_ms)
+                and _is_number(overhead_ms)
+                and _is_int(scheduler.get("poll_interval_ms"), 1)
+            ):
+                try:
+                    proof = scheduling_budget_proof(
+                        requested_workers=cap,
+                        certified_callback_max_ms=CERTIFIED_CALLBACK_MAX_MS,
+                        certified_scheduler_overhead_ms=overhead_ms,
+                        poll_interval_ms=scheduler["poll_interval_ms"],
+                    )
+                except PoolSchedulabilityError:
+                    errors.append("concurrent-schedulability-input-invalid")
+                else:
+                    if not proof.accepted:
+                        errors.append("concurrent-response-time-bound-failed")
 
     budget = _strict(
         contract.get("aggregate_hard_budget"),
@@ -1201,11 +1239,6 @@ def validate_capability_receipt(
                     ceiling = ceilings.get(name)
                     if _is_number(observed_max) and _is_number(ceiling) and observed_max > ceiling:
                         errors.append(f"callback-observed-above-certified:{name}")
-            lifecycle_max = max(
-                (float(ceilings.get(name, 0)) for name in REQUIRED_CAPABILITY_CALLBACKS),
-                default=0.0,
-            )
-            check_max = ceilings.get("check")
             overhead_max = certification.get("certified_scheduler_overhead_ms")
             scheduler = expected_contract.get("scheduler", {}) if expected_contract is not None else {}
             interval = (
@@ -1220,19 +1253,20 @@ def validate_capability_receipt(
                 if expected_contract is not None
                 else requested_cap
             )
-            if (
-                _is_number(check_max)
-                and _is_number(overhead_max)
-                and isinstance(response_time_workers, int)
-                and not isinstance(response_time_workers, bool)
-                and lifecycle_max
-                + response_time_workers * float(check_max)
-                + float(overhead_max)
-                > float(interval)
-            ):
-                errors.append("capability-response-time-bound-failed")
+            try:
+                proof = scheduling_budget_proof(
+                    requested_workers=response_time_workers,
+                    certified_callback_max_ms=ceilings,
+                    certified_scheduler_overhead_ms=overhead_max,
+                    poll_interval_ms=interval,
+                )
+            except PoolSchedulabilityError:
+                errors.append("capability-schedulability-input-invalid")
+            else:
+                if not proof.accepted:
+                    errors.append("capability-response-time-bound-failed")
             if expected_contract is not None and isinstance(scheduler, Mapping):
-                if scheduler.get("certified_max_check_ms") != check_max:
+                if scheduler.get("certified_max_check_ms") != ceilings.get("check"):
                     errors.append("capability-contract-check-ceiling-mismatch")
                 if scheduler.get("certified_max_scheduler_overhead_ms") != overhead_max:
                     errors.append("capability-contract-scheduler-ceiling-mismatch")

@@ -89,6 +89,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_OBSERVATION_AUTHORITY,
     CAPABILITY_RESPONSE_TIME_EQUATION,
     CAPABILITY_SCHEDULER_MODEL,
+    CAPABILITY_SLACK_WARNING_FRACTION,
     CAPABILITY_RECEIPT_SCHEMA,
     CAPABILITY_RECEIPT_TYPE,
     CERTIFIED_CALLBACK_MAX_MS,
@@ -116,6 +117,10 @@ from cwo_core.native_pool_preflight import (  # noqa: E402
 )
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
+from cwo_core.native_pool_schedulability import (  # noqa: E402
+    PoolSchedulabilityError,
+    scheduling_budget_proof,
+)
 from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
 from cwo_core.native_tool_isolation import (  # noqa: E402
@@ -1013,9 +1018,28 @@ def callback_certification_policy() -> dict[str, Any]:
         "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
         "certified_callback_max_ms": CERTIFIED_CALLBACK_MAX_MS,
         "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+        "slack_warning_fraction": CAPABILITY_SLACK_WARNING_FRACTION,
     }
     if not isinstance(certification, Mapping) or dict(certification) != expected:
         raise AppServerError("callback-certification-policy-invalid")
+    limits = load_pool_capacity(document)
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=limits.hard_max_active_workers,
+            certified_callback_max_ms=CERTIFIED_CALLBACK_MAX_MS,
+            certified_scheduler_overhead_ms=(
+                CERTIFIED_SCHEDULER_OVERHEAD_MS
+            ),
+            poll_interval_ms=pool.get("scheduler", {}).get(
+                "poll_interval_ms"
+            ),
+        )
+    except PoolSchedulabilityError as error:
+        raise AppServerError(
+            "callback-certification-schedulability-input-invalid"
+        ) from error
+    if not proof.accepted:
+        raise AppServerError("callback-certification-hard-cap-unschedulable")
     return dict(certification)
 
 
@@ -4585,10 +4609,19 @@ def _run_calibration(
     if errors:
         raise AppServerError("capability-receipt-invalid:" + ";".join(errors))
     ceilings = receipt["certification"]["certified_callback_max_ms"]
-    check_max = ceilings["check"]
-    lifecycle_max = max(ceilings.values())
     overhead_max = receipt["certification"]["certified_scheduler_overhead_ms"]
-    if lifecycle_max + 2 * check_max + overhead_max > 1000:
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=receipt["requested_cap"],
+            certified_callback_max_ms=ceilings,
+            certified_scheduler_overhead_ms=overhead_max,
+            poll_interval_ms=POOL_POLL_INTERVAL_MS,
+        )
+    except PoolSchedulabilityError as error:
+        raise AppServerError(
+            "capability-schedulability-input-invalid"
+        ) from error
+    if not proof.accepted:
         raise AppServerError("capability-response-time-bound-failed")
 
     thread = last_threads[thread_id]
@@ -4666,10 +4699,8 @@ def _run_calibration(
         ) if len(poll_started) > 1 else 0.0,
         "interrupt_confirmed": True,
         "peer_completion_deferred_to_coordinator_interrupt_canary": True,
-        "scheduler_inequality_lhs_ms": round(
-            lifecycle_max + 2 * check_max + overhead_max, 3
-        ),
-        "scheduler_inequality_rhs_ms": 1000,
+        "scheduler_inequality_lhs_ms": round(proof.total_demand_ms, 3),
+        "scheduler_inequality_rhs_ms": proof.poll_interval_ms,
     }
     return receipt, evidence
 
@@ -5274,13 +5305,21 @@ def validate_campaign(
         errors.append("capability-read-recovery-sha256-mismatch")
     certification = capability["certification"]
     ceilings = certification["certified_callback_max_ms"]
-    check_max = ceilings["check"]
     overhead = certification["certified_scheduler_overhead_ms"]
-    lifecycle_max = max(ceilings.values())
-    if check_max > 200:
+    if ceilings["check"] > 200:
         errors.append("capability-check-max-exceeded")
-    if lifecycle_max + 2 * check_max + overhead > 1000:
-        errors.append("capability-response-time-bound-failed")
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=capability["requested_cap"],
+            certified_callback_max_ms=ceilings,
+            certified_scheduler_overhead_ms=overhead,
+            poll_interval_ms=POOL_POLL_INTERVAL_MS,
+        )
+    except PoolSchedulabilityError:
+        errors.append("capability-schedulability-input-invalid")
+    else:
+        if not proof.accepted:
+            errors.append("capability-response-time-bound-failed")
     all_sessions = list(calibration_evidence.get("sessions", []))
     for canary in canaries:
         pool_preflights = canary.get("preflight")

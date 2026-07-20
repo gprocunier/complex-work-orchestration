@@ -33,6 +33,7 @@ from .native_pool_contracts import (
     CAPABILITY_OBSERVATION_AUTHORITY,
     CAPABILITY_RESPONSE_TIME_EQUATION,
     CAPABILITY_SCHEDULER_MODEL,
+    CAPABILITY_SLACK_WARNING_FRACTION,
     CERTIFIED_CALLBACK_MAX_MS,
     CERTIFIED_SCHEDULER_OVERHEAD_MS,
     POOL_ALLOWED_ACTIONS,
@@ -47,6 +48,10 @@ from .native_pool_contracts import (
     validate_capability_receipt,
     validate_completion_evidence_policy,
     validate_pool_contract,
+)
+from .native_pool_schedulability import (
+    PoolSchedulabilityError,
+    scheduling_budget_proof,
 )
 from .native_pool_leases import capture_owner_identity, owner_identity_is_live
 from .native_pool_workspace import PoolWorkspaceMonitor, capture_workspace_snapshot
@@ -496,7 +501,7 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
     if policy.get("status") not in {"canary-gated", "operative-authorized"}:
         raise NativePoolConfigError("native-supervision-pool-policy-invalid:status")
     try:
-        load_pool_capacity(document)
+        limits = load_pool_capacity(document)
     except NativePoolCapacityPolicyError as error:
         raise NativePoolConfigError(str(error)) from error
     if not _nonempty(policy.get("release_requires")):
@@ -524,6 +529,8 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         or scheduler.get("kind") != "earliest-deadline-rotating-v1"
         or scheduler.get("poll_interval_ms") != POOL_POLL_INTERVAL_MS
         or scheduler.get("poll_lag_tolerance_ms") != POOL_POLL_LAG_TOLERANCE_MS
+        or scheduler.get("slack_warning_fraction")
+        != CAPABILITY_SLACK_WARNING_FRACTION
         or scheduler.get("hot_admission_allowed") is not False
         or scheduler.get("threads_allowed") is not False
     ):
@@ -537,10 +544,28 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
         "certified_callback_max_ms": CERTIFIED_CALLBACK_MAX_MS,
         "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+        "slack_warning_fraction": CAPABILITY_SLACK_WARNING_FRACTION,
     }
     if not isinstance(certification, Mapping) or dict(certification) != expected_certification:
         raise NativePoolConfigError(
             "native-supervision-pool-policy-invalid:callback_certification"
+        )
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=limits.hard_max_active_workers,
+            certified_callback_max_ms=CERTIFIED_CALLBACK_MAX_MS,
+            certified_scheduler_overhead_ms=(
+                CERTIFIED_SCHEDULER_OVERHEAD_MS
+            ),
+            poll_interval_ms=scheduler["poll_interval_ms"],
+        )
+    except PoolSchedulabilityError as error:
+        raise NativePoolConfigError(
+            "native-supervision-pool-policy-invalid:schedulability-input"
+        ) from error
+    if not proof.accepted:
+        raise NativePoolConfigError(
+            "native-supervision-pool-policy-invalid:hard-cap-unschedulable"
         )
     return policy
 

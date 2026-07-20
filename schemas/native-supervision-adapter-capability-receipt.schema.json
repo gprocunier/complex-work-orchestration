@@ -43,7 +43,8 @@
       "required": [
         "version", "envelope", "scheduler_model", "response_time_equation",
         "observation_authority", "policy_sha256", "adapter_implementation_sha256",
-        "certified_callback_max_ms", "certified_scheduler_overhead_ms"
+        "certified_callback_max_ms", "certified_scheduler_overhead_ms",
+        "slack_warning_fraction"
       ],
       "properties": {
         "version": {"const": "live-thread-adapter-callback-certification:v2"},
@@ -66,7 +67,8 @@
             "finalize": {"const": 100}
           }
         },
-        "certified_scheduler_overhead_ms": {"const": 100}
+        "certified_scheduler_overhead_ms": {"const": 100},
+        "slack_warning_fraction": {"const": 0.8}
       }
     },
     "capabilities": {

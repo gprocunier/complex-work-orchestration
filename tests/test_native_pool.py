@@ -65,17 +65,19 @@ class FakeAdapter:
         decisions: list[str],
         *,
         callback_ms: float = 1,
+        callback_ms_by_name: dict[str, float] | None = None,
         fail: str | None = None,
     ) -> None:
         self.clock = clock
         self.decisions = list(decisions)
         self.callback_ms = callback_ms
+        self.callback_ms_by_name = dict(callback_ms_by_name or {})
         self.fail = fail
         self.calls: list[str] = []
 
     def _call(self, name: str, result=None):
         self.calls.append(name)
-        self.clock.advance_ms(self.callback_ms)
+        self.clock.advance_ms(self.callback_ms_by_name.get(name, self.callback_ms))
         if self.fail == name:
             raise RuntimeError(f"{name} failed")
         return result
@@ -107,6 +109,7 @@ class PoolHarness:
         cap: int,
         decisions: list[list[str]] | None = None,
         callback_ms: float = 1,
+        callback_ms_by_name: dict[str, float] | None = None,
         fail: tuple[int, str] | None = None,
         dirty_phases: set[str] | None = None,
         usage_by_child: dict[str, dict] | None = None,
@@ -148,6 +151,7 @@ class PoolHarness:
                 self.clock,
                 decision_sets[index],
                 callback_ms=callback_ms,
+                callback_ms_by_name=callback_ms_by_name,
                 fail=fail[1] if fail is not None and fail[0] == index else None,
             )
             for index in range(cap)
@@ -417,6 +421,30 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 callback_ms=100,
                 decisions=[["complete"], ["complete"]],
             )
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertIsNone(receipt["first_protected_fault"])
+
+    def test_slack_pressure_warns_without_changing_certification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                callback_ms_by_name={"send_input": 210},
+            )
+            warning = None
+            for _ in range(32):
+                progress = harness.coordinator.step()
+                decision = progress["decision"]
+                if decision is not None and decision["decision"] == "warn":
+                    warning = decision
+                    break
+                if progress["wait_required"]:
+                    harness.clock.sleep(seconds=progress["wait_seconds"])
+            self.assertIsNotNone(warning)
+            self.assertEqual(warning["observed_callback_latency_ms"], 210.0)
+            self.assertEqual(warning["reasons"], [])
+
             receipt = harness.coordinator.run()
             self.assertTrue(receipt["accepting"])
             self.assertIsNone(receipt["first_protected_fault"])

@@ -42,6 +42,12 @@ from .native_pool_scheduler import (
     select_earliest_deadline,
     wait_seconds,
 )
+from .native_pool_schedulability import (
+    PoolSchedulabilityError,
+    SchedulingBudgetProof,
+    latency_consumes_slack_fraction,
+    scheduling_budget_proof,
+)
 from .native_authority import build_reason_records
 from .native_stop_scope import (
     STOP_SCOPE_RANK,
@@ -333,6 +339,9 @@ class NativePoolCoordinator:
 
         self._certified_callback_max_ms: Mapping[str, Any] = {}
         self._certified_scheduler_overhead_ms = 0.0
+        self._schedulability_proof: SchedulingBudgetProof | None = None
+        self._slack_warning_fraction = 1.0
+        self._slack_warning_active = False
         configured_capacity = self.contract["max_active_workers"]
         if self.capacity_limits.requires_capability_receipt(configured_capacity):
             if self.capability_receipt is None:
@@ -350,6 +359,28 @@ class NativePoolCoordinator:
             self._certified_scheduler_overhead_ms = float(
                 certification["certified_scheduler_overhead_ms"]
             )
+            self._slack_warning_fraction = float(
+                certification["slack_warning_fraction"]
+            )
+            try:
+                self._schedulability_proof = scheduling_budget_proof(
+                    requested_workers=configured_capacity,
+                    certified_callback_max_ms=(
+                        self._certified_callback_max_ms
+                    ),
+                    certified_scheduler_overhead_ms=(
+                        self._certified_scheduler_overhead_ms
+                    ),
+                    poll_interval_ms=self.contract["scheduler"][
+                        "poll_interval_ms"
+                    ],
+                )
+            except PoolSchedulabilityError as error:
+                raise NativePoolError(
+                    f"pool-schedulability-input-invalid:{error}"
+                ) from error
+            if not self._schedulability_proof.accepted:
+                raise NativePoolError("pool-schedulability-proof-rejected")
         elif self.capability_receipt is not None:
             raise NativePoolError("single-worker-capability-receipt-forbidden")
 
@@ -975,6 +1006,7 @@ class NativePoolCoordinator:
         self._last_callback_latency_ms = None
         self._callback_fault = None
         self._callback_fault_detail = None
+        self._slack_warning_active = False
         started = self._monotonic_ns()
         if progress["status"] == "pending":
             result = turn.step(self._task_inputs[child_id])
@@ -990,6 +1022,17 @@ class NativePoolCoordinator:
             self._enter_fault("more-than-one-adapter-callback-in-step", control_failed=True)
         self._update_child_progress(child_id, result)
         if self._callback_count == 1:
+            if (
+                self._schedulability_proof is not None
+                and self._last_callback_latency_ms is not None
+            ):
+                self._slack_warning_active = (
+                    latency_consumes_slack_fraction(
+                        self._schedulability_proof,
+                        observed_latency_ms=self._last_callback_latency_ms,
+                        warning_fraction=self._slack_warning_fraction,
+                    )
+                )
             self._read_evidence(child_id)
             if self._last_callback_name == "check":
                 if result.get("phase") in {"waiting", "finalize-complete", "interrupt"}:
@@ -1055,6 +1098,9 @@ class NativePoolCoordinator:
                 proposed_child_id=proposed,
                 now_ns=now_ns,
                 certified_callback_ms=float(maximum),
+                certified_peer_check_ms=float(
+                    self._certified_callback_max_ms.get("check", 0)
+                ),
                 certified_scheduler_overhead_ms=self._certified_scheduler_overhead_ms,
             )
             if guard is not None:
@@ -1709,7 +1755,7 @@ class NativePoolCoordinator:
             else "complete"
             if status == "completed"
             else "warn"
-            if self._reasons
+            if self._reasons or self._slack_warning_active
             else "continue"
         )
         actions = ["interrupt"] if status == "interrupt-pending" else ["release-leases"] if status == "completed" else ["step"]

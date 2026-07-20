@@ -32,6 +32,10 @@ from .native_pool_contracts import (
     validate_completion_evidence_policy,
     validate_pool_contract,
 )
+from .native_pool_schedulability import (
+    PoolSchedulabilityError,
+    scheduling_budget_proof,
+)
 from .native_tool_isolation import (
     NativeToolIsolationError,
     prompt_preflight,
@@ -371,42 +375,27 @@ def evaluate_scheduling_admission(
     certified_scheduler_overhead_ms: int | float,
     poll_interval_ms: int | float,
 ) -> dict[str, Any]:
-    """Evaluate ``max(lifecycle) + N*check + overhead <= poll``."""
+    """Compatibility facade over the one shared schedulability proof."""
 
-    if not _integer(requested_workers, 1):
-        raise NativePoolPreflightError("scheduling-requested-workers-invalid")
-    if not isinstance(certified_callback_max_ms, Mapping):
-        raise NativePoolPreflightError("scheduling-callback-ceilings-invalid")
-    if set(certified_callback_max_ms) != set(REQUIRED_CAPABILITY_CALLBACKS):
-        raise NativePoolPreflightError("scheduling-callback-ceilings-fields-invalid")
-    if any(not _number(value) for value in certified_callback_max_ms.values()):
-        raise NativePoolPreflightError("scheduling-callback-ceiling-invalid")
-    if not _number(certified_scheduler_overhead_ms) or not _number(poll_interval_ms, 1):
-        raise NativePoolPreflightError("scheduling-timing-input-invalid")
-    lifecycle_max = max(float(value) for value in certified_callback_max_ms.values())
-    check_ms = float(certified_callback_max_ms["check"])
-    response_time_bound = (
-        lifecycle_max
-        + requested_workers * check_ms
-        + float(certified_scheduler_overhead_ms)
-    )
-    normalized_bound: int | float = (
-        int(response_time_bound)
-        if response_time_bound.is_integer()
-        else response_time_bound
-    )
-    normalized_lifecycle: int | float = (
-        int(lifecycle_max) if lifecycle_max.is_integer() else lifecycle_max
-    )
-    return {
-        "requested_workers": requested_workers,
-        "lifecycle_max_ms": normalized_lifecycle,
-        "check_ms": certified_callback_max_ms["check"],
-        "scheduler_overhead_ms": certified_scheduler_overhead_ms,
-        "response_time_bound_ms": normalized_bound,
-        "poll_interval_ms": poll_interval_ms,
-        "accepted": response_time_bound <= float(poll_interval_ms),
-    }
+    if (
+        not isinstance(certified_callback_max_ms, Mapping)
+        or set(certified_callback_max_ms) != set(REQUIRED_CAPABILITY_CALLBACKS)
+    ):
+        raise NativePoolPreflightError(
+            "scheduling-callback-ceilings-fields-invalid"
+        )
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=requested_workers,
+            certified_callback_max_ms=certified_callback_max_ms,
+            certified_scheduler_overhead_ms=(
+                certified_scheduler_overhead_ms
+            ),
+            poll_interval_ms=poll_interval_ms,
+        )
+    except PoolSchedulabilityError as error:
+        raise NativePoolPreflightError(str(error)) from error
+    return proof.as_dict()
 
 
 def _path_overlaps(left: Path, right: Path) -> bool:

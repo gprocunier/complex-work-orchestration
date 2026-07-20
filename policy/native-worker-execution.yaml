@@ -155,12 +155,14 @@
         "close": 250,
         "finalize": 100
       },
-      "certified_scheduler_overhead_ms": 100
+      "certified_scheduler_overhead_ms": 100,
+      "slack_warning_fraction": 0.8
     },
     "scheduler": {
       "kind": "earliest-deadline-rotating-v1",
       "poll_interval_ms": 1000,
       "poll_lag_tolerance_ms": 1500,
+      "slack_warning_fraction": 0.8,
       "hot_admission_allowed": false,
       "threads_allowed": false
     },

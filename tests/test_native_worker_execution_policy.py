@@ -91,6 +91,8 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             },
         )
         self.assertEqual(certification["certified_scheduler_overhead_ms"], 100)
+        self.assertEqual(certification["slack_warning_fraction"], 0.8)
+        self.assertEqual(pool["scheduler"]["slack_warning_fraction"], 0.8)
         self.assertEqual(
             certification["response_time_equation"],
             "max_lifecycle+N*check+scheduler<=poll_interval",

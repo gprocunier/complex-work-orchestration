@@ -24,6 +24,11 @@ from cwo_core.native_pool_capacity import (
     capacity_schema_errors,
     load_pool_capacity,
 )
+from cwo_core.native_pool_schedulability import (
+    PoolSchedulabilityError,
+    scheduling_budget_proof,
+    validate_slack_warning_fraction,
+)
 from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS
 from cwo_core.harness import (
     HARNESS_DISPATCH_REQUIRED_FIELDS,
@@ -109,10 +114,12 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_stop_scope": {"native_authority"},
     "native_pool_capacity": {"paths", "policy"},
     "native_pool_capacity_compat": set(),
+    "native_pool_schedulability": set(),
     "native_pool_contracts": {
         "native_authority",
         "native_pool_capacity",
         "native_pool_capacity_compat",
+        "native_pool_schedulability",
         "native_stop_scope",
         "native_tool_isolation",
     },
@@ -126,6 +133,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_scheduler",
+        "native_pool_schedulability",
         "native_stop_scope",
     },
     "native_pool_config": {
@@ -134,6 +142,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_capacity",
         "native_pool_capacity_compat",
         "native_pool_contracts",
+        "native_pool_schedulability",
         "native_pool_leases",
         "native_pool_workspace",
         "native_tool_isolation",
@@ -143,6 +152,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_authority",
         "native_pool_capacity",
         "native_pool_contracts",
+        "native_pool_schedulability",
         "native_tool_isolation",
     },
     "native_pool_reporting": {"audit", "native_pool_contracts"},
@@ -481,6 +491,7 @@ _CAPACITY_SOURCE_GLOBS = (
 _CAPACITY_COMPATIBILITY_SOURCES = {
     "scripts/cwo_core/native_pool_capacity_compat.py",
 }
+_SCHEDULABILITY_PROOF_SOURCE = "scripts/cwo_core/native_pool_schedulability.py"
 _DEPRECATED_CAPACITY_PATTERNS = (
     ("MAX_ACTIVE_WORKERS", re.compile(r"\bMAX_ACTIVE_WORKERS\b")),
     ("cap_two field", re.compile(r"\bcap_two_[a-z0-9_]*\b")),
@@ -526,6 +537,41 @@ def validate_native_pool_capacity_invariants(
     except NativePoolCapacityPolicyError as error:
         errors.append(str(error))
         return
+
+    pool = document.get("native_supervision_pool")
+    certification = (
+        pool.get("callback_certification")
+        if isinstance(pool, dict)
+        else None
+    )
+    scheduler = pool.get("scheduler") if isinstance(pool, dict) else None
+    if not isinstance(certification, dict) or not isinstance(scheduler, dict):
+        errors.append("pool-schedulability-policy-missing")
+    else:
+        try:
+            warning_fraction = validate_slack_warning_fraction(
+                certification.get("slack_warning_fraction")
+            )
+            proof = scheduling_budget_proof(
+                requested_workers=limits.hard_max_active_workers,
+                certified_callback_max_ms=certification.get(
+                    "certified_callback_max_ms"
+                ),
+                certified_scheduler_overhead_ms=certification.get(
+                    "certified_scheduler_overhead_ms"
+                ),
+                poll_interval_ms=scheduler.get("poll_interval_ms"),
+            )
+        except PoolSchedulabilityError as error:
+            errors.append(f"pool-schedulability-policy-invalid:{error}")
+        else:
+            if scheduler.get("slack_warning_fraction") != warning_fraction:
+                errors.append("pool-slack-warning-fraction-mismatch")
+            if not proof.accepted:
+                errors.append(
+                    "pool-hard-cap-unschedulable:"
+                    f"demand={proof.total_demand_ms}:slack={proof.slack_ms}"
+                )
     try:
         errors.extend(
             capacity_schema_errors(
@@ -548,6 +594,17 @@ def validate_native_pool_capacity_invariants(
             if pattern.search(content):
                 errors.append(
                     f"active native-pool source uses deprecated {label}: {relative}"
+                )
+        if relative != _SCHEDULABILITY_PROOF_SOURCE:
+            compact = re.sub(r"\s+", "", content)
+            if re.search(
+                r"lifecycle_max(?:_ms)?\+[^+]{0,120}\*"
+                r"(?:float\()?check(?:_max|_ms)?",
+                compact,
+            ):
+                errors.append(
+                    "active native-pool source duplicates schedulability "
+                    f"arithmetic: {relative}"
                 )
 
 

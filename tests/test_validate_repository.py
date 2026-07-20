@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import shutil
 import subprocess
 import sys
@@ -61,6 +62,53 @@ class ValidateRepositoryTests(unittest.TestCase):
         self.assertIn(
             "active native-pool source uses deprecated MAX_ACTIVE_WORKERS: "
             "scripts/cwo_core/native_pool.py",
+            errors,
+        )
+
+    def test_native_pool_capacity_validator_rejects_duplicate_schedulability_math(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "policy").mkdir()
+            shutil.copy2(
+                ROOT / "policy/native-worker-execution.yaml",
+                root / "policy/native-worker-execution.yaml",
+            )
+            shutil.copytree(ROOT / "schemas", root / "schemas")
+            source = root / "scripts/cwo_core/native_pool.py"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                "demand = lifecycle_max + workers * check_max + overhead\n",
+                encoding="utf-8",
+            )
+            errors: list[str] = []
+            validate_native_pool_capacity_invariants(errors, repo_root=root)
+        self.assertIn(
+            "active native-pool source duplicates schedulability arithmetic: "
+            "scripts/cwo_core/native_pool.py",
+            errors,
+        )
+
+    def test_native_pool_capacity_validator_rejects_unschedulable_hard_cap(
+        self,
+    ) -> None:
+        policy = json.loads(
+            (ROOT / "policy/native-worker-execution.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        policy["native_supervision_pool"]["capacity"][
+            "hard_max_active_workers"
+        ] = 4
+        errors: list[str] = []
+        validate_native_pool_capacity_invariants(
+            errors,
+            repo_root=ROOT,
+            policy_document=policy,
+        )
+        self.assertIn(
+            "pool-hard-cap-unschedulable:demand=1150:slack=-150",
             errors,
         )
 
