@@ -104,7 +104,7 @@ def requested_architecture_critic_executor_keys(text: str) -> list[str]:
     if explicit_gemini_architect_critique_requested(text):
         keys.append("gemini_architecture_critic")
     if explicit_glm_architect_critique_requested(text):
-        keys.append("rhoai_glm_architecture_critic")
+        keys.append("rhoai_glm_hardened_architecture_critic")
     return keys
 
 

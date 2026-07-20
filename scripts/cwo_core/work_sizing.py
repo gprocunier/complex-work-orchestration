@@ -10,6 +10,8 @@ from math import isfinite
 from typing import Any
 
 from cwo_core.policy import load_policy
+from cwo_core.native_containment import containment_error, require_native_operative_dispatch
+from cwo_core.native_precommit import validate_precommit_receipt
 
 DIMENSIONS = (
     "reasoning_uncertainty",
@@ -122,7 +124,7 @@ HARD_GATE_REASONS = (
     "task-profile-contradiction",
 )
 
-COMMITMENT_REQUIRED_FIELDS = (
+COMMITMENT_V1_REQUIRED_FIELDS = (
     "commitment_type",
     "version",
     "work_unit_id",
@@ -138,6 +140,24 @@ COMMITMENT_REQUIRED_FIELDS = (
     "tool_calls_before_commitment",
     "context_compactions_before_commitment",
     "reason",
+)
+
+COMMITMENT_V2_REQUIRED_FIELDS = (
+    "commitment_type",
+    "version",
+    "packet_id",
+    "attempt_nonce",
+    "work_unit_id",
+    "bead_id",
+    "requested_model",
+    "session_id",
+    "agent_id",
+    "attestation_source",
+    "attested_model",
+    "work_estimate_sha256",
+    "decision",
+    "estimates",
+    "precommit_receipt_sha256",
 )
 
 COMMITMENT_DECISIONS = ("accept", "pm-realignment", "architect-realignment")
@@ -395,6 +415,61 @@ def _validate_command_entry(command: Any, idx: int) -> tuple[list[str], int]:
     return argv, len(argv)
 
 
+def _validate_execution_contract(
+    value: Any,
+    *,
+    task_class: str,
+    normalized_commands: list[list[str]],
+) -> dict[str, Any]:
+    contract = _ensure_mapping_exact(
+        value,
+        path="task_profile.execution_contract",
+        required_fields=("mode", "checked_command_specs"),
+    )
+    mode = _ensure_nonempty_str(contract["mode"], path="task_profile.execution_contract.mode")
+    if mode not in {"direct", "checked-sequence-v1"}:
+        raise ValueError("malformed source payload: task_profile.execution_contract.mode must be direct or checked-sequence-v1")
+
+    raw_specs = _ensure_list(
+        contract["checked_command_specs"],
+        path="task_profile.execution_contract.checked_command_specs",
+    )
+    if mode == "direct":
+        if raw_specs:
+            raise ValueError("malformed source payload: direct execution_contract requires empty checked_command_specs")
+        return {"mode": mode, "checked_command_specs": []}
+
+    if task_class != "bounded-implementation":
+        raise ValueError("malformed source payload: checked-sequence-v1 requires bounded-implementation task_class")
+    if not raw_specs:
+        raise ValueError("malformed source payload: checked-sequence-v1 requires checked_command_specs")
+
+    from cwo_core.checked_command import normalize_command_spec
+
+    normalized_specs: list[dict[str, Any]] = []
+    command_ids: set[str] = set()
+    resolved_workdirs: set[str] = set()
+    for idx, raw_spec in enumerate(raw_specs):
+        path = f"task_profile.execution_contract.checked_command_specs[{idx}]"
+        try:
+            spec = normalize_command_spec(raw_spec)
+        except ValueError as exc:
+            raise ValueError(f"malformed source payload: {path} is invalid: {exc}") from exc
+        if spec["mode"] != "argv":
+            raise ValueError(f"malformed source payload: {path}.mode must be argv")
+        if spec["command_id"] in command_ids:
+            raise ValueError("malformed source payload: checked_command_specs command_id values must be unique")
+        command_ids.add(spec["command_id"])
+        resolved_workdirs.add(spec["cwd"])
+        normalized_specs.append(spec)
+
+    if len(resolved_workdirs) != 1:
+        raise ValueError("malformed source payload: checked-sequence-v1 requires one resolved cwd")
+    if [spec["argv"] for spec in normalized_specs] != normalized_commands:
+        raise ValueError("malformed source payload: checked_command_specs argv must exactly match task_profile.commands in order")
+    return {"mode": mode, "checked_command_specs": normalized_specs}
+
+
 def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
     if task_profile is None:
         return None
@@ -411,7 +486,7 @@ def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
         "source_mutation_count",
         "commands",
     }
-    optional_keys = {"source_mutation_paths", "architect_literal_patch"}
+    optional_keys = {"source_mutation_paths", "architect_literal_patch", "execution_contract"}
     payload_keys = set(payload.keys())
     if missing := sorted(required_keys - payload_keys):
         raise ValueError(f"malformed source payload: task_profile missing required field(s) {', '.join(missing)}")
@@ -437,6 +512,15 @@ def _validate_task_profile(task_profile: Any) -> dict[str, Any] | None:
         normalized_commands.append(argv)
     if payload["command_count"] != len(normalized_commands):
         raise ValueError("malformed source payload: task_profile.command_count must equal len(task_profile.commands)")
+
+    if "execution_contract" in payload:
+        payload["execution_contract"] = _validate_execution_contract(
+            payload["execution_contract"],
+            task_class=payload["task_class"],
+            normalized_commands=normalized_commands,
+        )
+    elif payload["task_class"] in {"literal-command", "read-only-validation"} and normalized_commands:
+        payload["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
 
     if "source_mutation_paths" in payload:
         mutation_paths = _ensure_list(payload["source_mutation_paths"], path="task_profile.source_mutation_paths")
@@ -1217,6 +1301,8 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
         )
 
     estimate: dict[str, Any] = deepcopy(source)
+    if task_profile is not None:
+        estimate["task_profile"] = deepcopy(task_profile)
     if estimate_contract_version >= 2:
         estimate["estimate_contract_version"] = estimate_contract_version
         estimate["semantic_scores"] = semantic_scores
@@ -1296,22 +1382,23 @@ def canonical_work_estimate_sha256(work_estimate: Any) -> str:
 def build_policy_fit_commitment(
     work_estimate: Any,
     *,
-    session_id: str,
-    attested_model: str,
+    precommit_receipt: Mapping[str, Any] | None = None,
+    session_id: str | None = None,
+    attested_model: str | None = None,
     policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a zero-tool commitment only for a deterministic policy fit."""
+    """Build commitment v2 only from an accepting deterministic trusted receipt."""
+    if precommit_receipt is None:
+        raise ValueError("deterministic policy fit requires a trusted precommit receipt")
+    if session_id is not None or attested_model is not None:
+        raise ValueError("session and model identity must be derived exclusively from the precommit receipt")
     estimate_errors = validate_work_estimate(work_estimate, policy=policy)
     if estimate_errors:
         raise ValueError("invalid work_estimate: " + "; ".join(estimate_errors))
     estimate = deepcopy(_ensure_mapping(work_estimate, label="work_estimate"))
-    trusted_session = _ensure_nonempty_str(session_id, path="session_id")
-    trusted_model = _ensure_nonempty_str(attested_model, path="attested_model")
     requested_model = _ensure_nonempty_str(estimate.get("requested_model"), path="work_estimate.requested_model")
     if requested_model != "gpt-5.3-codex-spark":
         raise ValueError("policy-derived commitment requires requested_model gpt-5.3-codex-spark")
-    if trusted_model != requested_model:
-        raise ValueError("attested_model must exactly match work_estimate.requested_model")
     if estimate.get("fit_mode") != "deterministic":
         raise ValueError("policy-derived commitment requires work_estimate.fit_mode deterministic")
     if any(estimate.get(field) != "spark" for field in ("route", "authority_route", "operative_route")):
@@ -1345,32 +1432,162 @@ def build_policy_fit_commitment(
             minimum=1,
         ),
     }
+    receipt_errors = validate_precommit_receipt(
+        precommit_receipt,
+        estimate,
+        expected_packet_id=str(precommit_receipt.get("packet_id") or ""),
+        require_accepting=True,
+    )
+    if receipt_errors:
+        raise ValueError("invalid deterministic precommit receipt: " + "; ".join(receipt_errors))
+    if precommit_receipt.get("submission_id") != "deterministic-policy":
+        raise ValueError("policy-derived commitment requires a deterministic zero-length receipt")
+    fit_result = precommit_receipt.get("fit_result")
+    if not isinstance(fit_result, Mapping) or fit_result.get("decision") != "accept":
+        raise ValueError("deterministic precommit receipt must contain an accepting fit result")
+    if fit_result.get("estimates") != estimates:
+        raise ValueError("deterministic precommit receipt estimates must exactly match task-class policy")
     commitment = {
         "commitment_type": "cwo-native-worker-fit-commitment",
-        "version": 1,
+        "version": 2,
+        "packet_id": precommit_receipt["packet_id"],
+        "attempt_nonce": precommit_receipt["attempt_nonce"],
         "work_unit_id": estimate["work_unit_id"],
         "bead_id": estimate["bead_id"],
         "requested_model": requested_model,
-        "session_id": trusted_session,
-        "attestation_source": "trusted-session-jsonl",
-        "attested_model": trusted_model,
+        "session_id": precommit_receipt["session_id"],
+        "agent_id": precommit_receipt["agent_id"],
+        "attestation_source": precommit_receipt["attestation_source"],
+        "attested_model": precommit_receipt["attested_model"],
         "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
         "decision": "accept",
-        "confidence": 1.0,
         "estimates": estimates,
-        "tool_calls_before_commitment": 0,
-        "context_compactions_before_commitment": 0,
-        "reason": f"deterministic {task_class} fit derived from native worker policy",
+        "precommit_receipt_sha256": precommit_receipt["receipt_sha256"],
     }
     commitment_errors = validate_worker_commitment(
         commitment,
         estimate,
         policy=policy,
         dispatchable=True,
+        precommit_receipt=precommit_receipt,
     )
     if commitment_errors:
         raise ValueError("invalid policy-derived commitment: " + "; ".join(commitment_errors))
     return commitment
+
+
+def build_worker_commitment_from_receipt(
+    work_estimate: Any,
+    precommit_receipt: Mapping[str, Any],
+    *,
+    policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    estimate_errors = validate_work_estimate(work_estimate, policy=policy)
+    if estimate_errors:
+        raise ValueError("invalid work_estimate: " + "; ".join(estimate_errors))
+    estimate = deepcopy(_ensure_mapping(work_estimate, label="work_estimate"))
+    receipt_errors = validate_precommit_receipt(
+        precommit_receipt,
+        estimate,
+        expected_packet_id=str(precommit_receipt.get("packet_id") or ""),
+        require_accepting=True,
+    )
+    if receipt_errors:
+        raise ValueError("invalid precommit receipt: " + "; ".join(receipt_errors))
+    fit_result = precommit_receipt.get("fit_result")
+    if not isinstance(fit_result, Mapping):
+        raise ValueError("precommit receipt fit_result is missing")
+    commitment = {
+        "commitment_type": "cwo-native-worker-fit-commitment",
+        "version": 2,
+        "packet_id": precommit_receipt["packet_id"],
+        "attempt_nonce": precommit_receipt["attempt_nonce"],
+        "work_unit_id": precommit_receipt["work_unit_id"],
+        "bead_id": precommit_receipt["bead_id"],
+        "requested_model": precommit_receipt["requested_model"],
+        "session_id": precommit_receipt["session_id"],
+        "agent_id": precommit_receipt["agent_id"],
+        "attestation_source": precommit_receipt["attestation_source"],
+        "attested_model": precommit_receipt["attested_model"],
+        "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
+        "decision": fit_result["decision"],
+        "estimates": deepcopy(fit_result["estimates"]),
+        "precommit_receipt_sha256": precommit_receipt["receipt_sha256"],
+    }
+    errors = validate_worker_commitment(
+        commitment,
+        estimate,
+        policy=policy,
+        dispatchable=commitment["decision"] == "accept",
+        precommit_receipt=precommit_receipt,
+    )
+    if errors:
+        raise ValueError("invalid receipt-derived commitment: " + "; ".join(errors))
+    return commitment
+
+
+def _validate_worker_commitment_v2(
+    commitment: Mapping[str, Any],
+    work_estimate: Mapping[str, Any],
+    precommit_receipt: Mapping[str, Any] | None,
+    *,
+    policy: Mapping[str, Any] | None,
+    dispatchable: bool,
+) -> list[str]:
+    errors: list[str] = []
+    try:
+        source_fields = set(commitment)
+        required = set(COMMITMENT_V2_REQUIRED_FIELDS)
+        if missing := sorted(required - source_fields):
+            raise ValueError(f"malformed source payload: commitment missing required field(s) {', '.join(missing)}")
+        if unknown := sorted(source_fields - required):
+            raise ValueError(f"malformed source payload: commitment has unknown field(s) {', '.join(unknown)}")
+        if commitment.get("commitment_type") != "cwo-native-worker-fit-commitment":
+            raise ValueError("commitment.commitment_type is invalid")
+        if commitment.get("version") != 2:
+            raise ValueError("commitment.version must equal 2")
+        if precommit_receipt is None:
+            raise ValueError("commitment version 2 requires the bound precommit receipt")
+        receipt_errors = validate_precommit_receipt(
+            precommit_receipt,
+            work_estimate,
+            expected_packet_id=str(commitment.get("packet_id") or ""),
+            require_accepting=dispatchable or commitment.get("decision") == "accept",
+        )
+        if receipt_errors:
+            raise ValueError("commitment precommit receipt is invalid: " + "; ".join(receipt_errors))
+        fit_result = precommit_receipt.get("fit_result")
+        if not isinstance(fit_result, Mapping):
+            raise ValueError("commitment precommit receipt fit_result is missing")
+        expected = {
+            "packet_id": precommit_receipt.get("packet_id"),
+            "attempt_nonce": precommit_receipt.get("attempt_nonce"),
+            "work_unit_id": work_estimate.get("work_unit_id"),
+            "bead_id": work_estimate.get("bead_id"),
+            "requested_model": work_estimate.get("requested_model"),
+            "session_id": precommit_receipt.get("session_id"),
+            "agent_id": precommit_receipt.get("agent_id"),
+            "attestation_source": precommit_receipt.get("attestation_source"),
+            "attested_model": precommit_receipt.get("attested_model"),
+            "work_estimate_sha256": canonical_work_estimate_sha256(work_estimate),
+            "decision": fit_result.get("decision"),
+            "estimates": fit_result.get("estimates"),
+            "precommit_receipt_sha256": precommit_receipt.get("receipt_sha256"),
+        }
+        for field, expected_value in expected.items():
+            if commitment.get(field) != expected_value:
+                raise ValueError(f"commitment.{field} must derive exclusively from the validated precommit receipt and work plan")
+        estimates = _ensure_estimate_mapping(commitment.get("estimates"), path="commitment.estimates")
+        allowance = _ensure_mapping(work_estimate.get("aggregate_allowance"), label="work_estimate.aggregate_allowance")
+        if estimates["tool_calls_p90"] > int(allowance.get("tool_calls_hard", -1)):
+            raise ValueError("commitment.estimates.tool_calls_p90 exceeds work plan aggregate hard allowance")
+        if estimates["runtime_seconds_p90"] > int(allowance.get("runtime_seconds_hard", -1)):
+            raise ValueError("commitment.estimates.runtime_seconds_p90 exceeds work plan aggregate hard allowance")
+        if dispatchable and commitment.get("decision") != "accept":
+            raise ValueError("dispatchable commitment decision must be accept")
+    except (TypeError, ValueError) as exc:
+        errors.append(str(exc))
+    return errors
 
 
 def validate_worker_commitment(
@@ -1379,6 +1596,7 @@ def validate_worker_commitment(
     policy: Mapping[str, Any] | None = None,
     *,
     dispatchable: bool = False,
+    precommit_receipt: Mapping[str, Any] | None = None,
 ) -> list[str]:
     commitment_source = deepcopy(commitment)
     errors: list[str] = []
@@ -1395,12 +1613,24 @@ def validate_worker_commitment(
         return [f"invalid work_estimate: {error}" for error in estimate_errors]
     validated_estimate = _ensure_mapping(work_estimate, label="work_estimate")
 
+    version = commitment_source.get("version")
+    if version == 2:
+        return _validate_worker_commitment_v2(
+            commitment_source,
+            validated_estimate,
+            precommit_receipt,
+            policy=policy,
+            dispatchable=dispatchable,
+        )
+    if dispatchable:
+        return ["commitment version 1 is historical-inspection-only and dispatch-forbidden"]
+
     expected_model = str(validated_estimate.get("requested_model", ""))
     expected_work_unit = str(validated_estimate.get("work_unit_id", ""))
     expected_bead = str(validated_estimate.get("bead_id", ""))
 
     try:
-        commitment_fields = set(COMMITMENT_REQUIRED_FIELDS)
+        commitment_fields = set(COMMITMENT_V1_REQUIRED_FIELDS)
         source_fields = set(commitment_source.keys())
         if missing_fields := sorted(commitment_fields - source_fields):
             raise ValueError(f"malformed source payload: commitment missing required field(s) {', '.join(missing_fields)}")
@@ -1416,8 +1646,8 @@ def validate_worker_commitment(
         _ensure_nonempty_str(commitment_source["requested_model"], path="commitment.requested_model")
         _ensure_nonempty_str(commitment_source["session_id"], path="commitment.session_id")
         _ensure_nonempty_str(commitment_source["attestation_source"], path="commitment.attestation_source")
-        if commitment_source["attestation_source"] != str(commitment_policy.get("attestation_source", "")):
-            raise ValueError("commitment.attestation_source must equal configured attestation_source")
+        if commitment_source["attestation_source"] != "trusted-session-jsonl":
+            raise ValueError("historical commitment.attestation_source must equal trusted-session-jsonl")
         _ensure_nonempty_str(commitment_source["attested_model"], path="commitment.attested_model")
         if commitment_source["attested_model"] != commitment_source["requested_model"]:
             raise ValueError("commitment.attested_model must match commitment.requested_model")
@@ -1445,7 +1675,7 @@ def validate_worker_commitment(
             raise ValueError("commitment.decision must match configured commitment decision set")
 
         confidence = _ensure_float(commitment_source.get("confidence"), path="commitment.confidence")
-        min_confidence = float(commitment_policy.get("min_confidence", 0.75))
+        min_confidence = float(commitment_policy.get("historical_v1_min_confidence", 0.75))
         if confidence < min_confidence:
             raise ValueError(f"commitment.confidence must be at least {min_confidence}")
         if commitment_source["work_unit_id"] != expected_work_unit:
@@ -1483,27 +1713,15 @@ def validate_worker_commitment(
         elif str(commitment_policy.get("estimate_bound", "")):
             raise ValueError("unsupported commitment.estimate_bound")
 
-        precommit_tool_calls = _ensure_int(
-            commitment_policy.get("precommitment_tool_calls"),
-            path="work_sizing.commitment.precommitment_tool_calls",
-            minimum=0,
-            maximum=0,
-        )
-        precommit_compactions = _ensure_int(
-            commitment_policy.get("precommitment_compactions"),
-            path="work_sizing.commitment.precommitment_compactions",
-            minimum=0,
-            maximum=0,
-        )
         precommitment_tool_calls = _ensure_int(
             commitment_source.get("tool_calls_before_commitment"),
             path="commitment.tool_calls_before_commitment",
-            maximum=precommit_tool_calls,
+            maximum=0,
         )
         precommitment_compactions = _ensure_int(
             commitment_source.get("context_compactions_before_commitment"),
             path="commitment.context_compactions_before_commitment",
-            maximum=precommit_compactions,
+            maximum=0,
         )
         if precommitment_tool_calls != 0:
             raise ValueError("commitment.tool_calls_before_commitment must be 0")
@@ -1520,7 +1738,7 @@ def validate_worker_commitment(
 def _commitment_normalization_failure(errors: list[str]) -> dict[str, Any]:
     return {
         "normalization_type": "cwo-native-worker-commitment-normalization",
-        "version": 1,
+        "version": 2,
         "outcome": "pm-realignment",
         "decision": "pm-realignment",
         "normalized_commitment": None,
@@ -1597,111 +1815,35 @@ def normalize_worker_commitment_response(
     raw_commitment: Any,
     work_estimate: Any,
     *,
-    session_id: str,
-    attested_model: str,
+    precommit_receipt: Mapping[str, Any] | None = None,
+    session_id: str | None = None,
+    attested_model: str | None = None,
 ) -> dict[str, Any]:
-    if not isinstance(session_id, str) or not session_id:
-        return _commitment_normalization_failure(["trusted session_id is required"])
-    if not isinstance(attested_model, str) or not attested_model:
-        return _commitment_normalization_failure(["trusted attested_model is required"])
+    _ = raw_commitment
+    if precommit_receipt is None:
+        containment = containment_error("worker-fit-commitment-normalization")
+        errors = ["trusted precommit receipt is required"]
+        if containment:
+            errors.append(containment)
+        return _commitment_normalization_failure(errors)
+    if session_id is not None or attested_model is not None:
+        return _commitment_normalization_failure(
+            ["session and model identity must be derived exclusively from the precommit receipt"]
+        )
     estimate_errors = validate_work_estimate(work_estimate)
     if estimate_errors:
         return _commitment_normalization_failure(
             [f"invalid work_estimate: {error}" for error in estimate_errors]
         )
     estimate = deepcopy(_ensure_mapping(work_estimate, label="work_estimate"))
-
-    source: dict[str, Any]
-    if isinstance(raw_commitment, Mapping):
-        source = deepcopy(dict(raw_commitment))
-    elif isinstance(raw_commitment, str):
-        text = raw_commitment.strip()
-        if not text:
-            return _commitment_normalization_failure(["commitment response is empty"])
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
-            parsed = None
-        if isinstance(parsed, Mapping):
-            source = deepcopy(dict(parsed))
-        else:
-            source, errors = _plain_text_commitment_source(text)
-            if source is None:
-                return _commitment_normalization_failure(errors)
-    else:
-        return _commitment_normalization_failure(
-            ["commitment response must be a mapping, JSON object, or plain text"]
-        )
-
-    decision = _normalize_commitment_decision(source.get("decision"))
-    if decision is None:
-        return _commitment_normalization_failure(
-            ["commitment decision is missing, ambiguous, or unsupported"]
-        )
-    source["decision"] = decision
-
-    estimates = source.get("estimates")
-    if not isinstance(estimates, Mapping):
-        return _commitment_normalization_failure(
-            ["commitment estimates must contain numeric p50 and p90 values"]
-        )
-    normalized_estimates = dict(estimates)
-    estimate_aliases = {
-        "calls_p50": "tool_calls_p50",
-        "calls_p90": "tool_calls_p90",
-        "runtime_p50": "runtime_seconds_p50",
-        "runtime_p90": "runtime_seconds_p90",
-    }
-    for alias, canonical in estimate_aliases.items():
-        if alias in normalized_estimates and canonical in normalized_estimates:
-            return _commitment_normalization_failure(
-                [f"commitment estimates contain both {canonical} and alias {alias}"]
-            )
-        if alias in normalized_estimates:
-            normalized_estimates[canonical] = normalized_estimates.pop(alias)
-    missing_quantiles = sorted(set(COMMITMENT_ESTIMATE_KEYS) - set(normalized_estimates))
-    if missing_quantiles:
-        return _commitment_normalization_failure(
-            [f"commitment estimates missing numeric quantiles: {', '.join(missing_quantiles)}"]
-        )
-    source["estimates"] = normalized_estimates
-
-    trusted_fields = {
-        "commitment_type": "cwo-native-worker-fit-commitment",
-        "version": 1,
-        "work_unit_id": estimate["work_unit_id"],
-        "bead_id": estimate["bead_id"],
-        "requested_model": estimate["requested_model"],
-        "session_id": session_id,
-        "attestation_source": "trusted-session-jsonl",
-        "attested_model": attested_model,
-        "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
-        "tool_calls_before_commitment": 0,
-        "context_compactions_before_commitment": 0,
-    }
-    for field, trusted_value in trusted_fields.items():
-        if field in source and source[field] != trusted_value:
-            return _commitment_normalization_failure(
-                [f"commitment {field} contradicts trusted control-plane value"]
-            )
-        source[field] = trusted_value
-    if attested_model != estimate["requested_model"]:
-        return _commitment_normalization_failure(
-            ["trusted attested_model does not match requested model"]
-        )
-    if not isinstance(source.get("reason"), str) or not source["reason"].strip():
-        return _commitment_normalization_failure(["commitment reason is required"])
-
-    errors = validate_worker_commitment(
-        source,
-        estimate,
-        dispatchable=decision == "accept",
-    )
-    if errors:
-        return _commitment_normalization_failure(errors)
+    try:
+        source = build_worker_commitment_from_receipt(estimate, precommit_receipt)
+    except ValueError as exc:
+        return _commitment_normalization_failure([str(exc)])
+    decision = source["decision"]
     return {
         "normalization_type": "cwo-native-worker-commitment-normalization",
-        "version": 1,
+        "version": 2,
         "outcome": "normalized",
         "decision": decision,
         "normalized_commitment": source,

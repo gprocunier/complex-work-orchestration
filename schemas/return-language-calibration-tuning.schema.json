@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Return Language Calibration Tuning Evidence",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "version",
+    "immutable_baseline_minimum_english_words",
+    "selected_threshold",
+    "nearest_higher_failing_threshold",
+    "language",
+    "contract_path",
+    "corpus_path",
+    "latest_report_path",
+    "contract_sha256",
+    "corpus_sha256",
+    "analyzer",
+    "pipeline",
+    "mismatch_count_by_threshold",
+    "failure_case_ids_by_threshold",
+    "signal_weight_hash",
+    "global_threshold_hash",
+    "sweep_results",
+    "canonical_sha256"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "artifact_type": {
+      "type": "string",
+      "const": "skl-return-language-tuning-v1"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "immutable_baseline_minimum_english_words": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "selected_threshold": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "nearest_higher_failing_threshold": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "corpus_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "latest_report_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "corpus_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "analyzer": {
+      "$ref": "#/$defs/metric_pair"
+    },
+    "pipeline": {
+      "$ref": "#/$defs/metric_pair"
+    },
+    "mismatch_count_by_threshold": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "propertyNames": { "pattern": "^[0-9]{1,3}$" }
+    },
+    "failure_case_ids_by_threshold": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      },
+      "propertyNames": { "pattern": "^[0-9]{1,3}$" }
+    },
+    "signal_weight_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "global_threshold_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sweep_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "minimum_english_words",
+          "status",
+          "mismatch_count",
+          "failure_case_ids",
+          "analyzer",
+          "pipeline"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "minimum_english_words": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail"]
+          },
+          "mismatch_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failure_case_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "analyzer": {
+            "$ref": "#/$defs/layer_metrics"
+          },
+          "pipeline": {
+            "$ref": "#/$defs/layer_metrics"
+          }
+        }
+      }
+    },
+    "canonical_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "layer_metrics": {
+      "type": "object",
+      "required": [
+        "cases",
+        "positive_expected",
+        "positive_predicted",
+        "true_positive",
+        "false_positive",
+        "true_negative",
+        "false_negative",
+        "precision",
+        "recall",
+        "false_positive_rate",
+        "exact_status_accuracy",
+        "status_confusion_matrix"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cases": {"type": "integer", "minimum": 0},
+        "positive_expected": {"type": "integer", "minimum": 0},
+        "positive_predicted": {"type": "integer", "minimum": 0},
+        "true_positive": {"type": "integer", "minimum": 0},
+        "false_positive": {"type": "integer", "minimum": 0},
+        "true_negative": {"type": "integer", "minimum": 0},
+        "false_negative": {"type": "integer", "minimum": 0},
+        "precision": {"type": "number", "minimum": 0, "maximum": 1},
+        "recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "false_positive_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "exact_status_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "status_confusion_matrix": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "metric_pair": {
+      "type": "object",
+      "required": ["baseline", "selected"],
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {"$ref": "#/$defs/layer_metrics"},
+        "selected": {"$ref": "#/$defs/layer_metrics"}
+      }
+    }
+  }
+}

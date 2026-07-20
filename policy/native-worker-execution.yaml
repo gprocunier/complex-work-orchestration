@@ -33,6 +33,164 @@
   },
   "rollout_mode": "canary-then-enforce",
   "enforcement_mode": "fail-closed",
+  "precommit_containment": {
+    "version": 2,
+    "active": true,
+    "status": "operative-authorized",
+    "scope": "native-operative-dispatch",
+    "reason": "fsh.3-operative-release-gate",
+    "decision": "evidence-gated",
+    "authority": "policy/native-worker-execution.yaml",
+    "release_requires": "complex-work-orchestration-fsh.3.5",
+    "release_state_order": [
+      "precommit-validated",
+      "canary-authorized",
+      "operative-authorized"
+    ],
+    "maximum_release_state": "operative-authorized",
+    "operative_dispatch_authorized": true,
+    "canary_operations": [
+      "supervised-worker-fit-request"
+    ],
+    "allowed_non_operative_operations": [
+      "policy-schema-validation",
+      "trusted-session-inspection",
+      "historical-packet-inspection",
+      "structurally-nondispatchable-preview",
+      "external-read-only-critic-review",
+      "supervised-worker-fit-request",
+      "receipt-bound-candidate-packet-build"
+    ],
+    "blocked_operations": [
+      "worker-fit-request",
+      "deterministic-fit-commitment",
+      "planned-packet-build",
+      "dispatchable-packet-validation",
+      "operative-prompt-render",
+      "supervision-start",
+      "supervision-arm",
+      "native-dispatch",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch"
+    ]
+  },
+  "native_release_evidence": {
+    "version": 1,
+    "schema": "schemas/native-release-evidence.schema.json",
+    "authority": "cwo-native-release-supervisor",
+    "required_model": "gpt-5.3-codex-spark",
+    "canary_bead": "complex-work-orchestration-fsh.3.5",
+    "operative_adjudication_bead": "complex-work-orchestration-fsh.3.5",
+    "max_ttl_seconds": 3600,
+    "canary_operation_class": "supervised-zero-tool-fit-canary",
+    "canary_authorized_operations": [
+      "supervised-worker-fit-request"
+    ],
+    "operative_authorized_operations": [
+      "dispatchable-packet-validation",
+      "operative-prompt-render",
+      "supervision-start",
+      "supervision-arm",
+      "native-dispatch",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch"
+    ],
+    "canary_repository_work_authorized": false,
+    "canary_source_mutation_authorized": false,
+    "canary_workspace_scope": "cwo-temp-only",
+    "operative_release_enabled": true,
+    "operative_release_requires": "complex-work-orchestration-fsh.3.5"
+  },
+  "precommit_supervision": {
+    "version": 2,
+    "state_schema": "schemas/native-precommit-state.schema.json",
+    "receipt_schema": "schemas/native-precommit-receipt.schema.json",
+    "validation_rule_version": "native-precommit-receipt:v2",
+    "required_model": "gpt-5.3-codex-spark",
+    "attestation_source": "trusted-control-plane-session-metadata",
+    "poll_interval_ms": 1000,
+    "poll_lag_tolerance_ms": 500,
+    "arm_to_dispatch_max_ms": 5000,
+    "packet_stage": "precommit-validated",
+    "operative_dispatch_authorized": false,
+    "release_requires": "complex-work-orchestration-fsh.3",
+    "control_topology": "single-host-process-v1"
+  },
+  "native_supervision_pool": {
+    "version": 1,
+    "enabled": true,
+    "maturity": "experimental",
+    "cap_two_enabled_by_default": false,
+    "status": "operative-authorized",
+    "default_max_active_workers": 1,
+    "hard_max_active_workers": 2,
+    "cap_two_requires_explicit_opt_in": true,
+    "cap_two_requires_fresh_capability": true,
+    "cap_two_operative_release": true,
+    "release_requires": "complex-work-orchestration-18w.6",
+    "required_control_adapter": "native-multi-agent-v1",
+    "allowed_execution_surfaces": [
+      "connected-codex"
+    ],
+    "max_capability_ttl_seconds": 3600,
+    "max_certified_check_ms": 200,
+    "callback_certification": {
+      "version": "live-thread-adapter-callback-certification:v1",
+      "envelope": "live-thread-adapter-callback-v1",
+      "scheduler_model": "nonpreemptive-edf-cap2-v1",
+      "response_time_equation": "max_lifecycle+2*check+scheduler<=poll_interval",
+      "observation_authority": "telemetry-only-non-authoritative",
+      "certified_callback_max_ms": {
+        "arm": 100,
+        "send_input": 250,
+        "mark_dispatched": 100,
+        "check": 200,
+        "interrupt": 250,
+        "close": 250,
+        "finalize": 100
+      },
+      "certified_scheduler_overhead_ms": 100
+    },
+    "scheduler": {
+      "kind": "earliest-deadline-rotating-v1",
+      "poll_interval_ms": 1000,
+      "poll_lag_tolerance_ms": 1500,
+      "hot_admission_allowed": false,
+      "threads_allowed": false
+    },
+    "trusted_live_canary": {
+      "runner": "scripts/run_native_pool_live_canaries.py",
+      "steering_receipt_schema": "schemas/native-steering-receipt.schema.json",
+      "materialization_evidence_schema": "schemas/native-session-materialization-evidence.schema.json",
+      "authorization_state_schema": "schemas/native-canary-authorization-state.schema.json",
+      "exact_model": "gpt-5.3-codex-spark",
+      "calibration_command": "sleep 20",
+      "materialization_deadline_seconds": 10,
+      "poll_interval_max_ms": 250,
+      "liveness_observations": 2,
+      "liveness_separation_min_ms": 1000,
+      "interrupt_confirmation_deadline_seconds": 5,
+      "successful_turn_starts_exact": 7,
+      "prestart_zero_artifact_relaunch_max": 1,
+      "predecessor_lineage_artifacts_required": true,
+      "spark_receipt_canonical_recompute_required": true,
+      "no_resume_or_salvage": true,
+      "release_on_acceptance_only": true
+    },
+    "single_flight_surfaces": [
+      "precommit-supervision",
+      "candidate-packet-construction",
+      "operative-prompt-render",
+      "native-retry",
+      "native-resume",
+      "native-replay-dispatch",
+      "outside-critic-review",
+      "integration",
+      "publication"
+    ]
+  },
   "poll_interval_ms": 1000,
   "poll_lag_tolerance_ms": 1500,
   "arm_to_dispatch_max_ms": 5000,
@@ -52,6 +210,194 @@
     "close",
     "wait"
   ],
+  "proportional_execution_fast_path": {
+    "enabled": true,
+    "route": "native-productive-fast-path",
+    "version": 1,
+    "eligibility": {
+      "brief_type": "cwo-proportional-execution-brief",
+      "version": 1,
+      "identity_required": true,
+      "tool_surface_required": true,
+      "model_surface_required": true,
+      "single_output_artifact_required": true,
+      "allowed_output_classifications": [
+        "ignored",
+        "ephemeral",
+        "non-publishable"
+      ],
+      "max_estimated_lines": 500,
+      "max_estimated_tool_calls": 12,
+      "max_estimated_runtime_seconds": 600,
+      "mutation_boundaries_required_false": [
+        "tracked_source",
+        "policy",
+        "schema",
+        "credential",
+        "beads_database",
+        "production"
+      ],
+      "access_boundaries_required_false": [
+        "privileged_access",
+        "secrets",
+        "external_disclosure",
+        "network"
+      ],
+      "required_unresolved_decisions_empty": [
+        "architecture",
+        "security",
+        "policy"
+      ],
+      "deterministic_checks_required": true,
+      "usage_buckets": [
+        "productive-artifact",
+        "validation",
+        "orchestration-setup",
+        "harness-recovery"
+      ],
+      "required_worker_capabilities": [
+        "text",
+        "json"
+      ],
+      "allowed_worker_capability_source": "brief-available_worker_capabilities"
+    },
+    "receipt": {
+      "valid_receipt_reuse": true,
+      "no-repeated-canary": true,
+      "tool_surface": "native-productive-fast-path"
+    },
+    "required_steps": [
+      "validate-proportional-brief",
+      "evaluate-required-boundaries",
+      "evaluate-usage-breakdown",
+      "evaluate-visual-adjudication",
+      "emit-immutable-task-evidence"
+    ],
+    "skipped_heavy_gates": [
+      "scheduler-delay-canary",
+      "tool-use-canary",
+      "non-essential-policy-checks"
+    ],
+    "terminal_precedence": {
+      "completion_vs_late_poll": "completion-wins",
+      "hard_reasons_vs_completion": "hard-wins",
+      "late_poll_decision": "warn",
+      "startup_grace_late_poll": "warn"
+    },
+    "scheduler_delay": {
+      "as_control_lost": false,
+      "warn_reason": "poll-latency-observed"
+    },
+    "pm_visual_adjudication": {
+      "owner": "pm",
+      "trusted_screenshots_only": true,
+      "image_input_required_when_owner_worker": true,
+      "correction_cap": "bounded",
+      "bounded_corrections": 1
+    }
+  },
+  "operative_packet_readiness": {
+    "version": 2,
+    "required_marker": "operative-readiness:v2",
+    "decisions": [
+      "operative-ready",
+      "architect-resolution-required",
+      "split-required"
+    ],
+    "selector_grammar": [
+      "whole-file",
+      "lines:<start>-<end>"
+    ],
+    "semantic_unit_identity": "context-manifest-path-selector-sha256",
+    "max_chunks_per_unit": 4,
+    "limits": {
+      "max_behavior_clusters": 1,
+      "max_source_files": 4,
+      "max_focused_test_modules": 2,
+      "max_expected_diff_lines": 250,
+      "max_tool_calls_p90": 18,
+      "max_runtime_seconds_p90": 300,
+      "max_compactions": 0,
+      "max_implementation_full_suite_runs": 0
+    },
+    "required_frozen_decision_markers": [
+      "behavior-cluster:",
+      "input-contract:",
+      "output-contract:",
+      "state-transitions:",
+      "positive-tests:",
+      "negative-tests:",
+      "authority:"
+    ],
+    "unresolved_decisions_required_empty": true,
+    "result_fields": [
+      "decision",
+      "reasons",
+      "open_decisions",
+      "owned_files",
+      "owned_symbols",
+      "test_matrix",
+      "context_unit_allowance",
+      "pre_mutation_read_call_allowance",
+      "total_call_allowance",
+      "total_runtime_allowance"
+    ]
+  },
+  "operative_activity_controls": {
+    "version": 2,
+    "categories": [
+      "targeted-read",
+      "broad-scan",
+      "memory-read",
+      "mutation",
+      "focused-validation",
+      "unrelated"
+    ],
+    "semantic_unit_identity": "context-manifest-path-selector-sha256",
+    "mutation_authority": "content-aware-workspace-baseline-v2",
+    "max_chunks_per_unit": 4,
+    "warning": {
+      "semantic_units": 3,
+      "pre_mutation_read_calls": 6
+    },
+    "needs_replan_before": {
+      "semantic_unit": 4,
+      "pre_mutation_read_call": 11
+    },
+    "broad_scan": "deny",
+    "memory_read": "exact-context-manifest-path-only",
+    "recovery": {
+      "pm_refinements": 1,
+      "automatic_sol_replans": 1,
+      "final_attempts_after_sol_replan": 1,
+      "operator_approval_for_healthy_packet_correction": false,
+      "aggregate_budget_shared": true,
+      "budget_reset": false,
+      "recursive_salvage": false
+    },
+    "protected_stops": [
+      "model-mismatch",
+      "context-compaction",
+      "control-loss",
+      "telemetry-unavailable",
+      "security-violation",
+      "authority-violation",
+      "out-of-scope-mutation",
+      "mutation-attribution-ambiguity",
+      "incomplete-mutation-evidence",
+      "contradictory-validation",
+      "aggregate-budget-exhausted"
+    ],
+    "prohibitions": [
+      "call-ordinal-first-mutation-gate",
+      "recursive-salvage",
+      "budget-reset",
+      "operative-agent-resume",
+      "non-native-bridge",
+      "model-substitution",
+      "sol-operative-substitution"
+    ]
+  },
   "missing_telemetry_control": "stop-before-dispatch",
   "validation_attempt_limit": 1,
   "recursive_validation_forbidden": true,
@@ -422,17 +768,21 @@
         "commitment": {
           "required_for_dispatch": true,
           "receipt_type": "cwo-native-worker-fit-commitment",
-          "version": 1,
+          "version": 2,
+          "historical_versions": [
+            1
+          ],
+          "candidate_version": 2,
           "decisions": [
             "accept",
             "pm-realignment",
             "architect-realignment"
           ],
           "dispatchable_decision": "accept",
-          "min_confidence": 0.75,
-          "precommitment_tool_calls": 0,
-          "precommitment_compactions": 0,
-          "attestation_source": "trusted-session-jsonl",
+          "precommit_receipt_type": "cwo-native-precommit-receipt",
+          "identity_source": "validated-precommit-receipt",
+          "activity_source": "validated-precommit-receipt",
+          "historical_v1_min_confidence": 0.75,
           "positive_estimates_required": true,
           "estimate_bound": "within-work-plan-aggregate-hard-allowance",
           "normalization": {
@@ -498,7 +848,7 @@
             "requires_exact_argv": true,
             "tool_calls_p50": 2,
             "tool_calls_p90": 4,
-            "tool_calls_hard": 8,
+            "tool_calls_hard": 10,
             "runtime_seconds_p50": 150,
             "runtime_seconds_p90": 300,
             "runtime_seconds_hard": 600

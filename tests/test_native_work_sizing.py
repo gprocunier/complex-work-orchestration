@@ -3,11 +3,13 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import tempfile
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+import cwo_core.work_sizing as work_sizing  # noqa: E402
 
 from cwo_core.work_sizing import DIMENSIONS, evaluate_work_estimate, validate_work_estimate  # noqa: E402
 from cwo_core.work_sizing import (  # noqa: E402
@@ -162,6 +164,44 @@ def _narrow_profile_payload(path: str = "tests/test_native_work_sizing.py"):
         "commands": [],
         "source_mutation_paths": [path],
     }
+    return payload
+
+
+def _checked_command_spec(cwd: str, command_id: str, argv: list[str]):
+    return {
+        "spec_type": "cwo-checked-command-spec",
+        "version": 1,
+        "command_id": command_id,
+        "mode": "argv",
+        "argv": argv,
+        "cwd": cwd,
+        "env": {},
+        "inherit_environment": True,
+        "stdin": None,
+        "source": None,
+        "preflights": [],
+        "mutation_intent": "none",
+        "allowed_paths": [],
+        "timeout_seconds": 30,
+    }
+
+
+def _checked_sequence_payload(cwd: str):
+    payload = _narrow_profile_payload()
+    commands = [["python3", "-m", "unittest", "tests.test_native_work_sizing"], ["git", "diff", "--check"]]
+    payload["task_profile"].update(
+        {
+            "task_class": "bounded-implementation",
+            "command_count": len(commands),
+            "commands": [{"argv": argv} for argv in commands],
+            "execution_contract": {
+                "mode": "checked-sequence-v1",
+                "checked_command_specs": [
+                    _checked_command_spec(cwd, f"check-{idx}", argv) for idx, argv in enumerate(commands)
+                ],
+            },
+        }
+    )
     return payload
 
 
@@ -372,7 +412,15 @@ class NativeWorkSizingTest(unittest.TestCase):
         work_estimate = evaluate_work_estimate(_valid_raw_payload())
         commitment = _valid_commitment_payload(work_estimate)
         self.assertEqual(validate_worker_commitment(commitment, work_estimate), [])
-        self.assertEqual(validate_worker_commitment(commitment, work_estimate, dispatchable=True), [])
+        self.assertIn(
+            "historical-inspection-only",
+            " ".join(validate_worker_commitment(commitment, work_estimate, dispatchable=True)),
+        )
+
+    def test_commitment_required_alias_is_removed(self) -> None:
+        self.assertFalse(hasattr(work_sizing, "COMMITMENT_REQUIRED_FIELDS"))
+        self.assertTrue(hasattr(work_sizing, "COMMITMENT_V1_REQUIRED_FIELDS"))
+        self.assertTrue(hasattr(work_sizing, "COMMITMENT_V2_REQUIRED_FIELDS"))
 
     def test_native_commitment_validation_realignment_modes(self):
         work_estimate = evaluate_work_estimate(_valid_raw_payload())
@@ -553,7 +601,56 @@ class NativeWorkSizingTest(unittest.TestCase):
         result = evaluate_work_estimate(payload)
         self.assertEqual(result["fit_mode"], "deterministic")
         self.assertEqual(result["route"], "spark")
-        self.assertEqual(result["aggregate_allowance"]["tool_calls_hard"], 8)
+        self.assertEqual(result["aggregate_allowance"]["tool_calls_hard"], 10)
+
+    def test_read_only_validation_command_count_boundary(self) -> None:
+        payload = _literal_command_payload()
+        commands = [
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_work_sizing"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_execution_policy"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_supervise_native_worker"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning", "--failfast"]},
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_replanning"]},
+        ]
+        payload["task_profile"].update(
+            {
+                "task_class": "read-only-validation",
+                "command_count": 6,
+                "check_count": 6,
+                "focused_test_count": 1,
+                "full_suite_count": 1,
+                "read_context_count": 1,
+                "source_mutation_count": 0,
+                "source_mutation_paths": [],
+                "commands": commands,
+            }
+        )
+        payload["context_manifest"] = [
+            {"path": "tests/test_native_work_sizing.py", "selector": "file", "purpose": "validation", "bytes": 1, "sha256": "0" * 64}
+        ]
+        payload["semantic_estimate"]["expected_context_reads"] = 1
+        payload["semantic_estimate"]["expected_mutations"] = 1
+        payload["semantic_estimate"]["read_to_mutation_ratio"] = 1
+        six = evaluate_work_estimate(payload)
+        self.assertEqual(six["fit_mode"], "deterministic")
+        self.assertEqual(six["task_class"], "read-only-validation")
+        self.assertEqual(six["route"], "spark")
+        self.assertFalse(six["route_conflict"])
+
+        seven_payload = copy.deepcopy(payload)
+        seven_payload["task_profile"]["command_count"] = 7
+        seven_payload["task_profile"]["commands"] = payload["task_profile"]["commands"] + [
+            {"argv": ["python3", "-m", "unittest", "tests.test_native_precommit"]}
+        ]
+        seven_payload["task_profile"]["check_count"] = 6
+        seven = evaluate_work_estimate(seven_payload)
+        self.assertEqual(seven["route"], "architect")
+        self.assertIn("task-profile-contradiction", seven["hard_gate_reasons"])
+        self.assertEqual(
+            seven["fit_evidence"]["contradictions"],
+            ["command_count exceeds class cap"],
+        )
 
     def test_protected_path_requires_path_bound_literal_patch(self):
         path = "policy/native-worker-execution.yaml"
@@ -589,29 +686,170 @@ class NativeWorkSizingTest(unittest.TestCase):
         self.assertIn("task-profile-contradiction", result["hard_gate_reasons"])
         self.assertTrue(result["fit_evidence"]["contradictions"])
 
-    def test_policy_fit_commitment_is_trusted_zero_tool_and_hash_bound(self):
+    def test_policy_fit_commitment_rejects_static_identity_without_receipt(self):
         estimate = evaluate_work_estimate(_literal_command_payload())
-        commitment = build_policy_fit_commitment(
-            estimate,
-            session_id="spark-session-1",
-            attested_model="gpt-5.3-codex-spark",
-        )
-        self.assertEqual(commitment["decision"], "accept")
-        self.assertEqual(commitment["tool_calls_before_commitment"], 0)
-        self.assertEqual(commitment["context_compactions_before_commitment"], 0)
-        self.assertEqual(commitment["estimates"]["tool_calls_p90"], 2)
-        self.assertEqual(validate_worker_commitment(commitment, estimate, dispatchable=True), [])
-        with self.assertRaisesRegex(ValueError, "exactly match"):
+        with self.assertRaisesRegex(ValueError, "trusted precommit receipt"):
             build_policy_fit_commitment(
                 estimate,
                 session_id="spark-session-1",
-                attested_model="gpt-5.6-sol",
+                attested_model="gpt-5.3-codex-spark",
             )
 
     def test_estimate_without_task_profile_remains_semantic_bounded_implementation(self):
         result = evaluate_work_estimate(_valid_v2_payload())
         self.assertEqual(result["task_class"], "bounded-implementation")
         self.assertEqual(result["fit_mode"], "semantic")
+
+    def test_execution_contract_absent_remains_backward_compatible(self):
+        result = evaluate_work_estimate(_narrow_profile_payload())
+        self.assertNotIn("execution_contract", result["task_profile"])
+
+    def test_direct_execution_contract_requires_empty_specs(self):
+        payload = _literal_command_payload()
+        payload["task_profile"]["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
+        result = evaluate_work_estimate(payload)
+        self.assertEqual(result["task_profile"]["execution_contract"], {"mode": "direct", "checked_command_specs": []})
+
+        payload["task_profile"]["execution_contract"]["checked_command_specs"] = [{}]
+        with self.assertRaisesRegex(ValueError, "direct execution_contract requires empty"):
+            evaluate_work_estimate(payload)
+
+    def test_checked_sequence_execution_contract_is_normalized_and_preserved(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            payload = _checked_sequence_payload(cwd)
+            result = evaluate_work_estimate(payload)
+            contract = result["task_profile"]["execution_contract"]
+            self.assertEqual(contract["mode"], "checked-sequence-v1")
+            self.assertEqual([spec["command_id"] for spec in contract["checked_command_specs"]], ["check-0", "check-1"])
+            self.assertEqual({spec["cwd"] for spec in contract["checked_command_specs"]}, {str(Path(cwd).resolve())})
+            self.assertEqual(validate_work_estimate(result), [])
+
+    def test_nonempty_literal_command_task_synthesizes_direct_execution_contract(self):
+        payload = _literal_command_payload()
+        inferred = evaluate_work_estimate(payload)
+
+        self.assertEqual(inferred["fit_mode"], "deterministic")
+        self.assertEqual(inferred["task_class"], "literal-command")
+        self.assertEqual(inferred["route"], "spark")
+        self.assertEqual(inferred["authority_route"], "spark")
+        inferred_contract = inferred["task_profile"].get("execution_contract")
+        self.assertEqual(inferred_contract["mode"], "direct")
+
+        explicit_payload = copy.deepcopy(payload)
+        explicit_payload["task_profile"]["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
+        explicit = evaluate_work_estimate(explicit_payload)
+
+        self.assertEqual(explicit["task_profile"]["execution_contract"].get("mode"), "direct")
+        self.assertEqual(canonical_work_estimate_sha256(inferred), canonical_work_estimate_sha256(explicit))
+
+    def test_nonempty_read_only_validation_task_synthesizes_direct_execution_contract(self):
+        payload = _literal_command_payload()
+        payload["task_profile"]["task_class"] = "read-only-validation"
+        payload["task_profile"]["read_context_count"] = 0
+        payload["semantic_estimate"]["expected_context_reads"] = 0
+        inferred = evaluate_work_estimate(payload)
+
+        self.assertEqual(inferred["fit_mode"], "deterministic")
+        self.assertEqual(inferred["task_class"], "read-only-validation")
+        self.assertEqual(inferred["route"], "spark")
+        self.assertEqual(inferred["authority_route"], "spark")
+        self.assertEqual(inferred["task_profile"]["execution_contract"]["mode"], "direct")
+
+        explicit_payload = copy.deepcopy(payload)
+        explicit_payload["task_profile"]["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
+        explicit = evaluate_work_estimate(explicit_payload)
+        self.assertEqual(canonical_work_estimate_sha256(inferred), canonical_work_estimate_sha256(explicit))
+
+    def test_empty_literal_command_does_not_synthesize_direct_execution_contract(self):
+        payload = _literal_command_payload()
+        payload["task_profile"]["command_count"] = 0
+        payload["task_profile"]["commands"] = []
+
+        result = evaluate_work_estimate(payload)
+        self.assertNotEqual(result["task_profile"].get("execution_contract", {}).get("mode"), "direct")
+
+    def test_unsupported_read_only_alias_does_not_synthesize_direct_execution_contract(self):
+        payload = _literal_command_payload()
+        payload["task_profile"]["task_class"] = "read-only"
+        result = evaluate_work_estimate(payload)
+
+        self.assertNotEqual(result["task_profile"].get("execution_contract", {}).get("mode"), "direct")
+
+    def test_explicit_direct_validation_preserves_direct_execution_contract(self):
+        payload = _literal_command_payload()
+        payload["task_profile"]["execution_contract"] = {
+            "mode": "direct",
+            "checked_command_specs": [],
+        }
+        result = evaluate_work_estimate(payload)
+
+        self.assertEqual(result["fit_mode"], "deterministic")
+        self.assertEqual(result["task_profile"]["execution_contract"]["mode"], "direct")
+        self.assertEqual(result["authority_route"], "spark")
+
+        inferred_payload = _literal_command_payload()
+        inferred_result = evaluate_work_estimate(inferred_payload)
+        self.assertEqual(canonical_work_estimate_sha256(result), canonical_work_estimate_sha256(inferred_result))
+
+    def test_checked_sequence_v1_does_not_receive_inferred_direct_execution_contract(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            payload = _checked_sequence_payload(cwd)
+            result = evaluate_work_estimate(payload)
+
+            self.assertEqual(result["task_profile"]["execution_contract"]["mode"], "checked-sequence-v1")
+            self.assertEqual(result["authority_route"], "spark")
+
+    def test_checked_sequence_rejects_invalid_mode_empty_specs_and_wrong_task_class(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            cases = []
+            unknown = _checked_sequence_payload(cwd)
+            unknown["task_profile"]["execution_contract"]["mode"] = "automatic"
+            cases.append((unknown, "must be direct or checked-sequence-v1"))
+            empty = _checked_sequence_payload(cwd)
+            empty["task_profile"]["execution_contract"]["checked_command_specs"] = []
+            cases.append((empty, "requires checked_command_specs"))
+            wrong_class = _checked_sequence_payload(cwd)
+            wrong_class["task_profile"]["task_class"] = "read-only-validation"
+            cases.append((wrong_class, "requires bounded-implementation"))
+            for payload, message in cases:
+                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                    evaluate_work_estimate(payload)
+
+    def test_checked_sequence_rejects_non_argv_duplicate_ids_and_mixed_cwd(self):
+        with tempfile.TemporaryDirectory() as cwd, tempfile.TemporaryDirectory() as other_cwd:
+            non_argv = _checked_sequence_payload(cwd)
+            spec = non_argv["task_profile"]["execution_contract"]["checked_command_specs"][0]
+            spec.update({"mode": "shell-source", "argv": [], "source": "true"})
+
+            duplicate = _checked_sequence_payload(cwd)
+            duplicate["task_profile"]["execution_contract"]["checked_command_specs"][1]["command_id"] = "check-0"
+
+            mixed_cwd = _checked_sequence_payload(cwd)
+            mixed_cwd["task_profile"]["execution_contract"]["checked_command_specs"][1]["cwd"] = other_cwd
+
+            cases = (
+                (non_argv, "mode must be argv"),
+                (duplicate, "command_id values must be unique"),
+                (mixed_cwd, "requires one resolved cwd"),
+            )
+            for payload, message in cases:
+                with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                    evaluate_work_estimate(payload)
+
+    def test_checked_sequence_rejects_argv_order_mismatch(self):
+        with tempfile.TemporaryDirectory() as cwd:
+            payload = _checked_sequence_payload(cwd)
+            payload["task_profile"]["execution_contract"]["checked_command_specs"].reverse()
+            with self.assertRaisesRegex(ValueError, "argv must exactly match"):
+                evaluate_work_estimate(payload)
+
+    def test_execution_contract_schema_is_closed_and_strict(self):
+        schema = json.loads((ROOT / "schemas" / "native-work-estimate.schema.json").read_text(encoding="utf-8"))
+        contract = schema["$defs"]["taskProfile"]["properties"]["execution_contract"]
+        self.assertFalse(contract["additionalProperties"])
+        spec = contract["properties"]["checked_command_specs"]["items"]
+        self.assertFalse(spec["additionalProperties"])
+        self.assertEqual(spec["properties"]["mode"]["const"], "argv")
 
     def test_v2_semantic_score_floors_are_deterministic(self):
         cases = (

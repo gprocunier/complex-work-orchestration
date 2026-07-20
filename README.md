@@ -114,6 +114,11 @@ control or telemetry stops dispatch; another frontier model is not a silent
 substitute. Native dispatch and one-second monitoring remain in one uninterrupted
 control turn so worker execution cannot advance during a model round-trip.
 
+Native supervision lets CWO monitor a small fixed set of native workers from
+one trusted host while the rest of the workflow stays controlled. Capacity two
+is an opt-in Tech Preview, disabled by default; see the [operator
+reference](references/native-supervision-pools.md) for prerequisites and limits.
+
 For automation or troubleshooting, the same coach can be run directly:
 
 ```bash

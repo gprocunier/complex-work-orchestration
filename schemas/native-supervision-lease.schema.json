@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Supervision Lease",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lease_type", "version", "schema", "lease_id", "pool_id", "child_id",
+    "pool_epoch", "integration_root_identity", "worktree_identity", "target_paths",
+    "owner", "lifecycle_state", "acquired_at", "updated_at",
+    "terminal_evidence_sha256", "release_reason", "lease_sha256"
+  ],
+  "properties": {
+    "lease_type": {"const": "cwo-native-supervision-lease"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-supervision-lease.schema.json"},
+    "lease_id": {"type": "string", "minLength": 1},
+    "pool_id": {"type": "string", "minLength": 1},
+    "child_id": {"type": "string", "minLength": 1},
+    "pool_epoch": {"type": "string", "minLength": 1},
+    "integration_root_identity": {"$ref": "#/$defs/identity"},
+    "worktree_identity": {"$ref": "#/$defs/identity"},
+    "target_paths": {"type": "array", "minItems": 0, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "owner": {"$ref": "#/$defs/owner"},
+    "lifecycle_state": {"enum": ["acquired", "held", "release-pending", "released", "orphaned-active"]},
+    "acquired_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "terminal_evidence_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "release_reason": {"type": ["string", "null"], "minLength": 1},
+    "lease_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": {"enum": ["released", "release-pending"]}
+        }
+      },
+      "then": {
+        "properties": {
+          "terminal_evidence_sha256": {"$ref": "#/$defs/sha256"},
+          "release_reason": {"type": "string", "minLength": 1}
+        }
+      },
+      "else": {
+        "properties": {
+          "terminal_evidence_sha256": {"type": "null"},
+          "release_reason": {"type": "null"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "owner": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pid", "start_ticks", "boot_id_sha256"],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "start_ticks": {"type": "integer", "minimum": 1},
+        "boot_id_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["canonical_path_sha256", "git_common_dir_sha256", "device", "inode", "baseline_sha256"],
+      "properties": {
+        "canonical_path_sha256": {"$ref": "#/$defs/sha256"},
+        "git_common_dir_sha256": {"$ref": "#/$defs/sha256"},
+        "device": {"type": "integer", "minimum": 0},
+        "inode": {"type": "integer", "minimum": 0},
+        "baseline_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

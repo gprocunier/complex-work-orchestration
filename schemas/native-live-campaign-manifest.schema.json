@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Live Campaign Manifest v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_type", "version", "schema", "manifest_id", "created_at",
+    "authorization_id", "authorization_raw_sha256", "authorization_canonical_sha256",
+    "run_generation", "live_generation", "predecessor_live_generation", "campaign_nonce",
+    "control_turn_id", "work_units", "candidate", "predecessor",
+    "outer_authority", "progress_qualification_sha256", "executors",
+    "expected_roles", "successful_turn_starts_exact", "prestart_zero_artifact_relaunch_max",
+    "reviews", "release", "outputs", "no_resume_or_salvage", "glm_5_2_used",
+    "model_synthesis_used", "manifest_sha256"
+  ],
+  "properties": {
+    "manifest_type": {"const": "cwo-native-live-campaign-manifest"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-live-campaign-manifest.schema.json"},
+    "manifest_id": {"$ref": "#/$defs/uuid"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "authorization_id": {"$ref": "#/$defs/uuid"},
+    "authorization_raw_sha256": {"$ref": "#/$defs/sha256"},
+    "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
+    "run_generation": {"type": "integer", "minimum": 1},
+    "live_generation": {"type": "integer", "minimum": 1},
+    "predecessor_live_generation": {"type": "integer", "minimum": 0},
+    "campaign_nonce": {"$ref": "#/$defs/uuid"},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "work_units": {"$ref": "#/$defs/work_units"},
+    "candidate": {"$ref": "#/$defs/candidate"},
+    "predecessor": {"$ref": "#/$defs/predecessor"},
+    "outer_authority": {"$ref": "#/$defs/outer_authority"},
+    "progress_qualification_sha256": {"$ref": "#/$defs/sha256"},
+    "executors": {"$ref": "#/$defs/executors"},
+    "expected_roles": {"$ref": "#/$defs/roles"},
+    "successful_turn_starts_exact": {"const": 7},
+    "prestart_zero_artifact_relaunch_max": {"const": 1},
+    "reviews": {"$ref": "#/$defs/reviews"},
+    "release": {"$ref": "#/$defs/release"},
+    "outputs": {"$ref": "#/$defs/outputs"},
+    "no_resume_or_salvage": {"const": true},
+    "glm_5_2_used": {"const": false},
+    "model_synthesis_used": {"const": false},
+    "manifest_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "uuid": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_object": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "roles": {
+      "const": [
+        "capability-calibration", "read-only-0", "read-only-1", "mutable-0",
+        "mutable-1", "interrupt-0", "interrupt-1"
+      ]
+    },
+    "work_units": {
+      "type": "object", "additionalProperties": false,
+      "required": ["epic_id", "parent_work_unit_id", "live_work_unit_id"],
+      "properties": {
+        "epic_id": {"type": "string", "minLength": 1},
+        "parent_work_unit_id": {"type": "string", "minLength": 1},
+        "live_work_unit_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["commit", "tree", "origin_main_commit", "guarded_primary_diff_sha256"],
+      "properties": {
+        "commit": {"$ref": "#/$defs/git_object"},
+        "tree": {"$ref": "#/$defs/git_object"},
+        "origin_main_commit": {"$ref": "#/$defs/git_object"},
+        "guarded_primary_diff_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "predecessor": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "authorization_id", "authorization_file_sha256", "authorization_canonical_sha256",
+        "manifest_file_sha256", "manifest_canonical_sha256", "candidate_commit",
+        "candidate_tree", "lineage_sha256", "authorization_state_file_sha256",
+        "authorization_state_canonical_sha256", "failure_evidence_file_sha256",
+        "failure_evidence_canonical_sha256", "containment_file_sha256",
+        "containment_canonical_sha256", "original_containment_file_sha256",
+        "original_containment_canonical_sha256", "allocation_ledger_file_sha256",
+        "allocation_ledger_state_sha256", "allocation_audit_file_sha256"
+      ],
+      "properties": {
+        "authorization_id": {"$ref": "#/$defs/uuid"},
+        "authorization_file_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "manifest_file_sha256": {"$ref": "#/$defs/sha256"},
+        "manifest_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_commit": {"$ref": "#/$defs/git_object"},
+        "candidate_tree": {"$ref": "#/$defs/git_object"},
+        "lineage_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_state_file_sha256": {"$ref": "#/$defs/sha256"},
+        "authorization_state_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "failure_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
+        "failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "containment_file_sha256": {"$ref": "#/$defs/sha256"},
+        "containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "original_containment_file_sha256": {"$ref": "#/$defs/sha256"},
+        "original_containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "allocation_ledger_file_sha256": {"$ref": "#/$defs/sha256"},
+        "allocation_ledger_state_sha256": {"$ref": "#/$defs/sha256"},
+        "allocation_audit_file_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "outer_authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authority_id", "canonical_sha256", "file_sha256"],
+      "properties": {
+        "authority_id": {"$ref": "#/$defs/uuid"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "file_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "executors": {
+      "type": "object", "additionalProperties": false,
+      "required": ["final_architect", "steering", "operative", "outside_critic"],
+      "properties": {
+        "final_architect": {"const": "current-codex-main-thread"},
+        "steering": {"const": {"model": "gpt-5.6-sol", "effort": "max", "surface": "codex-app-server-stdio", "authority": "read-only-evidence"}},
+        "operative": {"const": {"model": "gpt-5.3-codex-spark", "effort": "low", "surface": "codex-app-server-stdio", "session_policy": "fresh-nonresumable-nonsalvageable"}},
+        "outside_critic": {"const": {"model": "claude-opus-4-6", "effort": "max", "surface": "claude-cli-as-greg", "authority": "evidence-only"}}
+      }
+    },
+    "reviews": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "pre_mutation_receipt_canonical_sha256", "pre_mutation_receipt_file_sha256",
+        "pre_mutation_adjudication_file_sha256", "opus_evidence_file_sha256",
+        "opus_adjudication_file_sha256",
+        "spark_validation_receipt_canonical_sha256",
+        "spark_validation_receipt_file_sha256",
+        "pre_live_receipt_canonical_sha256",
+        "pre_live_receipt_file_sha256", "pre_live_adjudication_file_sha256"
+      ],
+      "properties": {
+        "pre_mutation_receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_mutation_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_mutation_adjudication_file_sha256": {"$ref": "#/$defs/sha256"},
+        "opus_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
+        "opus_adjudication_file_sha256": {"$ref": "#/$defs/sha256"},
+        "spark_validation_receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "spark_validation_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_live_receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_live_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_live_adjudication_file_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "cap_two_operative_release"],
+      "properties": {
+        "status": {"enum": ["canary-gated", "operative-authorized"]},
+        "cap_two_operative_release": {"type": "boolean"}
+      }
+    },
+    "release": {
+      "type": "object", "additionalProperties": false,
+      "required": ["patch_file_sha256", "candidate_tree", "prospective_tree", "policy_before", "policy_after"],
+      "properties": {
+        "patch_file_sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_tree": {"$ref": "#/$defs/git_object"},
+        "prospective_tree": {"$ref": "#/$defs/git_object"},
+        "policy_before": {"$ref": "#/$defs/policy"},
+        "policy_after": {"$ref": "#/$defs/policy"}
+      }
+    },
+    "outputs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_basename", "authorization_state_basename", "steering_registry_basename", "allocation_ledger_basename"],
+      "properties": {
+        "evidence_basename": {"type": "string", "pattern": "^[^/]+$", "minLength": 1},
+        "authorization_state_basename": {"type": "string", "pattern": "^[^/]+$", "minLength": 1},
+        "steering_registry_basename": {"type": "string", "pattern": "^[^/]+$", "minLength": 1},
+        "allocation_ledger_basename": {"type": "string", "pattern": "^[^/]+$", "minLength": 1}
+      }
+    }
+  }
+}

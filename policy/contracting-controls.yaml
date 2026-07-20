@@ -40,7 +40,7 @@
       "unexpected_script_ratio": 0.2,
       "unexpected_script_run_length": 4,
       "minimum_mixed_script_word_letters": 3,
-      "minimum_english_words": 40,
+      "minimum_english_words": 21,
       "minimum_distinct_function_words": 2,
       "minimum_function_word_ratio": 0.03,
       "english_function_words": ["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "have", "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "was", "were", "will", "with"],
@@ -77,6 +77,24 @@
       "architect_escalation": 35,
       "quarantine": 50
     }
+  },
+  "return_language_calibration": {
+    "enabled": true,
+    "corpus_path": "calibration/skl-return-language-corpus-v1.json",
+    "contract_path": "calibration/skl-return-language-contract-v1.json",
+    "report_path": "calibration/skl-return-language-calibration-report-latest.json",
+    "tuning_path": "calibration/skl-return-language-tuning-v1.json",
+    "expected_language": "en",
+    "supported_languages": ["en"],
+    "minimum_precision": 0.95,
+    "minimum_recall": 0.95,
+    "maximum_false_positive_rate": 0.05,
+    "minimum_exact_status_accuracy": 0.9,
+    "zero_false_negative_categories": ["bidi-control", "mixed-script-confusable", "zero-width-control"],
+    "critical_signal_weights_immutable": true,
+    "global_thresholds_immutable": true,
+    "unsupported_languages_fail_closed": true,
+    "tuning": "Run unchanged language guard first; only one language-guard dimension may change on first-pass fail and before/after evidence is recorded"
   },
   "malpractice_policy": {
     "signal_weights": {

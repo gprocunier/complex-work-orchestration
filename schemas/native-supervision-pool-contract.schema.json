@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Supervision Pool Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_type", "version", "schema", "pool_id", "pool_epoch", "control_turn_id",
+    "created_at", "owner", "children", "max_active_workers", "scheduler",
+    "aggregate_hard_budget", "topology", "allowed_actions",
+    "capability_receipt_sha256", "contract_sha256"
+  ],
+  "properties": {
+    "contract_type": {"const": "cwo-native-supervision-pool-contract"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-supervision-pool-contract.schema.json"},
+    "pool_id": {"type": "string", "minLength": 1},
+    "pool_epoch": {"type": "string", "minLength": 1},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "owner": {"$ref": "#/$defs/owner"},
+    "children": {
+      "type": "array", "minItems": 1, "maxItems": 2,
+      "items": {"$ref": "#/$defs/child"}
+    },
+    "max_active_workers": {"enum": [1, 2]},
+    "scheduler": {"$ref": "#/$defs/scheduler"},
+    "aggregate_hard_budget": {"$ref": "#/$defs/budget"},
+    "topology": {"$ref": "#/$defs/topology"},
+    "allowed_actions": {"const": ["admit", "step", "interrupt", "close", "finalize", "release-leases"]},
+    "capability_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "contract_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"max_active_workers": {"const": 1}}},
+      "then": {
+        "properties": {
+          "children": {"maxItems": 1},
+          "scheduler": {
+            "properties": {
+              "certified_max_check_ms": {"type": "null"},
+              "certified_max_scheduler_overhead_ms": {"type": "null"}
+            }
+          },
+          "capability_receipt_sha256": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"max_active_workers": {"const": 2}}},
+      "then": {"properties": {"children": {"minItems": 2}, "capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "owner": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pid", "start_ticks", "boot_id_sha256"],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "start_ticks": {"type": "integer", "minimum": 1},
+        "boot_id_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["canonical_path_sha256", "git_common_dir_sha256", "device", "inode", "baseline_sha256"],
+      "properties": {
+        "canonical_path_sha256": {"$ref": "#/$defs/sha256"},
+        "git_common_dir_sha256": {"$ref": "#/$defs/sha256"},
+        "device": {"type": "integer", "minimum": 0},
+        "inode": {"type": "integer", "minimum": 0},
+        "baseline_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "child": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "ordinal", "child_id", "packet_id", "attempt_nonce", "session_id", "agent_id",
+        "control_turn_id", "packet_sha256", "control_contract_sha256", "state_file",
+        "worktree_identity", "isolation_class", "completion_evidence_policy", "declared_write_paths",
+        "integration_target_paths", "lease_id"
+      ],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 1},
+        "child_id": {"type": "string", "minLength": 1},
+        "packet_id": {"type": "string", "minLength": 1},
+        "attempt_nonce": {"type": "string", "minLength": 1},
+        "session_id": {"type": "string", "minLength": 1},
+        "agent_id": {"type": "string", "minLength": 1},
+        "control_turn_id": {"type": "string", "minLength": 1},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "control_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "state_file": {"type": "string", "pattern": "^/", "minLength": 2},
+        "worktree_identity": {"$ref": "#/$defs/identity"},
+        "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
+        "completion_evidence_policy": {"$ref": "#/$defs/completion_evidence_policy"},
+        "declared_write_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "integration_target_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "lease_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "completion_evidence_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["minimum_tool_calls", "required_evidence", "allow_zero_tool_completion", "expected_mutation_mode"],
+      "properties": {
+        "minimum_tool_calls": {"type": "integer", "minimum": 0},
+        "required_evidence": {"$ref": "#/$defs/required_evidence"},
+        "allow_zero_tool_completion": {"type": "boolean"},
+        "expected_mutation_mode": {"enum": ["read-only", "mutable-isolated"]}
+      }
+    },
+    "required_evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["predicates", "sha256"],
+      "properties": {
+        "predicates": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": ["expected-workspace-mutation", "read-only-workspace-clean", "trusted-terminal-boundary", "trusted-tool-call"]}
+        },
+        "sha256": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/sha256"}}
+      }
+    },
+    "scheduler": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "poll_interval_ms", "poll_lag_tolerance_ms", "certified_max_check_ms", "certified_max_scheduler_overhead_ms"],
+      "properties": {
+        "kind": {"const": "earliest-deadline-rotating-v1"},
+        "poll_interval_ms": {"const": 1000},
+        "poll_lag_tolerance_ms": {"const": 1500},
+        "certified_max_check_ms": {"type": ["number", "null"], "minimum": 0, "maximum": 400},
+        "certified_max_scheduler_overhead_ms": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "budget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tool_calls", "runtime_seconds", "compactions", "full_suite_runs", "mutations"],
+      "properties": {
+        "tool_calls": {"type": "integer", "minimum": 1},
+        "runtime_seconds": {"type": "integer", "minimum": 1},
+        "compactions": {"type": "integer", "minimum": 0},
+        "full_suite_runs": {"type": "integer", "minimum": 0},
+        "mutations": {"type": "integer", "minimum": 0}
+      }
+    },
+    "topology": {
+      "type": "object", "additionalProperties": false,
+      "required": ["integration_root_identity", "shared_read_only_worktree"],
+      "properties": {
+        "integration_root_identity": {"$ref": "#/$defs/identity"},
+        "shared_read_only_worktree": {"type": "boolean"}
+      }
+    }
+  }
+}

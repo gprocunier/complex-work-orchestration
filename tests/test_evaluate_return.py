@@ -545,6 +545,37 @@ Attestation/repro note: reproducible from packet.
         self.assertEqual(result["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
         self.assertEqual(result["recommended_synthesis_use"], "primary")
 
+    def test_hardened_glm_completed_final_content_is_primary_eligible(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(
+            text,
+            executor="rhoai_glm_hardened_architecture_critic",
+            local_completion_status="completed",
+            local_usable_final_content=True,
+        )
+        self.assertEqual(result["verdict"], "accept")
+        self.assertEqual(result["model_profile"], "rhoai-architect-glm-5-2-bf16-256k-thinking")
+        self.assertEqual(result["recommended_synthesis_use"], "primary")
+        self.assertEqual(result["local_completion_status"], "completed")
+        self.assertTrue(result["local_usable_final_content"])
+
+    def test_hardened_glm_reasoning_only_result_is_salvage_only(self) -> None:
+        text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+        result = make_acceptance_decision(
+            text,
+            executor="rhoai_glm_hardened_architecture_critic",
+            local_completion_status="empty-final-content",
+            local_usable_final_content=False,
+        )
+        self.assertEqual(result["verdict"], "accept")
+        self.assertEqual(result["recommended_synthesis_use"], "salvage-only")
+        self.assertTrue(result["human_adjudication_required"])
+        self.assertIn(
+            result["recommended_disposition"],
+            ["request-clarification", "architect-adjudication"],
+        )
+        self.assertTrue(any("usable final content" in reason for reason in result["penalty_reasons"]))
+
     def test_local_truncation_metadata_forces_salvage_and_clarification(self) -> None:
         text = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
         result = make_acceptance_decision(

@@ -120,6 +120,18 @@ contract-jd-security-reasoning</code></pre>
               prompt is rendered.
             </p>
             <p>
+              For <code>repo-readonly</code> and <code>patch-branch</code> modes,
+              the packet only projects each first-level bead dependency to
+              <code>id</code>, <code>title</code>, <code>status</code>, and
+              <code>dependency_type</code>; missing scalar values become JSON
+              <code>null</code>, while nested dependency details and nonselected
+              fields are omitted. The full canonical summary is capped at 32 KiB
+              (32,768 UTF-8 bytes), and malformed or oversized summaries fail
+              before quota reservation, audit output, or packet output.
+              Packet validation rechecks both this projected shape and the size cap
+              independently; redacted packets are unchanged.
+            </p>
+            <p>
               The <a href="./workflows.html#optional-lanes">guided workflow</a>
               shows where the contractor workstream fits and how the rendered
               prompt can be handed to <code>claude -p</code> or

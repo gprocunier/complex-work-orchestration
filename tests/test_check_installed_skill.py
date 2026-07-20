@@ -28,6 +28,12 @@ class CheckInstalledSkillTests(unittest.TestCase):
         (root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
         (root / "scripts" / "helper.py").write_text("print('ok')\n", encoding="utf-8")
         (root / "docs" / "index.html").write_text("<!doctype html><title>Docs</title>\n", encoding="utf-8")
+        calibration = root / "calibration"
+        calibration.mkdir()
+        (calibration / "skl-return-language-contract-v1.json").write_text("{\"artifact_type\": \"skl-corpus-contract\"}\n", encoding="utf-8")
+        (calibration / "skl-return-language-corpus-v1.json").write_text("{\"artifact_type\": \"skl-return-language-corpus\"}\n", encoding="utf-8")
+        (calibration / "skl-return-language-tuning-v1.json").write_text("{\"artifact_type\": \"skl-return-language-tuning-v1\"}\n", encoding="utf-8")
+        (calibration / "skl-return-language-calibration-report-latest.json").write_text("{\"artifact_type\": \"skl-return-language-calibration-report\"}\n", encoding="utf-8")
 
     def test_status_is_current_for_matching_install_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -45,6 +51,13 @@ class CheckInstalledSkillTests(unittest.TestCase):
         self.assertEqual(status["missing_files"], [])
         self.assertEqual(status["changed_files"], [])
         self.assertEqual(status["extra_files"], [])
+        self.assertIn("source", status["calibration_artifacts"])
+        calibration = status["calibration_artifacts"]
+        self.assertIsNotNone(calibration["source"]["contract"])
+        self.assertIsNotNone(calibration["source"]["corpus"])
+        self.assertIsNotNone(calibration["source"]["tuning"])
+        self.assertIsNotNone(calibration["source"]["latest_report"])
+
 
     def test_status_reports_changed_and_extra_installed_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -58,9 +71,16 @@ class CheckInstalledSkillTests(unittest.TestCase):
 
             status = installed_status(source, installed)
 
-        self.assertEqual(status["status"], "drift")
-        self.assertIn("SKILL.md", status["changed_files"])
-        self.assertIn("docs/extra.html", status["extra_files"])
+            self.assertIn("source", status["calibration_artifacts"])
+            self.assertIsNotNone(status["calibration_artifacts"]["source"]["contract"])
+            self.assertEqual(
+                status["calibration_artifacts"]["source"]["contract"],
+                status["calibration_artifacts"]["installed"]["contract"],
+            )
+
+            self.assertEqual(status["status"], "drift")
+            self.assertIn("SKILL.md", status["changed_files"])
+            self.assertIn("docs/extra.html", status["extra_files"])
 
     def test_generated_manifest_and_python_caches_are_ignored(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

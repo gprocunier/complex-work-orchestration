@@ -51,6 +51,7 @@
           <a href="#run-readiness">Run Readiness</a>
           <a href="#optional-lanes">Optional Workstreams</a>
           <a href="#execution-environments">Execution Environments</a>
+          <a href="#native-supervision-tech-preview">Native Supervision Tech Preview</a>
           <a href="./use-cases.html">Use Cases</a>
           <a href="#contractor-demo">Contractor Demo</a>
           <a href="#validate-handoff">Validate And Handoff</a>
@@ -432,6 +433,32 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               OpenAI-compatible endpoints can use the same envelope, evaluator,
               and architect-adjudication pattern.
             </p>
+            <section id="native-supervision-tech-preview">
+              <h3>Native Supervision Tech Preview</h3>
+              <p>
+                Capacity one is the default. Capacity two is an experimental
+                Tech Preview and is disabled by default; every capacity-two run
+                requires explicit opt-in.
+              </p>
+              <p>
+                Capacity two also requires one fresh same-host capability
+                receipt, exactly two fixed workers, and either isolated mutable
+                worktrees or a shared read-only topology. Precommit, critics,
+                integration, retry, replay, publication, and higher capacities
+                remain single-flight or unsupported.
+              </p>
+              <p>
+                Before opting in, read the
+                <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">native supervision pool operator reference</a>
+                for the full prerequisites, limits, failure rules, and deferred
+                hardening.
+              </p>
+              <div class="callout">
+                <strong>Rollback:</strong>
+                <code>git revert</code> the documentation commit, then start a
+                fresh Pages deployment to restore the prior published copy.
+              </div>
+            </section>
             <table class="data-table">
               <caption>Execution Profile Comparison</caption>
               <thead>

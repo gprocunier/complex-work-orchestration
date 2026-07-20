@@ -207,6 +207,40 @@
         "may_write_repo": false
       }
     },
+    "rhoai-glm-bf16-256k": {
+      "display_name": "OpenShift AI GLM-5.2 BF16 256K hardened endpoint",
+      "status": "offline",
+      "provider_keys": ["openshift_ai_vllm"],
+      "harnesses": ["manual_operator", "opencode"],
+      "dispatch_modes": ["local_secure_review"],
+      "external": false,
+      "repo_access": "bounded",
+      "tool_access": {
+        "shell": false,
+        "web": false,
+        "repo_read": true,
+        "repo_write": false,
+        "local_openai_compatible": true
+      },
+      "disclosure": {
+        "outside_sharing": false,
+        "default_share_boundary": "no-outside-sharing",
+        "max_share_boundary": "no-outside-sharing"
+      },
+      "credential_sources": {
+        "required_env": ["CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL"],
+        "optional_env": ["CWO_OPENSHIFT_AI_VLLM_API_KEY", "CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_MODEL", "CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE", "CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_TLS_VERIFY"]
+      },
+      "runtime_readiness": {
+        "mode": "env-or-cli-override",
+        "missing_required_env_is_error": false
+      },
+      "authority": {
+        "evidence_only": true,
+        "may_execute": false,
+        "may_write_repo": false
+      }
+    },
     "rhoai-glm-bf16": {
       "display_name": "OpenShift AI GLM-5.2 BF16 endpoint",
       "status": "offline",

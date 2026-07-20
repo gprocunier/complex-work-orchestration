@@ -28,18 +28,12 @@ project uses Beads. Beads tracking is mandatory for non-trivial work stories.
 
 ## Operating Defaults
 
-- The main Codex thread is the final decision owner.
-- External and local-worker outputs are evidence, not authority.
-- Default share boundary is `no-outside-sharing`.
-- Ask for outside sharing only when a contractor lane is materially useful.
-- Use review-only workerbees before implementation workerbees unless ownership boundaries are disjoint.
-- Default role split in connected-Codex work is: Codex 5.6 Sol for architecture, counter-review, and architect-adjudication reasoning; Codex 5.3 Spark for operative workerbee execution.
-- Sol is not treated as the automatic external critic lane; it is internal architecture/control authority and is applied only by explicit external-review or internal counter-review requirement.
-- In Default mode, apply conservative defaults unless the user explicitly asked for the coach.
-- Explicit coach requests require presenting coach options before plan creation unless the user already requested execution.
-- In Plan mode, surface coach questions whose answers change execution behavior, including subagent parallelism and Beads context depth.
-- Keep model names and provider versions in policy. Prefer role-like executor
-  aliases from `policy/executor-registry.yaml` when writing new docs or plans.
+- The main thread decides; worker and contractor outputs are evidence.
+- Default to `no-outside-sharing`; ask only when an outside lane adds material value.
+- Prefer review-only workers before implementation unless write ownership is disjoint.
+- In connected Codex work, Sol handles architecture and adjudication while Spark handles operative work. Sol is an external critic only when explicitly requested.
+- Default mode is conservative. Explicit coach requests present coach options before plan creation unless execution was requested; Plan mode asks only questions that change execution.
+- Keep model names and versions in policy and use executor aliases from `policy/executor-registry.yaml` in plans and docs.
 
 ## First Moves
 
@@ -100,6 +94,12 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 `--dry-run --format beads-graph` renders a graph accepted by
 `bd create --graph`; normal execution creates Beads directly.
 
+## Proportional Fast Path
+
+Use `scripts/evaluate_proportional_execution.py --brief <path>` only for one ignored, ephemeral, or non-publishable artifact under 500 lines, 12 calls, and 600 seconds when identity, model, tool scope, deterministic checks, false mutation/access flags, and closed architecture/security/policy decisions are explicit. Otherwise use standard native supervision.
+
+Implementation packets use `operative-readiness:v2`: hashed path/selector context units and content-aware mutation evidence. Three units or six pre-mutation reads warn; four units or eleven reads require replanning.
+
 ## Bootstrap Policy Controls
 
 - For every native-operative segment, use `policy/native-worker-execution.yaml` as the bootstrap policy.
@@ -116,10 +116,11 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 - Native operative packets are emitted as version 2. Version 1 remains readable for historical inspection but is dispatch-forbidden.
 - Every native operative worker requires `scripts/supervise_native_worker.py`. After trusted no-tools attestation, create and arm supervision before sending the task.
 - Bind `arm`, native `send_input`, `mark-dispatched`, one-second checks, interrupt, close, and receipts to one control-turn ID and one uninterrupted tool-orchestration turn. No assistant/model round-trip may occur between task submission and the first check.
-- A stale arm window, missing dispatch receipt, wrong control-turn ID, late first poll, or late intermediate poll is control loss and requires interruption. Do not use a long blocking wait as the monitor.
-- An `interrupt` or `control-lost` decision requires native interrupt, close, and recorded control receipts. Do not launch a salvage worker automatically.
+- Record dispatch and poll latency. Delay alone warns; missing trusted telemetry or control-turn binding is control loss.
+- Healthy packet-contract failures allow one PM refinement and one bounded Sol replan within the original budget; recursive salvage and budget reset remain forbidden.
+- `interrupt` or `control-lost` requires native interrupt, close, and receipts.
 - Before packet build, evaluate operative work with semantic work-estimate contract v2. The estimate separates architect authority from operative routing and includes diff, behavior, state/schema, self-hosting/live-control, contract/CLI/policy/telemetry surfaces, test construction, command complexity, expected reads, mutations, and their ratio.
-- Require a zero-tool fit commitment bound to the evaluated work-plan hash and trusted worker attestation. Invalid or ambiguous commitments route to PM realignment without repeated formatting retries.
+- Before packet build, use the trusted precommit supervisor and receipt-derived commitment v2; FSH.2 candidates remain non-operative until FSH.3. See `references/execution-environments.md`.
 - During execution, use `scripts/cwo_core/native_progress.py` to compare planned and observed calls, runtime, tokens, reads, mutations, tests, and artifacts. Retained productive artifacts are not pure waste.
 - The PM may autonomously refine a packet, ask the current architect one bounded reasoning question, or split material work within the original objective and aggregate allowance. These routine corrections do not require operator approval.
 - Packet `scope.workdir` governs commands, mutation baselines, and receipts; ignore inherited worker cwd.
@@ -146,6 +147,7 @@ rules.
 - ChatGPT Pro browser lane: `references/chatgpt-pro-browser.md`
 - Execution environments and local inference: `references/execution-environments.md`,
   `references/local-inference.md`
+- Native supervision pools: `references/native-supervision-pools.md`
 - Zero-trust consensus: `references/zero-trust-consensus.md`
 - Run readiness: `references/run-readiness.md`
 - Beads hook display: `references/codex-beads-hooks.md`
@@ -186,7 +188,9 @@ Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a ch
 
 ## Run Readiness And Closeout
 
-Before broad implementation handoff, validate a run-readiness plan:
+Every closeout or handoff response must include an operator continuation packet;
+artifacts and Beads comments do not replace it. Use
+`templates/operator-handoff-packet.md` and validate file drafts:
 
 ```bash
 python3 scripts/validate_run_readiness_plan.py <plan.json>

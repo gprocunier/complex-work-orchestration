@@ -13,6 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 REPO_URL = "https://github.com/gprocunier/complex-work-orchestration"
 INCIDENT_PLAYBOOK_URL = f"{REPO_URL}/blob/main/references/incident-response-playbook.md"
+NATIVE_SUPERVISION_POOL_REFERENCE_URL = (
+    f"{REPO_URL}/blob/main/references/native-supervision-pools.md"
+)
+SOURCE_BLOB_LINK_ALLOWLIST = {
+    INCIDENT_PLAYBOOK_URL,
+    NATIVE_SUPERVISION_POOL_REFERENCE_URL,
+    f"{REPO_URL}/blob/main/LICENSE",
+}
 REQUIRED_PAGES = [
     "index.html",
     "get-started.html",
@@ -34,6 +42,7 @@ SOURCE_LINK_PATTERNS = [
     REPO_URL,
     f"{REPO_URL}/blob/main/LICENSE",
     INCIDENT_PLAYBOOK_URL,
+    NATIVE_SUPERVISION_POOL_REFERENCE_URL,
     "https://github.com/gprocunier/hello-world-contractor-demo",
     "https://gprocunier.github.io/hello-world-contractor-demo/",
     "https://github.com/gastownhall/beads",
@@ -236,8 +245,7 @@ def validate_html(path: Path) -> list[str]:
             if (
                 "github.com" in parsed.netloc
                 and "/blob/main/" in parsed.path
-                and href != INCIDENT_PLAYBOOK_URL
-                and not parsed.path.endswith("/LICENSE")
+                and href not in SOURCE_BLOB_LINK_ALLOWLIST
             ):
                 errors.append(f"{path.relative_to(ROOT)} links to GitHub markdown/source blob instead of local docs: {href}")
             if "github.com" in parsed.netloc and "/tree/main/" in parsed.path:

@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Native Precommit Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ownerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_time_ticks", "process_group_id", "session_id", "boot_id_sha256", "execution_handle"],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "start_time_ticks": {"type": "integer", "minimum": 1},
+        "process_group_id": {"type": "integer", "minimum": 1},
+        "session_id": {"type": "integer", "minimum": 1},
+        "boot_id_sha256": {"$ref": "#/$defs/hash"},
+        "execution_handle": {"type": "string", "minLength": 1}
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_count", "byte_offset", "boundary_sha256", "token_snapshot"],
+      "properties": {
+        "record_count": {"type": "integer", "minimum": 1},
+        "byte_offset": {"type": "integer", "minimum": 1},
+        "boundary_sha256": {"$ref": "#/$defs/hash"},
+        "token_snapshot": {"type": ["object", "null"], "additionalProperties": {"type": "integer", "minimum": 0}}
+      }
+    },
+    "fitResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "estimates"],
+      "properties": {
+        "decision": {"enum": ["accept", "pm-realignment", "architect-realignment"]},
+        "estimates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tool_calls_p50", "tool_calls_p90", "runtime_seconds_p50", "runtime_seconds_p90"],
+          "properties": {
+            "tool_calls_p50": {"type": "integer", "minimum": 1},
+            "tool_calls_p90": {"type": "integer", "minimum": 1},
+            "runtime_seconds_p50": {"type": "integer", "minimum": 1},
+            "runtime_seconds_p90": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "workspaceBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "workdir"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "workdir": {"type": "string", "minLength": 1}
+      }
+    },
+    "observed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["function_calls", "custom_tool_calls", "context_compactions", "workspace_mutations", "workspace_evidence_sha256", "first_forbidden_event", "forbidden_events", "task_boundary_observed", "task_complete_observed"],
+      "properties": {
+        "function_calls": {"type": "integer", "minimum": 0},
+        "custom_tool_calls": {"type": "integer", "minimum": 0},
+        "context_compactions": {"type": "integer", "minimum": 0},
+        "workspace_mutations": {"type": "integer", "minimum": 0},
+        "workspace_evidence_sha256": {"$ref": "#/$defs/hash"},
+        "first_forbidden_event": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "record_index"],
+              "properties": {
+                "kind": {"type": "string", "minLength": 1},
+                "record_index": {"type": ["integer", "null"], "minimum": 0}
+              }
+            },
+            {"type": "null"}
+          ]
+        },
+        "forbidden_events": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "task_boundary_observed": {"type": "boolean"},
+        "task_complete_observed": {"type": "boolean"}
+      }
+    },
+    "polling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interval_ms", "lag_tolerance_ms", "armed_at", "dispatched_at", "first_successful_poll_at", "last_successful_poll_at", "poll_count", "max_gap_ms", "late_poll_count", "uninterrupted"],
+      "properties": {
+        "interval_ms": {"type": "integer", "minimum": 100},
+        "lag_tolerance_ms": {"type": "integer", "minimum": 0},
+        "armed_at": {"type": ["string", "null"]},
+        "dispatched_at": {"type": ["string", "null"]},
+        "first_successful_poll_at": {"type": ["string", "null"]},
+        "last_successful_poll_at": {"type": ["string", "null"]},
+        "poll_count": {"type": "integer", "minimum": 0},
+        "max_gap_ms": {"type": "integer", "minimum": 0},
+        "late_poll_count": {"type": "integer", "minimum": 0},
+        "uninterrupted": {"type": "boolean"}
+      }
+    },
+    "controlReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "control_turn_id", "control_execution_handle", "submission_id", "at", "receipt_id"],
+      "properties": {
+        "action": {"type": "string", "minLength": 1},
+        "control_turn_id": {"type": "string", "minLength": 1},
+        "control_execution_handle": {"type": "string", "minLength": 1},
+        "submission_id": {"type": ["string", "null"]},
+        "at": {"type": "string", "minLength": 1},
+        "receipt_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "tokenTelemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["availability", "baseline", "terminal", "delta"],
+      "properties": {
+        "availability": {"enum": ["available", "unavailable"]},
+        "baseline": {"type": ["object", "null"], "additionalProperties": {"type": "integer", "minimum": 0}},
+        "terminal": {"type": ["object", "null"], "additionalProperties": {"type": "integer", "minimum": 0}},
+        "delta": {"type": ["object", "null"], "additionalProperties": {"type": "integer", "minimum": 0}}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issuer", "threat_model", "integrity"],
+      "properties": {
+        "issuer": {"const": "cwo-native-precommit-supervisor"},
+        "threat_model": {"const": "trusted-same-user-control-plane"},
+        "integrity": {"const": "canonical-sha256-private-artifacts-direct-provenance"}
+      }
+    }
+  },
+  "required": [
+    "receipt_type", "version", "schema", "receipt_id", "state_id", "state_file", "state_sha256",
+    "packet_id", "work_unit_id", "bead_id", "attempt_nonce", "session_id", "session_file", "agent_id",
+    "requested_model", "attested_model", "attestation_source", "owner_identity", "control_execution_handle", "control_topology", "control_turn_id", "submission_id",
+    "work_plan_sha256", "fit_prompt_sha256", "workspace_baseline", "baseline", "terminal",
+    "token_telemetry", "observed", "polling", "control_receipts", "audit_event_hashes",
+    "final_response_sha256", "semantic_status", "fit_result", "closure_outcome", "disposition",
+    "validation_rule_version", "provenance", "accepting", "receipt_sha256"
+  ],
+  "properties": {
+    "receipt_type": {"const": "cwo-native-precommit-receipt"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-precommit-receipt.schema.json"},
+    "receipt_id": {"type": "string", "minLength": 1},
+    "state_id": {"type": "string", "minLength": 1},
+    "state_file": {"type": "string", "minLength": 1},
+    "state_sha256": {"$ref": "#/$defs/hash"},
+    "packet_id": {"type": "string", "minLength": 1},
+    "work_unit_id": {"type": "string", "minLength": 1},
+    "bead_id": {"type": "string", "minLength": 1},
+    "attempt_nonce": {"type": "string", "minLength": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "session_file": {"type": "string", "minLength": 1},
+    "agent_id": {"type": "string", "minLength": 1},
+    "requested_model": {"const": "gpt-5.3-codex-spark"},
+    "attested_model": {"const": "gpt-5.3-codex-spark"},
+    "attestation_source": {"const": "trusted-control-plane-session-metadata"},
+    "owner_identity": {"$ref": "#/$defs/ownerIdentity"},
+    "control_execution_handle": {"type": "string", "minLength": 1},
+    "control_topology": {"const": "single-host-process-v1"},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "submission_id": {"type": "string", "minLength": 1},
+    "work_plan_sha256": {"$ref": "#/$defs/hash"},
+    "fit_prompt_sha256": {"$ref": "#/$defs/hash"},
+    "workspace_baseline": {"$ref": "#/$defs/workspaceBaseline"},
+    "baseline": {"$ref": "#/$defs/boundary"},
+    "terminal": {"$ref": "#/$defs/boundary"},
+    "token_telemetry": {"$ref": "#/$defs/tokenTelemetry"},
+    "observed": {"$ref": "#/$defs/observed"},
+    "polling": {"$ref": "#/$defs/polling"},
+    "control_receipts": {"type": "array", "items": {"$ref": "#/$defs/controlReceipt"}},
+    "audit_event_hashes": {"type": "array", "items": {"$ref": "#/$defs/hash"}},
+    "final_response_sha256": {"$ref": "#/$defs/hash"},
+    "semantic_status": {"enum": ["pending", "valid", "invalid"]},
+    "fit_result": {"oneOf": [{"$ref": "#/$defs/fitResult"}, {"type": "null"}]},
+    "closure_outcome": {"enum": ["completed", "interrupted", "control-failed"]},
+    "disposition": {"enum": ["accept", "reject", "quarantine"]},
+    "validation_rule_version": {"const": "native-precommit-receipt:v2"},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "accepting": {"type": "boolean"},
+    "receipt_sha256": {"$ref": "#/$defs/hash"}
+  }
+}

@@ -1,0 +1,349 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Return Language Corpus",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "bead_id",
+    "version",
+    "expected_language",
+    "case_count",
+    "balance",
+    "case_contract",
+    "cases",
+    "category_minimums",
+    "corpus_sha256",
+    "required_script_classes",
+    "required_confusable_classes",
+    "required_bidi_classes",
+    "required_zero_width_codepoints"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "skl-return-language-corpus"
+    },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expected_language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "balance": {
+      "type": "object",
+      "required": ["benign", "adversarial"],
+      "additionalProperties": false,
+      "properties": {
+        "benign": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "adversarial": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "case_contract": {
+      "type": "object",
+      "required": ["required_fields", "analyzer_expectation", "pipeline_expectation"],
+      "additionalProperties": false,
+      "properties": {
+        "required_fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "analyzer_expectation": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "pipeline_expectation": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 104,
+      "maxItems": 104,
+      "items": {
+        "$ref": "#/definitions/case"
+      }
+    },
+    "category_minimums": {
+      "type": "object",
+      "required": [
+        "benign-english",
+        "benign-short-latin-foreign",
+        "benign-technical-notation",
+        "benign-code-diagnostics",
+        "benign-names-symbols",
+        "benign-control-context",
+        "latin-language-mismatch",
+        "unexpected-script",
+        "mixed-script-confusable",
+        "bidi-control",
+        "zero-width-control",
+        "nfkc-prompt-injection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "benign-english": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "benign-short-latin-foreign": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "benign-technical-notation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "benign-code-diagnostics": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "benign-names-symbols": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "benign-control-context": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "latin-language-mismatch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unexpected-script": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mixed-script-confusable": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bidi-control": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "zero-width-control": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "nfkc-prompt-injection": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "corpus_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "required_script_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required_confusable_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required_bidi_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required_zero_width_codepoints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "case": {
+      "type": "object",
+      "required": [
+        "id",
+        "category",
+        "text",
+        "adversarial",
+        "coverage",
+        "analyzer_expectation",
+        "pipeline_expectation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "adversarial": {
+          "type": "boolean"
+        },
+        "coverage": {
+          "$ref": "#/definitions/coverage"
+        },
+        "analyzer_expectation": {
+          "$ref": "#/definitions/analyzer_expectation"
+        },
+        "pipeline_expectation": {
+          "$ref": "#/definitions/pipeline_expectation"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scripts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "confusable_classes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bidi_classes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "zero_width_codepoints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "normalization": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "embedded": {
+          "type": "boolean"
+        }
+      }
+    },
+    "analyzer_expectation": {
+      "type": "object",
+      "required": ["positive", "status", "required_findings", "forbidden_findings"],
+      "additionalProperties": false,
+      "properties": {
+        "positive": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": ["clear", "review", "quarantine"]
+        },
+        "required_findings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "forbidden_findings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "pipeline_expectation": {
+      "type": "object",
+      "required": [
+        "positive",
+        "return_language_status",
+        "required_sabotage_findings",
+        "forbidden_sabotage_findings",
+        "review_recommended",
+        "quarantine_recommended"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "positive": {
+          "type": "boolean"
+        },
+        "return_language_status": {
+          "enum": ["clear", "review", "quarantine"]
+        },
+        "required_sabotage_findings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "forbidden_sabotage_findings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "review_recommended": {
+          "type": "boolean"
+        },
+        "quarantine_recommended": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

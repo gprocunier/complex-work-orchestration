@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/checked-command-sequence-result.schema.json",
+  "title": "checked-command-sequence-result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_type",
+    "version",
+    "sequence_id",
+    "packet_id",
+    "work_plan_sha256",
+    "spec_sha256",
+    "workdir",
+    "status",
+    "execution_started",
+    "completed_count",
+    "failed_command_id",
+    "failure_class",
+    "command_results"
+  ],
+  "properties": {
+    "result_type": {"const": "cwo-checked-command-sequence-result"},
+    "version": {"const": 1},
+    "sequence_id": {"type": ["string", "null"], "minLength": 1},
+    "packet_id": {"type": ["string", "null"], "minLength": 1},
+    "work_plan_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "spec_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "workdir": {"type": ["string", "null"], "minLength": 1},
+    "status": {"enum": ["running", "passed", "failed", "blocked", "quarantined"]},
+    "execution_started": {"type": "boolean"},
+    "completed_count": {"type": "integer", "minimum": 0},
+    "failed_command_id": {"type": ["string", "null"], "minLength": 1},
+    "failure_class": {"type": ["string", "null"], "minLength": 1},
+    "command_results": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/command_result"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"enum": ["running", "passed"]}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "sequence_id": {"type": "string", "minLength": 1},
+          "packet_id": {"type": "string", "minLength": 1},
+          "work_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "spec_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "workdir": {"type": "string", "minLength": 1},
+          "execution_started": {"const": true},
+          "failed_command_id": {"type": "null"},
+          "failure_class": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"enum": ["failed", "quarantined"]}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "sequence_id": {"type": "string", "minLength": 1},
+          "packet_id": {"type": "string", "minLength": 1},
+          "work_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "spec_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "workdir": {"type": "string", "minLength": 1},
+          "execution_started": {"const": true},
+          "failed_command_id": {"type": "string", "minLength": 1},
+          "failure_class": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "blocked"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "failure_class": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "command_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_type",
+        "version",
+        "command_id",
+        "spec_sha256",
+        "execution_status",
+        "exit_code",
+        "execution_started",
+        "mutation_started",
+        "mutated_paths",
+        "failure_class",
+        "quarantine_required",
+        "diagnostics"
+      ],
+      "properties": {
+        "result_type": {"const": "cwo-checked-command-result"},
+        "version": {"const": 1},
+        "command_id": {"type": "string", "minLength": 1},
+        "spec_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "execution_status": {
+          "enum": ["not-started", "blocked", "passed", "failed", "quarantined"]
+        },
+        "exit_code": {"type": ["integer", "null"]},
+        "execution_started": {"type": "boolean"},
+        "mutation_started": {"type": "boolean"},
+        "mutated_paths": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string"}
+        },
+        "failure_class": {"type": ["string", "null"]},
+        "quarantine_required": {"type": "boolean"},
+        "diagnostics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["stdout", "stderr"],
+          "properties": {
+            "stdout": {"type": "string", "maxLength": 4096},
+            "stderr": {"type": "string", "maxLength": 4096}
+          }
+        }
+      }
+    }
+  }
+}

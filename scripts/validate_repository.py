@@ -57,7 +57,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "util": set(),
     "chatgpt_urls": set(),
     "policy": {"paths", "util"},
-    "routing": {"access_profiles", "errors", "policy", "routing_signals", "synthesis", "types", "util"},
+    "routing": {"access_profiles", "errors", "native_containment", "policy", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "types", "util"},
@@ -68,6 +68,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "return_boundary": {"return_common", "return_sections"},
     "return_evidence": {"return_common", "return_sections", "types"},
     "return_risk": {"policy", "return_common", "return_evidence", "return_language", "return_sections", "types"},
+    "return_language_calibration": {"return_language", "returns"},
     "returns": {"policy", "return_boundary", "return_common", "return_evidence", "return_language", "return_risk", "return_sections", "types", "util"},
     "workspace": {"paths", "util"},
     "workgraph_markdown": set(),
@@ -80,15 +81,46 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths"},
     "execution_enhancement_metrics": set(),
     "native_session": {"native_disposition"},
+    "native_session_boundary": {"native_session"},
     "native_worker_contracts": {"native_disposition"},
     "native_capability": set(),
+    "native_canary_contracts": {"util"},
+    "native_live_campaign_contracts": {
+        "native_canary_contracts",
+        "native_live_allocation_ledger",
+    },
+    "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
+    "native_containment": {"native_release", "policy"},
+    "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
+    "native_release": {"native_precommit", "paths", "policy", "util"},
+    "proportional_execution": {"native_capability", "native_containment"},
     "native_recovery": set(),
     "native_retry": set(),
     "native_control": set(),
+    "native_pool_contracts": set(),
+    "native_pool_scheduler": {"native_pool_contracts"},
+    "native_pool_leases": {"native_pool_contracts"},
+    "native_pool_workspace": {"native_pool_contracts", "workspace"},
+    "native_pool": {
+        "native_control",
+        "native_pool_contracts",
+        "native_pool_leases",
+        "native_pool_scheduler",
+    },
+    "native_pool_config": {
+        "native_control",
+        "native_live_campaign_contracts",
+        "native_pool_contracts",
+        "native_pool_leases",
+        "native_pool_workspace",
+        "policy",
+    },
+    "native_pool_reporting": {"audit", "native_pool_contracts"},
     "native_replanning": {"policy"},
     "native_progress": {"policy"},
     "checked_command": set(),
-    "work_sizing": {"policy"},
+    "checked_command_sequence": {"checked_command"},
+    "work_sizing": {"checked_command", "native_containment", "native_precommit", "policy"},
     "epic_convergence": set(),
     "public_copy": set(),
     "errors": set(),
@@ -416,6 +448,7 @@ def validate_repository() -> list[str]:
     validate_cwo_core_contract(errors)
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
+    validate_native_supervision_tech_preview_copy(errors)
     validate_closure_pressure_contract(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
@@ -1914,6 +1947,52 @@ def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -
     ]
     if missing:
         errors.append(f"{relative_path} is missing required terms: {', '.join(missing)}")
+
+
+def validate_native_supervision_tech_preview_copy(
+    errors: list[str],
+    content: str | None = None,
+    relative_path: str = "docs/workflows.html",
+) -> None:
+    if content is None:
+        path = REPO_ROOT / relative_path
+        if not path.is_file():
+            errors.append(f"required documentation file is missing: {relative_path}")
+            return
+        content = path.read_text(encoding="utf-8")
+
+    normalized = " ".join(content.split())
+    required_fragments = [
+        ("section anchor", 'id="native-supervision-tech-preview"'),
+        ("page navigation link", 'href="#native-supervision-tech-preview"'),
+        (
+            "stability/default wording",
+            "Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default",
+        ),
+        ("explicit opt-in wording", "requires explicit opt-in"),
+        ("same-host capability wording", "one fresh same-host capability receipt"),
+        ("fixed-cohort wording", "exactly two fixed workers"),
+        ("isolated topology wording", "isolated mutable worktrees"),
+        ("shared topology wording", "shared read-only topology"),
+        (
+            "single-flight boundary wording",
+            "Precommit, critics, integration, retry, replay, publication, and higher capacities remain single-flight or unsupported",
+        ),
+        (
+            "operator link",
+            "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md",
+        ),
+        (
+            "rollback wording",
+            "git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy",
+        ),
+    ]
+    missing = [label for label, fragment in required_fragments if fragment not in normalized]
+    if missing:
+        errors.append(
+            f"{relative_path} is missing the native-supervision Tech Preview contract: "
+            + ", ".join(missing)
+        )
 
 
 def public_copy_validated_path(relative_path: str) -> bool:

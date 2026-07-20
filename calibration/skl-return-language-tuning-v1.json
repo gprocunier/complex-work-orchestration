@@ -1,0 +1,1674 @@
+{
+  "analyzer": {
+    "baseline": {
+      "cases": 104,
+      "exact_status_accuracy": 0.9615384615384616,
+      "false_negative": 4,
+      "false_positive": 0,
+      "false_positive_rate": 0.0,
+      "positive_expected": 47,
+      "positive_predicted": 43,
+      "precision": 1.0,
+      "recall": 0.9148936170212766,
+      "status_confusion_matrix": {
+        "clear": {
+          "clear": 57,
+          "quarantine": 0,
+          "review": 0
+        },
+        "quarantine": {
+          "clear": 0,
+          "quarantine": 9,
+          "review": 0
+        },
+        "review": {
+          "clear": 4,
+          "quarantine": 0,
+          "review": 34
+        }
+      },
+      "true_negative": 57,
+      "true_positive": 43
+    },
+    "selected": {
+      "cases": 104,
+      "exact_status_accuracy": 1.0,
+      "false_negative": 0,
+      "false_positive": 0,
+      "false_positive_rate": 0.0,
+      "positive_expected": 47,
+      "positive_predicted": 47,
+      "precision": 1.0,
+      "recall": 1.0,
+      "status_confusion_matrix": {
+        "clear": {
+          "clear": 57,
+          "quarantine": 0,
+          "review": 0
+        },
+        "quarantine": {
+          "clear": 0,
+          "quarantine": 9,
+          "review": 0
+        },
+        "review": {
+          "clear": 0,
+          "quarantine": 0,
+          "review": 38
+        }
+      },
+      "true_negative": 57,
+      "true_positive": 47
+    }
+  },
+  "artifact_type": "skl-return-language-tuning-v1",
+  "canonical_sha256": "cc6af0cc7c54dbfb1727595196243807df824a928b1493d98cee7c9f942f31a6",
+  "contract_path": "calibration/skl-return-language-contract-v1.json",
+  "contract_sha256": "bb544de1c3a06dcc3ee058c4e04e3ad40ce486cdae46fd8f72adaee20432a409",
+  "corpus_path": "calibration/skl-return-language-corpus-v1.json",
+  "corpus_sha256": "dfbe00d1321ef0c34e421ad02c65926ab6ed3ea2a8c0732988a5b16207e1550b",
+  "failure_case_ids_by_threshold": {
+    "21": [],
+    "22": [
+      "adv-latin-003"
+    ],
+    "23": [
+      "adv-latin-003"
+    ],
+    "24": [
+      "adv-latin-003"
+    ],
+    "25": [
+      "adv-latin-001",
+      "adv-latin-003"
+    ],
+    "26": [
+      "adv-latin-001",
+      "adv-latin-003"
+    ],
+    "27": [
+      "adv-latin-001",
+      "adv-latin-003"
+    ],
+    "28": [
+      "adv-latin-001",
+      "adv-latin-003"
+    ],
+    "29": [
+      "adv-latin-001",
+      "adv-latin-003"
+    ],
+    "30": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "minimum_recall_threshold_miss"
+    ],
+    "31": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "minimum_recall_threshold_miss"
+    ],
+    "32": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "minimum_recall_threshold_miss"
+    ],
+    "33": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ],
+    "34": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ],
+    "35": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ],
+    "36": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ],
+    "37": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ],
+    "38": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ],
+    "39": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ],
+    "40": [
+      "adv-latin-001",
+      "adv-latin-002",
+      "adv-latin-003",
+      "adv-latin-004",
+      "minimum_recall_threshold_miss"
+    ]
+  },
+  "global_threshold_hash": "5fe9e526c540ddb7ab66df496504fc5bcf689a301cd6bef3844009ff6d26e904",
+  "immutable_baseline_minimum_english_words": 40,
+  "language": "en",
+  "latest_report_path": "calibration/skl-return-language-calibration-report-latest.json",
+  "mismatch_count_by_threshold": {
+    "21": 0,
+    "22": 7,
+    "23": 7,
+    "24": 7,
+    "25": 14,
+    "26": 14,
+    "27": 14,
+    "28": 14,
+    "29": 14,
+    "30": 21,
+    "31": 21,
+    "32": 21,
+    "33": 28,
+    "34": 28,
+    "35": 28,
+    "36": 28,
+    "37": 28,
+    "38": 28,
+    "39": 28,
+    "40": 28
+  },
+  "nearest_higher_failing_threshold": 22,
+  "pipeline": {
+    "baseline": {
+      "cases": 104,
+      "exact_status_accuracy": 0.9615384615384616,
+      "false_negative": 4,
+      "false_positive": 0,
+      "false_positive_rate": 0.0,
+      "positive_expected": 52,
+      "positive_predicted": 48,
+      "precision": 1.0,
+      "recall": 0.9230769230769231,
+      "status_confusion_matrix": {
+        "clear": {
+          "clear": 57,
+          "quarantine": 0,
+          "review": 0
+        },
+        "quarantine": {
+          "clear": 0,
+          "quarantine": 9,
+          "review": 0
+        },
+        "review": {
+          "clear": 4,
+          "quarantine": 0,
+          "review": 34
+        }
+      },
+      "true_negative": 52,
+      "true_positive": 48
+    },
+    "selected": {
+      "cases": 104,
+      "exact_status_accuracy": 1.0,
+      "false_negative": 0,
+      "false_positive": 0,
+      "false_positive_rate": 0.0,
+      "positive_expected": 52,
+      "positive_predicted": 52,
+      "precision": 1.0,
+      "recall": 1.0,
+      "status_confusion_matrix": {
+        "clear": {
+          "clear": 57,
+          "quarantine": 0,
+          "review": 0
+        },
+        "quarantine": {
+          "clear": 0,
+          "quarantine": 9,
+          "review": 0
+        },
+        "review": {
+          "clear": 0,
+          "quarantine": 0,
+          "review": 38
+        }
+      },
+      "true_negative": 52,
+      "true_positive": 52
+    }
+  },
+  "selected_threshold": 21,
+  "signal_weight_hash": "264bea518e80ba34ca7287537eccac96c058d90b73dab038f2c537e54b246fc5",
+  "sweep_results": [
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 40,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 39,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 38,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 37,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 36,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 35,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 34,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 43,
+        "precision": 1.0,
+        "recall": 0.9148936170212766,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 43
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "adv-latin-004",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 33,
+      "mismatch_count": 28,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9615384615384616,
+        "false_negative": 4,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 48,
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 4,
+            "quarantine": 0,
+            "review": 34
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 48
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9711538461538461,
+        "false_negative": 3,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 44,
+        "precision": 1.0,
+        "recall": 0.9361702127659575,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 3,
+            "quarantine": 0,
+            "review": 35
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 44
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 32,
+      "mismatch_count": 21,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9711538461538461,
+        "false_negative": 3,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 49,
+        "precision": 1.0,
+        "recall": 0.9423076923076923,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 3,
+            "quarantine": 0,
+            "review": 35
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 49
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9711538461538461,
+        "false_negative": 3,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 44,
+        "precision": 1.0,
+        "recall": 0.9361702127659575,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 3,
+            "quarantine": 0,
+            "review": 35
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 44
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 31,
+      "mismatch_count": 21,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9711538461538461,
+        "false_negative": 3,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 49,
+        "precision": 1.0,
+        "recall": 0.9423076923076923,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 3,
+            "quarantine": 0,
+            "review": 35
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 49
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9711538461538461,
+        "false_negative": 3,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 44,
+        "precision": 1.0,
+        "recall": 0.9361702127659575,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 3,
+            "quarantine": 0,
+            "review": 35
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 44
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-002",
+        "adv-latin-003",
+        "minimum_recall_threshold_miss"
+      ],
+      "minimum_english_words": 30,
+      "mismatch_count": 21,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9711538461538461,
+        "false_negative": 3,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 49,
+        "precision": 1.0,
+        "recall": 0.9423076923076923,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 3,
+            "quarantine": 0,
+            "review": 35
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 49
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 45,
+        "precision": 1.0,
+        "recall": 0.9574468085106383,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 45
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 29,
+      "mismatch_count": 14,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 50,
+        "precision": 1.0,
+        "recall": 0.9615384615384616,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 50
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 45,
+        "precision": 1.0,
+        "recall": 0.9574468085106383,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 45
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 28,
+      "mismatch_count": 14,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 50,
+        "precision": 1.0,
+        "recall": 0.9615384615384616,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 50
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 45,
+        "precision": 1.0,
+        "recall": 0.9574468085106383,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 45
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 27,
+      "mismatch_count": 14,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 50,
+        "precision": 1.0,
+        "recall": 0.9615384615384616,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 50
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 45,
+        "precision": 1.0,
+        "recall": 0.9574468085106383,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 45
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 26,
+      "mismatch_count": 14,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 50,
+        "precision": 1.0,
+        "recall": 0.9615384615384616,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 50
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 45,
+        "precision": 1.0,
+        "recall": 0.9574468085106383,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 45
+      },
+      "failure_case_ids": [
+        "adv-latin-001",
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 25,
+      "mismatch_count": 14,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9807692307692307,
+        "false_negative": 2,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 50,
+        "precision": 1.0,
+        "recall": 0.9615384615384616,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 2,
+            "quarantine": 0,
+            "review": 36
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 50
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9903846153846154,
+        "false_negative": 1,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 46,
+        "precision": 1.0,
+        "recall": 0.9787234042553191,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 1,
+            "quarantine": 0,
+            "review": 37
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 46
+      },
+      "failure_case_ids": [
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 24,
+      "mismatch_count": 7,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9903846153846154,
+        "false_negative": 1,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 51,
+        "precision": 1.0,
+        "recall": 0.9807692307692307,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 1,
+            "quarantine": 0,
+            "review": 37
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 51
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9903846153846154,
+        "false_negative": 1,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 46,
+        "precision": 1.0,
+        "recall": 0.9787234042553191,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 1,
+            "quarantine": 0,
+            "review": 37
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 46
+      },
+      "failure_case_ids": [
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 23,
+      "mismatch_count": 7,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9903846153846154,
+        "false_negative": 1,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 51,
+        "precision": 1.0,
+        "recall": 0.9807692307692307,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 1,
+            "quarantine": 0,
+            "review": 37
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 51
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9903846153846154,
+        "false_negative": 1,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 46,
+        "precision": 1.0,
+        "recall": 0.9787234042553191,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 1,
+            "quarantine": 0,
+            "review": 37
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 46
+      },
+      "failure_case_ids": [
+        "adv-latin-003"
+      ],
+      "minimum_english_words": 22,
+      "mismatch_count": 7,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 0.9903846153846154,
+        "false_negative": 1,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 51,
+        "precision": 1.0,
+        "recall": 0.9807692307692307,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 1,
+            "quarantine": 0,
+            "review": 37
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 51
+      },
+      "status": "fail"
+    },
+    {
+      "analyzer": {
+        "cases": 104,
+        "exact_status_accuracy": 1.0,
+        "false_negative": 0,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 47,
+        "positive_predicted": 47,
+        "precision": 1.0,
+        "recall": 1.0,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 0,
+            "quarantine": 0,
+            "review": 38
+          }
+        },
+        "true_negative": 57,
+        "true_positive": 47
+      },
+      "failure_case_ids": [],
+      "minimum_english_words": 21,
+      "mismatch_count": 0,
+      "pipeline": {
+        "cases": 104,
+        "exact_status_accuracy": 1.0,
+        "false_negative": 0,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "positive_expected": 52,
+        "positive_predicted": 52,
+        "precision": 1.0,
+        "recall": 1.0,
+        "status_confusion_matrix": {
+          "clear": {
+            "clear": 57,
+            "quarantine": 0,
+            "review": 0
+          },
+          "quarantine": {
+            "clear": 0,
+            "quarantine": 9,
+            "review": 0
+          },
+          "review": {
+            "clear": 0,
+            "quarantine": 0,
+            "review": 38
+          }
+        },
+        "true_negative": 52,
+        "true_positive": 52
+      },
+      "status": "pass"
+    }
+  ],
+  "version": 1
+}

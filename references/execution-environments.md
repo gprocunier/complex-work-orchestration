@@ -160,9 +160,22 @@ python3 scripts/prepare_native_worker.py build \
 ```
 
 Packet version 1 is historical-inspection-only. Rendering or dispatching it
-fails closed. Packet version 2 records the effective budget, its policy
-provenance, reserve-derived interrupt thresholds, required control adapter, and
-single-attempt validation lineage.
+fails closed. Commitment version 1 is historical-inspection-only; commitment v2
+is the production precommit authority contract.
+
+Native worker packet version 2 is the production packet contract used at the
+precommit and operative-release boundaries. It records effective budget, policy
+provenance, reserve-derived interrupt thresholds, required control adapter,
+validation lineage, and adjudication binding.
+
+Packet version 3 is explicitly experimental and test-only. It adds `phase`,
+`phase_contract`, `recovery_contract`, and `lineage_contract` framing. It is
+never dispatchable in this release.
+
+Promotion of packet v3 requires a future explicit policy migration:
+precommit compatibility, operative-release compatibility, recovery compatibility,
+and rollback compatibility evidence must be equivalent and reviewed before any
+deployment. This sprint does not promote packet v3.
 
 After the fresh native worker passes its no-tools trusted attestation, create and
 arm the supervisor before sending the operative task:
@@ -289,10 +302,80 @@ state/schema and self-hosting risk, affected contract/CLI/policy/telemetry
 surfaces, regression and command complexity, and expected reads and mutations.
 Historical v1 estimates remain readable but are not dispatchable.
 
-Before mutation, the attested worker returns one numeric p50/p90 fit commitment
-bound to the evaluated work-plan hash. An invalid, ambiguous, or low-confidence
-response returns to the PM for deterministic normalization or packet
-refinement; it does not start a formatting retry loop.
+Command-bearing `literal-command` and `read-only-validation` profiles receive a
+canonical direct-execution contract during work-plan enrichment, before the
+work-plan hash or precommit receipt is created:
+
+```json
+{"mode":"direct","checked_command_specs":[]}
+```
+
+That exact object is dispatch authority for the declared argv list. Packet
+validation, prompt rendering, operative readiness, and supervisor startup all
+fail closed when it is absent, altered, or carries checked-command specs. The
+worker prompt renders each argv with shell-safe quoting, and the supervisor
+accepts only the declared commands in order with paired terminal evidence and
+zero exit status. Complex or mutation-sensitive command sequences continue to
+use `checked-sequence-v1`; direct mode does not replace or bypass the checked
+sequence runner.
+
+Before packet construction, preallocate the packet ID and attempt nonce and run
+the numeric p50/p90 fit through the separate precommit supervisor. Its rendered
+prompt contains only the work-plan hash, task class, sanitized numeric
+complexity dimensions, numeric aggregate allowance, decision vocabulary, and
+required p50/p90 fields. It contains no paths, selectors, source excerpts,
+commands, mutation instructions, or validation commands.
+
+```bash
+python3 scripts/supervise_native_precommit.py create \
+  --packet-id "<preallocated-packet-id>" \
+  --attempt-nonce "<unique-attempt-nonce>" \
+  --work-plan "<cwo-temp>/work-plan.json" \
+  --session-id "<session-id>" \
+  --session-file "<session-jsonl>" \
+  --agent-id "<native-agent-id>" \
+  --workdir "<target-worktree>" \
+  --state-file "<cwo-temp>/precommit-state.json"
+
+python3 scripts/supervise_native_precommit.py arm \
+  --state-file "<cwo-temp>/precommit-state.json" \
+  --control-turn-id "<unique-control-turn-id>"
+```
+
+Send the exact `fit_prompt` from the state through the native control surface,
+then bind the submission and poll every second with the same control-turn ID.
+No assistant/model round trip may occur between submission and the first poll.
+
+```bash
+python3 scripts/supervise_native_precommit.py mark-dispatched \
+  --state-file "<cwo-temp>/precommit-state.json" \
+  --control-turn-id "<unique-control-turn-id>" \
+  --submission-id "<native-submission-id>"
+
+python3 scripts/supervise_native_precommit.py check \
+  --state-file "<cwo-temp>/precommit-state.json" \
+  --control-turn-id "<unique-control-turn-id>"
+```
+
+The first observed function/custom-tool call, compaction, model mismatch,
+workspace mutation, partial or rewritten JSONL boundary, lease collision, or
+control loss requests immediate interruption and quarantines the attempt.
+Telemetry enforces detection and interruption; it does not claim
+pre-execution interception.
+
+After a clean completion, record `worker-completed`, then `close-confirmed`,
+and issue the receipt. Interrupted or control-failed attempts instead require
+interrupt confirmation before close and cannot issue an accepting receipt.
+Commitment v2 and the candidate packet derive identity and activity authority
+only from that receipt. Any PM work-plan change requires a fresh worker, nonce,
+prompt, and receipt.
+
+The resulting candidate packet is explicitly `precommit-validated`,
+structurally reviewable, and has `operative_dispatch_authorized=false`.
+Operative entry points accept it only after `complex-work-orchestration-fsh.3`
+adjudication is bound through a short-lived `operative-authorized` evidence
+object for that exact packet, work plan, precommit receipt, and positive canary
+receipt. A policy release never makes an unbound candidate dispatchable.
 
 During execution, `scripts/cwo_core/native_progress.py` compares the commitment
 with observed calls, runtime, tokens, reads, mutations, tests, and artifacts.

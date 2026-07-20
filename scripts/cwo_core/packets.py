@@ -897,12 +897,114 @@ def sanitize_bead(
         if secret_like_field_re.search(str(key)):
             sanitized[key] = "[REDACTED]"
         else:
+            projected_value = _project_dependencies(value) if key == "dependencies" else value
             sanitized[key] = sanitize_boundary_value_with_patterns(
-                value,
+                projected_value,
                 forbidden,
                 secret_like_field_re=secret_like_field_re,
             )
+    summary_cap = _bead_summary_max_bytes(boundary)
+    summary_size = _canonical_json_bytes(sanitized)
+    if summary_cap is not None and summary_size > summary_cap:
+        raise CWOPolicyError(
+            f"bead_summary size {summary_size} exceeds boundary cap {summary_cap}"
+        )
     return sanitized
+
+
+def _first_present_field(record: dict[str, Any], *names: str) -> Any:
+    for name in names:
+        if name in record:
+            return record.get(name)
+    return None
+
+
+def _project_dependencies(dependencies: Any) -> list[dict[str, str | None]]:
+    if not isinstance(dependencies, list):
+        raise CWOPolicyError("bead_summary.dependencies must be a list")
+    projected: list[dict[str, str | None]] = []
+    for index, dependency in enumerate(dependencies):
+        if isinstance(dependency, str):
+            projected.append(
+                {
+                    "id": dependency,
+                    "title": None,
+                    "status": None,
+                    "dependency_type": None,
+                }
+            )
+            continue
+        if not isinstance(dependency, dict):
+            raise CWOPolicyError(
+                f"bead_summary.dependencies[{index}] must be a string or object"
+            )
+        entry = {
+            "id": _first_present_field(
+                dependency, "id", "depends_on_id", "issue_id"
+            ),
+            "title": dependency.get("title") if "title" in dependency else None,
+            "status": dependency.get("status") if "status" in dependency else None,
+            "dependency_type": _first_present_field(
+                dependency, "dependency_type", "type"
+            ),
+        }
+        for field_name, value in entry.items():
+            if value is not None and not isinstance(value, str):
+                raise CWOPolicyError(
+                    f"bead_summary.dependencies[{index}].{field_name} "
+                    "must be a string or null"
+                )
+        projected.append(entry)
+    return projected
+
+
+def _canonical_json_bytes(value: Any) -> int:
+    return len(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+    )
+
+
+def _bead_summary_max_bytes(boundary: dict[str, Any]) -> int | None:
+    raw_cap = boundary.get("bead_summary_max_bytes")
+    if raw_cap is None:
+        return None
+    if isinstance(raw_cap, bool) or not isinstance(raw_cap, int) or raw_cap <= 0:
+        raise CWOPolicyError(
+            "bead_summary_max_bytes policy value must be a positive integer"
+        )
+    return raw_cap
+
+
+def _validate_projected_dependency_entry(
+    entry: Any, index: int, errors: list[str]
+) -> None:
+    if not isinstance(entry, dict):
+        errors.append(f"bead_summary.dependencies[{index}] must be a shallow projection object")
+        return
+    if set(entry.keys()) != {"id", "title", "status", "dependency_type"}:
+        errors.append(
+            f"bead_summary.dependencies[{index}] must contain exactly id, title, status, and dependency_type"
+        )
+        return
+    for key in ("id", "title", "status", "dependency_type"):
+        value = entry.get(key)
+        if value is not None and not isinstance(value, str):
+            errors.append(
+                f"bead_summary.dependencies[{index}].{key} must be a string or null"
+            )
+
+
+def _validate_projected_dependencies(dependencies: Any, errors: list[str]) -> None:
+    if not isinstance(dependencies, list):
+        errors.append("bead_summary.dependencies must be a list")
+        return
+    for index, entry in enumerate(dependencies):
+        _validate_projected_dependency_entry(entry, index, errors)
 
 
 def _value_is_redacted(value: Any) -> bool:
@@ -1101,6 +1203,29 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
             )
         if boundary.get("requires_disclosure_escalation") and packet.get("disclosure_escalation_approved") is not True:
             errors.append(f"packet share boundary {share_boundary!r} requires disclosure escalation approval")
+
+    bead_summary = packet.get("bead_summary")
+    if not isinstance(bead_summary, dict):
+        errors.append("packet bead_summary must be a non-null object")
+    else:
+        if "dependencies" in bead_summary:
+            _validate_projected_dependencies(
+                bead_summary.get("dependencies"),
+                errors,
+            )
+        try:
+            bead_summary_max_bytes = _bead_summary_max_bytes(boundary)
+        except CWOPolicyError as exc:
+            errors.append(f"invalid share-boundary policy configuration: {exc}")
+        else:
+            canonical_summary_size = _canonical_json_bytes(bead_summary)
+            if (
+                bead_summary_max_bytes is not None
+                and canonical_summary_size > bead_summary_max_bytes
+            ):
+                errors.append(
+                    f"bead_summary size {canonical_summary_size} exceeds boundary cap {bead_summary_max_bytes}"
+                )
 
     if packet.get("external_opt_in") is not True:
         errors.append("packet external_opt_in must be true")

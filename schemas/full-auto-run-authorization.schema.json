@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Full Auto Run Authorization v5",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "authorization_type", "version", "schema", "authorization_id", "run_generation",
+    "live_generation", "predecessor_live_generation", "issued_at", "issued_by",
+    "operator_authority", "initial_state", "scope", "bindings", "supersession",
+    "executors", "resource_limits", "progress_gate", "mandatory_gates",
+    "persistence", "forbidden",
+    "live_relaunch_rule", "release", "canonical_authorization_sha256"
+  ],
+  "properties": {
+    "authorization_type": {"const": "cwo-full-auto-run-authorization"},
+    "version": {"const": 5},
+    "schema": {"const": "schemas/full-auto-run-authorization.schema.json"},
+    "authorization_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "run_generation": {"type": "integer", "minimum": 1},
+    "live_generation": {"type": "integer", "minimum": 1},
+    "predecessor_live_generation": {"type": "integer", "minimum": 0},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "issued_by": {"type": "string", "minLength": 1},
+    "operator_authority": {"type": "string", "minLength": 1},
+    "initial_state": {"const": "active"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "bindings": {"$ref": "#/$defs/bindings"},
+    "supersession": {"$ref": "#/$defs/supersession"},
+    "executors": {"$ref": "#/$defs/executors"},
+    "resource_limits": {"$ref": "#/$defs/resource_limits"},
+    "progress_gate": {"$ref": "#/$defs/progress_gate"},
+    "mandatory_gates": {"$ref": "#/$defs/mandatory_gates"},
+    "persistence": {"$ref": "#/$defs/persistence"},
+    "forbidden": {"$ref": "#/$defs/forbidden"},
+    "live_relaunch_rule": {"$ref": "#/$defs/live_relaunch"},
+    "release": {"$ref": "#/$defs/release"},
+    "canonical_authorization_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_object": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "uuid": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36, "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "nonempty_strings": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["epic_id", "parent_work_unit_id", "ordered_work_units"],
+      "properties": {
+        "epic_id": {"type": "string", "minLength": 1},
+        "parent_work_unit_id": {"type": "string", "minLength": 1},
+        "ordered_work_units": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "bindings": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "checkpoint_commit", "checkpoint_tree", "origin_main_commit",
+        "guarded_primary_diff_sha256", "pickup_path", "pickup_sha256",
+        "recovery_plan_path", "recovery_plan_sha256", "campaign_nonce",
+        "predecessor_authorization_id", "predecessor_authorization_file_sha256",
+        "predecessor_authorization_canonical_sha256", "predecessor_manifest_file_sha256",
+        "predecessor_manifest_canonical_sha256", "predecessor_authorization_state_file_sha256",
+        "predecessor_authorization_state_canonical_sha256", "predecessor_failure_evidence_file_sha256",
+        "predecessor_failure_evidence_canonical_sha256", "predecessor_containment_file_sha256",
+        "predecessor_containment_canonical_sha256",
+        "predecessor_original_containment_file_sha256",
+        "predecessor_original_containment_canonical_sha256",
+        "predecessor_allocation_ledger_file_sha256",
+        "predecessor_allocation_ledger_state_sha256",
+        "predecessor_allocation_audit_file_sha256", "backup_ref",
+        "outer_authority_id", "outer_authority_canonical_sha256",
+        "outer_authority_file_sha256"
+      ],
+      "properties": {
+        "checkpoint_commit": {"$ref": "#/$defs/git_object"},
+        "checkpoint_tree": {"$ref": "#/$defs/git_object"},
+        "origin_main_commit": {"$ref": "#/$defs/git_object"},
+        "guarded_primary_diff_sha256": {"$ref": "#/$defs/sha256"},
+        "pickup_path": {"type": "string", "minLength": 1},
+        "pickup_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_plan_path": {"type": "string", "minLength": 1},
+        "recovery_plan_sha256": {"$ref": "#/$defs/sha256"},
+        "campaign_nonce": {"$ref": "#/$defs/uuid"},
+        "predecessor_authorization_id": {"$ref": "#/$defs/uuid"},
+        "predecessor_authorization_file_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_manifest_file_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_manifest_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_authorization_state_file_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_authorization_state_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_failure_evidence_file_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_containment_file_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_original_containment_file_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_original_containment_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_allocation_ledger_file_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_allocation_ledger_state_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_allocation_audit_file_sha256": {"$ref": "#/$defs/sha256"},
+        "backup_ref": {"type": "string", "pattern": "^refs/heads/", "minLength": 12},
+        "outer_authority_id": {"$ref": "#/$defs/uuid"},
+        "outer_authority_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "outer_authority_file_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "supersession": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "prior_authorization_id", "prior_terminal_state", "prior_live_generation",
+        "prior_allocations", "prior_ambiguities", "prior_allowed_actions",
+        "reuse_resume_retry_substitution_salvage_bridge"
+      ],
+      "properties": {
+        "prior_authorization_id": {"$ref": "#/$defs/uuid"},
+        "prior_terminal_state": {"const": "containment-only"},
+        "prior_live_generation": {"type": "integer", "minimum": 0},
+        "prior_allocations": {"type": "integer", "minimum": 0},
+        "prior_ambiguities": {"const": 0},
+        "prior_allowed_actions": {"const": 0},
+        "reuse_resume_retry_substitution_salvage_bridge": {"const": false}
+      }
+    },
+    "executors": {
+      "type": "object", "additionalProperties": false,
+      "required": ["final_architect", "steering", "operative", "outside_critic"],
+      "properties": {
+        "final_architect": {"const": "current-codex-main-thread"},
+        "steering": {
+          "const": {"model": "gpt-5.6-sol", "effort": "max", "surface": "codex-app-server-stdio", "authority": "read-only-evidence"}
+        },
+        "operative": {
+          "const": {"model": "gpt-5.3-codex-spark", "effort": "low", "surface": "codex-app-server-stdio", "session_policy": "fresh-nonresumable-nonsalvageable"}
+        },
+        "outside_critic": {
+          "const": {"model": "claude-opus-4-6", "effort": "max", "surface": "claude-cli-as-greg", "authority": "evidence-only"}
+        }
+      }
+    },
+    "resource_limits": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "sol_consultations_this_inner_hard", "opus_reviews_this_inner_hard",
+        "spark_validation_sessions_this_inner_hard", "spark_live_turn_starts_exact",
+        "spark_compactions_hard", "full_repository_suites_this_inner_hard",
+        "focused_validation_bundles_this_inner_hard",
+        "implementation_correction_sprints_this_inner_hard",
+        "primary_checkout_mutations_hard"
+      ],
+      "properties": {
+        "sol_consultations_this_inner_hard": {"type": "integer", "minimum": 2},
+        "opus_reviews_this_inner_hard": {"type": "integer", "minimum": 0},
+        "spark_validation_sessions_this_inner_hard": {"type": "integer", "minimum": 1},
+        "spark_live_turn_starts_exact": {"const": 7},
+        "spark_compactions_hard": {"const": 0},
+        "full_repository_suites_this_inner_hard": {"type": "integer", "minimum": 1},
+        "focused_validation_bundles_this_inner_hard": {"type": "integer", "minimum": 1},
+        "implementation_correction_sprints_this_inner_hard": {"type": "integer", "minimum": 0},
+        "primary_checkout_mutations_hard": {"const": 0}
+      }
+    },
+    "progress_gate": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "outer_authority_status", "qualification_basis",
+        "predecessor_failure_class", "predecessor_failure_evidence_canonical_sha256",
+        "predecessor_candidate_commit", "predecessor_candidate_tree",
+        "predecessor_lineage_sha256",
+        "new_falsifiable_cause", "cause_evidence_sha256", "repair_commit",
+        "repair_tree", "independent_validation_receipt_canonical_sha256",
+        "independent_validation_receipt_file_sha256",
+        "independent_validation_session_id", "independent_validation_completed_at",
+        "independent_validation_binding_sha256",
+        "same_fault_without_new_evidence", "one_active_inner_campaign",
+        "arbitrary_generation_cap", "fresh_exact_sol_pre_live_required",
+        "qualification_sha256"
+      ],
+      "properties": {
+        "outer_authority_status": {"const": "active"},
+        "qualification_basis": {
+          "enum": ["new-fault-class", "same-fault-with-new-evidence-and-validated-repair"]
+        },
+        "predecessor_failure_class": {"type": "string", "minLength": 1},
+        "predecessor_failure_evidence_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_candidate_commit": {"$ref": "#/$defs/git_object"},
+        "predecessor_candidate_tree": {"$ref": "#/$defs/git_object"},
+        "predecessor_lineage_sha256": {"$ref": "#/$defs/sha256"},
+        "new_falsifiable_cause": {"type": "string", "minLength": 1},
+        "cause_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "repair_commit": {"$ref": "#/$defs/git_object"},
+        "repair_tree": {"$ref": "#/$defs/git_object"},
+        "independent_validation_receipt_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "independent_validation_receipt_file_sha256": {"$ref": "#/$defs/sha256"},
+        "independent_validation_session_id": {"$ref": "#/$defs/uuid"},
+        "independent_validation_completed_at": {"type": "string", "format": "date-time"},
+        "independent_validation_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "same_fault_without_new_evidence": {"const": false},
+        "one_active_inner_campaign": {"const": true},
+        "arbitrary_generation_cap": {"const": false},
+        "fresh_exact_sol_pre_live_required": {"const": true},
+        "qualification_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "mandatory_gates": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "strict_authorization_v5", "active_outer_authority_binding",
+        "progress_qualification_validation", "contained_prior_generation_proof",
+        "fresh_exact_spark_validation", "fresh_exact_sol_pre_mutation_receipt",
+        "successor_contract_validation", "frozen_release_patch",
+        "opus_second_line_review_adjudicated",
+        "fresh_exact_sol_pre_live_receipt", "campaign_manifest_v2",
+        "single_shot_per_generation_live_campaign", "main_thread_adjudication_each_gate",
+        "guarded_primary_diff_stability", "staging_ci_before_main", "published_install_parity"
+      ],
+      "properties": {
+        "strict_authorization_v5": {"const": true},
+        "active_outer_authority_binding": {"const": true},
+        "progress_qualification_validation": {"const": true},
+        "contained_prior_generation_proof": {"const": true},
+        "fresh_exact_spark_validation": {"const": true},
+        "fresh_exact_sol_pre_mutation_receipt": {"const": true},
+        "successor_contract_validation": {"const": true},
+        "frozen_release_patch": {"const": true},
+        "opus_second_line_review_adjudicated": {"const": true},
+        "fresh_exact_sol_pre_live_receipt": {"const": true},
+        "campaign_manifest_v2": {"const": true},
+        "single_shot_per_generation_live_campaign": {"const": true},
+        "main_thread_adjudication_each_gate": {"const": true},
+        "guarded_primary_diff_stability": {"const": true},
+        "staging_ci_before_main": {"const": true},
+        "published_install_parity": {"const": true}
+      }
+    },
+    "persistence": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "run_level_full_auto_survives_recoverable_failure",
+        "operator_recheck_required_for_routine_recovery",
+        "evidence_bearing_live_failure_becomes_terminal",
+        "fresh_successor_requires_new_authorization_id_nonce_receipts_sessions_and_paths",
+        "combined_confidence_formula", "combined_confidence_minimum", "operator_stop_conditions"
+      ],
+      "properties": {
+        "run_level_full_auto_survives_recoverable_failure": {"const": true},
+        "operator_recheck_required_for_routine_recovery": {"const": false},
+        "evidence_bearing_live_failure_becomes_terminal": {"const": true},
+        "fresh_successor_requires_new_authorization_id_nonce_receipts_sessions_and_paths": {"const": true},
+        "combined_confidence_formula": {"const": "min(main,sol) when sol-used else main"},
+        "combined_confidence_minimum": {"const": 0.5},
+        "operator_stop_conditions": {"$ref": "#/$defs/nonempty_strings"}
+      }
+    },
+    "forbidden": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "glm_5_2", "model_synthesis", "primary_checkout_mutation",
+        "prior_authorization_reuse", "prior_nonce_session_receipt_registry_state_output_ledger_or_path_reuse",
+        "worker_resume", "worker_salvage", "model_substitution", "evidence_bearing_live_retry",
+        "sol_target_checkout_mutation", "release_before_live_acceptance",
+        "force_push", "git_tag", "github_release"
+      ],
+      "properties": {
+        "glm_5_2": {"const": true},
+        "model_synthesis": {"const": true},
+        "primary_checkout_mutation": {"const": true},
+        "prior_authorization_reuse": {"const": true},
+        "prior_nonce_session_receipt_registry_state_output_ledger_or_path_reuse": {"const": true},
+        "worker_resume": {"const": true},
+        "worker_salvage": {"const": true},
+        "model_substitution": {"const": true},
+        "evidence_bearing_live_retry": {"const": true},
+        "sol_target_checkout_mutation": {"const": true},
+        "release_before_live_acceptance": {"const": true},
+        "force_push": {"const": true},
+        "git_tag": {"const": true},
+        "github_release": {"const": true}
+      }
+    },
+    "live_relaunch": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "pre_rpc_zero_artifact_relaunch_max", "requires_no_thread_start_request",
+        "requires_no_allocation_intent", "requires_no_session_identity",
+        "requires_no_audit_event", "requires_no_campaign_artifact"
+      ],
+      "properties": {
+        "pre_rpc_zero_artifact_relaunch_max": {"const": 1},
+        "requires_no_thread_start_request": {"const": true},
+        "requires_no_allocation_intent": {"const": true},
+        "requires_no_session_identity": {"const": true},
+        "requires_no_audit_event": {"const": true},
+        "requires_no_campaign_artifact": {"const": true}
+      }
+    },
+    "release": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "authorized_only_after_accepting_live_evidence_and_main_go", "frozen_delta_required",
+        "version_remains", "tag_or_github_release", "actions_after_gate"
+      ],
+      "properties": {
+        "authorized_only_after_accepting_live_evidence_and_main_go": {"const": true},
+        "frozen_delta_required": {"const": true},
+        "version_remains": {"const": "0.2.0-dev"},
+        "tag_or_github_release": {"const": false},
+        "actions_after_gate": {"$ref": "#/$defs/nonempty_strings"}
+      }
+    }
+  }
+}

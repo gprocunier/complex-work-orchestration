@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Supervision Pool Control Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_type", "version", "schema", "request_id", "pool_id", "pool_epoch",
+    "contract_sha256", "observed_state_sequence", "observed_state_sha256",
+    "action", "reason", "created_at", "request_sha256"
+  ],
+  "properties": {
+    "request_type": {"const": "cwo-native-supervision-pool-control-request"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-supervision-pool-control-request.schema.json"},
+    "request_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "pool_id": {"type": "string", "minLength": 1},
+    "pool_epoch": {"type": "string", "minLength": 1},
+    "contract_sha256": {"$ref": "#/$defs/sha256"},
+    "observed_state_sequence": {"type": "integer", "minimum": 0},
+    "observed_state_sha256": {"$ref": "#/$defs/sha256"},
+    "action": {"const": "interrupt"},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 256},
+    "created_at": {"type": "string", "format": "date-time"},
+    "request_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "manifest_type": "cwo-native-live-campaign-manifest",
+  "version": 1,
+  "schema": "schemas/native-live-campaign-manifest.schema.json",
+  "manifest_id": "fe9740a2-ad76-474f-acc6-24a30f3b203b",
+  "created_at": "2026-07-17T15:11:52Z",
+  "authorization_id": "c9fff203-a535-48f4-9a7d-80f450ce108f",
+  "authorization_raw_sha256": "4fffed1345e3e2cc4bda647001dd366a2eebfa6a1fac035b1c3b9232abf26071",
+  "authorization_canonical_sha256": "359a9885772c24abd8bce1db6d49aca405c84226428c65bc7cd6e1a6f0054c4b",
+  "run_generation": 10,
+  "live_generation": 5,
+  "predecessor_live_generation": 4,
+  "campaign_nonce": "7122d201-0448-4aca-b8a6-ba323510454b",
+  "control_turn_id": "complex-work-orchestration-18w.6-live-canary-control-turn",
+  "work_units": {
+    "epic_id": "complex-work-orchestration-18w",
+    "parent_work_unit_id": "complex-work-orchestration-18w.6",
+    "live_work_unit_id": "complex-work-orchestration-18w.6.19"
+  },
+  "candidate": {
+    "commit": "99c8d8a00d1a34b0cac7e4f9e935b12669583516",
+    "tree": "cefec7eda9884a70c86ca55a555962616ed3ce9a",
+    "origin_main_commit": "01780916148e2fad7bf96023c445718e19539052",
+    "guarded_primary_diff_sha256": "2b4b28c157ad681343ec2347ba62bd7c7766738bb82ea37f848881bd46e9249c"
+  },
+  "predecessor": {
+    "authorization_id": "307b7273-f97e-4f57-8aa3-95c4bdd27147",
+    "failure_evidence_canonical_sha256": "3150756e827bf455a77033ae4fa204562a593de02bc3e0964c5407387b1e41c3",
+    "containment_canonical_sha256": "c9c0b3fc40b3d3601cce53d56b166b09004d4efc204eeed63c11558cf7d4f9e1"
+  },
+  "executors": {
+    "final_architect": "current-codex-main-thread",
+    "steering": {
+      "model": "gpt-5.6-sol",
+      "effort": "max",
+      "surface": "codex-app-server-stdio",
+      "authority": "read-only-evidence"
+    },
+    "operative": {
+      "model": "gpt-5.3-codex-spark",
+      "effort": "low",
+      "surface": "codex-app-server-stdio",
+      "session_policy": "fresh-nonresumable-nonsalvageable"
+    },
+    "outside_critic": {
+      "model": "claude-opus-4-6",
+      "effort": "max",
+      "surface": "claude-cli-as-greg",
+      "authority": "evidence-only"
+    }
+  },
+  "expected_roles": [
+    "capability-calibration",
+    "read-only-0",
+    "read-only-1",
+    "mutable-0",
+    "mutable-1",
+    "interrupt-0",
+    "interrupt-1"
+  ],
+  "successful_turn_starts_exact": 7,
+  "prestart_zero_artifact_relaunch_max": 1,
+  "reviews": {
+    "pre_mutation_receipt_canonical_sha256": "f0100c3d49f59c5932e01167ae2be26f394890d42904ac899e00b096374ceada",
+    "pre_mutation_receipt_file_sha256": "77684fc96d0c8272d9f491d0dfc330e648d4d8770a952bad4859e5215886b362",
+    "pre_mutation_adjudication_file_sha256": "e8c8d68e04e1429f11ce68cf12bd50ea271b5d29f430a3c1e2c8f682117d6dc9",
+    "opus_evidence_file_sha256": "2e0f9c4fdb72c46caa25828976ef61d8f122fc327a4e2c4973150cf671aaeaa8",
+    "opus_adjudication_file_sha256": "778a3876d5731d29cc5b30023afa093e208e9a2e28c90431da5e7c9866fe29b0",
+    "pre_live_receipt_canonical_sha256": "92bba0c1f108c47a6cf886fe14d93f5715e14d31abac909a336cf507b2f78b8e",
+    "pre_live_receipt_file_sha256": "dccf06a29c272721081d1baa04b5da8f0dc586dc6a31832500c6abf4e0d8d6ba",
+    "pre_live_adjudication_file_sha256": "aef28a2e0ad6003524c19ee7291791c95a78b154eda8b678cb5a2b47c808d6e9"
+  },
+  "release": {
+    "patch_file_sha256": "fda303f886d8e9e80422c486b62cba4403586288a40db5f59db69db2fae6305c",
+    "candidate_tree": "cefec7eda9884a70c86ca55a555962616ed3ce9a",
+    "prospective_tree": "e13baffab1875bf85867543874a3045e9bfe9b04",
+    "policy_before": {
+      "status": "canary-gated",
+      "cap_two_operative_release": false
+    },
+    "policy_after": {
+      "status": "operative-authorized",
+      "cap_two_operative_release": true
+    }
+  },
+  "outputs": {
+    "evidence_basename": "live-canary-evidence-v10-generation-5.json",
+    "authorization_state_basename": "live-canary-authorization-state-v10-generation-5.json",
+    "steering_registry_basename": "live-canary-steering-registry-v10-generation-5.json",
+    "allocation_ledger_basename": "live-canary-allocation-ledger-v10-generation-5.json"
+  },
+  "no_resume_or_salvage": true,
+  "glm_5_2_used": false,
+  "model_synthesis_used": false,
+  "manifest_sha256": "ae5b26ec4085a24bc26ea493386365345fa8e773b02f8f5f89cee4f65453d8f8"
+}

@@ -36,6 +36,7 @@
       "field_whitelist": ["id", "title", "labels", "status", "priority", "description", "acceptance_criteria", "dependencies"],
       "forbidden_fields": ["secrets", "credentials", "private_keys", "production_access"],
       "snippet_line_limit": 200,
+      "bead_summary_max_bytes": 32768,
       "redaction_profile": "standard",
       "description": "The outside contractor may inspect approved repo content read-only and return findings through Beads."
     },
@@ -49,6 +50,7 @@
       "field_whitelist": ["id", "title", "labels", "status", "priority", "description", "acceptance_criteria", "dependencies"],
       "forbidden_fields": ["secrets", "credentials", "private_keys", "production_access"],
       "snippet_line_limit": 300,
+      "bead_summary_max_bytes": 32768,
       "redaction_profile": "standard",
       "patch_prerequisites": ["explicit patch permission", "approved branch name", "no release/tag authority"],
       "description": "The outside contractor may prepare a focused patch branch when the assigned Bead explicitly allows code changes."
