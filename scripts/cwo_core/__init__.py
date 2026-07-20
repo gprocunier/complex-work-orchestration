@@ -17,6 +17,7 @@ __all__ = [
     "execution_enhancement_metrics",
     "execution_status_report",
     "harness",
+    "native_authority",
     "native_capability",
     "native_canary_contracts",
     "native_containment",

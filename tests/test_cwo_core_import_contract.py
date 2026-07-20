@@ -39,6 +39,7 @@ ALLOWED_IMPORTS = {
     "waivers": set(),
     "beads": {"paths", "util"},
     "harness": {"access_profiles", "policy", "util"},
+    "native_authority": set(),
     "native_capability": set(),
     "native_canary_contracts": {"native_stop_scope", "util"},
     "native_live_campaign_contracts": {
@@ -49,7 +50,7 @@ ALLOWED_IMPORTS = {
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
     "native_tool_isolation": set(),
-    "native_stop_scope": set(),
+    "native_stop_scope": {"native_authority"},
     "native_pool_contracts": {"native_stop_scope", "native_tool_isolation"},
     "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
     "native_pool_scheduler": {"native_pool_contracts"},

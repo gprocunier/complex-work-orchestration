@@ -83,6 +83,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_session": {"native_disposition"},
     "native_session_boundary": {"native_session"},
     "native_worker_contracts": {"native_disposition"},
+    "native_authority": set(),
     "native_capability": set(),
     "native_canary_contracts": {"native_stop_scope", "util"},
     "native_live_campaign_contracts": {
@@ -98,7 +99,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_retry": set(),
     "native_control": set(),
     "native_tool_isolation": set(),
-    "native_stop_scope": set(),
+    "native_stop_scope": {"native_authority"},
     "native_pool_contracts": {"native_stop_scope", "native_tool_isolation"},
     "native_pool_scheduler": {"native_pool_contracts"},
     "native_pool_leases": {"native_pool_contracts"},
