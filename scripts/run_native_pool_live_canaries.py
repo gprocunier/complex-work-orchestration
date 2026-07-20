@@ -45,6 +45,7 @@ from cwo_core.native_live_campaign_contracts import (  # noqa: E402
     active_outer_authority_scope_key,
     validate_campaign_manifest,
     validate_full_auto_authorization as validate_full_auto_authorization_contract,
+    validate_operative_full_auto_authorization,
     validate_release_patch_result,
     validator_contract_sha256,  # noqa: F401
     validator_contract_sha256_v3,
@@ -1046,10 +1047,16 @@ def validate_full_auto_authorization(
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
     recovery_cause_source_analysis: bytes | None = None,
     expected_validator_contract_sha256: str | None = None,
+    operative: bool = False,
     repo_root: Path,
 ) -> tuple[str, str]:
-    if authorization.get("version") in {6, 7, 8, 9, 10, 11}:
-        errors = validate_full_auto_authorization_contract(
+    contract_validator = (
+        validate_operative_full_auto_authorization
+        if operative
+        else validate_full_auto_authorization_contract
+    )
+    if authorization.get("version") in {6, 7, 8, 9, 10, 11, 12}:
+        errors = contract_validator(
             authorization,
             expected_campaign_nonce=campaign_nonce,
             predecessor_proof=predecessor_proof,
@@ -1059,7 +1066,7 @@ def validate_full_auto_authorization(
             repo_root=repo_root,
         )
     else:
-        errors = validate_full_auto_authorization_contract(
+        errors = contract_validator(
             authorization,
             expected_campaign_nonce=campaign_nonce,
             predecessor_authorization=predecessor_authorization,
@@ -7475,7 +7482,7 @@ def require_generation12_launch_inputs(
     """Return the exact terminal Gen11 leaf or reject a mixed generation."""
 
     if (
-        inputs.authorization.value.get("version") != 11
+        inputs.authorization.value.get("version") not in {11, 12}
         or inputs.manifest.value.get("version") != 8
         or not isinstance(
             inputs.predecessor_proof,
@@ -7691,7 +7698,7 @@ def require_trusted_session_snapshots_unchanged(
 ) -> None:
     """Re-read every trusted JSONL immediately before the first allocation."""
 
-    if inputs.authorization.value.get("version") == 11:
+    if inputs.authorization.value.get("version") in {11, 12}:
         expected = generation12_trusted_session_snapshots(inputs)
     elif inputs.authorization.value.get("version") == 10:
         expected = generation11_trusted_session_snapshots(inputs)
@@ -7742,7 +7749,7 @@ def require_launch_source_snapshots_unchanged(
 ) -> None:
     """Recheck every mutable source against the read-once launch snapshots."""
 
-    if inputs.authorization.value.get("version") == 11:
+    if inputs.authorization.value.get("version") in {11, 12}:
         expected = generation12_private_source_snapshots(inputs)
     elif inputs.authorization.value.get("version") == 10:
         expected = generation11_private_source_snapshots(inputs)
@@ -8135,7 +8142,7 @@ def validate_campaign_launch_bindings(
     )
     preallocation_failed: Version9PreallocationFaultPredecessorProofInputs | None
     failed_predecessor: Version8ProtectedFaultPredecessorProofInputs | None
-    if authorization_version == 11:
+    if authorization_version in {11, 12}:
         interrupted_failed = require_generation12_launch_inputs(inputs)
         preallocation_failed = interrupted_failed.ancestor
         failed_predecessor = preallocation_failed.ancestor
@@ -8626,7 +8633,7 @@ def validate_campaign_launch_bindings(
         raise AppServerError("campaign-policy-before-mismatch")
     all_source_file_sha256s = (
         generation12_source_file_sha256s(inputs)
-        if authorization_version == 11
+        if authorization_version in {11, 12}
         else (
             generation11_source_file_sha256s(inputs)
             if authorization_version == 10
@@ -9256,7 +9263,7 @@ def campaign_launch_claim_payload_v6(
         "claim_type": "cwo-native-live-campaign-launch-claim",
         "version": 6,
         "operative_version_tuple": {
-            "authorization_version": 11,
+            "authorization_version": authorization.get("version"),
             "manifest_version": 8,
             "launch_claim_version": 6,
             "validator_contract_version": 6,
@@ -9639,7 +9646,7 @@ def campaign_launch_claim_sha256(
     """Seal one immutable versioned launch claim under its exact domain."""
 
     authorization_version = inputs.authorization.value.get("version")
-    if authorization_version == 11:
+    if authorization_version in {11, 12}:
         claim = campaign_launch_claim_payload_v6(
             inputs,
             output=output,
@@ -9844,7 +9851,7 @@ def require_operative_campaign_contract(
     )
     if not errors:
         return
-    if authorization_version != 11:
+    if authorization_version != 12:
         raise AppServerError("campaign-authorization-version-historical-only")
     raise AppServerError(
         "campaign-contract-version-mismatch:" + ";".join(errors)
@@ -11181,6 +11188,7 @@ def main() -> int:
             expected_validator_contract_sha256=validator_contract_sha256_v6(
                 ROOT, authorization.get("bindings", {}).get("checkpoint_tree")
             ),
+            operative=True,
             repo_root=ROOT,
         )
 

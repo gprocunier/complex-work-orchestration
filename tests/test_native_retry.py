@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import unittest
 
 from scripts.cwo_core.native_retry import (
     RETRY_AUTHORIZATION_TYPE,
     RETRY_AUTHORIZATION_VERSION,
+    RETRY_AUTHORIZATION_VERSION_V1,
     RETRY_ELIGIBILITY_TYPE,
+    RETRY_ELIGIBILITY_VERSION,
     build_retry_authorization,
     canonical_work_payload,
     canonical_work_sha256,
     evaluate_retry_eligibility,
+    read_retry_authorization,
     validate_retry_authorization,
 )
 
@@ -202,7 +206,7 @@ class NativeRetryTests(unittest.TestCase):
                 result = self._evaluate(state=state, semantic=semantic)
                 self.assertTrue(result["eligible"])
                 self.assertEqual(result["result_type"], RETRY_ELIGIBILITY_TYPE)
-                self.assertEqual(result["version"], RETRY_AUTHORIZATION_VERSION)
+                self.assertEqual(result["version"], RETRY_ELIGIBILITY_VERSION)
                 self.assertEqual(result["next_attempt"], 1)
                 self.assertEqual(result["attempt"], 0)
 
@@ -283,7 +287,14 @@ class NativeRetryTests(unittest.TestCase):
         self.assertEqual(result["retry_packet_id"], retry["packet_id"])
         self.assertEqual(result["parent_session_id"], _base_state()["session_id"])
         self.assertEqual(result["retry_session_id"], _base_attestation()["session_id"])
-        self.assertEqual(result["authority"], "cwo-native-supervisor-evidence")
+        self.assertEqual(
+            result["authority_provenance"]["source_type"],
+            "policy-enforcement",
+        )
+        self.assertEqual(
+            result["authority_provenance"]["source_sha256"],
+            result["retry_evidence_sha256"],
+        )
         self.assertNotEqual(result["parent_packet_id"], result["retry_packet_id"])
         self.assertEqual(validate_retry_authorization(result), [])
 
@@ -353,6 +364,45 @@ class NativeRetryTests(unittest.TestCase):
         tampered = copy.deepcopy(authorization)
         tampered["cumulative_usage"]["tool_calls"] = -1
         self.assertIn("cumulative_usage values must be non-negative integers", validate_retry_authorization(tampered))
+        tampered = copy.deepcopy(authorization)
+        tampered["authority_provenance"]["actor_role"] = "operator"
+        self.assertTrue(
+            any(
+                "authority_provenance" in error
+                for error in validate_retry_authorization(tampered)
+            )
+        )
+
+    def test_v1_retry_authorization_is_historical_read_only(self) -> None:
+        authorization = build_retry_authorization(
+            _base_packet(),
+            _retry_packet(_base_packet(), "retry-1"),
+            _base_state(),
+            _base_workspace(),
+            _base_semantic(),
+            _base_policy(),
+            _base_attestation(),
+        )
+        legacy = copy.deepcopy(authorization)
+        legacy.pop("evidence_bindings")
+        legacy.pop("retry_evidence_sha256")
+        legacy.pop("authority_provenance")
+        legacy["version"] = RETRY_AUTHORIZATION_VERSION_V1
+        legacy["authority"] = "cwo-native-supervisor-evidence"
+        legacy.pop("receipt_sha256")
+        legacy["receipt_sha256"] = hashlib.sha256(
+            json.dumps(
+                legacy,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("ascii")
+        ).hexdigest()
+        self.assertEqual(read_retry_authorization(legacy), legacy)
+        self.assertEqual(
+            validate_retry_authorization(legacy),
+            ["retry authorization version 1 is historical-only"],
+        )
 
     def test_schema_contract(self) -> None:
         with open("schemas/native-retry-authorization.schema.json", encoding="utf-8") as stream:
@@ -380,7 +430,9 @@ class NativeRetryTests(unittest.TestCase):
                 "cumulative_usage",
                 "remaining_before_retry",
                 "retry_budget",
-                "authority",
+                "evidence_bindings",
+                "retry_evidence_sha256",
+                "authority_provenance",
                 "decision",
                 "receipt_sha256",
             },
@@ -390,7 +442,10 @@ class NativeRetryTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["attestation_source"]["const"], "trusted-session-jsonl")
         self.assertEqual(schema["properties"]["attempt_from"]["const"], 0)
         self.assertEqual(schema["properties"]["attempt_to"]["const"], 1)
-        self.assertEqual(schema["properties"]["authority"]["const"], "cwo-native-supervisor-evidence")
+        self.assertEqual(
+            schema["properties"]["authority_provenance"]["$ref"],
+            "#/definitions/authority_provenance",
+        )
         self.assertEqual(schema["properties"]["decision"]["const"], "authorize-one-fresh-retry")
         self.assertEqual(schema["definitions"]["sha256"]["pattern"], "^[0-9a-f]{64}$")
         self.assertEqual(schema["definitions"]["usage"]["additionalProperties"], False)

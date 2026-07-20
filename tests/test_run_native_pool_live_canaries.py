@@ -6445,8 +6445,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(
             LIVE.AppServerError, "campaign-contract-version-mismatch"
         ):
-            LIVE.require_operative_campaign_contract(11, 7, 6, 6)
-        LIVE.require_operative_campaign_contract(11, 8, 6, 6)
+            LIVE.require_operative_campaign_contract(12, 7, 6, 6)
+        LIVE.require_operative_campaign_contract(12, 8, 6, 6)
 
     def test_legacy_authority_history_requires_complete_seed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -135,7 +135,7 @@ class Generation8LiveLauncherTests(unittest.TestCase):
         )
 
     def test_old_pairs_are_historical_after_v11_v8_activation(self) -> None:
-        LIVE.require_operative_campaign_contract(11, 8, 6, 6)
+        LIVE.require_operative_campaign_contract(12, 8, 6, 6)
         for authorization_version, manifest_version in (
             (7, 4),
             (8, 5),

@@ -21,7 +21,8 @@
     "closure_receipt",
     "tool_surface_id",
     "decision",
-    "authority",
+    "session_evidence_sha256",
+    "authority_provenance",
     "issued_at",
     "expires_at",
     "receipt_sha256"
@@ -31,7 +32,7 @@
       "const": "cwo-native-model-capability-receipt"
     },
     "version": {
-      "const": 1
+      "const": 2
     },
     "requested_model": {
       "type": "string",
@@ -86,8 +87,11 @@
     "decision": {
       "const": "native-capability-confirmed"
     },
-    "authority": {
-      "const": "trusted-session-jsonl"
+    "session_evidence_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "authority_provenance": {
+      "$ref": "#/$defs/authority_provenance"
     },
     "issued_at": {
       "type": "string",
@@ -98,8 +102,57 @@
       "format": "date-time"
     },
     "receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "authority_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "source_type", "source_id", "source_sha256", "actor_id",
+        "actor_role", "identity_source", "authorized_scope",
+        "parent_receipt_sha256", "verification", "authority_sha256"
+      ],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {
+          "enum": [
+            "worker-discovery", "pm-observation", "architect-judgment",
+            "operator-directive", "policy-enforcement"
+          ]
+        },
+        "source_id": {"type": "string", "minLength": 1},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "actor_role": {
+          "enum": [
+            "operative-worker", "critic", "project-manager", "architect",
+            "supervisor-policy", "operator"
+          ]
+        },
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {
+          "enum": ["child", "cohort", "execution-path", "complete-task", "publication"]
+        },
+        "parent_receipt_sha256": {
+          "oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"type": "string", "minLength": 1},
+            "evidence_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
     }
   }
 }

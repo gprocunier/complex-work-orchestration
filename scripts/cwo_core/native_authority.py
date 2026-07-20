@@ -231,8 +231,24 @@ class VerifiedAuthority:
         return str(self._payload["source_type"])
 
     @property
+    def source_id(self) -> str:
+        return str(self._payload["source_id"])
+
+    @property
+    def source_sha256(self) -> str:
+        return str(self._payload["source_sha256"])
+
+    @property
+    def actor_id(self) -> str:
+        return str(self._payload["actor_id"])
+
+    @property
     def actor_role(self) -> str:
         return str(self._payload["actor_role"])
+
+    @property
+    def identity_source(self) -> str:
+        return str(self._payload["identity_source"])
 
     @property
     def authority_level(self) -> str | None:

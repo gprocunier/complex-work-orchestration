@@ -1263,18 +1263,151 @@ class Generation12ContractTests(unittest.TestCase):
             CONTRACTS.MANIFEST_PREDECESSOR_FIELDS_V8,
         )
 
-    def test_only_v11_v8_v6_v6_is_operative(self) -> None:
-        self.assertEqual(
-            CONTRACTS.validate_operative_version_tuple(11, 8, 6, 6), []
+    @staticmethod
+    def _minimal_v11_authorization_for_authority_migration() -> dict:
+        authorization = {
+            field: None for field in CONTRACTS.AUTHORIZATION_FIELDS
+        }
+        authorization.update(
+            {
+                "authorization_type": CONTRACTS.AUTHORIZATION_TYPE,
+                "version": CONTRACTS.AUTHORIZATION_VERSION_V11,
+                "schema": CONTRACTS.AUTHORIZATION_SCHEMA_V11,
+                "authorization_id": str(uuid.uuid4()),
+                "issued_by": "legacy-issuer",
+                "operator_authority": "legacy-compatible-read-only",
+                "bindings": {
+                    "outer_authority_id": str(uuid.uuid4()),
+                    "outer_authority_file_sha256": "a" * 64,
+                },
+                "mandatory_gates": {
+                    field: True
+                    for field in CONTRACTS.MANDATORY_GATE_FIELDS_V11
+                },
+            }
         )
-        for observed in ((10, 7, 5, 5), (11, 7, 6, 6), (11, 8, 5, 6)):
+        unsigned = dict(authorization)
+        unsigned.pop("canonical_authorization_sha256")
+        authorization["canonical_authorization_sha256"] = (
+            CONTRACTS.canonical_sha256(unsigned)
+        )
+        return authorization
+
+    def test_v12_schema_and_builder_bind_resolvable_policy_provenance(
+        self,
+    ) -> None:
+        schema = json.loads(
+            (ROOT / CONTRACTS.AUTHORIZATION_SCHEMA_V12).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(
+            set(schema["required"]), CONTRACTS.AUTHORIZATION_FIELDS_V12
+        )
+        self.assertEqual(
+            set(schema["$defs"]["mandatory_gates"]["required"]),
+            CONTRACTS.MANDATORY_GATE_FIELDS_V12,
+        )
+        historical = self._minimal_v11_authorization_for_authority_migration()
+        authority = CONTRACTS.campaign_policy_authority(historical)
+        with patch.object(
+            CONTRACTS, "_validate_full_auto_authorization_v11", return_value=[]
+        ):
+            authorization = CONTRACTS.build_full_auto_authorization_v12(
+                historical, campaign_authority=authority
+            )
+            self.assertEqual(
+                CONTRACTS.validate_operative_full_auto_authorization(
+                    authorization
+                ),
+                [],
+            )
+        self.assertNotIn("operator_authority", authorization)
+        self.assertEqual(
+            authorization["authority_provenance"], authority.serialize()
+        )
+        self.assertEqual(
+            authorization["issued_by"], "native-supervisor-policy"
+        )
+
+    def test_v12_rejects_strings_mismatched_sources_and_tampering(self) -> None:
+        historical = self._minimal_v11_authorization_for_authority_migration()
+        with self.assertRaisesRegex(
+            CONTRACTS.AuthorityProvenanceError,
+            "verified-authority-required",
+        ):
+            CONTRACTS.build_full_auto_authorization_v12(
+                historical, campaign_authority="operator"  # type: ignore[arg-type]
+            )
+        wrong_authority = CONTRACTS.policy_authority(
+            str(uuid.uuid4()),
+            authorized_scope="complete-task",
+            source_sha256="b" * 64,
+            identity_source=CONTRACTS.CAMPAIGN_AUTHORITY_IDENTITY_SOURCE,
+        )
+        with (
+            patch.object(
+                CONTRACTS,
+                "_validate_full_auto_authorization_v11",
+                return_value=[],
+            ),
+            self.assertRaisesRegex(
+                CONTRACTS.AuthorityProvenanceError,
+                "authority-source-mismatch",
+            ),
+        ):
+            CONTRACTS.build_full_auto_authorization_v12(
+                historical, campaign_authority=wrong_authority
+            )
+        authority = CONTRACTS.campaign_policy_authority(historical)
+        with patch.object(
+            CONTRACTS, "_validate_full_auto_authorization_v11", return_value=[]
+        ):
+            authorization = CONTRACTS.build_full_auto_authorization_v12(
+                historical, campaign_authority=authority
+            )
+            tampered = deepcopy(authorization)
+            tampered["authority_provenance"]["source_sha256"] = "c" * 64
+            tampered["canonical_authorization_sha256"] = (
+                CONTRACTS._canonical_artifact_hash(
+                    tampered, "canonical_authorization_sha256"
+                )
+            )
+            errors = CONTRACTS.validate_operative_full_auto_authorization(
+                tampered
+            )
+        self.assertIn(
+            "authorization-v12-authority-provenance-mismatch", errors
+        )
+
+    def test_v11_is_compatible_read_but_historical_only_for_execution(
+        self,
+    ) -> None:
+        historical = self._minimal_v11_authorization_for_authority_migration()
+        with patch.object(
+            CONTRACTS, "_validate_full_auto_authorization_v11", return_value=[]
+        ):
+            self.assertEqual(
+                CONTRACTS.read_full_auto_authorization(historical), []
+            )
+        self.assertEqual(
+            CONTRACTS.validate_operative_full_auto_authorization(historical),
+            ["authorization-version-historical-only"],
+        )
+
+    def test_only_v12_v8_v6_v6_is_operative(self) -> None:
+        self.assertEqual(
+            CONTRACTS.validate_operative_version_tuple(12, 8, 6, 6), []
+        )
+        for observed in ((10, 7, 5, 5), (11, 8, 6, 6), (12, 7, 6, 6), (12, 8, 5, 6)):
             with self.subTest(observed=observed):
                 self.assertEqual(
                     CONTRACTS.validate_operative_version_tuple(*observed),
                     ["operative-version-tuple-incompatible"],
                 )
         self.assertEqual(
-            CONTRACTS.validate_operative_version_tuple(11, 8, "6", 6),
+            CONTRACTS.validate_operative_version_tuple(12, 8, "6", 6),
             ["operative-version-tuple-malformed"],
         )
 

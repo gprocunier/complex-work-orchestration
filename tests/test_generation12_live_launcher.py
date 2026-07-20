@@ -87,8 +87,8 @@ class Generation12LiveLauncherTests(unittest.TestCase):
         }
         return LIVE.CampaignLaunchInputs(
             authorization=snapshot(
-                "authorization-v11",
-                version=11,
+                "authorization-v12",
+                version=12,
                 authorization_id="authorization-12",
                 run_generation=12,
                 live_generation=12,
@@ -129,14 +129,14 @@ class Generation12LiveLauncherTests(unittest.TestCase):
             "allocation_ledger": root / "ledger",
         }
 
-    def test_only_v11_v8_v6_v6_is_operative(self) -> None:
-        LIVE.require_operative_campaign_contract(11, 8, 6, 6)
+    def test_only_v12_v8_v6_v6_is_operative(self) -> None:
+        LIVE.require_operative_campaign_contract(12, 8, 6, 6)
         for observed in (
             (10, 7, 5, 5),
             (11, 7, 6, 6),
             (11, 8, 5, 6),
             (11, 8, 6, 5),
-            (12, 8, 6, 6),
+            (11, 8, 6, 6),
         ):
             with self.subTest(observed=observed), self.assertRaises(
                 LIVE.AppServerError
@@ -219,7 +219,7 @@ class Generation12LiveLauncherTests(unittest.TestCase):
             self.assertEqual(
                 payload["operative_version_tuple"],
                 {
-                    "authorization_version": 11,
+                    "authorization_version": 12,
                     "manifest_version": 8,
                     "launch_claim_version": 6,
                     "validator_contract_version": 6,

@@ -11,8 +11,10 @@ from typing import Any
 
 from cwo_core.native_capability import (
     build_capability_receipt,
+    canonical_capability_evidence_sha256,
     validate_capability_receipt,
 )
+from cwo_core.native_authority import trusted_actor_authority
 
 
 def _load_object(path: str, label: str) -> dict[str, Any]:
@@ -47,6 +49,11 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--authorized-model", action="append", required=True, dest="authorized_models")
     build.add_argument("--issued-at", required=True)
     build.add_argument("--expires-at", required=True)
+    build.add_argument(
+        "--actor-id",
+        required=True,
+        help="Trusted runtime actor identifier bound to the supplied session evidence.",
+    )
     build.add_argument("--output", required=True)
     validate = commands.add_parser("validate", help="Validate an existing receipt.")
     validate.add_argument("--receipt", required=True)
@@ -58,17 +65,35 @@ def main() -> int:
     try:
         if args.command == "build":
             evidence = _load_object(args.evidence, "evidence")
+            session_authority = trusted_actor_authority(
+                source_type="worker-discovery",
+                source_id=str(evidence.get("canary_session_id") or ""),
+                source_sha256=canonical_capability_evidence_sha256(evidence),
+                actor_id=args.actor_id,
+                actor_role="operative-worker",
+                identity_source=str(evidence.get("attestation_source") or ""),
+            )
             receipt = build_capability_receipt(
                 evidence,
                 args.authorized_models,
                 issued_at=args.issued_at,
                 expires_at=args.expires_at,
+                session_authority=session_authority,
             )
             errors = validate_capability_receipt(receipt)
             if errors:
                 raise ValueError("receipt validation failed: " + "; ".join(errors))
             _write_json_atomic(args.output, receipt)
-            print(json.dumps({"status": "recorded", "output": str(Path(args.output).resolve()), "authority": receipt["authority"]}, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "status": "recorded",
+                        "output": str(Path(args.output).resolve()),
+                        "authority_provenance": receipt["authority_provenance"],
+                    },
+                    sort_keys=True,
+                )
+            )
             return 0
         receipt = _load_object(args.receipt, "receipt")
         errors = validate_capability_receipt(receipt)
