@@ -236,6 +236,11 @@ class NativeLiveAllocationLedgerTests(unittest.TestCase):
                 NativeLiveAllocationLedgerError, "transition-invalid"
             ):
                 store.allocation_intent("read-only-0")
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "ledger-store-not-open"
+            ):
+                store.bind_thread(first, "thread-a")
+            store.open()
             store.bind_thread(first, "thread-a")
             second = store.allocation_intent("read-only-1")
             with self.assertRaisesRegex(
@@ -393,6 +398,51 @@ class NativeLiveAllocationLedgerTests(unittest.TestCase):
                 checkpointed["full_validation_entry_count"],
                 loaded["full_validation_entry_count"] + 5,
             )
+
+    def test_append_calls_one_transition_and_no_full_validator_at_any_length(
+        self,
+    ) -> None:
+        for lifecycle_count in (0, 64):
+            with (
+                self.subTest(lifecycle_count=lifecycle_count),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                store = NativeLiveAllocationLedgerStore(
+                    Path(temporary) / "private-ledger"
+                )
+                store.initialize(bindings())
+                append_role = "read-only-0"
+                if lifecycle_count:
+                    allocation = store.allocation_intent("read-only-0")
+                    store.bind_thread(allocation, "thread-history")
+                    turn_intent = store.turn_intent("thread-history")
+                    store.bind_turn("thread-history", turn_intent, "turn-history")
+                    for index in range(lifecycle_count):
+                        store.record_lifecycle(
+                            "thread-history",
+                            "archive-observed",
+                            f"history-{index}",
+                        )
+                    append_role = "read-only-1"
+
+                transition_helper = LEDGER._validate_entry_transition
+                full_validator = LEDGER._validate_live_allocation_ledger_with_index
+                with (
+                    mock.patch.object(
+                        LEDGER,
+                        "_validate_entry_transition",
+                        wraps=transition_helper,
+                    ) as transition_spy,
+                    mock.patch.object(
+                        LEDGER,
+                        "_validate_live_allocation_ledger_with_index",
+                        wraps=full_validator,
+                    ) as full_spy,
+                ):
+                    store.allocation_intent(append_role)
+
+                self.assertEqual(transition_spy.call_count, 1)
+                full_spy.assert_not_called()
 
     def test_open_validate_checkpoint_close_and_disarmed_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -653,10 +703,50 @@ class NativeLiveAllocationLedgerTests(unittest.TestCase):
                 )
             self.assertEqual(store.path.read_bytes(), state_before)
             self.assertEqual(store.audit_file.read_bytes(), audit_before)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "ledger-store-not-open"
+            ):
+                store._thread_binding("thread-0")
+            store.open()
             self.assertEqual(
                 store._thread_binding("thread-0")[1:3], (second_intent, "turn-1")
             )
             self.assertEqual(store.checkpoint()["sequence"], 6)
+
+    def test_lifecycle_turn_id_rejects_non_string_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(Path(temporary) / "private-ledger")
+            store.initialize(bindings())
+            allocation = store.allocation_intent("read-only-0")
+            store.bind_thread(allocation, "thread-0")
+            turn_intent = store.turn_intent("thread-0")
+            store.bind_turn("thread-0", turn_intent, "7")
+            ledger_before = store.path.read_bytes()
+            audit_before = store.audit_file.read_bytes()
+
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "lifecycle-turn-invalid"
+            ):
+                store._append(
+                    event="archive-observed",
+                    role="read-only-0",
+                    ordinal=EXPECTED_ROLES.index("read-only-0"),
+                    allocation_intent_id=allocation,
+                    thread_id="thread-0",
+                    turn_intent_id=turn_intent,
+                    turn_id=7,
+                    outcome="archived",
+                )
+            self.assertEqual(store.path.read_bytes(), ledger_before)
+            self.assertEqual(store.audit_file.read_bytes(), audit_before)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "ledger-store-not-open"
+            ):
+                store.has_lifecycle("thread-0", "archive-observed")
+
+            store.open()
+            store.record_lifecycle("thread-0", "archive-observed", "archived")
+            self.assertTrue(store.has_lifecycle("thread-0", "archive-observed"))
 
     def test_legacy_wire_hash_and_summary_golden_vector(self) -> None:
         fixed_bindings = bindings()

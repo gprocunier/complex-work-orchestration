@@ -924,7 +924,11 @@ def _validate_entry_transition(
                 errors.append(
                     f"ledger-entry-{index_number}-lifecycle-turn-intent-invalid"
                 )
-        if turn_id is not None and not semantic_index.turn_bound(str(turn_id)):
+        if turn_id is not None and (
+            not isinstance(turn_id, str)
+            or not turn_id
+            or not semantic_index.turn_bound(turn_id)
+        ):
             errors.append(f"ledger-entry-{index_number}-lifecycle-turn-invalid")
         if event == "containment-audited" and not _is_hash(evidence_sha256):
             errors.append(f"ledger-entry-{index_number}-containment-evidence-invalid")
@@ -1331,7 +1335,6 @@ class NativeLiveAllocationLedgerStore:
         try:
             with self._instance_lock:
                 with _exclusive_lock(self.lock_path):
-                    side_effects_started = False
                     try:
                         state, trusted, semantic_index, _audit_tail = (
                             self._require_trusted_locked()
@@ -1386,7 +1389,6 @@ class NativeLiveAllocationLedgerStore:
                         # Every remaining operation can mutate durable state. Trust is
                         # deliberately absent until both writes and their identities
                         # have been verified.
-                        side_effects_started = True
                         self._disarm()
                         audit = record_audit_event(
                             {
@@ -1467,8 +1469,7 @@ class NativeLiveAllocationLedgerStore:
                         success = True
                         return dict(entry)
                     except BaseException:
-                        if side_effects_started:
-                            self._disarm()
+                        self._disarm()
                         raise
         finally:
             self._add_metrics(
