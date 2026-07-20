@@ -126,7 +126,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_progress": {"native_authority", "native_stop_scope", "policy"},
     "checked_command": set(),
     "checked_command_sequence": {"checked_command"},
-    "work_sizing": {"checked_command", "native_containment", "native_precommit", "policy"},
+    "work_sizing": {"checked_command", "native_authority", "native_containment", "native_precommit", "policy"},
     "epic_convergence": set(),
     "public_copy": set(),
     "errors": set(),

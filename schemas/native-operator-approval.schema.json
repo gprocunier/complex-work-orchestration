@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/native-operator-approval.schema.json",
+  "title": "Native Operator Protected Change Approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "approval_type",
+    "version",
+    "approval_id",
+    "change_type",
+    "before_sha256",
+    "after_sha256",
+    "actor_id",
+    "identity_source",
+    "authorized_scope",
+    "parent_receipt_sha256",
+    "issued_at",
+    "expires_at",
+    "nonce",
+    "signature"
+  ],
+  "properties": {
+    "approval_type": {
+      "const": "cwo-operator-protected-change-approval"
+    },
+    "version": {
+      "const": 1
+    },
+    "approval_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "change_type": {
+      "enum": [
+        "aggregate-budget-increase",
+        "model-substitution",
+        "objective-change",
+        "security-or-authority-change",
+        "tainted-mutation-acceptance",
+        "contradictory-validation"
+      ]
+    },
+    "before_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "after_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "actor_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authorized_scope": {
+      "enum": [
+        "complete-task",
+        "publication"
+      ]
+    },
+    "parent_receipt_sha256": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

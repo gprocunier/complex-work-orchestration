@@ -12,7 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_authority import (  # noqa: E402
+    OPERATOR_APPROVAL_TYPE,
+    OperatorApprovalVerifier,
     canonical_authority_sha256,
+    protected_change_snapshot,
     trusted_actor_authority,
     verify_operator_directive,
 )
@@ -109,6 +112,8 @@ def transition_replanning_state(
     event: str,
     evidence,
     *,
+    operator_approval_verifier: OperatorApprovalVerifier | None = None,
+    operator_approval_receipts: dict | None = None,
     policy: dict | None = None,
 ) -> dict:
     return _transition_replanning_state(
@@ -116,6 +121,8 @@ def transition_replanning_state(
         event,
         evidence,
         caller_authority=_authority_for_event(event),
+        operator_approval_verifier=operator_approval_verifier,
+        operator_approval_receipts=operator_approval_receipts,
         policy=policy,
     )
 
@@ -174,6 +181,43 @@ def _state_with_overrides(overrides: dict | None = None) -> dict:
     if overrides:
         payload.update(overrides)
     return build_replanning_state(payload)
+
+
+def _protected_change_approval(
+    key: bytes,
+    before: dict,
+    after: dict,
+    *,
+    change_type: str,
+    nonce: str = "replanning-protected-change-nonce",
+) -> dict:
+    body = {
+        "approval_type": OPERATOR_APPROVAL_TYPE,
+        "version": 1,
+        "approval_id": f"replanning-{change_type}",
+        "change_type": change_type,
+        "before_sha256": canonical_authority_sha256(before),
+        "after_sha256": canonical_authority_sha256(after),
+        "actor_id": "operator-1",
+        "identity_source": "trusted-control-session",
+        "authorized_scope": "complete-task",
+        "parent_receipt_sha256": None,
+        "issued_at": "2026-07-20T00:00:00Z",
+        "expires_at": "2026-07-20T00:10:00Z",
+        "nonce": nonce,
+    }
+    body["signature"] = hmac.new(
+        key,
+        json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return body
 
 
 def _needs_replan_evidence(*, decision: str = "pm-refine", uncertainty_class: str = "bounded") -> dict:
@@ -243,6 +287,152 @@ class NativeReplanningTest(unittest.TestCase):
             {"requires_architect_cycle": False},
         )
         self.assertEqual(reassignment["state"], "reassignment-ready")
+
+    def test_pm_refinement_rejects_protected_change_without_verified_approval(self) -> None:
+        pm_state = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        evidence = {
+            "requires_architect_cycle": False,
+            "proposed_changes": {"objective": "publish repaired CWO"},
+        }
+        with self.assertRaisesRegex(ValueError, "verified operator approval"):
+            transition_replanning_state(pm_state, "pm-refined", evidence)
+        with self.assertRaisesRegex(ValueError, "verified operator approval"):
+            _transition_replanning_state(
+                pm_state,
+                "pm-refined",
+                evidence,
+                caller_authority=_trusted_authority("pm"),
+                operator_approval_verifier="operator",
+                operator_approval_receipts={"objective-change": "approved"},
+            )
+
+    def test_pm_refinement_accepts_exact_operator_approval_and_records_audit(self) -> None:
+        pm_state = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        evidence = {
+            "requires_architect_cycle": False,
+            "proposed_changes": {"objective": "publish repaired CWO"},
+        }
+        candidate = copy.deepcopy(pm_state)
+        candidate["objective"] = evidence["proposed_changes"]["objective"]
+        before = protected_change_snapshot(pm_state)
+        after = protected_change_snapshot(candidate)
+        key = b"test-only-replanning-protected-change-key"
+        receipt = _protected_change_approval(
+            key,
+            before,
+            after,
+            change_type="objective-change",
+        )
+        consumed: set[str] = set()
+        verifier = OperatorApprovalVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            consumed_nonces=consumed,
+            now="2026-07-20T00:05:00Z",
+        )
+        result = transition_replanning_state(
+            pm_state,
+            "pm-refined",
+            evidence,
+            operator_approval_verifier=verifier,
+            operator_approval_receipts={"objective-change": receipt},
+        )
+        self.assertEqual(result["objective"], "publish repaired CWO")
+        self.assertIn("operator-approved:objective-change", result["reason_codes"])
+        self.assertEqual(
+            [item["change_type"] for item in result["protected_change_authorizations"]],
+            ["objective-change"],
+        )
+        self.assertEqual(
+            result["cwo_native_replanning_receipt"][
+                "protected_change_authorizations"
+            ],
+            result["protected_change_authorizations"],
+        )
+        self.assertEqual(consumed, {"replanning-protected-change-nonce"})
+
+    def test_protected_replanning_approval_is_exact_and_nonreplayable(self) -> None:
+        pm_state = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        evidence = {
+            "requires_architect_cycle": False,
+            "proposed_changes": {"requested_model": "gpt-5.6-sol"},
+        }
+        candidate = copy.deepcopy(pm_state)
+        candidate["requested_model"] = "gpt-5.6-sol"
+        before = protected_change_snapshot(pm_state)
+        after = protected_change_snapshot(candidate)
+        key = b"test-only-replanning-protected-change-key"
+        receipt = _protected_change_approval(
+            key,
+            before,
+            after,
+            change_type="model-substitution",
+        )
+        verifier = OperatorApprovalVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            now="2026-07-20T00:05:00Z",
+        )
+        result = transition_replanning_state(
+            pm_state,
+            "pm-refined",
+            evidence,
+            operator_approval_verifier=verifier,
+            operator_approval_receipts={"model-substitution": receipt},
+        )
+        self.assertEqual(result["requested_model"], "gpt-5.6-sol")
+        with self.assertRaisesRegex(ValueError, "replayed"):
+            transition_replanning_state(
+                pm_state,
+                "pm-refined",
+                evidence,
+                operator_approval_verifier=verifier,
+                operator_approval_receipts={"model-substitution": receipt},
+            )
+
+    def test_pm_can_narrow_budget_without_operator_but_cannot_use_wrong_event(self) -> None:
+        pm_state = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        result = transition_replanning_state(
+            pm_state,
+            "pm-refined",
+            {
+                "requires_architect_cycle": False,
+                "proposed_changes": {
+                    "aggregate_allowance": {
+                        "tool_calls_hard": 90,
+                        "runtime_seconds_hard": 350,
+                    }
+                },
+            },
+        )
+        self.assertEqual(result["aggregate_allowance"]["tool_calls_hard"], 90)
+        with self.assertRaisesRegex(ValueError, "only for refinement events"):
+            transition_replanning_state(
+                _state_with_overrides(),
+                "completed",
+                {
+                    "completed": True,
+                    "proposed_changes": {"objective": "different"},
+                },
+            )
 
     def test_typed_needs_replan_routes_material_reasoning_to_architect(self) -> None:
         result = transition_replanning_state(
@@ -508,3 +698,11 @@ class NativeReplanningTest(unittest.TestCase):
         self.assertEqual(state["version"], 2)
         self.assertIn("authority_provenance", state)
         self.assertEqual(state["schema"], "schemas/native-replanning-state.schema.json")
+
+        weakened = copy.deepcopy(policy)
+        weakened_replanning = weakened["work_sizing"]["enforcement"][
+            "foundation-canary"
+        ]["autonomous_replanning"]
+        weakened_replanning["operator_required_for"].remove("objective-change")
+        with self.assertRaisesRegex(ValueError, "every supported protected change"):
+            build_replanning_state(_base_state(), policy=weakened)

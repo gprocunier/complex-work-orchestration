@@ -10,6 +10,20 @@ from math import isfinite
 from typing import Any
 
 from cwo_core.policy import load_policy
+from cwo_core.native_authority import (
+    OPERATOR_APPROVAL_FIELDS,
+    OPERATOR_REQUIRED_CHANGE_TYPES,
+    AuthorityProvenanceError,
+    OperatorApprovalVerifier,
+    VerifiedAuthority,
+    canonical_authority_sha256,
+    classify_operator_required_changes,
+    is_sha256,
+    protected_change_snapshot,
+    require_minimum_authority,
+    validate_authority_provenance,
+    validate_operator_approval_audit,
+)
 from cwo_core.native_containment import containment_error, require_native_operative_dispatch
 from cwo_core.native_precommit import validate_precommit_receipt
 
@@ -162,6 +176,12 @@ COMMITMENT_V2_REQUIRED_FIELDS = (
 
 COMMITMENT_DECISIONS = ("accept", "pm-realignment", "architect-realignment")
 COMMITMENT_ESTIMATE_KEYS = ("tool_calls_p50", "tool_calls_p90", "runtime_seconds_p50", "runtime_seconds_p90")
+REFINEMENT_LINEAGE_FIELDS = (
+    "parent_estimate_sha256",
+    "refinement_authority",
+    "operator_approval_receipts",
+    "protected_change_authorizations",
+)
 
 
 def _route_priority(route: str) -> int:
@@ -833,6 +853,79 @@ def _commitment_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
     return _ensure_mapping(foundation.get("commitment"), label="work_sizing.enforcement.foundation-canary.commitment")
 
 
+def _validate_refinement_lineage_shape(payload: Mapping[str, Any]) -> None:
+    present = {field for field in REFINEMENT_LINEAGE_FIELDS if field in payload}
+    if not present:
+        return
+    if present != set(REFINEMENT_LINEAGE_FIELDS):
+        missing = sorted(set(REFINEMENT_LINEAGE_FIELDS) - present)
+        raise ValueError(
+            "malformed source payload: refinement lineage missing field(s) "
+            + ", ".join(missing)
+        )
+    if not is_sha256(payload.get("parent_estimate_sha256")):
+        raise ValueError(
+            "malformed source payload: parent_estimate_sha256 must be a lowercase SHA-256 hex digest"
+        )
+    authority_errors = validate_authority_provenance(
+        payload.get("refinement_authority")
+    )
+    if authority_errors:
+        raise ValueError(
+            "malformed source payload: refinement_authority invalid: "
+            + "; ".join(authority_errors)
+        )
+    receipts = payload.get("operator_approval_receipts")
+    if not isinstance(receipts, Mapping):
+        raise ValueError(
+            "malformed source payload: operator_approval_receipts must be an object"
+        )
+    for change_type, receipt in receipts.items():
+        if not isinstance(change_type, str) or not change_type:
+            raise ValueError(
+                "malformed source payload: operator approval receipt key invalid"
+            )
+        if not isinstance(receipt, Mapping) or set(receipt) != OPERATOR_APPROVAL_FIELDS:
+            raise ValueError(
+                f"malformed source payload: operator approval receipt {change_type} fields invalid"
+            )
+        if receipt.get("change_type") != change_type:
+            raise ValueError(
+                f"malformed source payload: operator approval receipt {change_type} key mismatch"
+            )
+    authorizations = payload.get("protected_change_authorizations")
+    if not isinstance(authorizations, list):
+        raise ValueError(
+            "malformed source payload: protected_change_authorizations must be an array"
+        )
+    audit_change_types: list[str] = []
+    for index, audit in enumerate(authorizations):
+        audit_errors = validate_operator_approval_audit(audit)
+        if audit_errors:
+            raise ValueError(
+                f"malformed source payload: protected_change_authorizations[{index}] invalid: "
+                + "; ".join(audit_errors)
+            )
+        audit_change_types.append(str(audit["change_type"]))
+        receipt = receipts.get(audit["change_type"])
+        if not isinstance(receipt, Mapping):
+            raise ValueError(
+                f"malformed source payload: protected_change_authorizations[{index}] receipt missing"
+            )
+        if audit.get("receipt_sha256") != canonical_authority_sha256(receipt):
+            raise ValueError(
+                f"malformed source payload: protected_change_authorizations[{index}] receipt hash mismatch"
+            )
+    if len(audit_change_types) != len(set(audit_change_types)):
+        raise ValueError(
+            "malformed source payload: protected_change_authorizations change types must be unique"
+        )
+    if set(audit_change_types) != set(receipts):
+        raise ValueError(
+            "malformed source payload: operator approval receipts and audit categories differ"
+        )
+
+
 def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
     if payload.get("estimate_type") != "cwo-native-work-estimate":
         raise ValueError("malformed source payload: estimate_type must be cwo-native-work-estimate")
@@ -851,6 +944,7 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
     _ensure_list(payload.get("acceptance_checks"), path="acceptance_checks")
     estimates = _ensure_mapping(payload.get("estimates"), label="estimates")
     scores = _ensure_mapping(payload.get("scores"), label="scores")
+    _validate_refinement_lineage_shape(payload)
     for dimension in DIMENSIONS:
         _ensure_int(scores.get(dimension), path=f"scores.{dimension}", minimum=0, maximum=3)
 
@@ -1323,11 +1417,23 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     return estimate
 
 
-def validate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None) -> list[str]:
+def validate_work_estimate(
+    payload: Any,
+    policy: Mapping[str, Any] | None = None,
+    *,
+    allow_refinement_inspection: bool = False,
+) -> list[str]:
     source = deepcopy(payload)
     errors: list[str] = []
     if not isinstance(source, Mapping):
         return ["malformed source payload: source must be a mapping"]
+    if (
+        any(field in source for field in REFINEMENT_LINEAGE_FIELDS)
+        and not allow_refinement_inspection
+    ):
+        return [
+            "refined work estimate requires validate_work_estimate_refinement before operative use"
+        ]
 
     try:
         computed = evaluate_work_estimate(source, policy=policy)
@@ -1377,6 +1483,222 @@ def validate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
 def canonical_work_estimate_sha256(work_estimate: Any) -> str:
     canonical = json.dumps(_ensure_mapping(work_estimate, label="work_estimate"), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _refinement_operator_policy(
+    policy: Mapping[str, Any] | None,
+) -> tuple[Mapping[str, Any], list[str]]:
+    work_sizing = _load_work_sizing_policy(policy)
+    replanning = _autonomous_replanning(work_sizing)
+    configured = _ensure_list(
+        replanning.get("operator_required_for"),
+        path="work_sizing.autonomous_replanning.operator_required_for",
+    )
+    if (
+        not configured
+        or any(not isinstance(value, str) or not value for value in configured)
+        or len(configured) != len(set(configured))
+        or set(configured) != set(OPERATOR_REQUIRED_CHANGE_TYPES)
+    ):
+        raise ValueError(
+            "malformed policy: operator_required_for must contain every supported "
+            "protected change category exactly once"
+        )
+    return work_sizing, list(configured)
+
+
+def build_work_estimate_refinement(
+    parent_estimate: Any,
+    refined_payload: Any,
+    *,
+    refinement_authority: VerifiedAuthority,
+    operator_approval_verifier: OperatorApprovalVerifier | None = None,
+    operator_approval_receipts: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a strict-write refinement bound to its parent and trusted actor."""
+
+    parent = deepcopy(_ensure_mapping(parent_estimate, label="parent_estimate"))
+    parent_errors = validate_work_estimate(
+        parent,
+        policy=policy,
+        allow_refinement_inspection=True,
+    )
+    if parent_errors:
+        raise ValueError("invalid parent_estimate: " + "; ".join(parent_errors))
+    source = deepcopy(_ensure_mapping(refined_payload, label="refined_payload"))
+    supplied_lineage = sorted(set(source) & set(REFINEMENT_LINEAGE_FIELDS))
+    if supplied_lineage:
+        raise ValueError(
+            "refined_payload cannot supply verifier-owned lineage field(s): "
+            + ", ".join(supplied_lineage)
+        )
+    try:
+        require_minimum_authority(
+            refinement_authority,
+            "pm",
+            action="work-estimate-refinement",
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
+    for identity_field in ("work_unit_id", "bead_id"):
+        if source.get(identity_field) != parent.get(identity_field):
+            raise ValueError(
+                f"refined_payload.{identity_field} must match parent_estimate.{identity_field}"
+            )
+
+    candidate = evaluate_work_estimate(source, policy=policy)
+    candidate["parent_estimate_sha256"] = canonical_work_estimate_sha256(parent)
+    candidate["refinement_authority"] = refinement_authority.serialize()
+    before_snapshot = protected_change_snapshot(parent)
+    after_snapshot = protected_change_snapshot(candidate)
+    _, operator_required_for = _refinement_operator_policy(policy)
+    try:
+        protected_changes = classify_operator_required_changes(
+            before_snapshot,
+            after_snapshot,
+            operator_required_for,
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
+
+    if operator_approval_receipts is not None and not isinstance(
+        operator_approval_receipts, Mapping
+    ):
+        raise ValueError("operator_approval_receipts must be an object")
+    receipts = deepcopy(dict(operator_approval_receipts or {}))
+    approvals = []
+    if protected_changes:
+        if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
+            raise ValueError(
+                "work-estimate refinement requires a verified operator approval for: "
+                + ",".join(protected_changes)
+            )
+        try:
+            approvals = operator_approval_verifier.authorize_changes(
+                before_snapshot,
+                after_snapshot,
+                operator_required_for=operator_required_for,
+                receipts=receipts,
+                prior_nonces={
+                    str(approval["nonce"])
+                    for approval in parent.get(
+                        "protected_change_authorizations", []
+                    )
+                },
+            )
+        except AuthorityProvenanceError as exc:
+            raise ValueError(str(exc)) from exc
+    elif receipts:
+        raise ValueError("work-estimate refinement contains unexpected operator approvals")
+
+    candidate["operator_approval_receipts"] = receipts
+    candidate["protected_change_authorizations"] = [
+        approval.audit_record() for approval in approvals
+    ]
+    lineage_errors = validate_work_estimate(
+        candidate,
+        policy=policy,
+        allow_refinement_inspection=True,
+    )
+    if lineage_errors:
+        raise ValueError("invalid work-estimate refinement: " + "; ".join(lineage_errors))
+    return candidate
+
+
+def validate_work_estimate_refinement(
+    refinement: Any,
+    parent_estimate: Any,
+    *,
+    refinement_authority: VerifiedAuthority,
+    operator_approval_verifier: OperatorApprovalVerifier | None = None,
+    policy: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Validate a refinement chain before it can drive a new operative write."""
+
+    errors: list[str] = []
+    if not isinstance(refinement, Mapping) or not isinstance(parent_estimate, Mapping):
+        return ["work-estimate refinement and parent must be objects"]
+    parent = deepcopy(dict(parent_estimate))
+    candidate = deepcopy(dict(refinement))
+    errors.extend(
+        "invalid parent_estimate: " + error
+        for error in validate_work_estimate(
+            parent,
+            policy=policy,
+            allow_refinement_inspection=True,
+        )
+    )
+    errors.extend(
+        "invalid refinement: " + error
+        for error in validate_work_estimate(
+            candidate,
+            policy=policy,
+            allow_refinement_inspection=True,
+        )
+    )
+    if errors:
+        return errors
+    if candidate.get("parent_estimate_sha256") != canonical_work_estimate_sha256(
+        parent
+    ):
+        errors.append("refinement parent_estimate_sha256 does not match parent")
+    try:
+        require_minimum_authority(
+            refinement_authority,
+            "pm",
+            action="work-estimate-refinement",
+        )
+    except AuthorityProvenanceError as exc:
+        errors.append(str(exc))
+    else:
+        if candidate.get("refinement_authority") != refinement_authority.serialize():
+            errors.append("refinement authority does not match verified caller authority")
+    if candidate.get("work_unit_id") != parent.get("work_unit_id"):
+        errors.append("refinement work_unit_id does not match parent")
+    if candidate.get("bead_id") != parent.get("bead_id"):
+        errors.append("refinement bead_id does not match parent")
+    if errors:
+        return errors
+
+    before_snapshot = protected_change_snapshot(parent)
+    after_snapshot = protected_change_snapshot(candidate)
+    try:
+        _, operator_required_for = _refinement_operator_policy(policy)
+        protected_changes = classify_operator_required_changes(
+            before_snapshot,
+            after_snapshot,
+            operator_required_for,
+        )
+        if protected_changes:
+            if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
+                errors.append(
+                    "refinement operator approval verifier required for: "
+                    + ",".join(protected_changes)
+                )
+            else:
+                approvals = operator_approval_verifier.authorize_changes(
+                    before_snapshot,
+                    after_snapshot,
+                    operator_required_for=operator_required_for,
+                    receipts=candidate.get("operator_approval_receipts"),
+                    prior_nonces={
+                        str(approval["nonce"])
+                        for approval in parent.get(
+                            "protected_change_authorizations", []
+                        )
+                    },
+                )
+                expected_audit = [approval.audit_record() for approval in approvals]
+                if candidate.get("protected_change_authorizations") != expected_audit:
+                    errors.append("refinement operator approval audit mismatch")
+        elif candidate.get("operator_approval_receipts") or candidate.get(
+            "protected_change_authorizations"
+        ):
+            errors.append("refinement contains unexpected operator approvals")
+    except (AuthorityProvenanceError, ValueError) as exc:
+        errors.append(str(exc))
+    return errors
 
 
 def build_policy_fit_commitment(

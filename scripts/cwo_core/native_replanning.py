@@ -5,11 +5,16 @@ from collections.abc import Mapping
 from typing import Any
 
 from .native_authority import (
+    OPERATOR_REQUIRED_CHANGE_TYPES,
     AuthorityProvenanceError,
+    OperatorApprovalVerifier,
     VerifiedAuthority,
     build_reason_records,
+    classify_operator_required_changes,
+    protected_change_snapshot,
     require_minimum_authority,
     validate_authority_provenance,
+    validate_operator_approval_audit,
 )
 from .policy import load_policy
 
@@ -102,6 +107,9 @@ NEEDS_REPLAN_REASONS = {
 }
 NEEDS_REPLAN_DECISIONS = {"pm-refine", "architect-reasoning", "reassign-spark"}
 NEEDS_REPLAN_ROUTES = NEEDS_REPLAN_DECISIONS | {"protected-stop"}
+PROTECTED_REPLANNING_CHANGE_FIELDS = frozenset(
+    {"objective", "requested_model", "security_context", "aggregate_allowance"}
+)
 
 
 def _valid_string_list(value: Any, *, nonempty: bool = False) -> bool:
@@ -390,6 +398,14 @@ def _normalize_autonomous_policy(payload: Mapping[str, Any] | None) -> dict[str,
         path="policy.autonomous_replanning.operator_required_for",
         allow_empty=False,
     )
+    if (
+        len(operator_required_for) != len(set(operator_required_for))
+        or set(operator_required_for) != set(OPERATOR_REQUIRED_CHANGE_TYPES)
+    ):
+        raise ValueError(
+            "malformed policy: autonomous_replanning.operator_required_for must "
+            "contain every supported protected change category exactly once"
+        )
 
     main_thread_payload = _ensure_mapping(
         autonomous.get("main_thread_effort"),
@@ -784,6 +800,9 @@ def _emit_receipt(
             authority,
             detected_by=f"native-replanning:{event}",
         ),
+        "protected_change_authorizations": copy.deepcopy(
+            state["protected_change_authorizations"]
+        ),
         "decision": decision,
         "reason_codes": reason_codes,
         "work_unit_id": state["work_unit_id"],
@@ -874,6 +893,103 @@ def _check_aggregate_allowance(state: Mapping[str, Any]) -> list[str]:
     return reasons
 
 
+def _apply_operator_protected_refinement(
+    state: dict[str, Any],
+    proposed_changes: Any,
+    *,
+    policy: Mapping[str, Any],
+    operator_approval_verifier: OperatorApprovalVerifier | None,
+    operator_approval_receipts: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    changes = _ensure_mapping(proposed_changes, path="evidence.proposed_changes")
+    unknown = sorted(set(changes) - PROTECTED_REPLANNING_CHANGE_FIELDS)
+    if unknown:
+        raise ValueError(
+            "malformed evidence: proposed_changes has unsupported field(s): "
+            + ",".join(unknown)
+        )
+    if not changes:
+        raise ValueError("malformed evidence: proposed_changes must not be empty")
+
+    candidate = copy.deepcopy(state)
+    if "objective" in changes:
+        candidate["objective"] = _ensure_nonempty_str(
+            changes["objective"], path="evidence.proposed_changes.objective"
+        )
+    if "requested_model" in changes:
+        candidate["requested_model"] = _ensure_nonempty_str(
+            changes["requested_model"],
+            path="evidence.proposed_changes.requested_model",
+        )
+    if "security_context" in changes:
+        candidate["security_context"] = _ensure_nonempty_str(
+            changes["security_context"],
+            path="evidence.proposed_changes.security_context",
+        )
+    if "aggregate_allowance" in changes:
+        allowance = _ensure_mapping(
+            changes["aggregate_allowance"],
+            path="evidence.proposed_changes.aggregate_allowance",
+        )
+        expected_allowance_fields = {"tool_calls_hard", "runtime_seconds_hard"}
+        if set(allowance) != expected_allowance_fields:
+            raise ValueError(
+                "malformed evidence: proposed aggregate_allowance must contain exactly "
+                "tool_calls_hard and runtime_seconds_hard"
+            )
+        candidate["aggregate_allowance"] = _normalize_allowance(
+            allowance,
+            policy=policy,
+            path="evidence.proposed_changes.aggregate_allowance",
+        )
+        if _check_aggregate_allowance(candidate):
+            raise ValueError(
+                "malformed evidence: proposed aggregate allowance is below cumulative usage"
+            )
+    if all(candidate.get(field) == state.get(field) for field in changes):
+        raise ValueError("malformed evidence: proposed_changes is an idempotent no-op")
+
+    before_snapshot = protected_change_snapshot(state)
+    after_snapshot = protected_change_snapshot(candidate)
+    try:
+        protected_changes = classify_operator_required_changes(
+            before_snapshot,
+            after_snapshot,
+            policy["operator_required_for"],
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
+    receipts = operator_approval_receipts or {}
+    approvals = []
+    if protected_changes:
+        if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
+            raise ValueError(
+                "verified operator approval required for: "
+                + ",".join(protected_changes)
+            )
+        try:
+            approvals = operator_approval_verifier.authorize_changes(
+                before_snapshot,
+                after_snapshot,
+                operator_required_for=policy["operator_required_for"],
+                receipts=receipts,
+                prior_nonces={
+                    str(approval["nonce"])
+                    for approval in state["protected_change_authorizations"]
+                },
+            )
+        except AuthorityProvenanceError as exc:
+            raise ValueError(str(exc)) from exc
+    elif receipts:
+        raise ValueError("operator approval receipts are unexpected for this refinement")
+
+    for field in changes:
+        state[field] = copy.deepcopy(candidate[field])
+    audit = [approval.audit_record() for approval in approvals]
+    state["protected_change_authorizations"].extend(audit)
+    return audit
+
+
 def build_replanning_state(
     state: Any,
     *,
@@ -934,6 +1050,7 @@ def build_replanning_state(
         "mutation": mutation,
         "main_thread": main_thread,
         "reason_codes": _ensure_list(source.get("reason_codes", []), path="state.reason_codes"),
+        "protected_change_authorizations": [],
         "next_action": str(source.get("next_action", "wait")),
         "policy_snapshot": {
             "dispatch_soft_cap": policy_data["dispatch_soft_cap"],
@@ -970,6 +1087,32 @@ def _validate_replanning_state(state: Mapping[str, Any]) -> None:
             "malformed state: authority_provenance invalid: "
             + ";".join(authority_errors)
         )
+    approval_audit = state.get("protected_change_authorizations")
+    if not isinstance(approval_audit, list):
+        raise ValueError(
+            "malformed state: protected_change_authorizations must be an array"
+        )
+    seen_approval_nonces: set[str] = set()
+    for index, approval in enumerate(approval_audit):
+        approval_errors = validate_operator_approval_audit(approval)
+        if approval_errors:
+            raise ValueError(
+                f"malformed state: protected_change_authorizations[{index}] invalid: "
+                + ";".join(approval_errors)
+            )
+        nonce = str(approval["nonce"])
+        if nonce in seen_approval_nonces:
+            raise ValueError(
+                "malformed state: protected change authorization nonce replayed"
+            )
+        seen_approval_nonces.add(nonce)
+    receipt = state.get("cwo_native_replanning_receipt")
+    if not isinstance(receipt, Mapping):
+        raise ValueError("malformed state: replanning receipt must be an object")
+    if receipt.get("protected_change_authorizations") != approval_audit:
+        raise ValueError(
+            "malformed state: replanning receipt protected approvals do not match state"
+        )
 
 
 def read_replanning_state(state: Any) -> dict[str, Any]:
@@ -999,6 +1142,8 @@ def transition_replanning_state(
     evidence: Any,
     *,
     caller_authority: VerifiedAuthority,
+    operator_approval_verifier: OperatorApprovalVerifier | None = None,
+    operator_approval_receipts: Mapping[str, Any] | None = None,
     policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = _ensure_mapping(state, path="state")
@@ -1027,6 +1172,16 @@ def transition_replanning_state(
     next_state = copy.deepcopy(source)
     next_state["authority_provenance"] = caller_authority.serialize()
     evidence_payload = _ensure_mapping(evidence, path="evidence")
+    proposed_changes = evidence_payload.get("proposed_changes")
+    if proposed_changes is not None and normalized_event not in {
+        EVENT_PM_REFINED,
+        EVENT_ARCHITECT_REFINED,
+    }:
+        raise ValueError(
+            "malformed evidence: proposed_changes is valid only for refinement events"
+        )
+    if operator_approval_receipts and proposed_changes is None:
+        raise ValueError("operator approval receipts require proposed_changes")
 
     next_state["policy_snapshot"] = {
         "dispatch_soft_cap": policy_data["dispatch_soft_cap"],
@@ -1318,6 +1473,17 @@ def transition_replanning_state(
         requires_architect = evidence_payload.get("requires_architect_cycle", False)
         if not isinstance(requires_architect, bool):
             raise ValueError("malformed evidence: requires_architect_cycle must be a boolean")
+        approval_audit = (
+            _apply_operator_protected_refinement(
+                next_state,
+                proposed_changes,
+                policy=policy_data,
+                operator_approval_verifier=operator_approval_verifier,
+                operator_approval_receipts=operator_approval_receipts,
+            )
+            if proposed_changes is not None
+            else []
+        )
         next_state["state"] = "architect-realignment" if requires_architect else "reassignment-ready"
         next_state["next_action"] = (
             "request-architect-refinement"
@@ -1328,7 +1494,10 @@ def transition_replanning_state(
                 else "operator-resume"
             )
         )
-        next_state["reason_codes"] = ["pm-refined"]
+        next_state["reason_codes"] = ["pm-refined"] + [
+            f"operator-approved:{approval['change_type']}"
+            for approval in approval_audit
+        ]
         next_state["cwo_native_replanning_receipt"] = _emit_receipt(
             state_before=current_state,
             state_after=next_state["state"],
@@ -1345,12 +1514,26 @@ def transition_replanning_state(
             raise ValueError("malformed event: architect-refined is valid only from architect-realignment")
         if next_state["counters"]["architect_cycles_used"] >= policy_data["max_architect_cycles"]:
             return protected_stop(["architect-cycle-exhausted"])
+        approval_audit = (
+            _apply_operator_protected_refinement(
+                next_state,
+                proposed_changes,
+                policy=policy_data,
+                operator_approval_verifier=operator_approval_verifier,
+                operator_approval_receipts=operator_approval_receipts,
+            )
+            if proposed_changes is not None
+            else []
+        )
         next_state["counters"]["architect_cycles_used"] += 1
         next_state["state"] = "reassignment-ready"
         next_state["next_action"] = (
             "fresh-worker-assignment" if policy_data["fresh_worker_reassignment_required"] else "operator-resume"
         )
-        next_state["reason_codes"] = ["architect-refined"]
+        next_state["reason_codes"] = ["architect-refined"] + [
+            f"operator-approved:{approval['change_type']}"
+            for approval in approval_audit
+        ]
         next_state["cwo_native_replanning_receipt"] = _emit_receipt(
             state_before=current_state,
             state_after="reassignment-ready",

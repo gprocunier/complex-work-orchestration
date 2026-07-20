@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import hmac
 import json
 import sys
 import tempfile
@@ -11,10 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import cwo_core.work_sizing as work_sizing  # noqa: E402
 
+from cwo_core.native_authority import (  # noqa: E402
+    OPERATOR_APPROVAL_TYPE,
+    OperatorApprovalVerifier,
+    canonical_authority_sha256,
+    protected_change_snapshot,
+    trusted_actor_authority,
+)
 from cwo_core.work_sizing import DIMENSIONS, evaluate_work_estimate, validate_work_estimate  # noqa: E402
 from cwo_core.work_sizing import (  # noqa: E402
     build_policy_fit_commitment,
+    build_work_estimate_refinement,
     canonical_work_estimate_sha256,
+    validate_work_estimate_refinement,
     validate_worker_commitment,
 )
 
@@ -228,6 +239,59 @@ def _valid_commitment_payload(work_estimate):
         "context_compactions_before_commitment": 0,
         "reason": "fit confirmed against trust-bound metrics",
     }
+
+
+def _refinement_authority(level: str = "pm"):
+    source_type, actor_role = {
+        "worker": ("worker-discovery", "operative-worker"),
+        "pm": ("pm-observation", "project-manager"),
+        "architect": ("architect-judgment", "architect"),
+    }[level]
+    return trusted_actor_authority(
+        source_type=source_type,
+        source_id=f"{level}-work-estimate-session",
+        source_sha256=canonical_authority_sha256({"session": level}),
+        actor_id=f"{level}-1",
+        actor_role=actor_role,
+        identity_source="trusted-session-jsonl",
+    )
+
+
+def _operator_approval(
+    key: bytes,
+    before: dict,
+    after: dict,
+    *,
+    change_type: str,
+    nonce: str = "work-estimate-approval-nonce",
+) -> dict:
+    body = {
+        "approval_type": OPERATOR_APPROVAL_TYPE,
+        "version": 1,
+        "approval_id": f"work-estimate-{change_type}",
+        "change_type": change_type,
+        "before_sha256": canonical_authority_sha256(before),
+        "after_sha256": canonical_authority_sha256(after),
+        "actor_id": "operator-1",
+        "identity_source": "trusted-control-session",
+        "authorized_scope": "complete-task",
+        "parent_receipt_sha256": None,
+        "issued_at": "2026-07-20T00:00:00Z",
+        "expires_at": "2026-07-20T00:10:00Z",
+        "nonce": nonce,
+    }
+    body["signature"] = hmac.new(
+        key,
+        json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return body
 
 
 class NativeWorkSizingTest(unittest.TestCase):
@@ -924,6 +988,131 @@ class NativeWorkSizingTest(unittest.TestCase):
             "derived check failed: authority_route must equal computed authority_route",
             validate_work_estimate(result, policy=_v2_policy()),
         )
+
+    def test_work_estimate_refinement_binds_parent_and_verified_pm(self):
+        parent = evaluate_work_estimate(_valid_v2_payload())
+        refined_payload = _valid_v2_payload()
+        refined_payload["expected_artifacts"].append("focused-test-report.json")
+        authority = _refinement_authority("pm")
+        refinement = build_work_estimate_refinement(
+            parent,
+            refined_payload,
+            refinement_authority=authority,
+        )
+        self.assertEqual(
+            refinement["parent_estimate_sha256"],
+            canonical_work_estimate_sha256(parent),
+        )
+        self.assertEqual(refinement["refinement_authority"], authority.serialize())
+        self.assertEqual(refinement["operator_approval_receipts"], {})
+        self.assertEqual(refinement["protected_change_authorizations"], [])
+        self.assertEqual(
+            validate_work_estimate(refinement),
+            [
+                "refined work estimate requires validate_work_estimate_refinement before operative use"
+            ],
+        )
+        self.assertEqual(
+            validate_work_estimate_refinement(
+                refinement,
+                parent,
+                refinement_authority=authority,
+            ),
+            [],
+        )
+
+    def test_work_estimate_refinement_rejects_worker_and_broken_parent_hash(self):
+        parent = evaluate_work_estimate(_valid_v2_payload())
+        refined_payload = _valid_v2_payload()
+        refined_payload["expected_artifacts"].append("focused-test-report.json")
+        with self.assertRaisesRegex(ValueError, "insufficient-authority"):
+            build_work_estimate_refinement(
+                parent,
+                refined_payload,
+                refinement_authority=_refinement_authority("worker"),
+            )
+
+        authority = _refinement_authority("pm")
+        refinement = build_work_estimate_refinement(
+            parent,
+            refined_payload,
+            refinement_authority=authority,
+        )
+        refinement["parent_estimate_sha256"] = "0" * 64
+        self.assertIn(
+            "refinement parent_estimate_sha256 does not match parent",
+            validate_work_estimate_refinement(
+                refinement,
+                parent,
+                refinement_authority=authority,
+            ),
+        )
+
+    def test_protected_work_estimate_refinement_requires_exact_operator_approval(self):
+        parent = evaluate_work_estimate(_valid_v2_payload())
+        refined_payload = _valid_v2_payload()
+        refined_payload["primary_outcome"] = "publish repaired CWO"
+        authority = _refinement_authority("architect")
+        with self.assertRaisesRegex(ValueError, "verified operator approval"):
+            build_work_estimate_refinement(
+                parent,
+                refined_payload,
+                refinement_authority=authority,
+            )
+
+        candidate = evaluate_work_estimate(refined_payload)
+        before = protected_change_snapshot(parent)
+        after = protected_change_snapshot(candidate)
+        key = b"test-only-work-estimate-operator-key"
+        receipt = _operator_approval(
+            key,
+            before,
+            after,
+            change_type="objective-change",
+        )
+        verifier = OperatorApprovalVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            now="2026-07-20T00:05:00Z",
+        )
+        refinement = build_work_estimate_refinement(
+            parent,
+            refined_payload,
+            refinement_authority=authority,
+            operator_approval_verifier=verifier,
+            operator_approval_receipts={"objective-change": receipt},
+        )
+        self.assertEqual(
+            [item["change_type"] for item in refinement["protected_change_authorizations"]],
+            ["objective-change"],
+        )
+        fresh_verifier = OperatorApprovalVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            now="2026-07-20T00:05:00Z",
+        )
+        self.assertEqual(
+            validate_work_estimate_refinement(
+                refinement,
+                parent,
+                refinement_authority=authority,
+                operator_approval_verifier=fresh_verifier,
+            ),
+            [],
+        )
+
+    def test_legacy_estimate_cannot_supply_lineage_for_new_refinement(self):
+        parent = evaluate_work_estimate(_valid_raw_payload())
+        forged = _valid_raw_payload()
+        forged["parent_estimate_sha256"] = canonical_work_estimate_sha256(parent)
+        with self.assertRaisesRegex(ValueError, "verifier-owned lineage"):
+            build_work_estimate_refinement(
+                parent,
+                forged,
+                refinement_authority=_refinement_authority("pm"),
+            )
 
 
 if __name__ == "__main__":

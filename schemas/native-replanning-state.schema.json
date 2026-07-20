@@ -22,6 +22,7 @@
     "aggregate_allowance",
     "mutation",
     "reason_codes",
+    "protected_change_authorizations",
     "next_action",
     "cwo_native_replanning_receipt",
     "policy_snapshot"
@@ -226,6 +227,10 @@
         "minLength": 1
       }
     },
+    "protected_change_authorizations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/operator_approval_audit"}
+    },
     "next_action": {
       "type": "string",
       "minLength": 1
@@ -275,6 +280,7 @@
         "event",
         "authority_provenance",
         "reason_records",
+        "protected_change_authorizations",
         "decision",
         "reason_codes",
         "work_unit_id",
@@ -357,6 +363,10 @@
         "reason_records": {
           "type": "array",
           "items": {"$ref": "#/$defs/reason_record"}
+        },
+        "protected_change_authorizations": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/operator_approval_audit"}
         },
         "decision": {
           "type": "string",
@@ -567,6 +577,69 @@
           }
         },
         "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "operator_approval_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_type", "version", "approval_id", "change_type",
+        "before_sha256", "after_sha256", "actor_id", "identity_source",
+        "authorized_scope", "parent_receipt_sha256", "issued_at", "expires_at",
+        "nonce", "signature"
+      ],
+      "properties": {
+        "approval_type": {"const": "cwo-operator-protected-change-approval"},
+        "version": {"const": 1},
+        "approval_id": {"type": "string", "minLength": 1},
+        "change_type": {
+          "enum": [
+            "aggregate-budget-increase", "model-substitution", "objective-change",
+            "security-or-authority-change", "tainted-mutation-acceptance",
+            "contradictory-validation"
+          ]
+        },
+        "before_sha256": {"$ref": "#/$defs/sha256"},
+        "after_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {"enum": ["complete-task", "publication"]},
+        "parent_receipt_sha256": {
+          "oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]
+        },
+        "issued_at": {"type": "string", "minLength": 1},
+        "expires_at": {"type": "string", "minLength": 1},
+        "nonce": {"type": "string", "minLength": 1},
+        "signature": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "operator_approval_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_type", "version", "approval_id", "change_type",
+        "before_sha256", "after_sha256", "issued_at", "expires_at",
+        "nonce", "receipt_sha256", "signed_receipt", "authority_provenance"
+      ],
+      "properties": {
+        "approval_type": {"const": "cwo-operator-protected-change-approval"},
+        "version": {"const": 1},
+        "approval_id": {"type": "string", "minLength": 1},
+        "change_type": {
+          "enum": [
+            "aggregate-budget-increase", "model-substitution", "objective-change",
+            "security-or-authority-change", "tainted-mutation-acceptance",
+            "contradictory-validation"
+          ]
+        },
+        "before_sha256": {"$ref": "#/$defs/sha256"},
+        "after_sha256": {"$ref": "#/$defs/sha256"},
+        "issued_at": {"type": "string", "minLength": 1},
+        "expires_at": {"type": "string", "minLength": 1},
+        "nonce": {"type": "string", "minLength": 1},
+        "receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "signed_receipt": {"$ref": "#/$defs/operator_approval_receipt"},
+        "authority_provenance": {"$ref": "#/$defs/authority_provenance"}
       }
     },
     "reason_record": {

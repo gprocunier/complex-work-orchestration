@@ -86,7 +86,7 @@ ALLOWED_IMPORTS = {
     "native_worker_contracts": {"native_disposition"},
     "execution_enhancement_metrics": set(),
     "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths"},
-    "work_sizing": {"checked_command", "native_containment", "native_precommit", "policy"},
+    "work_sizing": {"checked_command", "native_authority", "native_containment", "native_precommit", "policy"},
     "public_copy": set(),
     "errors": set(),
     "types": set(),

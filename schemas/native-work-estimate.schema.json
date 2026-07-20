@@ -232,6 +232,159 @@
         }
       },
       "required": ["source", "task_profile_class", "checks", "policy_caps", "contradictions"]
+    },
+    "authorityProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "source_type",
+        "source_id",
+        "source_sha256",
+        "actor_id",
+        "actor_role",
+        "identity_source",
+        "authorized_scope",
+        "parent_receipt_sha256",
+        "verification",
+        "authority_sha256"
+      ],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {
+          "enum": [
+            "worker-discovery",
+            "pm-observation",
+            "architect-judgment",
+            "operator-directive",
+            "policy-enforcement"
+          ]
+        },
+        "source_id": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "actor_role": {
+          "enum": [
+            "operative-worker",
+            "critic",
+            "project-manager",
+            "architect",
+            "supervisor-policy",
+            "operator"
+          ]
+        },
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {
+          "enum": ["child", "cohort", "execution-path", "complete-task", "publication"]
+        },
+        "parent_receipt_sha256": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"type": "string", "minLength": 1},
+            "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        },
+        "authority_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "operatorApprovalReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_type",
+        "version",
+        "approval_id",
+        "change_type",
+        "before_sha256",
+        "after_sha256",
+        "actor_id",
+        "identity_source",
+        "authorized_scope",
+        "parent_receipt_sha256",
+        "issued_at",
+        "expires_at",
+        "nonce",
+        "signature"
+      ],
+      "properties": {
+        "approval_type": {"const": "cwo-operator-protected-change-approval"},
+        "version": {"const": 1},
+        "approval_id": {"type": "string", "minLength": 1},
+        "change_type": {
+          "enum": [
+            "aggregate-budget-increase",
+            "model-substitution",
+            "objective-change",
+            "security-or-authority-change",
+            "tainted-mutation-acceptance",
+            "contradictory-validation"
+          ]
+        },
+        "before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {"enum": ["complete-task", "publication"]},
+        "parent_receipt_sha256": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "issued_at": {"type": "string", "minLength": 1},
+        "expires_at": {"type": "string", "minLength": 1},
+        "nonce": {"type": "string", "minLength": 1},
+        "signature": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "operatorApprovalAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_type",
+        "version",
+        "approval_id",
+        "change_type",
+        "before_sha256",
+        "after_sha256",
+        "issued_at",
+        "expires_at",
+        "nonce",
+        "receipt_sha256",
+        "signed_receipt",
+        "authority_provenance"
+      ],
+      "properties": {
+        "approval_type": {"const": "cwo-operator-protected-change-approval"},
+        "version": {"const": 1},
+        "approval_id": {"type": "string", "minLength": 1},
+        "change_type": {
+          "enum": [
+            "aggregate-budget-increase",
+            "model-substitution",
+            "objective-change",
+            "security-or-authority-change",
+            "tainted-mutation-acceptance",
+            "contradictory-validation"
+          ]
+        },
+        "before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "issued_at": {"type": "string", "minLength": 1},
+        "expires_at": {"type": "string", "minLength": 1},
+        "nonce": {"type": "string", "minLength": 1},
+        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "signed_receipt": {"$ref": "#/$defs/operatorApprovalReceipt"},
+        "authority_provenance": {"$ref": "#/$defs/authorityProvenance"}
+      }
     }
   },
   "properties": {
@@ -266,6 +419,31 @@
     "primary_outcome": {
       "type": "string",
       "minLength": 1
+    },
+    "parent_estimate_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "refinement_authority": {
+      "$ref": "#/$defs/authorityProvenance"
+    },
+    "operator_approval_receipts": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "aggregate-budget-increase",
+          "model-substitution",
+          "objective-change",
+          "security-or-authority-change",
+          "tainted-mutation-acceptance",
+          "contradictory-validation"
+        ]
+      },
+      "additionalProperties": {"$ref": "#/$defs/operatorApprovalReceipt"}
+    },
+    "protected_change_authorizations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/operatorApprovalAudit"}
     },
     "expected_artifacts": {
       "type": "array",
@@ -805,6 +983,24 @@
           "fit_mode",
           "protected_surface_matches",
           "fit_evidence"
+        ]
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          {"required": ["parent_estimate_sha256"]},
+          {"required": ["refinement_authority"]},
+          {"required": ["operator_approval_receipts"]},
+          {"required": ["protected_change_authorizations"]}
+        ]
+      },
+      "then": {
+        "required": [
+          "parent_estimate_sha256",
+          "refinement_authority",
+          "operator_approval_receipts",
+          "protected_change_authorizations"
         ]
       }
     }
