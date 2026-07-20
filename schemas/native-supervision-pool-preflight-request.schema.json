@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Supervision Pool Preflight Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "preflight_type", "version", "schema", "stage", "launch_id",
+    "campaign_nonce", "pool_id", "pool_epoch", "integration_root",
+    "artifact_directories", "requested_workers", "released_capacity",
+    "aggregate_hard_budget", "children", "fallback",
+    "productive_dogfood_delivery_prerequisite", "callback_certification",
+    "poll_interval_ms", "pool_contract", "overrides"
+  ],
+  "properties": {
+    "preflight_type": {"const": "cwo-native-supervision-pool-preflight-request"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-supervision-pool-preflight-request.schema.json"},
+    "stage": {"enum": ["pre-allocation", "pre-dispatch"]},
+    "launch_id": {"$ref": "#/$defs/uuid"},
+    "campaign_nonce": {"$ref": "#/$defs/uuid"},
+    "pool_id": {"$ref": "#/$defs/uuid"},
+    "pool_epoch": {"$ref": "#/$defs/uuid"},
+    "integration_root": {"type": "string", "pattern": "^/", "minLength": 2},
+    "artifact_directories": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^/", "minLength": 2}
+    },
+    "requested_workers": {"type": "integer", "minimum": 1},
+    "released_capacity": {"type": "integer", "minimum": 1, "maximum": 2},
+    "aggregate_hard_budget": {"$ref": "#/$defs/budget"},
+    "children": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/child"}},
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["main_thread", "recovery"],
+      "properties": {
+        "main_thread": {"type": "string", "minLength": 1},
+        "recovery": {"type": "string", "minLength": 1}
+      }
+    },
+    "productive_dogfood_delivery_prerequisite": {"const": false},
+    "callback_certification": {"$ref": "#/$defs/callback_certification"},
+    "poll_interval_ms": {"type": "number", "exclusiveMinimum": 0},
+    "pool_contract": {
+      "oneOf": [
+        {"$ref": "native-supervision-pool-contract.schema.json"},
+        {"type": "null"}
+      ]
+    },
+    "overrides": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "reason"],
+        "properties": {
+          "rule_id": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"stage": {"const": "pre-allocation"}}, "required": ["stage"]},
+      "then": {
+        "properties": {
+          "pool_contract": {"type": "null"},
+          "children": {
+            "items": {
+              "properties": {
+                "session_id": {"type": "null"},
+                "agent_id": {"type": "null"}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"stage": {"const": "pre-dispatch"}}, "required": ["stage"]},
+      "then": {
+        "properties": {
+          "pool_contract": {"$ref": "native-supervision-pool-contract.schema.json"},
+          "children": {
+            "items": {
+              "properties": {
+                "session_id": {"$ref": "#/$defs/uuid"},
+                "agent_id": {"$ref": "#/$defs/uuid"}
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_calls", "runtime_seconds", "compactions", "full_suite_runs", "mutations"],
+      "properties": {
+        "tool_calls": {"type": "integer", "minimum": 1},
+        "runtime_seconds": {"type": "integer", "minimum": 1},
+        "compactions": {"type": "integer", "minimum": 0},
+        "full_suite_runs": {"type": "integer", "minimum": 0},
+        "mutations": {"type": "integer", "minimum": 0}
+      }
+    },
+    "prompt_preflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preflight_type", "version", "prompt_sha256", "tool_policy_sha256",
+        "findings", "accepted", "preflight_sha256"
+      ],
+      "properties": {
+        "preflight_type": {"const": "cwo-native-worker-prompt-preflight"},
+        "version": {"const": 1},
+        "prompt_sha256": {"$ref": "#/$defs/sha256"},
+        "tool_policy_sha256": {"$ref": "#/$defs/sha256"},
+        "findings": {"type": "array"},
+        "accepted": {"type": "boolean"},
+        "preflight_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "tool_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface_type", "version", "source", "server_allowlist_supported",
+        "allowlist_parameter", "requested_allowlist", "effective_allowlist",
+        "override_provenance", "surface_sha256"
+      ],
+      "properties": {
+        "surface_type": {"const": "cwo-native-tool-surface-snapshot"},
+        "version": {"const": 1},
+        "source": {"type": "string", "minLength": 1},
+        "server_allowlist_supported": {"type": "boolean"},
+        "allowlist_parameter": {"type": ["string", "null"]},
+        "requested_allowlist": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "effective_allowlist": {
+          "oneOf": [
+            {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+            {"type": "null"}
+          ]
+        },
+        "override_provenance": {"type": "null"},
+        "surface_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "child": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "child_id", "packet_id", "packet_sha256", "attempt_nonce", "session_id", "agent_id",
+        "lease_id", "worktree", "isolation_class", "completion_evidence_policy",
+        "tool_policy", "prompt", "prompt_preflight", "tool_surface",
+        "hard_budget", "declared_write_paths", "integration_target_paths"
+      ],
+      "properties": {
+        "child_id": {"type": "string", "minLength": 1},
+        "packet_id": {"$ref": "#/$defs/uuid"},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "attempt_nonce": {"$ref": "#/$defs/uuid"},
+        "session_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]},
+        "agent_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]},
+        "lease_id": {"$ref": "#/$defs/uuid"},
+        "worktree": {"type": "string", "pattern": "^/", "minLength": 2},
+        "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
+        "completion_evidence_policy": {
+          "$ref": "native-supervision-pool-contract.schema.json#/$defs/completion_evidence_policy"
+        },
+        "tool_policy": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/tool_policy"},
+        "prompt": {"type": "string", "minLength": 1},
+        "prompt_preflight": {"$ref": "#/$defs/prompt_preflight"},
+        "tool_surface": {"$ref": "#/$defs/tool_surface"},
+        "hard_budget": {"$ref": "#/$defs/budget"},
+        "declared_write_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "integration_target_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "callback_certification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["certified_callback_max_ms", "certified_scheduler_overhead_ms"],
+      "properties": {
+        "certified_callback_max_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["arm", "send_input", "mark_dispatched", "check", "interrupt", "close", "finalize"],
+          "properties": {
+            "arm": {"type": "number", "minimum": 0},
+            "send_input": {"type": "number", "minimum": 0},
+            "mark_dispatched": {"type": "number", "minimum": 0},
+            "check": {"type": "number", "minimum": 0},
+            "interrupt": {"type": "number", "minimum": 0},
+            "close": {"type": "number", "minimum": 0},
+            "finalize": {"type": "number", "minimum": 0}
+          }
+        },
+        "certified_scheduler_overhead_ms": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}

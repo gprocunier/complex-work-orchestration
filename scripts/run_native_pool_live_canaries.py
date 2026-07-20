@@ -88,6 +88,8 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_RECEIPT_TYPE,
     CERTIFIED_CALLBACK_MAX_MS,
     CERTIFIED_SCHEDULER_OVERHEAD_MS,
+    MAX_ACTIVE_WORKERS,
+    POOL_POLL_INTERVAL_MS,
     POOL_POLL_LAG_TOLERANCE_MS,
     canonical_sha256,
     callback_certification_policy_sha256,
@@ -98,6 +100,15 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     validate_pool_receipt,
     write_private_artifact,
     zero_token_usage,
+)
+from cwo_core.native_pool_preflight import (  # noqa: E402
+    PREFLIGHT_REQUEST_SCHEMA,
+    PREFLIGHT_REQUEST_TYPE,
+    NativePoolPreflightError,
+    default_callback_certification,
+    effective_child_packet_sha256,
+    require_pool_preflight,
+    validate_pool_preflight_result,
 )
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
@@ -4720,6 +4731,21 @@ def make_git_layout(root: Path) -> dict[str, Path]:
     return paths
 
 
+def split_fixed_pool_budget(
+    aggregate: Mapping[str, int], child_count: int
+) -> list[dict[str, int]]:
+    """Split every hard-budget dimension exactly and deterministically."""
+
+    if child_count < 1:
+        raise AppServerError("pool-budget-child-count-invalid")
+    children = [dict.fromkeys(aggregate, 0) for _ in range(child_count)]
+    for field, total in aggregate.items():
+        quotient, remainder = divmod(total, child_count)
+        for index in range(child_count):
+            children[index][field] = quotient + (1 if index < remainder else 0)
+    return children
+
+
 def build_pool_inputs(
     server: AppServer,
     capability_receipt: Mapping[str, Any],
@@ -4743,8 +4769,12 @@ def build_pool_inputs(
     dict[str, dict[str, Any]],
     dict[str, LiveThreadAdapter],
     PoolWorkspaceMonitor,
+    dict[str, dict[str, Any]],
 ]:
-    record_dir = root / f"{pool_name}-records"
+    launch_id = str(uuid.uuid4())
+    pool_id = str(uuid.uuid4())
+    pool_epoch = str(uuid.uuid4())
+    record_dir = root / f"{pool_name}-{launch_id}-records"
     isolation_class = "mutable-isolated" if mutable else "read-only-shared"
     if completion_evidence_policies is None:
         policies = [
@@ -4803,6 +4833,87 @@ def build_pool_inputs(
         preflight_tool_surfaces.append(
             capture_server_tool_surface(server, normalized_policy)
         )
+    requested_workers = len(worktrees)
+    aggregate_hard_budget = {
+        "tool_calls": 20,
+        "runtime_seconds": 300,
+        "compactions": 0,
+        "full_suite_runs": 0,
+        "mutations": requested_workers if mutable else 0,
+    }
+    child_hard_budgets = split_fixed_pool_budget(
+        aggregate_hard_budget, requested_workers
+    )
+    planned_children: list[dict[str, Any]] = []
+    for index, (
+        worktree,
+        prompt,
+        completion_policy,
+        tool_policy,
+        prompt_receipt,
+        tool_surface,
+    ) in enumerate(
+        zip(
+            worktrees,
+            prompts,
+            policies,
+            normalized_tool_policies,
+            prompt_preflights,
+            preflight_tool_surfaces,
+        )
+    ):
+        target = f"targets/child_{index}.txt" if mutable else None
+        planned_child = {
+            "child_id": f"{pool_name}-child-{index}",
+            "packet_id": str(uuid.uuid4()),
+            "attempt_nonce": str(uuid.uuid4()),
+            "session_id": None,
+            "agent_id": None,
+            "lease_id": str(uuid.uuid4()),
+            "worktree": str(worktree),
+            "isolation_class": isolation_class,
+            "completion_evidence_policy": dict(completion_policy),
+            "tool_policy": dict(tool_policy),
+            "prompt": prompt,
+            "prompt_preflight": dict(prompt_receipt),
+            "tool_surface": dict(tool_surface),
+            "hard_budget": child_hard_budgets[index],
+            "declared_write_paths": [target] if target else [],
+            "integration_target_paths": [target] if target else [],
+        }
+        planned_child["packet_sha256"] = effective_child_packet_sha256(
+            planned_child
+        )
+        planned_children.append(planned_child)
+    preallocation_request = {
+        "preflight_type": PREFLIGHT_REQUEST_TYPE,
+        "version": 1,
+        "schema": PREFLIGHT_REQUEST_SCHEMA,
+        "stage": "pre-allocation",
+        "launch_id": launch_id,
+        "campaign_nonce": campaign_manifest.get("campaign_nonce"),
+        "pool_id": pool_id,
+        "pool_epoch": pool_epoch,
+        "integration_root": str(integration),
+        "artifact_directories": [str(record_dir)],
+        "requested_workers": requested_workers,
+        "released_capacity": MAX_ACTIVE_WORKERS,
+        "aggregate_hard_budget": aggregate_hard_budget,
+        "children": planned_children,
+        "fallback": {
+            "main_thread": "main-thread",
+            "recovery": "operator-recovery",
+        },
+        "productive_dogfood_delivery_prerequisite": False,
+        "callback_certification": default_callback_certification(),
+        "poll_interval_ms": POOL_POLL_INTERVAL_MS,
+        "pool_contract": None,
+        "overrides": [],
+    }
+    try:
+        preallocation_preflight = require_pool_preflight(preallocation_request)
+    except NativePoolPreflightError as exc:
+        raise AppServerError(str(exc)) from exc
     thread_results = []
     bound_manifest_validation: Mapping[str, Any] | None = None
     for index, worktree in enumerate(worktrees):
@@ -4851,7 +4962,15 @@ def build_pool_inputs(
             )
         result, _latency = server.start_thread(worktree, **start_kwargs)
         thread_results.append(result)
-    record_dir.mkdir(mode=0o700)
+    record_dir.mkdir(mode=0o700, exist_ok=True)
+    try:
+        preallocation_preflight = require_pool_preflight(preallocation_request)
+    except NativePoolPreflightError as exc:
+        raise AppServerError(str(exc)) from exc
+    write_private_artifact(
+        record_dir / "preallocation-pool-preflight.json",
+        preallocation_preflight,
+    )
     children = []
     child_contracts: dict[str, dict[str, Any]] = {}
     adapters: dict[str, LiveThreadAdapter] = {}
@@ -4876,45 +4995,31 @@ def build_pool_inputs(
             preflight_tool_surfaces,
         )
     ):
-        child_id = f"{pool_name}-child-{index}"
+        planned = planned_children[index]
+        child_id = str(planned["child_id"])
         thread_id = str(result["thread"]["id"])
         state_file = record_dir / f"{child_id}-worker-state.json"
         control_file = record_dir / f"{child_id}-control-contract.json"
         control_turn_id = f"{CONTROL_TURN_ID}:{pool_name}:{index}"
-        packet_sha256 = sha256_text(
-            json.dumps(
-                {
-                    "pool": pool_name,
-                    "child": index,
-                    "prompt_sha256": sha256_text(prompt),
-                    "tool_policy_sha256": canonical_sha256(tool_policy),
-                    "prompt_preflight_sha256": prompt_receipt[
-                        "preflight_sha256"
-                    ],
-                    "tool_surface_sha256": preflight_surface["surface_sha256"],
-                    "thread_id": thread_id,
-                },
-                sort_keys=True,
-            )
-        )
+        packet_sha256 = str(planned["packet_sha256"])
         control = build_control_turn_contract(
             state_file=str(state_file),
             agent_id=thread_id,
             control_turn_id=control_turn_id,
             task_sha256=sha256_text(prompt),
-            poll_interval_ms=1000,
+            poll_interval_ms=POOL_POLL_INTERVAL_MS,
         )
         state = {
             "result_type": "cwo-native-supervision-state",
             "version": 1,
             "schema": "schemas/native-supervision-state.schema.json",
-            "packet_id": f"{pool_name}-packet-{uuid.uuid4()}",
+            "packet_id": planned["packet_id"],
             "packet_sha256": packet_sha256,
             "agent_id": thread_id,
             "session_id": thread_id,
             "status": "created",
             "control_turn_id": None,
-            "poll_interval_ms": 1000,
+            "poll_interval_ms": POOL_POLL_INTERVAL_MS,
             "control_adapter": "native-multi-agent-v1",
             "required_capabilities": ["interrupt", "close", "wait"],
             **build_stop_metadata(
@@ -4927,11 +5032,15 @@ def build_pool_inputs(
         }
         write_private_artifact(control_file, control)
         write_private_artifact(state_file, state)
-        target = f"targets/child_{index}.txt" if mutable else None
+        target = (
+            str(planned["integration_target_paths"][0])
+            if planned["integration_target_paths"]
+            else None
+        )
         child = {
             "child_id": child_id,
             "packet_id": state["packet_id"],
-            "attempt_nonce": f"{pool_name}-attempt-{uuid.uuid4()}",
+            "attempt_nonce": planned["attempt_nonce"],
             "session_id": thread_id,
             "agent_id": thread_id,
             "control_turn_id": control_turn_id,
@@ -4944,7 +5053,7 @@ def build_pool_inputs(
             "tool_policy": tool_policy,
             "declared_write_paths": [target] if target else [],
             "integration_target_paths": [target] if target else [],
-            "lease_id": f"{pool_name}-lease-{uuid.uuid4()}",
+            "lease_id": planned["lease_id"],
         }
         children.append(child)
         child_contracts[child_id] = control
@@ -4972,18 +5081,12 @@ def build_pool_inputs(
         "request_type": "cwo-native-supervision-pool-render-request",
         "version": 1,
         "schema": "schemas/native-supervision-pool-render-request.schema.json",
-        "pool_id": f"18w6-{pool_name}-{uuid.uuid4()}",
-        "pool_epoch": f"18w6-{pool_name}-epoch-{uuid.uuid4()}",
+        "pool_id": pool_id,
+        "pool_epoch": pool_epoch,
         "control_turn_id": CONTROL_TURN_ID,
         "created_at": iso(),
-        "max_active_workers": 2,
-        "aggregate_hard_budget": {
-            "tool_calls": 20,
-            "runtime_seconds": 300,
-            "compactions": 0,
-            "full_suite_runs": 0,
-            "mutations": 2 if mutable else 0,
-        },
+        "max_active_workers": requested_workers,
+        "aggregate_hard_budget": aggregate_hard_budget,
         "integration_root": str(integration),
         "children": children,
     }
@@ -4996,12 +5099,41 @@ def build_pool_inputs(
         owner_pid=os.getpid(),
         now=utc_now(),
     )
+    predispatch_children: list[dict[str, Any]] = []
+    for planned, child in zip(planned_children, children):
+        effective = dict(planned)
+        effective["session_id"] = child["session_id"]
+        effective["agent_id"] = child["agent_id"]
+        predispatch_children.append(effective)
+    predispatch_request = {
+        **preallocation_request,
+        "stage": "pre-dispatch",
+        "children": predispatch_children,
+        "pool_contract": contract,
+    }
+    try:
+        predispatch_preflight = require_pool_preflight(predispatch_request)
+    except NativePoolPreflightError as exc:
+        raise AppServerError(str(exc)) from exc
+    write_private_artifact(
+        record_dir / "predispatch-pool-preflight.json",
+        predispatch_preflight,
+    )
     monitor = PoolWorkspaceMonitor(
         contract,
         integration_root=integration,
         child_worktrees={child_id: adapter.worktree for child_id, adapter in adapters.items()},
     )
-    return contract, child_contracts, adapters, monitor
+    return (
+        contract,
+        child_contracts,
+        adapters,
+        monitor,
+        {
+            "preallocation": preallocation_preflight,
+            "predispatch": predispatch_preflight,
+        },
+    )
 
 
 def run_pool_canary(
@@ -5023,7 +5155,13 @@ def run_pool_canary(
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     interrupt_after: list[int | None] | None = None,
 ) -> dict[str, Any]:
-    contract, child_contracts, adapters, monitor = build_pool_inputs(
+    (
+        contract,
+        child_contracts,
+        adapters,
+        monitor,
+        pool_preflights,
+    ) = build_pool_inputs(
         server,
         capability_receipt,
         campaign_manifest,
@@ -5099,6 +5237,7 @@ def run_pool_canary(
         "pool_id": contract["pool_id"],
         "pool_epoch": contract["pool_epoch"],
         "contract_sha256": contract["contract_sha256"],
+        "preflight": pool_preflights,
         "receipt": receipt,
         "receipt_validation_errors": receipt_errors,
         "terminal_state_sha256": terminal_state["state_sha256"],
@@ -5140,6 +5279,36 @@ def validate_campaign(
         errors.append("capability-response-time-bound-failed")
     all_sessions = list(calibration_evidence.get("sessions", []))
     for canary in canaries:
+        pool_preflights = canary.get("preflight")
+        if not isinstance(pool_preflights, Mapping) or set(pool_preflights) != {
+            "preallocation",
+            "predispatch",
+        }:
+            errors.append("pool-preflight-receipts-missing")
+        else:
+            for label, stage in (
+                ("preallocation", "pre-allocation"),
+                ("predispatch", "pre-dispatch"),
+            ):
+                preflight_errors = validate_pool_preflight_result(
+                    pool_preflights.get(label),
+                    expected_stage=stage,
+                    expected_contract_sha256=(
+                        str(canary.get("contract_sha256"))
+                        if stage == "pre-dispatch"
+                        else None
+                    ),
+                )
+                errors.extend(
+                    f"pool-{label}-preflight:{item}"
+                    for item in preflight_errors
+                )
+                receipt = pool_preflights.get(label)
+                if (
+                    not isinstance(receipt, Mapping)
+                    or receipt.get("accepted") is not True
+                ):
+                    errors.append(f"pool-{label}-preflight-not-accepting")
         all_sessions.extend(canary.get("sessions", []))
     thread_ids = [session.get("thread_id") for session in all_sessions]
     if len(thread_ids) != 7 or len(thread_ids) != len(set(thread_ids)):

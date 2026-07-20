@@ -2443,8 +2443,15 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            integration = root / "integration"
+            worktree = root / "worktree"
+            integration.mkdir()
+            worktree.mkdir()
             server = ExpandingSurfaceServer()
-            campaign = {"control_turn_id": LIVE.CONTROL_TURN_ID}
+            campaign = {
+                "campaign_nonce": str(uuid.uuid4()),
+                "control_turn_id": LIVE.CONTROL_TURN_ID,
+            }
             with mock.patch.object(
                 LIVE, "validate_live_canary_manifest_gate", return_value=[]
             ), self.assertRaisesRegex(LIVE.AppServerError, "tool-surface-expanded"):
@@ -2453,15 +2460,62 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     {},
                     campaign,
                     root=root,
-                    integration=root,
+                    integration=integration,
                     pool_name="expanded-surface",
-                    worktrees=[root],
+                    worktrees=[worktree],
                     mutable=False,
                     prompts=["Inspect the assigned file."],
                     expected_tokens=["DONE"],
                     pre_thread_start_check=lambda: {},
                 )
             self.assertEqual(server.starts, 0)
+
+    def test_deterministic_pool_preflight_rejection_blocks_thread_creation(self) -> None:
+        class NoThreadStartServer:
+            def __init__(self) -> None:
+                self.starts = 0
+
+            def start_thread(self, *_args, **_kwargs):
+                self.starts += 1
+                raise AssertionError("preflight rejection must block allocation")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            integration = root / "integration"
+            worktree = root / "worktree"
+            integration.mkdir()
+            worktree.mkdir()
+            server = NoThreadStartServer()
+            manifest_checks: list[str] = []
+            with mock.patch.object(
+                LIVE,
+                "require_pool_preflight",
+                side_effect=LIVE.NativePoolPreflightError(
+                    "pool-preflight-rejected:fallback.declared"
+                ),
+            ) as preflight, self.assertRaisesRegex(
+                LIVE.AppServerError, "fallback.declared"
+            ):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    {
+                        "campaign_nonce": str(uuid.uuid4()),
+                        "control_turn_id": LIVE.CONTROL_TURN_ID,
+                    },
+                    root=root,
+                    integration=integration,
+                    pool_name="rejected",
+                    worktrees=[worktree],
+                    mutable=False,
+                    prompts=["Inspect the assigned file."],
+                    expected_tokens=["DONE"],
+                    pre_thread_start_check=lambda: manifest_checks.append("manifest"),
+                )
+            preflight.assert_called_once()
+            self.assertEqual(server.starts, 0)
+            self.assertEqual(manifest_checks, [])
+            self.assertEqual(list(root.glob("rejected-*-records")), [])
 
     def test_pool_threads_require_bound_manifest_revalidation_first(self) -> None:
         class NoThreadStartServer:
@@ -2475,6 +2529,10 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            integration = root / "integration"
+            shared_worktree = root / "shared-worktree"
+            integration.mkdir()
+            shared_worktree.mkdir()
             server = NoThreadStartServer()
             checks: list[str] = []
 
@@ -2488,11 +2546,11 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 LIVE.build_pool_inputs(
                     server,
                     {},
-                    {},
+                    {"campaign_nonce": str(uuid.uuid4())},
                     root=root,
-                    integration=root,
+                    integration=integration,
                     pool_name="read-only",
-                    worktrees=[root, root],
+                    worktrees=[shared_worktree, shared_worktree],
                     mutable=False,
                     prompts=["one", "two"],
                     expected_tokens=["ONE", "TWO"],
@@ -2508,6 +2566,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
+                "campaign_nonce": str(uuid.uuid4()),
                 "control_turn_id": LIVE.CONTROL_TURN_ID,
                 "candidate": {"commit": "a" * 40, "tree": "b" * 40},
             }
@@ -2530,9 +2589,9 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                         {},
                         manifest,
                         root=root,
-                        integration=root,
+                        integration=integration,
                         pool_name="read-only",
-                        worktrees=[root, root],
+                        worktrees=[shared_worktree, shared_worktree],
                         mutable=False,
                         prompts=["one", "two"],
                         expected_tokens=["ONE", "TWO"],
@@ -2552,16 +2611,21 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 self.starts += 1
                 return {
                     "model": LIVE.EXACT_MODEL,
-                    "thread": {"id": f"thread-{self.starts}", "turns": []},
+                    "thread": {"id": str(uuid.uuid4()), "turns": []},
                 }, 0.0
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            integration = root / "integration"
+            shared_worktree = root / "shared-worktree"
+            integration.mkdir()
+            shared_worktree.mkdir()
             manifest = {
                 "version": 8,
                 "manifest_id": str(uuid.uuid4()),
                 "manifest_sha256": LIVE.sha256_text("manifest"),
                 "authorization_id": str(uuid.uuid4()),
+                "campaign_nonce": str(uuid.uuid4()),
                 "control_turn_id": LIVE.CONTROL_TURN_ID,
                 "candidate": {"commit": "a" * 40, "tree": "b" * 40},
             }
@@ -2578,15 +2642,25 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 LIVE,
                 "PoolWorkspaceMonitor",
                 return_value=mock.sentinel.monitor,
+            ), mock.patch.object(
+                LIVE,
+                "require_pool_preflight",
+                return_value={"accepted": True, "result_sha256": "a" * 64},
             ):
-                contract, _controls, _adapters, monitor = LIVE.build_pool_inputs(
+                (
+                    contract,
+                    _controls,
+                    _adapters,
+                    monitor,
+                    _preflights,
+                ) = LIVE.build_pool_inputs(
                     ThreadStartSentinelServer(),
                     {},
                     manifest,
                     root=root,
-                    integration=root,
+                    integration=integration,
                     pool_name="read-only",
-                    worktrees=[root, root],
+                    worktrees=[shared_worktree, shared_worktree],
                     mutable=False,
                     prompts=["one", "two"],
                     expected_tokens=["ONE", "TWO"],

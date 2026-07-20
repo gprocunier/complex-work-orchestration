@@ -122,6 +122,11 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_tool_isolation",
         "policy",
     },
+    "native_pool_preflight": {
+        "native_authority",
+        "native_pool_contracts",
+        "native_tool_isolation",
+    },
     "native_pool_reporting": {"audit", "native_pool_contracts"},
     "native_replanning": {"native_authority", "policy"},
     "native_progress": {"native_authority", "native_stop_scope", "policy"},

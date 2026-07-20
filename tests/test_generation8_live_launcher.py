@@ -294,9 +294,8 @@ class Generation8LiveLauncherTests(unittest.TestCase):
         class FakeServer:
             def start_thread(self, _worktree: Path, **_kwargs: object):
                 events.append("allocate")
-                ordinal = events.count("allocate")
                 return {
-                    "thread": {"id": f"thread-{ordinal}", "turns": []},
+                    "thread": {"id": str(LIVE.uuid.uuid4()), "turns": []},
                     "model": LIVE.EXACT_MODEL,
                 }, 0.0
 
@@ -322,11 +321,21 @@ class Generation8LiveLauncherTests(unittest.TestCase):
                 LIVE, "validate_live_canary_manifest_gate", return_value=[]
             ), mock.patch.object(
                 LIVE, "build_live_canary_pool_contract", side_effect=fake_contract
-            ), mock.patch.object(LIVE, "PoolWorkspaceMonitor", return_value=object()):
+            ), mock.patch.object(
+                LIVE, "PoolWorkspaceMonitor", return_value=object()
+            ), mock.patch.object(
+                LIVE,
+                "require_pool_preflight",
+                return_value={"accepted": True, "result_sha256": "a" * 64},
+            ):
                 LIVE.build_pool_inputs(
                     FakeServer(),
                     {},
-                    {"version": 4, "control_turn_id": LIVE.CONTROL_TURN_ID},
+                    {
+                        "version": 4,
+                        "campaign_nonce": str(LIVE.uuid.uuid4()),
+                        "control_turn_id": LIVE.CONTROL_TURN_ID,
+                    },
                     root=root,
                     integration=integration,
                     pool_name="generation8",
