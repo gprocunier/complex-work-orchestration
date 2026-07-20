@@ -25,14 +25,36 @@
     "poll_order": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "terminal_order": {"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "timing": {
-      "type": "object", "additionalProperties": false,
-      "required": ["max_callback_latency_ms", "max_poll_gap_ms", "poll_interval_ms", "poll_lag_tolerance_ms"],
-      "properties": {
-        "max_callback_latency_ms": {"type": "number", "minimum": 0},
-        "max_poll_gap_ms": {"type": "number", "minimum": 0},
-        "poll_interval_ms": {"type": "number", "minimum": 1},
-        "poll_lag_tolerance_ms": {"type": "number", "minimum": 0}
-      }
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["max_callback_latency_ms", "max_poll_gap_ms", "poll_interval_ms", "poll_lag_tolerance_ms"],
+          "properties": {
+            "max_callback_latency_ms": {"type": "number", "minimum": 0},
+            "max_poll_gap_ms": {"type": "number", "minimum": 0},
+            "poll_interval_ms": {"type": "number", "minimum": 1},
+            "poll_lag_tolerance_ms": {"type": "number", "minimum": 0}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": [
+            "max_callback_latency_ms", "max_poll_gap_ms", "poll_interval_ms", "poll_lag_tolerance_ms",
+            "accounting_version", "callback_ns", "noncallback_invoke_ns", "coordinator_ns", "wait_ns"
+          ],
+          "properties": {
+            "max_callback_latency_ms": {"type": "number", "minimum": 0},
+            "max_poll_gap_ms": {"type": "number", "minimum": 0},
+            "poll_interval_ms": {"type": "number", "minimum": 1},
+            "poll_lag_tolerance_ms": {"type": "number", "minimum": 0},
+            "accounting_version": {"const": "exclusive-v1"},
+            "callback_ns": {"type": "integer", "minimum": 0},
+            "noncallback_invoke_ns": {"type": "integer", "minimum": 0},
+            "coordinator_ns": {"type": "integer", "minimum": 0},
+            "wait_ns": {"type": "integer", "minimum": 0}
+          }
+        }
+      ]
     },
     "child_terminal_receipts": {
       "type": "array", "minItems": 1, "maxItems": 3,

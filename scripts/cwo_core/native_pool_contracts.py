@@ -362,6 +362,19 @@ POOL_RECEIPT_FIELDS = {
     *STOP_METADATA_FIELDS,
     "receipt_sha256",
 }
+POOL_RECEIPT_LEGACY_TIMING_FIELDS = {
+    "max_callback_latency_ms",
+    "max_poll_gap_ms",
+    "poll_interval_ms",
+    "poll_lag_tolerance_ms",
+}
+POOL_RECEIPT_EXCLUSIVE_TIMING_FIELDS = POOL_RECEIPT_LEGACY_TIMING_FIELDS | {
+    "accounting_version",
+    "callback_ns",
+    "noncallback_invoke_ns",
+    "coordinator_ns",
+    "wait_ns",
+}
 
 
 def canonical_sha256(value: Any) -> str:
@@ -1755,16 +1768,29 @@ def validate_pool_receipt(
     poll_order = receipt.get("poll_order")
     if not isinstance(poll_order, list) or any(not _nonempty(item) for item in poll_order):
         errors.append("invalid-poll-order")
-    timing = _strict(
-        receipt.get("timing"),
-        {"max_callback_latency_ms", "max_poll_gap_ms", "poll_interval_ms", "poll_lag_tolerance_ms"},
-        "timing",
-        errors,
+    timing_value = receipt.get("timing")
+    timing_fields = (
+        POOL_RECEIPT_EXCLUSIVE_TIMING_FIELDS
+        if isinstance(timing_value, Mapping)
+        and "accounting_version" in timing_value
+        else POOL_RECEIPT_LEGACY_TIMING_FIELDS
     )
+    timing = _strict(timing_value, timing_fields, "timing", errors)
     if timing is not None:
-        for field in timing:
+        for field in POOL_RECEIPT_LEGACY_TIMING_FIELDS:
             if not _is_number(timing.get(field)):
                 errors.append(f"invalid-timing-{field.replace('_', '-')}")
+        if "accounting_version" in timing:
+            if timing.get("accounting_version") != "exclusive-v1":
+                errors.append("invalid-timing-accounting-version")
+            for field in (
+                "callback_ns",
+                "noncallback_invoke_ns",
+                "coordinator_ns",
+                "wait_ns",
+            ):
+                if not _is_int(timing.get(field)):
+                    errors.append(f"invalid-timing-{field.replace('_', '-')}")
     child_receipts = receipt.get("child_terminal_receipts")
     child_receipt_ids: list[str] = []
     if not isinstance(child_receipts, list):
@@ -1786,6 +1812,32 @@ def validate_pool_receipt(
     for field in ("pool_wall_seconds", "worker_seconds"):
         if not _is_number(receipt.get(field)):
             errors.append(f"invalid-{field.replace('_', '-')}")
+    if (
+        timing is not None
+        and timing.get("accounting_version") == "exclusive-v1"
+        and _is_number(receipt.get("pool_wall_seconds"))
+        and all(
+            _is_int(timing.get(field))
+            for field in (
+                "callback_ns",
+                "noncallback_invoke_ns",
+                "coordinator_ns",
+                "wait_ns",
+            )
+        )
+    ):
+        accounted_ns = sum(
+            timing[field]
+            for field in (
+                "callback_ns",
+                "noncallback_invoke_ns",
+                "coordinator_ns",
+                "wait_ns",
+            )
+        )
+        wall_ns = round(float(receipt["pool_wall_seconds"]) * 1_000_000_000)
+        if abs(accounted_ns - wall_ns) > 1:
+            errors.append("timing-buckets-do-not-reconcile-with-pool-wall")
     lease_evidence = receipt.get("lease_evidence")
     lease_ids: list[str] = []
     if not isinstance(lease_evidence, list):
@@ -1935,6 +1987,23 @@ def validate_pool_receipt(
             errors.append("receipt-pool-wall-seconds-mismatch")
         if receipt.get("worker_seconds") != terminal_state.get("worker_seconds"):
             errors.append("receipt-worker-seconds-mismatch")
+        if (
+            timing is not None
+            and timing.get("accounting_version") == "exclusive-v1"
+            and _is_int(timing.get("noncallback_invoke_ns"))
+            and _is_int(timing.get("coordinator_ns"))
+            and _is_number(terminal_state.get("poll_overhead_seconds"))
+        ):
+            expected_poll_overhead = (
+                timing["noncallback_invoke_ns"] + timing["coordinator_ns"]
+            ) / 1_000_000_000
+            if not math.isclose(
+                float(terminal_state["poll_overhead_seconds"]),
+                expected_poll_overhead,
+                rel_tol=0.0,
+                abs_tol=1e-9,
+            ):
+                errors.append("receipt-poll-overhead-seconds-mismatch")
         if receipt.get("first_protected_fault") != terminal_state.get("first_protected_fault"):
             errors.append("receipt-first-protected-fault-mismatch")
         if any(receipt.get(field) != terminal_state.get(field) for field in STOP_METADATA_FIELDS):

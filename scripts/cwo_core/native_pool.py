@@ -314,6 +314,13 @@ class NativePoolCoordinator:
         self._control_failed = False
         self._ledger = AggregateUsageLedger(self.child_ids)
         self._started_ns = self._monotonic_ns()
+        self._pool_wall_ns = 0
+        self._callback_ns = 0
+        self._noncallback_invoke_ns = 0
+        self._coordinator_ns = 0
+        self._wait_ns = 0
+        self._wait_started_ns: int | None = None
+        self._timing_frozen = False
         self._last_mutation_evidence = self._compare_workspaces("create")
         self._initial_mutation_fault = not all(
             self._last_mutation_evidence[field]
@@ -511,6 +518,44 @@ class NativePoolCoordinator:
             raise NativePoolError("monotonic-clock-invalid")
         return value
 
+    def _capture_timing(self, now_ns: int, *, freeze: bool = False) -> None:
+        """Reconcile mutually exclusive timing buckets against pool wall time."""
+        if self._timing_frozen:
+            return
+        self._pool_wall_ns = max(0, now_ns - self._started_ns)
+        attributed_ns = (
+            self._callback_ns + self._noncallback_invoke_ns + self._wait_ns
+        )
+        self._coordinator_ns = max(0, self._pool_wall_ns - attributed_ns)
+        self._poll_overhead_seconds = (
+            self._noncallback_invoke_ns + self._coordinator_ns
+        ) / 1_000_000_000
+        if freeze:
+            self._timing_frozen = True
+
+    def _complete_wait(self) -> None:
+        if self._wait_started_ns is None:
+            return
+        ended_ns = self._monotonic_ns()
+        if not self._timing_frozen:
+            self._wait_ns += max(0, ended_ns - self._wait_started_ns)
+        self._wait_started_ns = None
+
+    def _timing_receipt(self) -> dict[str, int | float | str]:
+        return {
+            "max_callback_latency_ms": self._max_callback_latency_ms,
+            "max_poll_gap_ms": self._max_poll_gap_ms,
+            "poll_interval_ms": self.contract["scheduler"]["poll_interval_ms"],
+            "poll_lag_tolerance_ms": self.contract["scheduler"][
+                "poll_lag_tolerance_ms"
+            ],
+            "accounting_version": "exclusive-v1",
+            "callback_ns": self._callback_ns,
+            "noncallback_invoke_ns": self._noncallback_invoke_ns,
+            "coordinator_ns": self._coordinator_ns,
+            "wait_ns": self._wait_ns,
+        }
+
     def _compare_workspaces(self, phase: str) -> dict[str, Any]:
         try:
             value = self.pool_callbacks["compare_workspaces"](contract=self.contract, phase=phase)
@@ -539,9 +584,12 @@ class NativePoolCoordinator:
                     return _callback(*args, **kwargs)
                 finally:
                     ended = self._monotonic_ns()
-                    latency_ms = (ended - started) / 1_000_000
+                    latency_ns = ended - started
+                    latency_ms = latency_ns / 1_000_000
                     if latency_ms < 0:
                         self._callback_fault = "nonmonotonic-callback-clock"
+                    if not self._timing_frozen:
+                        self._callback_ns += max(0, latency_ns)
                     self._last_callback_latency_ms = max(0.0, latency_ms)
                     self._max_callback_latency_ms = max(
                         self._max_callback_latency_ms, self._last_callback_latency_ms
@@ -616,8 +664,15 @@ class NativePoolCoordinator:
         if self.state_file is not None:
             write_private_artifact(self.state_file, self._state)
 
-    def _refresh_state(self, status: str, *, increment: bool = True) -> None:
+    def _refresh_state(
+        self,
+        status: str,
+        *,
+        increment: bool = True,
+        freeze_timing: bool = False,
+    ) -> None:
         now = self._monotonic_ns()
+        self._capture_timing(now, freeze=freeze_timing)
         active = [
             child_id
             for child_id in self.child_ids
@@ -631,7 +686,7 @@ class NativePoolCoordinator:
                 "active_children": active,
                 "terminal_children": terminal,
                 "aggregate_usage": self._ledger.aggregate,
-                "pool_wall_seconds": max(0.0, (now - self._started_ns) / 1_000_000_000),
+                "pool_wall_seconds": self._pool_wall_ns / 1_000_000_000,
                 "worker_seconds": self._ledger.aggregate["runtime_seconds"],
                 "poll_overhead_seconds": self._poll_overhead_seconds,
                 "lease_bindings": [
@@ -1008,16 +1063,23 @@ class NativePoolCoordinator:
         self._callback_fault_detail = None
         self._slack_warning_active = False
         started = self._monotonic_ns()
-        if progress["status"] == "pending":
-            result = turn.step(self._task_inputs[child_id])
-        elif poll and progress.get("wait_required"):
-            turn.resume_after_wait()
-            result = turn.step()
-        else:
-            result = turn.step()
-        ended = self._monotonic_ns()
-        callback_seconds = (self._last_callback_latency_ms or 0.0) / 1000
-        self._poll_overhead_seconds += max(0.0, (ended - started) / 1_000_000_000 - callback_seconds)
+        callback_started_ns = self._callback_ns
+        try:
+            if progress["status"] == "pending":
+                result = turn.step(self._task_inputs[child_id])
+            elif poll and progress.get("wait_required"):
+                turn.resume_after_wait()
+                result = turn.step()
+            else:
+                result = turn.step()
+        finally:
+            ended = self._monotonic_ns()
+            callback_ns = self._callback_ns - callback_started_ns
+            if not self._timing_frozen:
+                self._noncallback_invoke_ns += max(
+                    0,
+                    ended - started - callback_ns,
+                )
         if self._callback_count > 1:
             self._enter_fault("more-than-one-adapter-callback-in-step", control_failed=True)
         self._update_child_progress(child_id, result)
@@ -1224,7 +1286,7 @@ class NativePoolCoordinator:
                     error,
                     control_failed=True,
                 )
-        self._refresh_state("control-failed")
+        self._refresh_state("control-failed", freeze_timing=True)
         self._receipt = self._build_receipt()
         self._release_state_lock()
 
@@ -1242,6 +1304,7 @@ class NativePoolCoordinator:
         )
 
     def _seal_crash_state(self, *, increment: bool) -> None:
+        self._capture_timing(self._monotonic_ns(), freeze=True)
         aggregate_usage = zero_usage()
         token_values: list[Mapping[str, Any]] = []
         for child in self._state["children"]:
@@ -1286,6 +1349,7 @@ class NativePoolCoordinator:
                 "active_children": [],
                 "terminal_children": list(self.child_ids),
                 "aggregate_usage": aggregate_usage,
+                "pool_wall_seconds": self._pool_wall_ns / 1_000_000_000,
                 "worker_seconds": aggregate_usage["runtime_seconds"],
                 "poll_overhead_seconds": self._poll_overhead_seconds,
                 "lease_bindings": [
@@ -1538,12 +1602,7 @@ class NativePoolCoordinator:
                 "admission_order": list(self._admission_order),
                 "poll_order": list(self._poll_order),
                 "terminal_order": list(self._terminal_order),
-                "timing": {
-                    "max_callback_latency_ms": self._max_callback_latency_ms,
-                    "max_poll_gap_ms": self._max_poll_gap_ms,
-                    "poll_interval_ms": self.contract["scheduler"]["poll_interval_ms"],
-                    "poll_lag_tolerance_ms": self.contract["scheduler"]["poll_lag_tolerance_ms"],
-                },
+                "timing": self._timing_receipt(),
                 "child_terminal_receipts": child_receipts,
                 "final_aggregate_usage": self._state["aggregate_usage"],
                 "pool_wall_seconds": self._state["pool_wall_seconds"],
@@ -1585,7 +1644,7 @@ class NativePoolCoordinator:
         self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
         return self.progress()
 
-    def step(self) -> dict[str, Any]:
+    def _step_once(self) -> dict[str, Any]:
         """Advance one deterministic pool step and never sleep."""
         if self._state["status"] == "closed":
             return self.progress()
@@ -1606,8 +1665,6 @@ class NativePoolCoordinator:
                 actions=["interrupt"],
             )
             return self.progress()
-        step_started = self._monotonic_ns()
-
         if self._state["status"] == "created":
             if self._initial_mutation_fault:
                 self._enter_fault(
@@ -1685,7 +1742,7 @@ class NativePoolCoordinator:
                         actions=["release-leases"],
                     )
                 return self.progress()
-            self._refresh_state("closed")
+            self._refresh_state("closed", freeze_timing=True)
             self._receipt = self._build_receipt()
             self._decision_for(decision="complete", selected_child_id=None, actions=["finalize"])
             self._release_state_lock()
@@ -1760,9 +1817,15 @@ class NativePoolCoordinator:
         )
         actions = ["interrupt"] if status == "interrupt-pending" else ["release-leases"] if status == "completed" else ["step"]
         self._decision_for(decision=decision, selected_child_id=selected, actions=actions)
-        step_ended = self._monotonic_ns()
-        self._poll_overhead_seconds += max(0.0, (step_ended - step_started) / 1_000_000_000)
         return self.progress()
+
+    def step(self) -> dict[str, Any]:
+        """Advance one deterministic pool step and never sleep."""
+        self._complete_wait()
+        progress = self._step_once()
+        if progress["wait_required"] and not self._timing_frozen:
+            self._wait_started_ns = self._monotonic_ns()
+        return progress
 
     def run(self) -> dict[str, Any]:
         """Blocking compatibility wrapper; only this method sleeps."""

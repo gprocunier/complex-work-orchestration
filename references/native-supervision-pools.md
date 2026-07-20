@@ -169,10 +169,17 @@ Single-worker pools skip `capability-validated`. Admission is sequential: a
 child lease is acquired before that child's first adapter callback. Scheduling
 uses earliest deadline with deterministic rotation for ties. `step()` invokes
 at most one adapter callback and never sleeps; only the host's `run()` wrapper
-sleeps. The v1 timing contract is exactly a 1000 ms poll interval with 1500 ms
-lag tolerance. Concurrent admission uses the requested N in the conservative
-non-preemptive worst-case response
-bound:
+sleeps. New receipts use `timing.accounting_version=exclusive-v1` and expose
+mutually exclusive nanosecond counters for adapter callbacks, non-callback
+control-turn invocation, coordinator work, and declared wait time. Their sum
+equals `pool_wall_seconds`; `poll_overhead_seconds` is the non-callback invoke
+plus coordinator buckets, so callback and wait time are never included.
+Coordinator time includes pool-owned evidence reads, workspace checks,
+persistence, lease operations, and other external I/O. Historical receipts
+with only the original four timing fields remain readable. Timing freezes at
+the terminal state boundary. The v1 scheduling contract is exactly a 1000 ms
+poll interval with 1500 ms lag tolerance. Concurrent admission uses the
+requested N in the conservative non-preemptive worst-case response bound:
 
 ```text
 max_lifecycle_ms + N * certified_check_max_ms

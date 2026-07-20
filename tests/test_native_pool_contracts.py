@@ -408,6 +408,71 @@ class NativePoolContractTest(unittest.TestCase):
         self.assertEqual(validate_pool_receipt(receipt, contract=contract, terminal_state=state), [])
         self.assertEqual(validate_pool_artifact(contract), [])
 
+    def test_receipt_accepts_legacy_and_exclusive_timing_shapes(self) -> None:
+        contract, _, _, state, _, legacy = self.artifacts()
+        self.assertEqual(
+            validate_pool_receipt(
+                legacy,
+                contract=contract,
+                terminal_state=state,
+            ),
+            [],
+        )
+
+        exclusive = copy.deepcopy(legacy)
+        exclusive["timing"].update(
+            {
+                "accounting_version": "exclusive-v1",
+                "callback_ns": 0,
+                "noncallback_invoke_ns": 0,
+                "coordinator_ns": 0,
+                "wait_ns": 0,
+            }
+        )
+        exclusive = seal_artifact(exclusive, "receipt_sha256")
+        self.assertEqual(
+            validate_pool_receipt(
+                exclusive,
+                contract=contract,
+                terminal_state=state,
+            ),
+            [],
+        )
+
+        missing_bucket = copy.deepcopy(exclusive)
+        missing_bucket["timing"].pop("callback_ns")
+        missing_bucket = seal_artifact(missing_bucket, "receipt_sha256")
+        self.assertTrue(
+            any(
+                error.startswith("timing-missing-fields:callback_ns")
+                for error in validate_pool_receipt(
+                    missing_bucket,
+                    contract=contract,
+                    terminal_state=state,
+                )
+            )
+        )
+
+        overlapping = copy.deepcopy(exclusive)
+        overlapping["timing"]["noncallback_invoke_ns"] = 2
+        overlapping = seal_artifact(overlapping, "receipt_sha256")
+        errors = validate_pool_receipt(
+            overlapping,
+            contract=contract,
+            terminal_state=state,
+        )
+        self.assertIn("timing-buckets-do-not-reconcile-with-pool-wall", errors)
+        self.assertIn("receipt-poll-overhead-seconds-mismatch", errors)
+
+        if HAS_JSONSCHEMA:
+            import jsonschema
+
+            schema = json.loads(
+                (ROOT / POOL_RECEIPT_SCHEMA).read_text(encoding="utf-8")
+            )
+            jsonschema.validate(legacy, schema)
+            jsonschema.validate(exclusive, schema)
+
     def test_missing_unknown_tamper_and_replay_fail(self) -> None:
         contract, _, _, _, _, _ = self.artifacts()
         missing = copy.deepcopy(contract)
