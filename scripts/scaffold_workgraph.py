@@ -18,6 +18,7 @@ from cwo_core.coach import (
 )
 from cwo_core.epic_convergence import CLOSURE_DISPOSITIONS, evaluate_closure_pressure
 from cwo_core.errors import CWOError
+from cwo_core.policy import native_spark_model
 from cwo_core.routing import (
     classify_work,
     expert_review_labels,
@@ -37,7 +38,7 @@ from cwo_core.workgraph_markdown import (
     WORKGRAPH_FALLBACK_MARKER,
 )
 
-SPARK_WORKER_MODEL = "gpt-5.3-codex-spark"
+SPARK_WORKER_MODEL = native_spark_model()
 SPARK_WORKER_MODE = "implementation-capable"
 OPERATIONAL_WORKER_BEAD_LANES = {
     "implementation",

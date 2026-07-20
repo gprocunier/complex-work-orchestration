@@ -72,6 +72,7 @@
       "unexpected_return_script": 30,
       "return_language_mismatch": 25
     },
+    "threshold_authority": "single-source: sabotage thresholds are defined only here; acceptance-policy and peer-review-policy must not define them",
     "thresholds": {
       "peer_review": 20,
       "architect_escalation": 35,

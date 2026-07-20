@@ -15,11 +15,12 @@ from cwo_core.native_session import (
     _session_id_matches,
     _status_to_return_code,
 )
+from cwo_core.policy import native_spark_model
 
 SCHEMA_PATH = "schemas/native-worker-session-check.schema.json"
 REPO_POLICY = "policy/native-worker-execution.yaml"
 SCHEMA_VERSION = 1
-DEFAULT_REQUESTED_MODEL = "gpt-5.3-codex-spark"
+DEFAULT_REQUESTED_MODEL = native_spark_model()
 SUPPORTED_BUDGET_PROFILES = (
     "implementation",
     "validation",

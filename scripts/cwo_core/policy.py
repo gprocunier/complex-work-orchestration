@@ -321,3 +321,29 @@ def executor_external(executor_key: str) -> bool:
 def executor_dispatch_mode(executor_key: str) -> str:
     executor = executor_config(executor_key)
     return str(executor.get("dispatch_mode", ""))
+
+
+def native_worker_execution_policy() -> dict[str, Any]:
+    return load_policy("native-worker-execution")
+
+
+def native_spark_model() -> str:
+    worker = native_worker_execution_policy().get("governance", {}).get("native_operative_worker", {})
+    model = str(worker.get("preferred_model") or "").strip()
+    if not model:
+        raise SystemExit(
+            "native-worker-execution policy is missing governance.native_operative_worker.preferred_model"
+        )
+    return model
+
+
+def native_authorized_worker_models() -> list[str]:
+    worker = native_worker_execution_policy().get("governance", {}).get("native_operative_worker", {})
+    models = [str(item).strip() for item in worker.get("authorized_models") or [] if str(item).strip()]
+    if not models:
+        raise SystemExit(
+            "native-worker-execution policy is missing governance.native_operative_worker.authorized_models"
+        )
+    if native_spark_model() not in models:
+        raise SystemExit("native-worker-execution authorized_models must include preferred_model")
+    return models

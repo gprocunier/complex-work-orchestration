@@ -100,11 +100,7 @@
   },
   "verdicts": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"],
   "sabotage": {
-    "thresholds": {
-      "review": 30,
-      "architect_escalation": 45,
-      "quarantine": 60
-    },
+    "threshold_authority": "single-source: sabotage thresholds are defined only in contracting-controls.yaml sabotage_policy.thresholds",
     "signal_notes": {
       "work_rerouting_or_subversion": {
         "authority": "evidence-quality gate and architect-escalation trigger",
