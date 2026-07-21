@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Pool Fixed-Cohort Admission Reservation v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reservation_type",
+    "version",
+    "schema",
+    "reservation_id",
+    "admission_nonce",
+    "created_at",
+    "claim_actor",
+    "readiness_snapshot_sha256",
+    "readiness_evidence_sha256",
+    "work_estimate_set_sha256",
+    "native_worker_policy_sha256",
+    "proportionality_policy_sha256",
+    "proportionality_assessment_sha256",
+    "selected_cohort_sha256",
+    "candidate_mode",
+    "issue_ids",
+    "child_bindings",
+    "claims",
+    "child_bindings_sha256",
+    "claim_set_sha256",
+    "retained_owned_issue_ids",
+    "recompute_count",
+    "status",
+    "fixed_cohort_sha256",
+    "authority",
+    "dispatch_authorized",
+    "reservation_sha256"
+  ],
+  "properties": {
+    "reservation_type": {"const": "cwo-native-pool-admission-reservation:v2"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-pool-admission-reservation.schema.json"},
+    "reservation_id": {"$ref": "#/$defs/sha256"},
+    "admission_nonce": {"$ref": "#/$defs/nonempty"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "claim_actor": {"$ref": "#/$defs/nonempty"},
+    "readiness_snapshot_sha256": {"$ref": "#/$defs/sha256"},
+    "readiness_evidence_sha256": {"$ref": "#/$defs/sha256"},
+    "work_estimate_set_sha256": {"$ref": "#/$defs/sha256"},
+    "native_worker_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "proportionality_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "proportionality_assessment_sha256": {"$ref": "#/$defs/sha256"},
+    "selected_cohort_sha256": {"$ref": "#/$defs/sha256"},
+    "candidate_mode": {
+      "enum": ["single", "released-capacity", "offline-unreleased-candidate"]
+    },
+    "issue_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonempty"}
+    },
+    "child_bindings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/child_binding"}
+    },
+    "claims": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/claim"}
+    },
+    "child_bindings_sha256": {"$ref": "#/$defs/sha256"},
+    "claim_set_sha256": {"$ref": "#/$defs/sha256"},
+    "retained_owned_issue_ids": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonempty"}
+    },
+    "recompute_count": {"enum": [0, 1]},
+    "status": {"enum": ["admitted", "claim-lost", "offline-candidate"]},
+    "fixed_cohort_sha256": {"$ref": "#/$defs/sha256"},
+    "authority": {"const": "reservation-evidence-only"},
+    "dispatch_authorized": {"const": false},
+    "reservation_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "admitted"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "issue_ids": {"maxItems": 2},
+          "child_bindings": {"maxItems": 2},
+          "claims": {"minItems": 1},
+          "candidate_mode": {"enum": ["single", "released-capacity"]}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "offline-candidate"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "claims": {"maxItems": 0},
+          "retained_owned_issue_ids": {"maxItems": 0}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nonempty": {"type": "string", "minLength": 1},
+    "child_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bead_id",
+        "work_unit_id",
+        "child_id",
+        "packet_id",
+        "packet_sha256",
+        "candidate_sha256",
+        "work_estimate_sha256",
+        "worker_commitment_sha256",
+        "lease_scope_sha256",
+        "worktree_identity_sha256",
+        "hard_budget",
+        "requested_model",
+        "admitted_child_sha256"
+      ],
+      "properties": {
+        "bead_id": {"$ref": "#/$defs/nonempty"},
+        "work_unit_id": {"$ref": "#/$defs/nonempty"},
+        "child_id": {"$ref": "#/$defs/nonempty"},
+        "packet_id": {"$ref": "#/$defs/nonempty"},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_sha256": {"$ref": "#/$defs/sha256"},
+        "work_estimate_sha256": {"$ref": "#/$defs/sha256"},
+        "worker_commitment_sha256": {"$ref": "#/$defs/sha256"},
+        "lease_scope_sha256": {"$ref": "#/$defs/sha256"},
+        "worktree_identity_sha256": {"$ref": "#/$defs/sha256"},
+        "hard_budget": {"$ref": "#/$defs/admission_budget"},
+        "requested_model": {"$ref": "#/$defs/nonempty"},
+        "admitted_child_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "admission_budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_calls", "runtime_seconds", "compactions"],
+      "properties": {
+        "tool_calls": {"type": "integer", "minimum": 1},
+        "runtime_seconds": {"type": "integer", "minimum": 1},
+        "compactions": {"type": "integer", "minimum": 0}
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bead_id",
+        "actor",
+        "outcome",
+        "pre_show_sha256",
+        "post_show_sha256",
+        "command_sha256",
+        "command_returncode",
+        "command_timed_out",
+        "owned",
+        "claim_sha256"
+      ],
+      "properties": {
+        "bead_id": {"$ref": "#/$defs/nonempty"},
+        "actor": {"$ref": "#/$defs/nonempty"},
+        "outcome": {
+          "enum": [
+            "claimed",
+            "claimed-after-timeout",
+            "claimed-after-command-error",
+            "claim-lost",
+            "claim-show-failed",
+            "preowned-replay"
+          ]
+        },
+        "pre_show_sha256": {"$ref": "#/$defs/sha256"},
+        "post_show_sha256": {
+          "oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]
+        },
+        "command_sha256": {
+          "oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]
+        },
+        "command_returncode": {
+          "oneOf": [{"type": "integer"}, {"type": "null"}]
+        },
+        "command_timed_out": {"type": "boolean"},
+        "owned": {"type": "boolean"},
+        "claim_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

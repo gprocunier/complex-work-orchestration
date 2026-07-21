@@ -28,6 +28,8 @@ from .native_pool_capacity_compat import (
     historical_release_snapshot,
 )
 from .native_pool_contracts import (
+    ADMITTED_POOL_CONTRACT_SCHEMA,
+    ADMITTED_POOL_VERSION,
     CAPABILITY_CERTIFICATION_ENVELOPE,
     CAPABILITY_CERTIFICATION_VERSION,
     CAPABILITY_OBSERVATION_AUTHORITY,
@@ -42,6 +44,7 @@ from .native_pool_contracts import (
     POOL_POLL_INTERVAL_MS,
     POOL_POLL_LAG_TOLERANCE_MS,
     VERSION,
+    admission_child_render_hashes,
     canonical_sha256,
     callback_certification_policy_sha256,
     seal_artifact,
@@ -49,6 +52,7 @@ from .native_pool_contracts import (
     validate_completion_evidence_policy,
     validate_pool_contract,
 )
+from .native_pool_admission import validate_reservation_receipt
 from .native_pool_schedulability import (
     PoolSchedulabilityError,
     scheduling_budget_proof,
@@ -61,7 +65,10 @@ from .native_tool_isolation import validate_tool_policy
 
 RENDER_REQUEST_TYPE = "cwo-native-supervision-pool-render-request"
 RENDER_REQUEST_SCHEMA = "schemas/native-supervision-pool-render-request.schema.json"
-RENDER_REQUEST_FIELDS = {
+ADMITTED_RENDER_REQUEST_SCHEMA = (
+    "schemas/native-supervision-pool-render-request-v2.schema.json"
+)
+RENDER_REQUEST_FIELDS_V1 = {
     "request_type",
     "version",
     "schema",
@@ -74,7 +81,8 @@ RENDER_REQUEST_FIELDS = {
     "integration_root",
     "children",
 }
-RENDER_CHILD_FIELDS = {
+RENDER_REQUEST_FIELDS_V2 = RENDER_REQUEST_FIELDS_V1 | {"admission_reservation"}
+RENDER_CHILD_FIELDS_V1 = {
     "child_id",
     "packet_id",
     "attempt_nonce",
@@ -92,6 +100,24 @@ RENDER_CHILD_FIELDS = {
     "integration_target_paths",
     "lease_id",
 }
+RENDER_CHILD_ADMISSION_FIELDS = {
+    "bead_id",
+    "work_unit_id",
+    "candidate_sha256",
+    "claim_sha256",
+    "work_estimate_sha256",
+    "worker_commitment_sha256",
+    "lease_scope_sha256",
+    "worktree_identity_sha256",
+    "hard_budget",
+    "requested_model",
+    "admitted_child_sha256",
+}
+RENDER_CHILD_FIELDS_V2 = RENDER_CHILD_FIELDS_V1 | RENDER_CHILD_ADMISSION_FIELDS
+
+# Historical import aliases remain the v1 inspection surface.
+RENDER_REQUEST_FIELDS = RENDER_REQUEST_FIELDS_V1
+RENDER_CHILD_FIELDS = RENDER_CHILD_FIELDS_V1
 _BUDGET_FIELDS = {
     "tool_calls",
     "runtime_seconds",
@@ -172,9 +198,8 @@ def seal_bound_manifest_validation(
     """
 
     candidate = campaign_manifest.get("candidate")
-    if (
-        campaign_manifest.get("version") != MANIFEST_VERSION_V8
-        or not isinstance(candidate, Mapping)
+    if campaign_manifest.get("version") != MANIFEST_VERSION_V8 or not isinstance(
+        candidate, Mapping
     ):
         raise NativePoolConfigError("bound-manifest-validation-source-invalid")
     launch_claim_sha256 = artifact_bindings.get("launch_claim_sha256")
@@ -234,7 +259,10 @@ def validate_bound_manifest_validation(
             candidate.get("tree") if isinstance(candidate, Mapping) else None
         ),
     }
-    if any(receipt.get(field) != expected_value for field, expected_value in expected.items()):
+    if any(
+        receipt.get(field) != expected_value
+        for field, expected_value in expected.items()
+    ):
         errors.append("bound-manifest-validation-binding-mismatch")
     for field in (
         "manifest_sha256",
@@ -243,7 +271,9 @@ def validate_bound_manifest_validation(
         "validation_sha256",
     ):
         if not _sha256(receipt.get(field)):
-            errors.append(f"bound-manifest-validation-{field.replace('_', '-')}-invalid")
+            errors.append(
+                f"bound-manifest-validation-{field.replace('_', '-')}-invalid"
+            )
     unsigned = dict(receipt)
     unsigned.pop("validation_sha256", None)
     if receipt.get("validation_sha256") != canonical_sha256(unsigned):
@@ -292,7 +322,9 @@ def validate_live_canary_manifest_gate(
     return ["campaign-manifest-version-invalid"]
 
 
-def _strict_fields(value: Any, expected: set[str], prefix: str, errors: list[str]) -> Mapping[str, Any] | None:
+def _strict_fields(
+    value: Any, expected: set[str], prefix: str, errors: list[str]
+) -> Mapping[str, Any] | None:
     if not isinstance(value, Mapping):
         errors.append(f"{prefix}-must-be-object")
         return None
@@ -305,7 +337,9 @@ def _strict_fields(value: Any, expected: set[str], prefix: str, errors: list[str
     return value
 
 
-def _validate_paths(value: Any, prefix: str, *, allow_empty: bool, errors: list[str]) -> None:
+def _validate_paths(
+    value: Any, prefix: str, *, allow_empty: bool, errors: list[str]
+) -> None:
     if not isinstance(value, list):
         errors.append(f"{prefix}-must-be-array")
         return
@@ -317,7 +351,11 @@ def _validate_paths(value: Any, prefix: str, *, allow_empty: bool, errors: list[
             errors.append(f"{prefix}-contains-invalid-path")
             continue
         path = PurePosixPath(item)
-        if path.is_absolute() or item in {".", ".."} or any(part in {"", ".", ".."} for part in path.parts):
+        if (
+            path.is_absolute()
+            or item in {".", ".."}
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
             errors.append(f"{prefix}-contains-unsafe-path")
             continue
         if path.as_posix() != item:
@@ -328,6 +366,84 @@ def _validate_paths(value: Any, prefix: str, *, allow_empty: bool, errors: list[
         errors.append(f"{prefix}-contains-duplicate-path")
 
 
+def _validate_render_admission(
+    request: Mapping[str, Any],
+    children: list[Any],
+    errors: list[str],
+) -> None:
+    reservation = request.get("admission_reservation")
+    reservation_errors = validate_reservation_receipt(reservation)
+    if reservation_errors:
+        errors.extend(f"admission-reservation:{item}" for item in reservation_errors)
+        return
+    assert isinstance(reservation, Mapping)
+    if reservation.get("status") != "admitted" or reservation.get(
+        "candidate_mode"
+    ) not in {"single", "released-capacity"}:
+        errors.append("admission-reservation-not-productively-admitted")
+    if request.get("max_active_workers") != len(reservation.get("issue_ids", [])):
+        errors.append("admission-reservation-capacity-mismatch")
+    bindings = reservation.get("child_bindings")
+    claims = reservation.get("claims")
+    if not isinstance(bindings, list) or not isinstance(claims, list):
+        return
+    bindings_by_bead = {
+        item.get("bead_id"): item for item in bindings if isinstance(item, Mapping)
+    }
+    claims_by_bead = {
+        item.get("bead_id"): item
+        for item in claims
+        if isinstance(item, Mapping) and item.get("owned") is True
+    }
+    if [
+        child.get("bead_id") for child in children if isinstance(child, Mapping)
+    ] != reservation.get("issue_ids"):
+        errors.append("admission-child-order-mismatch")
+    exact_fields = (
+        "bead_id",
+        "work_unit_id",
+        "child_id",
+        "packet_id",
+        "packet_sha256",
+        "candidate_sha256",
+        "work_estimate_sha256",
+        "worker_commitment_sha256",
+        "lease_scope_sha256",
+        "worktree_identity_sha256",
+        "requested_model",
+        "admitted_child_sha256",
+    )
+    for index, raw_child in enumerate(children):
+        if not isinstance(raw_child, Mapping):
+            continue
+        child = dict(raw_child)
+        binding = bindings_by_bead.get(child.get("bead_id"))
+        if not isinstance(binding, Mapping):
+            errors.append(f"admission-child[{index}]-binding-missing")
+            continue
+        for field in exact_fields:
+            if child.get(field) != binding.get(field):
+                errors.append(
+                    f"admission-child[{index}]-{field.replace('_', '-')}-mismatch"
+                )
+        hard_budget = child.get("hard_budget")
+        reservation_budget = binding.get("hard_budget")
+        if not isinstance(hard_budget, Mapping) or not isinstance(
+            reservation_budget, Mapping
+        ):
+            errors.append(f"admission-child[{index}]-hard-budget-invalid")
+        elif any(
+            hard_budget.get(field) != reservation_budget.get(field)
+            for field in ("tool_calls", "runtime_seconds", "compactions")
+        ):
+            errors.append(f"admission-child[{index}]-hard-budget-mismatch")
+        claim = claims_by_bead.get(child.get("bead_id"))
+        if not isinstance(claim, Mapping) or child.get("claim_sha256") != claim.get(
+            "claim_sha256"
+        ):
+            errors.append(f"admission-child[{index}]-claim-mismatch")
+
+
 def validate_pool_render_request(
     value: Any,
     *,
@@ -336,14 +452,26 @@ def validate_pool_render_request(
     """Validate the local path-bearing request used to render a pool contract."""
     errors: list[str] = []
     limits = capacity_limits or load_pool_capacity()
-    request = _strict_fields(value, RENDER_REQUEST_FIELDS, "render-request", errors)
+    admitted_v2 = (
+        isinstance(value, Mapping) and value.get("version") == ADMITTED_POOL_VERSION
+    )
+    request = _strict_fields(
+        value,
+        RENDER_REQUEST_FIELDS_V2 if admitted_v2 else RENDER_REQUEST_FIELDS_V1,
+        "render-request",
+        errors,
+    )
     if request is None:
         return errors
     if request.get("request_type") != RENDER_REQUEST_TYPE:
         errors.append("invalid-request-type")
-    if request.get("version") != VERSION:
+    expected_version = ADMITTED_POOL_VERSION if admitted_v2 else VERSION
+    expected_schema = (
+        ADMITTED_RENDER_REQUEST_SCHEMA if admitted_v2 else RENDER_REQUEST_SCHEMA
+    )
+    if request.get("version") != expected_version:
         errors.append("invalid-version")
-    if request.get("schema") != RENDER_REQUEST_SCHEMA:
+    if request.get("schema") != expected_schema:
         errors.append("invalid-schema")
     for field in ("pool_id", "pool_epoch", "control_turn_id"):
         if not _nonempty(request.get(field)):
@@ -351,12 +479,19 @@ def validate_pool_render_request(
     if not _aware_datetime(request.get("created_at")):
         errors.append("invalid-created-at")
     cap = request.get("max_active_workers")
-    if not limits.validates_requested_capacity(cap):
+    if not limits.validates_requested_capacity(cap) or (
+        admitted_v2 and not limits.is_released(cap)
+    ):
         errors.append("invalid-max-active-workers")
     integration_root = request.get("integration_root")
     if not _nonempty(integration_root) or not Path(str(integration_root)).is_absolute():
         errors.append("invalid-integration-root")
-    budget = _strict_fields(request.get("aggregate_hard_budget"), _BUDGET_FIELDS, "aggregate-hard-budget", errors)
+    budget = _strict_fields(
+        request.get("aggregate_hard_budget"),
+        _BUDGET_FIELDS,
+        "aggregate-hard-budget",
+        errors,
+    )
     if budget is not None:
         for field in ("tool_calls", "runtime_seconds"):
             if not _integer(budget.get(field), 1):
@@ -375,10 +510,23 @@ def validate_pool_render_request(
         errors.append("fixed-cohort-size-mismatch")
     identities: dict[str, list[Any]] = {
         field: []
-        for field in ("child_id", "packet_id", "attempt_nonce", "session_id", "agent_id", "control_turn_id", "lease_id")
+        for field in (
+            "child_id",
+            "packet_id",
+            "attempt_nonce",
+            "session_id",
+            "agent_id",
+            "control_turn_id",
+            "lease_id",
+        )
     }
     for index, raw in enumerate(children):
-        child = _strict_fields(raw, RENDER_CHILD_FIELDS, f"child[{index}]", errors)
+        child = _strict_fields(
+            raw,
+            RENDER_CHILD_FIELDS_V2 if admitted_v2 else RENDER_CHILD_FIELDS_V1,
+            f"child[{index}]",
+            errors,
+        )
         if child is None:
             continue
         for field in identities:
@@ -388,6 +536,35 @@ def validate_pool_render_request(
                 errors.append(f"invalid-child[{index}]-{field.replace('_', '-')}")
         if not _sha256(child.get("packet_sha256")):
             errors.append(f"invalid-child[{index}]-packet-sha256")
+        if admitted_v2:
+            for field in ("bead_id", "work_unit_id", "requested_model"):
+                if not _nonempty(child.get(field)):
+                    errors.append(f"invalid-child[{index}]-{field.replace('_', '-')}")
+            for field in RENDER_CHILD_ADMISSION_FIELDS - {
+                "bead_id",
+                "work_unit_id",
+                "hard_budget",
+                "requested_model",
+            }:
+                if not _sha256(child.get(field)):
+                    errors.append(f"invalid-child[{index}]-{field.replace('_', '-')}")
+            child_budget = _strict_fields(
+                child.get("hard_budget"),
+                _BUDGET_FIELDS,
+                f"child[{index}]-hard-budget",
+                errors,
+            )
+            if child_budget is not None:
+                for field in ("tool_calls", "runtime_seconds"):
+                    if not _integer(child_budget.get(field), 1):
+                        errors.append(
+                            f"invalid-child[{index}]-budget-{field.replace('_', '-')}"
+                        )
+                for field in ("compactions", "full_suite_runs", "mutations"):
+                    if not _integer(child_budget.get(field)):
+                        errors.append(
+                            f"invalid-child[{index}]-budget-{field.replace('_', '-')}"
+                        )
         for field in ("control_contract_file", "state_file", "worktree"):
             candidate = child.get(field)
             if not _nonempty(candidate) or not Path(str(candidate)).is_absolute():
@@ -415,19 +592,31 @@ def validate_pool_render_request(
             and isinstance(child_tool_policy, Mapping)
             and "apply_patch" in child_tool_policy.get("permitted_tools", [])
         ):
-            errors.append(
-                f"read-only-child[{index}]-tool-policy-permits-apply-patch"
-            )
-        _validate_paths(child.get("declared_write_paths"), f"child[{index}]-declared-write-paths", allow_empty=read_only, errors=errors)
-        _validate_paths(child.get("integration_target_paths"), f"child[{index}]-integration-target-paths", allow_empty=read_only, errors=errors)
-        if read_only and (child.get("declared_write_paths") or child.get("integration_target_paths")):
+            errors.append(f"read-only-child[{index}]-tool-policy-permits-apply-patch")
+        _validate_paths(
+            child.get("declared_write_paths"),
+            f"child[{index}]-declared-write-paths",
+            allow_empty=read_only,
+            errors=errors,
+        )
+        _validate_paths(
+            child.get("integration_target_paths"),
+            f"child[{index}]-integration-target-paths",
+            allow_empty=read_only,
+            errors=errors,
+        )
+        if read_only and (
+            child.get("declared_write_paths") or child.get("integration_target_paths")
+        ):
             errors.append(f"read-only-child[{index}]-paths-must-be-empty")
     for field, values in identities.items():
         if len(values) != len(set(values)):
             errors.append(f"duplicate-child-{field.replace('_', '-')}")
     if budget is not None and _integer(budget.get("tool_calls"), 1):
         required_tool_calls = sum(
-            int(child.get("completion_evidence_policy", {}).get("minimum_tool_calls", 0))
+            int(
+                child.get("completion_evidence_policy", {}).get("minimum_tool_calls", 0)
+            )
             for child in children
             if isinstance(child, Mapping)
             and isinstance(child.get("completion_evidence_policy"), Mapping)
@@ -436,7 +625,26 @@ def validate_pool_render_request(
             )
         )
         if required_tool_calls > budget["tool_calls"]:
-            errors.append("completion-evidence-minimum-tool-calls-exceed-aggregate-budget")
+            errors.append(
+                "completion-evidence-minimum-tool-calls-exceed-aggregate-budget"
+            )
+    if admitted_v2 and budget is not None:
+        for field in _BUDGET_FIELDS:
+            values = [
+                child.get("hard_budget", {}).get(field)
+                for child in children
+                if isinstance(child, Mapping)
+                and isinstance(child.get("hard_budget"), Mapping)
+            ]
+            if (
+                len(values) != len(children)
+                or any(not _integer(item) for item in values)
+                or sum(values) != budget.get(field)
+            ):
+                errors.append(
+                    f"admission-child-budget-{field.replace('_', '-')}-aggregate-mismatch"
+                )
+        _validate_render_admission(request, children, errors)
     return errors
 
 
@@ -456,13 +664,18 @@ def _load_private_object(path_value: str, label: str) -> dict[str, Any]:
     return value
 
 
-def _validate_worker_state_binding(state: Mapping[str, Any], child: Mapping[str, Any]) -> list[str]:
+def _validate_worker_state_binding(
+    state: Mapping[str, Any], child: Mapping[str, Any]
+) -> list[str]:
     errors: list[str] = []
     missing = sorted(_STATE_BINDING_FIELDS - set(state))
     if missing:
         errors.append("worker-state-missing-fields:" + ",".join(missing))
         return errors
-    if state.get("result_type") != "cwo-native-supervision-state" or state.get("version") != 1:
+    if (
+        state.get("result_type") != "cwo-native-supervision-state"
+        or state.get("version") != 1
+    ):
         errors.append("worker-state-header-invalid")
     if state.get("schema") != "schemas/native-supervision-state.schema.json":
         errors.append("worker-state-schema-invalid")
@@ -483,7 +696,11 @@ def _validate_worker_state_binding(state: Mapping[str, Any], child: Mapping[str,
 
 
 def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]:
-    document = dict(policy_document) if policy_document is not None else load_policy("native-worker-execution")
+    document = (
+        dict(policy_document)
+        if policy_document is not None
+        else load_policy("native-worker-execution")
+    )
     policy = document.get("native_supervision_pool")
     if not isinstance(policy, Mapping):
         raise NativePoolConfigError("native-supervision-pool-policy-missing")
@@ -497,7 +714,9 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
     }
     for field, expected in required.items():
         if policy.get(field) != expected:
-            raise NativePoolConfigError(f"native-supervision-pool-policy-invalid:{field}")
+            raise NativePoolConfigError(
+                f"native-supervision-pool-policy-invalid:{field}"
+            )
     if policy.get("status") not in {"canary-gated", "operative-authorized"}:
         raise NativePoolConfigError("native-supervision-pool-policy-invalid:status")
     try:
@@ -505,10 +724,18 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
     except NativePoolCapacityPolicyError as error:
         raise NativePoolConfigError(str(error)) from error
     if not _nonempty(policy.get("release_requires")):
-        raise NativePoolConfigError("native-supervision-pool-policy-invalid:release_requires")
+        raise NativePoolConfigError(
+            "native-supervision-pool-policy-invalid:release_requires"
+        )
     surfaces = policy.get("allowed_execution_surfaces")
-    if not isinstance(surfaces, list) or not surfaces or any(not _nonempty(item) for item in surfaces):
-        raise NativePoolConfigError("native-supervision-pool-policy-invalid:allowed_execution_surfaces")
+    if (
+        not isinstance(surfaces, list)
+        or not surfaces
+        or any(not _nonempty(item) for item in surfaces)
+    ):
+        raise NativePoolConfigError(
+            "native-supervision-pool-policy-invalid:allowed_execution_surfaces"
+        )
     single_flight = policy.get("single_flight_surfaces")
     required_single_flight = {
         "precommit-supervision",
@@ -521,16 +748,19 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         "integration",
         "publication",
     }
-    if not isinstance(single_flight, list) or not required_single_flight.issubset(set(single_flight)):
-        raise NativePoolConfigError("native-supervision-pool-policy-invalid:single_flight_surfaces")
+    if not isinstance(single_flight, list) or not required_single_flight.issubset(
+        set(single_flight)
+    ):
+        raise NativePoolConfigError(
+            "native-supervision-pool-policy-invalid:single_flight_surfaces"
+        )
     scheduler = policy.get("scheduler")
     if (
         not isinstance(scheduler, Mapping)
         or scheduler.get("kind") != "earliest-deadline-rotating-v1"
         or scheduler.get("poll_interval_ms") != POOL_POLL_INTERVAL_MS
         or scheduler.get("poll_lag_tolerance_ms") != POOL_POLL_LAG_TOLERANCE_MS
-        or scheduler.get("slack_warning_fraction")
-        != CAPABILITY_SLACK_WARNING_FRACTION
+        or scheduler.get("slack_warning_fraction") != CAPABILITY_SLACK_WARNING_FRACTION
         or scheduler.get("hot_admission_allowed") is not False
         or scheduler.get("threads_allowed") is not False
     ):
@@ -546,7 +776,10 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
         "slack_warning_fraction": CAPABILITY_SLACK_WARNING_FRACTION,
     }
-    if not isinstance(certification, Mapping) or dict(certification) != expected_certification:
+    if (
+        not isinstance(certification, Mapping)
+        or dict(certification) != expected_certification
+    ):
         raise NativePoolConfigError(
             "native-supervision-pool-policy-invalid:callback_certification"
         )
@@ -554,9 +787,7 @@ def _pool_policy(policy_document: Mapping[str, Any] | None) -> Mapping[str, Any]
         proof = scheduling_budget_proof(
             requested_workers=limits.hard_max_active_workers,
             certified_callback_max_ms=CERTIFIED_CALLBACK_MAX_MS,
-            certified_scheduler_overhead_ms=(
-                CERTIFIED_SCHEDULER_OVERHEAD_MS
-            ),
+            certified_scheduler_overhead_ms=(CERTIFIED_SCHEDULER_OVERHEAD_MS),
             poll_interval_ms=scheduler["poll_interval_ms"],
         )
     except PoolSchedulabilityError as error:
@@ -593,12 +824,14 @@ def _build_pool_contract(
         capacity_limits=limits,
     )
     if request_errors:
-        raise NativePoolConfigError("pool-render-request-invalid:" + ";".join(request_errors))
+        raise NativePoolConfigError(
+            "pool-render-request-invalid:" + ";".join(request_errors)
+        )
+    admitted_v2 = request.get("version") == ADMITTED_POOL_VERSION
+    reservation = request.get("admission_reservation") if admitted_v2 else None
     cap = int(request["max_active_workers"])
     if limits.requires_concurrency_opt_in(cap) and not enable_concurrency:
-        raise NativePoolConfigError(
-            "concurrency-requires-explicit-enable-concurrency"
-        )
+        raise NativePoolConfigError("concurrency-requires-explicit-enable-concurrency")
     historical_canary = (
         canary_manifest is not None
         and cap == LEGACY_CONCURRENT_CAPACITY
@@ -611,9 +844,7 @@ def _build_pool_contract(
             status=policy.get("status"),
             released_max_active_workers=limits.released_max_active_workers,
         )
-        if expected_snapshot != canary_manifest.get("release", {}).get(
-            "policy_before"
-        ):
+        if expected_snapshot != canary_manifest.get("release", {}).get("policy_before"):
             raise NativePoolConfigError("live-canary-policy-binding-mismatch")
 
     effective_now = now or dt.datetime.now(dt.timezone.utc)
@@ -626,10 +857,16 @@ def _build_pool_contract(
             capacity_limits=limits,
         )
         if capability_errors:
-            raise NativePoolConfigError("capability-receipt-invalid:" + ";".join(capability_errors))
-        if capability_receipt.get("adapter_id") != policy.get("required_control_adapter"):
+            raise NativePoolConfigError(
+                "capability-receipt-invalid:" + ";".join(capability_errors)
+            )
+        if capability_receipt.get("adapter_id") != policy.get(
+            "required_control_adapter"
+        ):
             raise NativePoolConfigError("capability-adapter-policy-mismatch")
-        if capability_receipt.get("execution_surface") not in policy.get("allowed_execution_surfaces", []):
+        if capability_receipt.get("execution_surface") not in policy.get(
+            "allowed_execution_surfaces", []
+        ):
             raise NativePoolConfigError("capability-execution-surface-not-allowed")
         certification = capability_receipt.get("certification")
         expected_policy_sha256 = callback_certification_policy_sha256(
@@ -654,52 +891,75 @@ def _build_pool_contract(
     child_worktrees: dict[str, str] = {}
     for ordinal, raw_child in enumerate(request["children"]):
         child = dict(raw_child)
-        control = _load_private_object(child["control_contract_file"], f"child[{ordinal}]-control-contract")
+        control = _load_private_object(
+            child["control_contract_file"], f"child[{ordinal}]-control-contract"
+        )
         control_errors = validate_control_turn_contract(control)
         if control_errors:
-            raise NativePoolConfigError(f"child[{ordinal}]-control-contract-invalid:" + ";".join(control_errors))
+            raise NativePoolConfigError(
+                f"child[{ordinal}]-control-contract-invalid:" + ";".join(control_errors)
+            )
         for request_field, contract_field in (
             ("state_file", "state_file"),
             ("agent_id", "agent_id"),
             ("control_turn_id", "control_turn_id"),
         ):
             if child[request_field] != control[contract_field]:
-                raise NativePoolConfigError(f"child[{ordinal}]-control-{request_field.replace('_', '-')}-mismatch")
+                raise NativePoolConfigError(
+                    f"child[{ordinal}]-control-{request_field.replace('_', '-')}-mismatch"
+                )
         if control.get("poll_interval_ms") != POOL_POLL_INTERVAL_MS:
-            raise NativePoolConfigError(f"child[{ordinal}]-control-poll-interval-mismatch")
-        worker_state = _load_private_object(child["state_file"], f"child[{ordinal}]-worker-state")
+            raise NativePoolConfigError(
+                f"child[{ordinal}]-control-poll-interval-mismatch"
+            )
+        worker_state = _load_private_object(
+            child["state_file"], f"child[{ordinal}]-worker-state"
+        )
         state_errors = _validate_worker_state_binding(worker_state, child)
         if state_errors:
-            raise NativePoolConfigError(f"child[{ordinal}]-worker-state-invalid:" + ";".join(state_errors))
+            raise NativePoolConfigError(
+                f"child[{ordinal}]-worker-state-invalid:" + ";".join(state_errors)
+            )
         snapshot = capture_workspace_snapshot(
             child["worktree"],
             allowed_paths=child["declared_write_paths"],
         )
         child_roots.append(snapshot["root"])
         child_worktrees[child["child_id"]] = snapshot["root"]
-        rendered_children.append(
-            {
-                "ordinal": ordinal,
-                "child_id": child["child_id"],
-                "packet_id": child["packet_id"],
-                "attempt_nonce": child["attempt_nonce"],
-                "session_id": child["session_id"],
-                "agent_id": child["agent_id"],
-                "control_turn_id": child["control_turn_id"],
-                "packet_sha256": child["packet_sha256"],
-                "control_contract_sha256": control["contract_sha256"],
-                "state_file": child["state_file"],
-                "worktree_identity": snapshot["identity"],
-                "isolation_class": child["isolation_class"],
-                "completion_evidence_policy": dict(child["completion_evidence_policy"]),
-                "tool_policy": dict(child["tool_policy"]),
-                "declared_write_paths": list(child["declared_write_paths"]),
-                "integration_target_paths": list(child["integration_target_paths"]),
-                "lease_id": child["lease_id"],
-            }
-        )
+        rendered_child = {
+            "ordinal": ordinal,
+            "child_id": child["child_id"],
+            "packet_id": child["packet_id"],
+            "attempt_nonce": child["attempt_nonce"],
+            "session_id": child["session_id"],
+            "agent_id": child["agent_id"],
+            "control_turn_id": child["control_turn_id"],
+            "packet_sha256": child["packet_sha256"],
+            "control_contract_sha256": control["contract_sha256"],
+            "state_file": child["state_file"],
+            "worktree_identity": snapshot["identity"],
+            "isolation_class": child["isolation_class"],
+            "completion_evidence_policy": dict(child["completion_evidence_policy"]),
+            "tool_policy": dict(child["tool_policy"]),
+            "declared_write_paths": list(child["declared_write_paths"]),
+            "integration_target_paths": list(child["integration_target_paths"]),
+            "lease_id": child["lease_id"],
+        }
+        if admitted_v2:
+            observed_worktree_identity_sha256 = canonical_sha256(snapshot["identity"])
+            if child["worktree_identity_sha256"] != observed_worktree_identity_sha256:
+                raise NativePoolConfigError(
+                    f"child[{ordinal}]-admission-worktree-identity-mismatch"
+                )
+            rendered_child.update(
+                {field: child[field] for field in RENDER_CHILD_ADMISSION_FIELDS}
+            )
+            rendered_child.update(admission_child_render_hashes(rendered_child))
+        rendered_children.append(rendered_child)
 
-    read_only = all(child["isolation_class"] == "read-only-shared" for child in rendered_children)
+    read_only = all(
+        child["isolation_class"] == "read-only-shared" for child in rendered_children
+    )
     shared_read_only = read_only and len(set(child_roots)) == 1
     check_max = (
         capability_receipt["certification"]["certified_callback_max_ms"]["check"]
@@ -711,42 +971,74 @@ def _build_pool_contract(
         if limits.requires_capability_receipt(cap)
         else None
     )
-    contract = seal_artifact(
-        {
-            "contract_type": POOL_CONTRACT_TYPE,
-            "version": VERSION,
-            "schema": POOL_CONTRACT_SCHEMA,
-            "pool_id": request["pool_id"],
-            "pool_epoch": request["pool_epoch"],
-            "control_turn_id": request["control_turn_id"],
-            "created_at": request["created_at"],
-            "owner": owner,
-            "children": rendered_children,
-            "max_active_workers": cap,
-            "scheduler": {
-                "kind": "earliest-deadline-rotating-v1",
-                "poll_interval_ms": POOL_POLL_INTERVAL_MS,
-                "poll_lag_tolerance_ms": POOL_POLL_LAG_TOLERANCE_MS,
-                "certified_max_check_ms": check_max,
-                "certified_max_scheduler_overhead_ms": overhead_max,
-            },
-            "aggregate_hard_budget": dict(request["aggregate_hard_budget"]),
-            "topology": {
-                "integration_root_identity": integration["identity"],
-                "shared_read_only_worktree": shared_read_only,
-            },
-            "allowed_actions": list(POOL_ALLOWED_ACTIONS),
-            "capability_receipt_sha256": (
-                capability_receipt["receipt_sha256"]
-                if limits.requires_capability_receipt(cap)
-                else None
-            ),
+    contract_body: dict[str, Any] = {
+        "contract_type": POOL_CONTRACT_TYPE,
+        "version": ADMITTED_POOL_VERSION if admitted_v2 else VERSION,
+        "schema": (
+            ADMITTED_POOL_CONTRACT_SCHEMA if admitted_v2 else POOL_CONTRACT_SCHEMA
+        ),
+        "pool_id": request["pool_id"],
+        "pool_epoch": request["pool_epoch"],
+        "control_turn_id": request["control_turn_id"],
+        "created_at": request["created_at"],
+        "owner": owner,
+        "children": rendered_children,
+        "max_active_workers": cap,
+        "scheduler": {
+            "kind": "earliest-deadline-rotating-v1",
+            "poll_interval_ms": POOL_POLL_INTERVAL_MS,
+            "poll_lag_tolerance_ms": POOL_POLL_LAG_TOLERANCE_MS,
+            "certified_max_check_ms": check_max,
+            "certified_max_scheduler_overhead_ms": overhead_max,
         },
+        "aggregate_hard_budget": dict(request["aggregate_hard_budget"]),
+        "topology": {
+            "integration_root_identity": integration["identity"],
+            "shared_read_only_worktree": shared_read_only,
+        },
+        "allowed_actions": list(POOL_ALLOWED_ACTIONS),
+        "capability_receipt_sha256": (
+            capability_receipt["receipt_sha256"]
+            if limits.requires_capability_receipt(cap)
+            else None
+        ),
+    }
+    if admitted_v2:
+        assert isinstance(reservation, Mapping)
+        contract_body.update(
+            {
+                "admission_reservation_sha256": reservation["reservation_sha256"],
+                "readiness_snapshot_sha256": reservation["readiness_snapshot_sha256"],
+                "readiness_evidence_sha256": reservation["readiness_evidence_sha256"],
+                "work_estimate_set_sha256": reservation["work_estimate_set_sha256"],
+                "native_worker_policy_sha256": reservation[
+                    "native_worker_policy_sha256"
+                ],
+                "proportionality_policy_sha256": reservation[
+                    "proportionality_policy_sha256"
+                ],
+                "proportionality_assessment_sha256": reservation[
+                    "proportionality_assessment_sha256"
+                ],
+                "selected_cohort_sha256": reservation["selected_cohort_sha256"],
+                "fixed_cohort_sha256": reservation["fixed_cohort_sha256"],
+                "child_bindings_sha256": reservation["child_bindings_sha256"],
+                "claim_set_sha256": reservation["claim_set_sha256"],
+            }
+        )
+    contract = seal_artifact(
+        contract_body,
         "contract_sha256",
     )
-    contract_errors = validate_pool_contract(contract, capacity_limits=limits)
+    contract_errors = validate_pool_contract(
+        contract,
+        capacity_limits=limits,
+        admission_reservation=reservation,
+    )
     if contract_errors:
-        raise NativePoolConfigError("rendered-pool-contract-invalid:" + ";".join(contract_errors))
+        raise NativePoolConfigError(
+            "rendered-pool-contract-invalid:" + ";".join(contract_errors)
+        )
     if limits.requires_capability_receipt(cap):
         capability_errors = validate_capability_receipt(
             capability_receipt,
@@ -755,7 +1047,9 @@ def _build_pool_contract(
             capacity_limits=limits,
         )
         if capability_errors:
-            raise NativePoolConfigError("capability-contract-binding-invalid:" + ";".join(capability_errors))
+            raise NativePoolConfigError(
+                "capability-contract-binding-invalid:" + ";".join(capability_errors)
+            )
     PoolWorkspaceMonitor(
         contract,
         integration_root=integration["root"],
@@ -807,9 +1101,7 @@ def build_live_canary_pool_contract(
             if campaign_manifest.get("version") == MANIFEST_VERSION_V8
             else "campaign-manifest-invalid"
         )
-        raise NativePoolConfigError(
-            error_prefix + ":" + ";".join(manifest_errors)
-        )
+        raise NativePoolConfigError(error_prefix + ":" + ";".join(manifest_errors))
     if request.get("max_active_workers") != LEGACY_CONCURRENT_CAPACITY:
         raise NativePoolConfigError("historical-live-canary-capacity-mismatch")
     if request.get("control_turn_id") != campaign_manifest.get("control_turn_id"):

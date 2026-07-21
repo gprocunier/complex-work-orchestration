@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Admission-Bound Native Supervision Pool Preflight Request v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "preflight_type", "version", "schema", "stage", "launch_id",
+    "campaign_nonce", "pool_id", "pool_epoch", "integration_root",
+    "artifact_directories", "requested_workers", "released_capacity",
+    "aggregate_hard_budget", "children", "fallback",
+    "productive_dogfood_delivery_prerequisite", "callback_certification",
+    "poll_interval_ms", "pool_contract", "overrides", "admission_reservation"
+  ],
+  "properties": {
+    "preflight_type": {"const": "cwo-native-supervision-pool-preflight-request"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-supervision-pool-preflight-request-v2.schema.json"},
+    "stage": {"enum": ["pre-allocation", "pre-dispatch"]},
+    "launch_id": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"},
+    "campaign_nonce": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"},
+    "pool_id": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"},
+    "pool_epoch": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"},
+    "integration_root": {"type": "string", "pattern": "^/", "minLength": 2},
+    "artifact_directories": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^/", "minLength": 2}},
+    "requested_workers": {"type": "integer", "minimum": 1, "maximum": 2},
+    "released_capacity": {"type": "integer", "minimum": 1, "maximum": 2},
+    "aggregate_hard_budget": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/budget"},
+    "children": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"$ref": "#/$defs/child"}},
+    "fallback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["main_thread", "recovery"],
+      "properties": {"main_thread": {"type": "string", "minLength": 1}, "recovery": {"type": "string", "minLength": 1}}
+    },
+    "productive_dogfood_delivery_prerequisite": {"const": false},
+    "callback_certification": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/callback_certification"},
+    "poll_interval_ms": {"type": "number", "exclusiveMinimum": 0},
+    "pool_contract": {"oneOf": [{"$ref": "native-supervision-pool-contract-v2.schema.json"}, {"type": "null"}]},
+    "overrides": {
+      "type": "array", "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["rule_id", "reason"],
+        "properties": {"rule_id": {"type": "string", "minLength": 1}, "reason": {"type": "string", "minLength": 1}}
+      }
+    },
+    "admission_reservation": {"$ref": "native-pool-admission-reservation.schema.json"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"stage": {"const": "pre-allocation"}}, "required": ["stage"]},
+      "then": {"properties": {"pool_contract": {"type": "null"}, "children": {"items": {"properties": {"session_id": {"type": "null"}, "agent_id": {"type": "null"}}}}}}
+    },
+    {
+      "if": {"properties": {"stage": {"const": "pre-dispatch"}}, "required": ["stage"]},
+      "then": {"properties": {"pool_contract": {"$ref": "native-supervision-pool-contract-v2.schema.json"}, "children": {"items": {"properties": {"session_id": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"}, "agent_id": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"}}}}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "child": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "child_id", "packet_id", "packet_sha256", "attempt_nonce", "session_id", "agent_id",
+        "lease_id", "worktree", "isolation_class", "completion_evidence_policy",
+        "tool_policy", "prompt", "prompt_preflight", "tool_surface", "hard_budget",
+        "declared_write_paths", "integration_target_paths", "bead_id", "work_unit_id",
+        "candidate_sha256", "claim_sha256", "work_estimate_sha256",
+        "worker_commitment_sha256", "lease_scope_sha256", "worktree_identity_sha256",
+        "requested_model", "admitted_child_sha256"
+      ],
+      "properties": {
+        "child_id": {"type": "string", "minLength": 1},
+        "packet_id": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "attempt_nonce": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"},
+        "session_id": {"oneOf": [{"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"}, {"type": "null"}]},
+        "agent_id": {"oneOf": [{"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"}, {"type": "null"}]},
+        "lease_id": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/uuid"},
+        "worktree": {"type": "string", "pattern": "^/", "minLength": 2},
+        "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
+        "completion_evidence_policy": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/completion_evidence_policy"},
+        "tool_policy": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/tool_policy"},
+        "prompt": {"type": "string", "minLength": 1},
+        "prompt_preflight": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/prompt_preflight"},
+        "tool_surface": {"$ref": "native-supervision-pool-preflight-request.schema.json#/$defs/tool_surface"},
+        "hard_budget": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/budget"},
+        "declared_write_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "integration_target_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "bead_id": {"type": "string", "minLength": 1},
+        "work_unit_id": {"type": "string", "minLength": 1},
+        "candidate_sha256": {"$ref": "#/$defs/sha256"},
+        "claim_sha256": {"$ref": "#/$defs/sha256"},
+        "work_estimate_sha256": {"$ref": "#/$defs/sha256"},
+        "worker_commitment_sha256": {"$ref": "#/$defs/sha256"},
+        "lease_scope_sha256": {"$ref": "#/$defs/sha256"},
+        "worktree_identity_sha256": {"$ref": "#/$defs/sha256"},
+        "requested_model": {"type": "string", "minLength": 1},
+        "admitted_child_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

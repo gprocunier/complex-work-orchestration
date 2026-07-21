@@ -62,6 +62,8 @@ CHILD_BINDING_FIELDS = frozenset(
         "worker_commitment_sha256",
         "lease_scope_sha256",
         "worktree_identity_sha256",
+        "hard_budget",
+        "requested_model",
         "admitted_child_sha256",
     }
 )
@@ -79,7 +81,7 @@ CLAIM_FIELDS = frozenset(
         "claim_sha256",
     }
 )
-RESERVATION_FIELDS = frozenset(
+RESERVATION_FIELDS_V2 = frozenset(
     {
         "reservation_type",
         "version",
@@ -91,12 +93,16 @@ RESERVATION_FIELDS = frozenset(
         "readiness_snapshot_sha256",
         "readiness_evidence_sha256",
         "work_estimate_set_sha256",
+        "native_worker_policy_sha256",
+        "proportionality_policy_sha256",
         "proportionality_assessment_sha256",
         "selected_cohort_sha256",
         "candidate_mode",
         "issue_ids",
         "child_bindings",
         "claims",
+        "child_bindings_sha256",
+        "claim_set_sha256",
         "retained_owned_issue_ids",
         "recompute_count",
         "status",
@@ -106,7 +112,7 @@ RESERVATION_FIELDS = frozenset(
         "reservation_sha256",
     }
 )
-DISPATCH_CONTEXT_FIELDS = frozenset(
+DISPATCH_CONTEXT_FIELDS_V2 = frozenset(
     {
         "reservation_sha256",
         "fixed_cohort_sha256",
@@ -115,21 +121,28 @@ DISPATCH_CONTEXT_FIELDS = frozenset(
         "preflight_result_sha256",
         "lease_set_sha256",
         "child_bindings_sha256",
+        "live_revalidation_sha256",
     }
 )
-DISPATCH_FIELDS = frozenset(
+DISPATCH_FIELDS_V2 = frozenset(
     {
         "dispatch_type",
         "version",
         "schema",
         "dispatch_id",
         "consumed_at",
-        *DISPATCH_CONTEXT_FIELDS,
+        *DISPATCH_CONTEXT_FIELDS_V2,
         "authority",
         "dispatch_authorized",
         "dispatch_sha256",
     }
 )
+
+# Public aliases retain the initial P1-13B import surface while making the
+# version boundary explicit for the v2-only admission authority.
+RESERVATION_FIELDS = RESERVATION_FIELDS_V2
+DISPATCH_CONTEXT_FIELDS = DISPATCH_CONTEXT_FIELDS_V2
+DISPATCH_FIELDS = DISPATCH_FIELDS_V2
 
 
 class NativePoolAdmissionError(ValueError):
@@ -178,8 +191,10 @@ def _iso(value: dt.datetime | str | None = None) -> str:
         raise NativePoolAdmissionError("admission-time-invalid")
     if parsed.tzinfo is None:
         raise NativePoolAdmissionError("admission-time-must-be-aware")
-    return parsed.astimezone(dt.timezone.utc).isoformat(timespec="milliseconds").replace(
-        "+00:00", "Z"
+    return (
+        parsed.astimezone(dt.timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
     )
 
 
@@ -279,10 +294,14 @@ class BeadsClaimAdapter:
         try:
             decoded = json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            raise NativePoolAdmissionError(f"exact-show-json-invalid:{bead_id}") from exc
+            raise NativePoolAdmissionError(
+                f"exact-show-json-invalid:{bead_id}"
+            ) from exc
         if type(decoded) is list:
             if len(decoded) != 1 or type(decoded[0]) is not dict:
-                raise NativePoolAdmissionError(f"exact-show-cardinality-invalid:{bead_id}")
+                raise NativePoolAdmissionError(
+                    f"exact-show-cardinality-invalid:{bead_id}"
+                )
             issue = dict(decoded[0])
         elif type(decoded) is dict:
             issue = dict(decoded)
@@ -335,7 +354,9 @@ class BeadsClaimAdapter:
 
         post_hash = canonical_admission_sha256(post)
         owned = _is_exact_claim_transition(pre, post, actor=self.actor)
-        if owned and _claim_immutable_projection(pre) != _claim_immutable_projection(post):
+        if owned and _claim_immutable_projection(pre) != _claim_immutable_projection(
+            post
+        ):
             owned = False
         if owned and result.timed_out:
             outcome = "claimed-after-timeout"
@@ -358,7 +379,9 @@ class BeadsClaimAdapter:
 
 
 def _claim_immutable_projection(issue: Mapping[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in issue.items() if key not in CLAIM_MUTABLE_FIELDS}
+    return {
+        key: value for key, value in issue.items() if key not in CLAIM_MUTABLE_FIELDS
+    }
 
 
 def _is_exact_claim_transition(
@@ -387,7 +410,9 @@ def _claim_receipt(
     result: BdCommandResult | None,
     owned: bool,
 ) -> dict[str, Any]:
-    command_sha256 = canonical_admission_sha256(list(result.command)) if result else None
+    command_sha256 = (
+        canonical_admission_sha256(list(result.command)) if result else None
+    )
     return _seal(
         {
             "bead_id": bead_id,
@@ -419,10 +444,15 @@ def validate_claim_receipt(value: Any) -> list[str]:
         command_hash = receipt.get("command_sha256")
         if command_hash is not None and not _sha256(command_hash):
             raise NativePoolAdmissionError("claim-command-sha256-invalid")
-        if type(receipt.get("command_timed_out")) is not bool or type(receipt.get("owned")) is not bool:
+        if (
+            type(receipt.get("command_timed_out")) is not bool
+            or type(receipt.get("owned")) is not bool
+        ):
             raise NativePoolAdmissionError("claim-state-invalid")
         if receipt["owned"] is not (receipt["outcome"].startswith("claimed")):
             raise NativePoolAdmissionError("claim-owned-outcome-mismatch")
+        if receipt["owned"] is True and post_hash is None:
+            raise NativePoolAdmissionError("claim-owned-post-show-sha256-missing")
         _verify_seal(receipt, "claim_sha256", "claim")
     except NativePoolAdmissionError as exc:
         return [str(exc)]
@@ -440,7 +470,10 @@ def _snapshot(value: Mapping[str, Any]) -> dict[str, Any]:
     if type(snapshot) is not dict:
         raise NativePoolAdmissionError("readiness-snapshot-must-be-exact-dict")
     result = dict(snapshot)
-    if result.get("snapshot_type") != SNAPSHOT_TYPE or result.get("version") != SNAPSHOT_VERSION:
+    if (
+        result.get("snapshot_type") != SNAPSHOT_TYPE
+        or result.get("version") != SNAPSHOT_VERSION
+    ):
         raise NativePoolAdmissionError("readiness-snapshot-header-invalid")
     observed = result.get("snapshot_sha256")
     unsigned = dict(result)
@@ -502,6 +535,23 @@ def build_admission_child_binding(
     estimate_hash = canonical_work_estimate_sha256(estimate)
     if artifacts.get("work_estimate_sha256") != estimate_hash:
         raise NativePoolAdmissionError("child-binding-work-estimate-sha256-mismatch")
+    allowance = estimate.get("aggregate_allowance")
+    requested_model = estimate.get("requested_model")
+    if type(allowance) is not dict:
+        raise NativePoolAdmissionError("child-binding-work-budget-missing")
+    hard_budget = {
+        "tool_calls": allowance.get("tool_calls_hard"),
+        "runtime_seconds": allowance.get("runtime_seconds_hard"),
+        "compactions": allowance.get("max_compactions"),
+    }
+    if (
+        any(type(item) is not int or item < 0 for item in hard_budget.values())
+        or hard_budget["tool_calls"] < 1
+        or hard_budget["runtime_seconds"] < 1
+    ):
+        raise NativePoolAdmissionError("child-binding-work-budget-invalid")
+    if not _nonempty(requested_model):
+        raise NativePoolAdmissionError("child-binding-requested-model-invalid")
     for label, value in (
         ("child-id", child_id),
         ("packet-id", packet_id),
@@ -529,6 +579,8 @@ def build_admission_child_binding(
             "worker_commitment_sha256": artifacts["worker_commitment_sha256"],
             "lease_scope_sha256": artifacts["lease_scope_sha256"],
             "worktree_identity_sha256": worktree_identity_sha256,
+            "hard_budget": hard_budget,
+            "requested_model": requested_model,
         },
         "admitted_child_sha256",
     )
@@ -543,7 +595,13 @@ def validate_admission_child_binding(
 ) -> list[str]:
     try:
         binding = _strict(value, CHILD_BINDING_FIELDS, "child-binding")
-        for field in ("bead_id", "work_unit_id", "child_id", "packet_id"):
+        for field in (
+            "bead_id",
+            "work_unit_id",
+            "child_id",
+            "packet_id",
+            "requested_model",
+        ):
             if not _nonempty(binding.get(field)):
                 raise NativePoolAdmissionError(
                     f"child-binding-{field.replace('_', '-')}-invalid"
@@ -553,18 +611,33 @@ def validate_admission_child_binding(
             "work_unit_id",
             "child_id",
             "packet_id",
+            "hard_budget",
+            "requested_model",
         }:
             if not _sha256(binding.get(field)):
                 raise NativePoolAdmissionError(
                     f"child-binding-{field.replace('_', '-')}-invalid"
                 )
         _verify_seal(binding, "admitted_child_sha256", "child-binding")
+        budget = _strict(
+            binding.get("hard_budget"),
+            frozenset({"tool_calls", "runtime_seconds", "compactions"}),
+            "child-binding-hard-budget",
+        )
+        if (
+            any(type(item) is not int or item < 0 for item in budget.values())
+            or budget["tool_calls"] < 1
+            or budget["runtime_seconds"] < 1
+        ):
+            raise NativePoolAdmissionError("child-binding-hard-budget-invalid")
         if bead_id is not None and binding["bead_id"] != bead_id:
             raise NativePoolAdmissionError("child-binding-bead-mismatch")
         if projection is not None:
             artifacts = projection.get("candidate_artifacts")
             if type(artifacts) is not dict:
-                raise NativePoolAdmissionError("child-binding-candidate-artifacts-missing")
+                raise NativePoolAdmissionError(
+                    "child-binding-candidate-artifacts-missing"
+                )
             for field in (
                 "candidate_sha256",
                 "work_estimate_sha256",
@@ -581,8 +654,23 @@ def validate_admission_child_binding(
                 raise NativePoolAdmissionError("child-binding-estimate-bead-mismatch")
             if estimate.get("work_unit_id") != binding["work_unit_id"]:
                 raise NativePoolAdmissionError("child-binding-work-unit-mismatch")
-            if canonical_work_estimate_sha256(estimate) != binding["work_estimate_sha256"]:
+            if (
+                canonical_work_estimate_sha256(estimate)
+                != binding["work_estimate_sha256"]
+            ):
                 raise NativePoolAdmissionError("child-binding-estimate-sha256-mismatch")
+            allowance = estimate.get("aggregate_allowance")
+            if type(allowance) is not dict:
+                raise NativePoolAdmissionError("child-binding-estimate-budget-missing")
+            expected_budget = {
+                "tool_calls": allowance.get("tool_calls_hard"),
+                "runtime_seconds": allowance.get("runtime_seconds_hard"),
+                "compactions": allowance.get("max_compactions"),
+            }
+            if binding["hard_budget"] != expected_budget:
+                raise NativePoolAdmissionError("child-binding-hard-budget-mismatch")
+            if binding["requested_model"] != estimate.get("requested_model"):
+                raise NativePoolAdmissionError("child-binding-requested-model-mismatch")
     except (NativePoolAdmissionError, TypeError, ValueError) as exc:
         return [str(exc)]
     return []
@@ -624,8 +712,10 @@ def _cohort_for_candidate(
         mode = "single"
     else:
         raise NativePoolAdmissionError("proportionality-assessment-has-no-candidate")
-    if type(issue_ids) is not list or not issue_ids or any(
-        not _nonempty(issue_id) for issue_id in issue_ids
+    if (
+        type(issue_ids) is not list
+        or not issue_ids
+        or any(not _nonempty(issue_id) for issue_id in issue_ids)
     ):
         raise NativePoolAdmissionError("selected-cohort-issue-ids-invalid")
     if len(issue_ids) != len(set(issue_ids)):
@@ -698,9 +788,10 @@ def _validate_candidate(
         if type(estimate) is not dict or type(artifacts) is not dict:
             raise NativePoolAdmissionError(f"work-estimate-binding-missing:{issue_id}")
         estimate_hash = canonical_work_estimate_sha256(estimate)
-        if estimate.get("bead_id") != issue_id or artifacts.get(
-            "work_estimate_sha256"
-        ) != estimate_hash:
+        if (
+            estimate.get("bead_id") != issue_id
+            or artifacts.get("work_estimate_sha256") != estimate_hash
+        ):
             raise NativePoolAdmissionError(f"work-estimate-binding-mismatch:{issue_id}")
         estimate_bindings.append(
             {"id": issue_id, "work_estimate_sha256": estimate_hash}
@@ -710,8 +801,10 @@ def _validate_candidate(
     ):
         raise NativePoolAdmissionError("assessment-work-estimate-set-mismatch")
 
-    document = dict(policy_document) if policy_document is not None else load_policy(
-        "native-worker-execution"
+    document = (
+        dict(policy_document)
+        if policy_document is not None
+        else load_policy("native-worker-execution")
     )
     if assessment.get("override_authorization") is None:
         try:
@@ -727,7 +820,9 @@ def _validate_candidate(
                 "proportionality-assessment-recompute-failed"
             ) from exc
         if recomputed != assessment:
-            raise NativePoolAdmissionError("proportionality-assessment-recompute-mismatch")
+            raise NativePoolAdmissionError(
+                "proportionality-assessment-recompute-mismatch"
+            )
 
     issue_ids, cohort_hash, candidate_mode = _cohort_for_candidate(
         readiness, assessment
@@ -886,15 +981,15 @@ def _live_revalidate_claimed_cohort(
     live_revalidate: LiveRevalidationCallback,
 ) -> None:
     owned_by_id = {
-        str(claim["bead_id"]): claim
-        for claim in claims
-        if claim.get("owned") is True
+        str(claim["bead_id"]): claim for claim in claims if claim.get("owned") is True
     }
     for binding in validated.normalized_bindings:
         issue_id = str(binding["bead_id"])
         claim = owned_by_id.get(issue_id)
         if claim is None:
-            raise NativePoolAdmissionError(f"live-revalidation-claim-missing:{issue_id}")
+            raise NativePoolAdmissionError(
+                f"live-revalidation-claim-missing:{issue_id}"
+            )
         current = dict(adapter.show_exact(issue_id))
         if (
             current.get("status") != "in_progress"
@@ -904,7 +999,9 @@ def _live_revalidate_claimed_cohort(
             raise NativePoolAdmissionError(f"live-revalidation-claim-drift:{issue_id}")
         observed = live_revalidate(deepcopy(dict(binding)))
         if type(observed) is not dict or observed != dict(binding):
-            raise NativePoolAdmissionError(f"live-revalidation-binding-drift:{issue_id}")
+            raise NativePoolAdmissionError(
+                f"live-revalidation-binding-drift:{issue_id}"
+            )
 
 
 def _reservation_receipt(
@@ -919,6 +1016,8 @@ def _reservation_receipt(
     created_at: str,
 ) -> dict[str, Any]:
     assessment = validated.source.proportionality_assessment
+    child_bindings = [dict(item) for item in validated.normalized_bindings]
+    claim_receipts = [dict(item) for item in claims]
     reservation_seed = {
         "admission_nonce": admission_nonce,
         "claim_actor": claim_actor,
@@ -938,12 +1037,18 @@ def _reservation_receipt(
             "readiness_snapshot_sha256": validated.snapshot["snapshot_sha256"],
             "readiness_evidence_sha256": assessment["readiness_evidence_sha256"],
             "work_estimate_set_sha256": assessment["work_estimate_set_sha256"],
+            "native_worker_policy_sha256": assessment["native_worker_policy_sha256"],
+            "proportionality_policy_sha256": assessment[
+                "proportionality_policy_sha256"
+            ],
             "proportionality_assessment_sha256": assessment["assessment_sha256"],
             "selected_cohort_sha256": validated.selected_cohort_sha256,
             "candidate_mode": validated.candidate_mode,
             "issue_ids": list(validated.issue_ids),
-            "child_bindings": [dict(item) for item in validated.normalized_bindings],
-            "claims": [dict(item) for item in claims],
+            "child_bindings": child_bindings,
+            "claims": claim_receipts,
+            "child_bindings_sha256": canonical_admission_sha256(child_bindings),
+            "claim_set_sha256": canonical_admission_sha256(claim_receipts),
             "retained_owned_issue_ids": sorted(set(retained_owned)),
             "recompute_count": recompute_count,
             "status": status,
@@ -981,7 +1086,9 @@ def reserve_pool_cohort(
         raise NativePoolAdmissionError("claim-adapter-actor-invalid")
 
     raw_selected = candidate.proportionality_assessment.get("selected_cohort")
-    raw_issue_ids = raw_selected.get("issue_ids") if isinstance(raw_selected, Mapping) else None
+    raw_issue_ids = (
+        raw_selected.get("issue_ids") if isinstance(raw_selected, Mapping) else None
+    )
     if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:
         raise NativePoolAdmissionError("cohort-size-four-or-more-forbidden")
 
@@ -1029,7 +1136,9 @@ def reserve_pool_cohort(
                     f"claim-receipt-invalid:{issue_id}:" + ";".join(claim_errors)
                 )
             if claim.get("bead_id") != issue_id or claim.get("actor") != actor:
-                raise NativePoolAdmissionError(f"claim-receipt-binding-mismatch:{issue_id}")
+                raise NativePoolAdmissionError(
+                    f"claim-receipt-binding-mismatch:{issue_id}"
+                )
             claims.append(claim)
             if transition.owned:
                 owned.add(issue_id)
@@ -1123,6 +1232,8 @@ def validate_reservation_receipt(value: Any) -> list[str]:
             "readiness_snapshot_sha256",
             "readiness_evidence_sha256",
             "work_estimate_set_sha256",
+            "native_worker_policy_sha256",
+            "proportionality_policy_sha256",
             "proportionality_assessment_sha256",
             "selected_cohort_sha256",
             "fixed_cohort_sha256",
@@ -1163,6 +1274,8 @@ def validate_reservation_receipt(value: Any) -> list[str]:
             binding_by_bead[bead_id] = dict(binding)
         if set(binding_by_bead) != set(issue_ids):
             raise NativePoolAdmissionError("reservation-child-binding-set-mismatch")
+        if receipt["child_bindings_sha256"] != canonical_admission_sha256(bindings):
+            raise NativePoolAdmissionError("reservation-child-bindings-sha256-mismatch")
         try:
             expected_fixed = fixed_cohort_sha256(
                 [
@@ -1180,6 +1293,8 @@ def validate_reservation_receipt(value: Any) -> list[str]:
             raise NativePoolAdmissionError("reservation-fixed-cohort-sha256-mismatch")
         if type(claims) is not list:
             raise NativePoolAdmissionError("reservation-claims-invalid")
+        if receipt["claim_set_sha256"] != canonical_admission_sha256(claims):
+            raise NativePoolAdmissionError("reservation-claim-set-sha256-mismatch")
         owned_ids: set[str] = set()
         lost_count = 0
         for claim in claims:
@@ -1191,6 +1306,8 @@ def validate_reservation_receipt(value: Any) -> list[str]:
             if claim["actor"] != receipt["claim_actor"]:
                 raise NativePoolAdmissionError("reservation-claim-actor-mismatch")
             if claim["owned"] is True:
+                if claim["bead_id"] in owned_ids:
+                    raise NativePoolAdmissionError("reservation-owned-claim-duplicate")
                 owned_ids.add(claim["bead_id"])
             else:
                 lost_count += 1
@@ -1207,9 +1324,7 @@ def validate_reservation_receipt(value: Any) -> list[str]:
         if status not in {"admitted", "claim-lost", "offline-candidate"}:
             raise NativePoolAdmissionError("reservation-status-invalid")
         if status == "admitted" and (
-            set(issue_ids) != owned_ids
-            or not 1 <= len(issue_ids) <= 2
-            or not claims
+            set(issue_ids) != owned_ids or not 1 <= len(issue_ids) <= 2 or not claims
         ):
             raise NativePoolAdmissionError("reservation-admitted-claims-incomplete")
         if status == "claim-lost" and lost_count < 1:
@@ -1225,6 +1340,74 @@ def validate_reservation_receipt(value: Any) -> list[str]:
     except (NativePoolAdmissionError, TypeError, ValueError) as exc:
         return [str(exc)]
     return []
+
+
+def _reservation_live_evidence_sha256(
+    reservation_receipt: Mapping[str, Any],
+) -> str:
+    claims_by_bead = {
+        claim["bead_id"]: claim
+        for claim in reservation_receipt["claims"]
+        if claim["owned"] is True
+    }
+    return canonical_admission_sha256(
+        {
+            "reservation_sha256": reservation_receipt["reservation_sha256"],
+            "claim_actor": reservation_receipt["claim_actor"],
+            "observations": [
+                {
+                    "bead_id": binding["bead_id"],
+                    "claim_sha256": claims_by_bead[binding["bead_id"]]["claim_sha256"],
+                    "post_show_sha256": claims_by_bead[binding["bead_id"]][
+                        "post_show_sha256"
+                    ],
+                    "admitted_child_sha256": binding["admitted_child_sha256"],
+                }
+                for binding in reservation_receipt["child_bindings"]
+            ],
+        }
+    )
+
+
+def revalidate_reservation_live(
+    reservation_receipt: Mapping[str, Any],
+    *,
+    claim_adapter: ClaimAdapter,
+    live_revalidate: LiveRevalidationCallback,
+) -> str:
+    """Recheck exact Beads ownership and child bindings immediately before commit."""
+
+    errors = validate_reservation_receipt(reservation_receipt)
+    if errors:
+        raise NativePoolAdmissionError("reservation-invalid:" + ";".join(errors))
+    if reservation_receipt.get("status") != "admitted":
+        raise NativePoolAdmissionError("reservation-not-admitted")
+    actor = getattr(claim_adapter, "actor", None)
+    if actor != reservation_receipt["claim_actor"]:
+        raise NativePoolAdmissionError("live-revalidation-claim-actor-mismatch")
+    if not callable(live_revalidate):
+        raise NativePoolAdmissionError("live-revalidation-callback-required")
+    claims_by_bead = {
+        claim["bead_id"]: claim
+        for claim in reservation_receipt["claims"]
+        if claim["owned"] is True
+    }
+    for binding in reservation_receipt["child_bindings"]:
+        issue_id = binding["bead_id"]
+        claim = claims_by_bead[issue_id]
+        current = dict(claim_adapter.show_exact(issue_id))
+        if (
+            current.get("status") != "in_progress"
+            or current.get("assignee") != actor
+            or canonical_admission_sha256(current) != claim["post_show_sha256"]
+        ):
+            raise NativePoolAdmissionError(f"live-revalidation-claim-drift:{issue_id}")
+        observed = live_revalidate(deepcopy(dict(binding)))
+        if type(observed) is not dict or observed != dict(binding):
+            raise NativePoolAdmissionError(
+                f"live-revalidation-binding-drift:{issue_id}"
+            )
+    return _reservation_live_evidence_sha256(reservation_receipt)
 
 
 def build_dispatch_context(
@@ -1257,6 +1440,9 @@ def build_dispatch_context(
         **supplied,
         "child_bindings_sha256": canonical_admission_sha256(
             reservation_receipt["child_bindings"]
+        ),
+        "live_revalidation_sha256": _reservation_live_evidence_sha256(
+            reservation_receipt
         ),
     }
 
@@ -1375,9 +1561,7 @@ def consume_pool_admission(
                 != capability._reservation_sha256
                 or reservation_receipt.get("fixed_cohort_sha256")
                 != capability._fixed_cohort_sha256
-                or canonical_admission_sha256(
-                    reservation_receipt.get("child_bindings")
-                )
+                or canonical_admission_sha256(reservation_receipt.get("child_bindings"))
                 != capability._child_bindings_sha256
             ):
                 raise NativePoolAdmissionError("dispatch-capability-binding-mismatch")

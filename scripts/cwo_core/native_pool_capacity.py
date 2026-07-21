@@ -26,10 +26,14 @@ CAPACITY_POLICY_FIELDS = frozenset(
 )
 CAPACITY_SCHEMA_PATHS = (
     "schemas/native-supervision-pool-contract.schema.json",
+    "schemas/native-supervision-pool-contract-v2.schema.json",
     "schemas/native-supervision-pool-decision.schema.json",
     "schemas/native-supervision-pool-preflight-request.schema.json",
+    "schemas/native-supervision-pool-preflight-request-v2.schema.json",
     "schemas/native-supervision-pool-receipt.schema.json",
     "schemas/native-supervision-pool-render-request.schema.json",
+    "schemas/native-supervision-pool-render-request-v2.schema.json",
+    "schemas/native-pool-admission-reservation.schema.json",
     "schemas/native-supervision-pool-state.schema.json",
     "schemas/native-supervision-adapter-capability-receipt.schema.json",
     "schemas/audit-event.schema.json",
@@ -246,9 +250,57 @@ def _set_capacity_constraints(
         for capacity in capacities
     ]
 
+    admitted_capacities = list(range(1, limits.released_max_active_workers + 1))
+    admitted_contract = documents[
+        "schemas/native-supervision-pool-contract-v2.schema.json"
+    ]
+    admitted_contract["properties"]["children"]["maxItems"] = (
+        limits.released_max_active_workers
+    )
+    admitted_contract["properties"]["max_active_workers"] = {
+        "enum": admitted_capacities
+    }
+    admitted_contract["$defs"]["child"]["properties"]["ordinal"]["maximum"] = (
+        limits.released_max_active_workers - 1
+    )
+    admitted_contract["allOf"] = [
+        {
+            "if": {"properties": {"max_active_workers": {"const": capacity}}},
+            "then": {
+                "properties": {
+                    "children": {"minItems": capacity, "maxItems": capacity},
+                    **(
+                        {
+                            "scheduler": {
+                                "properties": {
+                                    "certified_max_check_ms": {"type": "null"},
+                                    "certified_max_scheduler_overhead_ms": {
+                                        "type": "null"
+                                    },
+                                }
+                            },
+                            "capability_receipt_sha256": {"type": "null"},
+                        }
+                        if capacity == 1
+                        else {"capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}
+                    ),
+                }
+            },
+        }
+        for capacity in admitted_capacities
+    ]
+
     render = documents["schemas/native-supervision-pool-render-request.schema.json"]
     render["properties"]["max_active_workers"] = {"enum": capacities}
     render["properties"]["children"]["maxItems"] = hard
+
+    admitted_render = documents[
+        "schemas/native-supervision-pool-render-request-v2.schema.json"
+    ]
+    admitted_render["properties"]["max_active_workers"] = {"enum": admitted_capacities}
+    admitted_render["properties"]["children"]["maxItems"] = (
+        limits.released_max_active_workers
+    )
 
     state = documents["schemas/native-supervision-pool-state.schema.json"]
     state["properties"]["scheduler_cursor"]["maximum"] = hard - 1
@@ -272,6 +324,33 @@ def _set_capacity_constraints(
         "schemas/native-supervision-pool-preflight-request.schema.json"
     ]
     preflight["properties"]["released_capacity"]["maximum"] = hard
+
+    admitted_preflight = documents[
+        "schemas/native-supervision-pool-preflight-request-v2.schema.json"
+    ]
+    admitted_preflight["properties"]["requested_workers"]["maximum"] = (
+        limits.released_max_active_workers
+    )
+    admitted_preflight["properties"]["released_capacity"]["maximum"] = (
+        limits.released_max_active_workers
+    )
+    admitted_preflight["properties"]["children"]["maxItems"] = (
+        limits.released_max_active_workers
+    )
+
+    reservation = documents["schemas/native-pool-admission-reservation.schema.json"]
+    for field in ("issue_ids", "child_bindings"):
+        reservation["properties"][field]["maxItems"] = hard
+    reservation["properties"]["retained_owned_issue_ids"]["maxItems"] = hard
+    for rule in reservation["allOf"]:
+        condition = rule.get("if", {}).get("properties", {}).get("status", {})
+        if condition.get("const") == "admitted":
+            rule["then"]["properties"]["issue_ids"]["maxItems"] = (
+                limits.released_max_active_workers
+            )
+            rule["then"]["properties"]["child_bindings"]["maxItems"] = (
+                limits.released_max_active_workers
+            )
 
     capability = documents[
         "schemas/native-supervision-adapter-capability-receipt.schema.json"

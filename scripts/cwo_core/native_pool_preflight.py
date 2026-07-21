@@ -32,6 +32,7 @@ from .native_pool_contracts import (
     validate_completion_evidence_policy,
     validate_pool_contract,
 )
+from .native_pool_admission import validate_reservation_receipt
 from .native_pool_schedulability import (
     PoolSchedulabilityError,
     scheduling_budget_proof,
@@ -51,9 +52,16 @@ PREFLIGHT_REQUEST_SCHEMA = (
 PREFLIGHT_RESULT_TYPE = "cwo-native-supervision-pool-preflight-result"
 PREFLIGHT_RESULT_SCHEMA = "schemas/native-supervision-pool-preflight-result.schema.json"
 PREFLIGHT_VERSION = 1
+ADMITTED_PREFLIGHT_VERSION = 2
+ADMITTED_PREFLIGHT_REQUEST_SCHEMA = (
+    "schemas/native-supervision-pool-preflight-request-v2.schema.json"
+)
+ADMITTED_PREFLIGHT_RESULT_SCHEMA = (
+    "schemas/native-supervision-pool-preflight-result-v2.schema.json"
+)
 PREFLIGHT_STAGES = frozenset({"pre-allocation", "pre-dispatch"})
 
-REQUEST_FIELDS = frozenset(
+REQUEST_FIELDS_V1 = frozenset(
     {
         "preflight_type",
         "version",
@@ -77,7 +85,8 @@ REQUEST_FIELDS = frozenset(
         "overrides",
     }
 )
-CHILD_FIELDS = frozenset(
+REQUEST_FIELDS_V2 = REQUEST_FIELDS_V1 | {"admission_reservation"}
+CHILD_FIELDS_V1 = frozenset(
     {
         "child_id",
         "packet_id",
@@ -98,6 +107,21 @@ CHILD_FIELDS = frozenset(
         "integration_target_paths",
     }
 )
+PREFLIGHT_CHILD_ADMISSION_FIELDS = frozenset(
+    {
+        "bead_id",
+        "work_unit_id",
+        "candidate_sha256",
+        "claim_sha256",
+        "work_estimate_sha256",
+        "worker_commitment_sha256",
+        "lease_scope_sha256",
+        "worktree_identity_sha256",
+        "requested_model",
+        "admitted_child_sha256",
+    }
+)
+CHILD_FIELDS_V2 = CHILD_FIELDS_V1 | PREFLIGHT_CHILD_ADMISSION_FIELDS
 BUDGET_FIELDS = frozenset(
     {"tool_calls", "runtime_seconds", "compactions", "full_suite_runs", "mutations"}
 )
@@ -106,7 +130,7 @@ CALLBACK_CERTIFICATION_FIELDS = frozenset(
     {"certified_callback_max_ms", "certified_scheduler_overhead_ms"}
 )
 OVERRIDE_FIELDS = frozenset({"rule_id", "reason"})
-RESULT_FIELDS = frozenset(
+RESULT_FIELDS_V1 = frozenset(
     {
         "result_type",
         "version",
@@ -121,6 +145,20 @@ RESULT_FIELDS = frozenset(
         "result_sha256",
     }
 )
+RESULT_ADMISSION_FIELDS = frozenset(
+    {
+        "admission_reservation_sha256",
+        "fixed_cohort_sha256",
+        "child_bindings_sha256",
+        "claim_set_sha256",
+    }
+)
+RESULT_FIELDS_V2 = RESULT_FIELDS_V1 | RESULT_ADMISSION_FIELDS
+
+# Historical imports retain their v1 meaning.
+REQUEST_FIELDS = REQUEST_FIELDS_V1
+CHILD_FIELDS = CHILD_FIELDS_V1
+RESULT_FIELDS = RESULT_FIELDS_V1
 FINDING_FIELDS = frozenset(
     {
         "rule_id",
@@ -377,20 +415,15 @@ def evaluate_scheduling_admission(
 ) -> dict[str, Any]:
     """Compatibility facade over the one shared schedulability proof."""
 
-    if (
-        not isinstance(certified_callback_max_ms, Mapping)
-        or set(certified_callback_max_ms) != set(REQUIRED_CAPABILITY_CALLBACKS)
-    ):
-        raise NativePoolPreflightError(
-            "scheduling-callback-ceilings-fields-invalid"
-        )
+    if not isinstance(certified_callback_max_ms, Mapping) or set(
+        certified_callback_max_ms
+    ) != set(REQUIRED_CAPABILITY_CALLBACKS):
+        raise NativePoolPreflightError("scheduling-callback-ceilings-fields-invalid")
     try:
         proof = scheduling_budget_proof(
             requested_workers=requested_workers,
             certified_callback_max_ms=certified_callback_max_ms,
-            certified_scheduler_overhead_ms=(
-                certified_scheduler_overhead_ms
-            ),
+            certified_scheduler_overhead_ms=(certified_scheduler_overhead_ms),
             poll_interval_ms=poll_interval_ms,
         )
     except PoolSchedulabilityError as error:
@@ -734,6 +767,94 @@ def _apply_overrides(
     return findings, authority_provenance
 
 
+def _admission_findings(
+    reservation: Any,
+    children: list[Mapping[str, Any]],
+    requested_workers: Any,
+) -> list[dict[str, Any]]:
+    errors = validate_reservation_receipt(reservation)
+    if errors:
+        return [
+            _finding(
+                "admission.reservation-integrity",
+                "error",
+                {"errors": errors},
+                "Provide the exact validated productive admission reservation.",
+            )
+        ]
+    assert isinstance(reservation, Mapping)
+    binding_errors: list[str] = []
+    if reservation.get("status") != "admitted" or reservation.get(
+        "candidate_mode"
+    ) not in {"single", "released-capacity"}:
+        binding_errors.append("reservation-not-productively-admitted")
+    if requested_workers != len(reservation.get("issue_ids", [])):
+        binding_errors.append("requested-workers-mismatch")
+    bindings = reservation.get("child_bindings")
+    claims = reservation.get("claims")
+    if not isinstance(bindings, list) or not isinstance(claims, list):
+        binding_errors.append("reservation-shape-invalid")
+    else:
+        bindings_by_bead = {
+            item.get("bead_id"): item for item in bindings if isinstance(item, Mapping)
+        }
+        claims_by_bead = {
+            item.get("bead_id"): item
+            for item in claims
+            if isinstance(item, Mapping) and item.get("owned") is True
+        }
+        if [child.get("bead_id") for child in children] != reservation.get("issue_ids"):
+            binding_errors.append("child-order-mismatch")
+        exact_fields = (
+            "bead_id",
+            "work_unit_id",
+            "child_id",
+            "packet_id",
+            "packet_sha256",
+            "candidate_sha256",
+            "work_estimate_sha256",
+            "worker_commitment_sha256",
+            "lease_scope_sha256",
+            "worktree_identity_sha256",
+            "requested_model",
+            "admitted_child_sha256",
+        )
+        for index, child in enumerate(children):
+            binding = bindings_by_bead.get(child.get("bead_id"))
+            if not isinstance(binding, Mapping):
+                binding_errors.append(f"child[{index}]-binding-missing")
+                continue
+            for field in exact_fields:
+                if child.get(field) != binding.get(field):
+                    binding_errors.append(f"child[{index}]-{field}-mismatch")
+            child_budget = child.get("hard_budget")
+            admission_budget = binding.get("hard_budget")
+            if not isinstance(child_budget, Mapping) or not isinstance(
+                admission_budget, Mapping
+            ):
+                binding_errors.append(f"child[{index}]-hard-budget-invalid")
+            elif any(
+                child_budget.get(field) != admission_budget.get(field)
+                for field in ("tool_calls", "runtime_seconds", "compactions")
+            ):
+                binding_errors.append(f"child[{index}]-hard-budget-mismatch")
+            claim = claims_by_bead.get(child.get("bead_id"))
+            if not isinstance(claim, Mapping) or child.get("claim_sha256") != claim.get(
+                "claim_sha256"
+            ):
+                binding_errors.append(f"child[{index}]-claim-mismatch")
+    if not binding_errors:
+        return []
+    return [
+        _finding(
+            "admission.exact-child-binding",
+            "error",
+            {"errors": sorted(set(binding_errors))},
+            "Use the exact fixed cohort and per-child bindings from reservation.",
+        )
+    ]
+
+
 def run_pool_preflight(
     request: Mapping[str, Any],
     *,
@@ -756,14 +877,27 @@ def run_pool_preflight(
         )
     else:
         request_map = dict(request)
-        shape = _shape_finding("request.shape", request_map, REQUEST_FIELDS, "request")
+        admitted_v2 = request_map.get("version") == ADMITTED_PREFLIGHT_VERSION
+        shape = _shape_finding(
+            "request.shape",
+            request_map,
+            REQUEST_FIELDS_V2 if admitted_v2 else REQUEST_FIELDS_V1,
+            "request",
+        )
         if shape is not None:
             findings.append(shape)
+    admitted_v2 = request_map.get("version") == ADMITTED_PREFLIGHT_VERSION
 
     if (
         request_map.get("preflight_type") != PREFLIGHT_REQUEST_TYPE
-        or request_map.get("version") != PREFLIGHT_VERSION
-        or request_map.get("schema") != PREFLIGHT_REQUEST_SCHEMA
+        or request_map.get("version")
+        != (ADMITTED_PREFLIGHT_VERSION if admitted_v2 else PREFLIGHT_VERSION)
+        or request_map.get("schema")
+        != (
+            ADMITTED_PREFLIGHT_REQUEST_SCHEMA
+            if admitted_v2
+            else PREFLIGHT_REQUEST_SCHEMA
+        )
     ):
         findings.append(
             _finding(
@@ -840,8 +974,7 @@ def run_pool_preflight(
         )
     if (
         not _integer(released_capacity, 1)
-        or int(released_capacity)
-        > capacity_limits.released_max_active_workers
+        or int(released_capacity) > capacity_limits.released_max_active_workers
     ):
         findings.append(
             _finding(
@@ -912,7 +1045,10 @@ def run_pool_preflight(
     mutable_targets: list[tuple[int, str]] = []
     for index, raw_child in enumerate(children):
         shape = _shape_finding(
-            "child.shape", raw_child, CHILD_FIELDS, f"child[{index}]"
+            "child.shape",
+            raw_child,
+            CHILD_FIELDS_V2 if admitted_v2 else CHILD_FIELDS_V1,
+            f"child[{index}]",
         )
         if shape is not None:
             findings.append(shape)
@@ -921,6 +1057,31 @@ def run_pool_preflight(
             continue
         child = dict(raw_child)
         normalized_children.append(child)
+        if admitted_v2:
+            for field in ("bead_id", "work_unit_id", "requested_model"):
+                if not _nonempty(child.get(field)):
+                    findings.append(
+                        _finding(
+                            "admission.child-identity",
+                            "error",
+                            {"child_index": index, "field": field},
+                            "Provide the exact admitted child identity.",
+                        )
+                    )
+            for field in PREFLIGHT_CHILD_ADMISSION_FIELDS - {
+                "bead_id",
+                "work_unit_id",
+                "requested_model",
+            }:
+                if not _sha256(child.get(field)):
+                    findings.append(
+                        _finding(
+                            "admission.child-identity",
+                            "error",
+                            {"child_index": index, "field": field},
+                            "Provide the exact admitted child identity.",
+                        )
+                    )
         for field in identities:
             identities[field].append(child.get(field))
         if not _nonempty(child.get("child_id")):
@@ -1275,6 +1436,16 @@ def run_pool_preflight(
                 )
             )
 
+    reservation = request_map.get("admission_reservation") if admitted_v2 else None
+    if admitted_v2:
+        findings.extend(
+            _admission_findings(
+                reservation,
+                normalized_children,
+                requested_workers,
+            )
+        )
+
     for index, (left_child, left) in enumerate(mutable_targets):
         left_parts = PurePosixPath(left).parts
         for right_child, right in mutable_targets[index + 1 :]:
@@ -1407,6 +1578,9 @@ def run_pool_preflight(
             contract_errors = validate_pool_contract(
                 contract,
                 capacity_limits=capacity_limits,
+                admission_reservation=(
+                    reservation if isinstance(reservation, Mapping) else None
+                ),
             )
             if contract_errors:
                 findings.append(
@@ -1440,7 +1614,7 @@ def run_pool_preflight(
                     if not isinstance(rendered, Mapping):
                         binding_errors.append(f"child[{index}]-not-object")
                         continue
-                    for field in (
+                    bound_fields = (
                         "child_id",
                         "packet_id",
                         "packet_sha256",
@@ -1453,7 +1627,11 @@ def run_pool_preflight(
                         "tool_policy",
                         "declared_write_paths",
                         "integration_target_paths",
-                    ):
+                    )
+                    if admitted_v2:
+                        bound_fields += tuple(sorted(PREFLIGHT_CHILD_ADMISSION_FIELDS))
+                        bound_fields += ("hard_budget",)
+                    for field in bound_fields:
                         if effective.get(field) != rendered.get(field):
                             binding_errors.append(f"child[{index}]-{field}-mismatch")
             scheduler = contract.get("scheduler")
@@ -1511,8 +1689,10 @@ def run_pool_preflight(
     )
     result = {
         "result_type": PREFLIGHT_RESULT_TYPE,
-        "version": PREFLIGHT_VERSION,
-        "schema": PREFLIGHT_RESULT_SCHEMA,
+        "version": (ADMITTED_PREFLIGHT_VERSION if admitted_v2 else PREFLIGHT_VERSION),
+        "schema": (
+            ADMITTED_PREFLIGHT_RESULT_SCHEMA if admitted_v2 else PREFLIGHT_RESULT_SCHEMA
+        ),
         "stage": stage if stage in PREFLIGHT_STAGES else None,
         "request_sha256": request_sha256,
         "contract_sha256": contract_sha256,
@@ -1521,6 +1701,31 @@ def run_pool_preflight(
         "findings": findings,
         "override_authority": override_provenance,
     }
+    if admitted_v2:
+        result.update(
+            {
+                "admission_reservation_sha256": (
+                    reservation.get("reservation_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+                "fixed_cohort_sha256": (
+                    reservation.get("fixed_cohort_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+                "child_bindings_sha256": (
+                    reservation.get("child_bindings_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+                "claim_set_sha256": (
+                    reservation.get("claim_set_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+            }
+        )
     result["result_sha256"] = canonical_sha256(result)
     return result
 
@@ -1530,6 +1735,7 @@ def validate_pool_preflight_result(
     *,
     expected_stage: str | None = None,
     expected_contract_sha256: str | None = None,
+    expected_admission_reservation_sha256: str | None = None,
 ) -> list[str]:
     """Validate a sanitized preflight receipt without replaying raw inputs."""
 
@@ -1537,16 +1743,22 @@ def validate_pool_preflight_result(
         return ["preflight-result-must-be-object"]
     errors: list[str] = []
     result = dict(value)
-    missing = sorted(RESULT_FIELDS - set(result))
-    unknown = sorted(set(result) - RESULT_FIELDS)
+    admitted_v2 = result.get("version") == ADMITTED_PREFLIGHT_VERSION
+    expected_fields = RESULT_FIELDS_V2 if admitted_v2 else RESULT_FIELDS_V1
+    missing = sorted(expected_fields - set(result))
+    unknown = sorted(set(result) - expected_fields)
     if missing:
         errors.append("preflight-result-missing-fields:" + ",".join(missing))
     if unknown:
         errors.append("preflight-result-unknown-fields:" + ",".join(unknown))
     if (
         result.get("result_type") != PREFLIGHT_RESULT_TYPE
-        or result.get("version") != PREFLIGHT_VERSION
-        or result.get("schema") != PREFLIGHT_RESULT_SCHEMA
+        or result.get("version")
+        != (ADMITTED_PREFLIGHT_VERSION if admitted_v2 else PREFLIGHT_VERSION)
+        or result.get("schema")
+        != (
+            ADMITTED_PREFLIGHT_RESULT_SCHEMA if admitted_v2 else PREFLIGHT_RESULT_SCHEMA
+        )
     ):
         errors.append("preflight-result-header-invalid")
     stage = result.get("stage")
@@ -1566,6 +1778,16 @@ def validate_pool_preflight_result(
         and contract_sha256 != expected_contract_sha256
     ):
         errors.append("preflight-result-contract-mismatch")
+    if admitted_v2:
+        for field in RESULT_ADMISSION_FIELDS:
+            if not _sha256(result.get(field)):
+                errors.append(f"preflight-result-{field.replace('_', '-')}-invalid")
+        if (
+            expected_admission_reservation_sha256 is not None
+            and result.get("admission_reservation_sha256")
+            != expected_admission_reservation_sha256
+        ):
+            errors.append("preflight-result-admission-reservation-mismatch")
 
     findings = result.get("findings")
     normalized_findings: list[Mapping[str, Any]] = []

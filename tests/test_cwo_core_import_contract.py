@@ -74,6 +74,7 @@ ALLOWED_IMPORTS = {
     "native_pool_schedulability": set(),
     "native_pool_contracts": {
         "native_authority",
+        "native_pool_admission",
         "native_pool_capacity",
         "native_pool_capacity_compat",
         "native_pool_schedulability",
@@ -104,6 +105,7 @@ ALLOWED_IMPORTS = {
         "native_live_campaign_contracts",
         "native_pool_capacity",
         "native_pool_capacity_compat",
+        "native_pool_admission",
         "native_pool_contracts",
         "native_pool_schedulability",
         "native_pool_leases",
@@ -113,6 +115,7 @@ ALLOWED_IMPORTS = {
     },
     "native_pool_preflight": {
         "native_authority",
+        "native_pool_admission",
         "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_schedulability",

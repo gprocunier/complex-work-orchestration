@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Admission-Bound Native Supervision Pool Preflight Result v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_type", "version", "schema", "stage", "request_sha256",
+    "contract_sha256", "decision", "accepted", "findings",
+    "override_authority", "admission_reservation_sha256",
+    "fixed_cohort_sha256", "child_bindings_sha256", "claim_set_sha256",
+    "result_sha256"
+  ],
+  "properties": {
+    "result_type": {"const": "cwo-native-supervision-pool-preflight-result"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-supervision-pool-preflight-result-v2.schema.json"},
+    "stage": {"oneOf": [{"enum": ["pre-allocation", "pre-dispatch"]}, {"type": "null"}]},
+    "request_sha256": {"$ref": "#/$defs/sha256"},
+    "contract_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "decision": {"enum": ["accept", "reject"]},
+    "accepted": {"type": "boolean"},
+    "findings": {"type": "array", "items": {"$ref": "native-supervision-pool-preflight-result.schema.json#/$defs/finding"}},
+    "override_authority": {"oneOf": [{"$ref": "native-authority-provenance.schema.json"}, {"type": "null"}]},
+    "admission_reservation_sha256": {"$ref": "#/$defs/sha256"},
+    "fixed_cohort_sha256": {"$ref": "#/$defs/sha256"},
+    "child_bindings_sha256": {"$ref": "#/$defs/sha256"},
+    "claim_set_sha256": {"$ref": "#/$defs/sha256"},
+    "result_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
