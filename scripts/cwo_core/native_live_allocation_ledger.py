@@ -21,6 +21,10 @@ from .audit import (
     record_audit_event,
 )
 from .native_canary_contracts import canonical_sha256
+from .native_turn_dispatch import (
+    validate_turn_absence_proof,
+    validate_turn_dispatch_record,
+)
 
 
 LEDGER_TYPE = "cwo-native-live-allocation-ledger:v1"
@@ -358,6 +362,7 @@ class _TrustedLedgerCoordinates:
     audit_file: _PrivateFileIdentity
     audit_event_count: int
     audit_head_sha256: Any
+    absence_proof_files: tuple[tuple[str, _PrivateFileIdentity], ...]
 
 
 def _hash(value: Any, *, domain: str) -> str:
@@ -536,6 +541,79 @@ def _read_private_json_with_identity(
     if not isinstance(value, dict):
         raise NativeLiveAllocationLedgerError("ledger-file-not-object")
     return value, identity
+
+
+def _verified_turn_absence_proof(
+    directory: Path,
+    state: Mapping[str, Any],
+    entry: Mapping[str, Any],
+    *,
+    expected_proof_sha256: str | None = None,
+) -> tuple[dict[str, Any], _PrivateFileIdentity]:
+    """Load and bind one canonical private absence proof to its ledger intent."""
+
+    turn_intent_id = entry.get("turn_intent_id")
+    if not _is_uuid(turn_intent_id):
+        raise NativeLiveAllocationLedgerError("turn-intent-absence-proof-link-invalid")
+    proof_path = directory / "turn-absence" / f"{turn_intent_id}.json"
+    try:
+        _strict_private_directory(proof_path.parent)
+        proof, identity = _read_private_json_with_identity(proof_path)
+    except NativeLiveAllocationLedgerError as exc:
+        raise NativeLiveAllocationLedgerError(
+            "turn-intent-absence-proof-link-invalid"
+        ) from exc
+    errors = validate_turn_absence_proof(proof)
+    intent_entries = [
+        candidate
+        for candidate in state.get("entries", [])
+        if isinstance(candidate, Mapping)
+        and candidate.get("event") == "turn-intent"
+        and candidate.get("turn_intent_id") == turn_intent_id
+    ]
+    if (
+        errors
+        or len(intent_entries) != 1
+        or proof.get("proof_sha256") != entry.get("evidence_sha256")
+        or (
+            expected_proof_sha256 is not None
+            and proof.get("proof_sha256") != expected_proof_sha256
+        )
+        or proof.get("ledger_id") != state.get("ledger_id")
+        or proof.get("thread_id") != entry.get("thread_id")
+        or proof.get("turn_intent_id") != turn_intent_id
+        or proof.get("turn_intent_entry_sha256")
+        != intent_entries[0].get("entry_sha256")
+    ):
+        raise NativeLiveAllocationLedgerError("turn-intent-absence-proof-link-invalid")
+    dispatch = proof.get("dispatch_record")
+    if (
+        not isinstance(dispatch, Mapping)
+        or validate_turn_dispatch_record(dispatch)
+        or dispatch.get("ledger_head_entry_sha256")
+        != intent_entries[0].get("entry_sha256")
+    ):
+        raise NativeLiveAllocationLedgerError("turn-intent-absence-proof-link-invalid")
+    return proof, identity
+
+
+def _validate_persisted_turn_absence_proofs(
+    directory: Path,
+    state: Mapping[str, Any],
+) -> tuple[tuple[str, _PrivateFileIdentity], ...]:
+    identities: list[tuple[str, _PrivateFileIdentity]] = []
+    for entry in state.get("entries", []):
+        if (
+            isinstance(entry, Mapping)
+            and entry.get("event") == "containment-audited"
+            and entry.get("outcome") == "turn-intent-verified-absent"
+        ):
+            proof, identity = _verified_turn_absence_proof(directory, state, entry)
+            proof_path = directory / "turn-absence" / (
+                f"{proof['turn_intent_id']}.json"
+            )
+            identities.append((str(proof_path), identity))
+    return tuple(identities)
 
 
 def _read_private_bytes_with_identity(
@@ -963,6 +1041,10 @@ def _validate_entry_transition(
             event == "containment-audited"
             and entry.get("outcome") == "turn-intent-verified-absent"
         )
+        containment_success = (
+            event == "containment-audited"
+            and entry.get("outcome") in {"contained", "already-contained"}
+        )
         if absent_resolution:
             intent = semantic_index.turn_intent(str(turn_intent_id))
             if (
@@ -975,6 +1057,14 @@ def _validate_entry_transition(
                 )
             else:
                 semantic_index.resolve_turn_intent(str(turn_intent_id))
+        if event == "containment-audited" and not (
+            absent_resolution or containment_success
+        ):
+            errors.append(f"ledger-entry-{index_number}-containment-outcome-invalid")
+        if containment_success and not semantic_index.lifecycle_kind_seen(
+            "archive-observed", str(thread_id)
+        ):
+            errors.append(f"ledger-entry-{index_number}-containment-before-archive")
         if not isinstance(entry.get("outcome"), str) or not entry.get("outcome"):
             errors.append(f"ledger-entry-{index_number}-lifecycle-outcome-invalid")
         if isinstance(thread_id, str) and isinstance(entry.get("outcome"), str):
@@ -1187,6 +1277,9 @@ class NativeLiveAllocationLedgerStore:
         audit_file: _PrivateFileIdentity,
         audit_event_count: int,
         audit_head_sha256: Any,
+        absence_proof_files: tuple[
+            tuple[str, _PrivateFileIdentity], ...
+        ] = (),
     ) -> None:
         entries = state["entries"]
         self._trusted = _TrustedLedgerCoordinates(
@@ -1203,6 +1296,7 @@ class NativeLiveAllocationLedgerStore:
             audit_file=audit_file,
             audit_event_count=audit_event_count,
             audit_head_sha256=audit_head_sha256,
+            absence_proof_files=absence_proof_files,
         )
         self._semantic_index = semantic_index
 
@@ -1224,6 +1318,9 @@ class NativeLiveAllocationLedgerStore:
                 raise NativeLiveAllocationLedgerError(
                     failure_prefix + ":" + ";".join(errors)
                 )
+            absence_proof_files = _validate_persisted_turn_absence_proofs(
+                self.directory, state
+            )
             _require_stable_private_path(self.path, "ledger-file", ledger_identity)
             _require_stable_private_path(
                 self.audit_file, "ledger-audit", audit_identity
@@ -1235,6 +1332,7 @@ class NativeLiveAllocationLedgerStore:
                 audit_file=audit_identity,
                 audit_event_count=len(audits),
                 audit_head_sha256=(audits[-1].get("event_hash") if audits else None),
+                absence_proof_files=absence_proof_files,
             )
             return state
         except BaseException:
@@ -1284,6 +1382,11 @@ class NativeLiveAllocationLedgerStore:
                 and trusted.audit_event_count == trusted.entry_count
                 and (audit_tail.get("event_hash") if audit_tail is not None else None)
                 == trusted.audit_head_sha256
+                and all(
+                    _path_private_identity(Path(path), "turn-absence-proof")
+                    == identity
+                    for path, identity in trusted.absence_proof_files
+                )
             )
             if not coordinates_match:
                 raise NativeLiveAllocationLedgerError("ledger-store-stale")
@@ -1392,6 +1495,29 @@ class NativeLiveAllocationLedgerStore:
                         state, trusted, semantic_index, _audit_tail = (
                             self._require_trusted_locked()
                         )
+                        pre_append_guard = fields.get("_pre_append_guard")
+                        guarded_absence_proof: (
+                            tuple[str, _PrivateFileIdentity] | None
+                        ) = None
+                        if pre_append_guard is not None:
+                            if not callable(pre_append_guard):
+                                raise NativeLiveAllocationLedgerError(
+                                    "ledger-pre-append-guard-invalid"
+                                )
+                            guarded_absence_proof = pre_append_guard(
+                                state, trusted, semantic_index
+                            )
+                            if (
+                                not isinstance(guarded_absence_proof, tuple)
+                                or len(guarded_absence_proof) != 2
+                                or not isinstance(guarded_absence_proof[0], str)
+                                or not isinstance(
+                                    guarded_absence_proof[1], _PrivateFileIdentity
+                                )
+                            ):
+                                raise NativeLiveAllocationLedgerError(
+                                    "ledger-pre-append-guard-result-invalid"
+                                )
                         sequence = trusted.entry_count + 1
                         entry = {
                             "sequence": sequence,
@@ -1438,6 +1564,24 @@ class NativeLiveAllocationLedgerStore:
                                 "ledger-transition-invalid:"
                                 + ";".join(sorted(set(errors)))
                             )
+
+                        absence_proof_files = trusted.absence_proof_files
+                        if guarded_absence_proof is not None:
+                            proof_path, proof_identity = guarded_absence_proof
+                            if (
+                                _path_private_identity(
+                                    Path(proof_path), "turn-absence-proof"
+                                )
+                                != proof_identity
+                            ):
+                                raise NativeLiveAllocationLedgerError(
+                                    "turn-intent-absence-proof-identity-changed"
+                                )
+                            absence_proof_files = tuple(
+                                item
+                                for item in absence_proof_files
+                                if item[0] != proof_path
+                            ) + (guarded_absence_proof,)
 
                         # Every remaining operation can mutate durable state. Trust is
                         # deliberately absent until both writes and their identities
@@ -1518,6 +1662,7 @@ class NativeLiveAllocationLedgerStore:
                             audit_file=audit_identity,
                             audit_event_count=trusted.audit_event_count + 1,
                             audit_head_sha256=audit["event_hash"],
+                            absence_proof_files=absence_proof_files,
                         )
                         success = True
                         return dict(entry)
@@ -1607,6 +1752,95 @@ class NativeLiveAllocationLedgerStore:
                 _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
                 return semantic_index.turn_intent_resolved(turn_intent_id)
 
+    def turn_intent_resolution(self, turn_intent_id: str) -> dict[str, Any]:
+        """Return the trusted durable resolution for one exact turn intent."""
+
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                intent = semantic_index.turn_intent(turn_intent_id)
+                if intent is None:
+                    raise NativeLiveAllocationLedgerError("turn-intent-missing")
+                bound = [
+                    entry
+                    for entry in state["entries"]
+                    if entry.get("event") == "turn-bound"
+                    and entry.get("turn_intent_id") == turn_intent_id
+                ]
+                absent = [
+                    entry
+                    for entry in state["entries"]
+                    if entry.get("event") == "containment-audited"
+                    and entry.get("outcome") == "turn-intent-verified-absent"
+                    and entry.get("turn_intent_id") == turn_intent_id
+                ]
+                if len(bound) + len(absent) > 1:
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-intent-resolution-ambiguous"
+                    )
+                if bound:
+                    return {
+                        "resolution": "turn-bound",
+                        "thread_id": intent["thread_id"],
+                        "turn_id": bound[0]["turn_id"],
+                        "evidence_sha256": None,
+                    }
+                if absent:
+                    _verified_turn_absence_proof(self.directory, state, absent[0])
+                    return {
+                        "resolution": "verified-absent",
+                        "thread_id": intent["thread_id"],
+                        "turn_id": None,
+                        "evidence_sha256": absent[0]["evidence_sha256"],
+                    }
+                return {
+                    "resolution": "pending",
+                    "thread_id": intent["thread_id"],
+                    "turn_id": None,
+                    "evidence_sha256": None,
+                }
+
+    def persist_turn_absence_proof(
+        self, proof: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Durably stage one canonical proof before its atomic ledger binding."""
+
+        errors = validate_turn_absence_proof(proof)
+        if errors:
+            raise NativeLiveAllocationLedgerError(
+                "turn-intent-absence-proof-invalid:" + ";".join(errors)
+            )
+        turn_intent_id = str(proof["turn_intent_id"])
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                intent = semantic_index.turn_intent(turn_intent_id)
+                if (
+                    intent is None
+                    or semantic_index.turn_intent_resolved(turn_intent_id)
+                    or proof.get("ledger_id") != state.get("ledger_id")
+                    or proof.get("thread_id") != intent.get("thread_id")
+                    or proof.get("turn_intent_entry_sha256")
+                    != intent.get("entry_sha256")
+                ):
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-intent-absence-proof-link-invalid"
+                    )
+                proof_directory = self.directory / "turn-absence"
+                if proof_directory.exists() or proof_directory.is_symlink():
+                    _strict_private_directory(proof_directory)
+                else:
+                    proof_directory.mkdir(mode=0o700)
+                    _fsync_directory(self.directory)
+                proof_path = proof_directory / f"{turn_intent_id}.json"
+                _atomic_private_write(proof_path, proof)
+                persisted, _identity = _read_private_json_with_identity(proof_path)
+                if persisted != dict(proof):
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-intent-absence-proof-persistence-invalid"
+                    )
+                return persisted
+
     def bind_turn(self, thread_id: str, turn_intent_id: str, turn_id: str) -> None:
         binding, expected_intent, existing_turn, _duplicate = self._thread_binding(
             thread_id
@@ -1630,36 +1864,54 @@ class NativeLiveAllocationLedgerStore:
         thread_id: str,
         turn_intent_id: str,
         *,
-        evidence: Mapping[str, Any],
+        proof_sha256: str,
     ) -> None:
-        """Resolve a pending intent only after verified active-turn absence."""
+        """Atomically bind a canonical persisted absence proof to one intent."""
 
-        if (
-            set(evidence)
-            != {
-                "dispatch_record_sha256",
-                "request_id",
-                "query_count",
-                "absence_verified",
-            }
-            or not _is_hash(evidence.get("dispatch_record_sha256"))
-            or type(evidence.get("request_id")) is not int
-            or evidence.get("request_id", 0) < 1
-            or type(evidence.get("query_count")) is not int
-            or evidence.get("query_count", 0) < 1
-            or evidence.get("absence_verified") is not True
-        ):
+        if not _is_hash(proof_sha256):
             raise NativeLiveAllocationLedgerError(
-                "turn-intent-absence-evidence-invalid"
+                "turn-intent-absence-proof-sha256-invalid"
             )
         binding, expected_intent, existing_turn, _duplicate = self._thread_binding(
             thread_id
         )
-        resolved = self._turn_intent_resolved(turn_intent_id)
         if expected_intent != turn_intent_id or existing_turn is not None:
             raise NativeLiveAllocationLedgerError("turn-intent-resolution-mismatch")
-        if resolved:
-            return
+
+        def verify_persisted_proof(
+            state: Mapping[str, Any],
+            _trusted: _TrustedLedgerCoordinates,
+            semantic_index: _LedgerSemanticIndex,
+        ) -> tuple[str, _PrivateFileIdentity]:
+            intent = semantic_index.turn_intent(turn_intent_id)
+            live_binding = semantic_index.thread_binding(thread_id)
+            if (
+                intent is None
+                or live_binding is None
+                or intent.get("thread_id") != thread_id
+                or intent.get("allocation_intent_id")
+                != binding.get("allocation_intent_id")
+                or semantic_index.turn_intent_resolved(turn_intent_id)
+            ):
+                raise NativeLiveAllocationLedgerError(
+                    "turn-intent-resolution-mismatch"
+                )
+            synthetic_entry = {
+                "thread_id": thread_id,
+                "turn_intent_id": turn_intent_id,
+                "evidence_sha256": proof_sha256,
+            }
+            proof, identity = _verified_turn_absence_proof(
+                self.directory,
+                state,
+                synthetic_entry,
+                expected_proof_sha256=proof_sha256,
+            )
+            proof_path = self.directory / "turn-absence" / (
+                f"{proof['turn_intent_id']}.json"
+            )
+            return str(proof_path), identity
+
         self._append(
             event="containment-audited",
             role=binding["role"],
@@ -1667,10 +1919,9 @@ class NativeLiveAllocationLedgerStore:
             allocation_intent_id=binding["allocation_intent_id"],
             thread_id=thread_id,
             turn_intent_id=turn_intent_id,
-            evidence_sha256=_hash(
-                dict(evidence), domain="native-live-turn-intent-containment"
-            ),
+            evidence_sha256=proof_sha256,
             outcome="turn-intent-verified-absent",
+            _pre_append_guard=verify_persisted_proof,
         )
 
     def record_lifecycle(self, thread_id: str, event: str, outcome: str) -> None:
@@ -1703,6 +1954,10 @@ class NativeLiveAllocationLedgerStore:
         if outcome == "turn-intent-verified-absent":
             raise NativeLiveAllocationLedgerError(
                 "containment-outcome-reserved-for-turn-intent-resolution"
+            )
+        if outcome not in {"contained", "already-contained"}:
+            raise NativeLiveAllocationLedgerError(
+                "containment-outcome-not-success"
             )
         binding, turn_intent_id, turn_id, _duplicate = self._thread_binding(thread_id)
         self._append(
@@ -1738,15 +1993,23 @@ class NativeLiveAllocationLedgerStore:
                 _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
                 return semantic_index.lifecycle_kind_seen(event, thread_id)
 
-    def has_containment_audit(self, thread_id: str) -> bool:
-        """Return whether trusted evidence, rather than archive alone, contained it."""
+    def has_successful_containment(self, thread_id: str) -> bool:
+        """Return whether an exact containment-success audit exists."""
 
         with self._instance_lock:
             with _exclusive_lock(self.lock_path):
                 _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
-                return semantic_index.lifecycle_kind_seen(
-                    "containment-audited", thread_id
+                return any(
+                    semantic_index.lifecycle_seen(
+                        "containment-audited", thread_id, outcome
+                    )
+                    for outcome in ("contained", "already-contained")
                 )
+
+    def has_containment_audit(self, thread_id: str) -> bool:
+        """Compatibility alias restricted to successful containment outcomes."""
+
+        return self.has_successful_containment(thread_id)
 
     def summary(self) -> dict[str, Any]:
         with self._instance_lock:

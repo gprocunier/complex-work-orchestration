@@ -111,7 +111,11 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_canary_contracts",
         "native_live_allocation_ledger",
     },
-    "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
+    "native_live_allocation_ledger": {
+        "audit",
+        "native_canary_contracts",
+        "native_turn_dispatch",
+    },
     "native_turn_dispatch": set(),
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
