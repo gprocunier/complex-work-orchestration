@@ -464,7 +464,15 @@
         "decisions": {
           "type": "array",
           "items": {
-            "enum": ["continue", "warn", "complete", "interrupt", "control-lost"]
+            "oneOf": [
+              {
+                "enum": ["continue", "warn", "complete", "interrupt", "control-lost"]
+              },
+              {
+                "type": "string",
+                "pattern": "^interrupt:\\S(?:[\\s\\S]*\\S)?$"
+              }
+            ]
           }
         },
         "poll_count": {

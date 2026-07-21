@@ -205,6 +205,17 @@ def validate_control_callbacks(callbacks: Any) -> list[str]:
     return errors
 
 
+def _valid_receipt_decision(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    if value in VALID_DECISIONS:
+        return True
+    if not value.startswith("interrupt:"):
+        return False
+    reason = value.removeprefix("interrupt:")
+    return bool(reason) and reason == reason.strip()
+
+
 def validate_control_turn_receipt(
     receipt: Any,
     *,
@@ -236,7 +247,7 @@ def validate_control_turn_receipt(
         errors.append("control-receipt-actions-invalid")
     decisions = receipt.get("decisions")
     if not isinstance(decisions, list) or any(
-        item not in VALID_DECISIONS for item in decisions
+        not _valid_receipt_decision(item) for item in decisions
     ):
         errors.append("control-receipt-decisions-invalid")
     poll_count = receipt.get("poll_count")
