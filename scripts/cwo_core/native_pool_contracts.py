@@ -65,6 +65,7 @@ POOL_STATUSES = (
     "admitting",
     "running",
     "draining",
+    "partial-drain",
     "interrupt-pending",
     "completed",
     "closed",
@@ -118,6 +119,21 @@ CAPABILITY_SLACK_WARNING_FRACTION = 0.8
 MAX_CERTIFIED_CHECK_MS = CERTIFIED_CALLBACK_MAX_MS["check"]
 POOL_POLL_INTERVAL_MS = 1000
 POOL_POLL_LAG_TOLERANCE_MS = 1500
+COMPLETION_POLICIES = frozenset({"all-or-nothing", "best-effort"})
+DEFAULT_COMPLETION_POLICY = "all-or-nothing"
+RUNTIME_DISPOSITIONS = frozenset(
+    {"active", "completed", "failed-contained", "failed-ambiguous", "interrupted"}
+)
+
+
+def pool_capacity_limits(
+    policy_document: Mapping[str, Any] | None = None,
+) -> PoolCapacityLimits:
+    """Return the capacity authority used to validate a pool artifact family."""
+
+    return load_pool_capacity(policy_document)
+
+
 COMPLETION_EVIDENCE_POLICY_FIELDS = {
     "minimum_tool_calls",
     "required_evidence",
@@ -249,7 +265,7 @@ CHILD_CONTRACT_FIELDS_V2 = (
     | ADMISSION_CHILD_IDENTITY_FIELDS
     | ADMISSION_CHILD_RENDER_FIELDS
 )
-POOL_CONTRACT_FIELDS_V1 = {
+POOL_CONTRACT_FIELDS_V1_LEGACY = {
     "contract_type",
     "version",
     "schema",
@@ -267,6 +283,7 @@ POOL_CONTRACT_FIELDS_V1 = {
     "capability_receipt_sha256",
     "contract_sha256",
 }
+POOL_CONTRACT_FIELDS_V1 = POOL_CONTRACT_FIELDS_V1_LEGACY | {"completion_policy"}
 POOL_CONTRACT_FIELDS_V2 = POOL_CONTRACT_FIELDS_V1 | ADMISSION_TOP_BINDING_FIELDS
 
 # Compatibility aliases retain the v1 public constants used by historical
@@ -336,6 +353,7 @@ CHILD_STATE_FIELDS = {
     "ordinal",
     "child_id",
     "status",
+    "runtime_disposition",
     "last_deadline_ns",
     "next_deadline_ns",
     "child_state_sha256",
@@ -490,6 +508,7 @@ POOL_CHILD_RECEIPT_FIELDS_V2 = POOL_CHILD_RECEIPT_FIELDS_V1 | {
 }
 POOL_CHILD_DISPOSITION_FIELDS_V1 = {
     "child_id",
+    "runtime_disposition",
     "session_disposition",
     "artifact_disposition",
 }
@@ -1223,7 +1242,13 @@ def validate_pool_contract(
         isinstance(value, Mapping) and value.get("version") == ADMITTED_POOL_VERSION
     )
     contract_fields = (
-        POOL_CONTRACT_FIELDS_V2 if admitted_v2 else POOL_CONTRACT_FIELDS_V1
+        POOL_CONTRACT_FIELDS_V2
+        if admitted_v2
+        else (
+            POOL_CONTRACT_FIELDS_V1
+            if isinstance(value, Mapping) and "completion_policy" in value
+            else POOL_CONTRACT_FIELDS_V1_LEGACY
+        )
     )
     child_fields = CHILD_CONTRACT_FIELDS_V2 if admitted_v2 else CHILD_CONTRACT_FIELDS_V1
     contract = _strict(value, contract_fields, "pool-contract", errors)
@@ -1242,6 +1267,13 @@ def validate_pool_contract(
     for field in ("pool_id", "pool_epoch", "control_turn_id"):
         if not _nonempty(contract.get(field)):
             errors.append(f"invalid-{field.replace('_', '-')}")
+    completion_policy = contract.get(
+        "completion_policy", DEFAULT_COMPLETION_POLICY
+    )
+    if completion_policy not in COMPLETION_POLICIES:
+        errors.append("invalid-completion-policy")
+    elif completion_policy == "best-effort" and not admitted_v2:
+        errors.append("best-effort-requires-admitted-v2")
     if _datetime(contract.get("created_at")) is None:
         errors.append("invalid-created-at")
     _validate_owner(contract.get("owner"), "owner", errors)
@@ -1855,6 +1887,8 @@ def validate_pool_state(
                 errors.append(f"invalid-child[{index}]-id")
             if child.get("status") not in CHILD_STATUSES:
                 errors.append(f"invalid-child[{index}]-status")
+            if child.get("runtime_disposition") not in RUNTIME_DISPOSITIONS:
+                errors.append(f"invalid-child[{index}]-runtime-disposition")
             for field in ("last_deadline_ns", "next_deadline_ns"):
                 if child.get(field) is not None and not _is_int(child.get(field)):
                     errors.append(f"invalid-child[{index}]-{field.replace('_', '-')}")
@@ -2250,6 +2284,7 @@ def validate_pool_receipt(
     admission_reservation: Mapping[str, Any] | None = None,
     dispatch_receipt: Mapping[str, Any] | None = None,
     seen_hashes: Iterable[str] | None = None,
+    capacity_limits: PoolCapacityLimits | None = None,
 ) -> list[str]:
     errors: list[str] = []
     admitted_v2 = isinstance(value, Mapping) and value.get("version") == 2
@@ -2525,6 +2560,22 @@ def validate_pool_receipt(
                 "rejected",
             }:
                 errors.append(f"invalid-child-disposition[{index}]-artifact")
+            runtime_disposition = entry.get("runtime_disposition")
+            if runtime_disposition not in RUNTIME_DISPOSITIONS:
+                errors.append(
+                    f"invalid-child-disposition[{index}]-runtime-disposition"
+                )
+            if runtime_disposition in {
+                "failed-contained",
+                "failed-ambiguous",
+                "interrupted",
+            } and (
+                entry.get("session_disposition") != "quarantined"
+                or entry.get("artifact_disposition") != "rejected"
+            ):
+                errors.append(
+                    f"child-disposition[{index}]-failed-runtime-must-be-rejected"
+                )
             if admitted_v2:
                 for field in ("bead_id", "work_unit_id"):
                     if not _nonempty(entry.get(field)):
@@ -2578,6 +2629,19 @@ def validate_pool_receipt(
             for child in contract.get("children", [])
             if isinstance(child, Mapping)
         ]
+        completion_policy = contract.get(
+            "completion_policy", DEFAULT_COMPLETION_POLICY
+        )
+        if completion_policy == "best-effort" and contract.get("version") != 2:
+            errors.append("best-effort-requires-admitted-v2")
+        if isinstance(dispositions, list) and any(
+            isinstance(item, Mapping)
+            and item.get("runtime_disposition") == "failed-contained"
+            for item in dispositions
+        ) and (
+            completion_policy != "best-effort" or contract.get("version") != 2
+        ):
+            errors.append("failed-contained-requires-admitted-v2-best-effort")
         admission_ids = receipt.get("admission_order", [])
         if not isinstance(admission_ids, list) or any(
             child_id not in child_ids for child_id in admission_ids
@@ -2624,6 +2688,7 @@ def validate_pool_receipt(
             else:
                 contract_errors = validate_pool_contract(
                     contract,
+                    capacity_limits=capacity_limits,
                     admission_reservation=admission_reservation,
                 )
                 errors.extend(

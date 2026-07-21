@@ -38,6 +38,8 @@ from .native_pool_contracts import (
     CAPABILITY_SLACK_WARNING_FRACTION,
     CERTIFIED_CALLBACK_MAX_MS,
     CERTIFIED_SCHEDULER_OVERHEAD_MS,
+    COMPLETION_POLICIES,
+    DEFAULT_COMPLETION_POLICY,
     POOL_ALLOWED_ACTIONS,
     POOL_CONTRACT_SCHEMA,
     POOL_CONTRACT_TYPE,
@@ -81,7 +83,12 @@ RENDER_REQUEST_FIELDS_V1 = {
     "integration_root",
     "children",
 }
-RENDER_REQUEST_FIELDS_V2 = RENDER_REQUEST_FIELDS_V1 | {"admission_reservation"}
+RENDER_REQUEST_FIELDS_WITH_POLICY_V1 = RENDER_REQUEST_FIELDS_V1 | {
+    "completion_policy"
+}
+RENDER_REQUEST_FIELDS_V2 = RENDER_REQUEST_FIELDS_WITH_POLICY_V1 | {
+    "admission_reservation"
+}
 RENDER_CHILD_FIELDS_V1 = {
     "child_id",
     "packet_id",
@@ -455,14 +462,30 @@ def validate_pool_render_request(
     admitted_v2 = (
         isinstance(value, Mapping) and value.get("version") == ADMITTED_POOL_VERSION
     )
+    request_fields = (
+        RENDER_REQUEST_FIELDS_V2
+        if admitted_v2
+        else (
+            RENDER_REQUEST_FIELDS_WITH_POLICY_V1
+            if isinstance(value, Mapping) and "completion_policy" in value
+            else RENDER_REQUEST_FIELDS_V1
+        )
+    )
     request = _strict_fields(
         value,
-        RENDER_REQUEST_FIELDS_V2 if admitted_v2 else RENDER_REQUEST_FIELDS_V1,
+        request_fields,
         "render-request",
         errors,
     )
     if request is None:
         return errors
+    completion_policy = request.get(
+        "completion_policy", DEFAULT_COMPLETION_POLICY
+    )
+    if completion_policy not in COMPLETION_POLICIES:
+        errors.append("invalid-completion-policy")
+    elif completion_policy == "best-effort" and not admitted_v2:
+        errors.append("best-effort-requires-admitted-v2")
     if request.get("request_type") != RENDER_REQUEST_TYPE:
         errors.append("invalid-request-type")
     expected_version = ADMITTED_POOL_VERSION if admitted_v2 else VERSION
@@ -992,6 +1015,9 @@ def _build_pool_contract(
             "certified_max_scheduler_overhead_ms": overhead_max,
         },
         "aggregate_hard_budget": dict(request["aggregate_hard_budget"]),
+        "completion_policy": request.get(
+            "completion_policy", DEFAULT_COMPLETION_POLICY
+        ),
         "topology": {
             "integration_root_identity": integration["identity"],
             "shared_read_only_worktree": shared_read_only,
@@ -1054,6 +1080,7 @@ def _build_pool_contract(
         contract,
         integration_root=integration["root"],
         child_worktrees=child_worktrees,
+        policy_document=policy_document,
     )
     return contract
 

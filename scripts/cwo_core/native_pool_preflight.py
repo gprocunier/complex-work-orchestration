@@ -859,10 +859,11 @@ def run_pool_preflight(
     request: Mapping[str, Any],
     *,
     override_authorization: VerifiedPoolPreflightOverride | None = None,
+    policy_document: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic result; no model or worker session is consulted."""
 
-    capacity_limits = load_pool_capacity()
+    capacity_limits = load_pool_capacity(policy_document)
     request_sha256 = _safe_request_sha256(request)
     findings: list[dict[str, Any]] = []
     if not isinstance(request, Mapping):

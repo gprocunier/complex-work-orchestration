@@ -245,6 +245,7 @@ def closed_state(contract: dict, leases: list[dict]) -> dict:
                 "ordinal": index,
                 "child_id": child_value["child_id"],
                 "status": "closed",
+                "runtime_disposition": "completed",
                 "last_deadline_ns": 1_000_000_000 + index,
                 "next_deadline_ns": None,
                 "child_state_sha256": sha(f"child-state:{index}"),
@@ -355,7 +356,12 @@ def accepting_receipt(contract: dict, state: dict, leases: list[dict]) -> dict:
             "reason_records": [],
             "first_protected_fault": None,
             "child_dispositions": [
-                {"child_id": child_id, "session_disposition": "accepted", "artifact_disposition": "accepted"}
+                {
+                    "child_id": child_id,
+                    "runtime_disposition": "completed",
+                    "session_disposition": "accepted",
+                    "artifact_disposition": "accepted",
+                }
                 for child_id in child_ids
             ],
             "pool_disposition": "accepted",
@@ -407,6 +413,21 @@ class NativePoolContractTest(unittest.TestCase):
         self.assertEqual(validate_pool_decision(decision, contract=contract, state=state), [])
         self.assertEqual(validate_pool_receipt(receipt, contract=contract, terminal_state=state), [])
         self.assertEqual(validate_pool_artifact(contract), [])
+
+    def test_completion_policy_is_explicit_for_new_contracts_and_legacy_v1_is_safe(self) -> None:
+        legacy, _ = pool_contract(cap=1)
+        self.assertNotIn("completion_policy", legacy)
+        self.assertEqual(validate_pool_contract(legacy), [])
+
+        current = copy.deepcopy(legacy)
+        current["completion_policy"] = "all-or-nothing"
+        current = seal_artifact(current, "contract_sha256")
+        self.assertEqual(validate_pool_contract(current), [])
+
+        forbidden = copy.deepcopy(legacy)
+        forbidden["completion_policy"] = "best-effort"
+        forbidden = seal_artifact(forbidden, "contract_sha256")
+        self.assertIn("best-effort-requires-admitted-v2", validate_pool_contract(forbidden))
 
     def test_receipt_accepts_legacy_and_exclusive_timing_shapes(self) -> None:
         contract, _, _, state, _, legacy = self.artifacts()

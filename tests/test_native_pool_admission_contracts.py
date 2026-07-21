@@ -72,20 +72,30 @@ from tests.test_native_pool_config import RenderFixture  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload  # noqa: E402
 from tests.test_native_pool import FakeAdapter, FakeClock  # noqa: E402
 from tests.test_native_pool_proportionality import _fixture  # noqa: E402
+from tests.test_beads_ready_set import released_three_policy  # noqa: E402
 
 
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
 
-def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
-    fixture = RenderFixture(root, 2)
+def _admitted_artifacts(
+    root: Path,
+    *,
+    size: int = 2,
+    completion_policy: str = "all-or-nothing",
+) -> tuple[RenderFixture, dict, dict, dict]:
+    fixture = RenderFixture(root, size)
     preflight_records = root / "preflight-records"
     preflight_records.mkdir(mode=0o700)
-    readiness, estimates, items, policy = _fixture([600, 600])
+    policy_fixture = released_three_policy() if size == 3 else None
+    readiness, estimates, items, policy = _fixture(
+        [600] * size,
+        policy=policy_fixture,
+    )
     assessment = pool_proportionality_check(
         readiness,
         estimates,
-        requested_workers=2,
+        requested_workers=size,
         policy_document=policy,
     )
     issue_ids = assessment["selected_cohort"]["issue_ids"]
@@ -180,6 +190,7 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
         admission_nonce="admission-contract-test",
         live_revalidate=_live,
         now="2026-07-21T20:00:02Z",
+        policy_document=policy,
     )
     claims = {item["bead_id"]: item for item in reserved.receipt["claims"]}
     aggregate_budget = {
@@ -197,6 +208,7 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
             "version": 2,
             "schema": ADMITTED_RENDER_REQUEST_SCHEMA,
             "aggregate_hard_budget": aggregate_budget,
+            "completion_policy": completion_policy,
             "admission_reservation": reserved.receipt,
         }
     )
@@ -222,7 +234,7 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
         effective_children[index].update(admission_fields)
 
     owner = capture_owner_identity()
-    capability_body = capability_payload()
+    capability_body = capability_payload(requested_cap=size)
     capability_body["host_identity"] = owner
     capability = seal_artifact(capability_body, "receipt_sha256")
     contract = build_pool_contract(
@@ -231,6 +243,7 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
         enable_concurrency=True,
         owner_pid=owner["pid"],
         now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc),
+        policy_document=policy,
     )
     preflight_request = {
         "preflight_type": "cwo-native-supervision-pool-preflight-request",
@@ -243,8 +256,8 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
         "pool_epoch": str(uuid.uuid4()),
         "integration_root": str(fixture.integration),
         "artifact_directories": [str(preflight_records)],
-        "requested_workers": 2,
-        "released_capacity": 2,
+        "requested_workers": size,
+        "released_capacity": size,
         "aggregate_hard_budget": aggregate_budget,
         "children": effective_children,
         "fallback": {"main_thread": "main-thread", "recovery": "operator"},
@@ -263,6 +276,7 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
     fixture.claim_adapter = reserved.claim_adapter
     fixture.claim_runner = runner
     fixture.pool_capability_receipt = capability
+    fixture.policy_document = policy
     return fixture, reserved.receipt, contract, preflight_request
 
 

@@ -8,7 +8,11 @@ from pathlib import Path
 import subprocess
 from typing import Any, Mapping, Sequence
 
-from .native_pool_contracts import canonical_sha256, validate_pool_contract
+from .native_pool_contracts import (
+    canonical_sha256,
+    pool_capacity_limits,
+    validate_pool_contract,
+)
 from .workspace import capture_workspace_baseline, compare_workspace_baseline, path_allowed
 
 
@@ -141,8 +145,12 @@ class PoolWorkspaceMonitor:
         *,
         integration_root: Path | str,
         child_worktrees: Mapping[str, Path | str],
+        policy_document: Mapping[str, Any] | None = None,
     ) -> None:
-        errors = validate_pool_contract(contract)
+        errors = validate_pool_contract(
+            contract,
+            capacity_limits=pool_capacity_limits(policy_document),
+        )
         if errors:
             raise PoolWorkspaceError("pool-contract-invalid:" + ";".join(errors))
         self.contract = copy.deepcopy(dict(contract))

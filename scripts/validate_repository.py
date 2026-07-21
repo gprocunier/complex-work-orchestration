@@ -135,6 +135,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_pool_admission": {
         "beads",
         "beads_ready_set",
+        "native_pool_capacity",
         "native_pool_proportionality",
         "native_recovery_authority",
         "policy",
@@ -163,6 +164,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_leases",
+        "native_recovery_authority",
         "native_pool_scheduler",
         "native_pool_schedulability",
         "native_stop_scope",

@@ -15,6 +15,7 @@ from typing import Any, Callable, Iterator, Mapping, Sequence
 from .native_pool_contracts import (
     LEASE_SCHEMA,
     LEASE_TYPE,
+    PoolCapacityLimits,
     VERSION,
     canonical_sha256,
     seal_artifact,
@@ -338,10 +339,12 @@ class PoolLeaseRegistry:
         self,
         contract: Mapping[str, Any],
         child_ids: Sequence[str] | None = None,
+        *,
+        capacity_limits: PoolCapacityLimits | None = None,
     ) -> list[dict[str, Any]]:
         """Acquire a complete lease set with one all-or-none registry write."""
 
-        errors = validate_pool_contract(contract)
+        errors = validate_pool_contract(contract, capacity_limits=capacity_limits)
         if errors:
             raise PoolLeaseError("pool-contract-invalid:" + ";".join(errors))
         requested = (
@@ -462,10 +465,14 @@ class PoolLeaseRegistry:
         self,
         contract: Mapping[str, Any],
         acquired: Sequence[Mapping[str, Any]],
+        *,
+        capacity_limits: PoolCapacityLimits | None = None,
     ) -> None:
         """Remove the exact pre-dispatch lease set before authority is committed."""
 
-        contract_errors = validate_pool_contract(contract)
+        contract_errors = validate_pool_contract(
+            contract, capacity_limits=capacity_limits
+        )
         if contract_errors:
             raise PoolLeaseError(
                 "pool-contract-invalid:" + ";".join(contract_errors)

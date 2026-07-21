@@ -20,7 +20,7 @@
     "pool_epoch": {"type": "string", "minLength": 1},
     "contract_sha256": {"$ref": "#/$defs/sha256"},
     "state_sequence": {"type": "integer", "minimum": 0},
-    "status": {"enum": ["created", "capability-validated", "admitting", "running", "draining", "interrupt-pending", "completed", "closed", "control-failed"]},
+    "status": {"enum": ["created", "capability-validated", "admitting", "running", "draining", "partial-drain", "interrupt-pending", "completed", "closed", "control-failed"]},
     "owner": {"$ref": "#/$defs/owner"},
     "coordinator_epoch": {"type": "integer", "minimum": 0},
     "scheduler_cursor": {"type": "integer", "minimum": 0, "maximum": 2},
@@ -139,11 +139,12 @@
     },
     "child": {
       "type": "object", "additionalProperties": false,
-      "required": ["ordinal", "child_id", "status", "last_deadline_ns", "next_deadline_ns", "child_state_sha256", "child_receipt_sha256", "last_cumulative_usage", "lease_id"],
+      "required": ["ordinal", "child_id", "status", "runtime_disposition", "last_deadline_ns", "next_deadline_ns", "child_state_sha256", "child_receipt_sha256", "last_cumulative_usage", "lease_id"],
       "properties": {
         "ordinal": {"type": "integer", "minimum": 0, "maximum": 2},
         "child_id": {"type": "string", "minLength": 1},
         "status": {"enum": ["created", "armed", "running", "interrupt-pending", "interrupt-confirmed", "completed", "closed", "control-failed"]},
+        "runtime_disposition": {"enum": ["active", "completed", "failed-contained", "failed-ambiguous", "interrupted"]},
         "last_deadline_ns": {"type": ["integer", "null"], "minimum": 0},
         "next_deadline_ns": {"type": ["integer", "null"], "minimum": 0},
         "child_state_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},

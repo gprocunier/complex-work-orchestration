@@ -99,9 +99,10 @@
       "type": "array", "minItems": 1, "maxItems": 3,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["child_id", "session_disposition", "artifact_disposition"],
+        "required": ["child_id", "runtime_disposition", "session_disposition", "artifact_disposition"],
         "properties": {
           "child_id": {"type": "string", "minLength": 1},
+          "runtime_disposition": {"enum": ["active", "completed", "failed-contained", "failed-ambiguous", "interrupted"]},
           "session_disposition": {"enum": ["accepted", "accepted-with-warning", "quarantined"]},
           "artifact_disposition": {"enum": ["accepted", "independent-validation-required", "architect-adjudication-required", "rejected"]}
         }

@@ -19,6 +19,7 @@ from .native_pool_admission import (
 from .native_pool_contracts import (
     ADMITTED_POOL_VERSION,
     canonical_sha256,
+    pool_capacity_limits,
     validate_pool_contract,
 )
 from .native_pool_leases import PoolLeaseError, PoolLeaseRegistry
@@ -48,8 +49,11 @@ def run_admitted_native_pool(
     decision_file: Path | str | None = None,
     control_file: Path | str | None = None,
     policy_document: Mapping[str, Any] | None = None,
+    recovery_authority_store: object | None = None,
+    recovery_controller_root: object | None = None,
+    recovery_action_resolver: Callable[..., object] | None = None,
 ) -> dict[str, Any]:
-    """Run one fixed N<=2 cohort after consuming its exact live authority."""
+    """Run one policy-authorized fixed cohort after consuming exact live authority."""
 
     reservation_errors = validate_reservation_receipt(reservation_receipt)
     if reservation_errors:
@@ -69,6 +73,7 @@ def run_admitted_native_pool(
         raise NativePoolAdmissionError("admitted-launch-v2-contract-required")
     contract_errors = validate_pool_contract(
         contract,
+        capacity_limits=pool_capacity_limits(policy_document),
         admission_reservation=reservation_receipt,
     )
     if contract_errors:
@@ -95,7 +100,9 @@ def run_admitted_native_pool(
             "admitted-launch-preflight-result-invalid:"
             + ";".join(preflight_errors)
         )
-    replayed_preflight = run_pool_preflight(preflight_request)
+    replayed_preflight = run_pool_preflight(
+        preflight_request, policy_document=policy_document
+    )
     if (
         preflight_result.get("accepted") is not True
         or preflight_result.get("decision") != "accept"
@@ -104,7 +111,12 @@ def run_admitted_native_pool(
         raise NativePoolAdmissionError("admitted-launch-preflight-not-exact-accept")
 
     child_ids = [str(child["child_id"]) for child in contract["children"]]
-    acquired = lease_registry.acquire_many(contract, child_ids)
+    capacity_limits = pool_capacity_limits(policy_document)
+    acquired = lease_registry.acquire_many(
+        contract,
+        child_ids,
+        capacity_limits=capacity_limits,
+    )
     commit_invoked = False
     try:
         lease_set_sha256 = canonical_sha256({"leases": acquired})
@@ -135,6 +147,9 @@ def run_admitted_native_pool(
                 decision_file=decision_file,
                 control_file=control_file,
                 policy_document=policy_document,
+                recovery_authority_store=recovery_authority_store,
+                recovery_controller_root=recovery_controller_root,
+                recovery_action_resolver=recovery_action_resolver,
             )
             terminal["pool_receipt"] = coordinator.run()
 
@@ -153,7 +168,11 @@ def run_admitted_native_pool(
     except BaseException:
         if not commit_invoked:
             try:
-                lease_registry.release_uncommitted_many(contract, acquired)
+                lease_registry.release_uncommitted_many(
+                    contract,
+                    acquired,
+                    capacity_limits=capacity_limits,
+                )
             except PoolLeaseError as containment_error:
                 raise NativePoolAdmissionError(
                     "admitted-launch-precommit-lease-containment-failed"

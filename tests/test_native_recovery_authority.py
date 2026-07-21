@@ -868,6 +868,8 @@ class FixedCohortRecoveryActionStoreTests(unittest.TestCase):
             "pm-controller-plus-verified-containment",
         )
         self.assertEqual(result["stop_scope"], "child")
+        self.assertEqual(result["recovery_class"], "contained-semantic-no-op")
+        self.assertEqual(result["work_unit_id"], "work-unit-a")
         self.assertEqual(result["evidence_kind"], "verified-contained-ledger-dispatch")
         self.assertRegex(result["ledger_result_sha256"], r"^[0-9a-f]{64}$")
 

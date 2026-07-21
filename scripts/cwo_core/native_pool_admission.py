@@ -27,6 +27,7 @@ from .native_pool_proportionality import (
     pool_proportionality_check,
     validate_pool_proportionality_assessment,
 )
+from .native_pool_capacity import load_pool_capacity
 from .native_recovery_authority import RecoveryAuthorityError, fixed_cohort_sha256
 from .policy import load_policy
 from .work_sizing import canonical_work_estimate_sha256
@@ -1120,7 +1121,8 @@ def reserve_pool_cohort(
     validated = _validate_candidate(candidate, policy_document=policy_document)
     if len(validated.issue_ids) >= 4:
         raise NativePoolAdmissionError("cohort-size-four-or-more-forbidden")
-    if productive and len(validated.issue_ids) == 3:
+    capacity_limits = load_pool_capacity(policy_document)
+    if productive and not capacity_limits.is_released(len(validated.issue_ids)):
         raise NativePoolAdmissionError("productive-cohort-size-three-unreleased")
     created_at = _iso(now)
     if not productive:
@@ -1261,7 +1263,7 @@ def reserve_pool_cohort(
         validated = _validate_candidate(replacement, policy_document=policy_document)
         if len(validated.issue_ids) >= 4:
             raise NativePoolAdmissionError("cohort-size-four-or-more-forbidden")
-        if len(validated.issue_ids) == 3:
+        if not capacity_limits.is_released(len(validated.issue_ids)):
             raise NativePoolAdmissionError("productive-cohort-size-three-unreleased")
 
 
@@ -1378,7 +1380,7 @@ def validate_reservation_receipt(value: Any) -> list[str]:
         if status not in {"admitted", "claim-lost", "offline-candidate"}:
             raise NativePoolAdmissionError("reservation-status-invalid")
         if status == "admitted" and (
-            set(issue_ids) != owned_ids or not 1 <= len(issue_ids) <= 2 or not claims
+            set(issue_ids) != owned_ids or not 1 <= len(issue_ids) <= 3 or not claims
         ):
             raise NativePoolAdmissionError("reservation-admitted-claims-incomplete")
         if status == "claim-lost" and lost_count < 1:

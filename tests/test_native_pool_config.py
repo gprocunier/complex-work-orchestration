@@ -236,6 +236,7 @@ class NativePoolConfigTests(unittest.TestCase):
                 owner_pid=owner["pid"],
                 now=now,
             )
+            self.assertEqual(contract["completion_policy"], "all-or-nothing")
             self.assertEqual(validate_pool_contract(contract), [])
             self.assertEqual(contract["owner"], owner)
             self.assertEqual(contract["scheduler"]["certified_max_check_ms"], 200)

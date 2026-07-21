@@ -1354,6 +1354,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             acquire.assert_called_once_with(
                 harness.coordinator.contract,
                 ["child-0", "child-1"],
+                capacity_limits=harness.coordinator.capacity_limits,
             )
             self.assertFalse(receipt["accepting"])
             self.assertEqual(receipt["admission_order"], [])

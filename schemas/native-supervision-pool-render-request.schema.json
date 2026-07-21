@@ -17,6 +17,7 @@
     "control_turn_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
     "max_active_workers": {"enum": [1, 2, 3]},
+    "completion_policy": {"enum": ["all-or-nothing", "best-effort"]},
     "aggregate_hard_budget": {"$ref": "#/$defs/budget"},
     "integration_root": {"type": "string", "pattern": "^/", "minLength": 2},
     "children": {

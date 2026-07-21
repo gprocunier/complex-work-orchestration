@@ -87,8 +87,8 @@
       "if": {"properties": {"status": {"const": "admitted"}}, "required": ["status"]},
       "then": {
         "properties": {
-          "issue_ids": {"maxItems": 2},
-          "child_bindings": {"maxItems": 2},
+          "issue_ids": {"maxItems": 3},
+          "child_bindings": {"maxItems": 3},
           "claims": {"minItems": 1},
           "candidate_mode": {"enum": ["single", "released-capacity"]}
         }

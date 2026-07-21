@@ -251,18 +251,20 @@ def _set_capacity_constraints(
         for capacity in capacities
     ]
 
-    admitted_capacities = list(range(1, limits.released_max_active_workers + 1))
+    # Admission-bound artifacts structurally support the bounded offline N=3
+    # fixture. Productive admission remains gated by the live released limit.
+    admitted_capacities = capacities
     admitted_contract = documents[
         "schemas/native-supervision-pool-contract-v2.schema.json"
     ]
     admitted_contract["properties"]["children"]["maxItems"] = (
-        limits.released_max_active_workers
+        hard
     )
     admitted_contract["properties"]["max_active_workers"] = {
         "enum": admitted_capacities
     }
     admitted_contract["$defs"]["child"]["properties"]["ordinal"]["maximum"] = (
-        limits.released_max_active_workers - 1
+        hard - 1
     )
     admitted_contract["allOf"] = [
         {
@@ -300,7 +302,7 @@ def _set_capacity_constraints(
     ]
     admitted_render["properties"]["max_active_workers"] = {"enum": admitted_capacities}
     admitted_render["properties"]["children"]["maxItems"] = (
-        limits.released_max_active_workers
+        hard
     )
 
     state = documents["schemas/native-supervision-pool-state.schema.json"]
@@ -331,9 +333,7 @@ def _set_capacity_constraints(
         "child_terminal_receipts",
         "lease_evidence",
     ):
-        admitted_receipt["properties"][field]["maxItems"] = (
-            limits.released_max_active_workers
-        )
+        admitted_receipt["properties"][field]["maxItems"] = hard
 
     preflight = documents[
         "schemas/native-supervision-pool-preflight-request.schema.json"
@@ -344,13 +344,13 @@ def _set_capacity_constraints(
         "schemas/native-supervision-pool-preflight-request-v2.schema.json"
     ]
     admitted_preflight["properties"]["requested_workers"]["maximum"] = (
-        limits.released_max_active_workers
+        hard
     )
     admitted_preflight["properties"]["released_capacity"]["maximum"] = (
-        limits.released_max_active_workers
+        hard
     )
     admitted_preflight["properties"]["children"]["maxItems"] = (
-        limits.released_max_active_workers
+        hard
     )
 
     reservation = documents["schemas/native-pool-admission-reservation.schema.json"]
@@ -361,10 +361,10 @@ def _set_capacity_constraints(
         condition = rule.get("if", {}).get("properties", {}).get("status", {})
         if condition.get("const") == "admitted":
             rule["then"]["properties"]["issue_ids"]["maxItems"] = (
-                limits.released_max_active_workers
+                hard
             )
             rule["then"]["properties"]["child_bindings"]["maxItems"] = (
-                limits.released_max_active_workers
+                hard
             )
 
     capability = documents[

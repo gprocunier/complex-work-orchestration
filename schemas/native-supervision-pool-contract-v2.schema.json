@@ -7,7 +7,7 @@
     "contract_type", "version", "schema", "pool_id", "pool_epoch", "control_turn_id",
     "created_at", "owner", "children", "max_active_workers", "scheduler",
     "aggregate_hard_budget", "topology", "allowed_actions",
-    "capability_receipt_sha256", "contract_sha256",
+    "capability_receipt_sha256", "completion_policy", "contract_sha256",
     "admission_reservation_sha256", "readiness_snapshot_sha256",
     "readiness_evidence_sha256", "work_estimate_set_sha256",
     "native_worker_policy_sha256", "proportionality_policy_sha256",
@@ -23,13 +23,14 @@
     "control_turn_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
     "owner": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/owner"},
-    "children": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"$ref": "#/$defs/child"}},
-    "max_active_workers": {"enum": [1, 2]},
+    "children": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"$ref": "#/$defs/child"}},
+    "max_active_workers": {"enum": [1, 2, 3]},
     "scheduler": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/scheduler"},
     "aggregate_hard_budget": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/budget"},
     "topology": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/topology"},
     "allowed_actions": {"const": ["admit", "step", "interrupt", "close", "finalize", "release-leases"]},
     "capability_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "completion_policy": {"enum": ["all-or-nothing", "best-effort"]},
     "admission_reservation_sha256": {"$ref": "#/$defs/sha256"},
     "readiness_snapshot_sha256": {"$ref": "#/$defs/sha256"},
     "readiness_evidence_sha256": {"$ref": "#/$defs/sha256"},
@@ -57,6 +58,10 @@
     {
       "if": {"properties": {"max_active_workers": {"const": 2}}},
       "then": {"properties": {"children": {"minItems": 2, "maxItems": 2}, "capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}}
+    },
+    {
+      "if": {"properties": {"max_active_workers": {"const": 3}}},
+      "then": {"properties": {"children": {"minItems": 3, "maxItems": 3}, "capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}}
     }
   ],
   "$defs": {
@@ -77,7 +82,7 @@
         "model_binding_sha256", "session_binding_sha256"
       ],
       "properties": {
-        "ordinal": {"type": "integer", "minimum": 0, "maximum": 1},
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 2},
         "child_id": {"type": "string", "minLength": 1},
         "packet_id": {"type": "string", "minLength": 1},
         "attempt_nonce": {"type": "string", "minLength": 1},
