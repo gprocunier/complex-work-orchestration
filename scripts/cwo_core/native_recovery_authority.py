@@ -393,6 +393,36 @@ _FIXED_ACTION_BINDING_FIELDS = frozenset(
         "execution_binding_sha256",
     }
 )
+FIXED_COHORT_CONSUMPTION_PROJECTION_FIELDS = frozenset(
+    {
+        "decision_sha256",
+        "evidence_sha256",
+        "classification_evidence_sha256",
+        "recovery_evidence_binding_sha256",
+        "evidence_kind",
+        "ledger_result_sha256",
+        "execution_binding_sha256",
+        "fixed_cohort_sha256",
+        "recovery_class",
+        "bead_id",
+        "admitted_work_unit_id",
+        "work_unit_id",
+        "admitted_child_sha256",
+        "action",
+        "required_authority",
+        "stop_scope",
+        "replacement_count",
+        "construction_attempt_count",
+        "terminal",
+        "consumed_revision",
+        "persisted_revision",
+        "prior_state_sha256",
+        "persisted_state_sha256",
+        "admission_grade",
+        "dispatch_authorized",
+        "audit_projection_sha256",
+    }
+)
 _FIXED_EVIDENCE_BINDING_FIELDS = frozenset(
     {
         "recovery_class",
@@ -539,6 +569,122 @@ def fixed_cohort_sha256(value: Any) -> str:
         normalized,
         domain="native-recovery-fixed-cohort-v1",
     )
+
+
+def validate_fixed_cohort_consumption_projection(value: Any) -> list[str]:
+    """Validate the exact durable projection returned after action consumption."""
+
+    if type(value) is not dict:
+        return ["consumption-projection-must-be-exact-object"]
+    if set(value) != FIXED_COHORT_CONSUMPTION_PROJECTION_FIELDS:
+        return ["consumption-projection-fields-invalid"]
+    errors: list[str] = []
+    hash_fields = (
+        "decision_sha256",
+        "evidence_sha256",
+        "classification_evidence_sha256",
+        "recovery_evidence_binding_sha256",
+        "execution_binding_sha256",
+        "fixed_cohort_sha256",
+        "admitted_child_sha256",
+        "prior_state_sha256",
+        "persisted_state_sha256",
+        "audit_projection_sha256",
+    )
+    for field in hash_fields:
+        if not _is_sha256(value.get(field)):
+            errors.append(f"consumption-projection-{field.replace('_', '-')}-invalid")
+    string_fields = (
+        "evidence_kind",
+        "recovery_class",
+        "bead_id",
+        "admitted_work_unit_id",
+        "work_unit_id",
+        "action",
+        "required_authority",
+        "stop_scope",
+        "admission_grade",
+    )
+    for field in string_fields:
+        observed = value.get(field)
+        if type(observed) is not str or not observed.strip():
+            errors.append(f"consumption-projection-{field.replace('_', '-')}-invalid")
+    for field in (
+        "replacement_count",
+        "construction_attempt_count",
+        "consumed_revision",
+        "persisted_revision",
+    ):
+        observed = value.get(field)
+        if type(observed) is not int or observed < 0:
+            errors.append(f"consumption-projection-{field.replace('_', '-')}-invalid")
+    for field in ("terminal", "dispatch_authorized"):
+        if type(value.get(field)) is not bool:
+            errors.append(f"consumption-projection-{field.replace('_', '-')}-invalid")
+
+    recovery_class = value.get("recovery_class")
+    action = value.get("action")
+    if recovery_class not in _FIXED_COHORT_ALLOWED_CLASSES:
+        errors.append("consumption-projection-recovery-class-invalid")
+    elif (
+        value.get("required_authority"),
+        value.get("stop_scope"),
+    ) != _FIXED_COHORT_CLASS_BOUNDARIES[recovery_class]:
+        errors.append("consumption-projection-authority-boundary-invalid")
+    if action not in _FIXED_COHORT_ALLOWED_ACTIONS:
+        errors.append("consumption-projection-action-invalid")
+    if value.get("admission_grade") != PROVISIONAL_ADMISSION_GRADE:
+        errors.append("consumption-projection-admission-grade-invalid")
+    if value.get("dispatch_authorized") is not False:
+        errors.append("consumption-projection-dispatch-authority-forbidden")
+    if value.get("work_unit_id") != value.get("admitted_work_unit_id"):
+        errors.append("consumption-projection-work-unit-mismatch")
+    consumed_revision = value.get("consumed_revision")
+    persisted_revision = value.get("persisted_revision")
+    if (
+        type(consumed_revision) is int
+        and type(persisted_revision) is int
+        and persisted_revision != consumed_revision + 1
+    ):
+        errors.append("consumption-projection-revision-transition-invalid")
+    if value.get("prior_state_sha256") == value.get("persisted_state_sha256"):
+        errors.append("consumption-projection-state-transition-missing")
+    replacement_count = value.get("replacement_count")
+    construction_count = value.get("construction_attempt_count")
+    terminal = value.get("terminal")
+    if replacement_count not in {0, 1} or construction_count not in {0, 1}:
+        errors.append("consumption-projection-budget-count-invalid")
+    elif action == "replace-same-admitted-bead" and (
+        replacement_count != 1 or terminal is not False
+    ):
+        errors.append("consumption-projection-replacement-transition-invalid")
+    elif action == "reconstruct-same-admitted-bead" and (
+        construction_count != 1 or terminal is not False
+    ):
+        errors.append("consumption-projection-reconstruction-transition-invalid")
+    elif action == "return-same-admitted-bead-to-main-thread" and terminal is not True:
+        errors.append("consumption-projection-return-transition-invalid")
+    expected_kind = (
+        "verified-contained-ledger-dispatch"
+        if recovery_class in {"contained-semantic-no-op", "individual-child-failure"}
+        else "controller-observation"
+    )
+    if value.get("evidence_kind") != expected_kind:
+        errors.append("consumption-projection-evidence-kind-invalid")
+    ledger_result_sha256 = value.get("ledger_result_sha256")
+    if expected_kind == "verified-contained-ledger-dispatch":
+        if not _is_sha256(ledger_result_sha256):
+            errors.append("consumption-projection-ledger-result-sha256-invalid")
+    elif ledger_result_sha256 != "":
+        errors.append("consumption-projection-ledger-result-must-be-empty")
+    body = dict(value)
+    observed_hash = body.pop("audit_projection_sha256", None)
+    if observed_hash != canonical_recovery_sha256(
+        body,
+        domain="native-recovery-fixed-cohort-consumption-audit-v1",
+    ):
+        errors.append("consumption-projection-audit-hash-mismatch")
+    return errors
 
 
 def _state_sha256(state: Mapping[str, Any]) -> str:

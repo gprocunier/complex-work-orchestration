@@ -20,6 +20,9 @@ from cwo_core.native_pool_admission import (  # noqa: E402
     DISPATCH_AUTHORITY,
     DISPATCH_SCHEMA,
     DISPATCH_TYPE,
+    PoolAdmissionReservation,
+    _reservation_receipt,
+    _validate_candidate,
     build_admission_child_binding,
     canonical_admission_sha256,
     reserve_pool_cohort,
@@ -83,6 +86,7 @@ def _admitted_artifacts(
     *,
     size: int = 2,
     completion_policy: str = "all-or-nothing",
+    offline_candidate_harness: bool = False,
 ) -> tuple[RenderFixture, dict, dict, dict]:
     fixture = RenderFixture(root, size)
     preflight_records = root / "preflight-records"
@@ -184,14 +188,48 @@ def _admitted_artifacts(
 
     runner = MemoryBdRunner(items)
     claim_adapter = _adapter(runner)
-    reserved = reserve_pool_cohort(
-        AdmissionCandidate(readiness, estimates, assessment, admission_bindings),
-        claim_adapter=claim_adapter,
-        admission_nonce="admission-contract-test",
-        live_revalidate=_live,
-        now="2026-07-21T20:00:02Z",
-        policy_document=policy,
+    candidate = AdmissionCandidate(
+        readiness,
+        estimates,
+        assessment,
+        admission_bindings,
     )
+    if offline_candidate_harness:
+        # This private test harness deliberately builds synthetic admission
+        # evidence without minting a FixedCohortAdmissionCapability. It cannot
+        # cross the supported productive launcher boundary.
+        validated = _validate_candidate(candidate, policy_document=policy)
+        attempt_adapter = claim_adapter.for_admission_attempt(
+            "offline-candidate-harness"
+        )
+        claim_receipts = [
+            dict(attempt_adapter.claim(issue_id).receipt)
+            for issue_id in validated.issue_ids
+        ]
+        reservation_receipt = _reservation_receipt(
+            validated,
+            admission_nonce="offline-candidate-harness",
+            claim_actor=attempt_adapter.actor,
+            claims=claim_receipts,
+            retained_owned=list(validated.issue_ids),
+            recompute_count=0,
+            status="admitted",
+            created_at="2026-07-21T20:00:02.000Z",
+        )
+        reserved = PoolAdmissionReservation(
+            receipt=reservation_receipt,
+            capability=None,
+            claim_adapter=attempt_adapter,
+        )
+    else:
+        reserved = reserve_pool_cohort(
+            candidate,
+            claim_adapter=claim_adapter,
+            admission_nonce="admission-contract-test",
+            live_revalidate=_live,
+            now="2026-07-21T20:00:02Z",
+            policy_document=policy,
+        )
     claims = {item["bead_id"]: item for item in reserved.receipt["claims"]}
     aggregate_budget = {
         field: sum(child["hard_budget"][field] for child in effective_children)
@@ -312,6 +350,8 @@ def _execution_inputs(
             "usage": zero_usage(),
             "protected_fault": False,
             "control_loss": False,
+            "failure_class": None,
+            "recovery_evidence_sha256": None,
             "reasons": [],
             "session_disposition": "accepted",
             "artifact_disposition": "accepted",

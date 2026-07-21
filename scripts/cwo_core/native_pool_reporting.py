@@ -106,11 +106,7 @@ def build_pool_status_report(
                 "ordinal": contract_child["ordinal"],
                 "child_id": contract_child["child_id"],
                 "status": status,
-                "runtime_disposition": (
-                    child_disposition.get("runtime_disposition")
-                    if receipt is not None
-                    else state_child["runtime_disposition"]
-                ),
+                "runtime_disposition": state_child["runtime_disposition"],
                 "usage": dict(state_child["last_cumulative_usage"]),
                 "last_deadline_ns": state_child["last_deadline_ns"],
                 "next_deadline_ns": state_child["next_deadline_ns"],

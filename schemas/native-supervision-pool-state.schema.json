@@ -137,14 +137,56 @@
         "detected_by": {"type": "string", "minLength": 1}
       }
     },
+    "recovery_projection": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "decision_sha256", "evidence_sha256", "classification_evidence_sha256",
+        "recovery_evidence_binding_sha256", "evidence_kind", "ledger_result_sha256",
+        "execution_binding_sha256", "fixed_cohort_sha256", "recovery_class",
+        "bead_id", "admitted_work_unit_id", "work_unit_id", "admitted_child_sha256",
+        "action", "required_authority", "stop_scope", "replacement_count",
+        "construction_attempt_count", "terminal", "consumed_revision",
+        "persisted_revision", "prior_state_sha256", "persisted_state_sha256",
+        "admission_grade", "dispatch_authorized", "audit_projection_sha256"
+      ],
+      "properties": {
+        "decision_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "classification_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_evidence_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_kind": {"enum": ["controller-observation", "verified-contained-ledger-dispatch"]},
+        "ledger_result_sha256": {"$ref": "#/$defs/sha256"},
+        "execution_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "fixed_cohort_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_class": {"enum": ["deterministic-construction-failure", "pre-dispatch-transport-failure", "contained-semantic-no-op", "individual-child-failure"]},
+        "bead_id": {"type": "string", "minLength": 1},
+        "admitted_work_unit_id": {"type": "string", "minLength": 1},
+        "work_unit_id": {"type": "string", "minLength": 1},
+        "admitted_child_sha256": {"$ref": "#/$defs/sha256"},
+        "action": {"enum": ["reconstruct-same-admitted-bead", "replace-same-admitted-bead", "return-same-admitted-bead-to-main-thread"]},
+        "required_authority": {"type": "string", "minLength": 1},
+        "stop_scope": {"const": "child"},
+        "replacement_count": {"type": "integer", "minimum": 0, "maximum": 1},
+        "construction_attempt_count": {"type": "integer", "minimum": 0, "maximum": 1},
+        "terminal": {"type": "boolean"},
+        "consumed_revision": {"type": "integer", "minimum": 0},
+        "persisted_revision": {"type": "integer", "minimum": 1},
+        "prior_state_sha256": {"$ref": "#/$defs/sha256"},
+        "persisted_state_sha256": {"$ref": "#/$defs/sha256"},
+        "admission_grade": {"const": "provisional-fixed-cohort"},
+        "dispatch_authorized": {"const": false},
+        "audit_projection_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
     "child": {
       "type": "object", "additionalProperties": false,
-      "required": ["ordinal", "child_id", "status", "runtime_disposition", "last_deadline_ns", "next_deadline_ns", "child_state_sha256", "child_receipt_sha256", "last_cumulative_usage", "lease_id"],
+      "required": ["ordinal", "child_id", "status", "runtime_disposition", "recovery_projection", "last_deadline_ns", "next_deadline_ns", "child_state_sha256", "child_receipt_sha256", "last_cumulative_usage", "lease_id"],
       "properties": {
         "ordinal": {"type": "integer", "minimum": 0, "maximum": 2},
         "child_id": {"type": "string", "minLength": 1},
         "status": {"enum": ["created", "armed", "running", "interrupt-pending", "interrupt-confirmed", "completed", "closed", "control-failed"]},
         "runtime_disposition": {"enum": ["active", "completed", "failed-contained", "failed-ambiguous", "interrupted"]},
+        "recovery_projection": {"oneOf": [{"$ref": "#/$defs/recovery_projection"}, {"type": "null"}]},
         "last_deadline_ns": {"type": ["integer", "null"], "minimum": 0},
         "next_deadline_ns": {"type": ["integer", "null"], "minimum": 0},
         "child_state_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},

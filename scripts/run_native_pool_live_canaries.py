@@ -4531,11 +4531,33 @@ class LiveThreadAdapter:
         else:
             session_disposition = "accepted"
             artifact_disposition = "accepted"
+        state_sha256 = canonical_sha256(state_payload)
+        control_loss = (
+            status == "failed"
+            or "trusted-model-attestation-mismatch" in reasons
+        )
+        pool_wide_reason_codes = {
+            "authority-violation",
+            "forbidden-tool-activity",
+            "mutation-attribution-ambiguous",
+            "read-only-workspace-mutation",
+            "security-violation",
+            "trusted-model-attestation-mismatch",
+        }
+        failure_class = (
+            "control-security-failure"
+            if control_loss or any(reason in pool_wide_reason_codes for reason in reasons)
+            else "individual-child-failure"
+            if reasons
+            else None
+        )
         return {
-            "state_sha256": canonical_sha256(state_payload),
+            "state_sha256": state_sha256,
             "usage": usage,
             "protected_fault": bool(reasons),
-            "control_loss": status == "failed" or "trusted-model-attestation-mismatch" in reasons,
+            "control_loss": control_loss,
+            "failure_class": failure_class,
+            "recovery_evidence_sha256": state_sha256 if reasons else None,
             "reasons": reasons,
             "session_disposition": session_disposition,
             "artifact_disposition": artifact_disposition,

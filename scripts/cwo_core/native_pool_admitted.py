@@ -19,8 +19,12 @@ from .native_pool_admission import (
 from .native_pool_contracts import (
     ADMITTED_POOL_VERSION,
     canonical_sha256,
-    pool_capacity_limits,
     validate_pool_contract,
+)
+from .native_pool_capacity import (
+    NativePoolCapacityPolicyError,
+    load_operative_pool_capacity,
+    operative_pool_policy,
 )
 from .native_pool_leases import PoolLeaseError, PoolLeaseRegistry
 from .native_pool_preflight import (
@@ -55,6 +59,12 @@ def run_admitted_native_pool(
 ) -> dict[str, Any]:
     """Run one policy-authorized fixed cohort after consuming exact live authority."""
 
+    try:
+        effective_policy = operative_pool_policy(policy_document)
+        capacity_limits = load_operative_pool_capacity(effective_policy)
+    except NativePoolCapacityPolicyError as error:
+        raise NativePoolAdmissionError(str(error)) from error
+
     reservation_errors = validate_reservation_receipt(reservation_receipt)
     if reservation_errors:
         raise NativePoolAdmissionError(
@@ -73,7 +83,7 @@ def run_admitted_native_pool(
         raise NativePoolAdmissionError("admitted-launch-v2-contract-required")
     contract_errors = validate_pool_contract(
         contract,
-        capacity_limits=pool_capacity_limits(policy_document),
+        capacity_limits=capacity_limits,
         admission_reservation=reservation_receipt,
     )
     if contract_errors:
@@ -101,7 +111,7 @@ def run_admitted_native_pool(
             + ";".join(preflight_errors)
         )
     replayed_preflight = run_pool_preflight(
-        preflight_request, policy_document=policy_document
+        preflight_request, policy_document=effective_policy
     )
     if (
         preflight_result.get("accepted") is not True
@@ -111,7 +121,6 @@ def run_admitted_native_pool(
         raise NativePoolAdmissionError("admitted-launch-preflight-not-exact-accept")
 
     child_ids = [str(child["child_id"]) for child in contract["children"]]
-    capacity_limits = pool_capacity_limits(policy_document)
     acquired = lease_registry.acquire_many(
         contract,
         child_ids,
@@ -146,7 +155,7 @@ def run_admitted_native_pool(
                 state_file=state_file,
                 decision_file=decision_file,
                 control_file=control_file,
-                policy_document=policy_document,
+                policy_document=effective_policy,
                 recovery_authority_store=recovery_authority_store,
                 recovery_controller_root=recovery_controller_root,
                 recovery_action_resolver=recovery_action_resolver,

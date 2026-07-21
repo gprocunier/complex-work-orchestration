@@ -44,6 +44,7 @@ from .native_recovery_authority import (
     FixedCohortRecoveryActionStore,
     RecoveryAuthorityError,
     VerifiedFixedCohortRecoveryAction,
+    validate_fixed_cohort_consumption_projection,
 )
 from .native_pool_leases import PoolLeaseError, PoolLeaseRegistry, owner_identity_is_live
 from .native_pool_scheduler import (
@@ -87,10 +88,34 @@ CHILD_EVIDENCE_FIELDS = {
     "usage",
     "protected_fault",
     "control_loss",
+    "failure_class",
+    "recovery_evidence_sha256",
     "reasons",
     "session_disposition",
     "artifact_disposition",
 }
+CHILD_EVIDENCE_FAILURE_CLASSES = frozenset(
+    {
+        "contained-semantic-no-op",
+        "contradictory-authority-changing-validation",
+        "control-security-failure",
+        "deterministic-construction-failure",
+        "individual-child-failure",
+        "pre-dispatch-transport-failure",
+    }
+)
+POOL_WIDE_CHILD_FAULT_REASON_CODES = frozenset(
+    {
+        "authority-violation",
+        "contradictory-validation",
+        "control-loss",
+        "failed-ambiguous-dispatch",
+        "forbidden-tool-activity",
+        "mutation-attribution-ambiguous",
+        "security-violation",
+        "shared-mutation",
+    }
+)
 SESSION_DISPOSITIONS = {"accepted", "accepted-with-warning", "quarantined"}
 ARTIFACT_DISPOSITIONS = {
     "accepted",
@@ -217,6 +242,28 @@ def _normalize_child_evidence(value: Any) -> dict[str, Any]:
         raise NativePoolError("child-evidence-protected-fault-invalid")
     if not isinstance(value.get("control_loss"), bool):
         raise NativePoolError("child-evidence-control-loss-invalid")
+    failure_class = value.get("failure_class")
+    if (
+        failure_class is not None
+        and failure_class not in CHILD_EVIDENCE_FAILURE_CLASSES
+    ):
+        raise NativePoolError("child-evidence-failure-class-invalid")
+    recovery_evidence_sha256 = value.get("recovery_evidence_sha256")
+    if recovery_evidence_sha256 is not None and not _is_sha256(
+        recovery_evidence_sha256
+    ):
+        raise NativePoolError("child-evidence-recovery-sha256-invalid")
+    faulted = value["protected_fault"] or value["control_loss"]
+    if faulted and (
+        failure_class is None or recovery_evidence_sha256 is None
+    ):
+        raise NativePoolError("child-evidence-fault-correlation-required")
+    if not faulted and (
+        failure_class is not None or recovery_evidence_sha256 is not None
+    ):
+        raise NativePoolError("child-evidence-fault-correlation-without-fault")
+    if value["control_loss"] and failure_class != "control-security-failure":
+        raise NativePoolError("child-evidence-control-loss-class-mismatch")
     reasons = value.get("reasons")
     if not isinstance(reasons, list) or any(not isinstance(reason, str) or not reason for reason in reasons):
         raise NativePoolError("child-evidence-reasons-invalid")
@@ -828,6 +875,7 @@ class NativePoolCoordinator:
                     "child_id": child["child_id"],
                     "status": "created",
                     "runtime_disposition": "active",
+                    "recovery_projection": None,
                     "last_deadline_ns": None,
                     "next_deadline_ns": None,
                     "child_state_sha256": None,
@@ -1085,6 +1133,8 @@ class NativePoolCoordinator:
                 "session_disposition": "quarantined",
                 "artifact_disposition": "rejected",
             }
+            if runtime_disposition != "failed-contained":
+                self._child_state(child_id)["recovery_projection"] = None
         for child_id in self.child_ids:
             progress = self._progress[child_id]
             if progress["status"] == "pending":
@@ -1139,6 +1189,9 @@ class NativePoolCoordinator:
             "session_disposition": "quarantined",
             "artifact_disposition": "rejected",
         }
+        self._child_state(child_id)["recovery_projection"] = copy.deepcopy(
+            dict(projection)
+        )
         authority = policy_scope_authority(
             "native-pool-verified-fixed-cohort-recovery-v1",
             authorized_scope="child",
@@ -1177,12 +1230,25 @@ class NativePoolCoordinator:
                     affected_child_id=child_id,
                 )
 
-    def _try_contain_child_fault(self, child_id: str, reason: str) -> bool:
+    def _try_contain_child_fault(
+        self,
+        child_id: str,
+        reason: str,
+        *,
+        failure_class: str,
+        recovery_evidence_sha256: str,
+    ) -> bool:
         if child_id in self._classified_fault_children:
             return child_id in self._contained_fault_children
         if (
             self.completion_policy != "best-effort"
             or self.contract.get("version") != ADMITTED_POOL_VERSION
+        ):
+            return False
+        reason_code = reason.removeprefix("child-protected-fault:").partition(":")[0]
+        if (
+            failure_class != "individual-child-failure"
+            or reason_code in POOL_WIDE_CHILD_FAULT_REASON_CODES
         ):
             return False
         child_contract = next(
@@ -1198,6 +1264,8 @@ class NativePoolCoordinator:
             action = self._recovery_action_resolver(
                 child_id=child_id,
                 fault_reason=reason,
+                failure_class=failure_class,
+                recovery_evidence_sha256=recovery_evidence_sha256,
                 contract=copy.deepcopy(self.contract),
                 child_contract=copy.deepcopy(child_contract),
             )
@@ -1211,8 +1279,17 @@ class NativePoolCoordinator:
                     action,
                 )
             )
+            projection_errors = validate_fixed_cohort_consumption_projection(
+                projection
+            )
+            if projection_errors:
+                raise RecoveryAuthorityError(
+                    "consumed-recovery-action-projection-invalid:"
+                    + ";".join(projection_errors)
+                )
             expected = {
-                "recovery_class": "individual-child-failure",
+                "recovery_class": failure_class,
+                "evidence_sha256": recovery_evidence_sha256,
                 "fixed_cohort_sha256": self.contract["fixed_cohort_sha256"],
                 "bead_id": child_contract["bead_id"],
                 "work_unit_id": child_contract["work_unit_id"],
@@ -1227,10 +1304,6 @@ class NativePoolCoordinator:
             if any(projection.get(field) != value for field, value in expected.items()):
                 raise RecoveryAuthorityError(
                     "consumed-recovery-action-binding-mismatch"
-                )
-            if not _is_sha256(projection.get("audit_projection_sha256")):
-                raise RecoveryAuthorityError(
-                    "consumed-recovery-action-projection-invalid"
                 )
         except BaseException as error:
             self._enter_fault(
@@ -1330,7 +1403,14 @@ class NativePoolCoordinator:
                     else "reason-unavailable"
                 )
                 reason = f"child-protected-fault:{first_reason}"
-                if not self._try_contain_child_fault(child_id, reason):
+                if not self._try_contain_child_fault(
+                    child_id,
+                    reason,
+                    failure_class=evidence["failure_class"],
+                    recovery_evidence_sha256=evidence[
+                        "recovery_evidence_sha256"
+                    ],
+                ):
                     self._enter_fault(
                         reason,
                         control_failed=False,
@@ -1967,9 +2047,13 @@ class NativePoolCoordinator:
                 )
                 child_receipt["control_receipt"] = control_receipt
                 implementation_close = (
-                    disposition["session_disposition"]
+                    disposition["runtime_disposition"] == "completed"
+                    and disposition["session_disposition"]
                     in {"accepted", "accepted-with-warning"}
                     and disposition["artifact_disposition"] == "accepted"
+                    and isinstance(control_receipt, Mapping)
+                    and control_receipt.get("terminal_state") == "completed"
+                    and control_receipt.get("errors") == []
                 )
                 disposition.update(
                     {
@@ -1984,6 +2068,9 @@ class NativePoolCoordinator:
                 )
                 disposition.update(
                     {
+                        "recovery_projection": copy.deepcopy(
+                            child["recovery_projection"]
+                        ),
                         "implementation_bead_close_authorized": implementation_close,
                         "parent_close_authorized": False,
                         "publication_close_authorized": False,
@@ -2013,7 +2100,9 @@ class NativePoolCoordinator:
             and len(lease_evidence) == len(self.child_ids)
             and all(item["lifecycle_state"] == "released" for item in lease_evidence)
             and all(
-                item["session_disposition"] in {"accepted", "accepted-with-warning"}
+                item["runtime_disposition"] == "completed"
+                and item["session_disposition"]
+                in {"accepted", "accepted-with-warning"}
                 and item["artifact_disposition"] == "accepted"
                 for item in dispositions
             )

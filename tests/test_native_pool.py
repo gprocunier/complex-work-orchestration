@@ -218,13 +218,20 @@ class PoolHarness:
         protected_fault_reasons = self.protected_fault_reasons_by_child.get(
             child_id, []
         )
+        state_sha256 = sha(
+            f"{child_id}:{state_file}:{len(self.adapters[child_id].calls)}"
+        )
         return {
-            "state_sha256": sha(
-                f"{child_id}:{state_file}:{len(self.adapters[child_id].calls)}"
-            ),
+            "state_sha256": state_sha256,
             "usage": usage,
             "protected_fault": bool(protected_fault_reasons),
             "control_loss": False,
+            "failure_class": (
+                "individual-child-failure" if protected_fault_reasons else None
+            ),
+            "recovery_evidence_sha256": (
+                state_sha256 if protected_fault_reasons else None
+            ),
             "reasons": list(protected_fault_reasons),
             "session_disposition": session_disposition,
             "artifact_disposition": artifact_disposition,

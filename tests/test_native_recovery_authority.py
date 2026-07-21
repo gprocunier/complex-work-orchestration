@@ -28,6 +28,7 @@ from cwo_core.native_recovery_authority import (  # noqa: E402
     VerifiedFixedCohortRecoveryAction,
     VerifiedRecoveryEvidence,
     fixed_cohort_sha256,
+    validate_fixed_cohort_consumption_projection,
 )
 from cwo_core.native_recovery_policy import (  # noqa: E402
     RECOVERY_SIGNAL_FIELDS,
@@ -115,7 +116,12 @@ class FixedCohortRecoveryActionStoreTests(unittest.TestCase):
         store: FixedCohortRecoveryActionStore,
         action: VerifiedFixedCohortRecoveryAction,
     ) -> dict:
-        return dict(store.consume(self.controller_root, action))
+        projection = dict(store.consume(self.controller_root, action))
+        self.assertEqual(
+            validate_fixed_cohort_consumption_projection(projection),
+            [],
+        )
+        return projection
 
     def _decision(
         self,

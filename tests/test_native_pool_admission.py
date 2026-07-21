@@ -34,7 +34,7 @@ from cwo_core.native_pool_admission import (  # noqa: E402
 from cwo_core.native_pool_proportionality import (  # noqa: E402
     pool_proportionality_check,
 )
-from tests.test_beads_ready_set import ready_item  # noqa: E402
+from tests.test_beads_ready_set import released_three_policy, ready_item  # noqa: E402
 from tests.test_native_pool_proportionality import (  # noqa: E402
     _fixture,
     _set_runtime,
@@ -253,6 +253,36 @@ class NativePoolAdmissionTests(unittest.TestCase):
         ):
             _reserve(forged, items, runner=runner)
         self.assertEqual(runner.claim_order, [])
+
+    def test_caller_policy_cannot_widen_productive_n3_authority(self) -> None:
+        policy = released_three_policy()
+        readiness, estimates, items, _ = _fixture(
+            [600, 600, 600],
+            policy=policy,
+        )
+        candidate = _candidate_from(
+            readiness,
+            estimates,
+            policy,
+            requested_workers=3,
+        )
+        runner = MemoryBdRunner(items)
+        with self.assertRaisesRegex(
+            NativePoolAdmissionError,
+            "productive-pool-policy-not-operative",
+        ):
+            reserve_pool_cohort(
+                candidate,
+                claim_adapter=_adapter(runner),
+                admission_nonce="caller-policy-n3",
+                live_revalidate=_live,
+                policy_document=policy,
+            )
+        self.assertEqual(runner.claim_order, [])
+        self.assertEqual(
+            [call for call in runner.calls if call and call[0] == "update"],
+            [],
+        )
 
     def test_timeout_reconciliation_uses_exact_show_not_command_output(self) -> None:
         _, items, _ = _fixture_candidate(2)

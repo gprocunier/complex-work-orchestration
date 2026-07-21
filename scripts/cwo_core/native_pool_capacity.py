@@ -193,6 +193,47 @@ def load_pool_capacity(
     return limits
 
 
+def operative_pool_policy(
+    policy_document: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return the checked-in operative policy, rejecting caller substitutions.
+
+    Alternate policy documents remain useful to offline evaluators, but a
+    productive reservation or launch must not turn such a document into live
+    capacity authority.
+    """
+
+    operative = load_policy("native-worker-execution")
+    try:
+        operative_snapshot = json.loads(
+            json.dumps(operative, sort_keys=True, separators=(",", ":"))
+        )
+        supplied_snapshot = (
+            operative_snapshot
+            if policy_document is None
+            else json.loads(
+                json.dumps(policy_document, sort_keys=True, separators=(",", ":"))
+            )
+        )
+    except (TypeError, ValueError) as error:
+        raise NativePoolCapacityPolicyError(
+            "productive-pool-policy-not-canonical-json"
+        ) from error
+    if supplied_snapshot != operative_snapshot:
+        raise NativePoolCapacityPolicyError(
+            "productive-pool-policy-not-operative"
+        )
+    return operative_snapshot
+
+
+def load_operative_pool_capacity(
+    policy_document: Mapping[str, Any] | None = None,
+) -> PoolCapacityLimits:
+    """Load productive limits only from the exact checked-in policy."""
+
+    return load_pool_capacity(operative_pool_policy(policy_document))
+
+
 def _schema_documents(
     repo_root: Path,
 ) -> dict[str, dict[str, Any]]:

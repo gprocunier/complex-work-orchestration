@@ -29,6 +29,9 @@ from .native_pool_schedulability import (
 )
 from .native_tool_isolation import validate_tool_policy
 from .native_stop_scope import STOP_METADATA_FIELDS, validate_stop_metadata
+from .native_recovery_authority import (
+    validate_fixed_cohort_consumption_projection,
+)
 
 
 VERSION = 1
@@ -354,6 +357,7 @@ CHILD_STATE_FIELDS = {
     "child_id",
     "status",
     "runtime_disposition",
+    "recovery_projection",
     "last_deadline_ns",
     "next_deadline_ns",
     "child_state_sha256",
@@ -517,6 +521,7 @@ POOL_CHILD_DISPOSITION_FIELDS_V2 = POOL_CHILD_DISPOSITION_FIELDS_V1 | {
     "work_unit_id",
     "packet_sha256",
     "admitted_child_sha256",
+    "recovery_projection",
     "implementation_bead_close_authorized",
     "parent_close_authorized",
     "publication_close_authorized",
@@ -1889,6 +1894,20 @@ def validate_pool_state(
                 errors.append(f"invalid-child[{index}]-status")
             if child.get("runtime_disposition") not in RUNTIME_DISPOSITIONS:
                 errors.append(f"invalid-child[{index}]-runtime-disposition")
+            runtime_disposition = child.get("runtime_disposition")
+            recovery_projection = child.get("recovery_projection")
+            if runtime_disposition == "failed-contained":
+                projection_errors = validate_fixed_cohort_consumption_projection(
+                    recovery_projection
+                )
+                errors.extend(
+                    f"child[{index}]-recovery:" + item
+                    for item in projection_errors
+                )
+            elif recovery_projection is not None:
+                errors.append(
+                    f"child[{index}]-recovery-projection-forbidden"
+                )
             for field in ("last_deadline_ns", "next_deadline_ns"):
                 if child.get(field) is not None and not _is_int(child.get(field)):
                     errors.append(f"invalid-child[{index}]-{field.replace('_', '-')}")
@@ -1996,6 +2015,35 @@ def validate_pool_state(
         ]
         if child_ids != expected_ids:
             errors.append("state-child-order-mismatch")
+        if contract.get("version") == ADMITTED_POOL_VERSION:
+            for index, (child, contract_child) in enumerate(
+                zip(children, contract_children)
+            ):
+                projection = child.get("recovery_projection")
+                if child.get("runtime_disposition") != "failed-contained":
+                    continue
+                if not isinstance(projection, Mapping):
+                    continue
+                expected_projection = {
+                    "fixed_cohort_sha256": contract.get("fixed_cohort_sha256"),
+                    "bead_id": contract_child.get("bead_id"),
+                    "work_unit_id": contract_child.get("work_unit_id"),
+                    "admitted_child_sha256": contract_child.get(
+                        "admitted_child_sha256"
+                    ),
+                    "recovery_class": "individual-child-failure",
+                    "required_authority": (
+                        "pm-controller-plus-verified-containment"
+                    ),
+                    "stop_scope": "child",
+                }
+                if any(
+                    projection.get(field) != expected
+                    for field, expected in expected_projection.items()
+                ):
+                    errors.append(
+                        f"child[{index}]-recovery-projection-contract-mismatch"
+                    )
         if (
             _is_int(state.get("scheduler_cursor"))
             and expected_ids
@@ -2577,6 +2625,21 @@ def validate_pool_receipt(
                     f"child-disposition[{index}]-failed-runtime-must-be-rejected"
                 )
             if admitted_v2:
+                recovery_projection = entry.get("recovery_projection")
+                if runtime_disposition == "failed-contained":
+                    projection_errors = (
+                        validate_fixed_cohort_consumption_projection(
+                            recovery_projection
+                        )
+                    )
+                    errors.extend(
+                        f"child-disposition[{index}]-recovery:" + item
+                        for item in projection_errors
+                    )
+                elif recovery_projection is not None:
+                    errors.append(
+                        f"child-disposition[{index}]-recovery-projection-forbidden"
+                    )
                 for field in ("bead_id", "work_unit_id"):
                     if not _nonempty(entry.get(field)):
                         errors.append(
@@ -2587,14 +2650,9 @@ def validate_pool_receipt(
                         errors.append(
                             f"invalid-child-disposition[{index}]-{field.replace('_', '-')}"
                         )
-                expected_close = (
-                    entry.get("session_disposition")
-                    in {"accepted", "accepted-with-warning"}
-                    and entry.get("artifact_disposition") == "accepted"
-                )
-                if entry.get("implementation_bead_close_authorized") is not expected_close:
+                if type(entry.get("implementation_bead_close_authorized")) is not bool:
                     errors.append(
-                        f"child-disposition[{index}]-implementation-close-mismatch"
+                        f"child-disposition[{index}]-implementation-close-invalid"
                     )
                 for field in (
                     "parent_close_authorized",
@@ -2761,6 +2819,33 @@ def validate_pool_receipt(
                             errors.append(
                                 f"child-disposition[{index}]-{field.replace('_', '-')}-mismatch"
                             )
+                    projection = entry.get("recovery_projection")
+                    if (
+                        entry.get("runtime_disposition") == "failed-contained"
+                        and isinstance(projection, Mapping)
+                    ):
+                        expected_projection = {
+                            "fixed_cohort_sha256": contract.get(
+                                "fixed_cohort_sha256"
+                            ),
+                            "bead_id": child.get("bead_id"),
+                            "work_unit_id": child.get("work_unit_id"),
+                            "admitted_child_sha256": child.get(
+                                "admitted_child_sha256"
+                            ),
+                            "recovery_class": "individual-child-failure",
+                            "required_authority": (
+                                "pm-controller-plus-verified-containment"
+                            ),
+                            "stop_scope": "child",
+                        }
+                        if any(
+                            projection.get(field) != expected
+                            for field, expected in expected_projection.items()
+                        ):
+                            errors.append(
+                                f"child-disposition[{index}]-recovery-projection-contract-mismatch"
+                            )
                     child_receipt = (
                         child_receipts[index]
                         if isinstance(child_receipts, list)
@@ -2772,13 +2857,18 @@ def validate_pool_receipt(
                     implementation_close = entry.get(
                         "implementation_bead_close_authorized"
                     )
-                    if implementation_close is True and (
-                        not isinstance(control_receipt, Mapping)
-                        or control_receipt.get("terminal_state") != "completed"
-                        or control_receipt.get("errors") != []
-                    ):
+                    expected_close = (
+                        entry.get("runtime_disposition") == "completed"
+                        and entry.get("session_disposition")
+                        in {"accepted", "accepted-with-warning"}
+                        and entry.get("artifact_disposition") == "accepted"
+                        and isinstance(control_receipt, Mapping)
+                        and control_receipt.get("terminal_state") == "completed"
+                        and control_receipt.get("errors") == []
+                    )
+                    if implementation_close is not expected_close:
                         errors.append(
-                            f"child-disposition[{index}]-implementation-close-requires-successful-control-receipt"
+                            f"child-disposition[{index}]-implementation-close-mismatch"
                         )
                     if (
                         isinstance(control_receipt, Mapping)
@@ -2820,11 +2910,87 @@ def validate_pool_receipt(
             "first_protected_fault"
         ):
             errors.append("receipt-first-protected-fault-mismatch")
+        if receipt.get("reasons") != terminal_state.get("reasons"):
+            errors.append("receipt-reasons-mismatch")
+        if receipt.get("reason_records") != terminal_state.get("reason_records"):
+            errors.append("receipt-reason-records-mismatch")
         if any(
             receipt.get(field) != terminal_state.get(field)
             for field in STOP_METADATA_FIELDS
         ):
             errors.append("receipt-stop-metadata-mismatch")
+        state_children = terminal_state.get("children")
+        if (
+            isinstance(state_children, list)
+            and isinstance(child_receipts, list)
+            and isinstance(dispositions, list)
+        ):
+            for index, state_child in enumerate(state_children):
+                if (
+                    not isinstance(state_child, Mapping)
+                    or index >= len(child_receipts)
+                    or index >= len(dispositions)
+                    or not isinstance(child_receipts[index], Mapping)
+                    or not isinstance(dispositions[index], Mapping)
+                ):
+                    continue
+                child_receipt = child_receipts[index]
+                disposition = dispositions[index]
+                if child_receipt.get("child_id") != state_child.get("child_id"):
+                    errors.append(
+                        f"child-terminal[{index}]-state-child-id-mismatch"
+                    )
+                if child_receipt.get("receipt_sha256") != state_child.get(
+                    "child_receipt_sha256"
+                ):
+                    errors.append(
+                        f"child-terminal[{index}]-state-receipt-sha256-mismatch"
+                    )
+                if disposition.get("child_id") != state_child.get("child_id"):
+                    errors.append(
+                        f"child-disposition[{index}]-state-child-id-mismatch"
+                    )
+                if disposition.get("runtime_disposition") != state_child.get(
+                    "runtime_disposition"
+                ):
+                    errors.append(
+                        f"child-disposition[{index}]-state-runtime-mismatch"
+                    )
+                if admitted_v2 and disposition.get(
+                    "recovery_projection"
+                ) != state_child.get("recovery_projection"):
+                    errors.append(
+                        f"child-disposition[{index}]-state-recovery-projection-mismatch"
+                    )
+
+    runtime_values = [
+        item.get("runtime_disposition")
+        for item in dispositions
+        if isinstance(item, Mapping)
+    ] if isinstance(dispositions, list) else []
+    if (
+        receipt.get("pool_disposition") == "partial"
+        and admitted_v2
+        and "failed-contained" in runtime_values
+    ):
+        completion_policy = (
+            contract.get("completion_policy", DEFAULT_COMPLETION_POLICY)
+            if contract is not None
+            else None
+        )
+        if completion_policy != "best-effort":
+            errors.append("partial-requires-admitted-v2-best-effort")
+        if (
+            "completed" not in runtime_values
+            or "failed-contained" not in runtime_values
+            or any(
+                runtime not in {"completed", "failed-contained"}
+                for runtime in runtime_values
+            )
+        ):
+            errors.append("partial-runtime-chain-invalid")
+        if receipt.get("accepting") is not False:
+            errors.append("partial-receipt-must-not-accept")
     if receipt.get("accepting") is True:
         if receipt.get("pool_disposition") != "accepted":
             errors.append("accepting-requires-accepted-disposition")
@@ -2878,6 +3044,7 @@ def validate_pool_receipt(
             errors.append("accepting-requires-released-leases")
         if isinstance(dispositions, list) and any(
             not isinstance(item, Mapping)
+            or item.get("runtime_disposition") != "completed"
             or item.get("session_disposition")
             not in {"accepted", "accepted-with-warning"}
             or item.get("artifact_disposition") != "accepted"

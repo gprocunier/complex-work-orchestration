@@ -246,6 +246,7 @@ def closed_state(contract: dict, leases: list[dict]) -> dict:
                 "child_id": child_value["child_id"],
                 "status": "closed",
                 "runtime_disposition": "completed",
+                "recovery_projection": None,
                 "last_deadline_ns": 1_000_000_000 + index,
                 "next_deadline_ns": None,
                 "child_state_sha256": sha(f"child-state:{index}"),

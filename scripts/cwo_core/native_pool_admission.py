@@ -27,7 +27,12 @@ from .native_pool_proportionality import (
     pool_proportionality_check,
     validate_pool_proportionality_assessment,
 )
-from .native_pool_capacity import load_pool_capacity
+from .native_pool_capacity import (
+    NativePoolCapacityPolicyError,
+    load_operative_pool_capacity,
+    load_pool_capacity,
+    operative_pool_policy,
+)
 from .native_recovery_authority import RecoveryAuthorityError, fixed_cohort_sha256
 from .policy import load_policy
 from .work_sizing import canonical_work_estimate_sha256
@@ -1118,10 +1123,20 @@ def reserve_pool_cohort(
     if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:
         raise NativePoolAdmissionError("cohort-size-four-or-more-forbidden")
 
-    validated = _validate_candidate(candidate, policy_document=policy_document)
+    try:
+        effective_policy = (
+            operative_pool_policy(policy_document) if productive else policy_document
+        )
+    except NativePoolCapacityPolicyError as error:
+        raise NativePoolAdmissionError(str(error)) from error
+    validated = _validate_candidate(candidate, policy_document=effective_policy)
     if len(validated.issue_ids) >= 4:
         raise NativePoolAdmissionError("cohort-size-four-or-more-forbidden")
-    capacity_limits = load_pool_capacity(policy_document)
+    capacity_limits = (
+        load_operative_pool_capacity(effective_policy)
+        if productive
+        else load_pool_capacity(effective_policy)
+    )
     if productive and not capacity_limits.is_released(len(validated.issue_ids)):
         raise NativePoolAdmissionError("productive-cohort-size-three-unreleased")
     created_at = _iso(now)
@@ -1260,7 +1275,7 @@ def reserve_pool_cohort(
                 capability=None,
                 claim_adapter=claim_adapter,
             )
-        validated = _validate_candidate(replacement, policy_document=policy_document)
+        validated = _validate_candidate(replacement, policy_document=effective_policy)
         if len(validated.issue_ids) >= 4:
             raise NativePoolAdmissionError("cohort-size-four-or-more-forbidden")
         if not capacity_limits.is_released(len(validated.issue_ids)):
