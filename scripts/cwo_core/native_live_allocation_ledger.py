@@ -359,6 +359,52 @@ class _PrivateFileIdentity:
     changed_ns: int
 
 
+_IDENTITY_CAPABILITY_MISSING = object()
+
+
+class _IdentityCapabilityRegistry:
+    """Retain opaque capabilities and compare them only by object identity."""
+
+    def __init__(self) -> None:
+        self._entries: dict[int, tuple[object, Any]] = {}
+
+    def __contains__(self, capability: object) -> bool:
+        entry = self._entries.get(id(capability))
+        return entry is not None and entry[0] is capability
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+    def register(self, capability: object, binding: Any) -> None:
+        key = id(capability)
+        if key in self._entries:
+            raise KeyError("identity-capability-already-registered")
+        self._entries[key] = (capability, binding)
+
+    def get(self, capability: object, default: Any = None) -> Any:
+        entry = self._entries.get(id(capability))
+        if entry is None or entry[0] is not capability:
+            return default
+        return entry[1]
+
+    def pop(
+        self,
+        capability: object,
+        default: Any = _IDENTITY_CAPABILITY_MISSING,
+    ) -> Any:
+        key = id(capability)
+        entry = self._entries.get(key)
+        if entry is None or entry[0] is not capability:
+            if default is _IDENTITY_CAPABILITY_MISSING:
+                raise KeyError("identity-capability-not-found")
+            return default
+        del self._entries[key]
+        return entry[1]
+
+
 @dataclass(frozen=True)
 class _PendingTurnNegativeResponseObserverBinding:
     """Exact pending action registered before the sole app-server write."""
@@ -1341,15 +1387,13 @@ class NativeLiveAllocationLedgerStore:
         self._metrics_lock = threading.Lock()
         self._trusted: _TrustedLedgerCoordinates | None = None
         self._semantic_index: _LedgerSemanticIndex | None = None
-        self._pending_turn_negative_response_observer_capabilities: dict[
-            object, _PendingTurnNegativeResponseObserverBinding
-        ] = {}
-        self._turn_negative_response_observer_capabilities: dict[
-            object, _TurnNegativeResponseObserverBinding
-        ] = {}
-        self._turn_absence_verifier_capabilities: dict[
-            object, _TurnAbsenceVerifierBinding
-        ] = {}
+        self._pending_turn_negative_response_observer_capabilities = (
+            _IdentityCapabilityRegistry()
+        )
+        self._turn_negative_response_observer_capabilities = (
+            _IdentityCapabilityRegistry()
+        )
+        self._turn_absence_verifier_capabilities = _IdentityCapabilityRegistry()
         self._metrics: dict[str, int | float] = {
             "append_attempt_count": 0,
             "append_success_count": 0,
@@ -1992,17 +2036,18 @@ class NativeLiveAllocationLedgerStore:
                     raise NativeLiveAllocationLedgerError(
                         "turn-negative-response-observer-pending-binding-invalid"
                     )
-                self._pending_turn_negative_response_observer_capabilities[
-                    capability
-                ] = _PendingTurnNegativeResponseObserverBinding(
-                    thread_id=thread_id,
-                    turn_intent_id=turn_intent_id,
-                    request_id=int(dispatch["request_id"]),
-                    connection_epoch_sha256=str(
-                        dispatch["connection_epoch_sha256"]
+                self._pending_turn_negative_response_observer_capabilities.register(
+                    capability,
+                    _PendingTurnNegativeResponseObserverBinding(
+                        thread_id=thread_id,
+                        turn_intent_id=turn_intent_id,
+                        request_id=int(dispatch["request_id"]),
+                        connection_epoch_sha256=str(
+                            dispatch["connection_epoch_sha256"]
+                        ),
+                        wire_request_sha256=str(dispatch["wire_request_sha256"]),
+                        dispatch_record_sha256=str(dispatch["record_sha256"]),
                     ),
-                    wire_request_sha256=str(dispatch["wire_request_sha256"]),
-                    dispatch_record_sha256=str(dispatch["record_sha256"]),
                 )
 
     def _discard_turn_negative_response_observer_capability(
@@ -2095,7 +2140,8 @@ class NativeLiveAllocationLedgerStore:
                         "turn-intent-absence-dispatch-mismatch"
                     )
                 capability = object()
-                self._turn_absence_verifier_capabilities[capability] = (
+                self._turn_absence_verifier_capabilities.register(
+                    capability,
                     _TurnAbsenceVerifierBinding(
                         proof_sha256=str(proof_value["proof_sha256"]),
                         thread_id=thread_id,
@@ -2109,7 +2155,7 @@ class NativeLiveAllocationLedgerStore:
                         dispatch_path=str(dispatch_path),
                         dispatch_identity=dispatch_identity,
                         dispatch_record_sha256=str(dispatch["record_sha256"]),
-                    )
+                    ),
                 )
                 return capability
 

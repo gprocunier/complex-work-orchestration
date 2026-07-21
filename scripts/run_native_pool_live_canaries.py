@@ -77,6 +77,7 @@ from cwo_core.native_pool_capacity_compat import (  # noqa: E402
 from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     EXPECTED_ROLES,
     NativeLiveAllocationLedgerStore,
+    _IdentityCapabilityRegistry,
     _TurnNegativeResponseObserverBinding,
 )
 from cwo_core.native_turn_dispatch import (  # noqa: E402
@@ -1754,7 +1755,7 @@ class AppServer:
         self._observed_negative_turn_response_capabilities_by_request: dict[
             int, object
         ] = {}
-        self._negative_turn_response_capabilities: dict[object, dict[str, Any]] = {}
+        self._negative_turn_response_capabilities = _IdentityCapabilityRegistry()
         self.allocation_ledger: NativeLiveAllocationLedgerStore | None = None
         threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._drain_stderr, daemon=True).start()
@@ -1953,31 +1954,36 @@ class AppServer:
                                                 "dispatch_record_sha256"
                                             )
                                         ):
-                                            ledger._turn_negative_response_observer_capabilities[
-                                                observed_candidate
-                                            ] = _TurnNegativeResponseObserverBinding(
-                                                thread_id=str(
-                                                    pending["thread_id"]
-                                                ),
-                                                turn_intent_id=str(
-                                                    pending["turn_intent_id"]
-                                                ),
-                                                request_id=response_id,
-                                                connection_epoch_sha256=str(
-                                                    pending[
-                                                        "connection_epoch_sha256"
-                                                    ]
-                                                ),
-                                                wire_request_sha256=str(
-                                                    pending[
-                                                        "wire_request_sha256"
-                                                    ]
-                                                ),
-                                                response_sha256=str(
-                                                    witness["response_sha256"]
-                                                ),
-                                                response_code=int(
-                                                    witness["code"]
+                                            ledger._turn_negative_response_observer_capabilities.register(
+                                                observed_candidate,
+                                                _TurnNegativeResponseObserverBinding(
+                                                    thread_id=str(
+                                                        pending["thread_id"]
+                                                    ),
+                                                    turn_intent_id=str(
+                                                        pending[
+                                                            "turn_intent_id"
+                                                        ]
+                                                    ),
+                                                    request_id=response_id,
+                                                    connection_epoch_sha256=str(
+                                                        pending[
+                                                            "connection_epoch_sha256"
+                                                        ]
+                                                    ),
+                                                    wire_request_sha256=str(
+                                                        pending[
+                                                            "wire_request_sha256"
+                                                        ]
+                                                    ),
+                                                    response_sha256=str(
+                                                        witness[
+                                                            "response_sha256"
+                                                        ]
+                                                    ),
+                                                    response_code=int(
+                                                        witness["code"]
+                                                    ),
                                                 ),
                                             )
                                             ledger_observed = True
@@ -1988,7 +1994,9 @@ class AppServer:
                                         None,
                                     )
                                     if capabilities is None:
-                                        capabilities = {}
+                                        capabilities = (
+                                            _IdentityCapabilityRegistry()
+                                        )
                                         self._negative_turn_response_capabilities = (
                                             capabilities
                                         )
@@ -2002,7 +2010,10 @@ class AppServer:
                                         self._observed_negative_turn_response_capabilities_by_request = (
                                             by_request
                                         )
-                                    capabilities[observed_candidate] = witness
+                                    capabilities.register(
+                                        observed_candidate,
+                                        witness,
+                                    )
                                     by_request[response_id] = observed_candidate
                                     observed_capability = observed_candidate
                             if observed_capability is None:

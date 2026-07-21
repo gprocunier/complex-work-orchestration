@@ -653,6 +653,18 @@ class AppServerRpcErrorTests(unittest.TestCase):
 
 
 class AmbiguousTurnDispatchTests(unittest.TestCase):
+    class _EqualityAlias:
+        """Distinct object crafted to compare equal to one opaque capability."""
+
+        def __init__(self, target: object) -> None:
+            self.target = target
+
+        def __hash__(self) -> int:
+            return hash(self.target)
+
+        def __eq__(self, other: object) -> bool:
+            return other is self.target
+
     class _StdoutQueue:
         _CLOSED = object()
 
@@ -718,7 +730,9 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
         server._turn_dispatch_records = {}
         server._pending_turn_start_response_observers = {}
         server._observed_negative_turn_response_capabilities_by_request = {}
-        server._negative_turn_response_capabilities = {}
+        server._negative_turn_response_capabilities = (
+            LIVE._IdentityCapabilityRegistry()
+        )
         server.allocation_ledger = ledger
         stdout = self._StdoutQueue()
         state = {
@@ -1012,6 +1026,11 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 pending_capability,
                 ledger._turn_negative_response_observer_capabilities,
             )
+            pending_alias = self._EqualityAlias(pending_capability)
+            self.assertNotIn(
+                pending_alias,
+                ledger._pending_turn_negative_response_observer_capabilities,
+            )
             fabricated_response = {
                 "id": relabeled["request_id"],
                 "error": {
@@ -1061,12 +1080,14 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             fresh_ledger = NativeLiveAllocationLedgerStore(ledger.directory)
             fresh_ledger.open()
             self.assertEqual(
-                fresh_ledger._pending_turn_negative_response_observer_capabilities,
-                {},
+                len(
+                    fresh_ledger._pending_turn_negative_response_observer_capabilities
+                ),
+                0,
             )
             self.assertEqual(
-                fresh_ledger._turn_negative_response_observer_capabilities,
-                {},
+                len(fresh_ledger._turn_negative_response_observer_capabilities),
+                0,
             )
             with self.assertRaisesRegex(
                 NativeLiveAllocationLedgerError,
@@ -1765,6 +1786,16 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 "turn-negative-response-capability-invalid",
             ):
                 server._consume_negative_turn_response_capability(object(), record)
+            equality_alias = self._EqualityAlias(capability)
+            self.assertIsNot(equality_alias, capability)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "turn-negative-response-capability-invalid",
+            ):
+                server._consume_negative_turn_response_capability(
+                    equality_alias,
+                    record,
+                )
             witness = server._consume_negative_turn_response_capability(
                 capability, record
             )
@@ -1836,11 +1867,17 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 Path(temporary)
             )
             self.assertIsNot(observed, pending)
+            equality_alias = self._EqualityAlias(observed)
+            self.assertIsNot(equality_alias, observed)
+            self.assertNotIn(
+                equality_alias,
+                ledger._turn_negative_response_observer_capabilities,
+            )
             with self.assertRaisesRegex(
                 NativeLiveAllocationLedgerError,
                 "turn-negative-response-observer-capability-invalid",
             ):
-                mint(proof, negative_response_capability=object())
+                mint(proof, negative_response_capability=equality_alias)
             forged = json.loads(json.dumps(proof))
             forged["negative_response"]["response_sha256"] = "f" * 64
             forged = LIVE.seal_turn_absence_proof(forged)
@@ -1869,6 +1906,29 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 "turn-negative-response-observer-capability-invalid",
             ):
                 mint(proof, negative_response_capability=observed)
+            verifier_alias = self._EqualityAlias(verifier)
+            self.assertIsNot(verifier_alias, verifier)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "turn-intent-absence-verifier-capability-invalid",
+            ):
+                ledger.resolve_turn_intent_absent(
+                    thread_id,
+                    str(proof["turn_intent_id"]),
+                    proof=proof,
+                    verifier_capability=verifier_alias,
+                )
+            ledger.open()
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger, thread_id, proof, observed, _pending, mint = capture_case(
+                Path(temporary)
+            )
+            verifier = mint(
+                proof,
+                negative_response_capability=observed,
+            )
             ledger.resolve_turn_intent_absent(
                 thread_id,
                 str(proof["turn_intent_id"]),
