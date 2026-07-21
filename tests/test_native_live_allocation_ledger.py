@@ -227,6 +227,61 @@ class NativeLiveAllocationLedgerTests(unittest.TestCase):
             self.assertEqual(state["entries"][-1]["turn_intent_id"], turn_intent)
             self.assertEqual(state["entries"][-1]["outcome"], "pending")
 
+    def test_successful_containment_audit_is_exactly_once_and_conflict_safe(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(
+                Path(temporary) / "private-ledger"
+            )
+            store.initialize(bindings())
+            allocation = store.allocation_intent("capability-calibration")
+            store.bind_thread(allocation, "thread-1")
+            turn_intent = store.turn_intent("thread-1")
+            store.bind_turn("thread-1", turn_intent, "turn-1")
+            store.record_lifecycle(
+                "thread-1", "archive-observed", "archive-request-accepted"
+            )
+            evidence = {"dispatch_record_sha256": "a" * 64}
+            store.record_containment_audit(
+                "thread-1", outcome="contained", evidence=evidence
+            )
+            before = store.load()
+            before_audit = store.audit_file.read_bytes()
+
+            store.record_containment_audit(
+                "thread-1", outcome="contained", evidence=dict(evidence)
+            )
+            after = store.load()
+            self.assertEqual(after, before)
+            self.assertEqual(store.audit_file.read_bytes(), before_audit)
+
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "containment-audit-success-conflict",
+            ):
+                store.record_containment_audit(
+                    "thread-1",
+                    outcome="contained",
+                    evidence={"dispatch_record_sha256": "b" * 64},
+                )
+            store.open()
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "containment-success-duplicate",
+            ):
+                store._append(
+                    event="containment-audited",
+                    role="capability-calibration",
+                    ordinal=0,
+                    allocation_intent_id=allocation,
+                    thread_id="thread-1",
+                    turn_intent_id=turn_intent,
+                    turn_id="turn-1",
+                    evidence_sha256=sha("duplicate-containment"),
+                    outcome="already-contained",
+                )
+
     def test_duplicate_role_identity_and_cross_generation_reject(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             store = NativeLiveAllocationLedgerStore(Path(temporary) / "private-ledger")

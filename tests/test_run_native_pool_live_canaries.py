@@ -859,6 +859,31 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             self.assertEqual(state["archive_count"], 1)
             self.assertEqual(len(writer.payloads), 1)
             self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 0)
+            proof_path = (
+                ledger.directory
+                / "turn-absence"
+                / f"{record['turn_intent_id']}.json"
+            )
+            proof = json.loads(proof_path.read_text(encoding="utf-8"))
+            negative = proof["negative_response"]
+            self.assertEqual(negative["request_id"], record["request_id"])
+            self.assertEqual(
+                negative["connection_epoch_sha256"],
+                record["connection_epoch_sha256"],
+            )
+            self.assertEqual(
+                negative["wire_request_sha256"], record["wire_request_sha256"]
+            )
+            self.assertEqual(
+                negative["response_sha256"],
+                LIVE.domain_sha256(
+                    {
+                        "id": record["request_id"],
+                        "error": {"code": -32600, "message": "rejected"},
+                    },
+                    domain="app-server-turn-start-negative-response",
+                ),
+            )
 
     def test_ambiguous_sources_are_discovered_contained_and_never_replayed(
         self,
@@ -912,19 +937,19 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             self.assertEqual(len(writer.payloads), 1)
             self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 0)
 
-    def test_verified_absence_resolves_intent_without_inventing_a_turn(self) -> None:
+    def test_exact_negative_resolves_intent_without_inventing_a_turn(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             server, ledger, state, writer, thread_id, _turn_ids = self.server(
-                Path(temporary), "absent"
+                Path(temporary), "rpc-error"
             )
-            with self.assertRaises(LIVE.AmbiguousTurnStartError) as raised:
+            with self.assertRaises(LIVE.AppServerRpcError):
                 server.start_turn(
                     thread_id,
                     "bounded",
-                    timeout=0,
                     ambiguity_timeout=0.1,
                 )
-            record = raised.exception.record
+            record = server.turn_dispatch_record(thread_id)
+            assert record is not None
             self.assertEqual(record["status"], "failed-contained")
             self.assertEqual(record["discovered_turn_ids"], [])
             self.assertEqual(record["ledger_resolution"], "verified-absent")
@@ -943,7 +968,8 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                     evidence={"forged": True},
                 )
             with self.assertRaisesRegex(
-                ValueError, "turn-intent-absence-proof-sha256-invalid"
+                (TypeError, ValueError),
+                "proof|verifier|unexpected keyword",
             ):
                 ledger.resolve_turn_intent_absent(
                     thread_id,
@@ -1025,7 +1051,7 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             self.assertEqual(len(writer.payloads), 1)
             self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 0)
 
-    def test_quiet_window_rechecks_notifications_after_first_empty_query(self) -> None:
+    def test_second_query_rechecks_notifications_after_first_empty_query(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             server, _ledger, state, _writer, thread_id, turn_ids = self.server(
                 Path(temporary), "absent"
@@ -1067,6 +1093,56 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             self.assertIn(turn_ids[0], state["interrupts"])
             self.assertNotEqual(record["ledger_resolution"], "verified-absent")
 
+    def test_final_notification_boundary_silence_never_certifies_absence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            server, ledger, state, writer, thread_id, turn_ids = self.server(
+                Path(temporary), "absent"
+            )
+            original_snapshot = server._post_cursor_turn_starts
+            snapshot_count = 0
+
+            def snapshot_then_start(**kwargs):
+                nonlocal snapshot_count
+                snapshot_count += 1
+                observed = original_snapshot(**kwargs)
+                if snapshot_count == 2:
+                    state["turns"][turn_ids[0]] = "inProgress"
+                    server._notifications.append(
+                        (
+                            2,
+                            {
+                                "method": "turn/started",
+                                "params": {
+                                    "threadId": thread_id,
+                                    "turn": {"id": turn_ids[0]},
+                                },
+                            },
+                        )
+                    )
+                return observed
+
+            server._post_cursor_turn_starts = snapshot_then_start
+            with self.assertRaises(LIVE.AmbiguousTurnStartError) as raised:
+                server.start_turn(
+                    thread_id,
+                    "bounded",
+                    timeout=0,
+                    ambiguity_timeout=0,
+                )
+            record = raised.exception.record
+            self.assertEqual(snapshot_count, 2)
+            self.assertEqual(record["status"], "failed-ambiguous")
+            self.assertFalse(record["absence_verified"])
+            self.assertIsNone(record["absence_proof_sha256"])
+            self.assertEqual(record["ledger_resolution"], "pending")
+            self.assertFalse(record["archived"])
+            self.assertEqual(state["turns"][turn_ids[0]], "inProgress")
+            self.assertEqual(state["archive_count"], 0)
+            self.assertEqual(len(writer.payloads), 1)
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+
     def test_fresh_client_loads_private_dispatch_and_contains_server_turn(self) -> None:
         from cwo_core.native_live_allocation_ledger import (
             NativeLiveAllocationLedgerStore,
@@ -1077,13 +1153,33 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             original, ledger, state, writer, thread_id, turn_ids = self.server(
                 root, "crash"
             )
+            original._notifications.extend(
+                [
+                    (1, {"method": "unrelated/one", "params": {}}),
+                    (2, {"method": "unrelated/two", "params": {}}),
+                ]
+            )
             with self.assertRaises(KeyboardInterrupt):
                 original.start_turn(thread_id, "bounded", timeout=0)
+            original_record = original.turn_dispatch_record(thread_id)
+            assert original_record is not None
+            self.assertEqual(original_record["notification_cursor"], 2)
 
             recovered = object.__new__(LIVE.AppServer)
             recovered._condition = threading.Condition()
             recovered._responses = {}
-            recovered._notifications = []
+            recovered._notifications = [
+                (
+                    1,
+                    {
+                        "method": "turn/started",
+                        "params": {
+                            "threadId": thread_id,
+                            "turn": {"id": turn_ids[0]},
+                        },
+                    },
+                )
+            ]
             recovered._request_id = 0
             recovered._reader_error = None
             recovered.connection_epoch_sha256 = "c" * 64
@@ -1144,6 +1240,13 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             self.assertTrue(result["all_contained"])
             self.assertEqual(record["status"], "failed-contained")
             self.assertEqual(record["discovered_turn_ids"], turn_ids)
+            self.assertEqual(record["connection_epoch_sha256"], "b" * 64)
+            self.assertEqual(record["notification_cursor"], 2)
+            self.assertEqual(
+                record["notification_connection_epoch_sha256"], "c" * 64
+            )
+            self.assertEqual(record["notification_sequences"], [1])
+            self.assertEqual(LIVE.validate_turn_dispatch_record(record), [])
             self.assertEqual(state["interrupts"], turn_ids)
             self.assertEqual(len(writer.payloads), 1)
 
@@ -1156,7 +1259,7 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             server, ledger, _state, _writer, thread_id, _turn_ids = self.server(
-                Path(temporary), "absent"
+                Path(temporary), "rpc-error"
             )
             persist = server._persist_turn_dispatch_record
 
@@ -1177,22 +1280,77 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             )
             self.assertEqual(durable_record["status"], "failed-ambiguous")
             self.assertEqual(durable_record["ledger_resolution"], "pending")
-            self.assertRegex(durable_record["absence_proof_sha256"], r"^[0-9a-f]{64}$")
+            self.assertIsNone(durable_record["absence_proof_sha256"])
             fresh = NativeLiveAllocationLedgerStore(ledger.directory)
             fresh.open()
             resolution = fresh.turn_intent_resolution(
                 str(durable_record["turn_intent_id"])
             )
             self.assertEqual(resolution["resolution"], "verified-absent")
-            self.assertEqual(
-                resolution["evidence_sha256"],
-                durable_record["absence_proof_sha256"],
+            self.assertRegex(resolution["evidence_sha256"], r"^[0-9a-f]{64}$")
+            proof_path = (
+                ledger.directory
+                / "turn-absence"
+                / f"{durable_record['turn_intent_id']}.json"
             )
+            proof = json.loads(proof_path.read_text(encoding="utf-8"))
+            self.assertEqual(proof["proof_sha256"], resolution["evidence_sha256"])
+            self.assertEqual(proof["dispatch_record"], durable_record)
+
+    def test_crash_after_success_audit_reuses_exact_single_final_audit(self) -> None:
+        for mode in ("query", "rpc-error"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                server, ledger, _state, _writer, thread_id, _turn_ids = self.server(
+                    Path(temporary), mode
+                )
+                persist = server._persist_turn_dispatch_record
+
+                def crash_before_final_record(record: Mapping[str, object]):
+                    if record.get("status") == "failed-contained":
+                        raise KeyboardInterrupt("crash after successful audit")
+                    return persist(record)
+
+                server._persist_turn_dispatch_record = crash_before_final_record
+                with self.assertRaises(KeyboardInterrupt):
+                    server.start_turn(
+                        thread_id,
+                        "bounded",
+                        timeout=0,
+                        ambiguity_timeout=0.2,
+                    )
+                before = ledger.load()
+                success_before = [
+                    entry
+                    for entry in before["entries"]
+                    if entry.get("event") == "containment-audited"
+                    and entry.get("thread_id") == thread_id
+                    and entry.get("outcome")
+                    in {"contained", "already-contained"}
+                ]
+                self.assertEqual(len(success_before), 1)
+                audit_before = ledger.audit_file.read_bytes()
+
+                server._persist_turn_dispatch_record = persist
+                recovered = server.contain_ambiguous_turn_dispatch(
+                    thread_id, timeout=0.2
+                )
+                self.assertEqual(recovered["status"], "failed-contained")
+                after = ledger.load()
+                success_after = [
+                    entry
+                    for entry in after["entries"]
+                    if entry.get("event") == "containment-audited"
+                    and entry.get("thread_id") == thread_id
+                    and entry.get("outcome")
+                    in {"contained", "already-contained"}
+                ]
+                self.assertEqual(success_after, success_before)
+                self.assertEqual(ledger.audit_file.read_bytes(), audit_before)
 
     def test_failure_before_absence_ledger_append_keeps_intent_pending(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             server, ledger, state, _writer, thread_id, _turn_ids = self.server(
-                Path(temporary), "absent"
+                Path(temporary), "rpc-error"
             )
             with mock.patch.object(
                 ledger,
@@ -1206,50 +1364,129 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             record = raised.exception.record
             self.assertEqual(record["status"], "failed-ambiguous")
             self.assertEqual(record["ledger_resolution"], "pending")
-            self.assertRegex(record["absence_proof_sha256"], r"^[0-9a-f]{64}$")
+            self.assertIsNone(record["absence_proof_sha256"])
             self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
             self.assertEqual(state["archive_count"], 0)
 
-    def test_arbitrary_or_tampered_absence_proof_cannot_resolve_intent(self) -> None:
+    def test_absence_proof_requires_exact_dispatch_and_opaque_one_shot_capability(
+        self,
+    ) -> None:
         from cwo_core.native_live_allocation_ledger import (
             NativeLiveAllocationLedgerError,
             NativeLiveAllocationLedgerStore,
         )
-        from tests.test_native_live_allocation_ledger import bindings
+
+        def capture_case(root: Path):
+            server, ledger, _state, _writer, thread_id, _turn_ids = self.server(
+                root, "rpc-error"
+            )
+            captured: dict[str, object] = {}
+
+            def stop_before_resolution(*_args, **kwargs):
+                captured.update(kwargs)
+                raise KeyboardInterrupt(
+                    "capture exact proof before guarded resolution"
+                )
+
+            with mock.patch.object(
+                ledger,
+                "resolve_turn_intent_absent",
+                side_effect=stop_before_resolution,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    server.start_turn(thread_id, "bounded", ambiguity_timeout=0.1)
+            proof = captured["proof"]
+            capability = captured["verifier_capability"]
+            assert isinstance(proof, Mapping)
+            return ledger, thread_id, dict(proof), capability
 
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary) / "ledger"
-            ledger = NativeLiveAllocationLedgerStore(directory)
-            ledger.initialize(bindings())
-            allocation = ledger.allocation_intent("capability-calibration")
-            ledger.bind_thread(allocation, "thread-1")
-            intent = ledger.turn_intent("thread-1")
+            ledger, thread_id, proof, capability = capture_case(Path(temporary))
             with self.assertRaisesRegex(
                 NativeLiveAllocationLedgerError,
-                "turn-intent-absence-proof-link-invalid",
+                "standalone-persistence-forbidden",
+            ):
+                ledger.persist_turn_absence_proof(dict(proof))
+            dispatch_path = (
+                ledger.directory
+                / "turn-dispatch"
+                / f"{proof['turn_intent_id']}.json"
+            )
+            dispatch_path.unlink()
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "absence-dispatch-missing",
             ):
                 ledger.resolve_turn_intent_absent(
-                    "thread-1", intent, proof_sha256="a" * 64
+                    thread_id,
+                    str(proof["turn_intent_id"]),
+                    proof=proof,
+                    verifier_capability=capability,
                 )
             ledger.open()
             self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
 
         with tempfile.TemporaryDirectory() as temporary:
-            server, ledger, _state, _writer, thread_id, _turn_ids = self.server(
-                Path(temporary), "absent"
-            )
-            with self.assertRaises(LIVE.AmbiguousTurnStartError) as raised:
-                server.start_turn(
-                    thread_id, "bounded", timeout=0, ambiguity_timeout=0.15
+            ledger, thread_id, proof, _capability = capture_case(Path(temporary))
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "verifier-capability-invalid",
+            ):
+                ledger.resolve_turn_intent_absent(
+                    thread_id,
+                    str(proof["turn_intent_id"]),
+                    proof=dict(proof),
+                    verifier_capability=object(),
                 )
+            ledger.open()
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger, thread_id, proof, capability = capture_case(Path(temporary))
+            forged = json.loads(json.dumps(proof))
+            forged["negative_response"]["response_sha256"] = "f" * 64
+            forged = LIVE.seal_turn_absence_proof(forged)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "verifier-capability-mismatch",
+            ):
+                ledger.resolve_turn_intent_absent(
+                    thread_id,
+                    str(proof["turn_intent_id"]),
+                    proof=forged,
+                    verifier_capability=capability,
+                )
+            ledger.open()
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger, thread_id, proof, capability = capture_case(Path(temporary))
+            ledger.resolve_turn_intent_absent(
+                thread_id,
+                str(proof["turn_intent_id"]),
+                proof=proof,
+                verifier_capability=capability,
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "verifier-capability-invalid",
+            ):
+                ledger.resolve_turn_intent_absent(
+                    thread_id,
+                    str(proof["turn_intent_id"]),
+                    proof=proof,
+                    verifier_capability=capability,
+                )
+            ledger.open()
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 0)
             proof_path = (
                 ledger.directory
                 / "turn-absence"
-                / f"{raised.exception.record['turn_intent_id']}.json"
+                / f"{proof['turn_intent_id']}.json"
             )
-            proof = json.loads(proof_path.read_text(encoding="utf-8"))
-            proof["quiet_window_ms"] += 1
-            proof_path.write_text(json.dumps(proof) + "\n", encoding="utf-8")
+            tampered = json.loads(proof_path.read_text(encoding="utf-8"))
+            tampered["negative_response"]["response_sha256"] = "e" * 64
+            proof_path.write_text(json.dumps(tampered) + "\n", encoding="utf-8")
             proof_path.chmod(0o600)
             with self.assertRaisesRegex(
                 NativeLiveAllocationLedgerError,
@@ -1261,6 +1498,54 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 "turn-intent-absence-proof-link-invalid",
             ):
                 NativeLiveAllocationLedgerStore(ledger.directory).open()
+
+    def test_negative_response_observer_capability_is_opaque_and_one_shot(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            server, _ledger, _state, _writer, thread_id, _turn_ids = self.server(
+                Path(temporary), "rpc-error"
+            )
+            captured: dict[str, object] = {}
+
+            def stop_before_observer_consumption(*_args, **kwargs):
+                captured.update(kwargs)
+                raise KeyboardInterrupt("capture opaque observer capability")
+
+            with mock.patch.object(
+                server,
+                "contain_ambiguous_turn_dispatch",
+                side_effect=stop_before_observer_consumption,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    server.start_turn(thread_id, "bounded", ambiguity_timeout=0.1)
+            record = server.turn_dispatch_record(thread_id)
+            assert record is not None
+            capability = captured["negative_response_capability"]
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "turn-negative-response-capability-invalid",
+            ):
+                server._consume_negative_turn_response_capability(object(), record)
+            witness = server._consume_negative_turn_response_capability(
+                capability, record
+            )
+            self.assertEqual(witness["request_id"], record["request_id"])
+            self.assertEqual(
+                witness["connection_epoch_sha256"],
+                record["connection_epoch_sha256"],
+            )
+            self.assertEqual(
+                witness["wire_request_sha256"], record["wire_request_sha256"]
+            )
+            self.assertRegex(witness["response_sha256"], r"^[0-9a-f]{64}$")
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "turn-negative-response-capability-invalid",
+            ):
+                server._consume_negative_turn_response_capability(
+                    capability, record
+                )
 
     def test_transient_interrupt_failure_is_retried_and_cleared(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1294,7 +1579,13 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
         cases = (
             ({"query_count": 2, "absence_verified": True}, "prepared-state"),
             ({"archived": True}, "archive-phase"),
-            ({"notification_sequences": [4]}, "notification-sequence-before-cursor"),
+            (
+                {
+                    "notification_connection_epoch_sha256": "a" * 64,
+                    "notification_sequences": [4],
+                },
+                "notification-sequence-before-cursor",
+            ),
             (
                 {
                     "status": "failed-contained",

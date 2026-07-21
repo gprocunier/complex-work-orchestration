@@ -214,6 +214,12 @@ class _LedgerSemanticIndex:
     def lifecycle_kind_seen(self, event: str, thread_id: str) -> bool:
         return (event, thread_id) in self.lifecycle_kinds
 
+    def successful_containment_seen(self, thread_id: str) -> bool:
+        return any(
+            self.lifecycle_seen("containment-audited", thread_id, outcome)
+            for outcome in ("contained", "already-contained")
+        )
+
     def increment_certification(self) -> None:
         self.certification_count += 1
 
@@ -316,6 +322,12 @@ class _LedgerSemanticCandidate:
             self.base.lifecycle_kind_seen(event, thread_id)
         )
 
+    def successful_containment_seen(self, thread_id: str) -> bool:
+        return any(
+            self.lifecycle_seen("containment-audited", thread_id, outcome)
+            for outcome in ("contained", "already-contained")
+        )
+
     def increment_certification(self) -> None:
         self.certification_increment += 1
 
@@ -345,6 +357,35 @@ class _PrivateFileIdentity:
     size: int
     modified_ns: int
     changed_ns: int
+
+
+@dataclass(frozen=True)
+class _TurnNegativeResponseObserverBinding:
+    """Exact action witnessed by the trusted app-server response parser."""
+
+    thread_id: str
+    turn_intent_id: str
+    request_id: int
+    connection_epoch_sha256: str
+    wire_request_sha256: str
+    response_sha256: str
+    response_code: int
+
+
+@dataclass(frozen=True)
+class _TurnAbsenceVerifierBinding:
+    """One non-serializable, single-use exact-negative verifier binding."""
+
+    proof_sha256: str
+    thread_id: str
+    turn_intent_id: str
+    request_id: int
+    connection_epoch_sha256: str
+    wire_request_sha256: str
+    response_sha256: str
+    dispatch_path: str
+    dispatch_identity: _PrivateFileIdentity
+    dispatch_record_sha256: str
 
 
 @dataclass(frozen=True)
@@ -593,6 +634,57 @@ def _verified_turn_absence_proof(
         or dispatch.get("ledger_head_entry_sha256")
         != intent_entries[0].get("entry_sha256")
     ):
+        raise NativeLiveAllocationLedgerError("turn-intent-absence-proof-link-invalid")
+    dispatch_path = directory / "turn-dispatch" / f"{turn_intent_id}.json"
+    try:
+        _strict_private_directory(dispatch_path.parent)
+        persisted_dispatch, _dispatch_identity = _read_private_json_with_identity(
+            dispatch_path
+        )
+    except NativeLiveAllocationLedgerError as exc:
+        raise NativeLiveAllocationLedgerError(
+            "turn-intent-absence-proof-link-invalid"
+        ) from exc
+    successor_fields = {
+        "artifact_type",
+        "version",
+        "thread_id",
+        "turn_intent_id",
+        "client_user_message_id",
+        "request_id",
+        "connection_epoch_sha256",
+        "notification_cursor",
+        "preexisting_turn_ids",
+        "ledger_id",
+        "ledger_head_entry_sha256",
+        "turn_intent_entry_sha256",
+        "wire_request_sha256",
+        "wire_write_attempt_count",
+        "ambiguity_reason",
+        "exact_response_turn_id",
+        "discovered_turn_ids",
+        "interrupt_attempted_turn_ids",
+        "interrupt_failed_turn_ids",
+        "terminal_status_by_turn",
+        "active_turn_ids_at_final_check",
+    }
+    authorized_successor = bool(
+        not validate_turn_dispatch_record(persisted_dispatch)
+        and all(
+            persisted_dispatch.get(field) == dispatch.get(field)
+            for field in successor_fields
+        )
+        and persisted_dispatch.get("status")
+        in {"failed-contained", "failed-ambiguous"}
+        and persisted_dispatch.get("absence_verified") is True
+        and persisted_dispatch.get("absence_proof_sha256")
+        == proof.get("proof_sha256")
+        and persisted_dispatch.get("ledger_resolution") == "verified-absent"
+        and not persisted_dispatch.get("notification_sequences")
+        and persisted_dispatch.get("query_count", -1)
+        >= dispatch.get("query_count", 0)
+    )
+    if persisted_dispatch != dict(dispatch) and not authorized_successor:
         raise NativeLiveAllocationLedgerError("turn-intent-absence-proof-link-invalid")
     return proof, identity
 
@@ -1045,6 +1137,12 @@ def _validate_entry_transition(
             event == "containment-audited"
             and entry.get("outcome") in {"contained", "already-contained"}
         )
+        if containment_success and semantic_index.successful_containment_seen(
+            str(thread_id)
+        ):
+            errors.append(
+                f"ledger-entry-{index_number}-containment-success-duplicate"
+            )
         if absent_resolution:
             intent = semantic_index.turn_intent(str(turn_intent_id))
             if (
@@ -1231,6 +1329,12 @@ class NativeLiveAllocationLedgerStore:
         self._metrics_lock = threading.Lock()
         self._trusted: _TrustedLedgerCoordinates | None = None
         self._semantic_index: _LedgerSemanticIndex | None = None
+        self._turn_negative_response_observer_capabilities: dict[
+            object, _TurnNegativeResponseObserverBinding
+        ] = {}
+        self._turn_absence_verifier_capabilities: dict[
+            object, _TurnAbsenceVerifierBinding
+        ] = {}
         self._metrics: dict[str, int | float] = {
             "append_attempt_count": 0,
             "append_success_count": 0,
@@ -1257,6 +1361,8 @@ class NativeLiveAllocationLedgerStore:
     def _disarm(self) -> None:
         self._trusted = None
         self._semantic_index = None
+        self._turn_negative_response_observer_capabilities.clear()
+        self._turn_absence_verifier_capabilities.clear()
 
     @staticmethod
     def _bindings_sha256(state: Mapping[str, Any]) -> str:
@@ -1495,6 +1601,28 @@ class NativeLiveAllocationLedgerStore:
                         state, trusted, semantic_index, _audit_tail = (
                             self._require_trusted_locked()
                         )
+                        idempotency_guard = fields.get("_idempotent_existing")
+                        if idempotency_guard is not None:
+                            if not callable(idempotency_guard):
+                                raise NativeLiveAllocationLedgerError(
+                                    "ledger-idempotency-guard-invalid"
+                                )
+                            existing = idempotency_guard(
+                                state, trusted, semantic_index
+                            )
+                            if existing is not None:
+                                if (
+                                    not isinstance(existing, Mapping)
+                                    or not any(
+                                        existing is entry or existing == entry
+                                        for entry in state["entries"]
+                                    )
+                                ):
+                                    raise NativeLiveAllocationLedgerError(
+                                        "ledger-idempotency-guard-result-invalid"
+                                    )
+                                success = True
+                                return dict(existing)
                         pre_append_guard = fields.get("_pre_append_guard")
                         guarded_absence_proof: (
                             tuple[str, _PrivateFileIdentity] | None
@@ -1800,46 +1928,182 @@ class NativeLiveAllocationLedgerStore:
                     "evidence_sha256": None,
                 }
 
-    def persist_turn_absence_proof(
-        self, proof: Mapping[str, Any]
-    ) -> dict[str, Any]:
-        """Durably stage one canonical proof before its atomic ledger binding."""
+    def _register_turn_negative_response_observer_capability(
+        self,
+        capability: object,
+        dispatch_record: Mapping[str, Any],
+        negative_response: Mapping[str, Any],
+    ) -> None:
+        """Register one exact raw-error witness from the trusted response parser."""
 
-        errors = validate_turn_absence_proof(proof)
-        if errors:
+        dispatch = json.loads(
+            json.dumps(dict(dispatch_record), sort_keys=True, separators=(",", ":"))
+        )
+        negative = json.loads(
+            json.dumps(dict(negative_response), sort_keys=True, separators=(",", ":"))
+        )
+        if (
+            validate_turn_dispatch_record(dispatch)
+            or set(negative)
+            != {
+                "request_id",
+                "connection_epoch_sha256",
+                "wire_request_sha256",
+                "code",
+                "response_sha256",
+            }
+            or negative.get("request_id") != dispatch.get("request_id")
+            or negative.get("connection_epoch_sha256")
+            != dispatch.get("connection_epoch_sha256")
+            or negative.get("wire_request_sha256")
+            != dispatch.get("wire_request_sha256")
+            or type(negative.get("code")) is not int
+            or not _is_hash(negative.get("response_sha256"))
+        ):
             raise NativeLiveAllocationLedgerError(
-                "turn-intent-absence-proof-invalid:" + ";".join(errors)
+                "turn-negative-response-observer-binding-invalid"
             )
-        turn_intent_id = str(proof["turn_intent_id"])
+        turn_intent_id = str(dispatch["turn_intent_id"])
+        thread_id = str(dispatch["thread_id"])
+        dispatch_path = self.directory / "turn-dispatch" / f"{turn_intent_id}.json"
         with self._instance_lock:
             with _exclusive_lock(self.lock_path):
                 state, _trusted, semantic_index, _tail = self._require_trusted_locked()
                 intent = semantic_index.turn_intent(turn_intent_id)
+                try:
+                    persisted_dispatch, _identity = _read_private_json_with_identity(
+                        dispatch_path
+                    )
+                except NativeLiveAllocationLedgerError as exc:
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-negative-response-observer-dispatch-missing"
+                    ) from exc
                 if (
                     intent is None
                     or semantic_index.turn_intent_resolved(turn_intent_id)
-                    or proof.get("ledger_id") != state.get("ledger_id")
-                    or proof.get("thread_id") != intent.get("thread_id")
-                    or proof.get("turn_intent_entry_sha256")
+                    or state.get("ledger_id") != dispatch.get("ledger_id")
+                    or intent.get("thread_id") != thread_id
+                    or persisted_dispatch != dispatch
+                    or capability
+                    in self._turn_negative_response_observer_capabilities
+                ):
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-negative-response-observer-binding-invalid"
+                    )
+                self._turn_negative_response_observer_capabilities[capability] = (
+                    _TurnNegativeResponseObserverBinding(
+                        thread_id=thread_id,
+                        turn_intent_id=turn_intent_id,
+                        request_id=int(negative["request_id"]),
+                        connection_epoch_sha256=str(
+                            negative["connection_epoch_sha256"]
+                        ),
+                        wire_request_sha256=str(negative["wire_request_sha256"]),
+                        response_sha256=str(negative["response_sha256"]),
+                        response_code=int(negative["code"]),
+                    )
+                )
+
+    def _mint_turn_absence_verifier_capability(
+        self,
+        proof: Mapping[str, Any],
+        *,
+        negative_response_capability: object,
+    ) -> object:
+        """Bind an opaque one-shot capability to the exact private dispatch file.
+
+        The trusted app-server negative-response path is the sole caller. The
+        returned object has no serializable representation or reconstructable
+        value; resolution consumes its exact identity.
+        """
+
+        proof_value = json.loads(
+            json.dumps(dict(proof), sort_keys=True, separators=(",", ":"))
+        )
+        errors = validate_turn_absence_proof(proof_value)
+        if errors:
+            raise NativeLiveAllocationLedgerError(
+                "turn-intent-absence-proof-invalid:" + ";".join(errors)
+            )
+        turn_intent_id = str(proof_value["turn_intent_id"])
+        thread_id = str(proof_value["thread_id"])
+        dispatch = proof_value["dispatch_record"]
+        negative = proof_value["negative_response"]
+        dispatch_path = self.directory / "turn-dispatch" / f"{turn_intent_id}.json"
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                try:
+                    observer = (
+                        self._turn_negative_response_observer_capabilities.pop(
+                            negative_response_capability
+                        )
+                    )
+                except (KeyError, TypeError) as exc:
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-negative-response-observer-capability-invalid"
+                    ) from exc
+                intent = semantic_index.turn_intent(turn_intent_id)
+                if (
+                    intent is None
+                    or semantic_index.turn_intent_resolved(turn_intent_id)
+                    or proof_value.get("ledger_id") != state.get("ledger_id")
+                    or thread_id != intent.get("thread_id")
+                    or proof_value.get("turn_intent_entry_sha256")
                     != intent.get("entry_sha256")
+                    or observer.thread_id != thread_id
+                    or observer.turn_intent_id != turn_intent_id
+                    or observer.request_id != negative.get("request_id")
+                    or observer.connection_epoch_sha256
+                    != negative.get("connection_epoch_sha256")
+                    or observer.wire_request_sha256
+                    != negative.get("wire_request_sha256")
+                    or observer.response_sha256 != negative.get("response_sha256")
+                    or observer.response_code != negative.get("code")
                 ):
                     raise NativeLiveAllocationLedgerError(
                         "turn-intent-absence-proof-link-invalid"
                     )
-                proof_directory = self.directory / "turn-absence"
-                if proof_directory.exists() or proof_directory.is_symlink():
-                    _strict_private_directory(proof_directory)
-                else:
-                    proof_directory.mkdir(mode=0o700)
-                    _fsync_directory(self.directory)
-                proof_path = proof_directory / f"{turn_intent_id}.json"
-                _atomic_private_write(proof_path, proof)
-                persisted, _identity = _read_private_json_with_identity(proof_path)
-                if persisted != dict(proof):
-                    raise NativeLiveAllocationLedgerError(
-                        "turn-intent-absence-proof-persistence-invalid"
+                try:
+                    _strict_private_directory(dispatch_path.parent)
+                    persisted_dispatch, dispatch_identity = (
+                        _read_private_json_with_identity(dispatch_path)
                     )
-                return persisted
+                except NativeLiveAllocationLedgerError as exc:
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-intent-absence-dispatch-missing"
+                    ) from exc
+                if persisted_dispatch != dispatch:
+                    raise NativeLiveAllocationLedgerError(
+                        "turn-intent-absence-dispatch-mismatch"
+                    )
+                capability = object()
+                self._turn_absence_verifier_capabilities[capability] = (
+                    _TurnAbsenceVerifierBinding(
+                        proof_sha256=str(proof_value["proof_sha256"]),
+                        thread_id=thread_id,
+                        turn_intent_id=turn_intent_id,
+                        request_id=int(negative["request_id"]),
+                        connection_epoch_sha256=str(
+                            negative["connection_epoch_sha256"]
+                        ),
+                        wire_request_sha256=str(negative["wire_request_sha256"]),
+                        response_sha256=str(negative["response_sha256"]),
+                        dispatch_path=str(dispatch_path),
+                        dispatch_identity=dispatch_identity,
+                        dispatch_record_sha256=str(dispatch["record_sha256"]),
+                    )
+                )
+                return capability
+
+    def persist_turn_absence_proof(
+        self, _proof: Mapping[str, Any], **_kwargs: Any
+    ) -> dict[str, Any]:
+        """Reject standalone proof staging; resolution owns the guarded write."""
+
+        raise NativeLiveAllocationLedgerError(
+            "turn-intent-absence-proof-standalone-persistence-forbidden"
+        )
 
     def bind_turn(self, thread_id: str, turn_intent_id: str, turn_id: str) -> None:
         binding, expected_intent, existing_turn, _duplicate = self._thread_binding(
@@ -1864,27 +2128,43 @@ class NativeLiveAllocationLedgerStore:
         thread_id: str,
         turn_intent_id: str,
         *,
-        proof_sha256: str,
+        proof: Mapping[str, Any],
+        verifier_capability: object,
     ) -> None:
-        """Atomically bind a canonical persisted absence proof to one intent."""
+        """Persist and bind one exact-negative proof under a one-shot capability."""
 
-        if not _is_hash(proof_sha256):
+        proof_value = json.loads(
+            json.dumps(dict(proof), sort_keys=True, separators=(",", ":"))
+        )
+        errors = validate_turn_absence_proof(proof_value)
+        if errors:
             raise NativeLiveAllocationLedgerError(
-                "turn-intent-absence-proof-sha256-invalid"
+                "turn-intent-absence-proof-invalid:" + ";".join(errors)
             )
+        proof_sha256 = str(proof_value["proof_sha256"])
         binding, expected_intent, existing_turn, _duplicate = self._thread_binding(
             thread_id
         )
         if expected_intent != turn_intent_id or existing_turn is not None:
             raise NativeLiveAllocationLedgerError("turn-intent-resolution-mismatch")
 
-        def verify_persisted_proof(
+        def persist_verified_proof(
             state: Mapping[str, Any],
             _trusted: _TrustedLedgerCoordinates,
             semantic_index: _LedgerSemanticIndex,
         ) -> tuple[str, _PrivateFileIdentity]:
+            try:
+                verifier = self._turn_absence_verifier_capabilities.pop(
+                    verifier_capability
+                )
+            except (KeyError, TypeError) as exc:
+                raise NativeLiveAllocationLedgerError(
+                    "turn-intent-absence-verifier-capability-invalid"
+                ) from exc
             intent = semantic_index.turn_intent(turn_intent_id)
             live_binding = semantic_index.thread_binding(thread_id)
+            dispatch = proof_value["dispatch_record"]
+            negative = proof_value["negative_response"]
             if (
                 intent is None
                 or live_binding is None
@@ -1892,25 +2172,59 @@ class NativeLiveAllocationLedgerStore:
                 or intent.get("allocation_intent_id")
                 != binding.get("allocation_intent_id")
                 or semantic_index.turn_intent_resolved(turn_intent_id)
+                or verifier.proof_sha256 != proof_sha256
+                or verifier.thread_id != thread_id
+                or verifier.turn_intent_id != turn_intent_id
+                or verifier.request_id != negative.get("request_id")
+                or verifier.connection_epoch_sha256
+                != negative.get("connection_epoch_sha256")
+                or verifier.wire_request_sha256
+                != negative.get("wire_request_sha256")
+                or verifier.response_sha256 != negative.get("response_sha256")
+                or verifier.dispatch_record_sha256
+                != dispatch.get("record_sha256")
             ):
                 raise NativeLiveAllocationLedgerError(
-                    "turn-intent-resolution-mismatch"
+                    "turn-intent-absence-verifier-capability-mismatch"
                 )
-            synthetic_entry = {
-                "thread_id": thread_id,
-                "turn_intent_id": turn_intent_id,
-                "evidence_sha256": proof_sha256,
-            }
-            proof, identity = _verified_turn_absence_proof(
-                self.directory,
-                state,
-                synthetic_entry,
-                expected_proof_sha256=proof_sha256,
+            dispatch_path = Path(verifier.dispatch_path)
+            try:
+                persisted_dispatch, dispatch_identity = (
+                    _read_private_json_with_identity(dispatch_path)
+                )
+            except NativeLiveAllocationLedgerError as exc:
+                raise NativeLiveAllocationLedgerError(
+                    "turn-intent-absence-dispatch-missing"
+                ) from exc
+            if (
+                dispatch_identity != verifier.dispatch_identity
+                or persisted_dispatch != dispatch
+            ):
+                raise NativeLiveAllocationLedgerError(
+                    "turn-intent-absence-dispatch-mismatch"
+                )
+            proof_directory = self.directory / "turn-absence"
+            if proof_directory.exists() or proof_directory.is_symlink():
+                _strict_private_directory(proof_directory)
+            else:
+                proof_directory.mkdir(mode=0o700)
+                _fsync_directory(self.directory)
+            proof_path = proof_directory / f"{turn_intent_id}.json"
+            _atomic_private_write(proof_path, proof_value)
+            persisted_proof, proof_identity = _read_private_json_with_identity(
+                proof_path
             )
-            proof_path = self.directory / "turn-absence" / (
-                f"{proof['turn_intent_id']}.json"
-            )
-            return str(proof_path), identity
+            if persisted_proof != proof_value:
+                raise NativeLiveAllocationLedgerError(
+                    "turn-intent-absence-proof-persistence-invalid"
+                )
+            if _path_private_identity(
+                dispatch_path, "turn-dispatch"
+            ) != verifier.dispatch_identity:
+                raise NativeLiveAllocationLedgerError(
+                    "turn-intent-absence-dispatch-identity-changed"
+                )
+            return str(proof_path), proof_identity
 
         self._append(
             event="containment-audited",
@@ -1921,7 +2235,7 @@ class NativeLiveAllocationLedgerStore:
             turn_intent_id=turn_intent_id,
             evidence_sha256=proof_sha256,
             outcome="turn-intent-verified-absent",
-            _pre_append_guard=verify_persisted_proof,
+            _pre_append_guard=persist_verified_proof,
         )
 
     def record_lifecycle(self, thread_id: str, event: str, outcome: str) -> None:
@@ -1960,6 +2274,42 @@ class NativeLiveAllocationLedgerStore:
                 "containment-outcome-not-success"
             )
         binding, turn_intent_id, turn_id, _duplicate = self._thread_binding(thread_id)
+        evidence_sha256 = _hash(
+            dict(evidence), domain="native-live-containment-audit"
+        )
+
+        def exact_existing_success(
+            state: Mapping[str, Any],
+            _trusted: _TrustedLedgerCoordinates,
+            _semantic_index: _LedgerSemanticIndex,
+        ) -> Mapping[str, Any] | None:
+            successes = [
+                entry
+                for entry in state["entries"]
+                if entry.get("event") == "containment-audited"
+                and entry.get("thread_id") == thread_id
+                and entry.get("outcome") in {"contained", "already-contained"}
+            ]
+            if not successes:
+                return None
+            if len(successes) != 1:
+                raise NativeLiveAllocationLedgerError(
+                    "containment-audit-success-duplicate"
+                )
+            existing = successes[0]
+            if (
+                existing.get("outcome") != outcome
+                or existing.get("evidence_sha256") != evidence_sha256
+                or existing.get("allocation_intent_id")
+                != binding.get("allocation_intent_id")
+                or existing.get("turn_intent_id") != turn_intent_id
+                or existing.get("turn_id") != turn_id
+            ):
+                raise NativeLiveAllocationLedgerError(
+                    "containment-audit-success-conflict"
+                )
+            return existing
+
         self._append(
             event="containment-audited",
             role=binding["role"],
@@ -1968,10 +2318,9 @@ class NativeLiveAllocationLedgerStore:
             thread_id=thread_id,
             turn_intent_id=turn_intent_id,
             turn_id=turn_id,
-            evidence_sha256=_hash(
-                dict(evidence), domain="native-live-containment-audit"
-            ),
+            evidence_sha256=evidence_sha256,
             outcome=outcome,
+            _idempotent_existing=exact_existing_success,
         )
 
     def bind_certification(self, receipt_sha256: str) -> None:

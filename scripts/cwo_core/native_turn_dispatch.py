@@ -11,7 +11,6 @@ from typing import Any, Mapping
 
 TURN_DISPATCH_ARTIFACT_TYPE = "cwo-native-turn-dispatch:v1"
 TURN_ABSENCE_PROOF_ARTIFACT_TYPE = "cwo-native-turn-absence-proof:v1"
-TURN_ABSENCE_PROOF_MIN_QUIET_WINDOW_MS = 50
 TURN_DISPATCH_STATUSES = {
     "prepared",
     "dispatching",
@@ -33,6 +32,7 @@ TURN_DISPATCH_FIELDS = {
     "request_id",
     "connection_epoch_sha256",
     "notification_cursor",
+    "notification_connection_epoch_sha256",
     "preexisting_turn_ids",
     "ledger_id",
     "ledger_head_entry_sha256",
@@ -63,14 +63,15 @@ TURN_ABSENCE_PROOF_FIELDS = {
     "ledger_id",
     "turn_intent_entry_sha256",
     "dispatch_record",
-    "first_empty_query_count",
-    "final_empty_query_count",
-    "quiet_window_ms",
-    "notification_cursor_before_quiet",
-    "notification_cursor_after_final_query",
-    "post_query_notification_sequences",
-    "final_active_turn_ids",
+    "negative_response",
     "proof_sha256",
+}
+TURN_NEGATIVE_RESPONSE_FIELDS = {
+    "request_id",
+    "connection_epoch_sha256",
+    "wire_request_sha256",
+    "code",
+    "response_sha256",
 }
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _UUID_RE = re.compile(
@@ -162,6 +163,9 @@ def validate_turn_dispatch_record(value: Any) -> list[str]:
         or value["notification_cursor"] < 0
     ):
         errors.append("turn-dispatch-notification-cursor-invalid")
+    notification_epoch = value.get("notification_connection_epoch_sha256")
+    if notification_epoch is not None and not _is_hash(notification_epoch):
+        errors.append("turn-dispatch-notification-connection-epoch-invalid")
     for field in (
         "preexisting_turn_ids",
         "discovered_turn_ids",
@@ -173,6 +177,8 @@ def validate_turn_dispatch_record(value: Any) -> list[str]:
             errors.append(f"turn-dispatch-{field.replace('_', '-')}-invalid")
     if not _is_sorted_unique_ints(value.get("notification_sequences")):
         errors.append("turn-dispatch-notification-sequences-invalid")
+    elif value.get("notification_sequences") and notification_epoch is None:
+        errors.append("turn-dispatch-notification-connection-epoch-missing")
     for field in (
         "ledger_id",
         "ledger_head_entry_sha256",
@@ -231,6 +237,7 @@ def validate_turn_dispatch_record(value: Any) -> list[str]:
         errors.append("turn-dispatch-ledger-resolution-invalid")
     empty_progress = bool(
         exact_turn is None
+        and notification_epoch is None
         and not value.get("notification_sequences")
         and not value.get("discovered_turn_ids")
         and not value.get("interrupt_attempted_turn_ids")
@@ -262,6 +269,7 @@ def validate_turn_dispatch_record(value: Any) -> list[str]:
         or value.get("discovered_turn_ids") != [exact_turn]
         or value.get("ledger_resolution") != "turn-bound"
         or ambiguity_reason is not None
+        or notification_epoch is not None
         or value.get("notification_sequences")
         or value.get("interrupt_attempted_turn_ids")
         or value.get("interrupt_failed_turn_ids")
@@ -325,12 +333,19 @@ def validate_turn_dispatch_record(value: Any) -> list[str]:
         errors.append("turn-dispatch-active-turn-phase-invalid")
     if set(value.get("preexisting_turn_ids", [])).intersection(discovered):
         errors.append("turn-dispatch-preexisting-turn-rediscovered")
+    notification_floor = (
+        value.get("notification_cursor", -1)
+        if notification_epoch == value.get("connection_epoch_sha256")
+        else 0
+    )
     if any(
-        sequence <= value.get("notification_cursor", -1)
+        sequence <= notification_floor
         for sequence in value.get("notification_sequences", [])
     ):
         errors.append("turn-dispatch-notification-sequence-before-cursor")
-    if value.get("absence_verified") and (value.get("query_count", 0) < 2 or active):
+    if value.get("absence_verified") and (
+        active or (discovered and value.get("query_count", 0) < 1)
+    ):
         errors.append("turn-dispatch-absence-phase-invalid")
     ledger_resolution = value.get("ledger_resolution")
     if ledger_resolution == "verified-absent" and (
@@ -354,7 +369,8 @@ def validate_turn_dispatch_record(value: Any) -> list[str]:
     }:
         errors.append("turn-dispatch-archive-phase-invalid")
     if status not in {"failed-contained", "failed-ambiguous"} and (
-        value.get("notification_sequences")
+        notification_epoch is not None
+        or value.get("notification_sequences")
         or value.get("interrupt_attempted_turn_ids")
         or value.get("terminal_status_by_turn")
         or value.get("active_turn_ids_at_final_check")
@@ -367,7 +383,7 @@ def validate_turn_dispatch_record(value: Any) -> list[str]:
 
 
 def validate_turn_absence_proof(value: Any) -> list[str]:
-    """Return strict findings for one immutable, quiet-window absence proof."""
+    """Return strict findings for one exact negative-response absence proof."""
 
     if not isinstance(value, Mapping):
         return ["turn-absence-proof-must-be-object"]
@@ -405,54 +421,45 @@ def validate_turn_absence_proof(value: Any) -> list[str]:
         or dispatch.get("turn_intent_entry_sha256")
         != value.get("turn_intent_entry_sha256")
         or dispatch.get("status") != "failed-ambiguous"
+        or dispatch.get("ambiguity_reason") != "rpc-error-response"
         or dispatch.get("ledger_resolution") != "pending"
-        or dispatch.get("absence_verified") is not True
+        or dispatch.get("absence_verified") is not False
         or dispatch.get("absence_proof_sha256") is not None
         or dispatch.get("archived") is not False
         or dispatch.get("discovered_turn_ids")
         or dispatch.get("active_turn_ids_at_final_check")
+        or dispatch.get("notification_sequences")
     ):
         errors.append("turn-absence-proof-dispatch-binding-invalid")
-    first_query = value.get("first_empty_query_count")
-    final_query = value.get("final_empty_query_count")
-    if (
-        type(first_query) is not int
-        or type(final_query) is not int
-        or first_query < 1
-        or final_query <= first_query
-        or (
-            isinstance(dispatch, Mapping) and dispatch.get("query_count") != final_query
-        )
-    ):
-        errors.append("turn-absence-proof-query-window-invalid")
-    quiet_window_ms = value.get("quiet_window_ms")
-    if (
-        type(quiet_window_ms) is not int
-        or quiet_window_ms < TURN_ABSENCE_PROOF_MIN_QUIET_WINDOW_MS
-    ):
-        errors.append("turn-absence-proof-quiet-window-invalid")
-    cursor_before = value.get("notification_cursor_before_quiet")
-    cursor_after = value.get("notification_cursor_after_final_query")
-    if (
-        type(cursor_before) is not int
-        or type(cursor_after) is not int
-        or cursor_before < 0
-        or cursor_after < cursor_before
-    ):
-        errors.append("turn-absence-proof-notification-window-invalid")
-    if not _is_sorted_unique_ints(value.get("post_query_notification_sequences")):
-        errors.append("turn-absence-proof-notification-sequences-invalid")
-    elif value.get("post_query_notification_sequences"):
-        errors.append("turn-absence-proof-post-query-start-observed")
-    if value.get("final_active_turn_ids") != []:
-        errors.append("turn-absence-proof-active-turns-observed")
+    negative = value.get("negative_response")
+    if not isinstance(negative, Mapping) or set(negative) != TURN_NEGATIVE_RESPONSE_FIELDS:
+        errors.append("turn-absence-proof-negative-response-fields-invalid")
+    else:
+        if type(negative.get("request_id")) is not int or negative["request_id"] < 1:
+            errors.append("turn-absence-proof-negative-response-request-invalid")
+        if not _is_hash(negative.get("connection_epoch_sha256")):
+            errors.append("turn-absence-proof-negative-response-epoch-invalid")
+        if not _is_hash(negative.get("wire_request_sha256")):
+            errors.append("turn-absence-proof-negative-response-wire-invalid")
+        if type(negative.get("code")) is not int:
+            errors.append("turn-absence-proof-negative-response-code-invalid")
+        if not _is_hash(negative.get("response_sha256")):
+            errors.append("turn-absence-proof-negative-response-sha256-invalid")
+        if isinstance(dispatch, Mapping) and (
+            negative.get("request_id") != dispatch.get("request_id")
+            or negative.get("connection_epoch_sha256")
+            != dispatch.get("connection_epoch_sha256")
+            or negative.get("wire_request_sha256")
+            != dispatch.get("wire_request_sha256")
+        ):
+            errors.append("turn-absence-proof-negative-response-binding-invalid")
     if value.get("proof_sha256") != _absence_proof_sha256(value):
         errors.append("turn-absence-proof-sha256-invalid")
     return errors
 
 
 def seal_turn_absence_proof(value: Mapping[str, Any]) -> dict[str, Any]:
-    """Seal and validate one immutable quiet-window absence proof."""
+    """Seal and validate one immutable negative-response absence proof."""
 
     sealed = dict(value)
     sealed["proof_sha256"] = _absence_proof_sha256(sealed)
@@ -499,6 +506,7 @@ class TurnDispatchReservation:
                 "request_id": self.request_id,
                 "connection_epoch_sha256": self.connection_epoch_sha256,
                 "notification_cursor": self.notification_cursor,
+                "notification_connection_epoch_sha256": None,
                 "preexisting_turn_ids": sorted(set(self.preexisting_turn_ids)),
                 "ledger_id": self.ledger_id,
                 "ledger_head_entry_sha256": self.ledger_head_entry_sha256,
