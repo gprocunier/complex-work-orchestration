@@ -24,6 +24,7 @@ __all__ = [
     "native_containment",
     "native_control",
     "native_precommit",
+    "native_pool_admission",
     "native_pool_capacity",
     "native_pool_capacity_compat",
     "native_pool_contracts",
