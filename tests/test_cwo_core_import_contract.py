@@ -123,6 +123,12 @@ ALLOWED_IMPORTS = {
     "native_disposition": set(),
     "native_progress": {"native_authority", "native_stop_scope", "policy"},
     "native_recovery": set(),
+    "native_recovery_authority": {
+        "native_live_allocation_ledger",
+        "native_recovery_policy",
+        "native_retry",
+    },
+    "native_recovery_policy": set(),
     "native_retry": {"native_authority"},
     "native_replanning": {"native_authority", "policy"},
     "native_session": {"native_disposition"},

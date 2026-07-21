@@ -22,9 +22,16 @@ from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     EXPECTED_ROLES,
     NativeLiveAllocationLedgerError,
     NativeLiveAllocationLedgerStore,
+    VerifiedContainedTurnDispatch,
     validate_live_allocation_ledger,
 )
 from cwo_core.native_pool_contracts import canonical_sha256  # noqa: E402
+from cwo_core.native_turn_dispatch import (  # noqa: E402
+    TURN_ABSENCE_PROOF_ARTIFACT_TYPE,
+    TurnDispatchReservation,
+    evolve_turn_dispatch_record,
+    seal_turn_absence_proof,
+)
 import cwo_core.native_live_allocation_ledger as LEDGER  # noqa: E402
 
 
@@ -105,7 +112,472 @@ UUID_TEXT_ALIASES = (
 )
 
 
+def seed_contained_turn_dispatch(
+    store: NativeLiveAllocationLedgerStore,
+    *,
+    resolution: str,
+    include_archive: bool = True,
+    include_containment_audit: bool = True,
+    final_status: str = "failed-contained",
+) -> tuple[str, str, str | None]:
+    """Create a structural ledger-chain fixture without live dispatch."""
+
+    allocation_id = store.allocation_intent("read-only-0")
+    thread_id = "thread-contained"
+    store.bind_thread(allocation_id, thread_id)
+    turn_intent_id = store.turn_intent(thread_id)
+    state = store.load()
+    intent_entry = state["entries"][-1]
+    epoch = state["bindings"]["connection_epoch_sha256"]
+    reservation = TurnDispatchReservation(
+        thread_id=thread_id,
+        turn_intent_id=turn_intent_id,
+        request_id=17,
+        connection_epoch_sha256=epoch,
+        notification_cursor=0,
+        preexisting_turn_ids=(),
+        ledger_id=state["ledger_id"],
+        ledger_head_entry_sha256=intent_entry["entry_sha256"],
+        turn_intent_entry_sha256=intent_entry["entry_sha256"],
+        wire_request_sha256=sha("contained-wire-request"),
+    )
+    dispatch = evolve_turn_dispatch_record(
+        reservation.prepared_record(),
+        status="dispatching",
+        wire_write_attempt_count=1,
+    )
+    ambiguity_reason = (
+        "rpc-error-response" if resolution == "verified-absent" else "response-timeout"
+    )
+    ambiguous = evolve_turn_dispatch_record(
+        dispatch,
+        status="failed-ambiguous",
+        ambiguity_reason=ambiguity_reason,
+    )
+    dispatch_directory = store.directory / "turn-dispatch"
+    dispatch_directory.mkdir(mode=0o700)
+    dispatch_path = dispatch_directory / f"{turn_intent_id}.json"
+    LEDGER._atomic_private_write(dispatch_path, ambiguous)
+
+    turn_id: str | None
+    absence_proof_sha256: str | None = None
+    if resolution == "turn-bound":
+        turn_id = "turn-contained"
+        store.bind_turn(thread_id, turn_intent_id, turn_id)
+        discovered = [turn_id]
+        terminal = {turn_id: "interrupted"}
+    elif resolution == "verified-absent":
+        turn_id = None
+        proof = seal_turn_absence_proof(
+            {
+                "artifact_type": TURN_ABSENCE_PROOF_ARTIFACT_TYPE,
+                "version": 1,
+                "thread_id": thread_id,
+                "turn_intent_id": turn_intent_id,
+                "ledger_id": state["ledger_id"],
+                "turn_intent_entry_sha256": intent_entry["entry_sha256"],
+                "dispatch_record": ambiguous,
+                "negative_response": {
+                    "request_id": 17,
+                    "connection_epoch_sha256": epoch,
+                    "wire_request_sha256": ambiguous["wire_request_sha256"],
+                    "code": -32603,
+                    "response_sha256": sha("negative-response"),
+                },
+                "proof_sha256": "",
+            }
+        )
+        absence_proof_sha256 = proof["proof_sha256"]
+        proof_directory = store.directory / "turn-absence"
+        proof_directory.mkdir(mode=0o700)
+        proof_path = proof_directory / f"{turn_intent_id}.json"
+        LEDGER._atomic_private_write(proof_path, proof)
+        proof_identity = LEDGER._path_private_identity(
+            proof_path, "turn-absence-proof"
+        )
+        binding = store._thread_binding(thread_id)[0]
+        store._append(
+            event="containment-audited",
+            role=binding["role"],
+            ordinal=binding["ordinal"],
+            allocation_intent_id=binding["allocation_intent_id"],
+            thread_id=thread_id,
+            turn_intent_id=turn_intent_id,
+            evidence_sha256=absence_proof_sha256,
+            outcome="turn-intent-verified-absent",
+            _pre_append_guard=lambda *_args: (str(proof_path), proof_identity),
+        )
+        discovered = []
+        terminal = {}
+    else:  # pragma: no cover - test helper contract
+        raise AssertionError(f"unsupported fixture resolution: {resolution}")
+
+    if include_archive:
+        store.record_lifecycle(
+            thread_id,
+            "archive-observed",
+            "archive-request-accepted",
+        )
+    final = evolve_turn_dispatch_record(
+        ambiguous,
+        status=final_status,
+        ambiguity_reason=ambiguity_reason,
+        notification_connection_epoch_sha256=epoch,
+        discovered_turn_ids=discovered,
+        terminal_status_by_turn=terminal,
+        active_turn_ids_at_final_check=[],
+        interrupt_failed_turn_ids=[],
+        query_count=1,
+        absence_verified=True,
+        absence_proof_sha256=absence_proof_sha256,
+        archived=True,
+        ledger_resolution=resolution,
+    )
+    LEDGER._atomic_private_write(dispatch_path, final)
+    if include_containment_audit:
+        store.record_containment_audit(
+            thread_id,
+            outcome="contained",
+            evidence={
+                "dispatch_record_sha256": final["record_sha256"],
+                "absence_proof_sha256": absence_proof_sha256,
+                "discovered_turn_ids": discovered,
+                "terminal_status_by_turn": terminal,
+                "absence_verified": True,
+                "archive_request_accepted": True,
+            },
+        )
+    return thread_id, turn_intent_id, turn_id
+
+
 class NativeLiveAllocationLedgerTests(unittest.TestCase):
+    def test_contained_turn_dispatch_witness_is_one_shot_and_non_authorizing(
+        self,
+    ) -> None:
+        expected_keys = {
+            "verification_grade",
+            "dispatch_authorized",
+            "ledger_version",
+            "bead_id",
+            "work_unit_id",
+            "ledger_id",
+            "allocation_intent_id",
+            "role",
+            "ordinal",
+            "thread_id",
+            "turn_intent_id",
+            "turn_id",
+            "ledger_resolution",
+            "request_id",
+            "connection_epoch_sha256",
+            "wire_request_sha256",
+            "dispatch_transport_binding_sha256",
+            "dispatch_record_sha256",
+            "dispatch_file_sha256",
+            "dispatch_ledger_head_entry_sha256",
+            "turn_intent_entry_sha256",
+            "turn_resolution_entry_sha256",
+            "archive_entry_sha256",
+            "containment_entry_sha256",
+            "containment_evidence_sha256",
+            "containment_audit_event_hash",
+            "absence_proof_sha256",
+            "absence_proof_file_sha256",
+            "discovered_turn_ids",
+            "terminal_status_by_turn",
+            "ledger_head_entry_sha256",
+            "ledger_state_sha256",
+            "audit_head_sha256",
+        }
+        for resolution in ("turn-bound", "verified-absent"):
+            with (
+                self.subTest(resolution=resolution),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                store = NativeLiveAllocationLedgerStore(
+                    Path(temporary) / "private-ledger"
+                )
+                store.initialize(bindings_v2(), version=2)
+                thread_id, turn_intent_id, turn_id = seed_contained_turn_dispatch(
+                    store, resolution=resolution
+                )
+                witness = store.verify_contained_turn_dispatch(
+                    thread_id, turn_intent_id
+                )
+                self.assertIsInstance(witness, VerifiedContainedTurnDispatch)
+                self.assertFalse(hasattr(witness, "__dict__"))
+                result = store.consume_verified_contained_turn_dispatch(
+                    witness,
+                    expected_thread_id=thread_id,
+                    expected_turn_intent_id=turn_intent_id,
+                )
+                self.assertEqual(set(result), expected_keys)
+                self.assertEqual(result["verification_grade"], "ledger-chain-only")
+                self.assertIs(result["dispatch_authorized"], False)
+                self.assertEqual(result["ledger_version"], 2)
+                self.assertEqual(
+                    result["work_unit_id"],
+                    store.load()["bindings"]["work_unit_id"],
+                )
+                self.assertEqual(result["thread_id"], thread_id)
+                self.assertEqual(result["turn_intent_id"], turn_intent_id)
+                self.assertEqual(result["turn_id"], turn_id)
+                self.assertEqual(result["ledger_resolution"], resolution)
+                with self.assertRaises(TypeError):
+                    result["dispatch_authorized"] = True
+                with self.assertRaisesRegex(
+                    NativeLiveAllocationLedgerError, "witness-invalid"
+                ):
+                    store.consume_verified_contained_turn_dispatch(
+                        witness,
+                        expected_thread_id=thread_id,
+                        expected_turn_intent_id=turn_intent_id,
+                    )
+
+    def test_contained_turn_dispatch_identity_registry_ignores_hostile_aliases(
+        self,
+    ) -> None:
+        class HostileAlias:
+            def __init__(self) -> None:
+                self.hash_calls = 0
+                self.equality_calls = 0
+
+            def __hash__(self) -> int:
+                self.hash_calls += 1
+                raise AssertionError("hostile hash executed")
+
+            def __eq__(self, _other: object) -> bool:
+                self.equality_calls += 1
+                raise AssertionError("hostile equality executed")
+
+        class ForgedSubclass(VerifiedContainedTurnDispatch):
+            pass
+
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(
+                Path(temporary) / "private-ledger"
+            )
+            store.initialize(bindings_v2(), version=2)
+            thread_id, turn_intent_id, _turn_id = seed_contained_turn_dispatch(
+                store, resolution="turn-bound"
+            )
+            witness = store.verify_contained_turn_dispatch(thread_id, turn_intent_id)
+            with self.assertRaisesRegex(TypeError, "mint-forbidden"):
+                VerifiedContainedTurnDispatch()
+            aliases = (
+                object.__new__(VerifiedContainedTurnDispatch),
+                object.__new__(ForgedSubclass),
+                HostileAlias(),
+            )
+            for alias in aliases:
+                with self.assertRaisesRegex(
+                    NativeLiveAllocationLedgerError, "witness-invalid"
+                ):
+                    store.consume_verified_contained_turn_dispatch(
+                        alias,
+                        expected_thread_id=thread_id,
+                        expected_turn_intent_id=turn_intent_id,
+                    )
+            hostile = aliases[-1]
+            self.assertEqual(hostile.hash_calls, 0)
+            self.assertEqual(hostile.equality_calls, 0)
+            result = store.consume_verified_contained_turn_dispatch(
+                witness,
+                expected_thread_id=thread_id,
+                expected_turn_intent_id=turn_intent_id,
+            )
+            self.assertIs(result["dispatch_authorized"], False)
+
+    def test_contained_turn_dispatch_rejects_v1_archive_only_and_arbitrary_audit(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(
+                Path(temporary) / "private-ledger"
+            )
+            store.initialize(bindings())
+            thread_id, turn_intent_id, _turn_id = seed_contained_turn_dispatch(
+                store, resolution="turn-bound"
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "work-unit-binding-missing"
+            ):
+                store.verify_contained_turn_dispatch(thread_id, turn_intent_id)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(
+                Path(temporary) / "private-ledger"
+            )
+            store.initialize(bindings_v2(), version=2)
+            thread_id, turn_intent_id, _turn_id = seed_contained_turn_dispatch(
+                store,
+                resolution="turn-bound",
+                include_containment_audit=False,
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "lifecycle-invalid"
+            ):
+                store.verify_contained_turn_dispatch(thread_id, turn_intent_id)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(
+                Path(temporary) / "private-ledger"
+            )
+            store.initialize(bindings_v2(), version=2)
+            allocation = store.allocation_intent("read-only-0")
+            thread_id = "thread-contained"
+            store.bind_thread(allocation, thread_id)
+            turn_intent_id = store.turn_intent(thread_id)
+            state = store.load()
+            intent = state["entries"][-1]
+            epoch = state["bindings"]["connection_epoch_sha256"]
+            prepared = TurnDispatchReservation(
+                thread_id=thread_id,
+                turn_intent_id=turn_intent_id,
+                request_id=1,
+                connection_epoch_sha256=epoch,
+                notification_cursor=0,
+                preexisting_turn_ids=(),
+                ledger_id=state["ledger_id"],
+                ledger_head_entry_sha256=intent["entry_sha256"],
+                turn_intent_entry_sha256=intent["entry_sha256"],
+                wire_request_sha256=sha("forged-wire"),
+            ).prepared_record()
+            ambiguous = evolve_turn_dispatch_record(
+                evolve_turn_dispatch_record(
+                    prepared,
+                    status="dispatching",
+                    wire_write_attempt_count=1,
+                ),
+                status="failed-ambiguous",
+                ambiguity_reason="response-timeout",
+            )
+            turn_id = "turn-contained"
+            store.bind_turn(thread_id, turn_intent_id, turn_id)
+            store.record_lifecycle(
+                thread_id, "archive-observed", "archive-request-accepted"
+            )
+            store.record_containment_audit(
+                thread_id,
+                outcome="contained",
+                evidence={"caller_fabricated": True},
+            )
+            final = evolve_turn_dispatch_record(
+                ambiguous,
+                status="failed-contained",
+                notification_connection_epoch_sha256=epoch,
+                discovered_turn_ids=[turn_id],
+                terminal_status_by_turn={turn_id: "interrupted"},
+                query_count=1,
+                absence_verified=True,
+                archived=True,
+                ledger_resolution="turn-bound",
+            )
+            dispatch_directory = store.directory / "turn-dispatch"
+            dispatch_directory.mkdir(mode=0o700)
+            LEDGER._atomic_private_write(
+                dispatch_directory / f"{turn_intent_id}.json", final
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "audit-evidence-invalid"
+            ):
+                store.verify_contained_turn_dispatch(thread_id, turn_intent_id)
+
+    def test_contained_turn_dispatch_rejects_ambiguous_drift_reopen_and_substitution(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(
+                Path(temporary) / "private-ledger"
+            )
+            store.initialize(bindings_v2(), version=2)
+            thread_id, turn_intent_id, _turn_id = seed_contained_turn_dispatch(
+                store,
+                resolution="turn-bound",
+                final_status="failed-ambiguous",
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "final-state-invalid"
+            ):
+                store.verify_contained_turn_dispatch(thread_id, turn_intent_id)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            store = NativeLiveAllocationLedgerStore(
+                Path(temporary) / "private-ledger"
+            )
+            store.initialize(bindings_v2(), version=2)
+            thread_id, turn_intent_id, _turn_id = seed_contained_turn_dispatch(
+                store, resolution="turn-bound"
+            )
+            witness = store.verify_contained_turn_dispatch(thread_id, turn_intent_id)
+            path = store.directory / "turn-dispatch" / f"{turn_intent_id}.json"
+            record = json.loads(path.read_text(encoding="utf-8"))
+            resealed = evolve_turn_dispatch_record(
+                record, query_count=record["query_count"] + 1
+            )
+            LEDGER._atomic_private_write(path, resealed)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "binding-drift|audit-evidence-invalid",
+            ):
+                store.consume_verified_contained_turn_dispatch(
+                    witness,
+                    expected_thread_id=thread_id,
+                    expected_turn_intent_id=turn_intent_id,
+                )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "private-ledger"
+            first = NativeLiveAllocationLedgerStore(directory)
+            first.initialize(bindings_v2(), version=2)
+            thread_id, turn_intent_id, _turn_id = seed_contained_turn_dispatch(
+                first, resolution="turn-bound"
+            )
+            first_witness = first.verify_contained_turn_dispatch(
+                thread_id, turn_intent_id
+            )
+            second_witness = first.verify_contained_turn_dispatch(
+                thread_id, turn_intent_id
+            )
+            second = NativeLiveAllocationLedgerStore(directory)
+            second.open()
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "witness-invalid"
+            ):
+                second.consume_verified_contained_turn_dispatch(
+                    first_witness,
+                    expected_thread_id=thread_id,
+                    expected_turn_intent_id=turn_intent_id,
+                )
+            for witness in (first_witness, second_witness):
+                result = first.consume_verified_contained_turn_dispatch(
+                    witness,
+                    expected_thread_id=thread_id,
+                    expected_turn_intent_id=turn_intent_id,
+                )
+                self.assertIs(result["dispatch_authorized"], False)
+            reopened_witness = first.verify_contained_turn_dispatch(
+                thread_id, turn_intent_id
+            )
+            first.open()
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError, "witness-invalid"
+            ):
+                first.consume_verified_contained_turn_dispatch(
+                    reopened_witness,
+                    expected_thread_id=thread_id,
+                    expected_turn_intent_id=turn_intent_id,
+                )
+            reminted = first.verify_contained_turn_dispatch(
+                thread_id, turn_intent_id
+            )
+            result = first.consume_verified_contained_turn_dispatch(
+                reminted,
+                expected_thread_id=thread_id,
+                expected_turn_intent_id=turn_intent_id,
+            )
+            self.assertIs(result["dispatch_authorized"], False)
+
     def test_v2_identity_bindings_reject_uuid_text_aliases(self) -> None:
         for field in ("authorization_id", "campaign_nonce"):
             for alias in UUID_TEXT_ALIASES:

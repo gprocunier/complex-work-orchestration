@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.cwo.local/native-retry-evidence.schema.json",
+  "title": "Native Retry Audit Evidence Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_type",
+    "version",
+    "schema",
+    "parent_packet_id",
+    "retry_packet_id",
+    "bead_id",
+    "requested_model",
+    "attested_model",
+    "parent_session_id",
+    "retry_session_id",
+    "tool_surface_id",
+    "attestation_source",
+    "work_sha256",
+    "attempt_from",
+    "attempt_to",
+    "cumulative_usage",
+    "remaining_before_retry",
+    "retry_budget",
+    "evidence_bindings",
+    "retry_evidence_sha256",
+    "evidence_provenance",
+    "receipt_authority",
+    "dispatch_authorized",
+    "required_dispatch_authority",
+    "next_action",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "receipt_type": {
+      "type": "string",
+      "const": "cwo-native-retry-evidence"
+    },
+    "version": {
+      "type": "integer",
+      "const": 3
+    },
+    "schema": {
+      "type": "string",
+      "const": "schemas/native-retry-evidence.schema.json"
+    },
+    "parent_packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retry_packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retry_session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tool_surface_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attestation_source": {
+      "type": "string",
+      "const": "trusted-session-jsonl"
+    },
+    "work_sha256": {
+      "$ref": "#/definitions/sha256"
+    },
+    "attempt_from": {
+      "type": "integer",
+      "const": 0,
+      "minimum": 0
+    },
+    "attempt_to": {
+      "type": "integer",
+      "const": 1,
+      "minimum": 1
+    },
+    "cumulative_usage": {
+      "$ref": "#/definitions/usage"
+    },
+    "remaining_before_retry": {
+      "$ref": "#/definitions/usage"
+    },
+    "retry_budget": {
+      "$ref": "#/definitions/usage"
+    },
+    "evidence_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parent_packet_sha256",
+        "retry_packet_sha256",
+        "supervision_state_sha256",
+        "workspace_report_sha256",
+        "semantic_result_sha256",
+        "recovery_policy_sha256",
+        "fresh_attestation_sha256",
+        "eligibility_sha256"
+      ],
+      "properties": {
+        "parent_packet_sha256": {"$ref": "#/definitions/sha256"},
+        "retry_packet_sha256": {"$ref": "#/definitions/sha256"},
+        "supervision_state_sha256": {"$ref": "#/definitions/sha256"},
+        "workspace_report_sha256": {"$ref": "#/definitions/sha256"},
+        "semantic_result_sha256": {"$ref": "#/definitions/sha256"},
+        "recovery_policy_sha256": {"$ref": "#/definitions/sha256"},
+        "fresh_attestation_sha256": {"$ref": "#/definitions/sha256"},
+        "eligibility_sha256": {"$ref": "#/definitions/sha256"}
+      }
+    },
+    "retry_evidence_sha256": {
+      "$ref": "#/definitions/sha256"
+    },
+    "evidence_provenance": {
+      "$ref": "#/definitions/evidence_provenance"
+    },
+    "receipt_authority": {
+      "type": "string",
+      "const": "audit-only"
+    },
+    "dispatch_authorized": {
+      "type": "boolean",
+      "const": false
+    },
+    "required_dispatch_authority": {
+      "type": "string",
+      "const": "opaque-verified-recovery-action"
+    },
+    "next_action": {
+      "type": "string",
+      "const": "await-verified-recovery-action"
+    },
+    "receipt_sha256": {
+      "$ref": "#/definitions/sha256"
+    }
+  },
+  "definitions": {
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_calls", "runtime_seconds"],
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "evidence_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "provenance_type",
+        "source_id",
+        "source_sha256",
+        "identity_source",
+        "verification",
+        "provenance_sha256"
+      ],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "provenance_type": {"type": "string", "const": "audit-evidence"},
+        "source_id": {"type": "string", "const": "native-retry-audit-evidence-v3"},
+        "source_sha256": {"$ref": "#/definitions/sha256"},
+        "identity_source": {"type": "string", "const": "native-retry-policy"},
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"type": "string", "const": "repository-policy-v1"},
+            "evidence_sha256": {"$ref": "#/definitions/sha256"}
+          }
+        },
+        "provenance_sha256": {"$ref": "#/definitions/sha256"}
+      }
+    }
+  }
+}

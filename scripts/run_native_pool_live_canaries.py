@@ -2416,6 +2416,24 @@ class AppServer:
     def _persist_turn_dispatch_record(
         self, record: Mapping[str, Any]
     ) -> dict[str, Any]:
+        with self._condition:
+            descriptor = self._open_turn_dispatch_lock(
+                str(record["turn_intent_id"])
+            )
+            try:
+                if descriptor is not None:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX)
+                return self._persist_turn_dispatch_record_locked(record)
+            finally:
+                if descriptor is not None:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                    os.close(descriptor)
+
+    def _persist_turn_dispatch_record_locked(
+        self, record: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Persist while the caller holds this turn's condition and file lock."""
+
         errors = validate_turn_dispatch_record(record)
         if errors:
             raise AppServerError("turn-dispatch-record-invalid:" + ";".join(errors))
@@ -2430,9 +2448,25 @@ class AppServer:
             write_private_artifact(path, persisted)
         return persisted
 
+    def _open_turn_dispatch_lock(self, turn_intent_id: str) -> int | None:
+        """Open the cross-AppServer lock for one exact durable turn intent."""
+
+        ledger = self.allocation_ledger
+        if ledger is None:
+            return None
+        lock_directory = _private_control_directory(
+            ledger.directory / "turn-dispatch-locks",
+            "turn-dispatch",
+        )
+        return _open_private_control_lock(
+            lock_directory / f"{turn_intent_id}.lock",
+            "turn-dispatch",
+        )
+
     def turn_dispatch_record(self, thread_id: str) -> dict[str, Any] | None:
-        record = getattr(self, "_turn_dispatch_records", {}).get(thread_id)
-        return dict(record) if isinstance(record, Mapping) else None
+        with self._condition:
+            record = getattr(self, "_turn_dispatch_records", {}).get(thread_id)
+            return dict(record) if isinstance(record, Mapping) else None
 
     def _turn_intent_ledger_link(
         self, turn_intent_id: str
@@ -2610,8 +2644,149 @@ class AppServer:
         current = self.turn_dispatch_record(thread_id)
         if current is None:
             raise AppServerError("ambiguous-turn-dispatch-record-missing")
+        ledger = self.allocation_ledger
+
+        def exactly_verified_failed_contained(record: Mapping[str, Any]) -> bool:
+            """Accept a final record only through the exact durable verifier."""
+
+            if (
+                ledger is None
+                or record.get("status") != "failed-contained"
+                or record.get("thread_id") != thread_id
+            ):
+                return False
+            try:
+                witness = ledger.verify_contained_turn_dispatch(
+                    thread_id,
+                    str(record["turn_intent_id"]),
+                )
+                verified = ledger.consume_verified_contained_turn_dispatch(
+                    witness,
+                    expected_thread_id=thread_id,
+                    expected_turn_intent_id=str(record["turn_intent_id"]),
+                )
+                return bool(
+                    verified.get("verification_grade") == "ledger-chain-only"
+                    and verified.get("dispatch_authorized") is False
+                    and verified.get("dispatch_record_sha256")
+                    == record.get("record_sha256")
+                )
+            except Exception:
+                return False
+
+        def persist_exact_audited_success(
+            precursor: Mapping[str, Any],
+            *,
+            allow_audit_create: bool,
+        ) -> dict[str, Any]:
+            """Audit an exact successor while the durable status stays ambiguous."""
+
+            with self._condition:
+                descriptor = self._open_turn_dispatch_lock(
+                    str(precursor["turn_intent_id"])
+                )
+                try:
+                    if descriptor is not None:
+                        fcntl.flock(descriptor, fcntl.LOCK_EX)
+                    path = self._turn_dispatch_path(
+                        str(precursor["turn_intent_id"])
+                    )
+                    durable = (
+                        load_private_json(path, "turn-dispatch-cas")
+                        if path is not None
+                        else self.turn_dispatch_record(thread_id)
+                    )
+                    if durable is None:
+                        raise AppServerError("turn-dispatch-cas-record-missing")
+                    errors = validate_turn_dispatch_record(durable)
+                    if errors:
+                        raise AppServerError(
+                            "turn-dispatch-cas-record-invalid:" + ";".join(errors)
+                        )
+                    if durable != dict(precursor):
+                        conflict = dict(durable)
+                        if (
+                            conflict["status"] == "failed-contained"
+                            and not exactly_verified_failed_contained(conflict)
+                        ):
+                            conflict = evolve_turn_dispatch_record(
+                                conflict,
+                                status="failed-ambiguous",
+                            )
+                            return self._persist_turn_dispatch_record_locked(conflict)
+                        self._turn_dispatch_records[thread_id] = conflict
+                        return conflict
+                    if ledger is None:
+                        return dict(precursor)
+                    candidate = evolve_turn_dispatch_record(
+                        precursor,
+                        status="failed-contained",
+                    )
+                    try:
+                        if allow_audit_create:
+                            ledger.record_containment_audit(
+                                thread_id,
+                                outcome="contained",
+                                evidence={
+                                    "dispatch_record_sha256": candidate[
+                                        "record_sha256"
+                                    ],
+                                    "absence_proof_sha256": candidate[
+                                        "absence_proof_sha256"
+                                    ],
+                                    "discovered_turn_ids": candidate[
+                                        "discovered_turn_ids"
+                                    ],
+                                    "terminal_status_by_turn": candidate[
+                                        "terminal_status_by_turn"
+                                    ],
+                                    "absence_verified": True,
+                                    "archive_request_accepted": True,
+                                },
+                            )
+                        elif not ledger.has_exact_containment_audit_for_dispatch(
+                            candidate
+                        ):
+                            return dict(precursor)
+                    except Exception:
+                        return dict(precursor)
+                    durable_after_audit = load_private_json(
+                        path, "turn-dispatch-cas"
+                    )
+                    errors = validate_turn_dispatch_record(durable_after_audit)
+                    if errors:
+                        raise AppServerError(
+                            "turn-dispatch-cas-record-invalid:" + ";".join(errors)
+                        )
+                    if durable_after_audit != dict(precursor):
+                        conflict = dict(durable_after_audit)
+                        if (
+                            conflict["status"] == "failed-contained"
+                            and not exactly_verified_failed_contained(conflict)
+                        ):
+                            conflict = evolve_turn_dispatch_record(
+                                conflict,
+                                status="failed-ambiguous",
+                            )
+                            return self._persist_turn_dispatch_record_locked(conflict)
+                        self._turn_dispatch_records[thread_id] = conflict
+                        return conflict
+                    return self._persist_turn_dispatch_record_locked(candidate)
+                finally:
+                    if descriptor is not None:
+                        fcntl.flock(descriptor, fcntl.LOCK_UN)
+                        os.close(descriptor)
+
         if current["status"] == "failed-contained":
-            return current
+            if not exactly_verified_failed_contained(current):
+                current = self._persist_turn_dispatch_record(
+                    evolve_turn_dispatch_record(
+                        current,
+                        status="failed-ambiguous",
+                    )
+                )
+            else:
+                return current
         if current["status"] not in {"dispatching", "failed-ambiguous"}:
             raise AppServerError("ambiguous-turn-dispatch-state-invalid")
         ambiguity_reason = (
@@ -2644,7 +2819,6 @@ class AppServer:
         final_active: set[str] = set(current["active_turn_ids_at_final_check"])
         absence_verified = False
         ledger_resolution = str(current["ledger_resolution"])
-        ledger = self.allocation_ledger
         durable_absence_authorized = False
         if ledger is not None:
             durable = ledger.turn_intent_resolution(str(current["turn_intent_id"]))
@@ -2669,6 +2843,22 @@ class AppServer:
                     raise AppServerError("ambiguous-turn-ledger-absence-mismatch")
                 ledger_resolution = "verified-absent"
                 durable_absence_authorized = True
+        audit_pending = bool(
+            current.get("status") == "failed-ambiguous"
+            and current.get("archived") is True
+            and current.get("absence_verified") is True
+            and not current.get("active_turn_ids_at_final_check")
+            and not current.get("interrupt_failed_turn_ids")
+            and set(current.get("discovered_turn_ids", []))
+            == set(current.get("terminal_status_by_turn", {}))
+            and current.get("ledger_resolution") in {"turn-bound", "verified-absent"}
+            and current.get("ledger_resolution") == ledger_resolution
+        )
+        if audit_pending:
+            return persist_exact_audited_success(
+                current,
+                allow_audit_create=False,
+            )
         first_pass = True
 
         while first_pass or time.monotonic() < deadline:
@@ -2898,31 +3088,10 @@ class AppServer:
             except Exception:
                 archived = False
                 contained = False
-        if contained and ledger is not None:
-            try:
-                ledger.record_containment_audit(
-                    thread_id,
-                    outcome="contained",
-                    evidence={
-                        "dispatch_record_sha256": current["record_sha256"],
-                        "absence_proof_sha256": absence_proof_sha256,
-                        "discovered_turn_ids": sorted(discovered),
-                        "terminal_status_by_turn": {
-                            key: terminal_statuses[key]
-                            for key in sorted(terminal_statuses)
-                        },
-                        "absence_verified": True,
-                        "archive_request_accepted": True,
-                    },
-                )
-            except Exception:
-                contained = False
-
-        status = "failed-contained" if contained else "failed-ambiguous"
-        evolved = evolve_turn_dispatch_record(
+        precursor = evolve_turn_dispatch_record(
             current,
             wire_write_attempt_count=1,
-            status=status,
+            status="failed-ambiguous",
             ambiguity_reason=ambiguity_reason,
             exact_response_turn_id=exact_response_turn_id,
             notification_connection_epoch_sha256=notification_epoch,
@@ -2940,7 +3109,13 @@ class AppServer:
             archived=archived,
             ledger_resolution=ledger_resolution,
         )
-        return self._persist_turn_dispatch_record(evolved)
+        precursor = self._persist_turn_dispatch_record(precursor)
+        if contained:
+            return persist_exact_audited_success(
+                precursor,
+                allow_audit_create=True,
+            )
+        return precursor
 
     def start_turn(
         self,

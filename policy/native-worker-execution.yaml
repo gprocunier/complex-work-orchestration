@@ -731,7 +731,7 @@
     ]
   },
   "bounded_native_retry": {
-    "version": 1,
+    "version": 2,
     "enabled": true,
     "max_retries": 1,
     "eligible_semantic_statuses": [
@@ -745,18 +745,23 @@
       "tool-call-interrupt-threshold",
       "runtime-interrupt-threshold"
     ],
-    "authority": "cwo-native-supervisor-evidence",
-    "actual_spawn_owner": "native-pm-controller",
+    "evidence_provenance": "cwo-native-supervisor-evidence",
+    "receipt_authority": "audit-only",
+    "dispatch_authorized": false,
+    "required_dispatch_authority": "opaque-verified-recovery-action",
+    "dispatch_owner": "native-pm-controller",
     "operator_approval_required": false,
     "immutable_work_hash_required": true,
     "aggregate_budget_shared": true,
     "fresh_retry_session_required": true,
     "exact_model_attestation_required": true,
-    "authorization_receipt": {
-      "type": "cwo-native-retry-authorization",
-      "version": 1,
-      "schema": "schemas/native-retry-authorization.schema.json",
-      "next_action": "spawn-fresh-native-retry"
+    "audit_receipt": {
+      "type": "cwo-native-retry-evidence",
+      "version": 3,
+      "schema": "schemas/native-retry-evidence.schema.json",
+      "receipt_authority": "audit-only",
+      "dispatch_authorized": false,
+      "next_action": "await-verified-recovery-action"
     },
     "hard_stops": [
       "model-mismatch",

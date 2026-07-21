@@ -43,6 +43,8 @@ __all__ = [
     "native_live_allocation_ledger",
     "native_turn_dispatch",
     "native_recovery",
+    "native_recovery_authority",
+    "native_recovery_policy",
     "native_retry",
     "native_replanning",
     "native_session",

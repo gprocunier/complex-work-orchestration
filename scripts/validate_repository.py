@@ -122,6 +122,12 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_release": {"native_precommit", "paths", "policy", "util"},
     "proportional_execution": {"native_capability", "native_containment"},
     "native_recovery": set(),
+    "native_recovery_authority": {
+        "native_live_allocation_ledger",
+        "native_recovery_policy",
+        "native_retry",
+    },
+    "native_recovery_policy": set(),
     "native_retry": {"native_authority"},
     "native_control": set(),
     "native_tool_isolation": set(),
