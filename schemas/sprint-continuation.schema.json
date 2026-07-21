@@ -288,6 +288,34 @@
         "cohort_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
+    "compatible_ready_set_commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_ids",
+        "candidate_sha256s",
+        "worker_count",
+        "within_released_capacity"
+      ],
+      "properties": {
+        "issue_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "candidate_sha256s": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sha256"}
+        },
+        "worker_count": {"type": "integer", "minimum": 1, "maximum": 3},
+        "within_released_capacity": {"type": "boolean"}
+      }
+    },
     "exclusion_reason": {
       "type": "object",
       "required": ["code", "detail"],
@@ -329,6 +357,7 @@
         "native_worker_policy_sha256",
         "share_boundaries_policy_sha256",
         "candidate_capacity_basis",
+        "compatible_ready_set_commitments",
         "snapshot_sha256"
       ],
       "properties": {
@@ -357,6 +386,11 @@
         "native_worker_policy_sha256": {"$ref": "#/$defs/sha256"},
         "share_boundaries_policy_sha256": {"$ref": "#/$defs/sha256"},
         "candidate_capacity_basis": {"$ref": "#/$defs/candidate_capacity_basis"},
+        "compatible_ready_set_commitments": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/compatible_ready_set_commitment"}
+        },
         "snapshot_sha256": {"$ref": "#/$defs/sha256"}
       }
     },

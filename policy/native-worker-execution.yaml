@@ -166,6 +166,24 @@
       "hot_admission_allowed": false,
       "threads_allowed": false
     },
+    "proportionality": {
+      "version": 1,
+      "status": "provisional",
+      "minimum_child_runtime_p90_ms": 300000,
+      "minimum_gross_savings_overhead_multiple_milli": 2000,
+      "conservative_fixed_overhead_ms": 60000,
+      "per_worker_admission_overhead_ms": 10000,
+      "per_worker_evidence_overhead_ms": 10000,
+      "read_only_worker_topology_overhead_ms": 5000,
+      "mutable_worker_topology_overhead_ms": 15000,
+      "per_mutable_worker_mutation_overhead_ms": 15000,
+      "per_mutable_worker_integration_overhead_ms": 15000,
+      "forbidden_task_classes": [
+        "literal-command"
+      ],
+      "override_change_type": "security-or-authority-change",
+      "override_required_scope": "complete-task"
+    },
     "trusted_live_canary": {
       "runner": "scripts/run_native_pool_live_canaries.py",
       "steering_receipt_schema": "schemas/native-steering-receipt.schema.json",

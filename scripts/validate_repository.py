@@ -164,6 +164,13 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_schedulability",
         "native_tool_isolation",
     },
+    "native_pool_proportionality": {
+        "native_authority",
+        "native_pool_capacity",
+        "native_pool_schedulability",
+        "policy",
+        "work_sizing",
+    },
     "native_pool_reporting": {"audit", "native_pool_contracts"},
     "native_replanning": {"native_authority", "policy"},
     "native_progress": {"native_authority", "native_stop_scope", "policy"},

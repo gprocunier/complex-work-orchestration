@@ -1349,21 +1349,37 @@ def _cohort_evidence(
     snapshot_sha256: str,
     released_capacity: int,
 ) -> dict[str, Any]:
+    membership = _cohort_membership(
+        candidates,
+        released_capacity=released_capacity,
+    )
     body = {
         "cohort_type": COHORT_TYPE,
         "version": COHORT_VERSION,
         "snapshot_sha256": snapshot_sha256,
+        **membership,
+        "authority": READY_SET_AUTHORITY,
+        "dispatch_authorized": False,
+    }
+    body["cohort_sha256"] = canonical_json_sha256(body)
+    return body
+
+
+def _cohort_membership(
+    candidates: Sequence[ReadyCandidate],
+    *,
+    released_capacity: int,
+) -> dict[str, Any]:
+    """Return the non-circular cohort commitment sealed by the snapshot."""
+
+    return {
         "issue_ids": [candidate.issue_id for candidate in candidates],
         "candidate_sha256s": [
             candidate.evidence()["candidate_sha256"] for candidate in candidates
         ],
         "worker_count": len(candidates),
         "within_released_capacity": len(candidates) <= released_capacity,
-        "authority": READY_SET_AUTHORITY,
-        "dispatch_authorized": False,
     }
-    body["cohort_sha256"] = canonical_json_sha256(body)
-    return body
 
 
 def _dependency_projection(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -1628,23 +1644,6 @@ def build_ready_set_evidence(
         )
         for issue_id in sorted(scoped_by_id)
     ]
-    snapshot_body = {
-        "snapshot_type": SNAPSHOT_TYPE,
-        "version": SNAPSHOT_VERSION,
-        "epic_id": epic_id,
-        "canonical_ready_issue_ids": canonical_ready_ids,
-        "ranked_ready_issue_ids": ready_ids,
-        "scope_issue_ids": sorted(scoped_by_id),
-        "issue_projections": projections,
-        "native_worker_policy_sha256": canonical_json_sha256(policy),
-        "share_boundaries_policy_sha256": canonical_json_sha256(share_policy),
-        "candidate_capacity_basis": dict(capacity_evidence),
-    }
-    snapshot = {
-        **snapshot_body,
-        "snapshot_sha256": canonical_json_sha256(snapshot_body),
-    }
-
     pair_conflicts: dict[tuple[str, str], list[dict[str, Any]]] = {}
     all_conflicts: list[dict[str, Any]] = []
     for left, right in combinations(candidates, 2):
@@ -1659,6 +1658,31 @@ def build_ready_set_evidence(
         pair_conflicts=pair_conflicts,
     )
     selected = safe_sets[0] if safe_sets else []
+    compatible_ready_set_commitments = [
+        _cohort_membership(
+            subset,
+            released_capacity=limits.released_max_active_workers,
+        )
+        for subset in safe_sets
+    ]
+    snapshot_body = {
+        "snapshot_type": SNAPSHOT_TYPE,
+        "version": SNAPSHOT_VERSION,
+        "epic_id": epic_id,
+        "canonical_ready_issue_ids": canonical_ready_ids,
+        "ranked_ready_issue_ids": ready_ids,
+        "scope_issue_ids": sorted(scoped_by_id),
+        "issue_projections": projections,
+        "native_worker_policy_sha256": canonical_json_sha256(policy),
+        "share_boundaries_policy_sha256": canonical_json_sha256(share_policy),
+        "candidate_capacity_basis": dict(capacity_evidence),
+        "compatible_ready_set_commitments": compatible_ready_set_commitments,
+    }
+    snapshot = {
+        **snapshot_body,
+        "snapshot_sha256": canonical_json_sha256(snapshot_body),
+    }
+
     compatible_ready_sets = [
         _cohort_evidence(
             subset,

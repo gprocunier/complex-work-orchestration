@@ -201,6 +201,37 @@ Each child reports cumulative usage. The coordinator rejects counter resets and
 sums deltas into one aggregate hard allowance. Pool wall time, worker time, and
 poll overhead are reported separately.
 
+## Proportionality Candidate Gate
+
+`cwo_core.native_pool_proportionality.pool_proportionality_check()` is the
+model-free economic gate between canonical Beads readiness and fixed-cohort
+reservation. It accepts the exact P1-13A readiness snapshot and compatible
+subsets plus the corresponding validated work estimates. P1-13A seals the
+exact ordered cohort-membership commitments inside the snapshot, so a new
+self-hashed subset assembled from otherwise valid candidates is rejected. The
+assessment binds the readiness, estimate-set, policy, and cohort hashes and
+remains `candidate-evidence-only`; it cannot claim work or authorize dispatch.
+
+The provisional policy requires every child to have at least a five-minute p90
+runtime and requires gross parallel savings to exceed twice total orchestration
+overhead. The model includes a conservative or higher measured fixed cost,
+per-worker admission and evidence ceremony, topology, mutation, integration,
+and the exact N-worker schedulability demand. Literal-command work is never
+pool-eligible. Capacity is only a ceiling: the selector chooses the largest
+economical compatible subset, then the highest modeled net savings, then the
+P1-13A ready rank and Bead ID.
+
+An economic exception requires a fresh, exact, non-replayable operator approval
+verified by `verify_proportionality_override()`; the resulting opaque capability
+is atomically consumed by one assessment application. Serialized audit
+provenance is not reusable authority, and structural, literal-command,
+capacity, snapshot, or schedulability failures are nonwaivable. An accepted
+N=3 assessment is still marked `offline-unreleased-candidate` while the
+released ceiling is two. P1-13B owns render rejection and pool-contract storage:
+it must re-evaluate the exact readiness and work-estimate inputs, then bind this
+assessment during reservation and contract construction before the result can
+participate in productive admission.
+
 ## Rendering A Contract
 
 Start each ordinary worker supervisor first so its private state is in

@@ -1,0 +1,696 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Pool Proportionality Assessment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "assessment_type",
+    "version",
+    "schema",
+    "authority",
+    "dispatch_authorized",
+    "readiness_snapshot_sha256",
+    "readiness_evidence_sha256",
+    "work_estimate_set_sha256",
+    "native_worker_policy_sha256",
+    "proportionality_policy_sha256",
+    "requested_workers",
+    "candidate_capacity_ceiling",
+    "released_capacity",
+    "measured_fixed_overhead_ms",
+    "effective_fixed_overhead_ms",
+    "fixed_overhead_source",
+    "cohort_evaluations",
+    "decision",
+    "accepted",
+    "selected_cohort",
+    "fallback_issue_id",
+    "candidate_mode",
+    "override_authorization",
+    "assessment_sha256"
+  ],
+  "properties": {
+    "assessment_type": {"const": "cwo-native-pool-proportionality-assessment"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-pool-proportionality-assessment.schema.json"},
+    "authority": {"const": "candidate-evidence-only"},
+    "dispatch_authorized": {"const": false},
+    "readiness_snapshot_sha256": {"$ref": "#/$defs/sha256"},
+    "readiness_evidence_sha256": {"$ref": "#/$defs/sha256"},
+    "work_estimate_set_sha256": {"$ref": "#/$defs/sha256"},
+    "native_worker_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "proportionality_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "requested_workers": {"type": "integer", "minimum": 1, "maximum": 3},
+    "candidate_capacity_ceiling": {"type": "integer", "minimum": 1, "maximum": 3},
+    "released_capacity": {"const": 2},
+    "measured_fixed_overhead_ms": {
+      "oneOf": [
+        {"type": "integer", "minimum": 0},
+        {"type": "null"}
+      ]
+    },
+    "effective_fixed_overhead_ms": {"type": "integer", "minimum": 60000},
+    "fixed_overhead_source": {
+      "enum": ["conservative-policy", "measured"]
+    },
+    "cohort_evaluations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/cohort_evaluation"}
+    },
+    "decision": {"enum": ["pool", "single", "blocked"]},
+    "accepted": {"type": "boolean"},
+    "selected_cohort": {
+      "oneOf": [
+        {"$ref": "#/$defs/cohort_evaluation"},
+        {"type": "null"}
+      ]
+    },
+    "fallback_issue_id": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {"type": "null"}
+      ]
+    },
+    "candidate_mode": {
+      "enum": ["none", "released-capacity", "offline-unreleased-candidate"]
+    },
+    "override_authorization": {
+      "oneOf": [
+        {"$ref": "#/$defs/override_authorization"},
+        {"type": "null"}
+      ]
+    },
+    "assessment_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"accepted": {"const": true}}},
+      "then": {
+        "properties": {
+          "decision": {"const": "pool"},
+          "selected_cohort": {"$ref": "#/$defs/cohort_evaluation"},
+          "candidate_mode": {
+            "enum": ["released-capacity", "offline-unreleased-candidate"]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "decision": {"enum": ["single", "blocked"]},
+          "selected_cohort": {"type": "null"},
+          "candidate_mode": {"const": "none"},
+          "override_authorization": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"decision": {"const": "blocked"}}},
+      "then": {"properties": {"fallback_issue_id": {"type": "null"}}}
+    },
+    {
+      "if": {
+        "properties": {"accepted": {"const": true}},
+        "required": ["accepted"]
+      },
+      "then": {
+        "properties": {
+          "selected_cohort": {"$ref": "#/$defs/pool_cohort"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"requested_workers": {"const": 1}},
+        "required": ["requested_workers"]
+      },
+      "then": {
+        "properties": {
+          "accepted": {"const": false},
+          "selected_cohort": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"requested_workers": {"const": 2}},
+        "required": ["requested_workers"]
+      },
+      "then": {
+        "properties": {
+          "selected_cohort": {
+            "oneOf": [
+              {"type": "null"},
+              {"$ref": "#/$defs/cohort_up_to_2"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"candidate_capacity_ceiling": {"const": 1}},
+        "required": ["candidate_capacity_ceiling"]
+      },
+      "then": {
+        "properties": {
+          "accepted": {"const": false},
+          "selected_cohort": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"candidate_capacity_ceiling": {"const": 2}},
+        "required": ["candidate_capacity_ceiling"]
+      },
+      "then": {
+        "properties": {
+          "selected_cohort": {
+            "oneOf": [
+              {"type": "null"},
+              {"$ref": "#/$defs/cohort_up_to_2"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "accepted": {"const": true},
+          "selected_cohort": {
+            "type": "object",
+            "properties": {
+              "within_released_capacity": {"const": true}
+            },
+            "required": ["within_released_capacity"]
+          }
+        },
+        "required": ["accepted", "selected_cohort"]
+      },
+      "then": {
+        "properties": {"candidate_mode": {"const": "released-capacity"}}
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "accepted": {"const": true},
+          "selected_cohort": {
+            "type": "object",
+            "properties": {
+              "within_released_capacity": {"const": false}
+            },
+            "required": ["within_released_capacity"]
+          }
+        },
+        "required": ["accepted", "selected_cohort"]
+      },
+      "then": {
+        "properties": {
+          "candidate_mode": {"const": "offline-unreleased-candidate"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"measured_fixed_overhead_ms": {"type": "null"}},
+        "required": ["measured_fixed_overhead_ms"]
+      },
+      "then": {
+        "properties": {
+          "effective_fixed_overhead_ms": {"const": 60000},
+          "fixed_overhead_source": {"const": "conservative-policy"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "measured_fixed_overhead_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60000
+          }
+        },
+        "required": ["measured_fixed_overhead_ms"]
+      },
+      "then": {
+        "properties": {
+          "effective_fixed_overhead_ms": {"const": 60000},
+          "fixed_overhead_source": {"const": "conservative-policy"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "measured_fixed_overhead_ms": {
+            "type": "integer",
+            "minimum": 60001
+          }
+        },
+        "required": ["measured_fixed_overhead_ms"]
+      },
+      "then": {
+        "properties": {
+          "effective_fixed_overhead_ms": {"type": "integer", "minimum": 60001},
+          "fixed_overhead_source": {"const": "measured"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ready_order_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rank", "id"],
+      "properties": {
+        "rank": {"type": "integer", "minimum": 0},
+        "id": {"type": "string", "minLength": 1}
+      }
+    },
+    "child_economics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "rank",
+        "task_class",
+        "work_estimate_sha256",
+        "runtime_p90_ms",
+        "mutable"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "rank": {"type": "integer", "minimum": 0},
+        "task_class": {"type": "string", "minLength": 1},
+        "work_estimate_sha256": {"$ref": "#/$defs/sha256"},
+        "runtime_p90_ms": {"type": "integer", "minimum": 0},
+        "mutable": {"type": "boolean"}
+      }
+    },
+    "overhead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixed_ms",
+        "admission_ms",
+        "evidence_ms",
+        "topology_ms",
+        "mutation_ms",
+        "integration_ms",
+        "schedulability_ms"
+      ],
+      "properties": {
+        "fixed_ms": {"type": "integer", "minimum": 60000},
+        "admission_ms": {"type": "integer", "minimum": 0},
+        "evidence_ms": {"type": "integer", "minimum": 0},
+        "topology_ms": {"type": "integer", "minimum": 0},
+        "mutation_ms": {"type": "integer", "minimum": 0},
+        "integration_ms": {"type": "integer", "minimum": 0},
+        "schedulability_ms": {"type": "integer", "minimum": 0}
+      }
+    },
+    "economics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serial_runtime_p90_ms",
+        "parallel_critical_path_p90_ms",
+        "overhead",
+        "total_orchestration_overhead_ms",
+        "modeled_parallel_elapsed_p90_ms",
+        "gross_parallel_savings_ms",
+        "net_parallel_savings_ms",
+        "minimum_required_gross_savings_ms_exclusive",
+        "savings_multiple_milli"
+      ],
+      "properties": {
+        "serial_runtime_p90_ms": {"type": "integer", "minimum": 0},
+        "parallel_critical_path_p90_ms": {"type": "integer", "minimum": 0},
+        "overhead": {"$ref": "#/$defs/overhead"},
+        "total_orchestration_overhead_ms": {"type": "integer", "minimum": 0},
+        "modeled_parallel_elapsed_p90_ms": {"type": "integer", "minimum": 0},
+        "gross_parallel_savings_ms": {"type": "integer", "minimum": 0},
+        "net_parallel_savings_ms": {"type": "integer"},
+        "minimum_required_gross_savings_ms_exclusive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "savings_multiple_milli": {"const": 2000}
+      }
+    },
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "detail", "waivable"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "detail": {"type": "string", "minLength": 1},
+        "waivable": {"type": "boolean"}
+      }
+    },
+    "cohort_evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cohort_sha256",
+        "issue_ids",
+        "worker_count",
+        "within_released_capacity",
+        "ready_order",
+        "child_economics",
+        "economics",
+        "reasons",
+        "eligible_without_override",
+        "overridden",
+        "overridden_rule_ids",
+        "accepted",
+        "evaluation_sha256"
+      ],
+      "properties": {
+        "cohort_sha256": {"$ref": "#/$defs/sha256"},
+        "issue_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "worker_count": {"type": "integer", "minimum": 1, "maximum": 3},
+        "within_released_capacity": {"type": "boolean"},
+        "ready_order": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/ready_order_item"}
+        },
+        "child_economics": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/child_economics"}
+        },
+        "economics": {"$ref": "#/$defs/economics"},
+        "reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/reason"}
+        },
+        "eligible_without_override": {"type": "boolean"},
+        "overridden": {"type": "boolean"},
+        "overridden_rule_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "accepted": {"type": "boolean"},
+        "evaluation_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"worker_count": {"maximum": 2}},
+            "required": ["worker_count"]
+          },
+          "then": {
+            "properties": {"within_released_capacity": {"const": true}}
+          },
+          "else": {
+            "properties": {"within_released_capacity": {"const": false}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"reasons": {"maxItems": 0}},
+            "required": ["reasons"]
+          },
+          "then": {
+            "properties": {"eligible_without_override": {"const": true}}
+          },
+          "else": {
+            "properties": {"eligible_without_override": {"const": false}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"eligible_without_override": {"const": true}},
+            "required": ["eligible_without_override"]
+          },
+          "then": {
+            "properties": {
+              "accepted": {"const": true},
+              "overridden": {"const": false},
+              "overridden_rule_ids": {"maxItems": 0}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eligible_without_override": {"const": false},
+              "overridden": {"const": false}
+            },
+            "required": ["eligible_without_override", "overridden"]
+          },
+          "then": {"properties": {"accepted": {"const": false}}}
+        },
+        {
+          "if": {
+            "properties": {"overridden": {"const": true}},
+            "required": ["overridden"]
+          },
+          "then": {
+            "properties": {
+              "eligible_without_override": {"const": false},
+              "accepted": {"const": true},
+              "reasons": {"minItems": 1},
+              "overridden_rule_ids": {"minItems": 1}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"accepted": {"const": true}},
+            "required": ["accepted"]
+          },
+          "then": {"properties": {"worker_count": {"minimum": 2}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "child_economics": {
+                "contains": {
+                  "type": "object",
+                  "properties": {"runtime_p90_ms": {"maximum": 299999}},
+                  "required": ["runtime_p90_ms"]
+                }
+              }
+            },
+            "required": ["child_economics"]
+          },
+          "then": {
+            "properties": {
+              "reasons": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "code": {"const": "child-runtime-below-provisional-minimum"},
+                    "waivable": {"const": true}
+                  },
+                  "required": ["code", "waivable"]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "child_economics": {
+                "contains": {
+                  "type": "object",
+                  "properties": {"task_class": {"const": "literal-command"}},
+                  "required": ["task_class"]
+                }
+              }
+            },
+            "required": ["child_economics"]
+          },
+          "then": {
+            "properties": {
+              "reasons": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "code": {"const": "forbidden-task-class"},
+                    "waivable": {"const": false}
+                  },
+                  "required": ["code", "waivable"]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pool_cohort": {
+      "allOf": [
+        {"$ref": "#/$defs/cohort_evaluation"},
+        {"properties": {"worker_count": {"minimum": 2}}}
+      ]
+    },
+    "cohort_up_to_2": {
+      "allOf": [
+        {"$ref": "#/$defs/cohort_evaluation"},
+        {"properties": {"worker_count": {"maximum": 2}}}
+      ]
+    },
+    "authority_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "source_type",
+        "source_id",
+        "source_sha256",
+        "actor_id",
+        "actor_role",
+        "identity_source",
+        "authorized_scope",
+        "parent_receipt_sha256",
+        "verification",
+        "authority_sha256"
+      ],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {"const": "operator-directive"},
+        "source_id": {"type": "string", "minLength": 1},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "actor_role": {"const": "operator"},
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {"enum": ["complete-task", "publication"]},
+        "parent_receipt_sha256": {
+          "oneOf": [
+            {"$ref": "#/$defs/sha256"},
+            {"type": "null"}
+          ]
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"const": "hmac-sha256-protected-change-v1"},
+            "evidence_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "operator_approval_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_type",
+        "version",
+        "approval_id",
+        "change_type",
+        "before_sha256",
+        "after_sha256",
+        "actor_id",
+        "identity_source",
+        "authorized_scope",
+        "parent_receipt_sha256",
+        "issued_at",
+        "expires_at",
+        "nonce",
+        "signature"
+      ],
+      "properties": {
+        "approval_type": {"const": "cwo-operator-protected-change-approval"},
+        "version": {"const": 1},
+        "approval_id": {"type": "string", "minLength": 1},
+        "change_type": {"const": "security-or-authority-change"},
+        "before_sha256": {"$ref": "#/$defs/sha256"},
+        "after_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {"enum": ["complete-task", "publication"]},
+        "parent_receipt_sha256": {
+          "oneOf": [
+            {"$ref": "#/$defs/sha256"},
+            {"type": "null"}
+          ]
+        },
+        "issued_at": {"type": "string", "minLength": 1},
+        "expires_at": {"type": "string", "minLength": 1},
+        "nonce": {"type": "string", "minLength": 1},
+        "signature": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "operator_approval_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_type",
+        "version",
+        "approval_id",
+        "change_type",
+        "before_sha256",
+        "after_sha256",
+        "issued_at",
+        "expires_at",
+        "nonce",
+        "receipt_sha256",
+        "signed_receipt",
+        "authority_provenance"
+      ],
+      "properties": {
+        "approval_type": {"const": "cwo-operator-protected-change-approval"},
+        "version": {"const": 1},
+        "approval_id": {"type": "string", "minLength": 1},
+        "change_type": {"const": "security-or-authority-change"},
+        "before_sha256": {"$ref": "#/$defs/sha256"},
+        "after_sha256": {"$ref": "#/$defs/sha256"},
+        "issued_at": {"type": "string", "minLength": 1},
+        "expires_at": {"type": "string", "minLength": 1},
+        "nonce": {"type": "string", "minLength": 1},
+        "receipt_sha256": {"$ref": "#/$defs/sha256"},
+        "signed_receipt": {"$ref": "#/$defs/operator_approval_receipt"},
+        "authority_provenance": {"$ref": "#/$defs/authority_provenance"}
+      }
+    },
+    "override_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_sha256",
+        "baseline_assessment_sha256",
+        "cohort_sha256",
+        "reason",
+        "reason_sha256",
+        "operator_approval_audit"
+      ],
+      "properties": {
+        "action_sha256": {"$ref": "#/$defs/sha256"},
+        "baseline_assessment_sha256": {"$ref": "#/$defs/sha256"},
+        "cohort_sha256": {"$ref": "#/$defs/sha256"},
+        "reason": {"type": "string", "minLength": 1},
+        "reason_sha256": {"$ref": "#/$defs/sha256"},
+        "operator_approval_audit": {
+          "$ref": "#/$defs/operator_approval_audit"
+        }
+      }
+    }
+  }
+}

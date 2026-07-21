@@ -105,6 +105,13 @@ ALLOWED_IMPORTS = {
         "native_pool_schedulability",
         "native_tool_isolation",
     },
+    "native_pool_proportionality": {
+        "native_authority",
+        "native_pool_capacity",
+        "native_pool_schedulability",
+        "policy",
+        "work_sizing",
+    },
     "native_pool_reporting": {"audit", "native_pool_contracts"},
     "native_release": {"native_precommit", "paths", "policy", "util"},
     "native_control": set(),
