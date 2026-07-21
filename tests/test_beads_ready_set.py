@@ -709,6 +709,30 @@ class BeadsReadySetTests(unittest.TestCase):
             {reason["code"] for reason in reasons},
         )
 
+    def test_malformed_authority_capability_receipt_excludes_only_that_leaf(self) -> None:
+        malformed, verifier = authority_approved_item()
+        malformed["raw"]["metadata"]["cwo_ready_set_admission"][
+            "capability_receipt"
+        ] = {"receipt_type": "malformed-authority-capability"}
+        valid = ready_item("bead-valid", write_paths=["scripts/valid.py"])
+
+        result = build_ready_set_evidence(
+            [malformed, valid],
+            epic_id="epic",
+            policy_document=released_three_policy(),
+            operator_approval_verifier=verifier,
+        )
+
+        self.assertEqual(
+            [candidate["id"] for candidate in result["recommended_ready_set"]],
+            ["bead-valid"],
+        )
+        excluded = {
+            item["id"]: {reason["code"] for reason in item["reasons"]}
+            for item in result["excluded_ready_issues"]
+        }
+        self.assertIn("invalid-capability-receipt", excluded["bead-authority"])
+
     def test_legacy_bool_and_hex_cannot_self_attest_authority(self) -> None:
         item = ready_item(
             "bead-authority",
@@ -780,6 +804,23 @@ class BeadsReadySetTests(unittest.TestCase):
             forward["beads_readiness_snapshot_sha256"],
             reverse["beads_readiness_snapshot_sha256"],
         )
+
+        for field, value in (
+            ("title", "same-second title drift"),
+            ("description", "same-second description drift"),
+        ):
+            with self.subTest(drift=field):
+                changed = deepcopy(second)
+                changed["raw"][field] = value
+                drifted = build_ready_set_evidence(
+                    [first, changed],
+                    epic_id="epic",
+                    policy_document=policy,
+                )
+                self.assertNotEqual(
+                    forward["beads_readiness_snapshot_sha256"],
+                    drifted["beads_readiness_snapshot_sha256"],
+                )
 
         mutations: dict[str, object] = {
             "updated": lambda item: item["raw"].__setitem__(

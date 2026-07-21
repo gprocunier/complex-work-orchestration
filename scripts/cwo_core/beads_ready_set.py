@@ -50,6 +50,13 @@ LEASE_SCOPE_TYPE = "cwo-ready-set-lease-scope-intent"
 LEASE_SCOPE_VERSION = 1
 COHORT_TYPE = "cwo-compatible-ready-set"
 COHORT_VERSION = 1
+CONTROLLER_PROJECTION_FIELDS = frozenset(
+    {
+        "_cwo_canonical_ready",
+        "_cwo_canonical_ready_rank",
+        "_cwo_executable_leaf",
+    }
+)
 
 RESTRICTED_LABELS = frozenset(
     {
@@ -954,6 +961,8 @@ def evaluate_ready_candidate(
             and work_plan is not None
             and commitment is not None
             and capability_receipt is not None
+            and not receipt_errors
+            and _sha256_hex(capability_receipt.get("receipt_sha256"))
             and isolation is not None
             and bool(hard_budget)
             and bool(aggregate_budget)
@@ -1404,14 +1413,22 @@ def _issue_projection(
     candidate_rank: int | None,
 ) -> dict[str, Any]:
     raw = _raw_issue(item)
+    exact_show_raw = {
+        key: value
+        for key, value in raw.items()
+        if key not in CONTROLLER_PROJECTION_FIELDS
+    }
     admission = _admission_metadata(item)
     ranking_dependencies = _field(item, "dependencies", [])
     if not isinstance(ranking_dependencies, list):
         ranking_dependencies = []
     projection: dict[str, Any] = {
         "id": _issue_id(item),
+        "title": str(_field(item, "title", "") or ""),
+        "description": str(_field(item, "description", "") or ""),
         "status": str(_field(item, "status", "open")),
         "updated_at": raw.get("updated_at"),
+        "exact_show_raw_sha256": canonical_json_sha256(exact_show_raw),
         "type": str(_field(item, "type", _field(item, "issue_type", "issue"))),
         "priority": int(_field(item, "priority", 50)),
         "labels": _issue_labels(item),

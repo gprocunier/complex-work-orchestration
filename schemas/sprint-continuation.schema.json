@@ -401,8 +401,11 @@
       "additionalProperties": false,
       "required": [
         "id",
+        "title",
+        "description",
         "status",
         "updated_at",
+        "exact_show_raw_sha256",
         "type",
         "priority",
         "labels",
@@ -422,8 +425,11 @@
       ],
       "properties": {
         "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string"},
+        "description": {"type": "string"},
         "status": {"type": "string", "minLength": 1},
         "updated_at": {"type": ["string", "null"]},
+        "exact_show_raw_sha256": {"$ref": "#/$defs/sha256"},
         "type": {"type": "string", "minLength": 1},
         "priority": {"type": "integer"},
         "labels": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
