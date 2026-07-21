@@ -260,7 +260,7 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
     contract = seal_artifact(contract, "contract_sha256")
     preflight_request["pool_contract"] = contract
     fixture.admission_capability = reserved.capability
-    fixture.claim_adapter = claim_adapter
+    fixture.claim_adapter = reserved.claim_adapter
     fixture.claim_runner = runner
     fixture.pool_capability_receipt = capability
     return fixture, reserved.receipt, contract, preflight_request
@@ -412,6 +412,17 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
             )
             self.assertTrue(
                 all(
+                    item["control_receipt"]["contract_sha256"]
+                    == child["control_contract_sha256"]
+                    for item, child in zip(
+                        receipt["child_terminal_receipts"],
+                        contract["children"],
+                        strict=True,
+                    )
+                )
+            )
+            self.assertTrue(
+                all(
                     item["implementation_bead_close_authorized"] is True
                     and item["parent_close_authorized"] is False
                     and item["publication_close_authorized"] is False
@@ -465,6 +476,47 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                     "parent-close-authorized-must-be-false" in error
                     for error in validate_pool_receipt(
                         parent_retargeted,
+                        contract=contract,
+                        admission_reservation=reservation,
+                        dispatch_receipt=dispatch,
+                    )
+                )
+            )
+
+            hash_swapped = copy.deepcopy(receipt)
+            child_receipts = hash_swapped["child_terminal_receipts"]
+            child_receipts[0]["receipt_sha256"], child_receipts[1][
+                "receipt_sha256"
+            ] = (
+                child_receipts[1]["receipt_sha256"],
+                child_receipts[0]["receipt_sha256"],
+            )
+            hash_swapped = seal_artifact(hash_swapped, "receipt_sha256")
+            self.assertTrue(
+                any(
+                    "control-receipt-sha256-mismatch" in error
+                    for error in validate_pool_receipt(
+                        hash_swapped,
+                        contract=contract,
+                        admission_reservation=reservation,
+                        dispatch_receipt=dispatch,
+                    )
+                )
+            )
+
+            full_swapped = copy.deepcopy(receipt)
+            child_receipts = full_swapped["child_terminal_receipts"]
+            for field in ("control_receipt", "receipt_sha256"):
+                child_receipts[0][field], child_receipts[1][field] = (
+                    child_receipts[1][field],
+                    child_receipts[0][field],
+                )
+            full_swapped = seal_artifact(full_swapped, "receipt_sha256")
+            self.assertTrue(
+                any(
+                    "control-contract-sha256-mismatch" in error
+                    for error in validate_pool_receipt(
+                        full_swapped,
                         contract=contract,
                         admission_reservation=reservation,
                         dispatch_receipt=dispatch,
@@ -529,6 +581,8 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                     all(not adapter.calls for adapter in adapters.values())
                 )
                 self.assertEqual(registry.snapshot(), [])
+                if case == "live-drift":
+                    self.assertEqual(fixture.admission_capability.state, "available")
 
     def test_later_child_lease_collision_has_zero_callbacks_and_no_partial_set(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -599,6 +653,70 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                 )
             self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
             self.assertEqual(registry.snapshot(), [])
+
+    def test_v2_synthetic_terminal_evidence_cannot_close_any_bead(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, reservation, contract, request = _admitted_artifacts(root)
+            result = run_pool_preflight(request)
+            (
+                child_contracts,
+                tasks,
+                child_callbacks,
+                adapters,
+                pool_callbacks,
+                _clock,
+            ) = _execution_inputs(fixture, contract)
+
+            def dirty_workspace(*, contract: dict, phase: str) -> dict:
+                del contract, phase
+                evidence = {
+                    "integration_root_clean": False,
+                    "shared_read_only_clean": True,
+                    "child_worktrees_clean": True,
+                }
+                return {
+                    **evidence,
+                    "evidence_sha256": canonical_sha256(evidence),
+                }
+
+            pool_callbacks["compare_workspaces"] = dirty_workspace
+            launched = run_admitted_native_pool(
+                reservation,
+                fixture.admission_capability,
+                contract,
+                request,
+                result,
+                child_contracts,
+                tasks,
+                child_callbacks,
+                claim_adapter=fixture.claim_adapter,
+                live_revalidate=_live,
+                pool_callbacks=pool_callbacks,
+                lease_registry=PoolLeaseRegistry(
+                    root / "synthetic-leases.json",
+                    owner_alive=lambda _owner: True,
+                    now=FakeClock.now_utc,
+                ),
+                capability_receipt=fixture.pool_capability_receipt,
+            )
+            receipt = launched["pool_receipt"]
+            self.assertFalse(receipt["accepting"])
+            self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
+            self.assertTrue(
+                all(
+                    item["control_receipt"] is None
+                    for item in receipt["child_terminal_receipts"]
+                )
+            )
+            self.assertTrue(
+                all(
+                    item["implementation_bead_close_authorized"] is False
+                    and item["parent_close_authorized"] is False
+                    and item["publication_close_authorized"] is False
+                    for item in receipt["child_dispositions"]
+                )
+            )
 
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
     def test_reservation_schema_matches_python_and_registered_validator(self) -> None:

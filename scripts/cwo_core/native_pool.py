@@ -10,7 +10,11 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from .native_control import NativeControlTurn, validate_control_turn_contract
+from .native_control import (
+    NativeControlTurn,
+    RECEIPT_TYPE as CONTROL_RECEIPT_TYPE,
+    validate_control_turn_contract,
+)
 from .native_pool_capacity import load_pool_capacity
 from .native_pool_contracts import (
     ADMITTED_POOL_RECEIPT_SCHEMA,
@@ -1723,6 +1727,14 @@ class NativePoolCoordinator:
         for child_contract in self.children:
             child_id = str(child_contract["child_id"])
             child = self._child_state(child_id)
+            raw_control_receipt = self._progress[child_id].get("receipt")
+            control_receipt = (
+                copy.deepcopy(dict(raw_control_receipt))
+                if admitted_v2
+                and isinstance(raw_control_receipt, Mapping)
+                and raw_control_receipt.get("receipt_type") == CONTROL_RECEIPT_TYPE
+                else None
+            )
             receipt_hash = child.get("child_receipt_sha256") or canonical_sha256(
                 {"child_id": child_id, "terminal_state": "control-failed", "reason": "not-admitted"}
             )
@@ -1743,6 +1755,7 @@ class NativePoolCoordinator:
                         )
                     }
                 )
+                child_receipt["control_receipt"] = control_receipt
                 implementation_close = (
                     disposition["session_disposition"]
                     in {"accepted", "accepted-with-warning"}

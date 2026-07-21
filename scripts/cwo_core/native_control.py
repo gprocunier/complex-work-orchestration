@@ -46,6 +46,18 @@ REQUIRED_CONTRACT_FIELDS = {
     "allowed_actions",
     "contract_sha256",
 }
+RECEIPT_FIELDS = {
+    "receipt_type",
+    "version",
+    "contract_sha256",
+    "task_sha256",
+    "submission_id",
+    "actions",
+    "decisions",
+    "poll_count",
+    "terminal_state",
+    "errors",
+}
 VALID_DECISIONS = {"continue", "warn", "complete", "interrupt", "control-lost"}
 _DECISION_ALIASES = {
     "completed": "complete",
@@ -191,6 +203,66 @@ def validate_control_callbacks(callbacks: Any) -> list[str]:
     if invalid:
         errors.append("noncallable-callbacks:" + ",".join(invalid))
     return errors
+
+
+def validate_control_turn_receipt(
+    receipt: Any,
+    *,
+    contract: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Validate one complete terminal control receipt and its contract binding."""
+
+    if not isinstance(receipt, Mapping):
+        return ["control-receipt-must-be-object"]
+    errors: list[str] = []
+    missing = sorted(RECEIPT_FIELDS - set(receipt))
+    unknown = sorted(set(receipt) - RECEIPT_FIELDS)
+    if missing:
+        errors.append("control-receipt-missing-fields:" + ",".join(missing))
+    if unknown:
+        errors.append("control-receipt-unknown-fields:" + ",".join(unknown))
+    if receipt.get("receipt_type") != RECEIPT_TYPE:
+        errors.append("control-receipt-type-invalid")
+    if type(receipt.get("version")) is not int or receipt.get("version") != VERSION:
+        errors.append("control-receipt-version-invalid")
+    for field in ("contract_sha256", "task_sha256"):
+        if not _is_sha256(receipt.get(field)):
+            errors.append(f"control-receipt-{field.replace('_', '-')}-invalid")
+    submission_id = receipt.get("submission_id")
+    if submission_id is not None and not _nonempty(submission_id):
+        errors.append("control-receipt-submission-id-invalid")
+    actions = receipt.get("actions")
+    if not isinstance(actions, list) or any(not _nonempty(item) for item in actions):
+        errors.append("control-receipt-actions-invalid")
+    decisions = receipt.get("decisions")
+    if not isinstance(decisions, list) or any(
+        item not in VALID_DECISIONS for item in decisions
+    ):
+        errors.append("control-receipt-decisions-invalid")
+    poll_count = receipt.get("poll_count")
+    if type(poll_count) is not int or poll_count < 0:
+        errors.append("control-receipt-poll-count-invalid")
+    if receipt.get("terminal_state") not in {
+        "completed",
+        "closed",
+        "control-failed",
+    }:
+        errors.append("control-receipt-terminal-state-invalid")
+    receipt_errors = receipt.get("errors")
+    if not isinstance(receipt_errors, list) or any(
+        not _nonempty(item) for item in receipt_errors
+    ):
+        errors.append("control-receipt-errors-invalid")
+    if contract is not None:
+        errors.extend(
+            "control-receipt-contract:" + item
+            for item in validate_control_turn_contract(contract)
+        )
+        if receipt.get("contract_sha256") != contract.get("contract_sha256"):
+            errors.append("control-receipt-contract-sha256-mismatch")
+        if receipt.get("task_sha256") != contract.get("task_sha256"):
+            errors.append("control-receipt-task-sha256-mismatch")
+    return sorted(set(errors))
 
 
 def _submission_id(value: Any) -> str:

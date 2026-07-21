@@ -16,6 +16,7 @@ import json
 from threading import Lock
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
+import uuid
 
 from .beads import BdCommandResult, run_bd_structured
 from .beads_ready_set import READY_SET_AUTHORITY, SNAPSHOT_TYPE, SNAPSHOT_VERSION
@@ -250,6 +251,8 @@ class ClaimAdapter(Protocol):
 
     def claim(self, bead_id: str) -> ClaimTransition: ...
 
+    def for_admission_attempt(self, admission_nonce: str) -> ClaimAdapter: ...
+
 
 class BeadsClaimAdapter:
     """Per-issue compare-and-set claim adapter with exact-show reconciliation."""
@@ -286,6 +289,27 @@ class BeadsClaimAdapter:
         if type(result) is not BdCommandResult:
             raise NativePoolAdmissionError("claim-runner-result-type-invalid")
         return result
+
+    def for_admission_attempt(self, admission_nonce: str) -> BeadsClaimAdapter:
+        """Return a fresh actor identity for exactly one admission attempt."""
+
+        nonce = str(admission_nonce).strip()
+        if not nonce:
+            raise NativePoolAdmissionError("admission-nonce-required")
+        actor_digest = canonical_admission_sha256(
+            {
+                "base_actor": self.actor,
+                "admission_nonce": nonce,
+                "attempt_uuid": uuid.uuid4().hex,
+            }
+        )
+        return BeadsClaimAdapter(
+            directory=self.directory,
+            database=self.database,
+            actor=f"{self.actor}-cwo-{actor_digest[:24]}",
+            timeout=self.timeout,
+            runner=self._runner,
+        )
 
     @staticmethod
     def _decode_show(result: BdCommandResult, bead_id: str) -> dict[str, Any]:
@@ -948,6 +972,7 @@ class FixedCohortAdmissionCapability:
 class PoolAdmissionReservation:
     receipt: Mapping[str, Any]
     capability: FixedCohortAdmissionCapability | None
+    claim_adapter: ClaimAdapter | None
 
     @property
     def admitted(self) -> bool:
@@ -1081,8 +1106,8 @@ def reserve_pool_cohort(
         raise NativePoolAdmissionError("live-revalidation-callback-required")
     if rebuild is not None and not callable(rebuild):
         raise NativePoolAdmissionError("rebuild-callback-invalid")
-    actor = getattr(claim_adapter, "actor", None)
-    if not _nonempty(actor):
+    base_actor = getattr(claim_adapter, "actor", None)
+    if not _nonempty(base_actor):
         raise NativePoolAdmissionError("claim-adapter-actor-invalid")
 
     raw_selected = candidate.proportionality_assessment.get("selected_cohort")
@@ -1102,14 +1127,31 @@ def reserve_pool_cohort(
         receipt = _reservation_receipt(
             validated,
             admission_nonce=admission_nonce,
-            claim_actor=actor,
+            claim_actor=base_actor,
             claims=[],
             retained_owned=[],
             recompute_count=0,
             status="offline-candidate",
             created_at=created_at,
         )
-        return PoolAdmissionReservation(receipt=receipt, capability=None)
+        return PoolAdmissionReservation(
+            receipt=receipt,
+            capability=None,
+            claim_adapter=None,
+        )
+
+    attempt_factory = getattr(claim_adapter, "for_admission_attempt", None)
+    if not callable(attempt_factory):
+        raise NativePoolAdmissionError("claim-adapter-attempt-factory-required")
+    claim_adapter = attempt_factory(admission_nonce)
+    actor = getattr(claim_adapter, "actor", None)
+    if (
+        not _nonempty(actor)
+        or actor == base_actor
+        or not callable(getattr(claim_adapter, "show_exact", None))
+        or not callable(getattr(claim_adapter, "claim", None))
+    ):
+        raise NativePoolAdmissionError("claim-adapter-attempt-invalid")
 
     claims: list[Mapping[str, Any]] = []
     owned: set[str] = set()
@@ -1175,7 +1217,11 @@ def reserve_pool_cohort(
                 child_bindings_sha256=bindings_hash,
                 token=_CAPABILITY_TOKEN,
             )
-            return PoolAdmissionReservation(receipt=receipt, capability=capability)
+            return PoolAdmissionReservation(
+                receipt=receipt,
+                capability=capability,
+                claim_adapter=claim_adapter,
+            )
 
         if rebuild is None or recompute_count == 1:
             receipt = _reservation_receipt(
@@ -1188,7 +1234,11 @@ def reserve_pool_cohort(
                 status="claim-lost",
                 created_at=created_at,
             )
-            return PoolAdmissionReservation(receipt=receipt, capability=None)
+            return PoolAdmissionReservation(
+                receipt=receipt,
+                capability=None,
+                claim_adapter=claim_adapter,
+            )
         recompute_count = 1
         excluded_loss = lost_issue
         replacement = rebuild(validated.source, frozenset(owned), lost_issue)
@@ -1203,7 +1253,11 @@ def reserve_pool_cohort(
                 status="claim-lost",
                 created_at=created_at,
             )
-            return PoolAdmissionReservation(receipt=receipt, capability=None)
+            return PoolAdmissionReservation(
+                receipt=receipt,
+                capability=None,
+                claim_adapter=claim_adapter,
+            )
         validated = _validate_candidate(replacement, policy_document=policy_document)
         if len(validated.issue_ids) >= 4:
             raise NativePoolAdmissionError("cohort-size-four-or-more-forbidden")
@@ -1517,6 +1571,8 @@ def consume_pool_admission(
     reservation_receipt: Mapping[str, Any],
     dispatch_context: Mapping[str, Any],
     *,
+    claim_adapter: ClaimAdapter,
+    live_revalidate: LiveRevalidationCallback,
     commit: DispatchCallback,
     precommit: DispatchCallback | None = None,
     postcommit: DispatchCallback | None = None,
@@ -1532,6 +1588,10 @@ def consume_pool_admission(
         raise NativePoolAdmissionError("fixed-cohort-admission-capability-type-invalid")
     if not callable(commit):
         raise NativePoolAdmissionError("dispatch-commit-callback-required")
+    if type(claim_adapter) is not BeadsClaimAdapter:
+        raise NativePoolAdmissionError("dispatch-claim-adapter-required")
+    if not callable(live_revalidate):
+        raise NativePoolAdmissionError("dispatch-live-revalidation-required")
     if precommit is not None and not callable(precommit):
         raise NativePoolAdmissionError("dispatch-precommit-callback-invalid")
     if postcommit is not None and not callable(postcommit):
@@ -1574,6 +1634,11 @@ def consume_pool_admission(
             )
             if dict(dispatch_context) != expected_context:
                 raise NativePoolAdmissionError("dispatch-context-binding-mismatch")
+            revalidate_reservation_live(
+                reservation_receipt,
+                claim_adapter=claim_adapter,
+                live_revalidate=live_revalidate,
+            )
             if precommit is not None:
                 precommit(deepcopy(dict(dispatch_context)))
             consumed_at = _iso(now)

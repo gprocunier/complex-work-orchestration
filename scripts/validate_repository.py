@@ -145,6 +145,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_pool_schedulability": set(),
     "native_pool_contracts": {
         "native_authority",
+        "native_control",
         "native_pool_admission",
         "native_pool_capacity",
         "native_pool_capacity_compat",

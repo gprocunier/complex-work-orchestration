@@ -12,6 +12,7 @@ import re
 import tempfile
 from typing import Any, Iterable, Mapping
 
+from .native_control import validate_control_turn_receipt
 from .native_authority import validate_authority_provenance
 from .native_pool_capacity import PoolCapacityLimits, load_pool_capacity
 from .native_pool_capacity_compat import (
@@ -485,6 +486,7 @@ POOL_CHILD_RECEIPT_FIELDS_V2 = POOL_CHILD_RECEIPT_FIELDS_V1 | {
     "work_unit_id",
     "packet_sha256",
     "admitted_child_sha256",
+    "control_receipt",
 }
 POOL_CHILD_DISPOSITION_FIELDS_V1 = {
     "child_id",
@@ -2350,6 +2352,19 @@ def validate_pool_receipt(
                         errors.append(
                             f"invalid-child-receipt[{index}]-{field.replace('_', '-')}"
                         )
+                control_receipt = entry.get("control_receipt")
+                if control_receipt is not None:
+                    control_errors = validate_control_turn_receipt(control_receipt)
+                    errors.extend(
+                        f"child-receipt[{index}]-control:" + item
+                        for item in control_errors
+                    )
+                    if canonical_sha256(control_receipt) != entry.get(
+                        "receipt_sha256"
+                    ):
+                        errors.append(
+                            f"child-receipt[{index}]-control-receipt-sha256-mismatch"
+                        )
     if len(child_receipt_ids) != len(set(child_receipt_ids)):
         errors.append("duplicate-child-terminal-receipt")
     _validate_usage(
@@ -2656,6 +2671,13 @@ def validate_pool_receipt(
                             errors.append(
                                 f"child-receipt[{index}]-{field.replace('_', '-')}-mismatch"
                             )
+                    control_receipt = entry.get("control_receipt")
+                    if isinstance(control_receipt, Mapping) and control_receipt.get(
+                        "contract_sha256"
+                    ) != child.get("control_contract_sha256"):
+                        errors.append(
+                            f"child-receipt[{index}]-control-contract-sha256-mismatch"
+                        )
             if isinstance(dispositions, list):
                 for index, child in enumerate(contract.get("children", [])):
                     if index >= len(dispositions) or not isinstance(
@@ -2674,6 +2696,33 @@ def validate_pool_receipt(
                             errors.append(
                                 f"child-disposition[{index}]-{field.replace('_', '-')}-mismatch"
                             )
+                    child_receipt = (
+                        child_receipts[index]
+                        if isinstance(child_receipts, list)
+                        and index < len(child_receipts)
+                        and isinstance(child_receipts[index], Mapping)
+                        else {}
+                    )
+                    control_receipt = child_receipt.get("control_receipt")
+                    implementation_close = entry.get(
+                        "implementation_bead_close_authorized"
+                    )
+                    if implementation_close is True and (
+                        not isinstance(control_receipt, Mapping)
+                        or control_receipt.get("terminal_state") != "completed"
+                        or control_receipt.get("errors") != []
+                    ):
+                        errors.append(
+                            f"child-disposition[{index}]-implementation-close-requires-successful-control-receipt"
+                        )
+                    if (
+                        isinstance(control_receipt, Mapping)
+                        and control_receipt.get("terminal_state") == "control-failed"
+                        and implementation_close is not False
+                    ):
+                        errors.append(
+                            f"child-disposition[{index}]-control-failed-close-forbidden"
+                        )
     if terminal_state is not None:
         if receipt.get("terminal_state_sha256") != terminal_state.get("state_sha256"):
             errors.append("receipt-terminal-state-sha256-mismatch")

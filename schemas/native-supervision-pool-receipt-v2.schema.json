@@ -193,6 +193,7 @@
           "work_unit_id",
           "packet_sha256",
           "admitted_child_sha256",
+          "control_receipt",
           "receipt_sha256"
         ],
         "properties": {
@@ -213,6 +214,16 @@
           },
           "admitted_child_sha256": {
             "$ref": "#/$defs/sha256"
+          },
+          "control_receipt": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/control_receipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "receipt_sha256": {
             "$ref": "#/$defs/sha256"
@@ -413,6 +424,61 @@
     "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "control_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_type",
+        "version",
+        "contract_sha256",
+        "task_sha256",
+        "submission_id",
+        "actions",
+        "decisions",
+        "poll_count",
+        "terminal_state",
+        "errors"
+      ],
+      "properties": {
+        "receipt_type": {
+          "const": "cwo-native-control-turn-receipt"
+        },
+        "version": {
+          "const": 1
+        },
+        "contract_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "task_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "submission_id": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "actions": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "enum": ["continue", "warn", "complete", "interrupt", "control-lost"]
+          }
+        },
+        "poll_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "terminal_state": {
+          "enum": ["completed", "closed", "control-failed"]
+        },
+        "errors": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
     },
     "tokens": {
       "type": "object",

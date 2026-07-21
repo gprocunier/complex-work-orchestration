@@ -20,6 +20,7 @@ from cwo_core.native_control import (  # noqa: E402
     run_control_turn,
     validate_control_callbacks,
     validate_control_turn_contract,
+    validate_control_turn_receipt,
 )
 
 
@@ -76,6 +77,24 @@ class FakeAdapter:
 
 
 class NativeControlTest(unittest.TestCase):
+    def test_terminal_receipt_is_strict_and_control_contract_bound(self) -> None:
+        control = contract()
+        receipt = run_control_turn(
+            control,
+            TASK,
+            FakeAdapter(["complete"]).callbacks(),
+        )
+        self.assertEqual(
+            validate_control_turn_receipt(receipt, contract=control),
+            [],
+        )
+        swapped = dict(receipt)
+        swapped["contract_sha256"] = "f" * 64
+        self.assertIn(
+            "control-receipt-contract-sha256-mismatch",
+            validate_control_turn_receipt(swapped, contract=control),
+        )
+
     def run_renderer(self, state: object, *, agent_id: str = "agent-1", task: str = TASK):
         with tempfile.TemporaryDirectory() as temporary:
             state_path = Path(temporary) / "state.json"

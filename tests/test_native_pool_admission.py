@@ -16,7 +16,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cwo_core.beads import BdCommandResult  # noqa: E402
+from cwo_core.beads import BdCommandResult, run_bd_structured  # noqa: E402
 from cwo_core.beads_ready_set import build_ready_set_evidence  # noqa: E402
 from cwo_core.native_pool_admission import (  # noqa: E402
     AdmissionCandidate,
@@ -34,7 +34,11 @@ from cwo_core.native_pool_admission import (  # noqa: E402
 from cwo_core.native_pool_proportionality import (  # noqa: E402
     pool_proportionality_check,
 )
-from tests.test_native_pool_proportionality import _fixture  # noqa: E402
+from tests.test_beads_ready_set import ready_item  # noqa: E402
+from tests.test_native_pool_proportionality import (  # noqa: E402
+    _fixture,
+    _set_runtime,
+)
 
 
 def _hash(value: str) -> str:
@@ -109,7 +113,7 @@ class MemoryBdRunner:
         self.actions.setdefault(bead_id, []).extend(actions)
 
     def __call__(self, args: tuple[str, ...], **kwargs: object) -> BdCommandResult:
-        del kwargs
+        actor = str(kwargs.get("actor", self.actor))
         self.calls.append(args)
         command = ("bd", *args)
         bead_id = args[1]
@@ -132,7 +136,7 @@ class MemoryBdRunner:
             issue.update(
                 {
                     "status": "in_progress",
-                    "assignee": self.actor,
+                    "assignee": actor,
                     "updated_at": "2026-07-21T20:00:01Z",
                     "started_at": "2026-07-21T20:00:01Z",
                 }
@@ -149,7 +153,7 @@ class MemoryBdRunner:
         timed_out = action in {"timeout-committed", "timeout-uncommitted"}
         returncode = None if timed_out else (7 if action == "error-committed" else 0)
         stdout = (
-            json.dumps({"status": "in_progress", "assignee": self.actor})
+            json.dumps({"status": "in_progress", "assignee": actor})
             if action == "spoof-output"
             else "{}"
         )
@@ -217,6 +221,11 @@ class NativePoolAdmissionTests(unittest.TestCase):
         self.assertEqual(
             reservation.receipt["retained_owned_issue_ids"],
             ["bead-a", "bead-b"],
+        )
+        self.assertNotEqual(reservation.receipt["claim_actor"], runner.actor)
+        self.assertEqual(
+            reservation.claim_adapter.actor,
+            reservation.receipt["claim_actor"],
         )
         self.assertEqual(reservation.capability.state, "available")
 
@@ -469,6 +478,8 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 capability,
                 tampered,
                 _context(tampered),
+                claim_adapter=reservation.claim_adapter,
+                live_revalidate=_live,
                 commit=lambda _: None,
                 now="2026-07-21T20:00:03Z",
             )
@@ -490,6 +501,8 @@ class NativePoolAdmissionTests(unittest.TestCase):
                     capability,
                     reservation.receipt,
                     _context(dict(reservation.receipt)),
+                    claim_adapter=reservation.claim_adapter,
+                    live_revalidate=_live,
                     commit=lambda value: (
                         commit_lock.acquire(),
                         commits.append(value["dispatch_sha256"]),
@@ -522,6 +535,8 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 capability,
                 reservation.receipt,
                 _context(dict(reservation.receipt)),
+                claim_adapter=reservation.claim_adapter,
+                live_revalidate=_live,
                 precommit=fail,
                 commit=lambda _: None,
             )
@@ -531,6 +546,8 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 capability,
                 reservation.receipt,
                 _context(dict(reservation.receipt)),
+                claim_adapter=reservation.claim_adapter,
+                live_revalidate=_live,
                 commit=fail,
             )
         self.assertEqual(capability.state, "retired")
@@ -543,6 +560,8 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 capability,
                 reservation.receipt,
                 _context(dict(reservation.receipt)),
+                claim_adapter=reservation.claim_adapter,
+                live_revalidate=_live,
                 commit=lambda _: None,
                 postcommit=fail,
             )
@@ -564,6 +583,32 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 capability,
                 reservation.receipt,
                 context,
+                claim_adapter=reservation.claim_adapter,
+                live_revalidate=_live,
+                commit=commits.append,
+            )
+        self.assertEqual(commits, [])
+        self.assertEqual(capability.state, "available")
+
+    def test_public_consumer_revalidates_claims_under_capability_lock(self) -> None:
+        candidate, items, _ = _fixture_candidate(2)
+        reservation, runner = _reserve(candidate, items)
+        capability = reservation.capability
+        assert capability is not None
+        bead_id = reservation.receipt["issue_ids"][0]
+        runner.issues[bead_id]["title"] += " drift"
+        commits: list[dict] = []
+
+        with self.assertRaisesRegex(
+            NativePoolAdmissionError,
+            "live-revalidation-claim-drift",
+        ):
+            consume_pool_admission(
+                capability,
+                reservation.receipt,
+                _context(dict(reservation.receipt)),
+                claim_adapter=reservation.claim_adapter,
+                live_revalidate=_live,
                 commit=commits.append,
             )
         self.assertEqual(commits, [])
@@ -602,6 +647,143 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 "admission-real-test",
             )
             self.assertTrue(transition.post_issue["started_at"])
+
+    def test_real_concurrent_same_base_actor_allows_one_admission_commit(self) -> None:
+        with TemporaryDirectory(prefix="cwo-p113b-real-race-") as directory:
+            subprocess.run(
+                ["bd", "init", "--prefix", "race", "--quiet"],
+                cwd=directory,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            created = subprocess.run(
+                ["bd", "create", "race target", "--type", "task", "--json"],
+                cwd=directory,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            issue_id = json.loads(created.stdout)["id"]
+            _, _, _, policy = _fixture([600])
+            template = _set_runtime(ready_item(issue_id), 600, policy=policy)
+            subprocess.run(
+                [
+                    "bd",
+                    "update",
+                    issue_id,
+                    "--title",
+                    issue_id,
+                    "--priority",
+                    "1",
+                    "--set-labels",
+                    "implementation",
+                    "--metadata",
+                    json.dumps(template["raw"]["metadata"]),
+                    "--json",
+                ],
+                cwd=directory,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            shown = subprocess.run(
+                ["bd", "show", issue_id, "--json"],
+                cwd=directory,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            raw = json.loads(shown.stdout)[0]
+            item = {
+                "id": issue_id,
+                "title": raw["title"],
+                "type": raw["issue_type"],
+                "status": raw["status"],
+                "priority": raw["priority"],
+                "labels": raw["labels"],
+                "dependencies": [],
+                "raw": {**raw, "_cwo_executable_leaf": True},
+            }
+            readiness = build_ready_set_evidence(
+                [item],
+                epic_id="real-race-epic",
+                requested_workers=1,
+                policy_document=policy,
+            )
+            estimates = {
+                issue_id: raw["metadata"]["cwo_ready_set_admission"]["work_plan"]
+            }
+            candidate = _candidate_from(
+                readiness,
+                estimates,
+                policy,
+                requested_workers=1,
+            )
+            update_barrier = Barrier(2)
+
+            def race_runner(args: tuple[str, ...], **kwargs: object) -> BdCommandResult:
+                if args[0] == "update":
+                    update_barrier.wait(timeout=20)
+                return run_bd_structured(args, **kwargs)
+
+            base_adapter = BeadsClaimAdapter(
+                directory=directory,
+                database=Path(directory) / ".beads" / "embeddeddolt",
+                actor="shared-admission-base",
+                timeout=20,
+                runner=race_runner,
+            )
+
+            def attempt() -> object:
+                try:
+                    return reserve_pool_cohort(
+                        candidate,
+                        claim_adapter=base_adapter,
+                        admission_nonce="shared-race-nonce",
+                        live_revalidate=_live,
+                        now="2026-07-21T20:00:02Z",
+                    )
+                except NativePoolAdmissionError as error:
+                    return error
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                outcomes = list(executor.map(lambda _: attempt(), range(2)))
+            admitted = [
+                outcome
+                for outcome in outcomes
+                if not isinstance(outcome, BaseException) and outcome.admitted
+            ]
+            self.assertEqual(len(admitted), 1, outcomes)
+            winner = admitted[0]
+            self.assertNotEqual(
+                winner.receipt["claim_actor"],
+                base_adapter.actor,
+            )
+            final_show = json.loads(
+                subprocess.run(
+                    ["bd", "show", issue_id, "--json"],
+                    cwd=directory,
+                    check=True,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                ).stdout
+            )[0]
+            self.assertEqual(final_show["assignee"], winner.receipt["claim_actor"])
+            commits: list[str] = []
+            dispatch = consume_pool_admission(
+                winner.capability,
+                winner.receipt,
+                _context(dict(winner.receipt)),
+                claim_adapter=winner.claim_adapter,
+                live_revalidate=_live,
+                commit=lambda receipt: commits.append(receipt["dispatch_sha256"]),
+            )
+            self.assertEqual(commits, [dispatch["dispatch_sha256"]])
 
 
 if __name__ == "__main__":

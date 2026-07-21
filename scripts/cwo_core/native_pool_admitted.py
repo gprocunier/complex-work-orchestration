@@ -8,13 +8,12 @@ from typing import Any, Callable, Mapping
 
 from .native_pool import _build_admitted_pool_coordinator
 from .native_pool_admission import (
-    ClaimAdapter,
+    BeadsClaimAdapter,
     FixedCohortAdmissionCapability,
     LiveRevalidationCallback,
     NativePoolAdmissionError,
     build_dispatch_context,
     consume_pool_admission,
-    revalidate_reservation_live,
     validate_reservation_receipt,
 )
 from .native_pool_contracts import (
@@ -40,7 +39,7 @@ def run_admitted_native_pool(
     task_inputs: Mapping[str, str],
     child_callbacks: Mapping[str, Mapping[str, Callable[..., Any]]],
     *,
-    claim_adapter: ClaimAdapter,
+    claim_adapter: BeadsClaimAdapter,
     live_revalidate: LiveRevalidationCallback,
     pool_callbacks: Mapping[str, Callable[..., Any]],
     lease_registry: PoolLeaseRegistry,
@@ -108,11 +107,6 @@ def run_admitted_native_pool(
     acquired = lease_registry.acquire_many(contract, child_ids)
     commit_invoked = False
     try:
-        revalidate_reservation_live(
-            reservation_receipt,
-            claim_adapter=claim_adapter,
-            live_revalidate=live_revalidate,
-        )
         lease_set_sha256 = canonical_sha256({"leases": acquired})
         dispatch_context = build_dispatch_context(
             reservation_receipt,
@@ -148,6 +142,8 @@ def run_admitted_native_pool(
             admission_capability,
             reservation_receipt,
             dispatch_context,
+            claim_adapter=claim_adapter,
+            live_revalidate=live_revalidate,
             commit=commit,
         )
         return {
