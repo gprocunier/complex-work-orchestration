@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping
+from dataclasses import dataclass
 import hashlib
 import hmac
 import json
@@ -36,10 +37,12 @@ _VERIFIED_REPLANNING_STATE_TOKEN = object()
 _REPLANNING_STATE_CAPABILITY_KEY = secrets.token_bytes(32)
 _REPLANNING_STATE_CAPABILITY_CONTEXT = b"cwo-native-replanning-live-state-v1\x00"
 _REPLANNING_STATE_REGISTRY_LOCK = RLock()
-_REPLANNING_STATE_REGISTRY: dict[
-    int, tuple[weakref.ReferenceType["VerifiedReplanningState"], str]
-] = {}
+_REPLANNING_STATE_REGISTRY: dict[int, "_ReplanningCapabilityRecord"] = {}
 _BOOTSTRAPPED_REPLANNING_IDENTITIES: set[tuple[str, str, str]] = set()
+_REPLANNING_CORE_CLAIM_TOKEN = object()
+_CAPABILITY_AVAILABLE = "available"
+_CAPABILITY_IN_FLIGHT = "in-flight"
+_CAPABILITY_RETIRED = "retired"
 MAIN_THREAD_SOURCE_TURN_CONTEXT = "trusted-turn-context"
 MAIN_THREAD_SOURCE_USER = "user-declaration"
 REQUIRED_MAIN_THREAD_RUNTIME_FIELDS = (
@@ -200,6 +203,13 @@ class VerifiedReplanningState(Mapping[str, Any]):
         return self.copy()
 
 
+@dataclass
+class _ReplanningCapabilityRecord:
+    reference: weakref.ReferenceType[VerifiedReplanningState]
+    mac: str
+    status: str = _CAPABILITY_AVAILABLE
+
+
 def _replanning_identity(state: Mapping[str, Any]) -> tuple[str, str, str]:
     return (
         str(state["work_unit_id"]),
@@ -240,23 +250,23 @@ def _register_replanning_state(
     def remove(reference: weakref.ReferenceType[VerifiedReplanningState]) -> None:
         with _REPLANNING_STATE_REGISTRY_LOCK:
             current = _REPLANNING_STATE_REGISTRY.get(object_id)
-            if current is not None and current[0] is reference:
+            if current is not None and current.reference is reference:
                 _REPLANNING_STATE_REGISTRY.pop(object_id, None)
 
     with _REPLANNING_STATE_REGISTRY_LOCK:
         if bootstrap and identity in _BOOTSTRAPPED_REPLANNING_IDENTITIES:
             raise ValueError("replanning-lifecycle-already-bootstrapped")
         reference = weakref.ref(state, remove)
-        _REPLANNING_STATE_REGISTRY[object_id] = (
-            reference,
-            _replanning_capability_mac(state),
+        _REPLANNING_STATE_REGISTRY[object_id] = _ReplanningCapabilityRecord(
+            reference=reference,
+            mac=_replanning_capability_mac(state),
         )
         if bootstrap:
             _BOOTSTRAPPED_REPLANNING_IDENTITIES.add(identity)
     return state
 
 
-def _require_live_replanning_state(state: Any) -> VerifiedReplanningState:
+def _exact_replanning_state(state: Any) -> VerifiedReplanningState:
     if type(state) is not VerifiedReplanningState:
         if isinstance(state, Mapping) and state.get("version") in {1, 2}:
             raise ValueError(
@@ -266,20 +276,118 @@ def _require_live_replanning_state(state: Any) -> VerifiedReplanningState:
             "malformed state: live verifier-minted replanning state required; "
             "serialized state is inspection-only"
         )
+    return state
+
+
+def _registered_replanning_state_locked(
+    state: VerifiedReplanningState,
+    *,
+    expected_status: str,
+) -> _ReplanningCapabilityRecord:
+    registered = _REPLANNING_STATE_REGISTRY.get(id(state))
+    if registered is None or registered.reference() is not state:
+        raise ValueError("malformed state: replanning live capability unregistered")
+    try:
+        observed_mac = _replanning_capability_mac(state)
+    except (AttributeError, TypeError, UnicodeError, ValueError) as exc:
+        raise ValueError(
+            "malformed state: replanning live capability invalid"
+        ) from exc
+    if not hmac.compare_digest(registered.mac, observed_mac):
+        raise ValueError("malformed state: replanning live capability integrity mismatch")
+    if registered.status != expected_status:
+        if registered.status == _CAPABILITY_IN_FLIGHT:
+            raise ValueError("replanning state transition already in-flight")
+        if registered.status == _CAPABILITY_RETIRED:
+            raise ValueError("replanning state capability is retired and stale")
+        raise ValueError("replanning state capability status invalid")
+    return registered
+
+
+def _require_live_replanning_state(
+    state: Any,
+    *,
+    expected_status: str = _CAPABILITY_AVAILABLE,
+) -> VerifiedReplanningState:
+    source = _exact_replanning_state(state)
+    with _REPLANNING_STATE_REGISTRY_LOCK:
+        _registered_replanning_state_locked(
+            source,
+            expected_status=expected_status,
+        )
+    _validate_replanning_state(source)
+    return source
+
+
+def _claim_replanning_transition(state: Any) -> VerifiedReplanningState:
+    source = _exact_replanning_state(state)
+    with _REPLANNING_STATE_REGISTRY_LOCK:
+        registered = _registered_replanning_state_locked(
+            source,
+            expected_status=_CAPABILITY_AVAILABLE,
+        )
+        registered.status = _CAPABILITY_IN_FLIGHT
+    try:
+        _validate_replanning_state(source)
+    except BaseException:
+        _release_replanning_transition_claim(source)
+        raise
+    return source
+
+
+def _release_replanning_transition_claim(
+    state: VerifiedReplanningState,
+) -> None:
     with _REPLANNING_STATE_REGISTRY_LOCK:
         registered = _REPLANNING_STATE_REGISTRY.get(id(state))
-        if registered is None or registered[0]() is not state:
-            raise ValueError("malformed state: replanning live capability unregistered")
-        try:
-            observed_mac = _replanning_capability_mac(state)
-        except (AttributeError, TypeError, UnicodeError, ValueError) as exc:
-            raise ValueError(
-                "malformed state: replanning live capability invalid"
-            ) from exc
-        if not hmac.compare_digest(registered[1], observed_mac):
-            raise ValueError("malformed state: replanning live capability integrity mismatch")
-    _validate_replanning_state(state)
-    return state
+        if (
+            registered is not None
+            and registered.reference() is state
+            and registered.status == _CAPABILITY_IN_FLIGHT
+        ):
+            registered.status = _CAPABILITY_AVAILABLE
+
+
+def _finalize_replanning_transition(
+    source: VerifiedReplanningState,
+    successor: VerifiedReplanningState,
+) -> VerifiedReplanningState:
+    global _REPLANNING_STATE_REGISTRY
+
+    if type(successor) is not VerifiedReplanningState:
+        raise ValueError("replanning successor capability invalid")
+    _validate_replanning_state(successor)
+    if _replanning_identity(successor) != _replanning_identity(source):
+        raise ValueError("replanning successor lifecycle identity mismatch")
+    successor_id = id(successor)
+
+    def remove(reference: weakref.ReferenceType[VerifiedReplanningState]) -> None:
+        with _REPLANNING_STATE_REGISTRY_LOCK:
+            current = _REPLANNING_STATE_REGISTRY.get(successor_id)
+            if current is not None and current.reference is reference:
+                _REPLANNING_STATE_REGISTRY.pop(successor_id, None)
+
+    with _REPLANNING_STATE_REGISTRY_LOCK:
+        source_registration = _registered_replanning_state_locked(
+            source,
+            expected_status=_CAPABILITY_IN_FLIGHT,
+        )
+        if successor_id in _REPLANNING_STATE_REGISTRY:
+            raise ValueError("replanning successor capability already registered")
+        successor_reference = weakref.ref(successor, remove)
+        successor_registration = _ReplanningCapabilityRecord(
+            reference=successor_reference,
+            mac=_replanning_capability_mac(successor),
+        )
+        updated_registry = dict(_REPLANNING_STATE_REGISTRY)
+        updated_registry[id(source)] = _ReplanningCapabilityRecord(
+            reference=source_registration.reference,
+            mac=source_registration.mac,
+            status=_CAPABILITY_RETIRED,
+        )
+        updated_registry[successor_id] = successor_registration
+        _REPLANNING_STATE_REGISTRY = updated_registry
+    return successor
 
 
 def _valid_string_list(value: Any, *, nonempty: bool = False) -> bool:
@@ -1005,10 +1113,8 @@ def _replanning_state_sha256(state: Mapping[str, Any]) -> str:
     return canonical_authority_sha256(_state_integrity_subject(state))
 
 
-def _seal_replanning_state(
+def _mint_sealed_replanning_state(
     state: Mapping[str, Any],
-    *,
-    bootstrap: bool = False,
 ) -> VerifiedReplanningState:
     payload = canonical_json_object(state, label="replanning-state")
     digest = _replanning_state_sha256(payload)
@@ -1021,6 +1127,15 @@ def _seal_replanning_state(
     capability = VerifiedReplanningState(
         payload, _VERIFIED_REPLANNING_STATE_TOKEN
     )
+    return capability
+
+
+def _seal_replanning_state(
+    state: Mapping[str, Any],
+    *,
+    bootstrap: bool = False,
+) -> VerifiedReplanningState:
+    capability = _mint_sealed_replanning_state(state)
     return _register_replanning_state(capability, bootstrap=bootstrap)
 
 
@@ -1612,8 +1727,16 @@ def _transition_replanning_state(
     operator_approval_verifier: OperatorApprovalVerifier | None = None,
     operator_approval_receipts: Mapping[str, Any] | None = None,
     policy: Mapping[str, Any] | None = None,
+    _claim_token: object | None = None,
 ) -> Mapping[str, Any]:
-    source = _require_live_replanning_state(state)
+    source = _require_live_replanning_state(
+        state,
+        expected_status=(
+            _CAPABILITY_IN_FLIGHT
+            if _claim_token is _REPLANNING_CORE_CLAIM_TOKEN
+            else _CAPABILITY_AVAILABLE
+        ),
+    )
     if (
         operator_approval_verifier is not None
         and type(operator_approval_verifier) is not OperatorApprovalVerifier
@@ -2118,17 +2241,22 @@ def transition_replanning_state(
     operator_approval_receipts: Mapping[str, Any] | None = None,
     policy: Mapping[str, Any] | None = None,
 ) -> VerifiedReplanningState:
-    """Perform one strict-write transition and return a newly sealed v3 state."""
+    """Consume one live source and atomically publish one sealed successor."""
 
-    result = _transition_replanning_state(
-        state,
-        event,
-        evidence,
-        caller_authority=caller_authority,
-        operator_approval_verifier=operator_approval_verifier,
-        operator_approval_receipts=operator_approval_receipts,
-        policy=policy,
-    )
-    sealed = _seal_replanning_state(result)
-    _validate_replanning_state(sealed)
-    return sealed
+    source = _claim_replanning_transition(state)
+    try:
+        result = _transition_replanning_state(
+            source,
+            event,
+            evidence,
+            caller_authority=caller_authority,
+            operator_approval_verifier=operator_approval_verifier,
+            operator_approval_receipts=operator_approval_receipts,
+            policy=policy,
+            _claim_token=_REPLANNING_CORE_CLAIM_TOKEN,
+        )
+        successor = _mint_sealed_replanning_state(result)
+        return _finalize_replanning_transition(source, successor)
+    except BaseException:
+        _release_replanning_transition_claim(source)
+        raise

@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import hmac
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Event
 import unittest
 from unittest.mock import patch
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+
+import cwo_core.native_replanning as native_replanning  # noqa: E402
 
 from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_TYPE,
@@ -335,6 +339,134 @@ class NativeReplanningTest(unittest.TestCase):
     def tearDown(self) -> None:
         self._temporary.cleanup()
 
+    def test_successful_lifecycle_is_linear_and_stale_sources_cannot_dispatch(self) -> None:
+        planned = build_replanning_state(_base_state())
+        dispatchable = transition_replanning_state(planned, "accepted", {})
+        with self.assertRaisesRegex(ValueError, "retired and stale"):
+            transition_replanning_state(planned, "accepted", {})
+
+        executing = transition_replanning_state(
+            dispatchable,
+            "dispatch-started",
+            {},
+        )
+        self.assertEqual(executing["counters"]["dispatches"], 1)
+        with self.assertRaisesRegex(ValueError, "retired and stale"):
+            transition_replanning_state(dispatchable, "dispatch-started", {})
+
+        completed = transition_replanning_state(
+            executing,
+            "completed",
+            {"completed": True},
+        )
+        self.assertEqual(completed["state"], "completed")
+        with self.assertRaisesRegex(ValueError, "retired and stale"):
+            transition_replanning_state(
+                executing,
+                "completed",
+                {"completed": True},
+            )
+
+    def test_concurrent_transition_claim_yields_exactly_one_successor(self) -> None:
+        source = build_replanning_state(_base_state())
+        entered = Event()
+        release = Event()
+        real_core = native_replanning._transition_replanning_state
+
+        def blocked_core(*args, **kwargs):
+            entered.set()
+            if not release.wait(timeout=5):
+                raise RuntimeError("test transition release timed out")
+            return real_core(*args, **kwargs)
+
+        with patch.object(
+            native_replanning,
+            "_transition_replanning_state",
+            side_effect=blocked_core,
+        ), ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(
+                transition_replanning_state,
+                source,
+                "accepted",
+                {},
+            )
+            if not entered.wait(timeout=5):
+                release.set()
+                self.fail("first transition did not enter the core")
+            second = executor.submit(
+                transition_replanning_state,
+                source,
+                "accepted",
+                {},
+            )
+            second_error = second.exception(timeout=5)
+            release.set()
+            successor = first.result(timeout=5)
+
+        self.assertIsInstance(second_error, ValueError)
+        self.assertIn("already in-flight", str(second_error))
+        self.assertIs(type(successor), VerifiedReplanningState)
+        self.assertEqual(successor["state"], "dispatchable")
+
+    def test_failed_core_or_sealing_releases_source_for_corrected_retry(self) -> None:
+        malformed_source = build_replanning_state(_base_state())
+        with self.assertRaisesRegex(ValueError, "unknown event"):
+            transition_replanning_state(malformed_source, "not-an-event", {})
+        corrected = transition_replanning_state(
+            malformed_source,
+            "accepted",
+            {},
+        )
+        self.assertEqual(corrected["state"], "dispatchable")
+
+        sealing_source = build_replanning_state(_base_state())
+        with patch.object(
+            native_replanning,
+            "_mint_sealed_replanning_state",
+            side_effect=ValueError("simulated sealing failure"),
+        ), self.assertRaisesRegex(ValueError, "simulated sealing failure"):
+            transition_replanning_state(sealing_source, "accepted", {})
+        sealing_retry = transition_replanning_state(
+            sealing_source,
+            "accepted",
+            {},
+        )
+        self.assertEqual(sealing_retry["state"], "dispatchable")
+
+    def test_private_core_projection_is_nonoperative_and_does_not_consume_source(self) -> None:
+        source = build_replanning_state(_base_state())
+        projection = native_replanning._transition_replanning_state(
+            source,
+            "accepted",
+            {},
+            caller_authority=_trusted_authority("worker"),
+        )
+        self.assertIs(type(projection), dict)
+        with self.assertRaisesRegex(ValueError, "inspection-only"):
+            transition_replanning_state(projection, "dispatch-started", {})
+        successor = transition_replanning_state(source, "accepted", {})
+        self.assertEqual(successor["state"], "dispatchable")
+
+    def test_terminal_transition_cannot_fork_from_preterminal_source(self) -> None:
+        source = _state_with_overrides()
+        contradictory = _needs_replan_evidence()
+        contradictory["contradictory_validation"] = True
+        stopped = transition_replanning_state(
+            source,
+            "needs-replan",
+            contradictory,
+        )
+        self.assertEqual(stopped["state"], "protected-stop")
+        self.assertTrue(
+            stopped["terminal_latches"]["contradictory_validation"]
+        )
+        with self.assertRaisesRegex(ValueError, "retired and stale"):
+            transition_replanning_state(
+                source,
+                "clean-no-artifact",
+                {"trusted_evidence": True},
+            )
+
     def test_typed_needs_replan_routes_to_pm_without_operator_approval(self) -> None:
         result = transition_replanning_state(
             _state_with_overrides(),
@@ -459,7 +591,7 @@ class NativeReplanningTest(unittest.TestCase):
             operator_approval_receipts={"model-substitution": receipt},
         )
         self.assertEqual(result["requested_model"], "gpt-5.6-sol")
-        with self.assertRaisesRegex(ValueError, "replayed"):
+        with self.assertRaisesRegex(ValueError, "retired and stale"):
             transition_replanning_state(
                 pm_state,
                 "pm-refined",
