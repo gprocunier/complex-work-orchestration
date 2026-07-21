@@ -39,8 +39,11 @@ ALLOWED_IMPORTS = {
     "waivers": set(),
     "beads": {"paths", "util"},
     "beads_ready_set": {
+        "native_authority",
+        "native_capability",
         "native_pool_capacity",
         "native_pool_schedulability",
+        "native_tool_isolation",
         "policy",
         "work_sizing",
     },

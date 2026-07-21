@@ -8,14 +8,31 @@ admission stage; it is never dispatch authority.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from hashlib import sha256
 from itertools import combinations
 import json
 from pathlib import PurePosixPath
 from typing import Any, Mapping, Sequence
 
+from .native_authority import (
+    AuthorityProvenanceError,
+    OperatorApprovalVerifier,
+    canonical_authority_sha256,
+    validate_authority_provenance,
+    validate_operator_approval_audit,
+)
+from .native_capability import (
+    capability_receipt_applies,
+    validate_native_capability_receipt,
+)
 from .native_pool_capacity import PoolCapacityLimits, load_pool_capacity
 from .native_pool_schedulability import scheduling_budget_proof
+from .native_tool_isolation import (
+    canonical_sha256 as canonical_tool_sha256,
+    validate_tool_policy,
+    validate_tool_surface_snapshot,
+)
 from .policy import load_policy
 from .work_sizing import (
     canonical_work_estimate_sha256,
@@ -24,10 +41,15 @@ from .work_sizing import (
 )
 
 
-SNAPSHOT_TYPE = "cwo-beads-ready-set-snapshot:v1"
-SNAPSHOT_VERSION = 1
+SNAPSHOT_TYPE = "cwo-beads-ready-set-snapshot:v2"
+SNAPSHOT_VERSION = 2
 READY_SET_AUTHORITY = "candidate-evidence-only"
 MAX_PHASE1_CANDIDATE_WORKERS = 3
+ADMISSION_METADATA_VERSION = 2
+LEASE_SCOPE_TYPE = "cwo-ready-set-lease-scope-intent"
+LEASE_SCOPE_VERSION = 1
+COHORT_TYPE = "cwo-compatible-ready-set"
+COHORT_VERSION = 1
 
 RESTRICTED_LABELS = frozenset(
     {
@@ -77,6 +99,11 @@ ADMISSION_METADATA_REQUIRED_FIELDS = frozenset(
         "share_boundary",
         "required_tools",
         "tool_surface_id",
+        "tool_policy",
+        "tool_surface",
+        "capability_receipt",
+        "capability_assessed_at",
+        "lease_scope",
         "hard_budget",
         "aggregate_hard_budget",
     }
@@ -84,8 +111,20 @@ ADMISSION_METADATA_REQUIRED_FIELDS = frozenset(
 ADMISSION_METADATA_OPTIONAL_FIELDS = frozenset(
     {
         "precommit_receipt",
-        "authority_change_approved",
-        "authority_approval_sha256",
+        "authority_change_before",
+        "authority_provenance",
+        "operator_approval_audit",
+    }
+)
+LEASE_SCOPE_FIELDS = frozenset(
+    {
+        "lease_scope_type",
+        "version",
+        "issue_id",
+        "integration_root_identity_sha256",
+        "workspace_scope_sha256",
+        "target_paths",
+        "lease_scope_sha256",
     }
 )
 
@@ -227,6 +266,185 @@ def _budget(value: Any, *, field: str) -> tuple[dict[str, int], list[str]]:
     return result, errors
 
 
+def _lease_scope(
+    value: Any,
+    *,
+    issue_id: str,
+    target_paths: Sequence[str],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Validate a non-authoritative, hash-bound lease compatibility intent.
+
+    P1-13A never creates or accepts an operative native supervision lease.
+    This narrower object only lets the planner reject cohorts whose declared
+    integration identity, workspace identity, or target scope cannot coexist.
+    P1-13B must acquire and validate the real lease after claims.
+    """
+
+    if not isinstance(value, Mapping):
+        return None, ["lease_scope must be an object"]
+    errors: list[str] = []
+    missing = sorted(LEASE_SCOPE_FIELDS - set(value))
+    unknown = sorted(set(value) - LEASE_SCOPE_FIELDS)
+    if missing:
+        errors.append("lease_scope is missing fields: " + ", ".join(missing))
+    if unknown:
+        errors.append("lease_scope has unknown fields: " + ", ".join(unknown))
+    if missing or unknown:
+        return None, errors
+    if value.get("lease_scope_type") != LEASE_SCOPE_TYPE:
+        errors.append(f"lease_scope_type must equal {LEASE_SCOPE_TYPE}")
+    if value.get("version") != LEASE_SCOPE_VERSION:
+        errors.append(f"lease_scope.version must equal {LEASE_SCOPE_VERSION}")
+    if value.get("issue_id") != issue_id:
+        errors.append("lease_scope.issue_id must match the ready issue")
+    for field in (
+        "integration_root_identity_sha256",
+        "workspace_scope_sha256",
+        "lease_scope_sha256",
+    ):
+        if not _sha256_hex(value.get(field)):
+            errors.append(f"lease_scope.{field} must be a canonical sha256")
+    normalized_targets, target_errors = _relative_paths(
+        value.get("target_paths"),
+        field="lease_scope.target_paths",
+    )
+    errors.extend(target_errors)
+    if normalized_targets != list(target_paths):
+        errors.append(
+            "lease_scope.target_paths must exactly match integration_target_paths"
+        )
+    body = {key: value[key] for key in value if key != "lease_scope_sha256"}
+    try:
+        expected_sha256 = canonical_json_sha256(body)
+    except (TypeError, ValueError):
+        expected_sha256 = None
+        errors.append("lease_scope body must be canonical JSON")
+    if value.get("lease_scope_sha256") != expected_sha256:
+        errors.append("lease_scope_sha256 mismatch")
+    return (dict(value) if not errors else None), errors
+
+
+def _authorized_models(policy_document: Mapping[str, Any]) -> frozenset[str]:
+    governance = policy_document.get("governance")
+    native_worker = (
+        governance.get("native_operative_worker")
+        if isinstance(governance, Mapping)
+        else None
+    )
+    models = (
+        native_worker.get("authorized_models")
+        if isinstance(native_worker, Mapping)
+        else None
+    )
+    if not isinstance(models, list) or not all(
+        isinstance(model, str) and model.strip() for model in models
+    ):
+        raise ReadySetError("native worker authorized model policy is missing")
+    return frozenset(model.strip() for model in models)
+
+
+def _required_topology(policy_document: Mapping[str, Any]) -> str:
+    precommit = policy_document.get("precommit_supervision")
+    topology = (
+        precommit.get("control_topology")
+        if isinstance(precommit, Mapping)
+        else None
+    )
+    if topology != "single-host-process-v1":
+        raise ReadySetError(
+            "native precommit control topology must equal single-host-process-v1"
+        )
+    return topology
+
+
+def _share_boundaries(
+    share_policy_document: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    boundaries = share_policy_document.get("boundaries")
+    if not isinstance(boundaries, Mapping) or "no-outside-sharing" not in boundaries:
+        raise ReadySetError("share-boundaries policy is missing required boundaries")
+    return boundaries
+
+
+def _parse_aware_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def _capability_ttl_errors(
+    receipt: Mapping[str, Any],
+    policy_document: Mapping[str, Any],
+) -> list[str]:
+    pool = policy_document.get("native_supervision_pool")
+    max_ttl = pool.get("max_capability_ttl_seconds") if isinstance(pool, Mapping) else None
+    if isinstance(max_ttl, bool) or not isinstance(max_ttl, int) or max_ttl <= 0:
+        raise ReadySetError("native pool capability TTL policy is missing")
+    issued = _parse_aware_datetime(receipt.get("issued_at"))
+    expires = _parse_aware_datetime(receipt.get("expires_at"))
+    if issued is None or expires is None:
+        return []
+    ttl_seconds = (expires - issued).total_seconds()
+    if ttl_seconds > max_ttl:
+        return [
+            f"capability receipt TTL {ttl_seconds:g}s exceeds policy maximum {max_ttl}s"
+        ]
+    return []
+
+
+def authority_after_artifact(
+    *,
+    issue_id: str,
+    change_labels: Sequence[str],
+    architecture_authority: str,
+    execution_authority: str,
+    share_boundary: str,
+    work_estimate_sha256: str,
+    worker_commitment_sha256: str,
+    read_paths: Sequence[str],
+    write_paths: Sequence[str],
+    integration_target_paths: Sequence[str],
+    topology: str,
+    isolation_class: str,
+    lease_scope_sha256: str,
+    requested_model: str,
+    required_tools: Sequence[str],
+    tool_surface_id: str,
+    capability_receipt_sha256: str,
+    hard_budget: Mapping[str, int],
+    aggregate_hard_budget: Mapping[str, int],
+) -> dict[str, Any]:
+    """Return the exact issue/candidate scope protected by operator approval."""
+
+    return {
+        "artifact_type": "cwo-ready-set-authority-scope",
+        "version": 1,
+        "issue_id": issue_id,
+        "change_labels": sorted(change_labels),
+        "architecture_authority": architecture_authority,
+        "execution_authority": execution_authority,
+        "share_boundary": share_boundary,
+        "work_estimate_sha256": work_estimate_sha256,
+        "worker_commitment_sha256": worker_commitment_sha256,
+        "declared_read_paths": list(read_paths),
+        "declared_write_paths": list(write_paths),
+        "integration_target_paths": list(integration_target_paths),
+        "topology": topology,
+        "isolation_class": isolation_class,
+        "lease_scope_sha256": lease_scope_sha256,
+        "requested_model": requested_model,
+        "required_tools": list(required_tools),
+        "tool_surface_id": tool_surface_id,
+        "capability_receipt_sha256": capability_receipt_sha256,
+        "hard_budget": dict(hard_budget),
+        "aggregate_hard_budget": dict(aggregate_hard_budget),
+    }
+
+
 def _protected_domains(work_plan: Mapping[str, Any]) -> list[str]:
     value = work_plan.get("protected_surface_matches", [])
     if not isinstance(value, list):
@@ -257,6 +475,14 @@ class ReadyCandidate:
     requested_model: str
     required_tools: tuple[str, ...]
     tool_surface_id: str
+    tool_policy_sha256: str
+    tool_surface_sha256: str
+    capability_receipt_sha256: str
+    capability_assessed_at: str
+    lease_scope_sha256: str
+    integration_root_identity_sha256: str
+    workspace_scope_sha256: str
+    authority_approval_audit_sha256: str | None
     hard_budget: tuple[tuple[str, int], ...]
     aggregate_hard_budget: tuple[tuple[str, int], ...]
 
@@ -267,8 +493,9 @@ class ReadyCandidate:
         return dict(self.aggregate_hard_budget)
 
     def evidence(self) -> dict[str, Any]:
-        return {
+        body = {
             "id": self.issue_id,
+            "rank": self.rank,
             "work_estimate_sha256": self.work_estimate_sha256,
             "worker_commitment_sha256": self.worker_commitment_sha256,
             "admission_metadata_sha256": self.admission_metadata_sha256,
@@ -284,9 +511,23 @@ class ReadyCandidate:
             "requested_model": self.requested_model,
             "required_tools": list(self.required_tools),
             "tool_surface_id": self.tool_surface_id,
+            "tool_policy_sha256": self.tool_policy_sha256,
+            "tool_surface_sha256": self.tool_surface_sha256,
+            "capability_receipt_sha256": self.capability_receipt_sha256,
+            "capability_assessed_at": self.capability_assessed_at,
+            "lease_scope_sha256": self.lease_scope_sha256,
+            "integration_root_identity_sha256": (
+                self.integration_root_identity_sha256
+            ),
+            "workspace_scope_sha256": self.workspace_scope_sha256,
+            "authority_approval_audit_sha256": (
+                self.authority_approval_audit_sha256
+            ),
             "hard_budget": self.hard_budget_dict(),
             "aggregate_hard_budget": self.aggregate_hard_budget_dict(),
         }
+        body["candidate_sha256"] = canonical_json_sha256(body)
+        return body
 
 
 def _exclusion(code: str, detail: str) -> dict[str, str]:
@@ -297,9 +538,17 @@ def evaluate_ready_candidate(
     item: Mapping[str, Any],
     *,
     rank: int,
+    policy_document: Mapping[str, Any] | None = None,
+    share_policy_document: Mapping[str, Any] | None = None,
+    operator_approval_verifier: OperatorApprovalVerifier | None = None,
 ) -> tuple[ReadyCandidate | None, list[dict[str, str]]]:
     """Validate one exact-show-enriched ready issue for pool candidacy."""
 
+    policy = policy_document or load_policy("native-worker-execution")
+    share_policy = share_policy_document or load_policy("share-boundaries")
+    authorized_models = _authorized_models(policy)
+    required_topology = _required_topology(policy)
+    share_boundaries = _share_boundaries(share_policy)
     issue_id = _issue_id(item)
     labels = set(_issue_labels(item))
     reasons: list[dict[str, str]] = []
@@ -325,8 +574,13 @@ def evaluate_ready_candidate(
             )
         )
         return None, reasons
-    if admission.get("version") != 1:
-        reasons.append(_exclusion("invalid-admission-metadata", "admission metadata version must equal 1"))
+    if admission.get("version") != ADMISSION_METADATA_VERSION:
+        reasons.append(
+            _exclusion(
+                "invalid-admission-metadata",
+                f"admission metadata version must equal {ADMISSION_METADATA_VERSION}",
+            )
+        )
     missing_admission_fields = sorted(
         ADMISSION_METADATA_REQUIRED_FIELDS - set(admission)
     )
@@ -351,16 +605,6 @@ def evaluate_ready_candidate(
                 + ", ".join(unknown_admission_fields),
             )
         )
-
-    if labels & AUTHORITY_CHANGE_LABELS:
-        approval = admission.get("authority_approval_sha256")
-        if admission.get("authority_change_approved") is not True or not _sha256_hex(approval):
-            reasons.append(
-                _exclusion(
-                    "unapproved-authority-change",
-                    "authority-changing work requires an exact approval receipt hash",
-                )
-            )
 
     work_plan = _json_mapping(admission.get("work_plan"))
     commitment = _json_mapping(admission.get("worker_commitment"))
@@ -408,8 +652,18 @@ def evaluate_ready_candidate(
         admission.get("integration_target_paths"),
         field="integration_target_paths",
     )
-    tools, tool_errors = _string_list(admission.get("required_tools"), field="required_tools")
-    reasons.extend(_exclusion("invalid-admission-metadata", error) for error in [*read_errors, *write_errors, *target_errors, *tool_errors])
+    tools, tool_errors = _string_list(
+        admission.get("required_tools"), field="required_tools"
+    )
+    reasons.extend(
+        _exclusion("invalid-admission-metadata", error)
+        for error in [
+            *read_errors,
+            *write_errors,
+            *target_errors,
+            *tool_errors,
+        ]
+    )
 
     hard_budget, hard_budget_errors = _budget(admission.get("hard_budget"), field="hard_budget")
     aggregate_budget, aggregate_budget_errors = _budget(
@@ -432,6 +686,29 @@ def evaluate_ready_candidate(
     for name, value in scalar_fields.items():
         if value is None:
             reasons.append(_exclusion("missing-ownership-metadata", f"{name} must be a non-empty string"))
+    if not labels & AUTHORITY_CHANGE_LABELS:
+        if scalar_fields["architecture_authority"] not in {None, "architect"}:
+            reasons.append(
+                _exclusion(
+                    "unapproved-architecture-authority",
+                    "architecture_authority must remain architect unless an exact authority change is approved",
+                )
+            )
+        if scalar_fields["execution_authority"] not in {None, "workerbee"}:
+            reasons.append(
+                _exclusion(
+                    "unapproved-execution-authority",
+                    "execution_authority must remain workerbee unless an exact authority change is approved",
+                )
+            )
+    topology = scalar_fields["topology"]
+    if topology is not None and topology != required_topology:
+        reasons.append(
+            _exclusion(
+                "unsupported-topology",
+                f"topology must equal repository policy value {required_topology}",
+            )
+        )
     isolation = scalar_fields["isolation_class"]
     if isolation is not None and isolation not in ISOLATION_CLASSES:
         reasons.append(
@@ -454,6 +731,143 @@ def evaluate_ready_candidate(
                 "mutable-isolated work must declare at least one write path",
             )
         )
+    work_estimate_sha256 = (
+        canonical_work_estimate_sha256(work_plan)
+        if work_plan is not None
+        else ""
+    )
+    requested_model = (
+        _nonempty_string(work_plan.get("requested_model"))
+        if work_plan is not None
+        else None
+    )
+    if requested_model is None:
+        reasons.append(
+            _exclusion(
+                "missing-model-evidence",
+                "work_plan.requested_model is required",
+            )
+        )
+    elif requested_model not in authorized_models:
+        reasons.append(
+            _exclusion(
+                "unauthorized-model",
+                f"requested model {requested_model} is not authorized by native worker policy",
+            )
+        )
+
+    share_boundary = scalar_fields["share_boundary"]
+    boundary_record = (
+        share_boundaries.get(share_boundary)
+        if share_boundary is not None
+        else None
+    )
+    if share_boundary is not None and not isinstance(boundary_record, Mapping):
+        reasons.append(
+            _exclusion(
+                "unknown-share-boundary",
+                f"share boundary {share_boundary} is not defined by repository policy",
+            )
+        )
+
+    tool_policy = _json_mapping(admission.get("tool_policy"))
+    tool_surface = _json_mapping(admission.get("tool_surface"))
+    capability_receipt = _json_mapping(admission.get("capability_receipt"))
+    capability_assessed_at = _nonempty_string(
+        admission.get("capability_assessed_at")
+    )
+    if tool_policy is None:
+        reasons.append(
+            _exclusion("invalid-tool-policy", "tool_policy must be an object")
+        )
+    else:
+        reasons.extend(
+            _exclusion("invalid-tool-policy", error)
+            for error in validate_tool_policy(tool_policy)
+        )
+        permitted = tool_policy.get("permitted_tools")
+        if isinstance(permitted, list) and tools != permitted:
+            reasons.append(
+                _exclusion(
+                    "tool-policy-scope-mismatch",
+                    "required_tools must exactly match tool_policy.permitted_tools",
+                )
+            )
+    if tool_surface is None:
+        reasons.append(
+            _exclusion("invalid-tool-surface", "tool_surface must be an object")
+        )
+    elif tool_policy is not None:
+        reasons.extend(
+            _exclusion("invalid-tool-surface", error)
+            for error in validate_tool_surface_snapshot(tool_surface, tool_policy)
+        )
+    tool_surface_id = scalar_fields["tool_surface_id"]
+    if (
+        tool_surface is not None
+        and tool_surface_id is not None
+        and tool_surface.get("surface_sha256") != tool_surface_id
+    ):
+        reasons.append(
+            _exclusion(
+                "tool-surface-id-mismatch",
+                "tool_surface_id must equal tool_surface.surface_sha256",
+            )
+        )
+    if capability_receipt is None:
+        reasons.append(
+            _exclusion(
+                "invalid-capability-receipt",
+                "capability_receipt must be an operative provenance-bearing receipt",
+            )
+        )
+    else:
+        receipt_errors = validate_native_capability_receipt(dict(capability_receipt))
+        reasons.extend(
+            _exclusion("invalid-capability-receipt", error)
+            for error in [
+                *receipt_errors,
+                *_capability_ttl_errors(capability_receipt, policy),
+            ]
+        )
+        if (
+            not receipt_errors
+            and requested_model is not None
+            and tool_surface_id is not None
+            and capability_assessed_at is not None
+            and not capability_receipt_applies(
+                dict(capability_receipt),
+                requested_model,
+                tool_surface_id,
+                capability_assessed_at,
+            )
+        ):
+            reasons.append(
+                _exclusion(
+                    "capability-receipt-not-applicable",
+                    "capability receipt must bind the requested model, tool surface, and assessed time",
+                )
+            )
+    if capability_assessed_at is None or _parse_aware_datetime(
+        capability_assessed_at
+    ) is None:
+        reasons.append(
+            _exclusion(
+                "invalid-capability-assessed-at",
+                "capability_assessed_at must be an aware RFC3339 timestamp",
+            )
+        )
+
+    lease_scope, lease_errors = _lease_scope(
+        admission.get("lease_scope"),
+        issue_id=issue_id,
+        target_paths=targets,
+    )
+    reasons.extend(
+        _exclusion("invalid-lease-scope-intent", error)
+        for error in lease_errors
+    )
+
     if work_plan is not None:
         planned_paths = work_plan.get("write_paths")
         if not isinstance(planned_paths, list) or sorted(planned_paths) != write_paths:
@@ -479,19 +893,208 @@ def evaluate_ready_candidate(
                     )
                 )
 
+    authority_approval_audit_sha256: str | None = None
+    change_labels = sorted(labels & AUTHORITY_CHANGE_LABELS)
+    disclosure_change = bool(
+        labels & {"disclosure-change", "share-boundary-change"}
+        or (
+            isinstance(boundary_record, Mapping)
+            and boundary_record.get("allows_external") is True
+        )
+    )
+    authority_change_required = bool(change_labels or disclosure_change)
+    if authority_change_required:
+        authority_before = _json_mapping(admission.get("authority_change_before"))
+        authority_provenance = _json_mapping(
+            admission.get("authority_provenance")
+        )
+        approval_audit = _json_mapping(admission.get("operator_approval_audit"))
+        if authority_before is None:
+            reasons.append(
+                _exclusion(
+                    "unapproved-authority-change",
+                    "authority_change_before must be a structured artifact",
+                )
+            )
+        if authority_provenance is None:
+            reasons.append(
+                _exclusion(
+                    "unapproved-authority-change",
+                    "authority_provenance must be structured verified provenance",
+                )
+            )
+        else:
+            reasons.extend(
+                _exclusion("invalid-authority-provenance", error)
+                for error in validate_authority_provenance(authority_provenance)
+            )
+        if approval_audit is None:
+            reasons.append(
+                _exclusion(
+                    "unapproved-authority-change",
+                    "operator_approval_audit must be a structured verified audit",
+                )
+            )
+        else:
+            reasons.extend(
+                _exclusion("invalid-operator-approval-audit", error)
+                for error in validate_operator_approval_audit(approval_audit)
+            )
+        prerequisites = (
+            authority_before is not None
+            and authority_provenance is not None
+            and approval_audit is not None
+            and requested_model is not None
+            and topology is not None
+            and scalar_fields["architecture_authority"] is not None
+            and scalar_fields["execution_authority"] is not None
+            and share_boundary is not None
+            and tool_surface_id is not None
+            and lease_scope is not None
+            and work_plan is not None
+            and commitment is not None
+            and capability_receipt is not None
+            and isolation is not None
+            and bool(hard_budget)
+            and bool(aggregate_budget)
+        )
+        if prerequisites:
+            expected_after = authority_after_artifact(
+                issue_id=issue_id,
+                change_labels=change_labels,
+                architecture_authority=str(
+                    scalar_fields["architecture_authority"]
+                ),
+                execution_authority=str(scalar_fields["execution_authority"]),
+                share_boundary=share_boundary,
+                work_estimate_sha256=work_estimate_sha256,
+                worker_commitment_sha256=_commitment_sha256(commitment),
+                read_paths=read_paths,
+                write_paths=write_paths,
+                integration_target_paths=targets,
+                topology=topology,
+                isolation_class=str(isolation),
+                lease_scope_sha256=str(lease_scope["lease_scope_sha256"]),
+                requested_model=requested_model,
+                required_tools=tools,
+                tool_surface_id=tool_surface_id,
+                capability_receipt_sha256=str(
+                    capability_receipt["receipt_sha256"]
+                ),
+                hard_budget=hard_budget,
+                aggregate_hard_budget=aggregate_budget,
+            )
+            expected_scope = "publication" if disclosure_change else "complete-task"
+            if approval_audit.get("change_type") != "security-or-authority-change":
+                reasons.append(
+                    _exclusion(
+                        "operator-approval-change-type-mismatch",
+                        "authority/disclosure changes require security-or-authority-change approval",
+                    )
+                )
+            if approval_audit.get("before_sha256") != canonical_authority_sha256(
+                authority_before
+            ):
+                reasons.append(
+                    _exclusion(
+                        "operator-approval-before-scope-mismatch",
+                        "operator approval does not bind authority_change_before",
+                    )
+                )
+            if approval_audit.get("after_sha256") != canonical_authority_sha256(
+                expected_after
+            ):
+                reasons.append(
+                    _exclusion(
+                        "operator-approval-candidate-scope-mismatch",
+                        "operator approval does not bind the exact issue candidate scope",
+                    )
+                )
+            if approval_audit.get("authority_provenance") != authority_provenance:
+                reasons.append(
+                    _exclusion(
+                        "operator-approval-authority-mismatch",
+                        "audit and admission authority provenance must match exactly",
+                    )
+                )
+            signed_receipt = approval_audit.get("signed_receipt")
+            if not isinstance(signed_receipt, Mapping) or signed_receipt.get(
+                "authorized_scope"
+            ) != expected_scope:
+                reasons.append(
+                    _exclusion(
+                        "operator-approval-scope-mismatch",
+                        f"operator approval scope must equal {expected_scope}",
+                    )
+                )
+            if authority_provenance.get("authorized_scope") != expected_scope:
+                reasons.append(
+                    _exclusion(
+                        "authority-provenance-scope-mismatch",
+                        f"authority provenance scope must equal {expected_scope}",
+                    )
+                )
+            if operator_approval_verifier is None:
+                reasons.append(
+                    _exclusion(
+                        "operator-approval-verifier-unavailable",
+                        "serialized audit evidence is non-authoritative until a trusted verifier validates its signature, time, replay state, and exact scope",
+                    )
+                )
+            elif not reasons:
+                try:
+                    verified = operator_approval_verifier.verify_audit(
+                        approval_audit,
+                        before_artifact=authority_before,
+                        after_artifact=expected_after,
+                    )
+                except AuthorityProvenanceError as exc:
+                    reasons.append(
+                        _exclusion("operator-approval-verification-failed", str(exc))
+                    )
+                else:
+                    if verified.authority.serialize() != authority_provenance:
+                        reasons.append(
+                            _exclusion(
+                                "operator-approval-authority-mismatch",
+                                "trusted verifier authority does not match admission provenance",
+                            )
+                        )
+                    else:
+                        authority_approval_audit_sha256 = canonical_json_sha256(
+                            approval_audit
+                        )
+    elif any(
+        field in admission
+        for field in (
+            "authority_change_before",
+            "authority_provenance",
+            "operator_approval_audit",
+        )
+    ):
+        reasons.append(
+            _exclusion(
+                "unexpected-authority-evidence",
+                "authority approval evidence is only valid for an explicit authority or disclosure change",
+            )
+        )
+
     if reasons:
         return None, reasons
     assert work_plan is not None
     assert commitment is not None
     assert all(value is not None for value in scalar_fields.values())
-    requested_model = _nonempty_string(work_plan.get("requested_model"))
-    if requested_model is None:
-        return None, [_exclusion("missing-model-evidence", "work_plan.requested_model is required")]
+    assert requested_model is not None
+    assert tool_policy is not None
+    assert tool_surface is not None
+    assert capability_receipt is not None
+    assert capability_assessed_at is not None
+    assert lease_scope is not None
     return (
         ReadyCandidate(
             issue_id=issue_id,
             rank=rank,
-            work_estimate_sha256=canonical_work_estimate_sha256(work_plan),
+            work_estimate_sha256=work_estimate_sha256,
             worker_commitment_sha256=_commitment_sha256(commitment),
             admission_metadata_sha256=canonical_json_sha256(admission),
             read_paths=tuple(read_paths),
@@ -506,6 +1109,18 @@ def evaluate_ready_candidate(
             requested_model=requested_model,
             required_tools=tuple(tools),
             tool_surface_id=str(scalar_fields["tool_surface_id"]),
+            tool_policy_sha256=canonical_tool_sha256(tool_policy),
+            tool_surface_sha256=str(tool_surface["surface_sha256"]),
+            capability_receipt_sha256=str(
+                capability_receipt["receipt_sha256"]
+            ),
+            capability_assessed_at=capability_assessed_at,
+            lease_scope_sha256=str(lease_scope["lease_scope_sha256"]),
+            integration_root_identity_sha256=str(
+                lease_scope["integration_root_identity_sha256"]
+            ),
+            workspace_scope_sha256=str(lease_scope["workspace_scope_sha256"]),
+            authority_approval_audit_sha256=authority_approval_audit_sha256,
             hard_budget=tuple(sorted(hard_budget.items())),
             aggregate_hard_budget=tuple(sorted(aggregate_budget.items())),
         ),
@@ -625,6 +1240,30 @@ def candidate_conflicts(
                 ),
             }
         )
+    if (
+        left.integration_root_identity_sha256
+        != right.integration_root_identity_sha256
+    ):
+        reasons.append(
+            {
+                "code": "lease-integration-root-conflict",
+                "issue_ids": issue_ids,
+                "evidence": sorted(
+                    [
+                        left.integration_root_identity_sha256,
+                        right.integration_root_identity_sha256,
+                    ]
+                ),
+            }
+        )
+    if left.workspace_scope_sha256 == right.workspace_scope_sha256:
+        reasons.append(
+            {
+                "code": "lease-workspace-identity-conflict",
+                "issue_ids": issue_ids,
+                "evidence": [left.workspace_scope_sha256],
+            }
+        )
     if left.aggregate_hard_budget != right.aggregate_hard_budget:
         reasons.append(
             {
@@ -672,18 +1311,50 @@ def _safe_subset(
     return not _subset_budget_conflicts(candidates)
 
 
-def _select_maximal_safe_set(
+def _enumerate_safe_sets(
     candidates: Sequence[ReadyCandidate],
     *,
     capacity: int,
     pair_conflicts: Mapping[tuple[str, str], list[dict[str, Any]]],
-) -> list[ReadyCandidate]:
+) -> list[list[ReadyCandidate]]:
+    """Return every compatible non-empty subset through the bounded capacity."""
+
     ordered = sorted(candidates, key=lambda candidate: (candidate.rank, candidate.issue_id))
-    for size in range(min(capacity, len(ordered)), 0, -1):
+    safe: list[list[ReadyCandidate]] = []
+    for size in range(1, min(capacity, len(ordered)) + 1):
         for subset in combinations(ordered, size):
             if _safe_subset(subset, pair_conflicts):
-                return list(subset)
-    return []
+                safe.append(list(subset))
+    return sorted(
+        safe,
+        key=lambda subset: (
+            -len(subset),
+            tuple((candidate.rank, candidate.issue_id) for candidate in subset),
+        ),
+    )
+
+
+def _cohort_evidence(
+    candidates: Sequence[ReadyCandidate],
+    *,
+    snapshot_sha256: str,
+    released_capacity: int,
+) -> dict[str, Any]:
+    body = {
+        "cohort_type": COHORT_TYPE,
+        "version": COHORT_VERSION,
+        "snapshot_sha256": snapshot_sha256,
+        "issue_ids": [candidate.issue_id for candidate in candidates],
+        "candidate_sha256s": [
+            candidate.evidence()["candidate_sha256"] for candidate in candidates
+        ],
+        "worker_count": len(candidates),
+        "within_released_capacity": len(candidates) <= released_capacity,
+        "authority": READY_SET_AUTHORITY,
+        "dispatch_authorized": False,
+    }
+    body["cohort_sha256"] = canonical_json_sha256(body)
+    return body
 
 
 def _dependency_projection(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -693,13 +1364,19 @@ def _dependency_projection(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for entry in value:
         if isinstance(entry, str):
-            result.append({"id": entry, "type": "blocks", "status": "unknown", "updated_at": None})
+            result.append(
+                {
+                    "id": entry,
+                    "type": "blocks",
+                    "blocking": True,
+                    "status": "unknown",
+                    "updated_at": None,
+                }
+            )
             continue
         if not isinstance(entry, Mapping):
             continue
         dep_type = str(entry.get("dependency_type") or entry.get("type") or "blocks").strip().lower().replace("_", "-")
-        if dep_type not in {"blocks", "until"}:
-            continue
         dep_id = str(
             entry.get("depends_on_id")
             or entry.get("dependency_id")
@@ -711,6 +1388,7 @@ def _dependency_projection(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
                 {
                     "id": dep_id,
                     "type": dep_type,
+                    "blocking": dep_type in {"blocks", "until"},
                     "status": str(entry.get("status") or "unknown"),
                     "updated_at": entry.get("updated_at"),
                 }
@@ -721,8 +1399,15 @@ def _dependency_projection(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
 def _issue_projection(
     item: Mapping[str, Any],
     candidate: ReadyCandidate | None,
+    *,
+    canonical_ready_rank: int | None,
+    candidate_rank: int | None,
 ) -> dict[str, Any]:
     raw = _raw_issue(item)
+    admission = _admission_metadata(item)
+    ranking_dependencies = _field(item, "dependencies", [])
+    if not isinstance(ranking_dependencies, list):
+        ranking_dependencies = []
     projection: dict[str, Any] = {
         "id": _issue_id(item),
         "status": str(_field(item, "status", "open")),
@@ -730,16 +1415,34 @@ def _issue_projection(
         "type": str(_field(item, "type", _field(item, "issue_type", "issue"))),
         "priority": int(_field(item, "priority", 50)),
         "labels": _issue_labels(item),
-        "assignee": raw.get("assignee"),
-        "parent": raw.get("parent"),
-        "hard_dependencies": _dependency_projection(raw),
+        "assignee": _field(item, "assignee"),
+        "owner": _field(item, "owner"),
+        "parent": _field(item, "parent", _field(item, "parent_id")),
+        "lane": _field(item, "lane"),
+        "dependency_projection": _dependency_projection(raw),
+        "ranking_dependencies": sorted(
+            {str(value).strip() for value in ranking_dependencies if str(value).strip()}
+        ),
+        "canonical_ready": canonical_ready_rank is not None,
+        "canonical_ready_rank": canonical_ready_rank,
+        "candidate_rank": candidate_rank,
         "executable_leaf": bool(_field(item, "_cwo_executable_leaf", True)),
+        "admission_metadata_sha256": (
+            canonical_json_sha256(admission) if admission is not None else None
+        ),
+        "candidate_artifacts": None,
     }
     if candidate is not None:
+        evidence = candidate.evidence()
         projection["candidate_artifacts"] = {
             "work_estimate_sha256": candidate.work_estimate_sha256,
             "worker_commitment_sha256": candidate.worker_commitment_sha256,
             "admission_metadata_sha256": candidate.admission_metadata_sha256,
+            "capability_receipt_sha256": candidate.capability_receipt_sha256,
+            "tool_policy_sha256": candidate.tool_policy_sha256,
+            "tool_surface_sha256": candidate.tool_surface_sha256,
+            "lease_scope_sha256": candidate.lease_scope_sha256,
+            "candidate_sha256": evidence["candidate_sha256"],
         }
     projection["issue_projection_sha256"] = canonical_json_sha256(projection)
     return projection
@@ -794,10 +1497,17 @@ def build_ready_set_evidence(
     epic_id: str,
     requested_workers: int = MAX_PHASE1_CANDIDATE_WORKERS,
     policy_document: Mapping[str, Any] | None = None,
+    scope_items: Sequence[Mapping[str, Any]] | None = None,
+    share_policy_document: Mapping[str, Any] | None = None,
+    operator_approval_verifier: OperatorApprovalVerifier | None = None,
 ) -> dict[str, Any]:
-    """Build a sealed, deterministic candidate set without mutating Beads."""
+    """Build sealed candidate evidence without claims, leases, or dispatch."""
 
     policy = policy_document or load_policy("native-worker-execution")
+    share_policy = share_policy_document or load_policy("share-boundaries")
+    _authorized_models(policy)
+    _required_topology(policy)
+    _share_boundaries(share_policy)
     limits = load_pool_capacity(policy)
     capacity, capacity_evidence = _capacity_evidence(
         requested_workers=requested_workers,
@@ -805,27 +1515,113 @@ def build_ready_set_evidence(
         policy_document=policy,
     )
 
+    ready_ids = [_issue_id(item) for item in ranked_ready]
+    if any(not issue_id for issue_id in ready_ids):
+        raise ReadySetError("ranked ready issues must have non-empty ids")
+    if len(ready_ids) != len(set(ready_ids)):
+        raise ReadySetError("ranked ready issue ids must be unique")
+    scoped = list(scope_items) if scope_items is not None else list(ranked_ready)
+    scoped_by_id: dict[str, Mapping[str, Any]] = {}
+    for item in scoped:
+        issue_id = _issue_id(item)
+        if not issue_id:
+            raise ReadySetError("scope issues must have non-empty ids")
+        if issue_id in scoped_by_id:
+            raise ReadySetError(f"duplicate scope issue id: {issue_id}")
+        scoped_by_id[issue_id] = item
+    missing_ready = sorted(set(ready_ids) - set(scoped_by_id))
+    if missing_ready:
+        raise ReadySetError(
+            "ranked ready issue missing from scoped descendants: "
+            + ", ".join(missing_ready)
+        )
+    ready_by_id = {_issue_id(item): item for item in ranked_ready}
+    for issue_id in ready_ids:
+        ranked_raw = canonical_json_sha256(_raw_issue(ready_by_id[issue_id]))
+        scoped_raw = canonical_json_sha256(_raw_issue(scoped_by_id[issue_id]))
+        if ranked_raw != scoped_raw:
+            raise ReadySetError(
+                f"ranked ready issue {issue_id} differs from scoped exact-show projection"
+            )
+
+    marked_ready_ranks: dict[str, int] = {}
+    for issue_id in ready_ids:
+        value = _field(scoped_by_id[issue_id], "_cwo_canonical_ready_rank")
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            marked_ready_ranks[issue_id] = value
+    if (
+        len(marked_ready_ranks) == len(ready_ids)
+        and len(set(marked_ready_ranks.values())) == len(ready_ids)
+    ):
+        canonical_ready_ids = sorted(
+            ready_ids, key=lambda issue_id: (marked_ready_ranks[issue_id], issue_id)
+        )
+    else:
+        canonical_ready_ids = list(ready_ids)
+    canonical_rank_by_id = {
+        issue_id: rank for rank, issue_id in enumerate(canonical_ready_ids)
+    }
+    candidate_rank_by_id = {
+        issue_id: rank for rank, issue_id in enumerate(ready_ids)
+    }
+
     candidates: list[ReadyCandidate] = []
     candidate_by_id: dict[str, ReadyCandidate] = {}
     exclusions: dict[str, list[dict[str, str]]] = {}
-    for rank, item in enumerate(ranked_ready):
-        candidate, reasons = evaluate_ready_candidate(item, rank=rank)
-        issue_id = _issue_id(item)
+    for issue_id in ready_ids:
+        candidate, reasons = evaluate_ready_candidate(
+            scoped_by_id[issue_id],
+            rank=candidate_rank_by_id[issue_id],
+            policy_document=policy,
+            share_policy_document=share_policy,
+            operator_approval_verifier=operator_approval_verifier,
+        )
         if candidate is None:
-            exclusions[issue_id] = reasons
+            exclusions[issue_id] = sorted(
+                reasons, key=lambda reason: (reason["code"], reason["detail"])
+            )
         else:
             candidates.append(candidate)
             candidate_by_id[issue_id] = candidate
 
+    for issue_id in sorted(set(scoped_by_id) - set(ready_ids)):
+        _, reasons = evaluate_ready_candidate(
+            scoped_by_id[issue_id],
+            rank=len(ready_ids),
+            policy_document=policy,
+            share_policy_document=share_policy,
+            operator_approval_verifier=None,
+        )
+        reasons.append(
+            _exclusion(
+                "not-canonical-ready",
+                "issue was not returned by canonical bd ready --unassigned",
+            )
+        )
+        exclusions[issue_id] = sorted(
+            reasons, key=lambda reason: (reason["code"], reason["detail"])
+        )
+
     projections = [
-        _issue_projection(item, candidate_by_id.get(_issue_id(item)))
-        for item in sorted(ranked_ready, key=_issue_id)
+        _issue_projection(
+            scoped_by_id[issue_id],
+            candidate_by_id.get(issue_id),
+            canonical_ready_rank=canonical_rank_by_id.get(issue_id),
+            candidate_rank=candidate_rank_by_id.get(issue_id),
+        )
+        for issue_id in sorted(scoped_by_id)
     ]
     snapshot_body = {
         "snapshot_type": SNAPSHOT_TYPE,
         "version": SNAPSHOT_VERSION,
         "epic_id": epic_id,
-        "ready_issue_projections": projections,
+        "canonical_ready_issue_ids": canonical_ready_ids,
+        "ranked_ready_issue_ids": ready_ids,
+        "scope_issue_ids": sorted(scoped_by_id),
+        "issue_projections": projections,
+        "native_worker_policy_sha256": canonical_json_sha256(policy),
+        "share_boundaries_policy_sha256": canonical_json_sha256(share_policy),
+        "candidate_capacity_basis": dict(capacity_evidence),
     }
     snapshot = {
         **snapshot_body,
@@ -840,12 +1636,20 @@ def build_ready_set_evidence(
         pair_conflicts[key] = conflicts
         all_conflicts.extend(conflicts)
 
-    selected = _select_maximal_safe_set(
+    safe_sets = _enumerate_safe_sets(
         candidates,
         capacity=capacity,
         pair_conflicts=pair_conflicts,
     )
-    selected_ids = {candidate.issue_id for candidate in selected}
+    selected = safe_sets[0] if safe_sets else []
+    compatible_ready_sets = [
+        _cohort_evidence(
+            subset,
+            snapshot_sha256=snapshot["snapshot_sha256"],
+            released_capacity=limits.released_max_active_workers,
+        )
+        for subset in safe_sets
+    ]
     selected_exceeds_released_capacity = (
         len(selected) > limits.released_max_active_workers
     )
@@ -853,45 +1657,21 @@ def build_ready_set_evidence(
     capacity_evidence["selected_exceeds_released_capacity"] = (
         selected_exceeds_released_capacity
     )
-    capacity_evidence["selected_released_for_dispatch"] = (
+    capacity_evidence["selected_within_released_capacity"] = (
         bool(selected) and not selected_exceeds_released_capacity
     )
-    selection_budget_conflicts: list[dict[str, Any]] = []
-    for candidate in candidates:
-        if candidate.issue_id in selected_ids:
-            continue
-        candidate_reasons: list[dict[str, str]] = []
-        for selected_candidate in selected:
-            key = tuple(sorted([candidate.issue_id, selected_candidate.issue_id]))
-            for conflict in pair_conflicts.get(key, []):
-                candidate_reasons.append(
-                    _exclusion(
-                        conflict["code"],
-                        f"conflicts with selected issue {selected_candidate.issue_id}",
-                    )
-                )
-        budget_conflicts = _subset_budget_conflicts([*selected, candidate])
-        selection_budget_conflicts.extend(budget_conflicts)
-        for conflict in budget_conflicts:
-            candidate_reasons.append(
-                _exclusion(
-                    conflict["code"],
-                    "candidate would exceed the shared aggregate hard budget",
-                )
-            )
-        if not candidate_reasons:
-            candidate_reasons.append(
-                _exclusion(
-                    "candidate-capacity-ceiling",
-                    f"bounded candidate capacity is {capacity}",
-                )
-            )
-        exclusions[candidate.issue_id] = candidate_reasons
 
+    all_budget_conflicts: dict[str, dict[str, Any]] = {}
+    for size in range(2, min(capacity, len(candidates)) + 1):
+        for subset in combinations(candidates, size):
+            for conflict in _subset_budget_conflicts(subset):
+                all_budget_conflicts[canonical_json_sha256(conflict)] = conflict
+
+    selected_issue_ids = [candidate.issue_id for candidate in selected]
     fanout_reasons: list[dict[str, Any]] = [
         {
             "code": "candidate-capacity-bound",
-            "issue_ids": sorted(selected_ids),
+            "issue_ids": selected_issue_ids,
             "provenance": "policy/native-worker-execution.yaml",
             "detail": (
                 f"requested={requested_workers}; released={limits.released_max_active_workers}; "
@@ -903,7 +1683,7 @@ def build_ready_set_evidence(
         fanout_reasons.append(
             {
                 "code": "offline-unreleased-capacity-candidate",
-                "issue_ids": sorted(selected_ids),
+                "issue_ids": selected_issue_ids,
                 "provenance": "policy/native-worker-execution.yaml",
                 "detail": (
                     f"selected={len(selected)} exceeds released dispatch capacity "
@@ -915,8 +1695,8 @@ def build_ready_set_evidence(
         fanout_reasons.append(
             {
                 "code": "phase1-candidate-ceiling-applied",
-                "issue_ids": sorted(selected_ids),
-                "provenance": "cwo-beads-ready-set-snapshot:v1",
+                "issue_ids": selected_issue_ids,
+                "provenance": SNAPSHOT_TYPE,
                 "detail": (
                     f"requested={requested_workers} is capped at Phase 1 candidate ceiling "
                     f"{MAX_PHASE1_CANDIDATE_WORKERS}; N>=4 remains rejected"
@@ -941,7 +1721,7 @@ def build_ready_set_evidence(
             "detail": "candidate subset exceeds the shared aggregate hard budget",
         }
         for conflict in sorted(
-            selection_budget_conflicts,
+            all_budget_conflicts.values(),
             key=lambda value: (value["code"], value["issue_ids"]),
         )
     )
@@ -950,7 +1730,7 @@ def build_ready_set_evidence(
         fanout_reasons.append(
             {
                 "code": "bounded-pool-candidate",
-                "issue_ids": sorted(selected_ids),
+                "issue_ids": selected_issue_ids,
                 "provenance": snapshot["snapshot_sha256"],
                 "detail": "safe fixed-cohort candidate found; claims and preflight are still required",
             }
@@ -960,7 +1740,9 @@ def build_ready_set_evidence(
         fanout_reasons.append(
             {
                 "code": "single-lane-fallback",
-                "issue_ids": [selected[0].issue_id] if selected else [_issue_id(ranked_ready[0])],
+                "issue_ids": (
+                    [selected[0].issue_id] if selected else [ready_ids[0]]
+                ),
                 "provenance": snapshot["snapshot_sha256"],
                 "detail": "no multi-worker candidate is authorized by this evidence",
             }
@@ -975,10 +1757,23 @@ def build_ready_set_evidence(
                 "detail": "canonical Beads readiness returned no executable leaves",
             }
         )
+    fanout_reasons.append(
+        {
+            "code": "p1-13b-final-revalidation-required",
+            "issue_ids": selected_issue_ids,
+            "provenance": snapshot["snapshot_sha256"],
+            "detail": (
+                "P1-13B must revalidate canonical readiness, issue drift, claims, "
+                "capability freshness, tool surface, proportionality, and operative "
+                "leases before any dispatch admission"
+            ),
+        }
+    )
 
     return {
-        "ranked_ready_issues": [_issue_id(item) for item in ranked_ready],
+        "ranked_ready_issues": ready_ids,
         "recommended_ready_set": [candidate.evidence() for candidate in selected],
+        "compatible_ready_sets": compatible_ready_sets,
         "excluded_ready_issues": [
             {"id": issue_id, "reasons": exclusions[issue_id]}
             for issue_id in sorted(exclusions)
@@ -1003,6 +1798,7 @@ def markdown_fallback_evidence(
     return {
         "ranked_ready_issues": issue_ids,
         "recommended_ready_set": [],
+        "compatible_ready_sets": [],
         "excluded_ready_issues": [
             {
                 "id": issue_id,

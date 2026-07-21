@@ -171,7 +171,13 @@ def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
         ]
     )
     ready_items = coerce_items(ready_payload)
-    ready_ids = {issue_id(item) for item in ready_items if issue_id(item)}
+    ready_order: list[str] = []
+    for item in ready_items:
+        item_id = issue_id(item)
+        if item_id and item_id not in ready_order:
+            ready_order.append(item_id)
+    ready_ids = set(ready_order)
+    ready_rank = {item_id: rank for rank, item_id in enumerate(ready_order)}
 
     discovered_ids = {epic_id, *ready_ids}
     pending_parents = [epic_id]
@@ -222,6 +228,7 @@ def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
     for item_id in exact_ids:
         enriched = dict(exact_by_id[item_id])
         enriched["_cwo_canonical_ready"] = item_id in ready_ids
+        enriched["_cwo_canonical_ready_rank"] = ready_rank.get(item_id)
         enriched["_cwo_executable_leaf"] = item_id not in parent_ids
         result.append(enriched)
     return result
@@ -498,6 +505,7 @@ def build_continuation_brief(
             epic_id=epic_id,
             requested_workers=requested_workers,
             policy_document=policy_document,
+            scope_items=open_items,
         )
     ready_by_id = {item["id"]: issue_summary(item) for item in ranked_candidate_input}
     ready_set["ranked_ready_issues"] = [
@@ -530,8 +538,9 @@ def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
     if result.get("fanout_decision") == "pool":
         execution_prompt += (
             " A bounded pool candidate is available as evidence only; do not "
-            "dispatch it until Beads claims, drift revalidation, proportionality, "
-            "and native-pool preflight produce dispatch authority."
+            "dispatch it until P1-13B completes Beads claims, full drift and "
+            "capability revalidation, proportionality, operative lease acquisition, "
+            "and native-pool preflight."
         )
     return {
         "next_executable_bead": next_bead,
@@ -598,6 +607,10 @@ def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None
         print("- Selected candidate IDs: " + ", ".join(item["id"] for item in selected))
     else:
         print("- Selected candidate IDs: none")
+    print(
+        "- Compatible safe cohorts: "
+        + str(len(result.get("compatible_ready_sets") or []))
+    )
     blocked = result.get("blocked_issues", [])
     print("\n## Blocked Issues")
     display_blocked = blocked if include_blocked else blocked[:5]

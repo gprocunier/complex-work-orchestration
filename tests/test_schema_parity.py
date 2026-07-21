@@ -310,6 +310,7 @@ class SchemaParityTests(unittest.TestCase):
         for field in [
             "ranked_ready_issues",
             "recommended_ready_set",
+            "compatible_ready_sets",
             "excluded_ready_issues",
             "beads_readiness_snapshot",
             "beads_readiness_snapshot_sha256",
@@ -322,11 +323,21 @@ class SchemaParityTests(unittest.TestCase):
             self.assertIn(field, properties)
         version_two_required = schema["allOf"][0]["then"]["required"]
         self.assertIn("recommended_ready_set", version_two_required)
+        self.assertIn("compatible_ready_sets", version_two_required)
         self.assertIn("dispatch_authorized", version_two_required)
         self.assertEqual(properties["dispatch_authorized"]["const"], False)
         self.assertEqual(
             properties["ready_set_authority"]["const"],
             "candidate-evidence-only",
+        )
+        capacity = schema["$defs"]["candidate_capacity_evidence"]
+        self.assertIn("selected_within_released_capacity", capacity["required"])
+        self.assertNotIn("selected_released_for_dispatch", capacity["properties"])
+        self.assertEqual(
+            schema["$defs"]["readiness_snapshot"]["properties"][
+                "snapshot_type"
+            ]["const"],
+            "cwo-beads-ready-set-snapshot:v2",
         )
         operator_packet = properties["operator_handoff_packet"]
         for field in [

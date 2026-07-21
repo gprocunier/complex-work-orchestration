@@ -18,12 +18,14 @@ from continue_sprint import (  # noqa: E402
     build_continuation_brief,
     load_markdown_items,
 )
+from tests.test_beads_ready_set import ready_item  # noqa: E402
 
 BD_PATH = shutil.which("bd")
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 V2_READY_SET_FIELDS = {
     "ranked_ready_issues",
     "recommended_ready_set",
+    "compatible_ready_sets",
     "excluded_ready_issues",
     "beads_readiness_snapshot",
     "beads_readiness_snapshot_sha256",
@@ -38,7 +40,7 @@ V2_READY_SET_FIELDS = {
 class ContinueSprintTests(unittest.TestCase):
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
     def test_v2_output_and_historical_v1_shape_validate(self) -> None:
-        from jsonschema import Draft202012Validator
+        from jsonschema import Draft202012Validator, ValidationError
 
         result = build_continuation_brief(
             [
@@ -60,6 +62,13 @@ class ContinueSprintTests(unittest.TestCase):
         }
         historical["version"] = 1
         validator.validate(historical)
+        historical_with_explicit_safe_default = {
+            **historical,
+            "dispatch_authorized": False,
+        }
+        validator.validate(historical_with_explicit_safe_default)
+        with self.assertRaises(ValidationError):
+            validator.validate({**historical, "dispatch_authorized": True})
 
     def test_ranks_ready_issues_by_priority_then_unblocking_value(self) -> None:
         items = [
@@ -458,7 +467,7 @@ class ContinueSprintTests(unittest.TestCase):
         )
         self.assertEqual(
             result["beads_readiness_snapshot"]["snapshot_type"],
-            "cwo-beads-ready-set-snapshot:v1",
+            "cwo-beads-ready-set-snapshot:v2",
         )
         self.assertEqual(
             result["beads_readiness_snapshot_sha256"],
@@ -466,6 +475,214 @@ class ContinueSprintTests(unittest.TestCase):
         )
         self.assertFalse(result["dispatch_authorized"])
         self.assertIn("operator_handoff_packet", result)
+
+    @unittest.skipUnless(BD_PATH, "bd CLI not available")
+    @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
+    def test_real_beads_metadata_yields_offline_n3_and_structured_exclusions(self) -> None:
+        from jsonschema import Draft202012Validator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subprocess.check_call(["git", "init", "-q"], cwd=temp_dir)
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "init",
+                    "--non-interactive",
+                    "--skip-agents",
+                    "--skip-hooks",
+                    "-p",
+                    "cwo",
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            def bd_output(*args: str) -> str:
+                return subprocess.check_output(
+                    [BD_PATH, *args], cwd=temp_dir, text=True
+                ).strip()
+
+            def create_leaf(
+                title: str,
+                parent: str,
+                *,
+                priority: int,
+                labels: str = "implementation",
+            ) -> str:
+                return bd_output(
+                    "create",
+                    title,
+                    "--type",
+                    "task",
+                    "--parent",
+                    parent,
+                    "--priority",
+                    str(priority),
+                    "--labels",
+                    labels,
+                    "--silent",
+                )
+
+            epic = bd_output(
+                "create",
+                "Ready-set metadata smoke",
+                "--type",
+                "epic",
+                "--priority",
+                "1",
+                "--labels",
+                "orchestration",
+                "--silent",
+            )
+            package = bd_output(
+                "create",
+                "Open package parent",
+                "--type",
+                "feature",
+                "--parent",
+                epic,
+                "--priority",
+                "1",
+                "--labels",
+                "publication-parent",
+                "--silent",
+            )
+            valid_ids = [
+                create_leaf("Ready A", package, priority=1),
+                create_leaf("Ready B", package, priority=2),
+                create_leaf("Ready C", package, priority=3),
+            ]
+            for index, bead_id in enumerate(valid_ids):
+                metadata = ready_item(
+                    bead_id,
+                    write_paths=[f"scripts/e2e-{index}.py"],
+                )["raw"]["metadata"]
+                subprocess.check_call(
+                    [BD_PATH, "update", bead_id, "--metadata", json.dumps(metadata)],
+                    cwd=temp_dir,
+                    stdout=subprocess.DEVNULL,
+                )
+
+            claimed = create_leaf("Claimed", package, priority=2)
+            claimed_metadata = ready_item(
+                claimed, write_paths=["scripts/claimed.py"]
+            )["raw"]["metadata"]
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "update",
+                    claimed,
+                    "--metadata",
+                    json.dumps(claimed_metadata),
+                    "--assignee",
+                    "existing-owner",
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            restricted = create_leaf(
+                "Restricted",
+                package,
+                priority=2,
+                labels="implementation,no-codex-exec",
+            )
+            restricted_metadata = ready_item(
+                restricted,
+                write_paths=["scripts/restricted.py"],
+                labels=["implementation", "no-codex-exec"],
+            )["raw"]["metadata"]
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "update",
+                    restricted,
+                    "--metadata",
+                    json.dumps(restricted_metadata),
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            invalid = create_leaf("Invalid metadata", package, priority=2)
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "update",
+                    invalid,
+                    "--metadata",
+                    json.dumps({"cwo_ready_set_admission": {"version": 2}}),
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
+            output = subprocess.check_output(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "cwo.py"),
+                    "continue",
+                    "--epic",
+                    epic,
+                    "--requested-workers",
+                    "3",
+                    "--format",
+                    "json",
+                ],
+                cwd=ROOT,
+                env=env,
+                text=True,
+            )
+            assignees = {
+                item["id"]: item.get("assignee")
+                for item in json.loads(
+                    bd_output("show", *valid_ids, claimed, "--json")
+                )
+            }
+
+        result = json.loads(output)
+        schema = json.loads(
+            (ROOT / "schemas" / "sprint-continuation.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        Draft202012Validator(schema).validate(result)
+        self.assertEqual(
+            [item["id"] for item in result["recommended_ready_set"]],
+            valid_ids,
+            json.dumps(result["excluded_ready_issues"], indent=2),
+        )
+        self.assertEqual(
+            result["candidate_capacity_evidence"]["released_max_active_workers"],
+            2,
+        )
+        self.assertTrue(
+            result["candidate_capacity_evidence"][
+                "selected_exceeds_released_capacity"
+            ]
+        )
+        self.assertFalse(
+            result["candidate_capacity_evidence"][
+                "selected_within_released_capacity"
+            ]
+        )
+        self.assertFalse(result["dispatch_authorized"])
+        self.assertEqual(assignees[valid_ids[0]], None)
+        self.assertEqual(assignees[valid_ids[1]], None)
+        self.assertEqual(assignees[valid_ids[2]], None)
+        self.assertEqual(assignees[claimed], "existing-owner")
+
+        excluded = {
+            item["id"]: {reason["code"] for reason in item["reasons"]}
+            for item in result["excluded_ready_issues"]
+        }
+        self.assertIn("grouping-container", excluded[package])
+        self.assertIn("non-leaf", excluded[package])
+        self.assertIn("already-claimed", excluded[claimed])
+        self.assertIn("not-canonical-ready", excluded[claimed])
+        self.assertIn("restricted-label", excluded[restricted])
+        self.assertIn("invalid-admission-metadata", excluded[invalid])
 
 
 if __name__ == "__main__":
