@@ -77,6 +77,7 @@ from cwo_core.native_pool_capacity_compat import (  # noqa: E402
 from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     EXPECTED_ROLES,
     NativeLiveAllocationLedgerStore,
+    _TurnNegativeResponseObserverBinding,
 )
 from cwo_core.native_turn_dispatch import (  # noqa: E402
     TURN_ABSENCE_PROOF_ARTIFACT_TYPE,
@@ -1749,6 +1750,10 @@ class AppServer:
         self.started_threads: dict[str, str | None] = {}
         self._known_thread_turn_ids: dict[str, set[str]] = {}
         self._turn_dispatch_records: dict[str, dict[str, Any]] = {}
+        self._pending_turn_start_response_observers: dict[int, dict[str, Any]] = {}
+        self._observed_negative_turn_response_capabilities_by_request: dict[
+            int, object
+        ] = {}
         self._negative_turn_response_capabilities: dict[object, dict[str, Any]] = {}
         self.allocation_ledger: NativeLiveAllocationLedgerStore | None = None
         threading.Thread(target=self._read_stdout, daemon=True).start()
@@ -1858,13 +1863,181 @@ class AppServer:
                         self._reader_error = "app-server-non-json-output"
                         self._condition.notify_all()
                     continue
+                if not isinstance(message, Mapping):
+                    with self._condition:
+                        self._reader_error = "app-server-non-object-output"
+                        self._condition.notify_all()
+                    continue
                 with self._condition:
                     if type(message.get("id")) is int and (
                         "result" in message or "error" in message
                     ):
-                        self._responses[int(message["id"])] = message
+                        response_id = int(message["id"])
+                        pending = getattr(
+                            self, "_pending_turn_start_response_observers", {}
+                        ).pop(response_id, None)
+                        observed_capability: object | None = None
+                        error = message.get("error")
+                        exact_negative = bool(
+                            "result" not in message
+                            and isinstance(error, Mapping)
+                            and type(error.get("code")) is int
+                            and isinstance(error.get("message"), str)
+                        )
+                        if isinstance(pending, Mapping):
+                            pending_capability = pending.get("capability")
+                            if (
+                                exact_negative
+                                and pending_capability is not None
+                                and isinstance(pending.get("thread_id"), str)
+                                and isinstance(
+                                    pending.get("turn_intent_id"), str
+                                )
+                                and pending.get("request_id") == response_id
+                                and pending.get("connection_epoch_sha256")
+                                == self.connection_epoch_sha256
+                                and isinstance(
+                                    pending.get("wire_request_sha256"), str
+                                )
+                                and isinstance(
+                                    pending.get("dispatch_record_sha256"), str
+                                )
+                            ):
+                                witness = {
+                                    "request_id": response_id,
+                                    "connection_epoch_sha256": str(
+                                        pending["connection_epoch_sha256"]
+                                    ),
+                                    "wire_request_sha256": str(
+                                        pending["wire_request_sha256"]
+                                    ),
+                                    "code": int(error["code"]),
+                                    "response_sha256": domain_sha256(
+                                        dict(message),
+                                        domain=(
+                                            "app-server-turn-start-negative-response"
+                                        ),
+                                    ),
+                                }
+                                # Security boundary: keep the pending-to-observed
+                                # transition in the sole raw-stdout parser. Do not
+                                # extract this into a helper that accepts a caller-
+                                # supplied response mapping.
+                                observed_candidate = object()
+                                ledger = self.allocation_ledger
+                                ledger_observed = ledger is None
+                                if ledger is not None:
+                                    with ledger._instance_lock:
+                                        try:
+                                            pending_binding = ledger._pending_turn_negative_response_observer_capabilities.pop(
+                                                pending_capability
+                                            )
+                                        except (KeyError, TypeError):
+                                            pending_binding = None
+                                        if (
+                                            pending_binding is not None
+                                            and pending_binding.thread_id
+                                            == pending.get("thread_id")
+                                            and pending_binding.turn_intent_id
+                                            == pending.get("turn_intent_id")
+                                            and pending_binding.request_id
+                                            == response_id
+                                            and pending_binding.connection_epoch_sha256
+                                            == pending.get(
+                                                "connection_epoch_sha256"
+                                            )
+                                            and pending_binding.wire_request_sha256
+                                            == pending.get("wire_request_sha256")
+                                            and pending_binding.dispatch_record_sha256
+                                            == pending.get(
+                                                "dispatch_record_sha256"
+                                            )
+                                        ):
+                                            ledger._turn_negative_response_observer_capabilities[
+                                                observed_candidate
+                                            ] = _TurnNegativeResponseObserverBinding(
+                                                thread_id=str(
+                                                    pending["thread_id"]
+                                                ),
+                                                turn_intent_id=str(
+                                                    pending["turn_intent_id"]
+                                                ),
+                                                request_id=response_id,
+                                                connection_epoch_sha256=str(
+                                                    pending[
+                                                        "connection_epoch_sha256"
+                                                    ]
+                                                ),
+                                                wire_request_sha256=str(
+                                                    pending[
+                                                        "wire_request_sha256"
+                                                    ]
+                                                ),
+                                                response_sha256=str(
+                                                    witness["response_sha256"]
+                                                ),
+                                                response_code=int(
+                                                    witness["code"]
+                                                ),
+                                            )
+                                            ledger_observed = True
+                                if ledger_observed:
+                                    capabilities = getattr(
+                                        self,
+                                        "_negative_turn_response_capabilities",
+                                        None,
+                                    )
+                                    if capabilities is None:
+                                        capabilities = {}
+                                        self._negative_turn_response_capabilities = (
+                                            capabilities
+                                        )
+                                    by_request = getattr(
+                                        self,
+                                        "_observed_negative_turn_response_capabilities_by_request",
+                                        None,
+                                    )
+                                    if by_request is None:
+                                        by_request = {}
+                                        self._observed_negative_turn_response_capabilities_by_request = (
+                                            by_request
+                                        )
+                                    capabilities[observed_candidate] = witness
+                                    by_request[response_id] = observed_candidate
+                                    observed_capability = observed_candidate
+                            if observed_capability is None:
+                                ledger = self.allocation_ledger
+                                if (
+                                    ledger is not None
+                                    and pending_capability is not None
+                                ):
+                                    ledger._discard_turn_negative_response_observer_capability(
+                                        pending_capability
+                                    )
+                        if response_id in self._responses:
+                            self._reader_error = "app-server-duplicate-response-id"
+                            if observed_capability is not None:
+                                getattr(
+                                    self,
+                                    "_negative_turn_response_capabilities",
+                                    {},
+                                ).pop(observed_capability, None)
+                                getattr(
+                                    self,
+                                    "_observed_negative_turn_response_capabilities_by_request",
+                                    {},
+                                ).pop(response_id, None)
+                                ledger = self.allocation_ledger
+                                if ledger is not None:
+                                    ledger._discard_turn_negative_response_observer_capability(
+                                        observed_capability
+                                    )
+                        else:
+                            self._responses[response_id] = dict(message)
                     elif isinstance(message.get("method"), str):
-                        self._notifications.append((time.monotonic_ns(), message))
+                        self._notifications.append(
+                            (time.monotonic_ns(), dict(message))
+                        )
                     self._condition.notify_all()
         finally:
             with self._condition:
@@ -2158,50 +2331,6 @@ class AppServer:
             return None
         return ledger.directory / "turn-dispatch" / f"{turn_intent_id}.json"
 
-    def _mint_negative_turn_response_capability(
-        self,
-        record: Mapping[str, Any],
-        response: Mapping[str, Any],
-    ) -> object:
-        """Mint one opaque witness for an exact matching RPC error response."""
-
-        error = response.get("error")
-        if (
-            response.get("id") != record.get("request_id")
-            or "result" in response
-            or not isinstance(error, Mapping)
-            or type(error.get("code")) is not int
-            or not isinstance(error.get("message"), str)
-        ):
-            raise AppServerError("turn-negative-response-witness-invalid")
-        witness = {
-            "request_id": int(record["request_id"]),
-            "connection_epoch_sha256": str(record["connection_epoch_sha256"]),
-            "wire_request_sha256": str(record["wire_request_sha256"]),
-            "code": int(error["code"]),
-            "response_sha256": domain_sha256(
-                dict(response), domain="app-server-turn-start-negative-response"
-            ),
-        }
-        capability = object()
-        capabilities = getattr(self, "_negative_turn_response_capabilities", None)
-        if capabilities is None:
-            capabilities = {}
-            self._negative_turn_response_capabilities = capabilities
-        capabilities[capability] = witness
-        ledger = self.allocation_ledger
-        if ledger is not None:
-            try:
-                ledger._register_turn_negative_response_observer_capability(
-                    capability,
-                    record,
-                    witness,
-                )
-            except BaseException:
-                capabilities.pop(capability, None)
-                raise
-        return capability
-
     def _consume_negative_turn_response_capability(
         self,
         capability: object,
@@ -2225,6 +2354,30 @@ class AppServer:
         ):
             raise AppServerError("turn-negative-response-capability-mismatch")
         return dict(witness)
+
+    def _discard_negative_turn_response_capability(
+        self,
+        capability: object,
+    ) -> None:
+        """Revoke an observed capability without creating replacement authority."""
+
+        try:
+            getattr(self, "_negative_turn_response_capabilities", {}).pop(
+                capability, None
+            )
+        except TypeError:
+            return
+        by_request = getattr(
+            self,
+            "_observed_negative_turn_response_capabilities_by_request",
+            {},
+        )
+        for request_id, candidate in tuple(by_request.items()):
+            if candidate is capability:
+                by_request.pop(request_id, None)
+        ledger = self.allocation_ledger
+        if ledger is not None:
+            ledger._discard_turn_negative_response_observer_capability(capability)
 
     def _persist_turn_dispatch_record(
         self, record: Mapping[str, Any]
@@ -2297,15 +2450,64 @@ class AppServer:
         }
         return normalized.get(status or "")
 
-    def _late_turn_start_response(self, request_id: int) -> str | None:
+    def _late_turn_start_response(
+        self,
+        record: Mapping[str, Any],
+    ) -> tuple[str | None, object | None]:
+        """Consume only stdout-observed late evidence for the reserved request."""
+
+        request_id = int(record["request_id"])
         with self._condition:
             message = self._responses.pop(request_id, None)
-        if not isinstance(message, Mapping) or "error" in message:
-            return None
+            if message is None:
+                return None, None
+            observed = getattr(
+                self,
+                "_observed_negative_turn_response_capabilities_by_request",
+                {},
+            ).pop(request_id, None)
+        if not isinstance(message, Mapping):
+            if observed is not None:
+                self._discard_negative_turn_response_capability(observed)
+            return None, None
+        error = message.get("error")
+        if "error" in message:
+            witness = getattr(
+                self, "_negative_turn_response_capabilities", {}
+            ).get(observed)
+            if (
+                "result" not in message
+                and isinstance(error, Mapping)
+                and type(error.get("code")) is int
+                and isinstance(error.get("message"), str)
+                and observed is not None
+                and isinstance(witness, Mapping)
+                and message.get("id") == request_id
+                and witness.get("request_id") == request_id
+                and witness.get("connection_epoch_sha256")
+                == record.get("connection_epoch_sha256")
+                and witness.get("wire_request_sha256")
+                == record.get("wire_request_sha256")
+                and witness.get("code") == error.get("code")
+                and witness.get("response_sha256")
+                == domain_sha256(
+                    dict(message),
+                    domain="app-server-turn-start-negative-response",
+                )
+            ):
+                return None, observed
+            if observed is not None:
+                self._discard_negative_turn_response_capability(observed)
+            return None, None
+        if observed is not None:
+            self._discard_negative_turn_response_capability(observed)
         result = message.get("result")
         turn = result.get("turn") if isinstance(result, Mapping) else None
         turn_id = turn.get("id") if isinstance(turn, Mapping) else None
-        return str(turn_id) if isinstance(turn_id, str) and turn_id else None
+        return (
+            str(turn_id) if isinstance(turn_id, str) and turn_id else None,
+            None,
+        )
 
     def _post_cursor_turn_starts(
         self,
@@ -2437,15 +2639,21 @@ class AppServer:
 
         while first_pass or time.monotonic() < deadline:
             first_pass = False
-            late = (
-                self._late_turn_start_response(int(current["request_id"]))
+            late_turn, late_negative = (
+                self._late_turn_start_response(current)
                 if same_connection_epoch
-                else None
+                else (None, None)
             )
-            if late is not None:
-                exact_response_turn_id = late
-                if late not in preexisting:
-                    discovered.add(late)
+            if late_turn is not None:
+                exact_response_turn_id = late_turn
+                if late_turn not in preexisting:
+                    discovered.add(late_turn)
+            if late_negative is not None:
+                if negative_response_capability is None:
+                    negative_response_capability = late_negative
+                    ambiguity_reason = "rpc-error-response"
+                elif late_negative is not negative_response_capability:
+                    self._discard_negative_turn_response_capability(late_negative)
             notified, sequences, observed_cursor = self._post_cursor_turn_starts(
                 thread_id=thread_id,
                 after_sequence=discovery_cursor,
@@ -2646,9 +2854,8 @@ class AppServer:
         if contained and discovered:
             absence_verified = True
         if negative_response_capability is not None:
-            getattr(self, "_negative_turn_response_capabilities", {}).pop(
-                negative_response_capability,
-                None,
+            self._discard_negative_turn_response_capability(
+                negative_response_capability
             )
         if contained:
             try:
@@ -2737,6 +2944,7 @@ class AppServer:
         ledger_id, ledger_head, intent_entry = self._turn_intent_ledger_link(
             turn_intent_id
         )
+        unobserved_response_observer: Mapping[str, Any] | None = None
         with self._condition:
             if self.process.poll() is not None:
                 raise AppServerError(
@@ -2776,6 +2984,35 @@ class AppServer:
                     wire_write_attempt_count=1,
                 )
             )
+            observer_capability = object()
+            pending_observers = getattr(
+                self, "_pending_turn_start_response_observers", None
+            )
+            if pending_observers is None:
+                pending_observers = {}
+                self._pending_turn_start_response_observers = pending_observers
+            if request_id in pending_observers:
+                raise AppServerError(
+                    "turn-start-response-observer-request-duplicate"
+                )
+            pending_observers[request_id] = {
+                "capability": observer_capability,
+                "thread_id": thread_id,
+                "turn_intent_id": turn_intent_id,
+                "request_id": request_id,
+                "connection_epoch_sha256": self.connection_epoch_sha256,
+                "wire_request_sha256": wire_request_sha256,
+                "dispatch_record_sha256": record["record_sha256"],
+            }
+            if self.allocation_ledger is not None:
+                try:
+                    self.allocation_ledger._register_pending_turn_negative_response_observer_capability(
+                        observer_capability,
+                        record,
+                    )
+                except BaseException:
+                    pending_observers.pop(request_id, None)
+                    raise
             started = time.monotonic_ns()
             try:
                 assert self.process.stdin is not None
@@ -2804,6 +3041,17 @@ class AppServer:
                     self._responses.pop(request_id)
                     if ambiguity_reason is None
                     else None
+                )
+                if ambiguity_reason is None:
+                    candidate = pending_observers.pop(request_id, None)
+                    if isinstance(candidate, Mapping):
+                        unobserved_response_observer = candidate
+
+        if unobserved_response_observer is not None:
+            unobserved_capability = unobserved_response_observer.get("capability")
+            if unobserved_capability is not None:
+                self._discard_negative_turn_response_capability(
+                    unobserved_capability
                 )
 
         if ambiguity_reason is not None:
@@ -2841,10 +3089,36 @@ class AppServer:
                     request_id=request_id,
                     latency_ms=latency_ms,
                 )
-                negative_response_capability = (
-                    self._mint_negative_turn_response_capability(record, message)
+                observed_by_request = getattr(
+                    self,
+                    "_observed_negative_turn_response_capabilities_by_request",
+                    {},
                 )
-                ambiguity_reason = "rpc-error-response"
+                observed = observed_by_request.pop(request_id, None)
+                witness = getattr(
+                    self, "_negative_turn_response_capabilities", {}
+                ).get(observed)
+                if (
+                    observed is not None
+                    and isinstance(witness, Mapping)
+                    and witness.get("request_id") == request_id
+                    and witness.get("connection_epoch_sha256")
+                    == record.get("connection_epoch_sha256")
+                    and witness.get("wire_request_sha256")
+                    == record.get("wire_request_sha256")
+                    and witness.get("code") == error.get("code")
+                    and witness.get("response_sha256")
+                    == domain_sha256(
+                        dict(message),
+                        domain="app-server-turn-start-negative-response",
+                    )
+                ):
+                    negative_response_capability = observed
+                    ambiguity_reason = "rpc-error-response"
+                else:
+                    if observed is not None:
+                        self._discard_negative_turn_response_capability(observed)
+                    ambiguity_reason = "rpc-error-response-unobserved"
         else:
             result = message.get("result")
             turn = result.get("turn") if isinstance(result, Mapping) else None

@@ -360,8 +360,20 @@ class _PrivateFileIdentity:
 
 
 @dataclass(frozen=True)
+class _PendingTurnNegativeResponseObserverBinding:
+    """Exact pending action registered before the sole app-server write."""
+
+    thread_id: str
+    turn_intent_id: str
+    request_id: int
+    connection_epoch_sha256: str
+    wire_request_sha256: str
+    dispatch_record_sha256: str
+
+
+@dataclass(frozen=True)
 class _TurnNegativeResponseObserverBinding:
-    """Exact action witnessed by the trusted app-server response parser."""
+    """Exact negative response witnessed by the app-server stdout reader."""
 
     thread_id: str
     turn_intent_id: str
@@ -1329,6 +1341,9 @@ class NativeLiveAllocationLedgerStore:
         self._metrics_lock = threading.Lock()
         self._trusted: _TrustedLedgerCoordinates | None = None
         self._semantic_index: _LedgerSemanticIndex | None = None
+        self._pending_turn_negative_response_observer_capabilities: dict[
+            object, _PendingTurnNegativeResponseObserverBinding
+        ] = {}
         self._turn_negative_response_observer_capabilities: dict[
             object, _TurnNegativeResponseObserverBinding
         ] = {}
@@ -1361,6 +1376,7 @@ class NativeLiveAllocationLedgerStore:
     def _disarm(self) -> None:
         self._trusted = None
         self._semantic_index = None
+        self._pending_turn_negative_response_observer_capabilities.clear()
         self._turn_negative_response_observer_capabilities.clear()
         self._turn_absence_verifier_capabilities.clear()
 
@@ -1928,40 +1944,24 @@ class NativeLiveAllocationLedgerStore:
                     "evidence_sha256": None,
                 }
 
-    def _register_turn_negative_response_observer_capability(
+    def _register_pending_turn_negative_response_observer_capability(
         self,
         capability: object,
         dispatch_record: Mapping[str, Any],
-        negative_response: Mapping[str, Any],
     ) -> None:
-        """Register one exact raw-error witness from the trusted response parser."""
+        """Pre-register one opaque response observer before the only wire write."""
 
         dispatch = json.loads(
             json.dumps(dict(dispatch_record), sort_keys=True, separators=(",", ":"))
         )
-        negative = json.loads(
-            json.dumps(dict(negative_response), sort_keys=True, separators=(",", ":"))
-        )
         if (
             validate_turn_dispatch_record(dispatch)
-            or set(negative)
-            != {
-                "request_id",
-                "connection_epoch_sha256",
-                "wire_request_sha256",
-                "code",
-                "response_sha256",
-            }
-            or negative.get("request_id") != dispatch.get("request_id")
-            or negative.get("connection_epoch_sha256")
-            != dispatch.get("connection_epoch_sha256")
-            or negative.get("wire_request_sha256")
-            != dispatch.get("wire_request_sha256")
-            or type(negative.get("code")) is not int
-            or not _is_hash(negative.get("response_sha256"))
+            or dispatch.get("status") != "dispatching"
+            or dispatch.get("wire_write_attempt_count") != 1
+            or dispatch.get("ambiguity_reason") is not None
         ):
             raise NativeLiveAllocationLedgerError(
-                "turn-negative-response-observer-binding-invalid"
+                "turn-negative-response-observer-pending-binding-invalid"
             )
         turn_intent_id = str(dispatch["turn_intent_id"])
         thread_id = str(dispatch["thread_id"])
@@ -1985,24 +1985,41 @@ class NativeLiveAllocationLedgerStore:
                     or intent.get("thread_id") != thread_id
                     or persisted_dispatch != dispatch
                     or capability
+                    in self._pending_turn_negative_response_observer_capabilities
+                    or capability
                     in self._turn_negative_response_observer_capabilities
                 ):
                     raise NativeLiveAllocationLedgerError(
-                        "turn-negative-response-observer-binding-invalid"
+                        "turn-negative-response-observer-pending-binding-invalid"
                     )
-                self._turn_negative_response_observer_capabilities[capability] = (
-                    _TurnNegativeResponseObserverBinding(
-                        thread_id=thread_id,
-                        turn_intent_id=turn_intent_id,
-                        request_id=int(negative["request_id"]),
-                        connection_epoch_sha256=str(
-                            negative["connection_epoch_sha256"]
-                        ),
-                        wire_request_sha256=str(negative["wire_request_sha256"]),
-                        response_sha256=str(negative["response_sha256"]),
-                        response_code=int(negative["code"]),
-                    )
+                self._pending_turn_negative_response_observer_capabilities[
+                    capability
+                ] = _PendingTurnNegativeResponseObserverBinding(
+                    thread_id=thread_id,
+                    turn_intent_id=turn_intent_id,
+                    request_id=int(dispatch["request_id"]),
+                    connection_epoch_sha256=str(
+                        dispatch["connection_epoch_sha256"]
+                    ),
+                    wire_request_sha256=str(dispatch["wire_request_sha256"]),
+                    dispatch_record_sha256=str(dispatch["record_sha256"]),
                 )
+
+    def _discard_turn_negative_response_observer_capability(
+        self, capability: object
+    ) -> None:
+        """Revoke pending or observed authority without creating a replacement."""
+
+        with self._instance_lock:
+            try:
+                self._pending_turn_negative_response_observer_capabilities.pop(
+                    capability, None
+                )
+                self._turn_negative_response_observer_capabilities.pop(
+                    capability, None
+                )
+            except TypeError:
+                return
 
     def _mint_turn_absence_verifier_capability(
         self,

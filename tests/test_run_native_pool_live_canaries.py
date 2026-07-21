@@ -6,6 +6,7 @@ import io
 import inspect
 import json
 from pathlib import Path
+import queue
 import shutil
 import subprocess
 import sys
@@ -652,6 +653,28 @@ class AppServerRpcErrorTests(unittest.TestCase):
 
 
 class AmbiguousTurnDispatchTests(unittest.TestCase):
+    class _StdoutQueue:
+        _CLOSED = object()
+
+        def __init__(self) -> None:
+            self._items: queue.Queue[object] = queue.Queue()
+
+        def push(self, message: Mapping[str, object]) -> None:
+            self._items.put(json.dumps(dict(message), separators=(",", ":")) + "\n")
+
+        def close(self) -> None:
+            self._items.put(self._CLOSED)
+
+        def __iter__(self):
+            return self
+
+        def __next__(self) -> str:
+            item = self._items.get()
+            if item is self._CLOSED:
+                raise StopIteration
+            assert isinstance(item, str)
+            return item
+
     class _Writer:
         def __init__(self, callback) -> None:
             self.callback = callback
@@ -693,7 +716,11 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
         server.started_threads = {thread_id: None}
         server._known_thread_turn_ids = {thread_id: {"old-terminal"}}
         server._turn_dispatch_records = {}
+        server._pending_turn_start_response_observers = {}
+        server._observed_negative_turn_response_capabilities_by_request = {}
+        server._negative_turn_response_capabilities = {}
         server.allocation_ledger = ledger
+        stdout = self._StdoutQueue()
         state = {
             "mode": mode,
             "turns": {"old-terminal": "completed"},
@@ -705,18 +732,44 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
 
         def on_write(payload: dict) -> None:
             self.assertEqual(payload["method"], "turn/start")
+            pending_observer = server._pending_turn_start_response_observers.get(
+                payload["id"]
+            )
+            self.assertIsInstance(pending_observer, Mapping)
+            assert isinstance(pending_observer, Mapping)
+            self.assertEqual(pending_observer["request_id"], payload["id"])
+            self.assertEqual(
+                pending_observer["wire_request_sha256"],
+                LIVE.domain_sha256(
+                    payload,
+                    domain="app-server-single-wire-request",
+                ),
+            )
+            self.assertIn(
+                pending_observer["capability"],
+                ledger._pending_turn_negative_response_observer_capabilities,
+            )
+            self.assertNotIn(
+                pending_observer["capability"],
+                ledger._turn_negative_response_observer_capabilities,
+            )
+            state["pending_capability"] = pending_observer["capability"]
             state["last_payload"] = payload
             if mode == "normal":
-                server._responses[payload["id"]] = {
-                    "id": payload["id"],
-                    "result": {"turn": {"id": turn_ids[0]}},
-                }
+                stdout.push(
+                    {
+                        "id": payload["id"],
+                        "result": {"turn": {"id": turn_ids[0]}},
+                    }
+                )
                 return
             if mode == "rpc-error":
-                server._responses[payload["id"]] = {
-                    "id": payload["id"],
-                    "error": {"code": -32600, "message": "rejected"},
-                }
+                stdout.push(
+                    {
+                        "id": payload["id"],
+                        "error": {"code": -32600, "message": "rejected"},
+                    }
+                )
                 return
             if mode in {
                 "crash",
@@ -752,9 +805,14 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
         writer = self._Writer(on_write)
         process = mock.Mock()
         process.stdin = writer
+        process.stdout = stdout
         process.poll.return_value = None
         process.returncode = None
         server.process = process
+        reader = threading.Thread(target=server._read_stdout, daemon=True)
+        reader.start()
+        self.addCleanup(reader.join, 1.0)
+        self.addCleanup(stdout.close)
 
         def read_thread(requested_thread_id: str, *, timeout: float = 15.0):
             self.assertEqual(requested_thread_id, thread_id)
@@ -764,10 +822,20 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 raise LIVE.AppServerError("injected thread/read failure")
             if mode == "late-response" and state["read_count"] == 1:
                 payload = state["last_payload"]
-                server._responses[payload["id"]] = {
-                    "id": payload["id"],
-                    "result": {"turn": {"id": turn_ids[0]}},
-                }
+                stdout.push(
+                    {
+                        "id": payload["id"],
+                        "result": {"turn": {"id": turn_ids[0]}},
+                    }
+                )
+            if mode == "late-rpc-error" and state["read_count"] == 1:
+                payload = state["last_payload"]
+                stdout.push(
+                    {
+                        "id": payload["id"],
+                        "error": {"code": -32600, "message": "late rejected"},
+                    }
+                )
             return {
                 "id": thread_id,
                 "turns": [
@@ -884,6 +952,162 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                     domain="app-server-turn-start-negative-response",
                 ),
             )
+
+    def test_late_raw_rpc_error_uses_only_stdout_observed_capability(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            server, ledger, state, writer, thread_id, _turn_ids = self.server(
+                Path(temporary), "late-rpc-error"
+            )
+            with self.assertRaises(LIVE.AmbiguousTurnStartError) as raised:
+                server.start_turn(
+                    thread_id,
+                    "bounded",
+                    timeout=0,
+                    ambiguity_timeout=0.2,
+                )
+            record = raised.exception.record
+            self.assertEqual(record["status"], "failed-contained")
+            self.assertEqual(record["ambiguity_reason"], "rpc-error-response")
+            self.assertEqual(record["ledger_resolution"], "verified-absent")
+            self.assertTrue(record["absence_verified"])
+            self.assertTrue(record["archived"])
+            self.assertEqual(state["archive_count"], 1)
+            self.assertEqual(len(writer.payloads), 1)
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 0)
+
+    def test_relabel_and_fabricated_response_cannot_mint_absence_authority(
+        self,
+    ) -> None:
+        from cwo_core.native_live_allocation_ledger import (
+            NativeLiveAllocationLedgerError,
+            NativeLiveAllocationLedgerStore,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            server, ledger, state, writer, thread_id, _turn_ids = self.server(
+                Path(temporary), "absent"
+            )
+            with self.assertRaises(LIVE.AmbiguousTurnStartError) as raised:
+                server.start_turn(
+                    thread_id,
+                    "bounded",
+                    timeout=0,
+                    ambiguity_timeout=0,
+                )
+            pending = raised.exception.record
+            self.assertEqual(pending["status"], "failed-ambiguous")
+            self.assertEqual(pending["ledger_resolution"], "pending")
+            relabeled = LIVE.evolve_turn_dispatch_record(
+                pending,
+                ambiguity_reason="rpc-error-response",
+            )
+            server._persist_turn_dispatch_record(relabeled)
+
+            pending_capability = state["pending_capability"]
+            self.assertIn(
+                pending_capability,
+                ledger._pending_turn_negative_response_observer_capabilities,
+            )
+            self.assertNotIn(
+                pending_capability,
+                ledger._turn_negative_response_observer_capabilities,
+            )
+            fabricated_response = {
+                "id": relabeled["request_id"],
+                "error": {
+                    "code": -32600,
+                    "message": "caller fabricated; never observed",
+                },
+            }
+            fabricated_proof = LIVE.seal_turn_absence_proof(
+                {
+                    "artifact_type": LIVE.TURN_ABSENCE_PROOF_ARTIFACT_TYPE,
+                    "version": 1,
+                    "thread_id": thread_id,
+                    "turn_intent_id": relabeled["turn_intent_id"],
+                    "ledger_id": relabeled["ledger_id"],
+                    "turn_intent_entry_sha256": relabeled[
+                        "turn_intent_entry_sha256"
+                    ],
+                    "dispatch_record": relabeled,
+                    "negative_response": {
+                        "request_id": relabeled["request_id"],
+                        "connection_epoch_sha256": relabeled[
+                            "connection_epoch_sha256"
+                        ],
+                        "wire_request_sha256": relabeled[
+                            "wire_request_sha256"
+                        ],
+                        "code": -32600,
+                        "response_sha256": LIVE.domain_sha256(
+                            fabricated_response,
+                            domain=(
+                                "app-server-turn-start-negative-response"
+                            ),
+                        ),
+                    },
+                    "proof_sha256": "",
+                }
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "turn-negative-response-observer-capability-invalid",
+            ):
+                ledger._mint_turn_absence_verifier_capability(
+                    fabricated_proof,
+                    negative_response_capability=pending_capability,
+                )
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+            fresh_ledger = NativeLiveAllocationLedgerStore(ledger.directory)
+            fresh_ledger.open()
+            self.assertEqual(
+                fresh_ledger._pending_turn_negative_response_observer_capabilities,
+                {},
+            )
+            self.assertEqual(
+                fresh_ledger._turn_negative_response_observer_capabilities,
+                {},
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "turn-negative-response-observer-capability-invalid",
+            ):
+                fresh_ledger._mint_turn_absence_verifier_capability(
+                    fabricated_proof,
+                    negative_response_capability=pending_capability,
+                )
+
+            self.assertFalse(
+                hasattr(server, "_mint_negative_turn_response_capability")
+            )
+            with self.assertRaises(AttributeError):
+                getattr(server, "_mint_negative_turn_response_capability")
+
+            with server._condition:
+                server._responses[int(relabeled["request_id"])] = (
+                    fabricated_response
+                )
+            after_mapping = server.contain_ambiguous_turn_dispatch(
+                thread_id,
+                timeout=0,
+            )
+            self.assertEqual(after_mapping["status"], "failed-ambiguous")
+            self.assertEqual(after_mapping["ledger_resolution"], "pending")
+            self.assertFalse(after_mapping["absence_verified"])
+            self.assertFalse(after_mapping["archived"])
+
+            after_lookalike = server.contain_ambiguous_turn_dispatch(
+                thread_id,
+                timeout=0,
+                negative_response_capability=object(),
+            )
+            self.assertEqual(after_lookalike["status"], "failed-ambiguous")
+            self.assertEqual(after_lookalike["ledger_resolution"], "pending")
+            self.assertFalse(after_lookalike["absence_verified"])
+            self.assertFalse(after_lookalike["archived"])
+            self.assertEqual(state["archive_count"], 0)
+            self.assertEqual(len(writer.payloads), 1)
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
 
     def test_ambiguous_sources_are_discovered_contained_and_never_replayed(
         self,
@@ -1503,7 +1727,7 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            server, _ledger, _state, _writer, thread_id, _turn_ids = self.server(
+            server, ledger, state, _writer, thread_id, _turn_ids = self.server(
                 Path(temporary), "rpc-error"
             )
             captured: dict[str, object] = {}
@@ -1522,6 +1746,20 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
             record = server.turn_dispatch_record(thread_id)
             assert record is not None
             capability = captured["negative_response_capability"]
+            pending_capability = state["pending_capability"]
+            self.assertIsNot(capability, pending_capability)
+            self.assertNotIn(
+                pending_capability,
+                ledger._pending_turn_negative_response_observer_capabilities,
+            )
+            self.assertNotIn(
+                pending_capability,
+                ledger._turn_negative_response_observer_capabilities,
+            )
+            self.assertIn(
+                capability,
+                ledger._turn_negative_response_observer_capabilities,
+            )
             with self.assertRaisesRegex(
                 LIVE.AppServerError,
                 "turn-negative-response-capability-invalid",
@@ -1546,6 +1784,98 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 server._consume_negative_turn_response_capability(
                     capability, record
                 )
+
+    def test_ledger_observed_response_capability_is_exact_and_one_shot(
+        self,
+    ) -> None:
+        from cwo_core.native_live_allocation_ledger import (
+            NativeLiveAllocationLedgerError,
+        )
+
+        def capture_case(root: Path):
+            server, ledger, state, _writer, thread_id, _turn_ids = self.server(
+                root, "rpc-error"
+            )
+            captured: dict[str, object] = {}
+            mint = ledger._mint_turn_absence_verifier_capability
+
+            def stop_before_mint(
+                proof: Mapping[str, object],
+                *,
+                negative_response_capability: object,
+            ) -> object:
+                captured["proof"] = dict(proof)
+                captured["observed_capability"] = negative_response_capability
+                raise KeyboardInterrupt("capture stdout-observed capability")
+
+            with mock.patch.object(
+                ledger,
+                "_mint_turn_absence_verifier_capability",
+                side_effect=stop_before_mint,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    server.start_turn(
+                        thread_id,
+                        "bounded",
+                        ambiguity_timeout=0.1,
+                    )
+            proof = captured["proof"]
+            observed = captured["observed_capability"]
+            assert isinstance(proof, Mapping)
+            return (
+                ledger,
+                thread_id,
+                dict(proof),
+                observed,
+                state["pending_capability"],
+                mint,
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger, _thread_id, proof, observed, pending, mint = capture_case(
+                Path(temporary)
+            )
+            self.assertIsNot(observed, pending)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "turn-negative-response-observer-capability-invalid",
+            ):
+                mint(proof, negative_response_capability=object())
+            forged = json.loads(json.dumps(proof))
+            forged["negative_response"]["response_sha256"] = "f" * 64
+            forged = LIVE.seal_turn_absence_proof(forged)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "turn-intent-absence-proof-link-invalid",
+            ):
+                mint(forged, negative_response_capability=observed)
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "turn-negative-response-observer-capability-invalid",
+            ):
+                mint(proof, negative_response_capability=observed)
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger, thread_id, proof, observed, _pending, mint = capture_case(
+                Path(temporary)
+            )
+            verifier = mint(
+                proof,
+                negative_response_capability=observed,
+            )
+            with self.assertRaisesRegex(
+                NativeLiveAllocationLedgerError,
+                "turn-negative-response-observer-capability-invalid",
+            ):
+                mint(proof, negative_response_capability=observed)
+            ledger.resolve_turn_intent_absent(
+                thread_id,
+                str(proof["turn_intent_id"]),
+                proof=proof,
+                verifier_capability=verifier,
+            )
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 0)
 
     def test_transient_interrupt_failure_is_retried_and_cleared(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
