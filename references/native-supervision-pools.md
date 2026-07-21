@@ -54,6 +54,28 @@ allocation. Each steering receipt is validated against trusted session JSONL,
 consumed once under a private process lock, and cannot authorize repository
 work by itself.
 
+New steering writes use `cwo-steering-receipt:v2` and
+`schemas/native-steering-receipt-v2.schema.json`. The zero-tool critic prompt
+must request canonical JSON with six separate sections: `operator_facts`,
+`observed_evidence`, `model_interpretation`, `recommendation`,
+`strongest_counterargument`, and `agent_authored_constraints`. It must state
+that recommendations, confidence, interpretations, and agent-authored
+constraints are advisory only. An operator fact is accepted only when its exact
+provenance matches an opaque authority returned by the verified operator-fact
+directive path and that directive's signed action hash binds the exact fact
+statement; copying, reusing, or constructing a provenance-shaped dictionary is
+not sufficient. V2 steering carries repository-policy authority capped at one
+child. A critic recommendation can select only policy-bounded child
+continuation paths; critic identity strings, prose, and confidence never mint
+or widen authority. Every v2 outcome, including `go`, requires a hash-bound
+architect `go` before consumption; a stop additionally requires its exact
+resolution proof. A stop retry targets the receipt's exact Bead child.
+Historical v1 receipts remain readable only when their
+opinion hash is intact; they cannot produce stop metadata or be newly consumed.
+Progress decisions use the same separation in
+`native-progress-decision-v2.schema.json`; their worker-authored recommendation
+cannot populate `operator_facts` or broaden the policy-derived child scope.
+
 The public live launcher accepts only its current v11/v8/v6/v6 contract tuple;
 historical tuples remain inspection-only and mixed tuples fail before
 allocation. The accepted practical release used a fresh one-use, Bead-scoped

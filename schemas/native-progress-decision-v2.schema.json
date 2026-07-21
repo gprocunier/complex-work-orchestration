@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/native-progress-decision-v2.schema.json",
+  "title": "native-progress-decision-v2",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decision_type": {"const": "cwo-native-progress-decision"},
+    "version": {"const": 2},
+    "outcome": {"enum": ["continue", "early-warning", "pm-realignment", "protected-stop", "completed"]},
+    "pm_action": {"enum": ["none", "packet-refinement", "architect-question", "material-split", "protected-stop"]},
+    "reasons": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
+    "warnings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "planned": {"type": "object"},
+    "actual": {"type": "object"},
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool_calls_vs_p90": {"type": "integer"},
+        "runtime_seconds_vs_p90": {"type": "number"},
+        "planned_read_to_mutation_ratio": {"type": "number", "minimum": 0},
+        "actual_read_to_mutation_ratio": {"type": "number", "minimum": 0},
+        "retained_productive_artifacts": {"type": "integer", "minimum": 0},
+        "pure_waste": {"type": "boolean"}
+      },
+      "required": ["tool_calls_vs_p90", "runtime_seconds_vs_p90", "planned_read_to_mutation_ratio", "actual_read_to_mutation_ratio", "retained_productive_artifacts", "pure_waste"]
+    },
+    "realignment": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "completed_evidence": {"type": "array", "items": {"type": "string"}},
+            "mutation_state": {"enum": ["clean", "modified"]},
+            "discovered_work": {"type": "array", "items": {"type": "string"}},
+            "revised_scores": {"type": "object"},
+            "revised_estimate": {"type": "object"},
+            "decision_required": {"enum": ["packet-refinement", "architect-question", "material-split"]},
+            "bounded_options": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+            "recommendation": {"$ref": "#/$defs/advisory_recommendation"},
+            "retained_artifacts": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["completed_evidence", "mutation_state", "discovered_work", "revised_scores", "revised_estimate", "decision_required", "bounded_options", "recommendation", "retained_artifacts"]
+        }
+      ]
+    },
+    "steering": {"$ref": "#/$defs/neutral_steering"},
+    "stop_scope": {"const": "child"},
+    "authorized_continuation_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/continuation_path"}
+    },
+    "scope_authority": {"$ref": "#/$defs/scope_authority"}
+  },
+  "required": ["decision_type", "version", "outcome", "pm_action", "reasons", "reason_records", "warnings", "planned", "actual", "calibration", "realignment", "steering", "stop_scope", "authorized_continuation_paths", "scope_authority"],
+  "oneOf": [
+    {
+      "properties": {
+        "outcome": {"const": "protected-stop"},
+        "pm_action": {"const": "protected-stop"},
+        "realignment": {"type": "null"},
+        "authorized_continuation_paths": {
+          "const": [
+            {
+              "path": "continue-cohort",
+              "target_id": null,
+              "conditions": ["healthy-peer-evidence-preserved"]
+            },
+            {
+              "path": "replace-child",
+              "target_id": null,
+              "conditions": ["fault-contained", "fresh-attempt"]
+            }
+          ]
+        }
+      },
+      "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
+    },
+    {
+      "properties": {
+        "outcome": {"const": "pm-realignment"},
+        "pm_action": {"const": "packet-refinement"},
+        "realignment": {
+          "type": "object",
+          "properties": {"decision_required": {"const": "packet-refinement"}},
+          "required": ["decision_required"]
+        },
+        "authorized_continuation_paths": {
+          "const": [
+            {
+              "path": "retry-child",
+              "target_id": null,
+              "conditions": ["packet-refinement", "pm-decision-recorded"]
+            }
+          ]
+        }
+      },
+      "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
+    },
+    {
+      "properties": {
+        "outcome": {"const": "pm-realignment"},
+        "pm_action": {"const": "architect-question"},
+        "realignment": {
+          "type": "object",
+          "properties": {"decision_required": {"const": "architect-question"}},
+          "required": ["decision_required"]
+        },
+        "authorized_continuation_paths": {
+          "const": [
+            {
+              "path": "retry-child",
+              "target_id": null,
+              "conditions": ["architect-question", "pm-decision-recorded"]
+            }
+          ]
+        }
+      },
+      "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
+    },
+    {
+      "properties": {
+        "outcome": {"const": "pm-realignment"},
+        "pm_action": {"const": "material-split"},
+        "realignment": {
+          "type": "object",
+          "properties": {"decision_required": {"const": "material-split"}},
+          "required": ["decision_required"]
+        },
+        "authorized_continuation_paths": {
+          "const": [
+            {
+              "path": "retry-child",
+              "target_id": null,
+              "conditions": ["material-split", "pm-decision-recorded"]
+            }
+          ]
+        }
+      },
+      "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
+    },
+    {
+      "properties": {
+        "outcome": {"enum": ["continue", "early-warning", "completed"]},
+        "pm_action": {"const": "none"},
+        "realignment": {"type": "null"},
+        "authorized_continuation_paths": {"maxItems": 0}
+      },
+      "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stop_scope": {"enum": ["child", "cohort", "execution-path", "complete-task", "publication"]},
+    "advisory_recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "origin", "authority", "confidence", "confidence_role"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1},
+        "origin": {"enum": ["agent-authored", "policy-derived"]},
+        "authority": {"const": "advisory-only"},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "confidence_role": {"const": "advisory-only"}
+      }
+    },
+    "neutral_steering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator_facts", "observed_evidence", "model_interpretation", "recommendation", "strongest_counterargument", "agent_authored_constraints"],
+      "properties": {
+        "operator_facts": {"type": "array", "maxItems": 0},
+        "observed_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "statement", "evidence_sha256"],
+            "properties": {
+              "kind": {"enum": ["completed-evidence", "discovered-work", "policy-reason", "policy-warning", "progress-snapshot"]},
+              "statement": {"type": "string", "minLength": 1},
+              "evidence_sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        },
+        "model_interpretation": {"type": "string", "minLength": 1},
+        "recommendation": {"$ref": "#/$defs/advisory_recommendation"},
+        "strongest_counterargument": {"type": "string", "minLength": 1},
+        "agent_authored_constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["constraint", "origin", "authority"],
+            "properties": {
+              "constraint": {"type": "string", "minLength": 1},
+              "origin": {"const": "agent-authored"},
+              "authority": {"const": "advisory-only"}
+            }
+          }
+        }
+      }
+    },
+    "continuation_path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "target_id", "conditions"],
+      "properties": {
+        "path": {"enum": ["retry-child", "replace-child", "continue-cohort"]},
+        "target_id": {"type": "null"},
+        "conditions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "scope_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source_type", "source_id", "source_sha256", "actor_id", "actor_role", "identity_source", "authorized_scope", "parent_receipt_sha256", "verification", "authority_sha256"],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {"const": "policy-enforcement"},
+        "source_id": {"const": "native-progress-outcome-policy-v1"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "actor_id": {"const": "native-supervisor-policy"},
+        "actor_role": {"const": "supervisor-policy"},
+        "identity_source": {"const": "repository-policy"},
+        "authorized_scope": {"const": "child"},
+        "parent_receipt_sha256": {"type": "null"},
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"const": "repository-policy-v1"},
+            "evidence_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "authority_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reason_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "authority_provenance", "detected_by"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "authority_provenance": {"$ref": "#/$defs/scope_authority"},
+        "detected_by": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

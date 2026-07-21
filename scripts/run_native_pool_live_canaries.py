@@ -24,7 +24,7 @@ import sys
 import tempfile
 import threading
 import time
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 import uuid
 
 
@@ -65,6 +65,8 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     materialization_execution_correlation,
     new_authorization_state,
     seal_materialization_evidence,
+    steering_payload,
+    steering_recommendation,
     validate_capability_rendered_command,
     validate_materialization_evidence,
 )
@@ -1226,6 +1228,8 @@ def plan_steering_receipt_consumptions(
     pre_live_receipt: Mapping[str, Any],
     pre_live_adjudication: Mapping[str, Any],
     pre_live_adjudication_sha256: str,
+    pre_mutation_verified_operator_authorities: Iterable[Any] | None = None,
+    pre_live_verified_operator_authorities: Iterable[Any] | None = None,
 ) -> dict[str, tuple[str, dict[str, Any]]]:
     if not _valid_uuid_text(campaign_nonce):
         raise AppServerError("steering-control-identity-invalid")
@@ -1239,23 +1243,40 @@ def plan_steering_receipt_consumptions(
         pre_live_adjudication=pre_live_adjudication,
         pre_live_adjudication_sha256=pre_live_adjudication_sha256,
     )
+    try:
+        pre_mutation_verified = (
+            None
+            if pre_mutation_verified_operator_authorities is None
+            else tuple(pre_mutation_verified_operator_authorities)
+        )
+        pre_live_verified = (
+            None
+            if pre_live_verified_operator_authorities is None
+            else tuple(pre_live_verified_operator_authorities)
+        )
+    except TypeError as exc:
+        raise AppServerError(
+            "steering-verified-operator-authorities-invalid"
+        ) from exc
     bundles = (
         (
             "pre-mutation",
             pre_mutation_receipt,
             pre_mutation_adjudication,
             pre_mutation_adjudication_sha256,
+            pre_mutation_verified,
         ),
         (
             "pre-live",
             pre_live_receipt,
             pre_live_adjudication,
             pre_live_adjudication_sha256,
+            pre_live_verified,
         ),
     )
 
     steering_prepared: dict[str, tuple[str, dict[str, Any]]] = {}
-    for label, receipt, adjudication, adjudication_sha256 in bundles:
+    for label, receipt, adjudication, adjudication_sha256, verified in bundles:
         phase_nonce = str(
             uuid.uuid5(
                 uuid.NAMESPACE_URL,
@@ -1267,7 +1288,9 @@ def plan_steering_receipt_consumptions(
             "architect_adjudication_sha256": adjudication_sha256,
             "architect_decision": "go",
         }
-        if label == "pre-mutation" and receipt.get("opinion", {}).get("recommendation") == "stop":
+        if verified is not None:
+            kwargs["verified_operator_authorities"] = verified
+        if label == "pre-mutation" and steering_recommendation(receipt) == "stop":
             kwargs.update(
                 {
                     "allow_resolved_stop": True,
@@ -9481,7 +9504,7 @@ def validate_independent_validation_session_snapshot(
         raise AppServerError("spark-validation-session-final-json-invalid") from exc
     if (
         sha256_text(final_text) != receipt.get("final_response_sha256")
-        or final_opinion != receipt.get("opinion")
+        or final_opinion != steering_payload(receipt)
     ):
         raise AppServerError("spark-validation-session-final-binding-mismatch")
     return str(observed_boundary["boundary_sha256"])
@@ -11197,6 +11220,8 @@ def validate_and_acquire_global_campaign_claim(
     authorization_state: Path,
     steering_registry: Path,
     allocation_ledger: Path,
+    pre_mutation_verified_operator_authorities: Iterable[Any] | None = None,
+    pre_live_verified_operator_authorities: Iterable[Any] | None = None,
 ) -> tuple[
     dict[str, Any],
     str,
@@ -11224,6 +11249,12 @@ def validate_and_acquire_global_campaign_claim(
         pre_live_receipt=inputs.pre_live_receipt.value,
         pre_live_adjudication=inputs.pre_live_adjudication.value,
         pre_live_adjudication_sha256=inputs.pre_live_adjudication.raw_sha256,
+        pre_mutation_verified_operator_authorities=(
+            pre_mutation_verified_operator_authorities
+        ),
+        pre_live_verified_operator_authorities=(
+            pre_live_verified_operator_authorities
+        ),
     )
     launch_claim_sha256 = campaign_launch_claim_sha256(
         inputs,

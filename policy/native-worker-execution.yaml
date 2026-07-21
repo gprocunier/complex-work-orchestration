@@ -186,7 +186,8 @@
     },
     "trusted_live_canary": {
       "runner": "scripts/run_native_pool_live_canaries.py",
-      "steering_receipt_schema": "schemas/native-steering-receipt.schema.json",
+      "steering_receipt_schema": "schemas/native-steering-receipt-v2.schema.json",
+      "steering_prompt_template": "templates/native-steering-v2-prompt.md",
       "materialization_evidence_schema": "schemas/native-session-materialization-evidence.schema.json",
       "authorization_state_schema": "schemas/native-canary-authorization-state.schema.json",
       "exact_model": "gpt-5.3-codex-spark",
@@ -1137,6 +1138,17 @@
             "materially_refined_child": "fresh-deterministic-estimate-and-allowance",
             "immutable_retry": "share-parent-allowance",
             "cumulative_lineage_usage_required": true
+          },
+          "progress_decision_schema": "schemas/native-progress-decision-v2.schema.json",
+          "neutral_steering_contract": {
+            "write_version": 2,
+            "legacy_v1": "inspection-only",
+            "operator_facts_require_verified_authority": true,
+            "operator_fact_action_hash_binding_required": true,
+            "scope_authority": "repository-policy-child-only",
+            "all_v2_outcomes_require_bound_architect_go": true,
+            "agent_authored_constraints": "explicit-advisory-only",
+            "confidence_role": "advisory-only"
           },
           "live_replay_enabled": false,
           "dispatch_soft_cap": 3,

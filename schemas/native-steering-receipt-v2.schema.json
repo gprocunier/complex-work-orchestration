@@ -1,0 +1,346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-steering-receipt-v2.schema.json",
+  "title": "CWO neutral evidentiary steering receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "gate", "bead_id", "authorization_id", "authorization_sha256",
+    "control_turn_id", "submission_id", "client_user_message_id", "session_id",
+    "agent", "model", "effort", "attestation_source", "model_discovery", "input",
+    "boundary", "observed_activity", "guard", "steering", "stop_scope",
+    "authorized_continuation_paths", "scope_authority", "final_response_sha256",
+    "started_at", "completed_at", "closure_outcome", "disposition",
+    "canonical_receipt_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwo-steering-receipt:v2"},
+    "gate": {"enum": ["pre-mutation", "pre-live"]},
+    "bead_id": {"type": "string", "minLength": 1},
+    "authorization_id": {"$ref": "#/$defs/uuid"},
+    "authorization_sha256": {"$ref": "#/$defs/hash"},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "submission_id": {"$ref": "#/$defs/uuid"},
+    "client_user_message_id": {"$ref": "#/$defs/uuid"},
+    "session_id": {"$ref": "#/$defs/uuid"},
+    "agent": {"type": "string", "minLength": 1},
+    "model": {"const": "gpt-5.6-sol"},
+    "effort": {"const": "max"},
+    "attestation_source": {"const": "initialized-codex-home-session-jsonl-turn-context"},
+    "model_discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "model", "display_name", "default_reasoning_effort",
+        "supported_reasoning_efforts_sha256", "model_record_sha256"
+      ],
+      "properties": {
+        "id": {"const": "gpt-5.6-sol"},
+        "model": {"const": "gpt-5.6-sol"},
+        "display_name": {"type": ["string", "null"]},
+        "default_reasoning_effort": {"type": ["string", "null"]},
+        "supported_reasoning_efforts_sha256": {"$ref": "#/$defs/hash"},
+        "model_record_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brief_sha256", "recovery_plan_sha256", "pickup_sha256"],
+      "properties": {
+        "brief_sha256": {"$ref": "#/$defs/hash"},
+        "recovery_plan_sha256": {"$ref": "#/$defs/hash"},
+        "pickup_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "terminal"],
+      "properties": {
+        "baseline": {"$ref": "#/$defs/baseline"},
+        "terminal": {"$ref": "#/$defs/terminal"}
+      }
+    },
+    "observed_activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "function_calls", "custom_tool_calls", "tool_item_types", "compactions",
+        "workspace_mutations"
+      ],
+      "properties": {
+        "function_calls": {"const": 0},
+        "custom_tool_calls": {"const": 0},
+        "tool_item_types": {"type": "array", "maxItems": 0},
+        "compactions": {"const": 0},
+        "workspace_mutations": {"const": 0}
+      }
+    },
+    "guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before", "after"],
+      "properties": {
+        "before": {"$ref": "#/$defs/guard"},
+        "after": {"$ref": "#/$defs/guard"}
+      }
+    },
+    "steering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operator_facts", "observed_evidence", "model_interpretation",
+        "recommendation", "strongest_counterargument", "agent_authored_constraints"
+      ],
+      "properties": {
+        "operator_facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["statement", "authority_provenance"],
+            "properties": {
+              "statement": {"type": "string", "minLength": 1},
+              "authority_provenance": {"$ref": "#/$defs/operator_authority"}
+            }
+          }
+        },
+        "observed_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "severity", "observation", "evidence_sha256"],
+            "properties": {
+              "code": {"type": "string", "minLength": 1},
+              "severity": {"enum": ["high", "medium", "low", "info"]},
+              "observation": {"type": "string", "minLength": 1},
+              "evidence_sha256": {"$ref": "#/$defs/hash"}
+            }
+          }
+        },
+        "model_interpretation": {"type": "string", "minLength": 1},
+        "recommendation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "rationale", "confidence", "confidence_role"],
+          "properties": {
+            "outcome": {"enum": ["go", "conditional-go", "stop"]},
+            "rationale": {"type": "string", "minLength": 1},
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "confidence_role": {"const": "advisory-only"}
+          }
+        },
+        "strongest_counterargument": {"type": "string", "minLength": 1},
+        "agent_authored_constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["constraint", "origin", "authority"],
+            "properties": {
+              "constraint": {"type": "string", "minLength": 1},
+              "origin": {"const": "agent-authored"},
+              "authority": {"const": "advisory-only"}
+            }
+          }
+        }
+      }
+    },
+    "stop_scope": {"const": "child"},
+    "authorized_continuation_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/continuation_path"}
+    },
+    "scope_authority": {"$ref": "#/$defs/policy_authority"},
+    "final_response_sha256": {"$ref": "#/$defs/hash"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "closure_outcome": {"const": "completed-and-archived"},
+    "disposition": {"enum": ["accepting", "conditional", "rejected"]},
+    "canonical_receipt_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "steering": {
+            "properties": {
+              "recommendation": {
+                "properties": {"outcome": {"const": "stop"}},
+                "required": ["outcome"]
+              }
+            },
+            "required": ["recommendation"]
+          }
+        },
+        "required": ["steering"]
+      },
+      "then": {
+        "properties": {
+          "authorized_continuation_paths": {
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "properties": {
+                "path": {"const": "retry-child"},
+                "target_id": {"type": "string", "minLength": 1},
+                "conditions": {
+                  "const": ["architect-adjudication", "findings-resolved"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "authorized_continuation_paths": {"maxItems": 0}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability", "record_count", "byte_offset", "boundary_sha256",
+        "path_sha256", "invalid_record_count", "trailing_partial"
+      ],
+      "properties": {
+        "availability": {"enum": ["available", "not-yet-materialized"]},
+        "record_count": {"type": "integer", "minimum": 0},
+        "byte_offset": {"type": "integer", "minimum": 0},
+        "boundary_sha256": {"$ref": "#/$defs/hash"},
+        "path_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "invalid_record_count": {"const": 0},
+        "trailing_partial": {"const": false}
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_count", "byte_offset", "boundary_sha256", "path_sha256",
+        "invalid_record_count", "trailing_partial"
+      ],
+      "properties": {
+        "record_count": {"type": "integer", "minimum": 1},
+        "byte_offset": {"type": "integer", "minimum": 1},
+        "boundary_sha256": {"$ref": "#/$defs/hash"},
+        "path_sha256": {"$ref": "#/$defs/hash"},
+        "invalid_record_count": {"const": 0},
+        "trailing_partial": {"const": false}
+      }
+    },
+    "guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo_head", "repo_status_sha256", "primary_diff_sha256"],
+      "properties": {
+        "repo_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "repo_status_sha256": {"$ref": "#/$defs/hash"},
+        "primary_diff_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "continuation_path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "target_id", "conditions"],
+      "properties": {
+        "path": {"const": "retry-child"},
+        "target_id": {"type": "string", "minLength": 1},
+        "conditions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "evidence_sha256"],
+      "properties": {
+        "method": {"type": "string", "minLength": 1},
+        "evidence_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "policy_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "source_type", "source_id", "source_sha256", "actor_id",
+        "actor_role", "identity_source", "authorized_scope",
+        "parent_receipt_sha256", "verification", "authority_sha256"
+      ],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {"const": "policy-enforcement"},
+        "source_id": {"const": "native-steering-advisory-policy-v2"},
+        "source_sha256": {"$ref": "#/$defs/hash"},
+        "actor_id": {"const": "native-supervisor-policy"},
+        "actor_role": {"const": "supervisor-policy"},
+        "identity_source": {"const": "repository-policy"},
+        "authorized_scope": {"const": "child"},
+        "parent_receipt_sha256": {"type": "null"},
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"const": "repository-policy-v1"},
+            "evidence_sha256": {"$ref": "#/$defs/hash"}
+          }
+        },
+        "authority_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "operator_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "source_type", "source_id", "source_sha256", "actor_id",
+        "actor_role", "identity_source", "authorized_scope",
+        "parent_receipt_sha256", "verification", "authority_sha256"
+      ],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {"const": "operator-directive"},
+        "source_id": {"type": "string", "minLength": 1},
+        "source_sha256": {"$ref": "#/$defs/hash"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "actor_role": {"const": "operator"},
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {
+          "enum": ["child", "cohort", "execution-path", "complete-task", "publication"]
+        },
+        "parent_receipt_sha256": {
+          "oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"const": "hmac-sha256-operator-directive-v1"},
+            "evidence_sha256": {"$ref": "#/$defs/hash"}
+          }
+        },
+        "authority_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

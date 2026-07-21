@@ -4966,17 +4966,14 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
     def valid_steering_receipt(
         self, gate: str, authorization_id: str, authorization_sha256: str
     ) -> dict:
+        from cwo_core.native_canary_contracts import seal_neutral_steering_receipt
         from tests.test_native_canary_contracts import steering
 
         receipt = steering()
         receipt["gate"] = gate
         receipt["authorization_id"] = authorization_id
         receipt["authorization_sha256"] = authorization_sha256
-        receipt.pop("canonical_receipt_sha256", None)
-        receipt["canonical_receipt_sha256"] = LIVE.sha256_bytes(
-            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
-        )
-        return receipt
+        return seal_neutral_steering_receipt(receipt)
 
     def reseal_authorization(self, value: dict) -> None:
         progress = value.get("progress_gate")
@@ -9114,6 +9111,62 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         claim.assert_not_called()
         acquire.assert_not_called()
 
+    def test_global_claim_path_forwards_gate_scoped_operator_authorities(
+        self,
+    ) -> None:
+        inputs = mock.MagicMock()
+        inputs.pre_mutation_receipt.value = {"gate": "pre-mutation"}
+        inputs.pre_mutation_adjudication.value = {"main_architect_decision": "go"}
+        inputs.pre_mutation_adjudication.raw_sha256 = "d" * 64
+        inputs.pre_live_receipt.value = {"gate": "pre-live"}
+        inputs.pre_live_adjudication.value = {"main_architect_decision": "go"}
+        inputs.pre_live_adjudication.raw_sha256 = "e" * 64
+        pre_mutation_authorities = (mock.sentinel.pre_mutation_authority,)
+        pre_live_authorities = (mock.sentinel.pre_live_authority,)
+        prepared = {
+            "pre-mutation": ("a" * 64, {}),
+            "pre-live": ("b" * 64, {}),
+        }
+        with mock.patch.object(
+            LIVE, "validate_campaign_launch_bindings", return_value={}
+        ), mock.patch.object(
+            LIVE, "plan_steering_receipt_consumptions", return_value=prepared
+        ) as plan_receipts, mock.patch.object(
+            LIVE, "campaign_launch_claim_sha256", return_value="c" * 64
+        ), mock.patch.object(
+            LIVE, "seal_bound_manifest_validation", return_value={"sealed": True}
+        ), mock.patch.object(
+            LIVE, "acquire_global_campaign_claim", return_value=mock.sentinel.reservation
+        ):
+            result = LIVE.validate_and_acquire_global_campaign_claim(
+                inputs,
+                campaign_nonce=str(uuid.uuid4()),
+                authorization_id=str(uuid.uuid4()),
+                authorization_sha256="a" * 64,
+                repo_head="b" * 40,
+                guarded_primary=Path("/guarded"),
+                output=Path("/private/evidence.json"),
+                authorization_state=Path("/private/state.json"),
+                steering_registry=Path("/private/steering.json"),
+                allocation_ledger=Path("/private/ledger"),
+                pre_mutation_verified_operator_authorities=(
+                    pre_mutation_authorities
+                ),
+                pre_live_verified_operator_authorities=pre_live_authorities,
+            )
+        self.assertIs(result[3], prepared)
+        self.assertIs(result[4], mock.sentinel.reservation)
+        self.assertIs(
+            plan_receipts.call_args.kwargs[
+                "pre_mutation_verified_operator_authorities"
+            ],
+            pre_mutation_authorities,
+        )
+        self.assertIs(
+            plan_receipts.call_args.kwargs["pre_live_verified_operator_authorities"],
+            pre_live_authorities,
+        )
+
     def test_real_malformed_or_replayed_steering_never_acquires_claim(self) -> None:
         for scenario in ("malformed-canonical", "replay"):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temporary:
@@ -9283,6 +9336,43 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             self.assertIs(prepared["pre-mutation"][1]["resolved_stop_adjudication"], resolution)
             self.assertNotIn("allow_resolved_stop", prepared["pre-live"][1])
             self.assertTrue(all(call.kwargs["dry_run"] for call in consume.call_args_list))
+
+    def test_steering_plan_preserves_gate_scoped_operator_authorities(self) -> None:
+        auth_id = str(uuid.uuid4())
+        pre_mutation_authority = mock.sentinel.pre_mutation_authority
+        pre_live_authority = mock.sentinel.pre_live_authority
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            LIVE, "consume_steering_receipt", return_value="validated"
+        ) as consume:
+            prepared = LIVE.plan_steering_receipt_consumptions(
+                str(uuid.uuid4()),
+                auth_id,
+                "a" * 64,
+                registry_file=Path(temporary) / "registry.json",
+                repo_head="d" * 40,
+                pre_mutation_receipt=self.receipt("pre-mutation", auth_id),
+                pre_mutation_adjudication={"main_architect_decision": "go"},
+                pre_mutation_adjudication_sha256="d" * 64,
+                pre_live_receipt=self.receipt("pre-live", auth_id),
+                pre_live_adjudication={"main_architect_decision": "go"},
+                pre_live_adjudication_sha256="e" * 64,
+                pre_mutation_verified_operator_authorities=iter(
+                    [pre_mutation_authority]
+                ),
+                pre_live_verified_operator_authorities=iter([pre_live_authority]),
+            )
+        expected = {
+            "pre-mutation": (pre_mutation_authority,),
+            "pre-live": (pre_live_authority,),
+        }
+        for label, call in zip(expected, consume.call_args_list, strict=True):
+            self.assertEqual(
+                call.kwargs["verified_operator_authorities"], expected[label]
+            )
+            self.assertIs(
+                prepared[label][1]["verified_operator_authorities"][0],
+                expected[label][0],
+            )
 
 
 if __name__ == "__main__":
