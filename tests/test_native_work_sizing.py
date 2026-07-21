@@ -15,9 +15,11 @@ import cwo_core.work_sizing as work_sizing  # noqa: E402
 
 from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_TYPE,
+    OPERATOR_REQUIRED_CHANGE_TYPES,
     OperatorApprovalVerifier,
+    assess_operator_required_changes,
     canonical_authority_sha256,
-    protected_change_snapshot,
+    protected_change_identity,
     trusted_actor_authority,
 )
 from cwo_core.work_sizing import DIMENSIONS, evaluate_work_estimate, validate_work_estimate  # noqa: E402
@@ -1061,13 +1063,26 @@ class NativeWorkSizingTest(unittest.TestCase):
             )
 
         candidate = evaluate_work_estimate(refined_payload)
-        before = protected_change_snapshot(parent)
-        after = protected_change_snapshot(candidate)
+        candidate["parent_estimate_sha256"] = canonical_work_estimate_sha256(parent)
+        candidate["refinement_authority"] = authority.serialize()
+        assessment = assess_operator_required_changes(
+            parent,
+            candidate,
+            operator_required_for=OPERATOR_REQUIRED_CHANGE_TYPES,
+            profile="native-work-estimate-refinement",
+            identity=protected_change_identity(
+                artifact_type="cwo-native-work-estimate-refinement",
+                artifact_id=candidate["parent_estimate_sha256"],
+                work_unit_id=candidate["work_unit_id"],
+                bead_id=candidate["bead_id"],
+                packet_id=None,
+            ),
+        )
         key = b"test-only-work-estimate-operator-key"
         receipt = _operator_approval(
             key,
-            before,
-            after,
+            assessment.before_subject,
+            assessment.after_subject,
             change_type="objective-change",
         )
         verifier = OperatorApprovalVerifier(
@@ -1113,6 +1128,66 @@ class NativeWorkSizingTest(unittest.TestCase):
                 forged,
                 refinement_authority=_refinement_authority("pm"),
             )
+
+    def test_refinement_rejects_unknown_top_level_and_version_mismatched_fields(self):
+        parent = evaluate_work_estimate(_valid_v2_payload())
+        authority = _refinement_authority("pm")
+        for field, value in (
+            ("security_policy_bypass", True),
+            ("unknown_nested", {"bypass": True}),
+        ):
+            payload = _valid_v2_payload()
+            payload[field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(
+                ValueError, "unknown field"
+            ):
+                build_work_estimate_refinement(
+                    parent,
+                    payload,
+                    refinement_authority=authority,
+                )
+        legacy = _valid_raw_payload()
+        legacy["semantic_scores"] = {}
+        with self.assertRaisesRegex(ValueError, "contract version 1.*unknown field"):
+            evaluate_work_estimate(legacy)
+
+    def test_refinement_validation_recomputes_derived_protected_state_exactly(self):
+        parent = evaluate_work_estimate(_valid_v2_payload())
+        payload = _valid_v2_payload()
+        payload["expected_artifacts"].append("focused-test-report.json")
+        authority = _refinement_authority("pm")
+        refinement = build_work_estimate_refinement(
+            parent,
+            payload,
+            refinement_authority=authority,
+        )
+        refinement["authority_route"] = "architect"
+        errors = validate_work_estimate_refinement(
+            refinement,
+            parent,
+            refinement_authority=authority,
+        )
+        self.assertTrue(
+            any("authority_route must equal computed authority_route" in error for error in errors)
+        )
+
+        aliased = copy.deepcopy(parent)
+        aliased["aggregate_allowance"]["tool_calls_hard"] = True
+        self.assertIn(
+            "derived check failed: aggregate_allowance must equal computed aggregate_allowance",
+            validate_work_estimate(aliased),
+        )
+
+    def test_python_top_level_allowlist_matches_schema_properties(self):
+        schema = json.loads(
+            (ROOT / "schemas" / "native-work-estimate.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            work_sizing.WORK_ESTIMATE_SCHEMA_FIELDS,
+            frozenset(schema["properties"]),
+        )
 
 
 if __name__ == "__main__":

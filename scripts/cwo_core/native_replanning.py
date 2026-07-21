@@ -9,9 +9,10 @@ from .native_authority import (
     AuthorityProvenanceError,
     OperatorApprovalVerifier,
     VerifiedAuthority,
+    assess_operator_required_changes,
     build_reason_records,
-    classify_operator_required_changes,
-    protected_change_snapshot,
+    canonical_json_object,
+    protected_change_identity,
     require_minimum_authority,
     validate_authority_provenance,
     validate_operator_approval_audit,
@@ -571,9 +572,18 @@ def _normalize_autonomous_policy(payload: Mapping[str, Any] | None) -> dict[str,
 
 def _normalize_mutation(value: Any, *, path: str) -> dict[str, bool]:
     source = _ensure_mapping(value, path=path)
+    unknown = sorted(set(source) - {"out_of_scope", "tainted"})
+    if unknown:
+        raise ValueError(
+            f"malformed payload: {path} has unknown field(s) {','.join(unknown)}"
+        )
     return {
-        "out_of_scope": bool(source.get("out_of_scope", False)),
-        "tainted": bool(source.get("tainted", False)),
+        "out_of_scope": _ensure_bool(
+            source.get("out_of_scope", False), path=f"{path}.out_of_scope"
+        ),
+        "tainted": _ensure_bool(
+            source.get("tainted", False), path=f"{path}.tainted"
+        ),
     }
 
 
@@ -949,17 +959,30 @@ def _apply_operator_protected_refinement(
     if all(candidate.get(field) == state.get(field) for field in changes):
         raise ValueError("malformed evidence: proposed_changes is an idempotent no-op")
 
-    before_snapshot = protected_change_snapshot(state)
-    after_snapshot = protected_change_snapshot(candidate)
     try:
-        protected_changes = classify_operator_required_changes(
-            before_snapshot,
-            after_snapshot,
-            policy["operator_required_for"],
+        assessment = assess_operator_required_changes(
+            state,
+            candidate,
+            operator_required_for=policy["operator_required_for"],
+            profile="native-replanning-refinement",
+            identity=protected_change_identity(
+                artifact_type=REPLANNING_STATE_TYPE,
+                artifact_id=f"{state['result_type']}:{state['version']}",
+                work_unit_id=state["work_unit_id"],
+                bead_id=state["bead_id"],
+                packet_id=state["packet_id"],
+            ),
         )
     except AuthorityProvenanceError as exc:
         raise ValueError(str(exc)) from exc
-    receipts = operator_approval_receipts or {}
+    protected_changes = list(assessment.required_change_types)
+    try:
+        receipts = canonical_json_object(
+            {} if operator_approval_receipts is None else operator_approval_receipts,
+            label="operator-approval-receipts",
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
     approvals = []
     if protected_changes:
         if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
@@ -968,10 +991,8 @@ def _apply_operator_protected_refinement(
                 + ",".join(protected_changes)
             )
         try:
-            approvals = operator_approval_verifier.authorize_changes(
-                before_snapshot,
-                after_snapshot,
-                operator_required_for=policy["operator_required_for"],
+            approvals = operator_approval_verifier.authorize_assessment(
+                assessment,
                 receipts=receipts,
                 prior_nonces={
                     str(approval["nonce"])
@@ -1170,7 +1191,6 @@ def transition_replanning_state(
 
     policy_data = _normalize_autonomous_policy(policy)
     next_state = copy.deepcopy(source)
-    next_state["authority_provenance"] = caller_authority.serialize()
     evidence_payload = _ensure_mapping(evidence, path="evidence")
     proposed_changes = evidence_payload.get("proposed_changes")
     if proposed_changes is not None and normalized_event not in {
@@ -1180,8 +1200,38 @@ def transition_replanning_state(
         raise ValueError(
             "malformed evidence: proposed_changes is valid only for refinement events"
         )
-    if operator_approval_receipts and proposed_changes is None:
-        raise ValueError("operator approval receipts require proposed_changes")
+    if proposed_changes is None and operator_approval_receipts is not None:
+        try:
+            unexpected_receipts = canonical_json_object(
+                operator_approval_receipts,
+                label="operator-approval-receipts",
+            )
+        except AuthorityProvenanceError as exc:
+            raise ValueError(str(exc)) from exc
+        if unexpected_receipts:
+            raise ValueError("operator approval receipts require proposed_changes")
+    if proposed_changes is not None:
+        try:
+            proposed_payload = canonical_json_object(
+                proposed_changes, label="evidence.proposed_changes"
+            )
+        except AuthorityProvenanceError as exc:
+            raise ValueError(str(exc)) from exc
+        unknown_proposed = sorted(
+            set(proposed_payload) - PROTECTED_REPLANNING_CHANGE_FIELDS
+        )
+        if unknown_proposed:
+            raise ValueError(
+                "malformed evidence: proposed_changes has unsupported field(s): "
+                + ",".join(unknown_proposed)
+            )
+        if not proposed_payload:
+            raise ValueError(
+                "malformed evidence: proposed_changes must not be empty"
+            )
+        proposed_changes = proposed_payload
+
+    next_state["authority_provenance"] = caller_authority.serialize()
 
     next_state["policy_snapshot"] = {
         "dispatch_soft_cap": policy_data["dispatch_soft_cap"],
@@ -1197,9 +1247,24 @@ def transition_replanning_state(
         evidence=evidence_payload,
         path="state.main_thread",
     )
-    next_state["mutation"] = _normalize_mutation(
+    prior_mutation = _normalize_mutation(
+        next_state.get("mutation", {}), path="state.mutation"
+    )
+    observed_mutation = _normalize_mutation(
         evidence_payload.get("mutation", next_state.get("mutation", {})),
         path="evidence.mutation",
+    )
+    next_state["mutation"] = {
+        "out_of_scope": prior_mutation["out_of_scope"]
+        or observed_mutation["out_of_scope"],
+        "tainted": prior_mutation["tainted"] or observed_mutation["tainted"],
+    }
+    contradictory_observation = _ensure_bool(
+        evidence_payload.get("contradictory_validation", False),
+        path="evidence.contradictory_validation",
+    )
+    contradictory_sticky = contradictory_observation or (
+        "contradictory-validation" in source.get("reason_codes", [])
     )
     _apply_usage(next_state, evidence_payload)
 
@@ -1215,6 +1280,14 @@ def transition_replanning_state(
             caller_authority=caller_authority,
             next_action=next_action,
         )
+
+    terminal_reasons: list[str] = []
+    if next_state["mutation"]["tainted"]:
+        terminal_reasons.append("tainted-mutation")
+    if contradictory_sticky:
+        terminal_reasons.append("contradictory-validation")
+    if terminal_reasons:
+        return protected_stop(terminal_reasons)
 
     if normalized_event in {"model-mismatch", "control-loss", "security-or-authority-ambiguity", "out-of-scope-mutation", "tainted-mutation", "operator-trigger"}:
         reason = normalized_event if normalized_event in {"model-mismatch", "control-loss"} else normalized_event

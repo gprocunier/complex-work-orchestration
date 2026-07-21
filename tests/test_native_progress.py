@@ -91,17 +91,49 @@ class NativeProgressTest(unittest.TestCase):
         aggregate = evaluate_worker_progress(plan(), actual(tool_calls=30))
         self.assertEqual(aggregate["outcome"], "protected-stop")
         self.assertEqual(aggregate["stop_scope"], "child")
-        self.assertTrue(
-            all(
-                isinstance(path, dict)
-                for path in aggregate["authorized_continuation_paths"]
-            )
+        self.assertFalse(aggregate["dispatch_authorized"])
+        self.assertEqual(aggregate["authorized_continuation_paths"], [])
+        self.assertEqual(
+            aggregate["required_operator_change_types"],
+            ["aggregate-budget-increase"],
         )
         result = evaluate_worker_progress(
             plan(), actual(), discoveries={"model_mismatch": True}
         )
         self.assertEqual(result["outcome"], "protected-stop")
         self.assertEqual(result["pm_action"], "protected-stop")
+        self.assertFalse(result["dispatch_authorized"])
+        self.assertEqual(result["authorized_continuation_paths"], [])
+        self.assertEqual(
+            result["required_operator_change_types"], ["model-substitution"]
+        )
+
+    def test_security_and_contradictory_observations_are_audit_only(self):
+        cases = (
+            (
+                {"security_violation": True, "authority_violation": True},
+                ["security-or-authority-change"],
+            ),
+            (
+                {"mutation_attribution_ambiguous": True},
+                ["tainted-mutation-acceptance"],
+            ),
+            (
+                {"contradictory_validation": True},
+                ["contradictory-validation"],
+            ),
+        )
+        for discoveries, required_types in cases:
+            with self.subTest(discoveries=discoveries):
+                result = evaluate_worker_progress(
+                    plan(), actual(), discoveries=discoveries
+                )
+                self.assertEqual(result["outcome"], "protected-stop")
+                self.assertFalse(result["dispatch_authorized"])
+                self.assertEqual(result["authorized_continuation_paths"], [])
+                self.assertEqual(
+                    result["required_operator_change_types"], required_types
+                )
 
     def test_worker_recommendation_text_cannot_promote_progress_scope(self):
         result = evaluate_worker_progress(
@@ -311,6 +343,20 @@ class NativeProgressTest(unittest.TestCase):
         contradictory_continue = evaluate_worker_progress(plan(), actual())
         contradictory_continue["pm_action"] = "protected-stop"
         self.assertFalse(validator.is_valid(contradictory_continue))
+        productive_protected = evaluate_worker_progress(
+            plan(), actual(), discoveries={"contradictory_validation": True}
+        )
+        productive_protected["dispatch_authorized"] = True
+        self.assertFalse(validator.is_valid(productive_protected))
+        productive_protected["dispatch_authorized"] = False
+        productive_protected["authorized_continuation_paths"] = [
+            {
+                "path": "continue-cohort",
+                "target_id": None,
+                "conditions": ["healthy-peer-evidence-preserved"],
+            }
+        ]
+        self.assertFalse(validator.is_valid(productive_protected))
 
 
 if __name__ == "__main__":

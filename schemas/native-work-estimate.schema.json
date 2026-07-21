@@ -971,6 +971,23 @@
           "route_conflict",
           "variance_metrics"
         ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {"required": ["task_profile"]},
+            {"required": ["semantic_estimate"]},
+            {"required": ["pm_estimate"]},
+            {"required": ["domain_expert_estimate"]},
+            {"required": ["semantic_scores"]},
+            {"required": ["v1_route"]},
+            {"required": ["semantic_route"]},
+            {"required": ["authority_route"]},
+            {"required": ["operative_route"]},
+            {"required": ["route_conflict"]},
+            {"required": ["variance_metrics"]}
+          ]
+        }
       }
     },
     {

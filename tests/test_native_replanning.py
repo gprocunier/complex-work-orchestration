@@ -13,9 +13,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_TYPE,
+    OPERATOR_REQUIRED_CHANGE_TYPES,
     OperatorApprovalVerifier,
+    assess_operator_required_changes,
     canonical_authority_sha256,
-    protected_change_snapshot,
+    protected_change_identity,
     trusted_actor_authority,
     verify_operator_directive,
 )
@@ -220,6 +222,29 @@ def _protected_change_approval(
     return body
 
 
+def _protected_refinement_assessment(
+    state: dict,
+    proposed_changes: dict,
+):
+    before = copy.deepcopy(state)
+    before["authority_provenance"] = _trusted_authority("pm").serialize()
+    after = copy.deepcopy(before)
+    after.update(copy.deepcopy(proposed_changes))
+    return assess_operator_required_changes(
+        before,
+        after,
+        operator_required_for=OPERATOR_REQUIRED_CHANGE_TYPES,
+        profile="native-replanning-refinement",
+        identity=protected_change_identity(
+            artifact_type="cwo-native-replanning-state",
+            artifact_id=f"{before['result_type']}:{before['version']}",
+            work_unit_id=before["work_unit_id"],
+            bead_id=before["bead_id"],
+            packet_id=before["packet_id"],
+        ),
+    )
+
+
 def _needs_replan_evidence(*, decision: str = "pm-refine", uncertainty_class: str = "bounded") -> dict:
     return {
         "trusted_evidence": True,
@@ -320,15 +345,14 @@ class NativeReplanningTest(unittest.TestCase):
             "requires_architect_cycle": False,
             "proposed_changes": {"objective": "publish repaired CWO"},
         }
-        candidate = copy.deepcopy(pm_state)
-        candidate["objective"] = evidence["proposed_changes"]["objective"]
-        before = protected_change_snapshot(pm_state)
-        after = protected_change_snapshot(candidate)
+        assessment = _protected_refinement_assessment(
+            pm_state, evidence["proposed_changes"]
+        )
         key = b"test-only-replanning-protected-change-key"
         receipt = _protected_change_approval(
             key,
-            before,
-            after,
+            assessment.before_subject,
+            assessment.after_subject,
             change_type="objective-change",
         )
         consumed: set[str] = set()
@@ -370,15 +394,14 @@ class NativeReplanningTest(unittest.TestCase):
             "requires_architect_cycle": False,
             "proposed_changes": {"requested_model": "gpt-5.6-sol"},
         }
-        candidate = copy.deepcopy(pm_state)
-        candidate["requested_model"] = "gpt-5.6-sol"
-        before = protected_change_snapshot(pm_state)
-        after = protected_change_snapshot(candidate)
+        assessment = _protected_refinement_assessment(
+            pm_state, evidence["proposed_changes"]
+        )
         key = b"test-only-replanning-protected-change-key"
         receipt = _protected_change_approval(
             key,
-            before,
-            after,
+            assessment.before_subject,
+            assessment.after_subject,
             change_type="model-substitution",
         )
         verifier = OperatorApprovalVerifier(
@@ -681,6 +704,80 @@ class NativeReplanningTest(unittest.TestCase):
                 "completed",
                 {"completed": True},
                 caller_authority=_operator_authority("operator-trigger"),
+            )
+
+    def test_refinement_rejects_unknown_proposed_fields_before_source_mutation(self) -> None:
+        pm_state = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        original = copy.deepcopy(pm_state)
+        with self.assertRaisesRegex(ValueError, "unsupported field.*security_policy_bypass"):
+            transition_replanning_state(
+                pm_state,
+                "pm-refined",
+                {
+                    "requires_architect_cycle": False,
+                    "proposed_changes": {"security_policy_bypass": True},
+                },
+            )
+        self.assertEqual(pm_state, original)
+
+    def test_taint_and_contradictory_validation_are_sticky_terminal_stops(self) -> None:
+        tainted = _state_with_overrides(
+            {"mutation": {"out_of_scope": False, "tainted": True}}
+        )
+        taint_stop = transition_replanning_state(
+            tainted,
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        self.assertEqual(taint_stop["state"], "protected-stop")
+        self.assertTrue(taint_stop["mutation"]["tainted"])
+        self.assertIn("tainted-mutation", taint_stop["reason_codes"])
+        taint_followup = transition_replanning_state(
+            taint_stop,
+            "pm-refined",
+            {
+                "requires_architect_cycle": False,
+                "mutation": {"out_of_scope": False, "tainted": False},
+            },
+        )
+        self.assertEqual(taint_followup["state"], "protected-stop")
+        self.assertTrue(taint_followup["mutation"]["tainted"])
+
+        contradiction_evidence = _needs_replan_evidence()
+        contradiction_evidence["contradictory_validation"] = True
+        contradiction_stop = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            contradiction_evidence,
+        )
+        self.assertEqual(contradiction_stop["state"], "protected-stop")
+        self.assertIn(
+            "contradictory-validation", contradiction_stop["reason_codes"]
+        )
+        contradiction_followup = transition_replanning_state(
+            contradiction_stop,
+            "pm-refined",
+            {
+                "requires_architect_cycle": False,
+                "contradictory_validation": False,
+            },
+        )
+        self.assertEqual(contradiction_followup["state"], "protected-stop")
+        self.assertIn(
+            "contradictory-validation", contradiction_followup["reason_codes"]
+        )
+
+    def test_mutation_flags_reject_bool_integer_aliases(self) -> None:
+        with self.assertRaisesRegex(ValueError, "state.mutation.tainted must be a boolean"):
+            build_replanning_state(
+                {
+                    **_base_state(),
+                    "mutation": {"out_of_scope": False, "tainted": 1},
+                }
             )
 
     def test_schema_and_policy_load_checks(self) -> None:

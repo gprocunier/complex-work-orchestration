@@ -9,6 +9,21 @@
     "version": {"const": 2},
     "outcome": {"enum": ["continue", "early-warning", "pm-realignment", "protected-stop", "completed"]},
     "pm_action": {"enum": ["none", "packet-refinement", "architect-question", "material-split", "protected-stop"]},
+    "dispatch_authorized": {"const": false},
+    "required_operator_change_types": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "aggregate-budget-increase",
+          "model-substitution",
+          "objective-change",
+          "security-or-authority-change",
+          "tainted-mutation-acceptance",
+          "contradictory-validation"
+        ]
+      }
+    },
     "reasons": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "reason_records": {"type": "array", "items": {"$ref": "#/$defs/reason_record"}},
     "warnings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
@@ -57,27 +72,14 @@
     },
     "scope_authority": {"$ref": "#/$defs/scope_authority"}
   },
-  "required": ["decision_type", "version", "outcome", "pm_action", "reasons", "reason_records", "warnings", "planned", "actual", "calibration", "realignment", "steering", "stop_scope", "authorized_continuation_paths", "scope_authority"],
+  "required": ["decision_type", "version", "outcome", "pm_action", "dispatch_authorized", "required_operator_change_types", "reasons", "reason_records", "warnings", "planned", "actual", "calibration", "realignment", "steering", "stop_scope", "authorized_continuation_paths", "scope_authority"],
   "oneOf": [
     {
       "properties": {
         "outcome": {"const": "protected-stop"},
         "pm_action": {"const": "protected-stop"},
         "realignment": {"type": "null"},
-        "authorized_continuation_paths": {
-          "const": [
-            {
-              "path": "continue-cohort",
-              "target_id": null,
-              "conditions": ["healthy-peer-evidence-preserved"]
-            },
-            {
-              "path": "replace-child",
-              "target_id": null,
-              "conditions": ["fault-contained", "fresh-attempt"]
-            }
-          ]
-        }
+        "authorized_continuation_paths": {"maxItems": 0}
       },
       "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
     },
@@ -98,7 +100,8 @@
               "conditions": ["packet-refinement", "pm-decision-recorded"]
             }
           ]
-        }
+        },
+        "required_operator_change_types": {"maxItems": 0}
       },
       "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
     },
@@ -119,7 +122,8 @@
               "conditions": ["architect-question", "pm-decision-recorded"]
             }
           ]
-        }
+        },
+        "required_operator_change_types": {"maxItems": 0}
       },
       "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
     },
@@ -140,7 +144,8 @@
               "conditions": ["material-split", "pm-decision-recorded"]
             }
           ]
-        }
+        },
+        "required_operator_change_types": {"maxItems": 0}
       },
       "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
     },
@@ -149,7 +154,8 @@
         "outcome": {"enum": ["continue", "early-warning", "completed"]},
         "pm_action": {"const": "none"},
         "realignment": {"type": "null"},
-        "authorized_continuation_paths": {"maxItems": 0}
+        "authorized_continuation_paths": {"maxItems": 0},
+        "required_operator_change_types": {"maxItems": 0}
       },
       "required": ["outcome", "pm_action", "realignment", "authorized_continuation_paths"]
     }

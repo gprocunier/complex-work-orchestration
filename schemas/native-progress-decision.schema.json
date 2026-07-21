@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/native-progress-decision.schema.json",
   "title": "native-progress-decision",
+  "$comment": "Historical v1 inspection only. Schema conformance never authorizes dispatch or productive continuation.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

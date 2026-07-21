@@ -5,7 +5,7 @@ from copy import deepcopy
 from math import ceil, isfinite
 from typing import Any
 
-from .native_authority import build_reason_records
+from .native_authority import OPERATOR_REQUIRED_CHANGE_TYPES, build_reason_records
 from .policy import load_policy
 from .native_stop_scope import (
     build_stop_metadata,
@@ -448,6 +448,23 @@ def evaluate_worker_progress(
         in set(protected.values())
         | {"context-compaction", "aggregate-allowance-exhausted"}
     ]
+    operator_change_reasons = {
+        "aggregate-budget-increase": {"aggregate-allowance-exhausted"},
+        "model-substitution": {"model-mismatch"},
+        "objective-change": set(),
+        "security-or-authority-change": {
+            "control-loss",
+            "security-violation",
+            "authority-violation",
+        },
+        "tainted-mutation-acceptance": {"mutation-attribution-ambiguous"},
+        "contradictory-validation": {"contradictory-validation"},
+    }
+    required_operator_change_types = [
+        change_type
+        for change_type in OPERATOR_REQUIRED_CHANGE_TYPES
+        if operator_change_reasons[change_type].intersection(protected_reasons)
+    ]
     if protected_reasons:
         outcome = "protected-stop"
         pm_action = "protected-stop"
@@ -510,18 +527,7 @@ def evaluate_worker_progress(
             "retained_artifacts": retained,
         }
     continuation_paths: list[dict[str, Any]] = []
-    if outcome == "protected-stop":
-        continuation_paths = [
-            continuation_path(
-                "replace-child",
-                conditions=["fault-contained", "fresh-attempt"],
-            ),
-            continuation_path(
-                "continue-cohort",
-                conditions=["healthy-peer-evidence-preserved"],
-            ),
-        ]
-    elif outcome == "pm-realignment":
+    if outcome == "pm-realignment":
         continuation_paths = [
             continuation_path(
                 "retry-child",
@@ -550,6 +556,8 @@ def evaluate_worker_progress(
         "version": VERSION,
         "outcome": outcome,
         "pm_action": pm_action,
+        "dispatch_authorized": False,
+        "required_operator_change_types": required_operator_change_types,
         "reasons": reason_values,
         "reason_records": build_reason_records(
             reason_values,

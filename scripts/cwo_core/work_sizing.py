@@ -16,15 +16,16 @@ from cwo_core.native_authority import (
     AuthorityProvenanceError,
     OperatorApprovalVerifier,
     VerifiedAuthority,
+    assess_operator_required_changes,
     canonical_authority_sha256,
-    classify_operator_required_changes,
+    canonical_json_object,
     is_sha256,
-    protected_change_snapshot,
+    protected_change_identity,
     require_minimum_authority,
     validate_authority_provenance,
     validate_operator_approval_audit,
 )
-from cwo_core.native_containment import containment_error, require_native_operative_dispatch
+from cwo_core.native_containment import containment_error
 from cwo_core.native_precommit import validate_precommit_receipt
 
 DIMENSIONS = (
@@ -181,6 +182,68 @@ REFINEMENT_LINEAGE_FIELDS = (
     "refinement_authority",
     "operator_approval_receipts",
     "protected_change_authorizations",
+)
+
+# Mirrors the top-level properties in native-work-estimate.schema.json.  The
+# contract-version split is enforced here before any payload field is copied.
+WORK_ESTIMATE_SCHEMA_FIELDS = frozenset(
+    {
+        "estimate_type",
+        "version",
+        "estimate_contract_version",
+        "work_unit_id",
+        "bead_id",
+        "requested_model",
+        "primary_outcome",
+        "parent_estimate_sha256",
+        "refinement_authority",
+        "operator_approval_receipts",
+        "protected_change_authorizations",
+        "expected_artifacts",
+        "expert_profiles",
+        "frozen_decisions",
+        "unresolved_decisions",
+        "subsystems",
+        "write_paths",
+        "context_manifest",
+        "acceptance_checks",
+        "task_profile",
+        "estimates",
+        "scores",
+        "semantic_estimate",
+        "pm_estimate",
+        "domain_expert_estimate",
+        "semantic_scores",
+        "score_total",
+        "route",
+        "v1_route",
+        "semantic_route",
+        "authority_route",
+        "operative_route",
+        "route_conflict",
+        "variance_metrics",
+        "task_class",
+        "fit_mode",
+        "protected_surface_matches",
+        "fit_evidence",
+        "hard_gate_reasons",
+        "aggregate_allowance",
+    }
+)
+WORK_ESTIMATE_V2_ONLY_FIELDS = frozenset(
+    {
+        "task_profile",
+        "semantic_estimate",
+        "pm_estimate",
+        "domain_expert_estimate",
+        "semantic_scores",
+        "v1_route",
+        "semantic_route",
+        "authority_route",
+        "operative_route",
+        "route_conflict",
+        "variance_metrics",
+    }
 )
 
 
@@ -927,6 +990,22 @@ def _validate_refinement_lineage_shape(payload: Mapping[str, Any]) -> None:
 
 
 def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
+    estimate_contract_version = _ensure_int(
+        payload.get("estimate_contract_version", 1),
+        path="estimate_contract_version",
+        minimum=1,
+        maximum=2,
+    )
+    allowed_fields = (
+        WORK_ESTIMATE_SCHEMA_FIELDS
+        if estimate_contract_version == 2
+        else WORK_ESTIMATE_SCHEMA_FIELDS - WORK_ESTIMATE_V2_ONLY_FIELDS
+    )
+    if extras := sorted(set(payload) - allowed_fields):
+        raise ValueError(
+            "malformed source payload: work estimate contract version "
+            f"{estimate_contract_version} has unknown field(s) {', '.join(extras)}"
+        )
     if payload.get("estimate_type") != "cwo-native-work-estimate":
         raise ValueError("malformed source payload: estimate_type must be cwo-native-work-estimate")
     _ensure_int(payload.get("version"), path="version", minimum=1, maximum=1)
@@ -969,12 +1048,6 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("malformed source payload: scores must contain exact DIMENSIONS keys")
 
     semantic_payload = payload.get("semantic_estimate")
-    estimate_contract_version = _ensure_int(
-        payload.get("estimate_contract_version", 1),
-        path="estimate_contract_version",
-        minimum=1,
-        maximum=2,
-    )
     if semantic_payload is not None:
         semantic_payload = _ensure_mapping_exact(
             semantic_payload,
@@ -1220,7 +1293,10 @@ def _evaluate_v2_route(
 
 
 def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    source = deepcopy(_ensure_mapping(payload, label="payload"))
+    try:
+        source = canonical_json_object(payload, label="work-estimate-payload")
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
     normalized = _validate_required_fields(source)
     work_sizing = _load_work_sizing_policy(policy)
     if int(work_sizing.get("version", 0)) != 1:
@@ -1423,10 +1499,11 @@ def validate_work_estimate(
     *,
     allow_refinement_inspection: bool = False,
 ) -> list[str]:
-    source = deepcopy(payload)
+    try:
+        source = canonical_json_object(payload, label="work-estimate")
+    except AuthorityProvenanceError as exc:
+        return [str(exc)]
     errors: list[str] = []
-    if not isinstance(source, Mapping):
-        return ["malformed source payload: source must be a mapping"]
     if (
         any(field in source for field in REFINEMENT_LINEAGE_FIELDS)
         and not allow_refinement_inspection
@@ -1453,16 +1530,19 @@ def validate_work_estimate(
     if errors:
         return errors
 
-    if source["score_total"] != computed["score_total"]:
+    def exact_match(left: Any, right: Any) -> bool:
+        return canonical_authority_sha256(left) == canonical_authority_sha256(right)
+
+    if not exact_match(source["score_total"], computed["score_total"]):
         errors.append("derived check failed: score_total must equal computed score_total")
-    if source["route"] != computed["route"]:
+    if not exact_match(source["route"], computed["route"]):
         errors.append("derived check failed: route must equal computed route")
-    if source["hard_gate_reasons"] != computed["hard_gate_reasons"]:
+    if not exact_match(source["hard_gate_reasons"], computed["hard_gate_reasons"]):
         errors.append("derived check failed: hard_gate_reasons must equal computed hard_gate_reasons")
-    if source["aggregate_allowance"] != computed["aggregate_allowance"]:
+    if not exact_match(source["aggregate_allowance"], computed["aggregate_allowance"]):
         errors.append("derived check failed: aggregate_allowance must equal computed aggregate_allowance")
     for field in DERIVED_TASK_PROFILE_FIELDS:
-        if field in source and source.get(field) != computed.get(field):
+        if field in source and not exact_match(source.get(field), computed.get(field)):
             errors.append(f"derived check failed: {field} must equal computed {field}")
     if int(source.get("estimate_contract_version", 1)) >= 2:
         for field in (
@@ -1474,14 +1554,18 @@ def validate_work_estimate(
             "route_conflict",
             "variance_metrics",
         ):
-            if source.get(field) != computed.get(field):
+            if not exact_match(source.get(field), computed.get(field)):
                 errors.append(f"derived check failed: {field} must equal computed {field}")
 
     return errors
 
 
 def canonical_work_estimate_sha256(work_estimate: Any) -> str:
-    canonical = json.dumps(_ensure_mapping(work_estimate, label="work_estimate"), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    try:
+        source = canonical_json_object(work_estimate, label="work-estimate")
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
+    canonical = json.dumps(source, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -1518,7 +1602,15 @@ def build_work_estimate_refinement(
 ) -> dict[str, Any]:
     """Build a strict-write refinement bound to its parent and trusted actor."""
 
-    parent = deepcopy(_ensure_mapping(parent_estimate, label="parent_estimate"))
+    try:
+        parent = canonical_json_object(
+            parent_estimate, label="parent-estimate"
+        )
+        source = canonical_json_object(
+            refined_payload, label="refined-payload"
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
     parent_errors = validate_work_estimate(
         parent,
         policy=policy,
@@ -1526,7 +1618,6 @@ def build_work_estimate_refinement(
     )
     if parent_errors:
         raise ValueError("invalid parent_estimate: " + "; ".join(parent_errors))
-    source = deepcopy(_ensure_mapping(refined_payload, label="refined_payload"))
     supplied_lineage = sorted(set(source) & set(REFINEMENT_LINEAGE_FIELDS))
     if supplied_lineage:
         raise ValueError(
@@ -1550,23 +1641,32 @@ def build_work_estimate_refinement(
     candidate = evaluate_work_estimate(source, policy=policy)
     candidate["parent_estimate_sha256"] = canonical_work_estimate_sha256(parent)
     candidate["refinement_authority"] = refinement_authority.serialize()
-    before_snapshot = protected_change_snapshot(parent)
-    after_snapshot = protected_change_snapshot(candidate)
     _, operator_required_for = _refinement_operator_policy(policy)
     try:
-        protected_changes = classify_operator_required_changes(
-            before_snapshot,
-            after_snapshot,
-            operator_required_for,
+        assessment = assess_operator_required_changes(
+            parent,
+            candidate,
+            operator_required_for=operator_required_for,
+            profile="native-work-estimate-refinement",
+            identity=protected_change_identity(
+                artifact_type="cwo-native-work-estimate-refinement",
+                artifact_id=candidate["parent_estimate_sha256"],
+                work_unit_id=candidate["work_unit_id"],
+                bead_id=candidate["bead_id"],
+                packet_id=None,
+            ),
         )
     except AuthorityProvenanceError as exc:
         raise ValueError(str(exc)) from exc
+    protected_changes = list(assessment.required_change_types)
 
-    if operator_approval_receipts is not None and not isinstance(
-        operator_approval_receipts, Mapping
-    ):
-        raise ValueError("operator_approval_receipts must be an object")
-    receipts = deepcopy(dict(operator_approval_receipts or {}))
+    try:
+        receipts = canonical_json_object(
+            {} if operator_approval_receipts is None else operator_approval_receipts,
+            label="operator-approval-receipts",
+        )
+    except AuthorityProvenanceError as exc:
+        raise ValueError(str(exc)) from exc
     approvals = []
     if protected_changes:
         if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
@@ -1575,10 +1675,8 @@ def build_work_estimate_refinement(
                 + ",".join(protected_changes)
             )
         try:
-            approvals = operator_approval_verifier.authorize_changes(
-                before_snapshot,
-                after_snapshot,
-                operator_required_for=operator_required_for,
+            approvals = operator_approval_verifier.authorize_assessment(
+                assessment,
                 receipts=receipts,
                 prior_nonces={
                     str(approval["nonce"])
@@ -1617,10 +1715,11 @@ def validate_work_estimate_refinement(
     """Validate a refinement chain before it can drive a new operative write."""
 
     errors: list[str] = []
-    if not isinstance(refinement, Mapping) or not isinstance(parent_estimate, Mapping):
-        return ["work-estimate refinement and parent must be objects"]
-    parent = deepcopy(dict(parent_estimate))
-    candidate = deepcopy(dict(refinement))
+    try:
+        parent = canonical_json_object(parent_estimate, label="parent-estimate")
+        candidate = canonical_json_object(refinement, label="refinement")
+    except AuthorityProvenanceError as exc:
+        return [str(exc)]
     errors.extend(
         "invalid parent_estimate: " + error
         for error in validate_work_estimate(
@@ -1661,15 +1760,22 @@ def validate_work_estimate_refinement(
     if errors:
         return errors
 
-    before_snapshot = protected_change_snapshot(parent)
-    after_snapshot = protected_change_snapshot(candidate)
     try:
         _, operator_required_for = _refinement_operator_policy(policy)
-        protected_changes = classify_operator_required_changes(
-            before_snapshot,
-            after_snapshot,
-            operator_required_for,
+        assessment = assess_operator_required_changes(
+            parent,
+            candidate,
+            operator_required_for=operator_required_for,
+            profile="native-work-estimate-refinement",
+            identity=protected_change_identity(
+                artifact_type="cwo-native-work-estimate-refinement",
+                artifact_id=canonical_work_estimate_sha256(parent),
+                work_unit_id=candidate["work_unit_id"],
+                bead_id=candidate["bead_id"],
+                packet_id=None,
+            ),
         )
+        protected_changes = list(assessment.required_change_types)
         if protected_changes:
             if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
                 errors.append(
@@ -1677,10 +1783,8 @@ def validate_work_estimate_refinement(
                     + ",".join(protected_changes)
                 )
             else:
-                approvals = operator_approval_verifier.authorize_changes(
-                    before_snapshot,
-                    after_snapshot,
-                    operator_required_for=operator_required_for,
+                approvals = operator_approval_verifier.authorize_assessment(
+                    assessment,
                     receipts=candidate.get("operator_approval_receipts"),
                     prior_nonces={
                         str(approval["nonce"])
