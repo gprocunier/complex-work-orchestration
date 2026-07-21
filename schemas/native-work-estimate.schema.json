@@ -229,9 +229,31 @@
         "contradictions": {
           "type": "array",
           "items": {"type": "string", "minLength": 1}
+        },
+        "protected_path_bindings": {
+          "type": "object",
+          "propertyNames": {"type": "string", "minLength": 1},
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "security-return-acceptance",
+                "policy-routing",
+                "schemas-public-contracts",
+                "native-supervision-self-hosting",
+                "provider-access-authority",
+                "credentials",
+                "release-publication",
+                "workflow-automation"
+              ]
+            }
+          }
         }
       },
-      "required": ["source", "task_profile_class", "checks", "policy_caps", "contradictions"]
+      "required": ["source", "task_profile_class", "checks", "policy_caps", "contradictions", "protected_path_bindings"]
     },
     "authorityProvenance": {
       "type": "object",

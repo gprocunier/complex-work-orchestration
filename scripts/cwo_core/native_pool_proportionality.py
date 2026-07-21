@@ -16,10 +16,13 @@ from typing import Any, Mapping, Sequence
 
 from .native_authority import (
     AUTHORIZED_SCOPE_RANK,
+    OPERATOR_REQUIRED_CHANGE_TYPES,
     AuthorityProvenanceError,
     OperatorApprovalVerifier,
     VerifiedOperatorApproval,
+    assess_operator_required_changes,
     canonical_authority_sha256,
+    protected_change_identity,
     validate_operator_approval_audit,
 )
 from .native_pool_capacity import (
@@ -1127,6 +1130,27 @@ def proportionality_override_artifacts(
     }
 
 
+def proportionality_override_assessment(
+    baseline_assessment: Mapping[str, Any],
+    artifacts: Mapping[str, Any],
+    *,
+    cohort_sha256: str,
+):
+    return assess_operator_required_changes(
+        artifacts["before_artifact"],
+        artifacts["after_artifact"],
+        operator_required_for=OPERATOR_REQUIRED_CHANGE_TYPES,
+        profile="native-proportionality-override",
+        identity=protected_change_identity(
+            artifact_type=OVERRIDE_ACTION_TYPE,
+            artifact_id=str(artifacts["action_sha256"]),
+            work_unit_id=str(baseline_assessment["assessment_sha256"]),
+            bead_id=None,
+            packet_id=cohort_sha256,
+        ),
+    )
+
+
 def verify_proportionality_override(
     baseline_assessment: Mapping[str, Any],
     *,
@@ -1153,14 +1177,22 @@ def verify_proportionality_override(
         policy_document=document,
     )
     try:
-        approval = operator_approval_verifier.verify(
-            approval_receipt,
-            expected_change_type=policy.override_change_type,
-            before_artifact=artifacts["before_artifact"],
-            after_artifact=artifacts["after_artifact"],
+        assessment = proportionality_override_assessment(
+            baseline_assessment,
+            artifacts,
+            cohort_sha256=cohort_sha256,
+        )
+        approvals = operator_approval_verifier.authorize_assessment(
+            assessment,
+            receipts={"security-or-authority-change": approval_receipt},
         )
     except AuthorityProvenanceError as error:
         raise PoolProportionalityError(str(error)) from error
+    if len(approvals) != 1:
+        raise PoolProportionalityError(
+            "proportionality-override-assessment-category-invalid"
+        )
+    approval = approvals[0]
     if (
         AUTHORIZED_SCOPE_RANK.get(approval.authority.authorized_scope, -1)
         < AUTHORIZED_SCOPE_RANK[policy.override_required_scope]
@@ -1351,6 +1383,14 @@ def _serialized_override_binding_errors(
         )
     except (KeyError, TypeError, ValueError, PoolProportionalityError):
         return sorted(set(errors + ["assessment-override-artifacts-invalid"]))
+    try:
+        authority_assessment = proportionality_override_assessment(
+            baseline,
+            artifacts,
+            cohort_sha256=str(target_sha256),
+        )
+    except AuthorityProvenanceError:
+        return sorted(set(errors + ["assessment-override-artifacts-invalid"]))
     action = artifacts["action"]
     if override.get("action_sha256") != artifacts["action_sha256"]:
         errors.append("assessment-override-action-sha256-mismatch")
@@ -1371,10 +1411,10 @@ def _serialized_override_binding_errors(
             errors.append("assessment-override-audit-change-type-mismatch")
         try:
             expected_before_sha256 = canonical_authority_sha256(
-                artifacts["before_artifact"]
+                authority_assessment.before_subject
             )
             expected_after_sha256 = canonical_authority_sha256(
-                artifacts["after_artifact"]
+                authority_assessment.after_subject
             )
         except (TypeError, ValueError):
             errors.append("assessment-override-audit-artifacts-invalid")

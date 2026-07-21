@@ -643,6 +643,26 @@ def _derive_protected_surface_matches(
     return matches
 
 
+def _derive_protected_path_bindings(
+    write_paths: list[str],
+    source_mutation_paths: list[str],
+    protected_surfaces: Mapping[str, list[str]],
+) -> dict[str, list[str]]:
+    """Bind every exact protected path to the policy groups it matched."""
+
+    candidate_paths = list(dict.fromkeys(write_paths + source_mutation_paths))
+    bindings: dict[str, list[str]] = {}
+    for candidate in candidate_paths:
+        groups = [
+            group_name
+            for group_name, patterns in protected_surfaces.items()
+            if any(_path_matches_prefix(candidate, pattern) for pattern in patterns)
+        ]
+        if groups:
+            bindings[candidate] = groups
+    return bindings
+
+
 def _evaluate_task_profile_fit(
     source: Mapping[str, Any],
     semantic_payload: dict[str, Any] | None,
@@ -1408,6 +1428,11 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
         source_mutation_paths,
         protected_surfaces,
     )
+    protected_path_bindings = _derive_protected_path_bindings(
+        list(source["write_paths"]),
+        source_mutation_paths,
+        protected_surfaces,
+    )
     task_class, fit_mode, fit_evidence, protected_surface_matches = _evaluate_task_profile_fit(
         source,
         normalized["semantic_estimate"],
@@ -1489,6 +1514,7 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     estimate["task_class"] = task_class
     estimate["fit_mode"] = fit_mode
     estimate["protected_surface_matches"] = protected_surface_matches
+    fit_evidence["protected_path_bindings"] = protected_path_bindings
     estimate["fit_evidence"] = fit_evidence
     return estimate
 
@@ -1582,7 +1608,7 @@ def _refinement_operator_policy(
         not configured
         or any(not isinstance(value, str) or not value for value in configured)
         or len(configured) != len(set(configured))
-        or set(configured) != set(OPERATOR_REQUIRED_CHANGE_TYPES)
+        or tuple(configured) != OPERATOR_REQUIRED_CHANGE_TYPES
     ):
         raise ValueError(
             "malformed policy: operator_required_for must contain every supported "
@@ -1783,19 +1809,24 @@ def validate_work_estimate_refinement(
                     + ",".join(protected_changes)
                 )
             else:
-                approvals = operator_approval_verifier.authorize_assessment(
-                    assessment,
-                    receipts=candidate.get("operator_approval_receipts"),
-                    prior_nonces={
-                        str(approval["nonce"])
-                        for approval in parent.get(
-                            "protected_change_authorizations", []
+                audit_values = candidate.get("protected_change_authorizations")
+                if type(audit_values) is not list:
+                    errors.append("refinement operator approval audit must be an array")
+                else:
+                    audit_map = {
+                        audit.get("change_type"): audit
+                        for audit in audit_values
+                        if type(audit) is dict
+                        and type(audit.get("change_type")) is str
+                    }
+                    if len(audit_map) != len(audit_values):
+                        errors.append("refinement operator approval audit mismatch")
+                    else:
+                        operator_approval_verifier.validate_assessment_audits(
+                            assessment,
+                            audits=audit_map,
+                            receipts=candidate.get("operator_approval_receipts"),
                         )
-                    },
-                )
-                expected_audit = [approval.audit_record() for approval in approvals]
-                if candidate.get("protected_change_authorizations") != expected_audit:
-                    errors.append("refinement operator approval audit mismatch")
         elif candidate.get("operator_approval_receipts") or candidate.get(
             "protected_change_authorizations"
         ):

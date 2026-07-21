@@ -7,13 +7,19 @@ and caller-selected role strings are never authority.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
+import fcntl
 import hashlib
 import hmac
 import json
+import os
+from pathlib import Path
 import re
+import stat
+import tempfile
 from threading import RLock
 from typing import Any, Iterable, Mapping
 
@@ -237,7 +243,26 @@ _PROTECTED_CHANGE_PROFILES = {
     "generic": frozenset(),
     "native-replanning-refinement": frozenset(),
     "native-work-estimate-refinement": _WORK_ESTIMATE_UNPROTECTED_ROOTS,
+    "native-ready-set-authority-change": frozenset(),
+    "native-proportionality-override": frozenset(),
 }
+
+OPERATOR_APPROVAL_REPLAY_STORE_TYPE = "cwo-operator-approval-replay-store"
+OPERATOR_APPROVAL_REPLAY_STORE_VERSION = 1
+OPERATOR_APPROVAL_REPLAY_STORE_FIELDS = frozenset(
+    {"store_type", "version", "entries", "store_sha256"}
+)
+OPERATOR_APPROVAL_REPLAY_ENTRY_FIELDS = frozenset(
+    {
+        "nonce",
+        "approval_id",
+        "receipt_sha256",
+        "change_type",
+        "before_sha256",
+        "after_sha256",
+    }
+)
+_MAX_REPLAY_STORE_BYTES = 8 * 1024 * 1024
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _AUTHORITY_TOKEN = object()
@@ -677,7 +702,7 @@ def _validate_operator_required_for(operator_required_for: Iterable[str]) -> Non
     if (
         any(type(value) is not str for value in configured)
         or len(configured) != len(set(configured))
-        or set(configured) != set(OPERATOR_REQUIRED_CHANGE_TYPES)
+        or tuple(configured) != OPERATOR_REQUIRED_CHANGE_TYPES
     ):
         raise AuthorityProvenanceError("operator-required-for-invalid")
 
@@ -743,6 +768,38 @@ def _contradictions(value: Mapping[str, Any]) -> Any:
     return fit.get("contradictions", _MISSING)
 
 
+def _protected_binding_paths(value: Mapping[str, Any]) -> frozenset[str]:
+    fit_evidence = value.get("fit_evidence")
+    bindings = (
+        fit_evidence.get("protected_path_bindings")
+        if type(fit_evidence) is dict
+        else None
+    )
+    if type(bindings) is not dict:
+        return frozenset()
+    return frozenset(
+        path
+        for path, groups in bindings.items()
+        if type(path) is str
+        and path
+        and type(groups) is list
+        and bool(groups)
+        and all(type(group) is str and bool(group) for group in groups)
+    )
+
+
+def _literal_patch_is_protected(value: Mapping[str, Any]) -> bool:
+    profile = value.get("task_profile")
+    if type(profile) is not dict:
+        return False
+    patch = profile.get("architect_literal_patch")
+    return (
+        type(patch) is dict
+        and type(patch.get("path")) is str
+        and patch["path"] in _protected_binding_paths(value)
+    )
+
+
 def _categorize_changed_path(
     pointer: str,
     *,
@@ -751,6 +808,11 @@ def _categorize_changed_path(
     profile: str,
 ) -> str | None:
     root = _root_from_pointer(pointer)
+    if profile in {
+        "native-ready-set-authority-change",
+        "native-proportionality-override",
+    }:
+        return "security-or-authority-change"
     if root == "aggregate_allowance":
         old = before.get(root, _MISSING)
         new = after.get(root, _MISSING)
@@ -802,6 +864,8 @@ def _categorize_changed_path(
     }:
         return "contradictory-validation"
     if root == "fit_evidence":
+        if pointer.startswith("/fit_evidence/protected_path_bindings"):
+            return "security-or-authority-change"
         if _json_changed_pointers(_contradictions(before), _contradictions(after)):
             return "contradictory-validation"
         if profile == "native-work-estimate-refinement":
@@ -816,6 +880,15 @@ def _categorize_changed_path(
         if profile == "native-work-estimate-refinement":
             return None
     if root == "fit_mode":
+        return "security-or-authority-change"
+    if (
+        profile == "native-work-estimate-refinement"
+        and pointer.startswith("/task_profile/architect_literal_patch/")
+        and (
+            _literal_patch_is_protected(before)
+            or _literal_patch_is_protected(after)
+        )
+    ):
         return "security-or-authority-change"
     if root in _PROTECTED_CHANGE_PROFILES[profile]:
         return None
@@ -1046,14 +1119,302 @@ def _verify_operator_approval(
     )
 
 
+def _replay_store_body(entries: list[dict[str, str]]) -> dict[str, Any]:
+    return {
+        "store_type": OPERATOR_APPROVAL_REPLAY_STORE_TYPE,
+        "version": OPERATOR_APPROVAL_REPLAY_STORE_VERSION,
+        "entries": sorted(entries, key=lambda item: item["receipt_sha256"]),
+    }
+
+
+def _sealed_replay_store(entries: list[dict[str, str]]) -> dict[str, Any]:
+    result = _replay_store_body(entries)
+    result["store_sha256"] = canonical_authority_sha256(result)
+    return result
+
+
+def _validate_replay_store(value: Any) -> dict[str, Any]:
+    payload = canonical_json_object(value, label="operator-approval-replay-store")
+    if set(payload) != OPERATOR_APPROVAL_REPLAY_STORE_FIELDS:
+        raise AuthorityProvenanceError("operator-approval-replay-store-fields-invalid")
+    if payload.get("store_type") != OPERATOR_APPROVAL_REPLAY_STORE_TYPE:
+        raise AuthorityProvenanceError("operator-approval-replay-store-type-invalid")
+    if (
+        type(payload.get("version")) is not int
+        or payload["version"] != OPERATOR_APPROVAL_REPLAY_STORE_VERSION
+    ):
+        raise AuthorityProvenanceError("operator-approval-replay-store-version-invalid")
+    entries = payload.get("entries")
+    if type(entries) is not list:
+        raise AuthorityProvenanceError("operator-approval-replay-store-entries-invalid")
+    normalized: list[dict[str, str]] = []
+    nonces: set[str] = set()
+    approval_ids: set[str] = set()
+    receipt_hashes: set[str] = set()
+    for entry in entries:
+        if type(entry) is not dict or set(entry) != OPERATOR_APPROVAL_REPLAY_ENTRY_FIELDS:
+            raise AuthorityProvenanceError("operator-approval-replay-store-entry-invalid")
+        if any(type(entry.get(field)) is not str or not entry[field].strip() for field in entry):
+            raise AuthorityProvenanceError("operator-approval-replay-store-entry-invalid")
+        if entry["change_type"] not in OPERATOR_REQUIRED_CHANGE_TYPES:
+            raise AuthorityProvenanceError("operator-approval-replay-store-entry-invalid")
+        if any(
+            not is_sha256(entry[field])
+            for field in ("receipt_sha256", "before_sha256", "after_sha256")
+        ):
+            raise AuthorityProvenanceError("operator-approval-replay-store-entry-invalid")
+        if (
+            entry["nonce"] in nonces
+            or entry["approval_id"] in approval_ids
+            or entry["receipt_sha256"] in receipt_hashes
+        ):
+            raise AuthorityProvenanceError("operator-approval-replay-store-duplicate-binding")
+        nonces.add(entry["nonce"])
+        approval_ids.add(entry["approval_id"])
+        receipt_hashes.add(entry["receipt_sha256"])
+        normalized.append(deepcopy(entry))
+    expected = _sealed_replay_store(normalized)
+    if canonical_authority_sha256(payload) != canonical_authority_sha256(expected):
+        raise AuthorityProvenanceError("operator-approval-replay-store-noncanonical")
+    if payload.get("store_sha256") != expected["store_sha256"]:
+        raise AuthorityProvenanceError("operator-approval-replay-store-sha256-mismatch")
+    return expected
+
+
+def _reject_replay_symlink_components(path: Path) -> None:
+    if not path.is_absolute():
+        raise AuthorityProvenanceError("operator-approval-replay-store-path-not-absolute")
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        try:
+            identity = current.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(identity.st_mode):
+            raise AuthorityProvenanceError("operator-approval-replay-store-symlink-forbidden")
+
+
+def _validate_replay_parent(path: Path) -> tuple[int, int]:
+    _reject_replay_symlink_components(path.parent)
+    try:
+        identity = path.parent.lstat()
+    except OSError as exc:
+        raise AuthorityProvenanceError("operator-approval-replay-store-parent-invalid") from exc
+    if (
+        not stat.S_ISDIR(identity.st_mode)
+        or identity.st_uid != os.getuid()
+    ):
+        raise AuthorityProvenanceError("operator-approval-replay-store-parent-invalid")
+    return identity.st_dev, identity.st_ino
+
+
+def _validate_open_replay_file(
+    descriptor: int,
+    path: Path,
+    *,
+    label: str,
+) -> os.stat_result:
+    identity = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(identity.st_mode)
+        or identity.st_uid != os.getuid()
+        or identity.st_nlink != 1
+        or stat.S_IMODE(identity.st_mode) & 0o077
+    ):
+        raise AuthorityProvenanceError(f"operator-approval-{label}-file-invalid")
+    try:
+        path_identity = path.lstat()
+    except OSError as exc:
+        raise AuthorityProvenanceError(f"operator-approval-{label}-path-invalid") from exc
+    if (
+        stat.S_ISLNK(path_identity.st_mode)
+        or (path_identity.st_dev, path_identity.st_ino)
+        != (identity.st_dev, identity.st_ino)
+    ):
+        raise AuthorityProvenanceError(f"operator-approval-{label}-inode-mismatch")
+    return identity
+
+
+def _replay_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _read_replay_store(path: Path) -> tuple[dict[str, Any], tuple[int, int] | None]:
+    _reject_replay_symlink_components(path)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except FileNotFoundError:
+        return _sealed_replay_store([]), None
+    except OSError as exc:
+        raise AuthorityProvenanceError("operator-approval-replay-store-open-failed") from exc
+    try:
+        identity = _validate_open_replay_file(
+            descriptor, path, label="replay-store"
+        )
+        if identity.st_size > _MAX_REPLAY_STORE_BYTES:
+            raise AuthorityProvenanceError("operator-approval-replay-store-too-large")
+        chunks: list[bytes] = []
+        remaining = _MAX_REPLAY_STORE_BYTES + 1
+        while remaining:
+            chunk = os.read(descriptor, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) > _MAX_REPLAY_STORE_BYTES:
+            raise AuthorityProvenanceError("operator-approval-replay-store-too-large")
+        try:
+            decoded = raw.decode("utf-8")
+            payload = json.loads(
+                decoded,
+                object_pairs_hook=_replay_json_object,
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            raise AuthorityProvenanceError("operator-approval-replay-store-corrupt") from exc
+        return _validate_replay_store(payload), (identity.st_dev, identity.st_ino)
+    finally:
+        os.close(descriptor)
+
+
+def _write_replay_store(
+    path: Path,
+    payload: Mapping[str, Any],
+    *,
+    prior_identity: tuple[int, int] | None,
+    prior_store_sha256: str,
+    parent_identity: tuple[int, int],
+) -> None:
+    current_parent = _validate_replay_parent(path)
+    if current_parent != parent_identity:
+        raise AuthorityProvenanceError("operator-approval-replay-store-parent-inode-changed")
+    current, current_identity = _read_replay_store(path)
+    if (
+        current_identity != prior_identity
+        or current.get("store_sha256") != prior_store_sha256
+    ):
+        raise AuthorityProvenanceError("operator-approval-replay-store-inode-changed")
+    sealed = _validate_replay_store(payload)
+    encoded = (
+        json.dumps(
+            sealed,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    descriptor = -1
+    temporary_name = ""
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            dir=path.parent, prefix=f".{path.name}.tmp-"
+        )
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb", closefd=True) as handle:
+            descriptor = -1
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary = Path(temporary_name)
+        temporary_identity = temporary.lstat()
+        if (
+            not stat.S_ISREG(temporary_identity.st_mode)
+            or temporary_identity.st_uid != os.getuid()
+            or temporary_identity.st_nlink != 1
+        ):
+            raise AuthorityProvenanceError("operator-approval-replay-store-temporary-invalid")
+        final_current, final_identity = _read_replay_store(path)
+        if (
+            final_identity != prior_identity
+            or final_current.get("store_sha256") != prior_store_sha256
+            or _validate_replay_parent(path) != parent_identity
+        ):
+            raise AuthorityProvenanceError("operator-approval-replay-store-inode-changed")
+        os.replace(temporary, path)
+        temporary_name = ""
+        directory_descriptor = os.open(
+            path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        )
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    except AuthorityProvenanceError:
+        raise
+    except OSError as exc:
+        raise AuthorityProvenanceError("operator-approval-replay-store-persist-failed") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary_name:
+            try:
+                os.unlink(temporary_name)
+            except FileNotFoundError:
+                pass
+
+
+@contextmanager
+def _locked_replay_store(
+    path: Path,
+    *,
+    write: bool,
+) -> Iterator[dict[str, Any]]:
+    parent_identity = _validate_replay_parent(path)
+    _reject_replay_symlink_components(path)
+    lock_path = path.with_name(f"{path.name}.lock")
+    _reject_replay_symlink_components(lock_path)
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError as exc:
+        raise AuthorityProvenanceError("operator-approval-replay-lock-open-failed") from exc
+    try:
+        _validate_open_replay_file(descriptor, lock_path, label="replay-lock")
+        fcntl.flock(descriptor, fcntl.LOCK_EX if write else fcntl.LOCK_SH)
+        _validate_open_replay_file(descriptor, lock_path, label="replay-lock")
+        store, prior_identity = _read_replay_store(path)
+        prior_store_sha256 = store["store_sha256"]
+        yield store
+        if write:
+            _validate_open_replay_file(descriptor, lock_path, label="replay-lock")
+            _write_replay_store(
+                path,
+                store,
+                prior_identity=prior_identity,
+                prior_store_sha256=prior_store_sha256,
+                parent_identity=parent_identity,
+            )
+    finally:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+
+def _approval_replay_entry(approval: VerifiedOperatorApproval) -> dict[str, str]:
+    audit = approval.audit_record()
+    return {
+        field: str(audit[field])
+        for field in OPERATOR_APPROVAL_REPLAY_ENTRY_FIELDS
+    }
+
+
 class OperatorApprovalVerifier:
-    """Verify exact protected changes and retain replay state across calls."""
+    """Mint approvals only from sealed assessments and a durable replay store."""
 
     __slots__ = (
         "_verification_key",
         "_expected_actor_id",
         "_expected_identity_source",
-        "_consumed_nonces",
+        "_replay_store_path",
         "_now",
     )
 
@@ -1063,105 +1424,54 @@ class OperatorApprovalVerifier:
         verification_key: bytes,
         expected_actor_id: str,
         expected_identity_source: str,
-        consumed_nonces: set[str] | None = None,
+        replay_store_path: Path,
         now: datetime | str | Callable[[], datetime | str] | None = None,
     ) -> None:
         if type(verification_key) is not bytes or not verification_key:
             raise AuthorityProvenanceError("operator-approval-verification-key-invalid")
         if not _nonempty(expected_actor_id) or not _nonempty(expected_identity_source):
             raise AuthorityProvenanceError("operator-approval-verifier-identity-invalid")
-        if consumed_nonces is not None and type(consumed_nonces) is not set:
-            raise AuthorityProvenanceError("operator-approval-replay-store-invalid")
-        store = consumed_nonces if consumed_nonces is not None else set()
-        if any(type(value) is not str or not value.strip() for value in store):
-            raise AuthorityProvenanceError("operator-approval-replay-store-invalid")
+        if not isinstance(replay_store_path, Path):
+            raise AuthorityProvenanceError("operator-approval-replay-store-path-invalid")
+        replay_path = Path(replay_store_path)
+        _validate_replay_parent(replay_path)
+        _reject_replay_symlink_components(replay_path)
         self._verification_key = verification_key
         self._expected_actor_id = expected_actor_id
         self._expected_identity_source = expected_identity_source
-        self._consumed_nonces = store
+        self._replay_store_path = replay_path
         self._now = now
 
     @property
     def consumed_nonces(self) -> frozenset[str]:
-        with _OPERATOR_APPROVAL_LOCK:
-            return frozenset(self._consumed_nonces)
+        with _OPERATOR_APPROVAL_LOCK, _locked_replay_store(
+            self._replay_store_path, write=False
+        ) as store:
+            return frozenset(entry["nonce"] for entry in store["entries"])
 
-    def verify(
-        self,
-        receipt: Any,
-        *,
-        expected_change_type: str,
-        before_artifact: Mapping[str, Any],
-        after_artifact: Mapping[str, Any],
-    ) -> VerifiedOperatorApproval:
-        if expected_change_type in TERMINAL_PROTECTED_CHANGE_TYPES:
+    @staticmethod
+    def _validate_assessment(assessment: ProtectedChangeAssessment) -> list[str]:
+        if type(assessment) is not ProtectedChangeAssessment:
+            raise AuthorityProvenanceError("protected-change-assessment-required")
+        if assessment.identity is None:
+            raise AuthorityProvenanceError("protected-change-assessment-identity-required")
+        if assessment.uncategorized_paths:
             raise AuthorityProvenanceError(
-                "operator-approval-terminal-change-not-authorizable"
+                "protected-change-uncategorized:"
+                + ",".join(assessment.uncategorized_paths)
             )
-        before_subject = canonical_json_object(
-            before_artifact, label="operator-approval-before-artifact"
-        )
-        after_subject = canonical_json_object(
-            after_artifact, label="operator-approval-after-artifact"
-        )
-        with _OPERATOR_APPROVAL_LOCK:
-            approval = _verify_operator_approval(
-                receipt,
-                verification_key=self._verification_key,
-                expected_actor_id=self._expected_actor_id,
-                expected_identity_source=self._expected_identity_source,
-                expected_change_type=expected_change_type,
-                before_artifact=before_subject,
-                after_artifact=after_subject,
-                seen_nonces=set(self._consumed_nonces),
-                now=_current_time(self._now),
-            )
-            self._consumed_nonces.add(approval.nonce)
-            return approval
-
-    def verify_audit(
-        self,
-        audit: Any,
-        *,
-        before_artifact: Mapping[str, Any],
-        after_artifact: Mapping[str, Any],
-    ) -> VerifiedOperatorApproval:
-        audit_payload = canonical_json_object(
-            audit, label="operator-approval-audit"
-        )
-        before_subject = canonical_json_object(
-            before_artifact, label="operator-approval-before-artifact"
-        )
-        after_subject = canonical_json_object(
-            after_artifact, label="operator-approval-after-artifact"
-        )
-        audit_errors = validate_operator_approval_audit(audit_payload)
-        if audit_errors:
+        changed = list(assessment.required_change_types)
+        terminal = [
+            change_type
+            for change_type in changed
+            if change_type in TERMINAL_PROTECTED_CHANGE_TYPES
+        ]
+        if terminal:
             raise AuthorityProvenanceError(
-                "operator-approval-audit-invalid:" + ";".join(audit_errors)
+                "operator-approval-terminal-change-not-authorizable:"
+                + ",".join(terminal)
             )
-        if audit_payload["change_type"] in TERMINAL_PROTECTED_CHANGE_TYPES:
-            raise AuthorityProvenanceError(
-                "operator-approval-terminal-change-not-authorizable"
-            )
-        with _OPERATOR_APPROVAL_LOCK:
-            approval = _verify_operator_approval(
-                audit_payload["signed_receipt"],
-                verification_key=self._verification_key,
-                expected_actor_id=self._expected_actor_id,
-                expected_identity_source=self._expected_identity_source,
-                expected_change_type=audit_payload["change_type"],
-                before_artifact=before_subject,
-                after_artifact=after_subject,
-                seen_nonces=set(self._consumed_nonces),
-                now=_current_time(self._now),
-            )
-            if canonical_authority_sha256(
-                approval.audit_record()
-            ) != canonical_authority_sha256(audit_payload):
-                raise AuthorityProvenanceError("operator-approval-audit-mismatch")
-            self._consumed_nonces.add(approval.nonce)
-            return approval
+        return changed
 
     def authorize_assessment(
         self,
@@ -1170,68 +1480,40 @@ class OperatorApprovalVerifier:
         receipts: Mapping[str, Any] | None,
         prior_nonces: Iterable[str] = (),
     ) -> list[VerifiedOperatorApproval]:
-        """Verify a complete receipt set and consume every nonce atomically."""
+        """Verify and durably consume one complete assessment receipt set."""
 
-        if type(assessment) is not ProtectedChangeAssessment:
-            raise AuthorityProvenanceError(
-                "protected-change-assessment-required"
-            )
-        if assessment.uncategorized_paths:
-            raise AuthorityProvenanceError(
-                "protected-change-uncategorized:"
-                + ",".join(assessment.uncategorized_paths)
-            )
-        changed = list(assessment.required_change_types)
-        if any(
-            change_type in TERMINAL_PROTECTED_CHANGE_TYPES
-            for change_type in changed
-        ):
-            raise AuthorityProvenanceError(
-                "operator-approval-terminal-change-not-authorizable:"
-                + ",".join(
-                    change_type
-                    for change_type in changed
-                    if change_type in TERMINAL_PROTECTED_CHANGE_TYPES
-                )
-            )
-        if receipts is None:
-            receipt_payload: dict[str, Any] = {}
-        else:
-            receipt_payload = canonical_json_object(
-                receipts, label="operator-approval-receipts"
-            )
+        changed = self._validate_assessment(assessment)
+        receipt_payload = (
+            {}
+            if receipts is None
+            else canonical_json_object(receipts, label="operator-approval-receipts")
+        )
         if not changed:
             if receipt_payload:
                 raise AuthorityProvenanceError("operator-approval-unexpected")
             return []
-        if set(receipt_payload) != set(changed):
+        if tuple(receipt_payload) != tuple(changed):
             raise AuthorityProvenanceError(
                 "operator-approval-required-for:" + ",".join(changed)
             )
         if isinstance(prior_nonces, (str, bytes)):
-            raise AuthorityProvenanceError(
-                "operator-approval-prior-nonces-invalid"
-            )
+            raise AuthorityProvenanceError("operator-approval-prior-nonces-invalid")
         try:
             prior_values = list(prior_nonces)
         except TypeError as exc:
-            raise AuthorityProvenanceError(
-                "operator-approval-prior-nonces-invalid"
-            ) from exc
-        if any(
-            type(value) is not str or not value.strip() for value in prior_values
-        ):
-            raise AuthorityProvenanceError(
-                "operator-approval-prior-nonces-invalid"
-            )
-        persisted_nonces = set(prior_values)
+            raise AuthorityProvenanceError("operator-approval-prior-nonces-invalid") from exc
+        if any(type(value) is not str or not value.strip() for value in prior_values):
+            raise AuthorityProvenanceError("operator-approval-prior-nonces-invalid")
         before_subject = assessment.before_subject
         after_subject = assessment.after_subject
-        with _OPERATOR_APPROVAL_LOCK:
-            shadow_nonces = set(self._consumed_nonces) | persisted_nonces
+        with _OPERATOR_APPROVAL_LOCK, _locked_replay_store(
+            self._replay_store_path, write=True
+        ) as store:
+            existing = store["entries"]
+            shadow_nonces = {entry["nonce"] for entry in existing} | set(prior_values)
+            shadow_ids = {entry["approval_id"] for entry in existing}
+            shadow_hashes = {entry["receipt_sha256"] for entry in existing}
             approvals: list[VerifiedOperatorApproval] = []
-            approval_ids: set[str] = set()
-            receipt_hashes: set[str] = set()
             now = _current_time(self._now)
             for change_type in changed:
                 approval = _verify_operator_approval(
@@ -1245,43 +1527,95 @@ class OperatorApprovalVerifier:
                     seen_nonces=shadow_nonces,
                     now=now,
                 )
-                audit = approval.audit_record()
-                approval_id = audit["approval_id"]
-                receipt_hash = audit["receipt_sha256"]
-                if approval_id in approval_ids or receipt_hash in receipt_hashes:
-                    raise AuthorityProvenanceError(
-                        "operator-approval-duplicate-receipt"
-                    )
-                approval_ids.add(approval_id)
-                receipt_hashes.add(receipt_hash)
-                shadow_nonces.add(approval.nonce)
+                entry = _approval_replay_entry(approval)
+                if (
+                    entry["approval_id"] in shadow_ids
+                    or entry["receipt_sha256"] in shadow_hashes
+                ):
+                    raise AuthorityProvenanceError("operator-approval-replayed")
+                shadow_nonces.add(entry["nonce"])
+                shadow_ids.add(entry["approval_id"])
+                shadow_hashes.add(entry["receipt_sha256"])
                 approvals.append(approval)
-            self._consumed_nonces.update(
-                approval.nonce for approval in approvals
+            store.clear()
+            store.update(
+                _sealed_replay_store(
+                    existing + [_approval_replay_entry(item) for item in approvals]
+                )
             )
-            return approvals
+        return approvals
 
-    def authorize_changes(
+    def validate_assessment_audits(
         self,
-        before: Any,
-        after: Any,
+        assessment: ProtectedChangeAssessment,
         *,
-        operator_required_for: Iterable[str],
-        receipts: Mapping[str, Any] | None,
-        prior_nonces: Iterable[str] = (),
-    ) -> list[VerifiedOperatorApproval]:
-        assessment = _build_protected_change_assessment(
-            before,
-            after,
-            operator_required_for=operator_required_for,
-            profile="generic",
-            identity=None,
+        audits: Mapping[str, Any] | None,
+        receipts: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Non-consumingly prove stored audits match an assessment and durable bindings."""
+
+        changed = self._validate_assessment(assessment)
+        audit_payload = (
+            {}
+            if audits is None
+            else canonical_json_object(audits, label="operator-approval-audits")
         )
-        return self.authorize_assessment(
-            assessment,
-            receipts=receipts,
-            prior_nonces=prior_nonces,
+        receipt_payload = (
+            None
+            if receipts is None
+            else canonical_json_object(receipts, label="operator-approval-receipts")
         )
+        if tuple(audit_payload) != tuple(changed):
+            raise AuthorityProvenanceError(
+                "operator-approval-audit-required-for:" + ",".join(changed)
+            )
+        if receipt_payload is not None and tuple(receipt_payload) != tuple(changed):
+            raise AuthorityProvenanceError(
+                "operator-approval-required-for:" + ",".join(changed)
+            )
+        before_subject = assessment.before_subject
+        after_subject = assessment.after_subject
+        with _OPERATOR_APPROVAL_LOCK, _locked_replay_store(
+            self._replay_store_path, write=False
+        ) as store:
+            by_hash = {entry["receipt_sha256"]: entry for entry in store["entries"]}
+            for change_type in changed:
+                audit = canonical_json_object(
+                    audit_payload[change_type], label="operator-approval-audit"
+                )
+                audit_errors = validate_operator_approval_audit(audit)
+                if audit_errors:
+                    raise AuthorityProvenanceError(
+                        "operator-approval-audit-invalid:" + ";".join(audit_errors)
+                    )
+                if audit.get("change_type") != change_type:
+                    raise AuthorityProvenanceError("operator-approval-audit-change-type-mismatch")
+                signed = audit["signed_receipt"]
+                if receipt_payload is not None and canonical_authority_sha256(
+                    receipt_payload[change_type]
+                ) != canonical_authority_sha256(signed):
+                    raise AuthorityProvenanceError("operator-approval-audit-receipt-mismatch")
+                verification_time = _parse_utc_timestamp(
+                    signed.get("issued_at"), label="operator-approval-issued-at"
+                )
+                approval = _verify_operator_approval(
+                    signed,
+                    verification_key=self._verification_key,
+                    expected_actor_id=self._expected_actor_id,
+                    expected_identity_source=self._expected_identity_source,
+                    expected_change_type=change_type,
+                    before_artifact=before_subject,
+                    after_artifact=after_subject,
+                    seen_nonces=set(),
+                    now=verification_time,
+                )
+                if canonical_authority_sha256(
+                    approval.audit_record()
+                ) != canonical_authority_sha256(audit):
+                    raise AuthorityProvenanceError("operator-approval-audit-mismatch")
+                expected_entry = _approval_replay_entry(approval)
+                if by_hash.get(expected_entry["receipt_sha256"]) != expected_entry:
+                    raise AuthorityProvenanceError("operator-approval-audit-not-durably-consumed")
 
 
 def require_minimum_authority(

@@ -16,6 +16,18 @@ from .native_stop_scope import (
 
 DECISION_TYPE = "cwo-native-progress-decision"
 VERSION = 2
+OPERATOR_CHANGE_REASON_MAP = {
+    "aggregate-budget-increase": frozenset({"aggregate-allowance-exhausted"}),
+    "model-substitution": frozenset({"model-mismatch"}),
+    "objective-change": frozenset(),
+    "security-or-authority-change": frozenset(
+        {"control-loss", "security-violation", "authority-violation"}
+    ),
+    "tainted-mutation-acceptance": frozenset(
+        {"mutation-attribution-ambiguous"}
+    ),
+    "contradictory-validation": frozenset({"contradictory-validation"}),
+}
 
 
 def _mapping(value: Any, path: str) -> Mapping[str, Any]:
@@ -56,6 +68,39 @@ def _strings(value: Any, path: str) -> list[str]:
             raise ValueError(f"{path}[{index}] must be a non-empty string")
         result.append(item)
     return result
+
+
+def validate_progress_decision_for_productive_use(value: Any) -> None:
+    """Reject legacy/audit-only artifacts and forged v2 reason/category pairs."""
+
+    decision = _mapping(value, "progress_decision")
+    if decision.get("decision_type") != DECISION_TYPE:
+        raise ValueError("progress decision type is invalid")
+    if type(decision.get("version")) is not int or decision.get("version") != VERSION:
+        raise ValueError("native-progress v1 is audit-only and cannot drive productive use")
+    if decision.get("dispatch_authorized") is not False:
+        raise ValueError("progress decision cannot authorize dispatch")
+    reasons = _strings(decision.get("reasons"), "progress_decision.reasons")
+    categories = _strings(
+        decision.get("required_operator_change_types"),
+        "progress_decision.required_operator_change_types",
+    )
+    expected = [
+        change_type
+        for change_type in OPERATOR_REQUIRED_CHANGE_TYPES
+        if OPERATOR_CHANGE_REASON_MAP[change_type].intersection(reasons)
+    ]
+    if categories != expected:
+        raise ValueError("progress decision operator change types do not match reasons")
+    protected = bool(expected) or any(
+        reason in {"context-compaction"} for reason in reasons
+    )
+    if protected and (
+        decision.get("outcome") != "protected-stop"
+        or decision.get("pm_action") != "protected-stop"
+        or decision.get("authorized_continuation_paths") != []
+    ):
+        raise ValueError("protected progress decision cannot carry continuation authority")
 
 
 def _policy_thresholds(policy: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -448,22 +493,10 @@ def evaluate_worker_progress(
         in set(protected.values())
         | {"context-compaction", "aggregate-allowance-exhausted"}
     ]
-    operator_change_reasons = {
-        "aggregate-budget-increase": {"aggregate-allowance-exhausted"},
-        "model-substitution": {"model-mismatch"},
-        "objective-change": set(),
-        "security-or-authority-change": {
-            "control-loss",
-            "security-violation",
-            "authority-violation",
-        },
-        "tainted-mutation-acceptance": {"mutation-attribution-ambiguous"},
-        "contradictory-validation": {"contradictory-validation"},
-    }
     required_operator_change_types = [
         change_type
         for change_type in OPERATOR_REQUIRED_CHANGE_TYPES
-        if operator_change_reasons[change_type].intersection(protected_reasons)
+        if OPERATOR_CHANGE_REASON_MAP[change_type].intersection(protected_reasons)
     ]
     if protected_reasons:
         outcome = "protected-stop"
@@ -551,7 +584,7 @@ def evaluate_worker_progress(
         authority=progress_authority,
         authorized_continuation_paths=continuation_paths,
     )
-    return {
+    result = {
         "decision_type": DECISION_TYPE,
         "version": VERSION,
         "outcome": outcome,
@@ -572,3 +605,5 @@ def evaluate_worker_progress(
         "steering": neutral_steering,
         **stop_metadata,
     }
+    validate_progress_decision_for_productive_use(result)
+    return result

@@ -51,7 +51,7 @@
     },
     "stop_scope": {"$ref": "#/$defs/stop_scope"},
     "authorized_continuation_paths": {
-      "type": "array", "uniqueItems": true,
+      "type": "array", "uniqueItems": true, "maxItems": 0,
       "items": {"$ref": "#/$defs/continuation_path"}
     },
     "scope_authority": {"$ref": "#/$defs/scope_authority"}

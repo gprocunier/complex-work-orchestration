@@ -21,11 +21,13 @@
     "counters",
     "aggregate_allowance",
     "mutation",
+    "terminal_latches",
     "reason_codes",
     "protected_change_authorizations",
     "next_action",
     "cwo_native_replanning_receipt",
-    "policy_snapshot"
+    "policy_snapshot",
+    "state_sha256"
   ],
   "properties": {
     "result_type": {
@@ -34,7 +36,7 @@
     },
     "version": {
       "type": "integer",
-      "const": 2
+      "const": 3
     },
     "schema": {
       "type": "string",
@@ -220,6 +222,15 @@
         }
       }
     },
+    "terminal_latches": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tainted", "contradictory_validation"],
+      "properties": {
+        "tainted": {"type": "boolean"},
+        "contradictory_validation": {"type": "boolean"}
+      }
+    },
     "reason_codes": {
       "type": "array",
       "items": {
@@ -267,6 +278,7 @@
         }
       }
     },
+    "state_sha256": {"$ref": "#/$defs/sha256"},
     "cwo_native_replanning_receipt": {
       "type": "object",
       "additionalProperties": false,
@@ -289,9 +301,11 @@
         "counters",
         "aggregate",
         "mutation",
+        "terminal_latches",
         "model_health",
         "control_health",
-        "next_action"
+        "next_action",
+        "state_sha256"
       ],
       "properties": {
         "result_type": {
@@ -341,7 +355,7 @@
         },
         "version": {
           "type": "integer",
-          "const": 2
+          "const": 3
         },
         "schema": {
           "type": "string",
@@ -506,6 +520,15 @@
             }
           }
         },
+        "terminal_latches": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tainted", "contradictory_validation"],
+          "properties": {
+            "tainted": {"type": "boolean"},
+            "contradictory_validation": {"type": "boolean"}
+          }
+        },
         "model_health": {
           "type": "object",
           "additionalProperties": false,
@@ -529,7 +552,8 @@
         "next_action": {
           "type": "string",
           "minLength": 1
-        }
+        },
+        "state_sha256": {"$ref": "#/$defs/sha256"}
       }
     }
   },

@@ -9,6 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 from threading import Barrier
 import unittest
 
@@ -27,6 +28,7 @@ from cwo_core.native_pool_proportionality import (  # noqa: E402
     canonical_proportionality_sha256,
     load_pool_proportionality_policy,
     pool_proportionality_check,
+    proportionality_override_assessment,
     proportionality_override_artifacts,
     validate_pool_proportionality_assessment,
     verify_proportionality_override,
@@ -174,6 +176,18 @@ def _reseal_assessment(value: dict) -> dict:
 
 
 class NativePoolProportionalityTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temporary = TemporaryDirectory()
+        self.replay_root = Path(self._temporary.name)
+        self._replay_index = 0
+
+    def tearDown(self) -> None:
+        self._temporary.cleanup()
+
+    def replay_store(self) -> Path:
+        self._replay_index += 1
+        return self.replay_root / f"operator-replay-{self._replay_index}.json"
+
     def test_policy_defaults_are_provisional_and_capacity_remains_n2(self) -> None:
         document = load_policy("native-worker-execution")
         policy = load_pool_proportionality_policy(document)
@@ -623,18 +637,22 @@ class NativePoolProportionalityTests(unittest.TestCase):
             cohort_sha256=cohort["cohort_sha256"],
             reason=reason,
         )
+        assessment = proportionality_override_assessment(
+            baseline,
+            artifacts,
+            cohort_sha256=cohort["cohort_sha256"],
+        )
         key = b"test-only-proportionality-override-key"
         receipt = _signed_approval(
             key,
-            artifacts["before_artifact"],
-            artifacts["after_artifact"],
+            assessment.before_subject,
+            assessment.after_subject,
         )
-        replay_store: set[str] = set()
         verifier = OperatorApprovalVerifier(
             verification_key=key,
             expected_actor_id="operator-1",
             expected_identity_source="trusted-control-session",
-            consumed_nonces=replay_store,
+            replay_store_path=self.replay_store(),
             now=datetime(2026, 7, 20, 20, 15, tzinfo=timezone.utc),
         )
         authorization = verify_proportionality_override(
@@ -734,12 +752,17 @@ class NativePoolProportionalityTests(unittest.TestCase):
             cohort_sha256=cohort["cohort_sha256"],
             reason=reason,
         )
+        assessment = proportionality_override_assessment(
+            baseline,
+            artifacts,
+            cohort_sha256=cohort["cohort_sha256"],
+        )
         key = b"test-only-atomic-proportionality-key"
         verifier = OperatorApprovalVerifier(
             verification_key=key,
             expected_actor_id="operator-1",
             expected_identity_source="trusted-control-session",
-            consumed_nonces=set(),
+            replay_store_path=self.replay_store(),
             now=datetime(2026, 7, 20, 20, 15, tzinfo=timezone.utc),
         )
         authorization = verify_proportionality_override(
@@ -748,8 +771,8 @@ class NativePoolProportionalityTests(unittest.TestCase):
             reason=reason,
             approval_receipt=_signed_approval(
                 key,
-                artifacts["before_artifact"],
-                artifacts["after_artifact"],
+                assessment.before_subject,
+                assessment.after_subject,
                 nonce="atomic-proportionality-override-nonce",
             ),
             operator_approval_verifier=verifier,
@@ -797,6 +820,11 @@ class NativePoolProportionalityTests(unittest.TestCase):
             reason=reason,
             policy_document=policy,
         )
+        n2_assessment = proportionality_override_assessment(
+            baseline,
+            n2_artifacts,
+            cohort_sha256=n2_cohort["cohort_sha256"],
+        )
         key = b"test-only-serialized-override-binding-key"
         authorization = verify_proportionality_override(
             baseline,
@@ -804,15 +832,15 @@ class NativePoolProportionalityTests(unittest.TestCase):
             reason=reason,
             approval_receipt=_signed_approval(
                 key,
-                n2_artifacts["before_artifact"],
-                n2_artifacts["after_artifact"],
+                n2_assessment.before_subject,
+                n2_assessment.after_subject,
                 nonce="serialized-override-binding-nonce",
             ),
             operator_approval_verifier=OperatorApprovalVerifier(
                 verification_key=key,
                 expected_actor_id="operator-1",
                 expected_identity_source="trusted-control-session",
-                consumed_nonces=set(),
+                replay_store_path=self.replay_store(),
                 now=datetime(2026, 7, 20, 20, 15, tzinfo=timezone.utc),
             ),
             policy_document=policy,

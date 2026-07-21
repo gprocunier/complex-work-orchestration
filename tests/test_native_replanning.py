@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 import sys
 
@@ -22,6 +23,7 @@ from cwo_core.native_authority import (  # noqa: E402
     verify_operator_directive,
 )
 from cwo_core.native_replanning import (  # noqa: E402
+    VerifiedReplanningState,
     build_replanning_state as _build_replanning_state,
     read_replanning_state,
     transition_replanning_state as _transition_replanning_state,
@@ -297,6 +299,13 @@ def _needs_replan_evidence(*, decision: str = "pm-refine", uncertainty_class: st
 
 
 class NativeReplanningTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temporary = TemporaryDirectory()
+        self.replay_store = Path(self._temporary.name) / "operator-replay.json"
+
+    def tearDown(self) -> None:
+        self._temporary.cleanup()
+
     def test_typed_needs_replan_routes_to_pm_without_operator_approval(self) -> None:
         result = transition_replanning_state(
             _state_with_overrides(),
@@ -355,12 +364,11 @@ class NativeReplanningTest(unittest.TestCase):
             assessment.after_subject,
             change_type="objective-change",
         )
-        consumed: set[str] = set()
         verifier = OperatorApprovalVerifier(
             verification_key=key,
             expected_actor_id="operator-1",
             expected_identity_source="trusted-control-session",
-            consumed_nonces=consumed,
+            replay_store_path=self.replay_store,
             now="2026-07-20T00:05:00Z",
         )
         result = transition_replanning_state(
@@ -382,7 +390,10 @@ class NativeReplanningTest(unittest.TestCase):
             ],
             result["protected_change_authorizations"],
         )
-        self.assertEqual(consumed, {"replanning-protected-change-nonce"})
+        self.assertEqual(
+            verifier.consumed_nonces,
+            frozenset({"replanning-protected-change-nonce"}),
+        )
 
     def test_protected_replanning_approval_is_exact_and_nonreplayable(self) -> None:
         pm_state = transition_replanning_state(
@@ -408,6 +419,7 @@ class NativeReplanningTest(unittest.TestCase):
             verification_key=key,
             expected_actor_id="operator-1",
             expected_identity_source="trusted-control-session",
+            replay_store_path=self.replay_store,
             now="2026-07-20T00:05:00Z",
         )
         result = transition_replanning_state(
@@ -527,21 +539,20 @@ class NativeReplanningTest(unittest.TestCase):
         architect_ready = transition_replanning_state(pm, "pm-refined", {"requires_architect_cycle": True})
         reassignment = transition_replanning_state(architect_ready, "architect-refined", {})
         dispatchable = transition_replanning_state(reassignment, "fresh-worker-assigned", {})
-        retry_running = copy.deepcopy(dispatchable)
-        retry_running["state"] = "executing"
+        retry_running = transition_replanning_state(
+            dispatchable, "dispatch-started", {}
+        )
         second_pm = transition_replanning_state(retry_running, "clean-no-artifact", evidence)
         self.assertEqual(second_pm["state"], "protected-stop")
         self.assertIn("pm-replan-exhausted", second_pm["reason_codes"])
 
+        exhausted_source = _base_state()
+        exhausted_source["state"] = "architect-realignment"
+        exhausted_source["counters"]["architect_cycles_used"] = WORK_SIZING[
+            "max_architect_cycles"
+        ]
         exhausted_architect = transition_replanning_state(
-            {
-                **_state_with_overrides(),
-                "state": "architect-realignment",
-                "counters": {
-                    **_base_state()["counters"],
-                    "architect_cycles_used": WORK_SIZING["max_architect_cycles"],
-                },
-            },
+            build_replanning_state(exhausted_source),
             "architect-refined",
             {},
         )
@@ -614,9 +625,13 @@ class NativeReplanningTest(unittest.TestCase):
             "runtime_seconds_delta": 16,
             "mutation": {"out_of_scope": False, "tainted": False},
         }
-        with_dispatch = transition_replanning_state(_base_state(), "dispatch-started", {})
-        with_dispatch["counters"]["tool_calls_used"] = 8
-        with_dispatch["counters"]["runtime_seconds_used"] = 16
+        initial = _base_state()
+        initial["state"] = "dispatchable"
+        initial["counters"]["tool_calls_used"] = 8
+        initial["counters"]["runtime_seconds_used"] = 16
+        with_dispatch = transition_replanning_state(
+            build_replanning_state(initial), "dispatch-started", {}
+        )
         with_dispatch = transition_replanning_state(with_dispatch, "clean-no-artifact", evidence)
         with_dispatch = transition_replanning_state(with_dispatch, "pm-refined", {"requires_architect_cycle": False})
         reassign = transition_replanning_state(with_dispatch, "fresh-worker-assigned", {})
@@ -688,7 +703,7 @@ class NativeReplanningTest(unittest.TestCase):
         )
 
     def test_version_one_state_is_readable_but_cannot_create_new_write(self) -> None:
-        legacy = _state_with_overrides()
+        legacy = copy.deepcopy(_state_with_overrides())
         legacy["version"] = 1
         legacy["authority"] = "operator"
         del legacy["authority_provenance"]
@@ -698,7 +713,7 @@ class NativeReplanningTest(unittest.TestCase):
         del legacy_receipt["authority_provenance"]
         del legacy_receipt["reason_records"]
         self.assertEqual(read_replanning_state(legacy), legacy)
-        with self.assertRaisesRegex(ValueError, "historical-only"):
+        with self.assertRaisesRegex(ValueError, "inspection-only"):
             _transition_replanning_state(
                 legacy,
                 "completed",
@@ -735,6 +750,7 @@ class NativeReplanningTest(unittest.TestCase):
         )
         self.assertEqual(taint_stop["state"], "protected-stop")
         self.assertTrue(taint_stop["mutation"]["tainted"])
+        self.assertTrue(taint_stop["terminal_latches"]["tainted"])
         self.assertIn("tainted-mutation", taint_stop["reason_codes"])
         taint_followup = transition_replanning_state(
             taint_stop,
@@ -746,6 +762,7 @@ class NativeReplanningTest(unittest.TestCase):
         )
         self.assertEqual(taint_followup["state"], "protected-stop")
         self.assertTrue(taint_followup["mutation"]["tainted"])
+        self.assertTrue(taint_followup["terminal_latches"]["tainted"])
 
         contradiction_evidence = _needs_replan_evidence()
         contradiction_evidence["contradictory_validation"] = True
@@ -757,6 +774,9 @@ class NativeReplanningTest(unittest.TestCase):
         self.assertEqual(contradiction_stop["state"], "protected-stop")
         self.assertIn(
             "contradictory-validation", contradiction_stop["reason_codes"]
+        )
+        self.assertTrue(
+            contradiction_stop["terminal_latches"]["contradictory_validation"]
         )
         contradiction_followup = transition_replanning_state(
             contradiction_stop,
@@ -770,6 +790,88 @@ class NativeReplanningTest(unittest.TestCase):
         self.assertIn(
             "contradictory-validation", contradiction_followup["reason_codes"]
         )
+        self.assertTrue(
+            contradiction_followup["terminal_latches"]["contradictory_validation"]
+        )
+
+    def test_serialized_v3_tampering_and_retargeting_are_never_operative(self) -> None:
+        state = _state_with_overrides()
+        self.assertIs(type(state), VerifiedReplanningState)
+        attacks = []
+        for field, value in (
+            ("objective", "attacker objective"),
+            ("requested_model", "attacker-model"),
+            ("security_context", "bypassed"),
+            ("work_unit_id", "retargeted-work"),
+            ("bead_id", "retargeted-bead"),
+            ("packet_id", "retargeted-packet"),
+        ):
+            tampered = state.serialize()
+            tampered[field] = value
+            attacks.append(tampered)
+        budget = state.serialize()
+        budget["aggregate_allowance"]["tool_calls_hard"] += 1000
+        attacks.append(budget)
+        receipt_mismatch = state.serialize()
+        receipt_mismatch["cwo_native_replanning_receipt"]["packet_id"] = "other"
+        attacks.append(receipt_mismatch)
+
+        for tampered in attacks:
+            with self.subTest(field=next(iter(set(tampered) - set(state)), "bound")):
+                with self.assertRaisesRegex(ValueError, "integrity mismatch"):
+                    read_replanning_state(tampered)
+                with self.assertRaisesRegex(ValueError, "inspection-only"):
+                    _transition_replanning_state(
+                        tampered,
+                        "completed",
+                        42,
+                        caller_authority="operator",  # type: ignore[arg-type]
+                    )
+        stripped_header = state.serialize()
+        stripped_header.pop("result_type")
+        with self.assertRaisesRegex(ValueError, "verifier-owned or unknown"):
+            _transition_replanning_state(
+                stripped_header,
+                "completed",
+                42,
+                caller_authority="operator",  # type: ignore[arg-type]
+            )
+
+    def test_serialized_terminal_stop_cannot_clear_latches_or_resume(self) -> None:
+        contradictory = _needs_replan_evidence()
+        contradictory["contradictory_validation"] = True
+        contradiction_stop = transition_replanning_state(
+            _state_with_overrides(), "needs-replan", contradictory
+        )
+        forged_contradiction = contradiction_stop.serialize()
+        forged_contradiction["state"] = "pm-realignment"
+        forged_contradiction["reason_codes"] = []
+        forged_contradiction["terminal_latches"]["contradictory_validation"] = False
+        with self.assertRaisesRegex(ValueError, "inspection-only"):
+            transition_replanning_state(
+                forged_contradiction,
+                "pm-refined",
+                {"requires_architect_cycle": False},
+            )
+
+        tainted_source = _base_state()
+        tainted_source["mutation"]["tainted"] = True
+        taint_stop = transition_replanning_state(
+            build_replanning_state(tainted_source),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        forged_taint = taint_stop.serialize()
+        forged_taint["mutation"]["tainted"] = False
+        forged_taint["terminal_latches"]["tainted"] = False
+        forged_taint["state"] = "pm-realignment"
+        forged_taint["reason_codes"] = []
+        with self.assertRaisesRegex(ValueError, "inspection-only"):
+            transition_replanning_state(
+                forged_taint,
+                "pm-refined",
+                {"requires_architect_cycle": False},
+            )
 
     def test_mutation_flags_reject_bool_integer_aliases(self) -> None:
         with self.assertRaisesRegex(ValueError, "state.mutation.tainted must be a boolean"):
@@ -792,7 +894,7 @@ class NativeReplanningTest(unittest.TestCase):
         required = set(schema["required"])
         self.assertIn("cwo_native_replanning_receipt", required)
         state = _state_with_overrides()
-        self.assertEqual(state["version"], 2)
+        self.assertEqual(state["version"], 3)
         self.assertIn("authority_provenance", state)
         self.assertEqual(state["schema"], "schemas/native-replanning-state.schema.json")
 
@@ -803,3 +905,10 @@ class NativeReplanningTest(unittest.TestCase):
         weakened_replanning["operator_required_for"].remove("objective-change")
         with self.assertRaisesRegex(ValueError, "every supported protected change"):
             build_replanning_state(_base_state(), policy=weakened)
+
+        reversed_policy = copy.deepcopy(policy)
+        reversed_policy["work_sizing"]["enforcement"]["foundation-canary"][
+            "autonomous_replanning"
+        ]["operator_required_for"] = list(reversed(OPERATOR_REQUIRED_CHANGE_TYPES))
+        with self.assertRaisesRegex(ValueError, "every supported protected change"):
+            build_replanning_state(_base_state(), policy=reversed_policy)

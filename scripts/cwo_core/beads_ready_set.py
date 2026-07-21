@@ -16,9 +16,12 @@ from pathlib import PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from .native_authority import (
+    OPERATOR_REQUIRED_CHANGE_TYPES,
     AuthorityProvenanceError,
     OperatorApprovalVerifier,
+    assess_operator_required_changes,
     canonical_authority_sha256,
+    protected_change_identity,
     validate_authority_provenance,
     validate_operator_approval_audit,
 )
@@ -993,6 +996,25 @@ def evaluate_ready_candidate(
                 hard_budget=hard_budget,
                 aggregate_hard_budget=aggregate_budget,
             )
+            try:
+                authority_assessment = assess_operator_required_changes(
+                    authority_before,
+                    expected_after,
+                    operator_required_for=OPERATOR_REQUIRED_CHANGE_TYPES,
+                    profile="native-ready-set-authority-change",
+                    identity=protected_change_identity(
+                        artifact_type="cwo-ready-set-authority-change",
+                        artifact_id=issue_id,
+                        work_unit_id=str(work_plan["work_unit_id"]),
+                        bead_id=issue_id,
+                        packet_id=None,
+                    ),
+                )
+            except AuthorityProvenanceError as exc:
+                reasons.append(
+                    _exclusion("operator-approval-assessment-failed", str(exc))
+                )
+                authority_assessment = None
             expected_scope = "publication" if disclosure_change else "complete-task"
             if approval_audit.get("change_type") != "security-or-authority-change":
                 reasons.append(
@@ -1002,7 +1024,9 @@ def evaluate_ready_candidate(
                     )
                 )
             if approval_audit.get("before_sha256") != canonical_authority_sha256(
-                authority_before
+                authority_assessment.before_subject
+                if authority_assessment is not None
+                else authority_before
             ):
                 reasons.append(
                     _exclusion(
@@ -1011,7 +1035,9 @@ def evaluate_ready_candidate(
                     )
                 )
             if approval_audit.get("after_sha256") != canonical_authority_sha256(
-                expected_after
+                authority_assessment.after_subject
+                if authority_assessment is not None
+                else expected_after
             ):
                 reasons.append(
                     _exclusion(
@@ -1050,29 +1076,25 @@ def evaluate_ready_candidate(
                         "serialized audit evidence is non-authoritative until a trusted verifier validates its signature, time, replay state, and exact scope",
                     )
                 )
-            elif not reasons:
+            elif not reasons and authority_assessment is not None:
                 try:
-                    verified = operator_approval_verifier.verify_audit(
-                        approval_audit,
-                        before_artifact=authority_before,
-                        after_artifact=expected_after,
+                    operator_approval_verifier.validate_assessment_audits(
+                        authority_assessment,
+                        audits={"security-or-authority-change": approval_audit},
+                        receipts={
+                            "security-or-authority-change": approval_audit[
+                                "signed_receipt"
+                            ]
+                        },
                     )
                 except AuthorityProvenanceError as exc:
                     reasons.append(
                         _exclusion("operator-approval-verification-failed", str(exc))
                     )
                 else:
-                    if verified.authority.serialize() != authority_provenance:
-                        reasons.append(
-                            _exclusion(
-                                "operator-approval-authority-mismatch",
-                                "trusted verifier authority does not match admission provenance",
-                            )
-                        )
-                    else:
-                        authority_approval_audit_sha256 = canonical_json_sha256(
-                            approval_audit
-                        )
+                    authority_approval_audit_sha256 = canonical_json_sha256(
+                        approval_audit
+                    )
     elif any(
         field in admission
         for field in (

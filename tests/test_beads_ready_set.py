@@ -9,6 +9,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -24,8 +25,11 @@ from cwo_core.beads_ready_set import (  # noqa: E402
 )
 from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_TYPE,
+    OPERATOR_REQUIRED_CHANGE_TYPES,
     OperatorApprovalVerifier,
+    assess_operator_required_changes,
     canonical_authority_sha256,
+    protected_change_identity,
     trusted_actor_authority,
 )
 from cwo_core.native_capability import (  # noqa: E402
@@ -271,7 +275,9 @@ def signed_operator_approval(
     return body
 
 
-def authority_approved_item() -> tuple[dict, OperatorApprovalVerifier]:
+def authority_approved_item(
+    replay_store: Path,
+) -> tuple[dict, OperatorApprovalVerifier]:
     key = b"ready-set-test-operator-key"
     item = ready_item(
         "bead-authority",
@@ -312,19 +318,33 @@ def authority_approved_item() -> tuple[dict, OperatorApprovalVerifier]:
         hard_budget=admission["hard_budget"],
         aggregate_hard_budget=admission["aggregate_hard_budget"],
     )
-    receipt = signed_operator_approval(key, before, after)
+    assessment = assess_operator_required_changes(
+        before,
+        after,
+        operator_required_for=OPERATOR_REQUIRED_CHANGE_TYPES,
+        profile="native-ready-set-authority-change",
+        identity=protected_change_identity(
+            artifact_type="cwo-ready-set-authority-change",
+            artifact_id="bead-authority",
+            work_unit_id=admission["work_plan"]["work_unit_id"],
+            bead_id="bead-authority",
+            packet_id=None,
+        ),
+    )
+    receipt = signed_operator_approval(
+        key, assessment.before_subject, assessment.after_subject
+    )
     builder = OperatorApprovalVerifier(
         verification_key=key,
         expected_actor_id="operator-1",
         expected_identity_source="trusted-control-session",
+        replay_store_path=replay_store,
         now="2026-07-20T20:15:00Z",
     )
-    audit = builder.verify(
-        receipt,
-        expected_change_type="security-or-authority-change",
-        before_artifact=before,
-        after_artifact=after,
-    ).audit_record()
+    audit = builder.authorize_assessment(
+        assessment,
+        receipts={"security-or-authority-change": receipt},
+    )[0].audit_record()
     admission["authority_change_before"] = before
     admission["authority_provenance"] = audit["authority_provenance"]
     admission["operator_approval_audit"] = audit
@@ -332,12 +352,25 @@ def authority_approved_item() -> tuple[dict, OperatorApprovalVerifier]:
         verification_key=key,
         expected_actor_id="operator-1",
         expected_identity_source="trusted-control-session",
+        replay_store_path=replay_store,
         now="2026-07-20T20:15:00Z",
     )
     return item, verifier
 
 
 class BeadsReadySetTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temporary = TemporaryDirectory()
+        self.replay_root = Path(self._temporary.name)
+        self._replay_index = 0
+
+    def tearDown(self) -> None:
+        self._temporary.cleanup()
+
+    def replay_store(self) -> Path:
+        self._replay_index += 1
+        return self.replay_root / f"operator-replay-{self._replay_index}.json"
+
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
     def test_nonempty_candidate_and_snapshot_match_continuation_schema(self) -> None:
         from jsonschema import Draft202012Validator
@@ -675,7 +708,7 @@ class BeadsReadySetTests(unittest.TestCase):
         )
 
     def test_authority_change_requires_trusted_exact_scope_verification(self) -> None:
-        item, verifier = authority_approved_item()
+        item, verifier = authority_approved_item(self.replay_store())
 
         candidate, reasons = evaluate_ready_candidate(item, rank=0)
         self.assertIsNone(candidate)
@@ -694,7 +727,7 @@ class BeadsReadySetTests(unittest.TestCase):
         assert candidate is not None
         self.assertIsNotNone(candidate.authority_approval_audit_sha256)
 
-        tampered, tampered_verifier = authority_approved_item()
+        tampered, tampered_verifier = authority_approved_item(self.replay_store())
         tampered["raw"]["metadata"]["cwo_ready_set_admission"][
             "declared_read_paths"
         ] = ["different/scope"]
@@ -710,7 +743,7 @@ class BeadsReadySetTests(unittest.TestCase):
         )
 
     def test_malformed_authority_capability_receipt_excludes_only_that_leaf(self) -> None:
-        malformed, verifier = authority_approved_item()
+        malformed, verifier = authority_approved_item(self.replay_store())
         malformed["raw"]["metadata"]["cwo_ready_set_admission"][
             "capability_receipt"
         ] = {"receipt_type": "malformed-authority-capability"}

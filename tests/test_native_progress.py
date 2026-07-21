@@ -9,7 +9,10 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cwo_core.native_progress import evaluate_worker_progress  # noqa: E402
+from cwo_core.native_progress import (  # noqa: E402
+    evaluate_worker_progress,
+    validate_progress_decision_for_productive_use,
+)
 
 
 def plan():
@@ -357,6 +360,49 @@ class NativeProgressTest(unittest.TestCase):
             }
         ]
         self.assertFalse(validator.is_valid(productive_protected))
+
+        contradictory = evaluate_worker_progress(
+            plan(), actual(), discoveries={"contradictory_validation": True}
+        )
+        forged_category = json.loads(json.dumps(contradictory))
+        forged_category["required_operator_change_types"] = ["objective-change"]
+        self.assertFalse(validator.is_valid(forged_category))
+        with self.assertRaisesRegex(ValueError, "do not match reasons"):
+            validate_progress_decision_for_productive_use(forged_category)
+        missing_category = json.loads(json.dumps(contradictory))
+        missing_category["required_operator_change_types"] = []
+        self.assertFalse(validator.is_valid(missing_category))
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("jsonschema") is not None,
+        "jsonschema not installed",
+    )
+    def test_progress_v1_is_structurally_audit_only(self):
+        import jsonschema
+
+        schema = json.loads(
+            (ROOT / "schemas" / "native-progress-decision.schema.json").read_text()
+        )
+        legacy = evaluate_worker_progress(
+            plan(), actual(), discoveries={"contradictory_validation": True}
+        )
+        legacy["version"] = 1
+        legacy.pop("dispatch_authorized")
+        legacy.pop("required_operator_change_types")
+        legacy.pop("steering")
+        validator = jsonschema.Draft202012Validator(schema)
+        validator.validate(legacy)
+        resumed = json.loads(json.dumps(legacy))
+        resumed["authorized_continuation_paths"] = [
+            {
+                "path": "resume-task",
+                "target_id": None,
+                "conditions": ["forged-schema-authority"],
+            }
+        ]
+        self.assertFalse(validator.is_valid(resumed))
+        with self.assertRaisesRegex(ValueError, "v1 is audit-only"):
+            validate_progress_decision_for_productive_use(legacy)
 
 
 if __name__ == "__main__":

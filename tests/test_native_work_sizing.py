@@ -297,8 +297,13 @@ def _operator_approval(
 
 
 class NativeWorkSizingTest(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.maxDiff = None
+        self._temporary = tempfile.TemporaryDirectory()
+        self.replay_store = Path(self._temporary.name) / "operator-replay.json"
+
+    def tearDown(self) -> None:
+        self._temporary.cleanup()
 
     def test_route_spark_for_low_score(self):
         payload = _valid_raw_payload()
@@ -742,6 +747,63 @@ class NativeWorkSizingTest(unittest.TestCase):
         rejected = evaluate_work_estimate(payload)
         self.assertEqual(rejected["fit_mode"], "semantic")
 
+    def test_refinement_protects_exact_path_retarget_and_literal_evidence(self):
+        before_path = "policy/native-worker-execution.yaml"
+        after_path = "policy/share-boundaries.yaml"
+        parent_payload = _narrow_profile_payload(before_path)
+        parent_payload["task_profile"]["architect_literal_patch"] = {
+            "path": before_path,
+            "pre_patch_sha256": "1" * 64,
+            "post_patch_sha256": "2" * 64,
+        }
+        parent = evaluate_work_estimate(parent_payload)
+        self.assertEqual(
+            parent["fit_evidence"]["protected_path_bindings"],
+            {before_path: ["policy-routing"]},
+        )
+
+        retargeted_payload = _narrow_profile_payload(after_path)
+        retargeted_payload["task_profile"]["architect_literal_patch"] = {
+            "path": after_path,
+            "pre_patch_sha256": "3" * 64,
+            "post_patch_sha256": "4" * 64,
+        }
+        authority = _refinement_authority("pm")
+        with self.assertRaisesRegex(
+            ValueError, "security-or-authority-change"
+        ):
+            build_work_estimate_refinement(
+                parent,
+                retargeted_payload,
+                refinement_authority=authority,
+            )
+
+        literal_evidence_change = copy.deepcopy(parent_payload)
+        literal_evidence_change["task_profile"]["architect_literal_patch"][
+            "post_patch_sha256"
+        ] = "5" * 64
+        with self.assertRaisesRegex(
+            ValueError, "security-or-authority-change"
+        ):
+            build_work_estimate_refinement(
+                parent,
+                literal_evidence_change,
+                refinement_authority=authority,
+            )
+
+        nonprotected_parent = evaluate_work_estimate(
+            _narrow_profile_payload("tests/path-a.py")
+        )
+        nonprotected = build_work_estimate_refinement(
+            nonprotected_parent,
+            _narrow_profile_payload("tests/path-b.py"),
+            refinement_authority=authority,
+        )
+        self.assertEqual(nonprotected["write_paths"], ["tests/path-b.py"])
+        self.assertEqual(
+            nonprotected["fit_evidence"]["protected_path_bindings"], {}
+        )
+
     def test_task_profile_contradiction_routes_every_axis_to_architect(self):
         payload = _narrow_profile_payload()
         payload["task_profile"]["declared_outcome_count"] = 2
@@ -1089,6 +1151,7 @@ class NativeWorkSizingTest(unittest.TestCase):
             verification_key=key,
             expected_actor_id="operator-1",
             expected_identity_source="trusted-control-session",
+            replay_store_path=self.replay_store,
             now="2026-07-20T00:05:00Z",
         )
         refinement = build_work_estimate_refinement(
@@ -1106,6 +1169,7 @@ class NativeWorkSizingTest(unittest.TestCase):
             verification_key=key,
             expected_actor_id="operator-1",
             expected_identity_source="trusted-control-session",
+            replay_store_path=self.replay_store,
             now="2026-07-20T00:05:00Z",
         )
         self.assertEqual(
@@ -1146,6 +1210,23 @@ class NativeWorkSizingTest(unittest.TestCase):
                     payload,
                     refinement_authority=authority,
                 )
+
+    def test_refinement_policy_requires_exact_operator_category_order(self):
+        policy = json.loads(
+            (ROOT / "policy" / "native-worker-execution.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        policy["work_sizing"]["enforcement"]["foundation-canary"][
+            "autonomous_replanning"
+        ]["operator_required_for"] = list(reversed(OPERATOR_REQUIRED_CHANGE_TYPES))
+        with self.assertRaisesRegex(ValueError, "every supported protected change"):
+            build_work_estimate_refinement(
+                evaluate_work_estimate(_valid_v2_payload()),
+                _valid_v2_payload(),
+                refinement_authority=_refinement_authority("pm"),
+                policy=policy,
+            )
         legacy = _valid_raw_payload()
         legacy["semantic_scores"] = {}
         with self.assertRaisesRegex(ValueError, "contract version 1.*unknown field"):

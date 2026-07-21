@@ -73,6 +73,53 @@
     "scope_authority": {"$ref": "#/$defs/scope_authority"}
   },
   "required": ["decision_type", "version", "outcome", "pm_action", "dispatch_authorized", "required_operator_change_types", "reasons", "reason_records", "warnings", "planned", "actual", "calibration", "realignment", "steering", "stop_scope", "authorized_continuation_paths", "scope_authority"],
+  "allOf": [
+    {
+      "if": {"properties": {"reasons": {"contains": {"const": "aggregate-allowance-exhausted"}}}, "required": ["reasons"]},
+      "then": {"properties": {"required_operator_change_types": {"contains": {"const": "aggregate-budget-increase"}}}}
+    },
+    {
+      "if": {"properties": {"required_operator_change_types": {"contains": {"const": "aggregate-budget-increase"}}}, "required": ["required_operator_change_types"]},
+      "then": {"properties": {"reasons": {"contains": {"const": "aggregate-allowance-exhausted"}}}}
+    },
+    {
+      "if": {"properties": {"reasons": {"contains": {"const": "model-mismatch"}}}, "required": ["reasons"]},
+      "then": {"properties": {"required_operator_change_types": {"contains": {"const": "model-substitution"}}}}
+    },
+    {
+      "if": {"properties": {"required_operator_change_types": {"contains": {"const": "model-substitution"}}}, "required": ["required_operator_change_types"]},
+      "then": {"properties": {"reasons": {"contains": {"const": "model-mismatch"}}}}
+    },
+    {
+      "properties": {
+        "required_operator_change_types": {"not": {"contains": {"const": "objective-change"}}}
+      }
+    },
+    {
+      "if": {"properties": {"reasons": {"contains": {"enum": ["control-loss", "security-violation", "authority-violation"]}}}, "required": ["reasons"]},
+      "then": {"properties": {"required_operator_change_types": {"contains": {"const": "security-or-authority-change"}}}}
+    },
+    {
+      "if": {"properties": {"required_operator_change_types": {"contains": {"const": "security-or-authority-change"}}}, "required": ["required_operator_change_types"]},
+      "then": {"properties": {"reasons": {"contains": {"enum": ["control-loss", "security-violation", "authority-violation"]}}}}
+    },
+    {
+      "if": {"properties": {"reasons": {"contains": {"const": "mutation-attribution-ambiguous"}}}, "required": ["reasons"]},
+      "then": {"properties": {"required_operator_change_types": {"contains": {"const": "tainted-mutation-acceptance"}}}}
+    },
+    {
+      "if": {"properties": {"required_operator_change_types": {"contains": {"const": "tainted-mutation-acceptance"}}}, "required": ["required_operator_change_types"]},
+      "then": {"properties": {"reasons": {"contains": {"const": "mutation-attribution-ambiguous"}}}}
+    },
+    {
+      "if": {"properties": {"reasons": {"contains": {"const": "contradictory-validation"}}}, "required": ["reasons"]},
+      "then": {"properties": {"required_operator_change_types": {"contains": {"const": "contradictory-validation"}}}}
+    },
+    {
+      "if": {"properties": {"required_operator_change_types": {"contains": {"const": "contradictory-validation"}}}, "required": ["required_operator_change_types"]},
+      "then": {"properties": {"reasons": {"contains": {"const": "contradictory-validation"}}}}
+    }
+  ],
   "oneOf": [
     {
       "properties": {
