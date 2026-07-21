@@ -126,8 +126,10 @@ POOL_LEASE_ERROR_CODES = {
     "lease-registry-leases-invalid",
     "lease-registry-lock-is-symlink",
     "lease-registry-path-is-symlink",
+    "lease-registry-rollback-failed",
     "lease-registry-sha256-mismatch",
     "lease-registry-unreadable",
+    "lease-registry-write-failed",
     "lease-release-requires-completed-or-closed-pool",
     "lease-time-must-be-timezone-aware",
     "lease-transition-not-allowed",
@@ -1844,37 +1846,44 @@ class NativePoolCoordinator:
             self._release_state_lock()
             return self.progress()
 
-        if not self._protected_fault:
-            pending_child = None
-            for index, child_id in enumerate(self.child_ids):
-                if self._progress[child_id]["status"] != "pending":
-                    continue
-                if all(self._first_poll[prior] for prior in self.child_ids[:index]):
-                    pending_child = child_id
-                break
-            if pending_child is not None and pending_child not in self._leases:
+        if not self._protected_fault and len(self._leases) != len(self.child_ids):
+            if self._leases:
+                self._enter_fault(
+                    "partial-cohort-lease-set-forbidden",
+                    control_failed=True,
+                    requested_stop_scope="cohort",
+                    scope_policy_rule="cohort-control",
+                )
+                selected_child = self.child_ids[0]
+            else:
+                selected_child = self.child_ids[0]
                 try:
-                    self._leases[pending_child] = self.lease_registry.acquire(
-                        self.contract, pending_child
+                    acquired = self.lease_registry.acquire_many(
+                        self.contract,
+                        self.child_ids,
                     )
+                    self._leases = {
+                        str(lease["child_id"]): lease for lease in acquired
+                    }
                 except PoolLeaseError as exc:
+                    selected_child = getattr(exc, "child_id", None) or selected_child
                     self._record_lease_failure(
-                        pending_child,
+                        selected_child,
                         "acquire",
                         "acquired",
                         exc,
                         control_failed=False,
                     )
-                status = self._status_after_action()
-                self._refresh_state(status)
-                decision = "interrupt" if self._protected_fault else "continue"
-                actions = ["interrupt"] if self._protected_fault else ["admit"]
-                self._decision_for(
-                    decision=decision,
-                    selected_child_id=pending_child,
-                    actions=actions,
-                )
-                return self.progress()
+            status = self._status_after_action()
+            self._refresh_state(status)
+            decision = "interrupt" if self._protected_fault else "continue"
+            actions = ["interrupt"] if self._protected_fault else ["admit"]
+            self._decision_for(
+                decision=decision,
+                selected_child_id=selected_child,
+                actions=actions,
+            )
+            return self.progress()
 
         now_ns = self._monotonic_ns()
         selected, poll, wait_for = self._next_lifecycle_child(now_ns)

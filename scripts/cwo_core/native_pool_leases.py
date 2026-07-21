@@ -9,7 +9,8 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Iterator, Mapping
+import tempfile
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 from .native_pool_contracts import (
     LEASE_SCHEMA,
@@ -51,6 +52,11 @@ class PoolLeaseError(ValueError):
 
 class PoolLeaseCollision(PoolLeaseError):
     """Raised when a worktree or logical integration target is already held."""
+
+    def __init__(self, code: str, *, child_id: str | None = None) -> None:
+        self.code = code
+        self.child_id = child_id
+        super().__init__(code)
 
 
 class PoolLeaseTransitionError(PoolLeaseError):
@@ -239,6 +245,37 @@ class PoolLeaseRegistry:
     def _write_unlocked(self, leases: list[Mapping[str, Any]]) -> None:
         write_private_artifact(self.path, _seal_registry(leases))
 
+    def _restore_bytes_unlocked(self, previous: bytes | None) -> None:
+        """Restore the exact pre-transaction registry after a failed write."""
+
+        if previous is None:
+            if self.path.exists() and not self.path.is_symlink():
+                self.path.unlink()
+            return
+        temporary_name: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "wb",
+                dir=self.path.parent,
+                prefix=f".{self.path.name}.",
+                suffix=".rollback",
+                delete=False,
+            ) as handle:
+                temporary_name = handle.name
+                os.fchmod(handle.fileno(), 0o600)
+                handle.write(previous)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_name, self.path)
+            temporary_name = None
+            self.path.chmod(0o600)
+        finally:
+            if temporary_name:
+                try:
+                    Path(temporary_name).unlink()
+                except FileNotFoundError:
+                    pass
+
     def _prepare_transition(
         self,
         current: dict[str, Any],
@@ -295,42 +332,66 @@ class PoolLeaseRegistry:
         )
 
     def acquire(self, contract: Mapping[str, Any], child_id: str) -> dict[str, Any]:
+        return self.acquire_many(contract, [child_id])[0]
+
+    def acquire_many(
+        self,
+        contract: Mapping[str, Any],
+        child_ids: Sequence[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Acquire a complete lease set with one all-or-none registry write."""
+
         errors = validate_pool_contract(contract)
         if errors:
             raise PoolLeaseError("pool-contract-invalid:" + ";".join(errors))
-        child = self._child(contract, child_id)
-        if not child:
-            raise PoolLeaseError("lease-child-unknown")
-        now = _iso(self._now())
-        lease = seal_artifact(
-            {
-                "lease_type": LEASE_TYPE,
-                "version": VERSION,
-                "schema": LEASE_SCHEMA,
-                "lease_id": child["lease_id"],
-                "pool_id": contract["pool_id"],
-                "child_id": child_id,
-                "pool_epoch": contract["pool_epoch"],
-                "integration_root_identity": contract["topology"]["integration_root_identity"],
-                "worktree_identity": child["worktree_identity"],
-                "target_paths": list(child["integration_target_paths"]),
-                "owner": contract["owner"],
-                "lifecycle_state": "acquired",
-                "acquired_at": now,
-                "updated_at": now,
-                "terminal_evidence_sha256": None,
-                "release_reason": None,
-            },
-            "lease_sha256",
+        requested = (
+            [str(child["child_id"]) for child in contract["children"]]
+            if child_ids is None
+            else list(child_ids)
         )
-        lease_errors = validate_lease(lease, contract=contract)
-        if lease_errors:
-            raise PoolLeaseError("lease-invalid:" + ";".join(lease_errors))
+        if (
+            not requested
+            or any(type(child_id) is not str or not child_id for child_id in requested)
+            or len(requested) != len(set(requested))
+        ):
+            raise PoolLeaseError("lease-child-set-invalid")
+        now = _iso(self._now())
+        requested_leases: list[dict[str, Any]] = []
+        for child_id in requested:
+            child = self._child(contract, child_id)
+            if not child:
+                raise PoolLeaseError("lease-child-unknown")
+            lease = seal_artifact(
+                {
+                    "lease_type": LEASE_TYPE,
+                    "version": VERSION,
+                    "schema": LEASE_SCHEMA,
+                    "lease_id": child["lease_id"],
+                    "pool_id": contract["pool_id"],
+                    "child_id": child_id,
+                    "pool_epoch": contract["pool_epoch"],
+                    "integration_root_identity": contract["topology"][
+                        "integration_root_identity"
+                    ],
+                    "worktree_identity": child["worktree_identity"],
+                    "target_paths": list(child["integration_target_paths"]),
+                    "owner": contract["owner"],
+                    "lifecycle_state": "acquired",
+                    "acquired_at": now,
+                    "updated_at": now,
+                    "terminal_evidence_sha256": None,
+                    "release_reason": None,
+                },
+                "lease_sha256",
+            )
+            lease_errors = validate_lease(lease, contract=contract)
+            if lease_errors:
+                raise PoolLeaseError("lease-invalid:" + ";".join(lease_errors))
+            requested_leases.append(lease)
 
         with self._locked():
-            leases = self._load_unlocked()
-            changed = False
-            for index, existing in enumerate(leases):
+            staged = self._load_unlocked()
+            for index, existing in enumerate(staged):
                 if existing["lifecycle_state"] not in ACTIVE_LEASE_STATES:
                     continue
                 if (
@@ -345,34 +406,57 @@ class PoolLeaseRegistry:
                         allow_orphan_reclassification=True,
                         updated_at=now,
                     )
-                    leases[index] = existing
-                    changed = changed or reclassified
-                if existing["lease_id"] == lease["lease_id"]:
-                    if changed:
-                        self._write_unlocked(leases)
-                    raise PoolLeaseCollision("lease-id-already-active")
-                same_root = _identity_key(existing["integration_root_identity"]) == _identity_key(
-                    lease["integration_root_identity"]
-                )
-                same_worktree = _identity_key(existing["worktree_identity"]) == _identity_key(
-                    lease["worktree_identity"]
-                )
-                same_pool = (
-                    existing["pool_id"] == lease["pool_id"]
-                    and existing["pool_epoch"] == lease["pool_epoch"]
-                )
-                read_only_siblings = same_pool and not existing["target_paths"] and not lease["target_paths"]
-                if same_worktree and not read_only_siblings:
-                    if changed:
-                        self._write_unlocked(leases)
-                    raise PoolLeaseCollision("worktree-lease-collision")
-                if same_root and _paths_overlap(existing["target_paths"], lease["target_paths"]):
-                    if changed:
-                        self._write_unlocked(leases)
-                    raise PoolLeaseCollision("integration-target-lease-collision")
-            leases.append(lease)
-            self._write_unlocked(leases)
-        return lease
+                    if reclassified:
+                        staged[index] = existing
+            for lease in requested_leases:
+                for existing in staged:
+                    if existing["lease_id"] == lease["lease_id"]:
+                        raise PoolLeaseCollision(
+                            "lease-id-already-active",
+                            child_id=str(lease["child_id"]),
+                        )
+                    if existing["lifecycle_state"] not in ACTIVE_LEASE_STATES:
+                        continue
+                    same_root = _identity_key(
+                        existing["integration_root_identity"]
+                    ) == _identity_key(lease["integration_root_identity"])
+                    same_worktree = _identity_key(
+                        existing["worktree_identity"]
+                    ) == _identity_key(lease["worktree_identity"])
+                    same_pool = (
+                        existing["pool_id"] == lease["pool_id"]
+                        and existing["pool_epoch"] == lease["pool_epoch"]
+                    )
+                    read_only_siblings = (
+                        same_pool
+                        and not existing["target_paths"]
+                        and not lease["target_paths"]
+                    )
+                    if same_worktree and not read_only_siblings:
+                        raise PoolLeaseCollision(
+                            "worktree-lease-collision",
+                            child_id=str(lease["child_id"]),
+                        )
+                    if same_root and _paths_overlap(
+                        existing["target_paths"], lease["target_paths"]
+                    ):
+                        raise PoolLeaseCollision(
+                            "integration-target-lease-collision",
+                            child_id=str(lease["child_id"]),
+                        )
+                staged.append(lease)
+            previous = self.path.read_bytes() if self.path.exists() else None
+            try:
+                self._write_unlocked(staged)
+            except (PoolLeaseError, OSError, ValueError) as error:
+                try:
+                    self._restore_bytes_unlocked(previous)
+                except (OSError, ValueError) as rollback_error:
+                    raise PoolLeaseError("lease-registry-rollback-failed") from rollback_error
+                if isinstance(error, PoolLeaseError):
+                    raise
+                raise PoolLeaseError("lease-registry-write-failed") from error
+        return requested_leases
 
     def _transition(
         self,

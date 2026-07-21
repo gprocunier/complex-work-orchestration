@@ -17,7 +17,6 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     POOL_STATE_SCHEMA,
     POOL_STATE_TYPE,
     VERSION,
-    canonical_sha256,
     seal_artifact,
     validate_lease,
     validate_pool_state,
@@ -351,6 +350,108 @@ class NativePoolLeaseTests(unittest.TestCase):
             self.assertEqual(second["target_paths"], [])
             self.assertEqual(validate_lease(first, contract=contract), [])
             self.assertEqual(validate_lease(second, contract=contract), [])
+
+    def test_acquire_many_stages_complete_cohort_and_writes_once(self) -> None:
+        contract, _ = pool_contract(cap=2)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "leases.json"
+            registry = PoolLeaseRegistry(
+                path, owner_alive=lambda _: True, now=lambda: NOW
+            )
+            with mock.patch.object(
+                registry,
+                "_write_unlocked",
+                wraps=registry._write_unlocked,
+            ) as write:
+                leases = registry.acquire_many(contract, ["child-0", "child-1"])
+            write.assert_called_once()
+            self.assertEqual(
+                [lease["child_id"] for lease in leases],
+                ["child-0", "child-1"],
+            )
+            self.assertEqual(registry.snapshot(), leases)
+            self.assertTrue(
+                all(validate_lease(lease, contract=contract) == [] for lease in leases)
+            )
+
+    def test_acquire_many_second_collision_leaves_registry_byte_identical(self) -> None:
+        contract, _ = pool_contract(cap=2)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "leases.json"
+            registry = PoolLeaseRegistry(
+                path, owner_alive=lambda _: True, now=lambda: NOW
+            )
+            existing = registry.acquire(contract, "child-1")
+            before = path.read_bytes()
+            with mock.patch.object(
+                registry,
+                "_write_unlocked",
+                wraps=registry._write_unlocked,
+            ) as write:
+                with self.assertRaisesRegex(
+                    PoolLeaseCollision,
+                    "lease-id-already-active",
+                ) as raised:
+                    registry.acquire_many(contract, ["child-0", "child-1"])
+            write.assert_not_called()
+            self.assertEqual(raised.exception.child_id, "child-1")
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(registry.snapshot(), [existing])
+
+    def test_acquire_many_write_failure_preserves_existing_registry(self) -> None:
+        contract, _ = pool_contract(cap=2)
+        seed, _ = pool_contract(cap=1)
+        seed = alternate_contract(seed)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "leases.json"
+            registry = PoolLeaseRegistry(
+                path, owner_alive=lambda _: True, now=lambda: NOW
+            )
+            existing = registry.acquire(seed, "other-child")
+            before = path.read_bytes()
+            real_write = registry._write_unlocked
+
+            def write_then_fail(leases: list[dict]) -> None:
+                real_write(leases)
+                raise OSError("injected post-write failure")
+
+            with mock.patch.object(
+                registry,
+                "_write_unlocked",
+                side_effect=write_then_fail,
+            ) as write:
+                with self.assertRaisesRegex(
+                    PoolLeaseError,
+                    "lease-registry-write-failed",
+                ):
+                    registry.acquire_many(contract)
+            write.assert_called_once()
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(registry.snapshot(), [existing])
+
+    def test_acquire_many_leases_retain_idempotent_cleanup_semantics(self) -> None:
+        contract, _ = pool_contract(cap=2)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "leases.json"
+            registry = PoolLeaseRegistry(
+                path, owner_alive=lambda _: True, now=lambda: NOW
+            )
+            leases = registry.acquire_many(contract)
+            for lease in leases:
+                registry.mark_release_pending(
+                    lease["lease_id"],
+                    terminal_evidence_sha256=sha(f"terminal:{lease['lease_id']}"),
+                    reason="batch-cleanup",
+                )
+            before = path.read_bytes()
+            for lease in leases:
+                retried = registry.mark_release_pending(
+                    lease["lease_id"],
+                    terminal_evidence_sha256=sha("ignored-on-idempotent-retry"),
+                    reason="ignored-on-idempotent-retry",
+                )
+                self.assertEqual(retried["lifecycle_state"], "release-pending")
+            self.assertEqual(path.read_bytes(), before)
 
     def test_dead_owner_requires_terminal_evidence_for_cleanup(self) -> None:
         contract, _ = pool_contract(cap=1)

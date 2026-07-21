@@ -536,7 +536,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             )
             self.assertEqual(
                 [item["lifecycle_state"] for item in receipt["lease_evidence"]],
-                ["released"],
+                ["released", "released"],
             )
 
     def test_cap_one_runs_to_accepting_receipt(self) -> None:
@@ -1323,7 +1323,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(harness.adapters["child-0"].calls, [])
             self.assertTrue(any("lease-id-already-active" in reason for reason in receipt["reasons"]))
 
-    def test_second_child_lease_collision_interrupts_already_active_first_child(self) -> None:
+    def test_second_child_lease_collision_yields_zero_pool_callbacks(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(
                 temporary,
@@ -1333,10 +1333,40 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             harness.registry.acquire(harness.contract, "child-1")
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
-            self.assertEqual(receipt["admission_order"], ["child-0"])
-            self.assertIn("interrupt", harness.adapters["child-0"].calls)
+            self.assertEqual(receipt["admission_order"], [])
+            self.assertEqual(harness.adapters["child-0"].calls, [])
             self.assertEqual(harness.adapters["child-1"].calls, [])
-            self.assertEqual([item["lease_id"] for item in receipt["lease_evidence"]], ["lease-0"])
+            self.assertEqual(receipt["lease_evidence"], [])
+            self.assertEqual(
+                [lease["lease_id"] for lease in harness.registry.snapshot()],
+                ["lease-1"],
+            )
+
+    def test_cohort_lease_allocation_error_yields_zero_callbacks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=2)
+            with mock.patch.object(
+                harness.registry,
+                "acquire_many",
+                side_effect=PoolLeaseError("lease-registry-write-failed"),
+            ) as acquire:
+                receipt = harness.coordinator.run()
+            acquire.assert_called_once_with(
+                harness.coordinator.contract,
+                ["child-0", "child-1"],
+            )
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["admission_order"], [])
+            self.assertEqual(receipt["lease_evidence"], [])
+            self.assertEqual(harness.registry.snapshot(), [])
+            self.assertEqual(harness.adapters["child-0"].calls, [])
+            self.assertEqual(harness.adapters["child-1"].calls, [])
+            self.assertTrue(
+                any(
+                    "lease-registry-write-failed" in reason
+                    for reason in receipt["reasons"]
+                )
+            )
 
     def test_state_file_tamper_is_detected_before_next_adapter_callback(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
