@@ -779,6 +779,167 @@ class NativePoolProportionalityTests(unittest.TestCase):
             1,
         )
 
+    def test_serialized_override_is_one_exact_coherent_authority_artifact(
+        self,
+    ) -> None:
+        readiness, estimates, _, policy = _fixture([120, 120, 120])
+        baseline = pool_proportionality_check(
+            readiness,
+            estimates,
+            requested_workers=3,
+            policy_document=policy,
+        )
+        n2_cohort = _evaluation(baseline, ["bead-a", "bead-b"])
+        reason = "Operator accepts this exact N2 economic exception."
+        n2_artifacts = proportionality_override_artifacts(
+            baseline,
+            cohort_sha256=n2_cohort["cohort_sha256"],
+            reason=reason,
+            policy_document=policy,
+        )
+        key = b"test-only-serialized-override-binding-key"
+        authorization = verify_proportionality_override(
+            baseline,
+            cohort_sha256=n2_cohort["cohort_sha256"],
+            reason=reason,
+            approval_receipt=_signed_approval(
+                key,
+                n2_artifacts["before_artifact"],
+                n2_artifacts["after_artifact"],
+                nonce="serialized-override-binding-nonce",
+            ),
+            operator_approval_verifier=OperatorApprovalVerifier(
+                verification_key=key,
+                expected_actor_id="operator-1",
+                expected_identity_source="trusted-control-session",
+                consumed_nonces=set(),
+                now=datetime(2026, 7, 20, 20, 15, tzinfo=timezone.utc),
+            ),
+            policy_document=policy,
+        )
+        overridden = pool_proportionality_check(
+            readiness,
+            estimates,
+            requested_workers=3,
+            policy_document=policy,
+            override_authorization=authorization,
+        )
+        self.assertEqual(
+            validate_pool_proportionality_assessment(
+                overridden,
+                policy_document=policy,
+            ),
+            [],
+        )
+
+        action_tamper = deepcopy(overridden)
+        action_tamper["override_authorization"]["action_sha256"] = "0" * 64
+        self.assertIn(
+            "assessment-override-action-sha256-mismatch",
+            validate_pool_proportionality_assessment(
+                _reseal_assessment(action_tamper),
+                policy_document=policy,
+            ),
+        )
+
+        baseline_tamper = deepcopy(overridden)
+        baseline_tamper["override_authorization"]["baseline_assessment_sha256"] = (
+            "0" * 64
+        )
+        self.assertIn(
+            "assessment-override-baseline-sha256-mismatch",
+            validate_pool_proportionality_assessment(
+                _reseal_assessment(baseline_tamper),
+                policy_document=policy,
+            ),
+        )
+
+        reason_tamper = deepcopy(overridden)
+        changed_reason = "Resealed but not operator-approved reason."
+        reason_tamper["override_authorization"]["reason"] = changed_reason
+        reason_tamper["override_authorization"]["reason_sha256"] = (
+            canonical_proportionality_sha256(changed_reason)
+        )
+        self.assertIn(
+            "assessment-override-action-sha256-mismatch",
+            validate_pool_proportionality_assessment(
+                _reseal_assessment(reason_tamper),
+                policy_document=policy,
+            ),
+        )
+
+        n3_cohort = _evaluation(baseline, ["bead-a", "bead-b", "bead-c"])
+        n3_artifacts = proportionality_override_artifacts(
+            baseline,
+            cohort_sha256=n3_cohort["cohort_sha256"],
+            reason=reason,
+            policy_document=policy,
+        )
+        retargeted = deepcopy(baseline)
+        retargeted_n3 = _evaluation(
+            retargeted,
+            ["bead-a", "bead-b", "bead-c"],
+        )
+        retargeted_n3["overridden"] = True
+        retargeted_n3["overridden_rule_ids"] = sorted(
+            {item["code"] for item in retargeted_n3["reasons"]}
+        )
+        retargeted_n3["accepted"] = True
+        retargeted["selected_cohort"] = deepcopy(retargeted_n3)
+        retargeted["decision"] = "pool"
+        retargeted["accepted"] = True
+        retargeted["candidate_mode"] = "offline-unreleased-candidate"
+        retargeted["override_authorization"] = deepcopy(
+            overridden["override_authorization"]
+        )
+        retargeted["override_authorization"].update(
+            {
+                "action_sha256": n3_artifacts["action_sha256"],
+                "cohort_sha256": n3_cohort["cohort_sha256"],
+            }
+        )
+        retarget_errors = validate_pool_proportionality_assessment(
+            _reseal_assessment(retargeted),
+            policy_document=policy,
+        )
+        self.assertTrue(
+            {
+                "assessment-override-audit-before-sha256-mismatch",
+                "assessment-override-audit-after-sha256-mismatch",
+            }.issubset(retarget_errors)
+        )
+
+        for audit_field in ("before_sha256", "after_sha256"):
+            audit_tamper = deepcopy(overridden)
+            audit = audit_tamper["override_authorization"]["operator_approval_audit"]
+            replacement = "0" * 64
+            audit[audit_field] = replacement
+            audit["signed_receipt"][audit_field] = replacement
+            audit["receipt_sha256"] = canonical_authority_sha256(
+                audit["signed_receipt"]
+            )
+            errors = validate_pool_proportionality_assessment(
+                _reseal_assessment(audit_tamper),
+                policy_document=policy,
+            )
+            self.assertIn(
+                f"assessment-override-audit-{audit_field.replace('_', '-')}-mismatch",
+                errors,
+            )
+
+        change_type_tamper = deepcopy(overridden)
+        audit = change_type_tamper["override_authorization"]["operator_approval_audit"]
+        audit["change_type"] = "objective-change"
+        audit["signed_receipt"]["change_type"] = "objective-change"
+        audit["receipt_sha256"] = canonical_authority_sha256(audit["signed_receipt"])
+        self.assertIn(
+            "assessment-override-audit-change-type-mismatch",
+            validate_pool_proportionality_assessment(
+                _reseal_assessment(change_type_tamper),
+                policy_document=policy,
+            ),
+        )
+
     def test_snapshot_estimate_and_cohort_drift_fail_closed(self) -> None:
         readiness, estimates, _, policy = _fixture([480, 480])
         snapshot_drift = deepcopy(readiness)

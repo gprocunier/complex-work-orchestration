@@ -19,6 +19,7 @@ from .native_authority import (
     AuthorityProvenanceError,
     OperatorApprovalVerifier,
     VerifiedOperatorApproval,
+    canonical_authority_sha256,
     validate_operator_approval_audit,
 )
 from .native_pool_capacity import (
@@ -1237,6 +1238,154 @@ def _apply_override(
     return _seal_assessment(result)
 
 
+def _reconstruct_unoverridden_baseline(
+    assessment: Mapping[str, Any],
+    *,
+    overridden_cohort_sha256: str,
+) -> dict[str, Any]:
+    """Deterministically undo one serialized override and reseal its baseline."""
+
+    result = deepcopy(dict(assessment))
+    result.pop("assessment_sha256", None)
+    result["override_authorization"] = None
+    evaluations = result.get("cohort_evaluations")
+    if not isinstance(evaluations, list):
+        raise PoolProportionalityError(
+            "serialized-override-baseline-evaluations-invalid"
+        )
+    matched = 0
+    for evaluation in evaluations:
+        if not isinstance(evaluation, dict):
+            raise PoolProportionalityError(
+                "serialized-override-baseline-evaluation-invalid"
+            )
+        if evaluation.get("cohort_sha256") != overridden_cohort_sha256:
+            continue
+        matched += 1
+        eligible = evaluation.get("eligible_without_override")
+        if evaluation.get("overridden") is not True or not isinstance(eligible, bool):
+            raise PoolProportionalityError("serialized-override-target-state-invalid")
+        evaluation["overridden"] = False
+        evaluation["overridden_rule_ids"] = []
+        evaluation["accepted"] = eligible
+        unsigned_evaluation = dict(evaluation)
+        unsigned_evaluation.pop("evaluation_sha256", None)
+        evaluation["evaluation_sha256"] = canonical_proportionality_sha256(
+            unsigned_evaluation
+        )
+    if matched != 1:
+        raise PoolProportionalityError("serialized-override-target-cardinality-invalid")
+    try:
+        evaluations.sort(key=_selection_key)
+    except (KeyError, TypeError, ValueError, PoolProportionalityError) as error:
+        raise PoolProportionalityError(
+            "serialized-override-baseline-selection-invalid"
+        ) from error
+    accepted = [item for item in evaluations if item.get("accepted") is True]
+    selected = deepcopy(accepted[0]) if accepted else None
+    result["selected_cohort"] = selected
+    result["accepted"] = selected is not None
+    result["decision"] = (
+        "pool"
+        if selected is not None
+        else ("single" if result.get("fallback_issue_id") is not None else "blocked")
+    )
+    if selected is None:
+        result["candidate_mode"] = "none"
+    else:
+        worker_count = selected.get("worker_count")
+        released_capacity = result.get("released_capacity")
+        if not _is_int(worker_count, minimum=1) or not _is_int(
+            released_capacity, minimum=1
+        ):
+            raise PoolProportionalityError(
+                "serialized-override-baseline-capacity-invalid"
+            )
+        result["candidate_mode"] = (
+            "offline-unreleased-candidate"
+            if worker_count > released_capacity
+            else "released-capacity"
+        )
+    return _seal_assessment(result)
+
+
+def _serialized_override_binding_errors(
+    assessment: Mapping[str, Any],
+    *,
+    override: Mapping[str, Any],
+    overridden_item: Mapping[str, Any],
+    policy_document: Mapping[str, Any],
+    policy: PoolProportionalityPolicy | None,
+) -> list[str]:
+    """Bind every serialized override field to one reconstructed authority action."""
+
+    errors: list[str] = []
+    target_sha256 = overridden_item.get("cohort_sha256")
+    if not _is_sha256(target_sha256):
+        return ["assessment-override-target-invalid"]
+    if override.get("cohort_sha256") != target_sha256:
+        errors.append("assessment-override-cohort-mismatch")
+    try:
+        baseline = _reconstruct_unoverridden_baseline(
+            assessment,
+            overridden_cohort_sha256=str(target_sha256),
+        )
+    except (KeyError, TypeError, ValueError, PoolProportionalityError):
+        return sorted(
+            set(errors + ["assessment-override-baseline-reconstruction-invalid"])
+        )
+    if override.get("baseline_assessment_sha256") != baseline.get("assessment_sha256"):
+        errors.append("assessment-override-baseline-sha256-mismatch")
+    reason = override.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return sorted(set(errors + ["assessment-override-reason-binding-mismatch"]))
+    normalized_reason = reason.strip()
+    if reason != normalized_reason:
+        errors.append("assessment-override-reason-binding-mismatch")
+    try:
+        artifacts = proportionality_override_artifacts(
+            baseline,
+            cohort_sha256=str(target_sha256),
+            reason=normalized_reason,
+            policy_document=policy_document,
+        )
+    except (KeyError, TypeError, ValueError, PoolProportionalityError):
+        return sorted(set(errors + ["assessment-override-artifacts-invalid"]))
+    action = artifacts["action"]
+    if override.get("action_sha256") != artifacts["action_sha256"]:
+        errors.append("assessment-override-action-sha256-mismatch")
+    if override.get("reason_sha256") != action.get("reason_sha256"):
+        errors.append("assessment-override-reason-binding-mismatch")
+    if action.get("cohort_sha256") != target_sha256 or action.get(
+        "issue_ids"
+    ) != overridden_item.get("issue_ids"):
+        errors.append("assessment-override-target-mismatch")
+    if action.get("rejected_rule_ids") != overridden_item.get("overridden_rule_ids"):
+        errors.append("assessment-override-rejected-rules-mismatch")
+    audit = override.get("operator_approval_audit")
+    if isinstance(audit, Mapping):
+        if (
+            policy is not None
+            and audit.get("change_type") != policy.override_change_type
+        ):
+            errors.append("assessment-override-audit-change-type-mismatch")
+        try:
+            expected_before_sha256 = canonical_authority_sha256(
+                artifacts["before_artifact"]
+            )
+            expected_after_sha256 = canonical_authority_sha256(
+                artifacts["after_artifact"]
+            )
+        except (TypeError, ValueError):
+            errors.append("assessment-override-audit-artifacts-invalid")
+        else:
+            if audit.get("before_sha256") != expected_before_sha256:
+                errors.append("assessment-override-audit-before-sha256-mismatch")
+            if audit.get("after_sha256") != expected_after_sha256:
+                errors.append("assessment-override-audit-after-sha256-mismatch")
+    return sorted(set(errors))
+
+
 def pool_proportionality_check(
     readiness_evidence: Mapping[str, Any],
     work_estimates: Mapping[str, Mapping[str, Any]],
@@ -1754,6 +1903,16 @@ def validate_pool_proportionality_assessment(
             "cohort_sha256"
         ) != override.get("cohort_sha256"):
             errors.append("assessment-override-cohort-mismatch")
+        if len(overridden_items) == 1:
+            errors.extend(
+                _serialized_override_binding_errors(
+                    assessment,
+                    override=override,
+                    overridden_item=overridden_items[0],
+                    policy_document=document,
+                    policy=proportionality_policy,
+                )
+            )
     observed_sha256 = assessment.get("assessment_sha256")
     unsigned_assessment = dict(assessment)
     unsigned_assessment.pop("assessment_sha256", None)
