@@ -59,6 +59,12 @@ def terminal_state(contract: dict, leases: list[dict], *, status: str = "complet
             "ordinal": index,
             "child_id": child["child_id"],
             "status": child_status,
+            "runtime_disposition": (
+                "failed-ambiguous"
+                if status == "control-failed"
+                else "completed"
+            ),
+            "recovery_projection": None,
             "last_deadline_ns": 1_000_000_000 + index,
             "next_deadline_ns": None,
             "child_state_sha256": sha(f"state:{child['child_id']}"),

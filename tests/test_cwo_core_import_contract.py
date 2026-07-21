@@ -64,6 +64,7 @@ ALLOWED_IMPORTS = {
     "native_pool_admission": {
         "beads",
         "beads_ready_set",
+        "native_pool_capacity",
         "native_pool_proportionality",
         "native_recovery_authority",
         "policy",
@@ -78,6 +79,7 @@ ALLOWED_IMPORTS = {
         "native_pool_admission",
         "native_pool_capacity",
         "native_pool_capacity_compat",
+        "native_recovery_authority",
         "native_pool_schedulability",
         "native_stop_scope",
         "native_tool_isolation",
@@ -98,6 +100,7 @@ ALLOWED_IMPORTS = {
         "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_leases",
+        "native_recovery_authority",
         "native_pool_scheduler",
         "native_pool_schedulability",
         "native_stop_scope",
@@ -105,6 +108,7 @@ ALLOWED_IMPORTS = {
     "native_pool_admitted": {
         "native_pool",
         "native_pool_admission",
+        "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_preflight",
