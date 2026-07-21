@@ -133,6 +133,7 @@ class _LedgerSemanticIndex:
     bound_threads: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
     turn_intents: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
     bound_turns: set[str] = dataclass_field(default_factory=set)
+    resolved_turn_intents: set[str] = dataclass_field(default_factory=set)
     roles_seen: set[str] = dataclass_field(default_factory=set)
     turn_intents_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
     turn_ids_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
@@ -182,7 +183,16 @@ class _LedgerSemanticIndex:
     def turn_bound(self, turn_id: str) -> bool:
         return turn_id in self.bound_turns
 
-    def add_bound_turn(self, turn_id: str, thread_id: str) -> None:
+    def turn_intent_resolved(self, turn_intent_id: str) -> bool:
+        return turn_intent_id in self.resolved_turn_intents
+
+    def resolve_turn_intent(self, turn_intent_id: str) -> None:
+        self.resolved_turn_intents.add(turn_intent_id)
+
+    def add_bound_turn(
+        self, turn_intent_id: str, turn_id: str, thread_id: str
+    ) -> None:
+        self.resolve_turn_intent(turn_intent_id)
         self.bound_turns.add(turn_id)
         self.turn_ids_by_thread.setdefault(thread_id, []).append(turn_id)
 
@@ -215,6 +225,7 @@ class _LedgerSemanticCandidate:
     bound_threads: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
     turn_intents: dict[str, dict[str, Any]] = dataclass_field(default_factory=dict)
     bound_turns: set[str] = dataclass_field(default_factory=set)
+    resolved_turn_intents: set[str] = dataclass_field(default_factory=set)
     roles_seen: set[str] = dataclass_field(default_factory=set)
     turn_intents_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
     turn_ids_by_thread: dict[str, list[str]] = dataclass_field(default_factory=dict)
@@ -267,7 +278,19 @@ class _LedgerSemanticCandidate:
     def turn_bound(self, turn_id: str) -> bool:
         return turn_id in self.bound_turns or self.base.turn_bound(turn_id)
 
-    def add_bound_turn(self, turn_id: str, thread_id: str) -> None:
+    def turn_intent_resolved(self, turn_intent_id: str) -> bool:
+        return (
+            turn_intent_id in self.resolved_turn_intents
+            or self.base.turn_intent_resolved(turn_intent_id)
+        )
+
+    def resolve_turn_intent(self, turn_intent_id: str) -> None:
+        self.resolved_turn_intents.add(turn_intent_id)
+
+    def add_bound_turn(
+        self, turn_intent_id: str, turn_id: str, thread_id: str
+    ) -> None:
+        self.resolve_turn_intent(turn_intent_id)
         self.bound_turns.add(turn_id)
         self.turn_ids_by_thread.setdefault(thread_id, []).append(turn_id)
 
@@ -299,6 +322,7 @@ class _LedgerSemanticCandidate:
         self.base.bound_threads.update(self.bound_threads)
         self.base.turn_intents.update(self.turn_intents)
         self.base.bound_turns.update(self.bound_turns)
+        self.base.resolved_turn_intents.update(self.resolved_turn_intents)
         self.base.roles_seen.update(self.roles_seen)
         for thread_id, values in self.turn_intents_by_thread.items():
             self.base.turn_intents_by_thread.setdefault(thread_id, []).extend(values)
@@ -897,12 +921,15 @@ def _validate_entry_transition(
             or not isinstance(turn_id, str)
             or not turn_id
             or semantic_index.turn_bound(turn_id)
+            or semantic_index.turn_intent_resolved(str(turn_intent_id))
             or evidence_sha256 is not None
             or entry.get("outcome") != "bound"
         ):
             errors.append(f"ledger-entry-{index_number}-turn-binding-invalid")
         else:
-            semantic_index.add_bound_turn(turn_id, str(thread_id))
+            semantic_index.add_bound_turn(
+                str(turn_intent_id), turn_id, str(thread_id)
+            )
     elif event in {
         "interrupt-observed",
         "archive-observed",
@@ -932,6 +959,22 @@ def _validate_entry_transition(
             errors.append(f"ledger-entry-{index_number}-lifecycle-turn-invalid")
         if event == "containment-audited" and not _is_hash(evidence_sha256):
             errors.append(f"ledger-entry-{index_number}-containment-evidence-invalid")
+        absent_resolution = (
+            event == "containment-audited"
+            and entry.get("outcome") == "turn-intent-verified-absent"
+        )
+        if absent_resolution:
+            intent = semantic_index.turn_intent(str(turn_intent_id))
+            if (
+                intent is None
+                or semantic_index.turn_intent_resolved(str(turn_intent_id))
+                or turn_id is not None
+            ):
+                errors.append(
+                    f"ledger-entry-{index_number}-turn-intent-containment-invalid"
+                )
+            else:
+                semantic_index.resolve_turn_intent(str(turn_intent_id))
         if not isinstance(entry.get("outcome"), str) or not entry.get("outcome"):
             errors.append(f"ledger-entry-{index_number}-lifecycle-outcome-invalid")
         if isinstance(thread_id, str) and isinstance(entry.get("outcome"), str):
@@ -1045,8 +1088,17 @@ def summarize_live_allocation_ledger(
     thread_entries = [entry for entry in entries if entry["event"] == "thread-bound"]
     turn_intents = [entry for entry in entries if entry["event"] == "turn-intent"]
     turn_entries = [entry for entry in entries if entry["event"] == "turn-bound"]
+    contained_turn_intents = [
+        entry
+        for entry in entries
+        if entry["event"] == "containment-audited"
+        and entry["outcome"] == "turn-intent-verified-absent"
+    ]
     bound_allocations = {entry["allocation_intent_id"] for entry in thread_entries}
-    bound_turn_intents = {entry["turn_intent_id"] for entry in turn_entries}
+    resolved_turn_intents = {
+        entry["turn_intent_id"]
+        for entry in [*turn_entries, *contained_turn_intents]
+    }
     return {
         "ledger_type": value["ledger_type"],
         "version": value["version"],
@@ -1066,7 +1118,8 @@ def summarize_live_allocation_ledger(
             for entry in allocation_entries
         ),
         "unresolved_turn_intent_count": sum(
-            entry["turn_intent_id"] not in bound_turn_intents for entry in turn_intents
+            entry["turn_intent_id"] not in resolved_turn_intents
+            for entry in turn_intents
         ),
         "allocated_roles": [entry["role"] for entry in allocation_entries],
     }
@@ -1548,11 +1601,18 @@ class NativeLiveAllocationLedgerStore:
         )
         return turn_intent_id
 
+    def _turn_intent_resolved(self, turn_intent_id: str) -> bool:
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                return semantic_index.turn_intent_resolved(turn_intent_id)
+
     def bind_turn(self, thread_id: str, turn_intent_id: str, turn_id: str) -> None:
         binding, expected_intent, existing_turn, _duplicate = self._thread_binding(
             thread_id
         )
-        if expected_intent != turn_intent_id or existing_turn is not None:
+        resolved = self._turn_intent_resolved(turn_intent_id)
+        if expected_intent != turn_intent_id or existing_turn is not None or resolved:
             raise NativeLiveAllocationLedgerError("turn-intent-binding-mismatch")
         self._append(
             event="turn-bound",
@@ -1563,6 +1623,54 @@ class NativeLiveAllocationLedgerStore:
             turn_intent_id=turn_intent_id,
             turn_id=turn_id,
             outcome="bound",
+        )
+
+    def resolve_turn_intent_absent(
+        self,
+        thread_id: str,
+        turn_intent_id: str,
+        *,
+        evidence: Mapping[str, Any],
+    ) -> None:
+        """Resolve a pending intent only after verified active-turn absence."""
+
+        if (
+            set(evidence)
+            != {
+                "dispatch_record_sha256",
+                "request_id",
+                "query_count",
+                "absence_verified",
+            }
+            or not _is_hash(evidence.get("dispatch_record_sha256"))
+            or type(evidence.get("request_id")) is not int
+            or evidence.get("request_id", 0) < 1
+            or type(evidence.get("query_count")) is not int
+            or evidence.get("query_count", 0) < 1
+            or evidence.get("absence_verified") is not True
+        ):
+            raise NativeLiveAllocationLedgerError(
+                "turn-intent-absence-evidence-invalid"
+            )
+        binding, expected_intent, existing_turn, _duplicate = self._thread_binding(
+            thread_id
+        )
+        resolved = self._turn_intent_resolved(turn_intent_id)
+        if expected_intent != turn_intent_id or existing_turn is not None:
+            raise NativeLiveAllocationLedgerError("turn-intent-resolution-mismatch")
+        if resolved:
+            return
+        self._append(
+            event="containment-audited",
+            role=binding["role"],
+            ordinal=binding["ordinal"],
+            allocation_intent_id=binding["allocation_intent_id"],
+            thread_id=thread_id,
+            turn_intent_id=turn_intent_id,
+            evidence_sha256=_hash(
+                dict(evidence), domain="native-live-turn-intent-containment"
+            ),
+            outcome="turn-intent-verified-absent",
         )
 
     def record_lifecycle(self, thread_id: str, event: str, outcome: str) -> None:
@@ -1592,6 +1700,10 @@ class NativeLiveAllocationLedgerStore:
         outcome: str,
         evidence: Mapping[str, Any],
     ) -> None:
+        if outcome == "turn-intent-verified-absent":
+            raise NativeLiveAllocationLedgerError(
+                "containment-outcome-reserved-for-turn-intent-resolution"
+            )
         binding, turn_intent_id, turn_id, _duplicate = self._thread_binding(thread_id)
         self._append(
             event="containment-audited",
@@ -1625,6 +1737,16 @@ class NativeLiveAllocationLedgerStore:
             with _exclusive_lock(self.lock_path):
                 _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
                 return semantic_index.lifecycle_kind_seen(event, thread_id)
+
+    def has_containment_audit(self, thread_id: str) -> bool:
+        """Return whether trusted evidence, rather than archive alone, contained it."""
+
+        with self._instance_lock:
+            with _exclusive_lock(self.lock_path):
+                _state, _trusted, semantic_index, _tail = self._require_trusted_locked()
+                return semantic_index.lifecycle_kind_seen(
+                    "containment-audited", thread_id
+                )
 
     def summary(self) -> dict[str, Any]:
         with self._instance_lock:

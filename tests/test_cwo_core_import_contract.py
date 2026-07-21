@@ -73,6 +73,7 @@ ALLOWED_IMPORTS = {
         "native_tool_isolation",
     },
     "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
+    "native_turn_dispatch": set(),
     "native_pool_scheduler": {"native_pool_contracts"},
     "native_pool_leases": {"native_pool_contracts"},
     "native_pool_workspace": {"native_pool_contracts", "workspace"},

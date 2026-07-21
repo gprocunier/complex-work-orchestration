@@ -78,6 +78,11 @@ from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     EXPECTED_ROLES,
     NativeLiveAllocationLedgerStore,
 )
+from cwo_core.native_turn_dispatch import (  # noqa: E402
+    TurnDispatchReservation,
+    evolve_turn_dispatch_record,
+    validate_turn_dispatch_record,
+)
 from cwo_core.native_pool_config import (  # noqa: E402
     build_live_canary_pool_contract,
     seal_bound_manifest_validation,
@@ -155,6 +160,8 @@ CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
 POST_SUBMISSION_MATERIALIZATION_GRACE_MS = POOL_POLL_LAG_TOLERANCE_MS
 PROVISIONAL_TERMINAL_GRACE_SECONDS = 5.0
 THREAD_READ_TIMEOUT_SECONDS = 15.0
+AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS = 5.0
+AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS = 0.05
 CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
 CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
 DESCRIPTOR_CAPTURE_ATTEMPT_MAX = 8
@@ -1354,6 +1361,17 @@ class AppServerRpcError(AppServerError):
         super().__init__(f"app-server-request-failed:{method}:{code}")
 
 
+class AmbiguousTurnStartError(AppServerError):
+    """A single turn write whose server-side effect required containment."""
+
+    def __init__(self, record: Mapping[str, Any]) -> None:
+        errors = validate_turn_dispatch_record(record)
+        if errors:
+            raise ValueError("ambiguous-turn-start-record-invalid:" + ";".join(errors))
+        self.record = dict(record)
+        super().__init__(f"turn-start-{record['status']}:{record['ambiguity_reason']}")
+
+
 def validate_calibration_read_recovery_telemetry(
     value: Mapping[str, Any],
 ) -> list[str]:
@@ -1727,6 +1745,8 @@ class AppServer:
         )
         self.rpc_latencies: dict[str, list[float]] = {}
         self.started_threads: dict[str, str | None] = {}
+        self._known_thread_turn_ids: dict[str, set[str]] = {}
+        self._turn_dispatch_records: dict[str, dict[str, Any]] = {}
         self.allocation_ledger: NativeLiveAllocationLedgerStore | None = None
         threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._drain_stderr, daemon=True).start()
@@ -2002,6 +2022,20 @@ class AppServer:
             raise AppServerError("thread-start-response-invalid")
         thread_id = str(thread["id"])
         self.started_threads[thread_id] = None
+        turns = thread.get("turns")
+        if not hasattr(self, "_known_thread_turn_ids"):
+            self._known_thread_turn_ids = {}
+        self._known_thread_turn_ids[thread_id] = (
+            {
+                str(item["id"])
+                for item in turns
+                if isinstance(item, Mapping)
+                and isinstance(item.get("id"), str)
+                and item.get("id")
+            }
+            if isinstance(turns, list)
+            else set()
+        )
         if self.allocation_ledger is not None and allocation_intent_id is not None:
             self.allocation_ledger.bind_thread(allocation_intent_id, thread_id)
         if result.get("model") != EXACT_MODEL:
@@ -2044,37 +2078,524 @@ class AppServer:
             raise AppServerError("thread-read-response-invalid")
         return dict(thread), latency, guarded, request_id, payload_sha256
 
-    def start_turn(self, thread_id: str, prompt: str) -> tuple[dict[str, Any], float]:
-        turn_intent_id: str | None = None
-        if self.allocation_ledger is not None:
-            turn_intent_id = self.allocation_ledger.turn_intent(thread_id)
-        result, latency = self.request(
-            "turn/start",
-            {
-                "threadId": thread_id,
-                "input": [{"type": "text", "text": prompt, "text_elements": []}],
-                "model": EXACT_MODEL,
-                "effort": "low",
-                "clientUserMessageId": str(uuid.uuid4()),
-                "responsesapiClientMetadata": {
-                    "cwo_bead": "complex-work-orchestration-18w.6",
-                    "cwo_control_turn": CONTROL_TURN_ID,
-                },
-            },
-            timeout=30,
-        )
-        turn = result.get("turn")
-        if not isinstance(turn, Mapping) or not turn.get("id"):
-            raise AppServerError("turn-start-response-invalid")
-        turn_id = str(turn["id"])
-        self.started_threads[thread_id] = turn_id
-        if self.allocation_ledger is not None and turn_intent_id is not None:
-            self.allocation_ledger.bind_turn(thread_id, turn_intent_id, turn_id)
-        return dict(turn), latency
+    def _turn_dispatch_path(self, turn_intent_id: str) -> Path | None:
+        ledger = self.allocation_ledger
+        if ledger is None:
+            return None
+        return ledger.directory / "turn-dispatch" / f"{turn_intent_id}.json"
 
-    def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
+    def _persist_turn_dispatch_record(
+        self, record: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        errors = validate_turn_dispatch_record(record)
+        if errors:
+            raise AppServerError("turn-dispatch-record-invalid:" + ";".join(errors))
+        persisted = dict(record)
+        records = getattr(self, "_turn_dispatch_records", None)
+        if records is None:
+            records = {}
+            self._turn_dispatch_records = records
+        records[str(record["thread_id"])] = persisted
+        path = self._turn_dispatch_path(str(record["turn_intent_id"]))
+        if path is not None:
+            write_private_artifact(path, persisted)
+        return persisted
+
+    def turn_dispatch_record(self, thread_id: str) -> dict[str, Any] | None:
+        record = getattr(self, "_turn_dispatch_records", {}).get(thread_id)
+        return dict(record) if isinstance(record, Mapping) else None
+
+    def _turn_intent_ledger_link(
+        self, turn_intent_id: str
+    ) -> tuple[str | None, str | None, str | None]:
+        ledger = self.allocation_ledger
+        if ledger is None:
+            return None, None, None
+        state = ledger.load()
+        entries = state.get("entries")
+        if not isinstance(entries, list):
+            raise AppServerError("turn-dispatch-ledger-intent-link-invalid")
+        matches = [
+            entry
+            for entry in entries
+            if isinstance(entry, Mapping)
+            and entry.get("event") == "turn-intent"
+            and entry.get("turn_intent_id") == turn_intent_id
+        ]
+        if len(matches) != 1:
+            raise AppServerError("turn-dispatch-ledger-intent-link-invalid")
+        return (
+            str(state["ledger_id"]),
+            str(state["head_entry_sha256"]),
+            str(matches[0]["entry_sha256"]),
+        )
+
+    @staticmethod
+    def _projected_turns(thread: Mapping[str, Any]) -> dict[str, str | None]:
+        turns = thread.get("turns")
+        if not isinstance(turns, list):
+            raise AppServerError("ambiguous-turn-thread-projection-invalid")
+        projected: dict[str, str | None] = {}
+        for item in turns:
+            if not isinstance(item, Mapping):
+                raise AppServerError("ambiguous-turn-thread-projection-invalid")
+            turn_id = item.get("id")
+            if not isinstance(turn_id, str) or not turn_id or turn_id in projected:
+                raise AppServerError("ambiguous-turn-thread-projection-invalid")
+            raw_status = item.get("status")
+            projected[turn_id] = str(raw_status) if raw_status else None
+        return projected
+
+    @staticmethod
+    def _normalized_terminal_status(status: str | None) -> str | None:
+        normalized = {
+            "completed": "completed",
+            "failed": "failed",
+            "interrupted": "interrupted",
+        }
+        return normalized.get(status or "")
+
+    def _late_turn_start_response(self, request_id: int) -> str | None:
+        with self._condition:
+            message = self._responses.pop(request_id, None)
+        if not isinstance(message, Mapping) or "error" in message:
+            return None
+        result = message.get("result")
+        turn = result.get("turn") if isinstance(result, Mapping) else None
+        turn_id = turn.get("id") if isinstance(turn, Mapping) else None
+        return str(turn_id) if isinstance(turn_id, str) and turn_id else None
+
+    def _post_cursor_turn_starts(
+        self,
+        *,
+        thread_id: str,
+        after_sequence: int,
+        preexisting_turn_ids: set[str],
+    ) -> tuple[set[str], set[int]]:
+        turn_ids: set[str] = set()
+        sequences: set[int] = set()
+        with self._condition:
+            notifications = list(self._notifications)
+        for sequence, (_received_ns, message) in enumerate(notifications, 1):
+            if sequence <= after_sequence or message.get("method") != "turn/started":
+                continue
+            params = (
+                message.get("params")
+                if isinstance(message.get("params"), Mapping)
+                else {}
+            )
+            if params.get("threadId") != thread_id:
+                continue
+            turn = params.get("turn") if isinstance(params.get("turn"), Mapping) else {}
+            turn_id = turn.get("id") or params.get("turnId")
+            if (
+                isinstance(turn_id, str)
+                and turn_id
+                and turn_id not in preexisting_turn_ids
+            ):
+                turn_ids.add(turn_id)
+                sequences.add(sequence)
+        return turn_ids, sequences
+
+    def _bind_ambiguous_turn_candidate(
+        self,
+        record: Mapping[str, Any],
+        candidate_turn_ids: set[str],
+        *,
+        exact_response_turn_id: str | None,
+    ) -> str:
+        canonical = (
+            exact_response_turn_id
+            if exact_response_turn_id in candidate_turn_ids
+            else sorted(candidate_turn_ids)[0]
+        )
+        if record.get("ledger_resolution") == "pending":
+            if self.allocation_ledger is not None:
+                self.allocation_ledger.bind_turn(
+                    str(record["thread_id"]),
+                    str(record["turn_intent_id"]),
+                    canonical,
+                )
+            self.started_threads[str(record["thread_id"])] = canonical
+        return canonical
+
+    def contain_ambiguous_turn_dispatch(
+        self,
+        thread_id: str,
+        *,
+        timeout: float = AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS,
+    ) -> dict[str, Any]:
+        """Discover and contain one uncertain ``turn/start`` without replaying it."""
+
+        current = self.turn_dispatch_record(thread_id)
+        if current is None:
+            raise AppServerError("ambiguous-turn-dispatch-record-missing")
+        if current["status"] == "failed-contained":
+            return current
+        if current["status"] not in {"dispatching", "failed-ambiguous"}:
+            raise AppServerError("ambiguous-turn-dispatch-state-invalid")
+        ambiguity_reason = (
+            str(current["ambiguity_reason"])
+            if current["ambiguity_reason"] is not None
+            else "dispatch-interrupted-before-response"
+        )
+
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        preexisting = set(current["preexisting_turn_ids"])
+        discovered = set(current["discovered_turn_ids"])
+        attempted = set(current["interrupt_attempted_turn_ids"])
+        interrupt_failed = set(current["interrupt_failed_turn_ids"])
+        terminal_statuses = dict(current["terminal_status_by_turn"])
+        notification_sequences = set(current["notification_sequences"])
+        exact_response_turn_id = current.get("exact_response_turn_id")
+        query_count = int(current["query_count"])
+        final_active: set[str] = set(current["active_turn_ids_at_final_check"])
+        absence_verified = False
+        query_succeeded = False
+        first_pass = True
+
+        while first_pass or time.monotonic() < deadline:
+            first_pass = False
+            late = self._late_turn_start_response(int(current["request_id"]))
+            if late is not None:
+                exact_response_turn_id = late
+                if late not in preexisting:
+                    discovered.add(late)
+            notified, sequences = self._post_cursor_turn_starts(
+                thread_id=thread_id,
+                after_sequence=int(current["notification_cursor"]),
+                preexisting_turn_ids=preexisting,
+            )
+            discovered.update(notified)
+            notification_sequences.update(sequences)
+
+            remaining = max(0.001, deadline - time.monotonic())
+            try:
+                thread, _latency = self.read_thread(
+                    thread_id,
+                    timeout=min(THREAD_READ_TIMEOUT_SECONDS, remaining),
+                )
+                query_count += 1
+                query_succeeded = True
+                projected = self._projected_turns(thread)
+            except Exception:
+                projected = {}
+                query_succeeded = False
+            discovered.update(set(projected) - preexisting)
+
+            final_active = {
+                turn_id
+                for turn_id, status in projected.items()
+                if self._normalized_terminal_status(status) is None
+            }
+            for turn_id in discovered:
+                terminal = self._normalized_terminal_status(projected.get(turn_id))
+                if terminal is not None:
+                    terminal_statuses[turn_id] = terminal
+            # Exact responses and post-cursor start notifications prove that a
+            # candidate existed even when thread/read is unavailable. Treat
+            # every discovered candidate as active until a trusted terminal
+            # projection proves otherwise, so query failure cannot leave it
+            # running merely because its current status is unknown.
+            active_candidates = sorted(discovered - set(terminal_statuses))
+            for turn_id in active_candidates:
+                if turn_id in attempted:
+                    continue
+                attempted.add(turn_id)
+                try:
+                    self.interrupt_turn(
+                        thread_id,
+                        turn_id,
+                        timeout=min(
+                            15.0,
+                            max(0.001, deadline - time.monotonic()),
+                        ),
+                    )
+                except Exception:
+                    interrupt_failed.add(turn_id)
+
+            all_discovered_terminal = set(terminal_statuses) == discovered
+            absence_verified = bool(query_succeeded and not final_active)
+            if (
+                absence_verified
+                and all_discovered_terminal
+                and not interrupt_failed
+                and not active_candidates
+            ):
+                break
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(
+                min(
+                    AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS,
+                    max(0.0, deadline - time.monotonic()),
+                )
+            )
+
+        contained = bool(
+            absence_verified
+            and set(terminal_statuses) == discovered
+            and not interrupt_failed
+            and not final_active
+        )
+        ledger_resolution = str(current["ledger_resolution"])
+        archived = False
+        if contained:
+            try:
+                if discovered and ledger_resolution == "pending":
+                    self._bind_ambiguous_turn_candidate(
+                        current,
+                        discovered,
+                        exact_response_turn_id=exact_response_turn_id,
+                    )
+                    ledger_resolution = "turn-bound"
+                elif not discovered and ledger_resolution == "pending":
+                    if self.allocation_ledger is not None:
+                        self.allocation_ledger.resolve_turn_intent_absent(
+                            thread_id,
+                            str(current["turn_intent_id"]),
+                            evidence={
+                                "dispatch_record_sha256": current["record_sha256"],
+                                "request_id": current["request_id"],
+                                "query_count": query_count,
+                                "absence_verified": True,
+                            },
+                        )
+                    ledger_resolution = "verified-absent"
+            except Exception:
+                contained = False
+        if contained:
+            try:
+                self.archive_thread(thread_id)
+                archived = True
+            except Exception:
+                archived = False
+
+        status = "failed-contained" if contained else "failed-ambiguous"
+        evolved = evolve_turn_dispatch_record(
+            current,
+            wire_write_attempt_count=1,
+            status=status,
+            ambiguity_reason=ambiguity_reason,
+            exact_response_turn_id=exact_response_turn_id,
+            notification_sequences=sorted(notification_sequences),
+            discovered_turn_ids=sorted(discovered),
+            interrupt_attempted_turn_ids=sorted(attempted),
+            interrupt_failed_turn_ids=sorted(interrupt_failed),
+            terminal_status_by_turn={
+                key: terminal_statuses[key] for key in sorted(terminal_statuses)
+            },
+            active_turn_ids_at_final_check=sorted(final_active),
+            query_count=query_count,
+            absence_verified=absence_verified,
+            archived=archived,
+            ledger_resolution=ledger_resolution,
+        )
+        return self._persist_turn_dispatch_record(evolved)
+
+    def start_turn(
+        self,
+        thread_id: str,
+        prompt: str,
+        *,
+        timeout: float = 30,
+        ambiguity_timeout: float = AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS,
+    ) -> tuple[dict[str, Any], float]:
+        """Write ``turn/start`` exactly once and contain uncertain outcomes."""
+
+        with self._condition:
+            if self.process.poll() is not None:
+                raise AppServerError(
+                    f"app-server-exited-before-turn-intent:{self.process.returncode}"
+                )
+            if self._reader_error:
+                raise AppServerError(self._reader_error)
+        turn_intent_id = (
+            self.allocation_ledger.turn_intent(thread_id)
+            if self.allocation_ledger is not None
+            else str(uuid.uuid4())
+        )
+        params = {
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": prompt, "text_elements": []}],
+            "model": EXACT_MODEL,
+            "effort": "low",
+            "clientUserMessageId": turn_intent_id,
+            "responsesapiClientMetadata": {
+                "cwo_bead": "complex-work-orchestration-18w.6",
+                "cwo_control_turn": CONTROL_TURN_ID,
+            },
+        }
+        ledger_id, ledger_head, intent_entry = self._turn_intent_ledger_link(
+            turn_intent_id
+        )
+        with self._condition:
+            if self.process.poll() is not None:
+                raise AppServerError(
+                    f"app-server-exited-before-turn-start:{self.process.returncode}"
+                )
+            if self._reader_error:
+                raise AppServerError(self._reader_error)
+            self._request_id += 1
+            request_id = self._request_id
+            notification_cursor = len(self._notifications)
+            payload = {
+                "id": request_id,
+                "method": "turn/start",
+                "params": params,
+            }
+            wire_request_sha256 = domain_sha256(
+                payload, domain="app-server-single-wire-request"
+            )
+            known = getattr(self, "_known_thread_turn_ids", {}).get(thread_id, set())
+            reservation = TurnDispatchReservation(
+                thread_id=thread_id,
+                turn_intent_id=turn_intent_id,
+                request_id=request_id,
+                connection_epoch_sha256=self.connection_epoch_sha256,
+                notification_cursor=notification_cursor,
+                preexisting_turn_ids=tuple(sorted(known)),
+                ledger_id=ledger_id,
+                ledger_head_entry_sha256=ledger_head,
+                turn_intent_entry_sha256=intent_entry,
+                wire_request_sha256=wire_request_sha256,
+            )
+            record = self._persist_turn_dispatch_record(reservation.prepared_record())
+            record = self._persist_turn_dispatch_record(
+                evolve_turn_dispatch_record(
+                    record,
+                    status="dispatching",
+                    wire_write_attempt_count=1,
+                )
+            )
+            started = time.monotonic_ns()
+            try:
+                assert self.process.stdin is not None
+                self.process.stdin.write(
+                    json.dumps(payload, separators=(",", ":")) + "\n"
+                )
+                self.process.stdin.flush()
+            except OSError:
+                ambiguity_reason = "wire-write-error"
+            else:
+                ambiguity_reason = None
+                deadline = time.monotonic() + timeout
+                while request_id not in self._responses:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        ambiguity_reason = "response-timeout"
+                        break
+                    if self.process.poll() is not None:
+                        ambiguity_reason = "app-server-exited"
+                        break
+                    if self._reader_error:
+                        ambiguity_reason = "reader-error"
+                        break
+                    self._condition.wait(timeout=remaining)
+                message = (
+                    self._responses.pop(request_id)
+                    if ambiguity_reason is None
+                    else None
+                )
+
+        if ambiguity_reason is not None:
+            record = self._persist_turn_dispatch_record(
+                evolve_turn_dispatch_record(
+                    record,
+                    status="failed-ambiguous",
+                    ambiguity_reason=ambiguity_reason,
+                )
+            )
+            contained = self.contain_ambiguous_turn_dispatch(
+                thread_id, timeout=ambiguity_timeout
+            )
+            raise AmbiguousTurnStartError(contained)
+
+        latency_ms = (time.monotonic_ns() - started) / 1_000_000
+        self.rpc_latencies.setdefault("turn/start", []).append(latency_ms)
+        rpc_error: AppServerRpcError | None = None
+        if not isinstance(message, Mapping) or message.get("id") != request_id:
+            ambiguity_reason = "response-id-invalid"
+        elif "error" in message:
+            error = message.get("error")
+            if (
+                "result" in message
+                or not isinstance(error, Mapping)
+                or type(error.get("code")) is not int
+                or not isinstance(error.get("message"), str)
+            ):
+                ambiguity_reason = "error-response-invalid"
+            else:
+                rpc_error = AppServerRpcError(
+                    method="turn/start",
+                    code=int(error["code"]),
+                    request_id=request_id,
+                    latency_ms=latency_ms,
+                )
+                ambiguity_reason = "rpc-error-response"
+        else:
+            result = message.get("result")
+            turn = result.get("turn") if isinstance(result, Mapping) else None
+            turn_id = turn.get("id") if isinstance(turn, Mapping) else None
+            if not isinstance(turn_id, str) or not turn_id:
+                ambiguity_reason = "response-turn-invalid"
+
+        if ambiguity_reason is not None:
+            record = self._persist_turn_dispatch_record(
+                evolve_turn_dispatch_record(
+                    record,
+                    status="failed-ambiguous",
+                    ambiguity_reason=ambiguity_reason,
+                )
+            )
+            contained = self.contain_ambiguous_turn_dispatch(
+                thread_id, timeout=ambiguity_timeout
+            )
+            if rpc_error is not None and contained["status"] == "failed-contained":
+                raise rpc_error
+            raise AmbiguousTurnStartError(contained)
+
+        assert isinstance(turn, Mapping) and isinstance(turn_id, str)
+        self.started_threads[thread_id] = turn_id
+        if self.allocation_ledger is not None:
+            try:
+                self.allocation_ledger.bind_turn(thread_id, turn_intent_id, turn_id)
+            except Exception:
+                record = self._persist_turn_dispatch_record(
+                    evolve_turn_dispatch_record(
+                        record,
+                        status="failed-ambiguous",
+                        ambiguity_reason="ledger-turn-bind-failed",
+                        exact_response_turn_id=turn_id,
+                        discovered_turn_ids=[turn_id],
+                    )
+                )
+                contained = self.contain_ambiguous_turn_dispatch(
+                    thread_id, timeout=ambiguity_timeout
+                )
+                raise AmbiguousTurnStartError(contained)
+        record = evolve_turn_dispatch_record(
+            record,
+            status="acknowledged",
+            exact_response_turn_id=turn_id,
+            discovered_turn_ids=[turn_id],
+            wire_write_attempt_count=1,
+            ledger_resolution="turn-bound",
+        )
+        self._persist_turn_dispatch_record(record)
+        return dict(turn), latency_ms
+
+    def interrupt_turn(
+        self,
+        thread_id: str,
+        turn_id: str,
+        *,
+        timeout: float = 15,
+    ) -> float:
         _result, latency = self.request(
-            "turn/interrupt", {"threadId": thread_id, "turnId": turn_id}, timeout=15
+            "turn/interrupt",
+            {"threadId": thread_id, "turnId": turn_id},
+            timeout=timeout,
         )
         if self.allocation_ledger is not None:
             self.allocation_ledger.record_lifecycle(
@@ -5478,7 +5999,7 @@ def validate_campaign(
 
 
 def contain_started_threads(server: AppServer) -> dict[str, Any]:
-    """Idempotently interrupt, archive, and audit every allocated thread."""
+    """Idempotently prove terminal absence, then archive allocated threads."""
 
     interrupted: list[str] = []
     archived: list[str] = []
@@ -5486,6 +6007,25 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
     ambiguous: list[str] = []
     ledger_errors: list[str] = []
     ledger = getattr(server, "allocation_ledger", None)
+
+    for thread_id, record in list(
+        getattr(server, "_turn_dispatch_records", {}).items()
+    ):
+        if not isinstance(record, Mapping):
+            ambiguous.append(str(thread_id))
+            continue
+        errors = validate_turn_dispatch_record(record)
+        if errors:
+            ambiguous.append(str(thread_id))
+            continue
+        if record.get("status") in {"dispatching", "failed-ambiguous"}:
+            try:
+                record = server.contain_ambiguous_turn_dispatch(str(thread_id))
+            except Exception:
+                ambiguous.append(str(thread_id))
+                continue
+        if record.get("status") == "failed-ambiguous":
+            ambiguous.append(str(thread_id))
 
     def audit_containment(thread_id: str, outcome: str, status: str | None) -> None:
         if ledger is None:
@@ -5504,37 +6044,101 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
             ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
 
     for thread_id, turn_id in list(server.started_threads.items()):
+        dispatch_record = (
+            server.turn_dispatch_record(thread_id)
+            if hasattr(server, "turn_dispatch_record")
+            else None
+        )
+        if (
+            isinstance(dispatch_record, Mapping)
+            and dispatch_record.get("status") == "failed-ambiguous"
+        ):
+            ambiguous.append(thread_id)
+            continue
+        if (
+            isinstance(dispatch_record, Mapping)
+            and dispatch_record.get("status") == "failed-contained"
+            and dispatch_record.get("archived") is True
+        ):
+            already_contained.append(thread_id)
+            continue
         try:
             thread, _latency = server.read_thread(thread_id)
-            status = turn_status(thread, turn_id) if turn_id else None
-            if turn_id and status == "inProgress":
-                server.interrupt_turn(thread_id, turn_id)
-                interrupted.append(thread_id)
-                deadline = time.monotonic() + 5
-                while time.monotonic() < deadline:
+            projected = AppServer._projected_turns(thread)
+            expected_turns = {turn_id} if turn_id is not None else set()
+            active = {
+                candidate
+                for candidate, status in projected.items()
+                if AppServer._normalized_terminal_status(status) is None
+            }
+            interrupt_failed = False
+            for candidate in sorted(active):
+                try:
+                    server.interrupt_turn(thread_id, candidate)
+                    interrupted.append(thread_id)
+                except Exception:
+                    interrupt_failed = True
+            deadline = time.monotonic() + AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS
+            terminal: dict[str, str] = {
+                candidate: normalized
+                for candidate, status in projected.items()
+                if (normalized := AppServer._normalized_terminal_status(status))
+                is not None
+            }
+            while active and time.monotonic() < deadline and not interrupt_failed:
+                try:
+                    thread, _latency = server.read_thread(
+                        thread_id,
+                        timeout=max(0.001, deadline - time.monotonic()),
+                    )
+                except TypeError as exc:
+                    if "timeout" not in str(exc):
+                        raise
                     thread, _latency = server.read_thread(thread_id)
-                    status = turn_status(thread, turn_id)
-                    if status in {"interrupted", "completed", "failed"}:
-                        break
-                    time.sleep(0.05)
-            if turn_id is None or status in {"interrupted", "completed", "failed"}:
+                projected = AppServer._projected_turns(thread)
+                terminal.update(
+                    {
+                        candidate: normalized
+                        for candidate, status in projected.items()
+                        if (normalized := AppServer._normalized_terminal_status(status))
+                        is not None
+                    }
+                )
+                active = {
+                    candidate
+                    for candidate, status in projected.items()
+                    if AppServer._normalized_terminal_status(status) is None
+                }
+                if active:
+                    time.sleep(AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS)
+            terminal_proven = expected_turns.issubset(terminal)
+            absence_proven = not active
+            if not interrupt_failed and terminal_proven and absence_proven:
                 server.archive_thread(thread_id)
                 archived.append(thread_id)
-                audit_containment(thread_id, "contained", status)
+                audit_containment(
+                    thread_id,
+                    "contained",
+                    terminal.get(turn_id) if turn_id is not None else None,
+                )
             else:
                 ambiguous.append(thread_id)
         except Exception:
             try:
-                archived_in_ledger = bool(
-                    ledger is not None
-                    and ledger.has_lifecycle(thread_id, "archive-observed")
+                containment_audited = bool(
+                    ledger is not None and ledger.has_containment_audit(thread_id)
                 )
             except Exception as exc:
-                archived_in_ledger = False
+                containment_audited = False
                 ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
-            if archived_in_ledger:
+            record_proves_containment = bool(
+                isinstance(dispatch_record, Mapping)
+                and not validate_turn_dispatch_record(dispatch_record)
+                and dispatch_record.get("status") == "failed-contained"
+                and dispatch_record.get("absence_verified") is True
+            )
+            if containment_audited or record_proves_containment:
                 already_contained.append(thread_id)
-                audit_containment(thread_id, "already-contained", None)
             else:
                 ambiguous.append(thread_id)
     unresolved_allocations = 0
@@ -5550,7 +6154,7 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
             ledger_allocation_count = int(ledger_summary["allocation_intent_count"])
         except Exception as exc:
             ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
-    ambiguous_count = len(set(ambiguous)) + unresolved_allocations
+    ambiguous_count = len(set(ambiguous)) + unresolved_allocations + unresolved_turns
     return {
         "allocated_count": ledger_allocation_count,
         "identified_thread_count": len(server.started_threads),
@@ -5560,8 +6164,10 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
         "unresolved_allocation_intent_count": unresolved_allocations,
         "unresolved_turn_intent_count": unresolved_turns,
         "ambiguous_count": ambiguous_count,
-        "all_contained": ambiguous_count == 0,
-        "ledger_consistent": not ledger_errors and not unresolved_allocations and not unresolved_turns,
+        "all_contained": ambiguous_count == 0 and not ledger_errors,
+        "ledger_consistent": not ledger_errors
+        and not unresolved_allocations
+        and not unresolved_turns,
         "ledger_error_sha256": sorted(set(ledger_errors)),
     }
 
