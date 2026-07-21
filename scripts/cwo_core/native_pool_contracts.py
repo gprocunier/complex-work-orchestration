@@ -54,6 +54,9 @@ CAPABILITY_RECEIPT_SCHEMA = (
 )
 LEASE_SCHEMA = "schemas/native-supervision-lease.schema.json"
 POOL_RECEIPT_SCHEMA = "schemas/native-supervision-pool-receipt.schema.json"
+ADMITTED_POOL_RECEIPT_SCHEMA = (
+    "schemas/native-supervision-pool-receipt-v2.schema.json"
+)
 
 POOL_STATUSES = (
     "created",
@@ -443,7 +446,7 @@ LEASE_FIELDS = {
     "release_reason",
     "lease_sha256",
 }
-POOL_RECEIPT_FIELDS = {
+POOL_RECEIPT_FIELDS_V1 = {
     "receipt_type",
     "version",
     "schema",
@@ -470,6 +473,32 @@ POOL_RECEIPT_FIELDS = {
     "accepting",
     *STOP_METADATA_FIELDS,
     "receipt_sha256",
+}
+POOL_RECEIPT_FIELDS_V2 = POOL_RECEIPT_FIELDS_V1 | {
+    "reservation_sha256",
+    "dispatch_sha256",
+}
+POOL_RECEIPT_FIELDS = POOL_RECEIPT_FIELDS_V1
+POOL_CHILD_RECEIPT_FIELDS_V1 = {"child_id", "receipt_sha256"}
+POOL_CHILD_RECEIPT_FIELDS_V2 = POOL_CHILD_RECEIPT_FIELDS_V1 | {
+    "bead_id",
+    "work_unit_id",
+    "packet_sha256",
+    "admitted_child_sha256",
+}
+POOL_CHILD_DISPOSITION_FIELDS_V1 = {
+    "child_id",
+    "session_disposition",
+    "artifact_disposition",
+}
+POOL_CHILD_DISPOSITION_FIELDS_V2 = POOL_CHILD_DISPOSITION_FIELDS_V1 | {
+    "bead_id",
+    "work_unit_id",
+    "packet_sha256",
+    "admitted_child_sha256",
+    "implementation_bead_close_authorized",
+    "parent_close_authorized",
+    "publication_close_authorized",
 }
 POOL_RECEIPT_LEGACY_TIMING_FIELDS = {
     "max_callback_latency_ms",
@@ -2216,23 +2245,37 @@ def validate_pool_receipt(
     *,
     contract: Mapping[str, Any] | None = None,
     terminal_state: Mapping[str, Any] | None = None,
+    admission_reservation: Mapping[str, Any] | None = None,
+    dispatch_receipt: Mapping[str, Any] | None = None,
     seen_hashes: Iterable[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    receipt = _strict(value, POOL_RECEIPT_FIELDS, "pool-receipt", errors)
+    admitted_v2 = isinstance(value, Mapping) and value.get("version") == 2
+    receipt = _strict(
+        value,
+        POOL_RECEIPT_FIELDS_V2 if admitted_v2 else POOL_RECEIPT_FIELDS_V1,
+        "pool-receipt",
+        errors,
+    )
     if receipt is None:
         return errors
     _validate_header(
         receipt,
         type_field="receipt_type",
         expected_type=POOL_RECEIPT_TYPE,
-        expected_schema=POOL_RECEIPT_SCHEMA,
+        expected_schema=(
+            ADMITTED_POOL_RECEIPT_SCHEMA if admitted_v2 else POOL_RECEIPT_SCHEMA
+        ),
         errors=errors,
+        expected_version=ADMITTED_POOL_VERSION if admitted_v2 else VERSION,
     )
     for field in ("pool_id", "pool_epoch"):
         if not _nonempty(receipt.get(field)):
             errors.append(f"invalid-{field.replace('_', '-')}")
-    for field in ("contract_sha256", "terminal_state_sha256"):
+    identity_hash_fields = ["contract_sha256", "terminal_state_sha256"]
+    if admitted_v2:
+        identity_hash_fields.extend(["reservation_sha256", "dispatch_sha256"])
+    for field in identity_hash_fields:
         if not _is_sha256(receipt.get(field)):
             errors.append(f"invalid-{field.replace('_', '-')}")
     if receipt.get("capability_receipt_sha256") is not None and not _is_sha256(
@@ -2279,7 +2322,14 @@ def validate_pool_receipt(
     else:
         for index, item in enumerate(child_receipts):
             entry = _strict(
-                item, {"child_id", "receipt_sha256"}, f"child-receipt[{index}]", errors
+                item,
+                (
+                    POOL_CHILD_RECEIPT_FIELDS_V2
+                    if admitted_v2
+                    else POOL_CHILD_RECEIPT_FIELDS_V1
+                ),
+                f"child-receipt[{index}]",
+                errors,
             )
             if entry is None:
                 continue
@@ -2289,6 +2339,17 @@ def validate_pool_receipt(
                 child_receipt_ids.append(str(entry["child_id"]))
             if not _is_sha256(entry.get("receipt_sha256")):
                 errors.append(f"invalid-child-receipt[{index}]-sha256")
+            if admitted_v2:
+                for field in ("bead_id", "work_unit_id"):
+                    if not _nonempty(entry.get(field)):
+                        errors.append(
+                            f"invalid-child-receipt[{index}]-{field.replace('_', '-')}"
+                        )
+                for field in ("packet_sha256", "admitted_child_sha256"):
+                    if not _is_sha256(entry.get(field)):
+                        errors.append(
+                            f"invalid-child-receipt[{index}]-{field.replace('_', '-')}"
+                        )
     if len(child_receipt_ids) != len(set(child_receipt_ids)):
         errors.append("duplicate-child-terminal-receipt")
     _validate_usage(
@@ -2422,7 +2483,11 @@ def validate_pool_receipt(
         for index, item in enumerate(dispositions):
             entry = _strict(
                 item,
-                {"child_id", "session_disposition", "artifact_disposition"},
+                (
+                    POOL_CHILD_DISPOSITION_FIELDS_V2
+                    if admitted_v2
+                    else POOL_CHILD_DISPOSITION_FIELDS_V1
+                ),
                 f"child-disposition[{index}]",
                 errors,
             )
@@ -2445,6 +2510,34 @@ def validate_pool_receipt(
                 "rejected",
             }:
                 errors.append(f"invalid-child-disposition[{index}]-artifact")
+            if admitted_v2:
+                for field in ("bead_id", "work_unit_id"):
+                    if not _nonempty(entry.get(field)):
+                        errors.append(
+                            f"invalid-child-disposition[{index}]-{field.replace('_', '-')}"
+                        )
+                for field in ("packet_sha256", "admitted_child_sha256"):
+                    if not _is_sha256(entry.get(field)):
+                        errors.append(
+                            f"invalid-child-disposition[{index}]-{field.replace('_', '-')}"
+                        )
+                expected_close = (
+                    entry.get("session_disposition")
+                    in {"accepted", "accepted-with-warning"}
+                    and entry.get("artifact_disposition") == "accepted"
+                )
+                if entry.get("implementation_bead_close_authorized") is not expected_close:
+                    errors.append(
+                        f"child-disposition[{index}]-implementation-close-mismatch"
+                    )
+                for field in (
+                    "parent_close_authorized",
+                    "publication_close_authorized",
+                ):
+                    if entry.get(field) is not False:
+                        errors.append(
+                            f"child-disposition[{index}]-{field.replace('_', '-')}-must-be-false"
+                        )
     if len(disposition_ids) != len(set(disposition_ids)):
         errors.append("duplicate-child-disposition")
     if receipt.get("pool_disposition") not in {
@@ -2508,6 +2601,79 @@ def validate_pool_receipt(
                 "poll_lag_tolerance_ms"
             ):
                 errors.append("receipt-poll-lag-tolerance-mismatch")
+        if admitted_v2:
+            if contract.get("version") != ADMITTED_POOL_VERSION:
+                errors.append("receipt-v2-requires-v2-contract")
+            if admission_reservation is None:
+                errors.append("receipt-v2-admission-reservation-required")
+            else:
+                contract_errors = validate_pool_contract(
+                    contract,
+                    admission_reservation=admission_reservation,
+                )
+                errors.extend(
+                    "receipt-v2-contract:" + item for item in contract_errors
+                )
+                if receipt.get("reservation_sha256") != admission_reservation.get(
+                    "reservation_sha256"
+                ):
+                    errors.append("receipt-reservation-sha256-mismatch")
+            if dispatch_receipt is None:
+                errors.append("receipt-v2-dispatch-receipt-required")
+            else:
+                from .native_pool_admission import validate_dispatch_receipt
+
+                dispatch_errors = validate_dispatch_receipt(
+                    dispatch_receipt,
+                    reservation_receipt=admission_reservation,
+                )
+                errors.extend(
+                    "receipt-v2-dispatch:" + item for item in dispatch_errors
+                )
+                if receipt.get("dispatch_sha256") != dispatch_receipt.get(
+                    "dispatch_sha256"
+                ):
+                    errors.append("receipt-dispatch-sha256-mismatch")
+                if dispatch_receipt.get("pool_contract_sha256") != contract.get(
+                    "contract_sha256"
+                ):
+                    errors.append("receipt-dispatch-contract-mismatch")
+            if isinstance(child_receipts, list):
+                for index, child in enumerate(contract.get("children", [])):
+                    if index >= len(child_receipts) or not isinstance(
+                        child_receipts[index], Mapping
+                    ):
+                        continue
+                    entry = child_receipts[index]
+                    for field in (
+                        "child_id",
+                        "bead_id",
+                        "work_unit_id",
+                        "packet_sha256",
+                        "admitted_child_sha256",
+                    ):
+                        if entry.get(field) != child.get(field):
+                            errors.append(
+                                f"child-receipt[{index}]-{field.replace('_', '-')}-mismatch"
+                            )
+            if isinstance(dispositions, list):
+                for index, child in enumerate(contract.get("children", [])):
+                    if index >= len(dispositions) or not isinstance(
+                        dispositions[index], Mapping
+                    ):
+                        continue
+                    entry = dispositions[index]
+                    for field in (
+                        "child_id",
+                        "bead_id",
+                        "work_unit_id",
+                        "packet_sha256",
+                        "admitted_child_sha256",
+                    ):
+                        if entry.get(field) != child.get(field):
+                            errors.append(
+                                f"child-disposition[{index}]-{field.replace('_', '-')}-mismatch"
+                            )
     if terminal_state is not None:
         if receipt.get("terminal_state_sha256") != terminal_state.get("state_sha256"):
             errors.append("receipt-terminal-state-sha256-mismatch")

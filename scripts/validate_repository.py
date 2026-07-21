@@ -158,12 +158,20 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_pool": {
         "native_authority",
         "native_control",
+        "native_pool_admission",
         "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_scheduler",
         "native_pool_schedulability",
         "native_stop_scope",
+    },
+    "native_pool_admitted": {
+        "native_pool",
+        "native_pool_admission",
+        "native_pool_contracts",
+        "native_pool_leases",
+        "native_pool_preflight",
     },
     "native_pool_config": {
         "native_control",

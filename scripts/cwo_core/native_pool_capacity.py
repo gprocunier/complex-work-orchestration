@@ -31,6 +31,7 @@ CAPACITY_SCHEMA_PATHS = (
     "schemas/native-supervision-pool-preflight-request.schema.json",
     "schemas/native-supervision-pool-preflight-request-v2.schema.json",
     "schemas/native-supervision-pool-receipt.schema.json",
+    "schemas/native-supervision-pool-receipt-v2.schema.json",
     "schemas/native-supervision-pool-render-request.schema.json",
     "schemas/native-supervision-pool-render-request-v2.schema.json",
     "schemas/native-pool-admission-reservation.schema.json",
@@ -319,6 +320,20 @@ def _set_capacity_constraints(
         "lease_evidence",
     ):
         receipt["properties"][field]["maxItems"] = hard
+
+    admitted_receipt = documents[
+        "schemas/native-supervision-pool-receipt-v2.schema.json"
+    ]
+    for field in (
+        "admission_order",
+        "terminal_order",
+        "child_dispositions",
+        "child_terminal_receipts",
+        "lease_evidence",
+    ):
+        admitted_receipt["properties"][field]["maxItems"] = (
+            limits.released_max_active_workers
+        )
 
     preflight = documents[
         "schemas/native-supervision-pool-preflight-request.schema.json"

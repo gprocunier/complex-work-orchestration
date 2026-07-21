@@ -13,6 +13,8 @@ from typing import Any, Callable, Mapping, Sequence
 from .native_control import NativeControlTurn, validate_control_turn_contract
 from .native_pool_capacity import load_pool_capacity
 from .native_pool_contracts import (
+    ADMITTED_POOL_RECEIPT_SCHEMA,
+    ADMITTED_POOL_VERSION,
     POOL_DECISION_SCHEMA,
     POOL_DECISION_TYPE,
     POOL_RECEIPT_SCHEMA,
@@ -23,6 +25,7 @@ from .native_pool_contracts import (
     canonical_sha256,
     seal_artifact,
     validate_capability_receipt,
+    validate_lease,
     validate_pool_contract,
     validate_pool_control_request,
     validate_pool_decision,
@@ -84,6 +87,7 @@ ARTIFACT_DISPOSITIONS = {
     "architect-adjudication-required",
     "rejected",
 }
+_ADMITTED_POOL_BRIDGE_TOKEN = object()
 
 
 def _read_only_fast_path_child_ids(
@@ -262,11 +266,27 @@ class NativePoolCoordinator:
         decision_file: Path | str | None = None,
         control_file: Path | str | None = None,
         policy_document: Mapping[str, Any] | None = None,
+        _admitted_bridge_token: object | None = None,
+        _preacquired_leases: Sequence[Mapping[str, Any]] | None = None,
+        _admission_evidence: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
         self.capacity_limits = load_pool_capacity(policy_document)
+        admitted_v2 = contract.get("version") == ADMITTED_POOL_VERSION
+        admitted_bridge = _admitted_bridge_token is _ADMITTED_POOL_BRIDGE_TOKEN
+        if admitted_v2 and not admitted_bridge:
+            raise NativePoolError("admitted-pool-launcher-required")
+        if admitted_bridge != (
+            _preacquired_leases is not None and _admission_evidence is not None
+        ):
+            raise NativePoolError("admitted-pool-bridge-incomplete")
         contract_errors = validate_pool_contract(
             contract,
             capacity_limits=self.capacity_limits,
+            admission_reservation=(
+                _admission_evidence.get("reservation")
+                if _admission_evidence is not None
+                else None
+            ),
         )
         if contract_errors:
             raise NativePoolError("pool-contract-invalid:" + ";".join(contract_errors))
@@ -320,6 +340,65 @@ class NativePoolCoordinator:
         self._last_poll_ns: dict[str, int | None] = {child_id: None for child_id in self.child_ids}
         self._max_poll_gap_ms = 0.0
         self._leases: dict[str, dict[str, Any]] = {}
+        self._admission_reservation: dict[str, Any] | None = None
+        self._dispatch_receipt: dict[str, Any] | None = None
+        if admitted_bridge:
+            assert _preacquired_leases is not None
+            assert _admission_evidence is not None
+            from .native_pool_admission import (
+                validate_dispatch_receipt,
+                validate_reservation_receipt,
+            )
+
+            reservation = _admission_evidence.get("reservation")
+            dispatch = _admission_evidence.get("dispatch")
+            reservation_errors = validate_reservation_receipt(reservation)
+            dispatch_errors = validate_dispatch_receipt(
+                dispatch,
+                reservation_receipt=reservation,
+            )
+            if reservation_errors:
+                raise NativePoolError(
+                    "admitted-reservation-invalid:" + ";".join(reservation_errors)
+                )
+            if dispatch_errors:
+                raise NativePoolError(
+                    "admitted-dispatch-invalid:" + ";".join(dispatch_errors)
+                )
+            assert isinstance(reservation, Mapping)
+            assert isinstance(dispatch, Mapping)
+            if (
+                dispatch.get("pool_contract_sha256")
+                != self.contract["contract_sha256"]
+                or dispatch.get("reservation_sha256")
+                != reservation.get("reservation_sha256")
+            ):
+                raise NativePoolError("admitted-dispatch-binding-mismatch")
+            leases = [copy.deepcopy(dict(lease)) for lease in _preacquired_leases]
+            if [lease.get("child_id") for lease in leases] != self.child_ids:
+                raise NativePoolError("admitted-lease-set-child-mismatch")
+            for lease in leases:
+                lease_errors = validate_lease(lease, contract=self.contract)
+                if lease_errors or lease.get("lifecycle_state") != "acquired":
+                    raise NativePoolError("admitted-lease-set-invalid")
+            if dispatch.get("lease_set_sha256") != canonical_sha256(
+                {"leases": leases}
+            ):
+                raise NativePoolError("admitted-lease-set-sha256-mismatch")
+            registry_by_id = {
+                str(lease["lease_id"]): lease
+                for lease in self.lease_registry.snapshot()
+            }
+            if any(
+                registry_by_id.get(str(lease["lease_id"])) != lease
+                for lease in leases
+            ):
+                raise NativePoolError("admitted-lease-set-registry-mismatch")
+            self._leases = {
+                str(lease["child_id"]): lease for lease in leases
+            }
+            self._admission_reservation = copy.deepcopy(dict(reservation))
+            self._dispatch_receipt = copy.deepcopy(dict(dispatch))
         self._progress: dict[str, dict[str, Any]] = {
             child_id: {
                 "status": "pending",
@@ -1635,15 +1714,60 @@ class NativePoolCoordinator:
         )
 
     def _build_receipt(self) -> dict[str, Any]:
+        admitted_v2 = (
+            self._admission_reservation is not None
+            and self._dispatch_receipt is not None
+        )
         child_receipts = []
         dispositions = []
-        for child_id in self.child_ids:
+        for child_contract in self.children:
+            child_id = str(child_contract["child_id"])
             child = self._child_state(child_id)
             receipt_hash = child.get("child_receipt_sha256") or canonical_sha256(
                 {"child_id": child_id, "terminal_state": "control-failed", "reason": "not-admitted"}
             )
-            child_receipts.append({"child_id": child_id, "receipt_sha256": receipt_hash})
-            dispositions.append({"child_id": child_id, **self._dispositions[child_id]})
+            child_receipt = {
+                "child_id": child_id,
+                "receipt_sha256": receipt_hash,
+            }
+            disposition = {"child_id": child_id, **self._dispositions[child_id]}
+            if admitted_v2:
+                child_receipt.update(
+                    {
+                        field: child_contract[field]
+                        for field in (
+                            "bead_id",
+                            "work_unit_id",
+                            "packet_sha256",
+                            "admitted_child_sha256",
+                        )
+                    }
+                )
+                implementation_close = (
+                    disposition["session_disposition"]
+                    in {"accepted", "accepted-with-warning"}
+                    and disposition["artifact_disposition"] == "accepted"
+                )
+                disposition.update(
+                    {
+                        field: child_contract[field]
+                        for field in (
+                            "bead_id",
+                            "work_unit_id",
+                            "packet_sha256",
+                            "admitted_child_sha256",
+                        )
+                    }
+                )
+                disposition.update(
+                    {
+                        "implementation_bead_close_authorized": implementation_close,
+                        "parent_close_authorized": False,
+                        "publication_close_authorized": False,
+                    }
+                )
+            child_receipts.append(child_receipt)
+            dispositions.append(disposition)
         lease_evidence = [
             {
                 "lease_id": self._leases[child_id]["lease_id"],
@@ -1683,11 +1807,14 @@ class NativePoolCoordinator:
             if accepted_children
             else "rejected"
         )
-        value = seal_artifact(
-            {
+        receipt_body = {
                 "receipt_type": POOL_RECEIPT_TYPE,
-                "version": VERSION,
-                "schema": POOL_RECEIPT_SCHEMA,
+                "version": ADMITTED_POOL_VERSION if admitted_v2 else VERSION,
+                "schema": (
+                    ADMITTED_POOL_RECEIPT_SCHEMA
+                    if admitted_v2
+                    else POOL_RECEIPT_SCHEMA
+                ),
                 "pool_id": self.contract["pool_id"],
                 "pool_epoch": self.contract["pool_epoch"],
                 "contract_sha256": self.contract["contract_sha256"],
@@ -1718,10 +1845,29 @@ class NativePoolCoordinator:
                 "pool_disposition": pool_disposition,
                 "accepting": accepting,
                 **self._stop_metadata,
-            },
+            }
+        if admitted_v2:
+            assert self._admission_reservation is not None
+            assert self._dispatch_receipt is not None
+            receipt_body.update(
+                {
+                    "reservation_sha256": self._admission_reservation[
+                        "reservation_sha256"
+                    ],
+                    "dispatch_sha256": self._dispatch_receipt["dispatch_sha256"],
+                }
+            )
+        value = seal_artifact(
+            receipt_body,
             "receipt_sha256",
         )
-        errors = validate_pool_receipt(value, contract=self.contract, terminal_state=self._state)
+        errors = validate_pool_receipt(
+            value,
+            contract=self.contract,
+            terminal_state=self._state,
+            admission_reservation=self._admission_reservation,
+            dispatch_receipt=self._dispatch_receipt,
+        )
         if errors:
             raise NativePoolError("pool-receipt-invalid:" + ";".join(errors))
         return value
@@ -1989,6 +2135,46 @@ class NativePoolCoordinator:
             "decision": dict(self._decision) if self._decision is not None else None,
             "receipt": dict(self._receipt) if self._receipt is not None else None,
         }
+
+
+def _build_admitted_pool_coordinator(
+    contract: Mapping[str, Any],
+    child_contracts: Mapping[str, Mapping[str, Any]],
+    task_inputs: Mapping[str, str],
+    child_callbacks: Mapping[str, Mapping[str, Callable[..., Any]]],
+    *,
+    pool_callbacks: Mapping[str, Callable[..., Any]],
+    lease_registry: PoolLeaseRegistry,
+    capability_receipt: Mapping[str, Any] | None,
+    preacquired_leases: Sequence[Mapping[str, Any]],
+    reservation_receipt: Mapping[str, Any],
+    dispatch_receipt: Mapping[str, Any],
+    state_file: Path | str | None = None,
+    decision_file: Path | str | None = None,
+    control_file: Path | str | None = None,
+    policy_document: Mapping[str, Any] | None = None,
+) -> NativePoolCoordinator:
+    """Internal bridge used only after admitted authority has been consumed."""
+
+    return NativePoolCoordinator(
+        contract,
+        child_contracts,
+        task_inputs,
+        child_callbacks,
+        pool_callbacks=pool_callbacks,
+        lease_registry=lease_registry,
+        capability_receipt=capability_receipt,
+        state_file=state_file,
+        decision_file=decision_file,
+        control_file=control_file,
+        policy_document=policy_document,
+        _admitted_bridge_token=_ADMITTED_POOL_BRIDGE_TOKEN,
+        _preacquired_leases=preacquired_leases,
+        _admission_evidence={
+            "reservation": reservation_receipt,
+            "dispatch": dispatch_receipt,
+        },
+    )
 
 
 def run_native_pool(

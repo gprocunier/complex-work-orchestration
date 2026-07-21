@@ -24,6 +24,8 @@ from cwo_core.native_pool_admission import (  # noqa: E402
     canonical_admission_sha256,
     reserve_pool_cohort,
 )
+from cwo_core.native_pool_admitted import run_admitted_native_pool  # noqa: E402
+from cwo_core.native_pool import NativePoolCoordinator, NativePoolError  # noqa: E402
 from cwo_core.native_pool_config import (  # noqa: E402
     ADMITTED_RENDER_REQUEST_SCHEMA,
     RENDER_REQUEST_SCHEMA,
@@ -32,13 +34,19 @@ from cwo_core.native_pool_config import (  # noqa: E402
 )
 from cwo_core.native_pool_contracts import (  # noqa: E402
     ADMITTED_POOL_CONTRACT_SCHEMA,
+    ADMITTED_POOL_RECEIPT_SCHEMA,
     canonical_sha256,
     seal_artifact,
     validate_pool_artifact,
     validate_pool_contract,
+    validate_pool_receipt,
     write_private_artifact,
+    zero_usage,
 )
-from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
+from cwo_core.native_pool_leases import (  # noqa: E402
+    PoolLeaseRegistry,
+    capture_owner_identity,
+)
 from cwo_core.native_pool_preflight import (  # noqa: E402
     ADMITTED_PREFLIGHT_REQUEST_SCHEMA,
     ADMITTED_PREFLIGHT_RESULT_SCHEMA,
@@ -62,6 +70,7 @@ from tests.test_native_pool_admission import (  # noqa: E402
 )
 from tests.test_native_pool_config import RenderFixture  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload  # noqa: E402
+from tests.test_native_pool import FakeAdapter, FakeClock  # noqa: E402
 from tests.test_native_pool_proportionality import _fixture  # noqa: E402
 
 
@@ -164,9 +173,10 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
         effective_children.append(effective_child)
 
     runner = MemoryBdRunner(items)
+    claim_adapter = _adapter(runner)
     reserved = reserve_pool_cohort(
         AdmissionCandidate(readiness, estimates, assessment, admission_bindings),
-        claim_adapter=_adapter(runner),
+        claim_adapter=claim_adapter,
         admission_nonce="admission-contract-test",
         live_revalidate=_live,
         now="2026-07-21T20:00:02Z",
@@ -249,10 +259,347 @@ def _admitted_artifacts(root: Path) -> tuple[RenderFixture, dict, dict, dict]:
     contract["pool_epoch"] = preflight_request["pool_epoch"]
     contract = seal_artifact(contract, "contract_sha256")
     preflight_request["pool_contract"] = contract
+    fixture.admission_capability = reserved.capability
+    fixture.claim_adapter = claim_adapter
+    fixture.claim_runner = runner
+    fixture.pool_capability_receipt = capability
     return fixture, reserved.receipt, contract, preflight_request
 
 
+def _execution_inputs(
+    fixture: RenderFixture, contract: dict
+) -> tuple[dict, dict, dict, dict, dict, FakeClock]:
+    clock = FakeClock()
+    tasks = {
+        child["child_id"]: f"task-{index}"
+        for index, child in enumerate(contract["children"])
+    }
+    child_contracts = {
+        child["child_id"]: json.loads(
+            Path(fixture.request["children"][index]["control_contract_file"])
+            .read_text(encoding="utf-8")
+        )
+        for index, child in enumerate(contract["children"])
+    }
+    adapters = {
+        child["child_id"]: FakeAdapter(clock, ["complete"])
+        for child in contract["children"]
+    }
+
+    def read_child_evidence(*, child_id: str, state_file: str) -> dict:
+        return {
+            "state_sha256": canonical_sha256(
+                {
+                    "child_id": child_id,
+                    "state_file": state_file,
+                    "calls": adapters[child_id].calls,
+                }
+            ),
+            "usage": zero_usage(),
+            "protected_fault": False,
+            "control_loss": False,
+            "reasons": [],
+            "session_disposition": "accepted",
+            "artifact_disposition": "accepted",
+        }
+
+    def compare_workspaces(*, contract: dict, phase: str) -> dict:
+        del contract, phase
+        evidence = {
+            "integration_root_clean": True,
+            "shared_read_only_clean": True,
+            "child_worktrees_clean": True,
+        }
+        return {**evidence, "evidence_sha256": canonical_sha256(evidence)}
+
+    pool_callbacks = {
+        "monotonic_ns": clock.monotonic_ns,
+        "sleep": clock.sleep,
+        "now_utc": clock.now_utc,
+        "read_child_evidence": read_child_evidence,
+        "compare_workspaces": compare_workspaces,
+    }
+    return (
+        child_contracts,
+        tasks,
+        {child_id: adapter.callbacks() for child_id, adapter in adapters.items()},
+        adapters,
+        pool_callbacks,
+        clock,
+    )
+
+
 class NativePoolAdmissionContractTests(unittest.TestCase):
+    def _launch(
+        self,
+        root: Path,
+        fixture: RenderFixture,
+        reservation: dict,
+        contract: dict,
+        request: dict,
+        result: dict,
+        *,
+        registry: PoolLeaseRegistry | None = None,
+    ) -> tuple[dict, PoolLeaseRegistry, dict]:
+        (
+            child_contracts,
+            tasks,
+            child_callbacks,
+            adapters,
+            pool_callbacks,
+            _clock,
+        ) = _execution_inputs(fixture, contract)
+        effective_registry = registry or PoolLeaseRegistry(
+            root / "admitted-leases.json",
+            owner_alive=lambda _owner: True,
+            now=FakeClock.now_utc,
+        )
+        launched = run_admitted_native_pool(
+            reservation,
+            fixture.admission_capability,
+            contract,
+            request,
+            result,
+            child_contracts,
+            tasks,
+            child_callbacks,
+            claim_adapter=fixture.claim_adapter,
+            live_revalidate=_live,
+            pool_callbacks=pool_callbacks,
+            lease_registry=effective_registry,
+            capability_receipt=fixture.pool_capability_receipt,
+        )
+        return launched, effective_registry, adapters
+
+    def test_admitted_n2_consumes_once_and_emits_exact_v2_terminal_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, reservation, contract, request = _admitted_artifacts(root)
+            result = run_pool_preflight(request)
+            launched, registry, adapters = self._launch(
+                root, fixture, reservation, contract, request, result
+            )
+            dispatch = launched["dispatch_receipt"]
+            receipt = launched["pool_receipt"]
+            self.assertEqual(receipt["version"], 2)
+            self.assertEqual(receipt["schema"], ADMITTED_POOL_RECEIPT_SCHEMA)
+            if HAS_JSONSCHEMA:
+                from jsonschema import Draft202012Validator
+
+                receipt_schema = json.loads(
+                    (ROOT / ADMITTED_POOL_RECEIPT_SCHEMA).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                Draft202012Validator.check_schema(receipt_schema)
+                Draft202012Validator(receipt_schema).validate(receipt)
+            self.assertEqual(
+                (receipt["reservation_sha256"], receipt["dispatch_sha256"]),
+                (reservation["reservation_sha256"], dispatch["dispatch_sha256"]),
+            )
+            self.assertEqual(
+                validate_pool_receipt(
+                    receipt,
+                    contract=contract,
+                    admission_reservation=reservation,
+                    dispatch_receipt=dispatch,
+                ),
+                ["accepting-requires-closed-state"],
+            )
+            self.assertEqual(
+                [item["bead_id"] for item in receipt["child_terminal_receipts"]],
+                [child["bead_id"] for child in contract["children"]],
+            )
+            self.assertTrue(
+                all(
+                    item["implementation_bead_close_authorized"] is True
+                    and item["parent_close_authorized"] is False
+                    and item["publication_close_authorized"] is False
+                    for item in receipt["child_dispositions"]
+                )
+            )
+            self.assertEqual(
+                [item["lifecycle_state"] for item in registry.snapshot()],
+                ["released", "released"],
+            )
+            calls_before = {
+                child_id: list(adapter.calls) for child_id, adapter in adapters.items()
+            }
+            with self.assertRaisesRegex(
+                Exception, "admitted-launch-capability-not-available:retired"
+            ):
+                self._launch(
+                    root, fixture, reservation, contract, request, result,
+                    registry=registry,
+                )
+            self.assertEqual(
+                calls_before,
+                {child_id: list(adapter.calls) for child_id, adapter in adapters.items()},
+            )
+
+            retargeted = copy.deepcopy(receipt)
+            retargeted["child_terminal_receipts"][0]["bead_id"] = contract[
+                "children"
+            ][1]["bead_id"]
+            retargeted = seal_artifact(retargeted, "receipt_sha256")
+            self.assertTrue(
+                any(
+                    "child-receipt[0]-bead-id-mismatch" in error
+                    for error in validate_pool_receipt(
+                        retargeted,
+                        contract=contract,
+                        admission_reservation=reservation,
+                        dispatch_receipt=dispatch,
+                    )
+                )
+            )
+            parent_retargeted = copy.deepcopy(receipt)
+            parent_retargeted["child_dispositions"][0][
+                "parent_close_authorized"
+            ] = True
+            parent_retargeted = seal_artifact(
+                parent_retargeted, "receipt_sha256"
+            )
+            self.assertTrue(
+                any(
+                    "parent-close-authorized-must-be-false" in error
+                    for error in validate_pool_receipt(
+                        parent_retargeted,
+                        contract=contract,
+                        admission_reservation=reservation,
+                        dispatch_receipt=dispatch,
+                    )
+                )
+            )
+
+    def test_admitted_predispatch_rejections_have_zero_callbacks_and_contain_leases(self) -> None:
+        for case in ("v1", "missing", "mix-match", "live-drift"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                fixture, reservation, contract, request = _admitted_artifacts(root)
+                result = run_pool_preflight(request)
+                (
+                    child_contracts,
+                    tasks,
+                    child_callbacks,
+                    adapters,
+                    pool_callbacks,
+                    _clock,
+                ) = _execution_inputs(fixture, contract)
+                if case == "v1":
+                    contract["version"] = 1
+                elif case == "missing":
+                    result = copy.deepcopy(result)
+                    result.pop("admission_reservation_sha256")
+                elif case == "mix-match":
+                    result = copy.deepcopy(result)
+                    result["request_sha256"] = "f" * 64
+                    result["result_sha256"] = canonical_sha256(
+                        {
+                            key: value
+                            for key, value in result.items()
+                            if key != "result_sha256"
+                        }
+                    )
+                else:
+                    bead_id = reservation["issue_ids"][0]
+                    fixture.claim_runner.issues[bead_id]["title"] += " drift"
+                registry = PoolLeaseRegistry(
+                    root / "rejected-leases.json",
+                    owner_alive=lambda _owner: True,
+                    now=FakeClock.now_utc,
+                )
+                with self.assertRaises(Exception):
+                    run_admitted_native_pool(
+                        reservation,
+                        fixture.admission_capability,
+                        contract,
+                        request,
+                        result,
+                        child_contracts,
+                        tasks,
+                        child_callbacks,
+                        claim_adapter=fixture.claim_adapter,
+                        live_revalidate=_live,
+                        pool_callbacks=pool_callbacks,
+                        lease_registry=registry,
+                        capability_receipt=fixture.pool_capability_receipt,
+                    )
+                self.assertTrue(
+                    all(not adapter.calls for adapter in adapters.values())
+                )
+                self.assertEqual(registry.snapshot(), [])
+
+    def test_later_child_lease_collision_has_zero_callbacks_and_no_partial_set(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, reservation, contract, request = _admitted_artifacts(root)
+            result = run_pool_preflight(request)
+            registry = PoolLeaseRegistry(
+                root / "collision-leases.json",
+                owner_alive=lambda _owner: True,
+                now=FakeClock.now_utc,
+            )
+            existing = registry.acquire(contract, contract["children"][1]["child_id"])
+            (
+                child_contracts,
+                tasks,
+                child_callbacks,
+                adapters,
+                pool_callbacks,
+                _clock,
+            ) = _execution_inputs(fixture, contract)
+            with self.assertRaises(Exception):
+                run_admitted_native_pool(
+                    reservation,
+                    fixture.admission_capability,
+                    contract,
+                    request,
+                    result,
+                    child_contracts,
+                    tasks,
+                    child_callbacks,
+                    claim_adapter=fixture.claim_adapter,
+                    live_revalidate=_live,
+                    pool_callbacks=pool_callbacks,
+                    lease_registry=registry,
+                    capability_receipt=fixture.pool_capability_receipt,
+                )
+            self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
+            self.assertEqual(registry.snapshot(), [existing])
+
+    def test_v2_direct_coordinator_path_is_not_productive_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, _reservation, contract, _request = _admitted_artifacts(root)
+            (
+                child_contracts,
+                tasks,
+                child_callbacks,
+                adapters,
+                pool_callbacks,
+                _clock,
+            ) = _execution_inputs(fixture, contract)
+            registry = PoolLeaseRegistry(
+                root / "direct-leases.json",
+                owner_alive=lambda _owner: True,
+                now=FakeClock.now_utc,
+            )
+            with self.assertRaisesRegex(
+                NativePoolError, "admitted-pool-launcher-required"
+            ):
+                NativePoolCoordinator(
+                    contract,
+                    child_contracts,
+                    tasks,
+                    child_callbacks,
+                    pool_callbacks=pool_callbacks,
+                    lease_registry=registry,
+                    capability_receipt=fixture.pool_capability_receipt,
+                )
+            self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
+            self.assertEqual(registry.snapshot(), [])
+
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
     def test_reservation_schema_matches_python_and_registered_validator(self) -> None:
         from jsonschema import Draft202012Validator

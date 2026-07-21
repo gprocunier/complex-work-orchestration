@@ -458,6 +458,60 @@ class PoolLeaseRegistry:
                 raise PoolLeaseError("lease-registry-write-failed") from error
         return requested_leases
 
+    def release_uncommitted_many(
+        self,
+        contract: Mapping[str, Any],
+        acquired: Sequence[Mapping[str, Any]],
+    ) -> None:
+        """Remove the exact pre-dispatch lease set before authority is committed."""
+
+        contract_errors = validate_pool_contract(contract)
+        if contract_errors:
+            raise PoolLeaseError(
+                "pool-contract-invalid:" + ";".join(contract_errors)
+            )
+        expected_child_ids = [
+            str(child["child_id"]) for child in contract["children"]
+        ]
+        supplied = [dict(lease) for lease in acquired]
+        if [lease.get("child_id") for lease in supplied] != expected_child_ids:
+            raise PoolLeaseError("uncommitted-lease-set-child-mismatch")
+        for lease in supplied:
+            errors = validate_lease(lease, contract=contract)
+            if errors or lease.get("lifecycle_state") != "acquired":
+                raise PoolLeaseError("uncommitted-lease-set-invalid")
+
+        supplied_by_id = {str(lease["lease_id"]): lease for lease in supplied}
+        if len(supplied_by_id) != len(supplied):
+            raise PoolLeaseError("uncommitted-lease-set-duplicate")
+        with self._locked():
+            staged = self._load_unlocked()
+            current_by_id = {
+                str(lease["lease_id"]): lease
+                for lease in staged
+                if str(lease["lease_id"]) in supplied_by_id
+            }
+            if current_by_id != supplied_by_id:
+                raise PoolLeaseError("uncommitted-lease-set-drift")
+            previous = self.path.read_bytes() if self.path.exists() else None
+            retained = [
+                lease
+                for lease in staged
+                if str(lease["lease_id"]) not in supplied_by_id
+            ]
+            try:
+                self._write_unlocked(retained)
+            except (PoolLeaseError, OSError, ValueError) as error:
+                try:
+                    self._restore_bytes_unlocked(previous)
+                except (OSError, ValueError) as rollback_error:
+                    raise PoolLeaseError(
+                        "lease-registry-rollback-failed"
+                    ) from rollback_error
+                if isinstance(error, PoolLeaseError):
+                    raise
+                raise PoolLeaseError("lease-registry-write-failed") from error
+
     def _transition(
         self,
         lease_id: str,
