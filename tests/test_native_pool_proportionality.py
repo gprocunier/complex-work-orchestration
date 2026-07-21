@@ -12,6 +12,7 @@ import sys
 from tempfile import TemporaryDirectory
 from threading import Barrier
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -736,6 +737,82 @@ class NativePoolProportionalityTests(unittest.TestCase):
                     "action_sha256": artifacts["action_sha256"]
                 },
             )
+
+    def test_override_rejects_verifier_subclass_and_invalid_results(self) -> None:
+        readiness, estimates, _, policy = _fixture([120, 120])
+        baseline = pool_proportionality_check(
+            readiness,
+            estimates,
+            requested_workers=2,
+            policy_document=policy,
+        )
+        cohort = _evaluation(baseline, ["bead-a", "bead-b"])
+        reason = "Operator accepts one exact protected exception."
+        artifacts = proportionality_override_artifacts(
+            baseline,
+            cohort_sha256=cohort["cohort_sha256"],
+            reason=reason,
+        )
+        assessment = proportionality_override_assessment(
+            baseline,
+            artifacts,
+            cohort_sha256=cohort["cohort_sha256"],
+        )
+        key = b"proportionality-hostile-verifier-key"
+        receipt = _signed_approval(
+            key,
+            assessment.before_subject,
+            assessment.after_subject,
+        )
+
+        class OverridingVerifier(OperatorApprovalVerifier):
+            calls = 0
+
+            def authorize_assessment(self, *args, **kwargs):
+                type(self).calls += 1
+                return []
+
+        subclass = OverridingVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            replay_store_path=self.replay_store(),
+            now=datetime(2026, 7, 20, 20, 15, tzinfo=timezone.utc),
+        )
+        with self.assertRaisesRegex(
+            PoolProportionalityError, "operator-approval-verifier-required"
+        ):
+            verify_proportionality_override(
+                baseline,
+                cohort_sha256=cohort["cohort_sha256"],
+                reason=reason,
+                approval_receipt=receipt,
+                operator_approval_verifier=subclass,
+                policy_document=policy,
+            )
+        self.assertEqual(OverridingVerifier.calls, 0)
+
+        verifier = OperatorApprovalVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            replay_store_path=self.replay_store(),
+            now=datetime(2026, 7, 20, 20, 15, tzinfo=timezone.utc),
+        )
+        for returned, error in (([], "result-set"), ([object()], "result-type")):
+            with self.subTest(error=error), patch.object(
+                OperatorApprovalVerifier,
+                "authorize_assessment",
+                return_value=returned,
+            ), self.assertRaisesRegex(PoolProportionalityError, error):
+                verify_proportionality_override(
+                    baseline,
+                    cohort_sha256=cohort["cohort_sha256"],
+                    reason=reason,
+                    approval_receipt=receipt,
+                    operator_approval_verifier=verifier,
+                    policy_document=policy,
+                )
 
     def test_verified_override_is_atomically_single_use(self) -> None:
         readiness, estimates, _, policy = _fixture([120, 120])

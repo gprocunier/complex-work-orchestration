@@ -742,6 +742,36 @@ class BeadsReadySetTests(unittest.TestCase):
             {reason["code"] for reason in reasons},
         )
 
+    def test_authority_change_rejects_verifier_subclass_before_audit_call(self) -> None:
+        replay_store = self.replay_store()
+        item, _ = authority_approved_item(replay_store)
+
+        class OverridingVerifier(OperatorApprovalVerifier):
+            calls = 0
+
+            def validate_assessment_audits(self, *args, **kwargs):
+                type(self).calls += 1
+                return None
+
+        verifier = OverridingVerifier(
+            verification_key=b"ready-set-test-operator-key",
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            replay_store_path=replay_store,
+            now="2026-07-20T20:15:00Z",
+        )
+        candidate, reasons = evaluate_ready_candidate(
+            item,
+            rank=0,
+            operator_approval_verifier=verifier,
+        )
+        self.assertIsNone(candidate)
+        self.assertIn(
+            "operator-approval-verifier-invalid",
+            {reason["code"] for reason in reasons},
+        )
+        self.assertEqual(OverridingVerifier.calls, 0)
+
     def test_malformed_authority_capability_receipt_excludes_only_that_leaf(self) -> None:
         malformed, verifier = authority_approved_item(self.replay_store())
         malformed["raw"]["metadata"]["cwo_ready_set_admission"][

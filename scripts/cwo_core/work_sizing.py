@@ -21,6 +21,7 @@ from cwo_core.native_authority import (
     canonical_json_object,
     is_sha256,
     protected_change_identity,
+    require_exact_operator_approval_results,
     require_minimum_authority,
     validate_authority_provenance,
     validate_operator_approval_audit,
@@ -1628,6 +1629,12 @@ def build_work_estimate_refinement(
 ) -> dict[str, Any]:
     """Build a strict-write refinement bound to its parent and trusted actor."""
 
+    if (
+        operator_approval_verifier is not None
+        and type(operator_approval_verifier) is not OperatorApprovalVerifier
+    ):
+        raise ValueError("exact operator approval verifier required")
+
     try:
         parent = canonical_json_object(
             parent_estimate, label="parent-estimate"
@@ -1695,7 +1702,7 @@ def build_work_estimate_refinement(
         raise ValueError(str(exc)) from exc
     approvals = []
     if protected_changes:
-        if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
+        if type(operator_approval_verifier) is not OperatorApprovalVerifier:
             raise ValueError(
                 "work-estimate refinement requires a verified operator approval for: "
                 + ",".join(protected_changes)
@@ -1710,6 +1717,10 @@ def build_work_estimate_refinement(
                         "protected_change_authorizations", []
                     )
                 },
+            )
+            approvals = require_exact_operator_approval_results(
+                approvals,
+                assessment,
             )
         except AuthorityProvenanceError as exc:
             raise ValueError(str(exc)) from exc
@@ -1741,6 +1752,11 @@ def validate_work_estimate_refinement(
     """Validate a refinement chain before it can drive a new operative write."""
 
     errors: list[str] = []
+    if (
+        operator_approval_verifier is not None
+        and type(operator_approval_verifier) is not OperatorApprovalVerifier
+    ):
+        return ["exact operator approval verifier required"]
     try:
         parent = canonical_json_object(parent_estimate, label="parent-estimate")
         candidate = canonical_json_object(refinement, label="refinement")
@@ -1803,7 +1819,7 @@ def validate_work_estimate_refinement(
         )
         protected_changes = list(assessment.required_change_types)
         if protected_changes:
-            if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
+            if type(operator_approval_verifier) is not OperatorApprovalVerifier:
                 errors.append(
                     "refinement operator approval verifier required for: "
                     + ",".join(protected_changes)

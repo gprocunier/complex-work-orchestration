@@ -7,6 +7,7 @@ import multiprocessing
 import os
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
@@ -19,6 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_FIELDS,
+    OPERATOR_APPROVAL_REPLAY_THREAT_BOUNDARY,
     OPERATOR_REQUIRED_CHANGE_TYPES,
     AuthorityProvenanceError,
     OPERATOR_APPROVAL_TYPE,
@@ -843,6 +845,98 @@ class NativeAuthorityTest(unittest.TestCase):
         os.link(linked_store, self.replay_store("second-link.json"))
         with self.assertRaisesRegex(AuthorityProvenanceError, "file-invalid"):
             self.verifier(key, store=linked_store).consumed_nonces
+
+        public_parent = self.replay_root / "public-parent"
+        public_parent.mkdir(mode=0o755)
+        public_parent.chmod(0o755)
+        with self.assertRaisesRegex(AuthorityProvenanceError, "parent-invalid"):
+            self.verifier(key, store=public_parent / "replay.json")
+
+    def test_keyed_replay_store_rejects_canonical_resets_and_rewrites(self) -> None:
+        key = b"keyed-replay-store-key"
+        assessment = assess_operator_required_changes(
+            {"objective": "before", "requested_model": "model-a"},
+            {"objective": "after", "requested_model": "model-b"},
+            operator_required_for=OPERATOR_REQUIRED_CHANGE_TYPES,
+            profile="native-replanning-refinement",
+            identity=assessment_identity("keyed-ledger-packet"),
+        )
+        receipts = {
+            "model-substitution": signed_approval(
+                key,
+                assessment.before_subject,
+                assessment.after_subject,
+                change_type="model-substitution",
+                nonce="keyed-model-nonce",
+            ),
+            "objective-change": signed_approval(
+                key,
+                assessment.before_subject,
+                assessment.after_subject,
+                change_type="objective-change",
+                nonce="keyed-objective-nonce",
+            ),
+        }
+        store = self.replay_store("keyed-ledger.json")
+        verifier = self.verifier(key, store=store)
+        verifier.authorize_assessment(assessment, receipts=receipts)
+        original = json.loads(store.read_text(encoding="utf-8"))
+        self.assertEqual(original["version"], 2)
+        self.assertIn("store_hmac_sha256", original)
+
+        reset = {
+            "store_type": original["store_type"],
+            "version": original["version"],
+            "entries": [],
+        }
+        reset["store_hmac_sha256"] = canonical_authority_sha256(reset)
+        store.write_text(
+            json.dumps(reset, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        store.chmod(0o600)
+        with self.assertRaisesRegex(AuthorityProvenanceError, "hmac-mismatch"):
+            verifier.consumed_nonces
+
+        retained_mac_reset = deepcopy(reset)
+        retained_mac_reset["store_hmac_sha256"] = original["store_hmac_sha256"]
+        store.write_text(
+            json.dumps(
+                retained_mac_reset,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(AuthorityProvenanceError, "hmac-mismatch"):
+            verifier.consumed_nonces
+
+        reordered = deepcopy(original)
+        reordered["entries"].reverse()
+        store.write_text(
+            json.dumps(reordered, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(AuthorityProvenanceError, "noncanonical"):
+            verifier.consumed_nonces
+
+        store.write_text(
+            json.dumps(original, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(AuthorityProvenanceError, "hmac-mismatch"):
+            self.verifier(b"different-replay-key", store=store).consumed_nonces
+
+        self.assertIn(
+            "same-UID unrestricted filesystem access",
+            OPERATOR_APPROVAL_REPLAY_THREAT_BOUNDARY,
+        )
+        self.assertIn("verifier key", OPERATOR_APPROVAL_REPLAY_THREAT_BOUNDARY)
+        self.assertIn(
+            "external trusted monotonic anchor",
+            OPERATOR_APPROVAL_REPLAY_THREAT_BOUNDARY,
+        )
 
     def test_failed_receipt_set_and_persistence_failure_grant_no_authority(self) -> None:
         key = b"persistence-failure-key"

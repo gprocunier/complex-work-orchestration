@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping
+import hashlib
+import hmac
+import json
+import os
+import secrets
+from threading import RLock
 from typing import Any
+import weakref
 
 from .native_authority import (
     OPERATOR_REQUIRED_CHANGE_TYPES,
@@ -14,6 +21,7 @@ from .native_authority import (
     canonical_authority_sha256,
     canonical_json_object,
     protected_change_identity,
+    require_exact_operator_approval_results,
     require_minimum_authority,
     validate_authority_provenance,
     validate_operator_approval_audit,
@@ -25,6 +33,13 @@ REPLANNING_RECEIPT_TYPE = "cwo-native-replanning-receipt"
 SCHEMA_PATH = "schemas/native-replanning-state.schema.json"
 REPLANNING_VERSION = 3
 _VERIFIED_REPLANNING_STATE_TOKEN = object()
+_REPLANNING_STATE_CAPABILITY_KEY = secrets.token_bytes(32)
+_REPLANNING_STATE_CAPABILITY_CONTEXT = b"cwo-native-replanning-live-state-v1\x00"
+_REPLANNING_STATE_REGISTRY_LOCK = RLock()
+_REPLANNING_STATE_REGISTRY: dict[
+    int, tuple[weakref.ReferenceType["VerifiedReplanningState"], str]
+] = {}
+_BOOTSTRAPPED_REPLANNING_IDENTITIES: set[tuple[str, str, str]] = set()
 MAIN_THREAD_SOURCE_TURN_CONTEXT = "trusted-turn-context"
 MAIN_THREAD_SOURCE_USER = "user-declaration"
 REQUIRED_MAIN_THREAD_RUNTIME_FIELDS = (
@@ -136,64 +151,135 @@ REPLANNING_BOOTSTRAP_FIELDS = frozenset(
 )
 
 
-class VerifiedReplanningState(dict[str, Any]):
-    """Opaque sealed strict-write state; serialized copies are audit-only."""
+class VerifiedReplanningState(Mapping[str, Any]):
+    """Process-local immutable state capability; projections are audit-only."""
+
+    __slots__ = ("__payload_json", "__weakref__")
 
     def __init__(self, payload: Mapping[str, Any], token: object) -> None:
         if token is not _VERIFIED_REPLANNING_STATE_TOKEN:
             raise ValueError("replanning-state-construction-forbidden")
-        dict.__init__(self, copy.deepcopy(dict(payload)))
+        canonical = canonical_json_object(payload, label="replanning-state")
+        object.__setattr__(
+            self,
+            "_VerifiedReplanningState__payload_json",
+            json.dumps(
+                canonical,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            ),
+        )
 
-    @staticmethod
-    def _sealed() -> None:
+    def __setattr__(self, name: str, value: Any) -> None:
         raise TypeError("verified replanning state is sealed")
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        self._sealed()
-
-    def __delitem__(self, key: str) -> None:
-        self._sealed()
-
-    def clear(self) -> None:
-        self._sealed()
-
-    def pop(self, key: str, default: Any = None) -> Any:
-        self._sealed()
-
-    def popitem(self) -> tuple[str, Any]:
-        self._sealed()
-
-    def setdefault(self, key: str, default: Any = None) -> Any:
-        self._sealed()
-
-    def update(self, *args: Any, **kwargs: Any) -> None:
-        self._sealed()
-
-    def __ior__(self, other: Any):
-        self._sealed()
-
     def __getitem__(self, key: str) -> Any:
-        return copy.deepcopy(dict.__getitem__(self, key))
+        return json.loads(self.__payload_json)[key]
 
-    def get(self, key: str, default: Any = None) -> Any:
-        if key not in self:
-            return copy.deepcopy(default)
-        return self[key]
+    def __iter__(self):
+        return iter(tuple(json.loads(self.__payload_json)))
 
-    def items(self):
-        return tuple((key, self[key]) for key in dict.__iter__(self))
-
-    def values(self):
-        return tuple(self[key] for key in dict.__iter__(self))
+    def __len__(self) -> int:
+        return len(json.loads(self.__payload_json))
 
     def copy(self) -> dict[str, Any]:
-        return copy.deepcopy(dict(self.items()))
+        return json.loads(self.__payload_json)
+
+    def __copy__(self) -> dict[str, Any]:
+        return self.copy()
 
     def __deepcopy__(self, memo: dict[int, Any]) -> dict[str, Any]:
-        return copy.deepcopy(dict(self.items()), memo)
+        return copy.deepcopy(self.copy(), memo)
+
+    def __reduce__(self):
+        return (dict, (self.copy(),))
 
     def serialize(self) -> dict[str, Any]:
         return self.copy()
+
+
+def _replanning_identity(state: Mapping[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(state["work_unit_id"]),
+        str(state["bead_id"]),
+        str(state["packet_id"]),
+    )
+
+
+def _replanning_capability_mac(state: VerifiedReplanningState) -> str:
+    payload_json = object.__getattribute__(
+        state, "_VerifiedReplanningState__payload_json"
+    )
+    if type(payload_json) is not str:
+        raise ValueError("replanning-state-capability-payload-invalid")
+    message = (
+        _REPLANNING_STATE_CAPABILITY_CONTEXT
+        + str(os.getpid()).encode("ascii")
+        + b"\x00"
+        + str(id(state)).encode("ascii")
+        + b"\x00"
+        + payload_json.encode("utf-8")
+    )
+    return hmac.new(
+        _REPLANNING_STATE_CAPABILITY_KEY,
+        message,
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _register_replanning_state(
+    state: VerifiedReplanningState,
+    *,
+    bootstrap: bool,
+) -> VerifiedReplanningState:
+    identity = _replanning_identity(state)
+    object_id = id(state)
+
+    def remove(reference: weakref.ReferenceType[VerifiedReplanningState]) -> None:
+        with _REPLANNING_STATE_REGISTRY_LOCK:
+            current = _REPLANNING_STATE_REGISTRY.get(object_id)
+            if current is not None and current[0] is reference:
+                _REPLANNING_STATE_REGISTRY.pop(object_id, None)
+
+    with _REPLANNING_STATE_REGISTRY_LOCK:
+        if bootstrap and identity in _BOOTSTRAPPED_REPLANNING_IDENTITIES:
+            raise ValueError("replanning-lifecycle-already-bootstrapped")
+        reference = weakref.ref(state, remove)
+        _REPLANNING_STATE_REGISTRY[object_id] = (
+            reference,
+            _replanning_capability_mac(state),
+        )
+        if bootstrap:
+            _BOOTSTRAPPED_REPLANNING_IDENTITIES.add(identity)
+    return state
+
+
+def _require_live_replanning_state(state: Any) -> VerifiedReplanningState:
+    if type(state) is not VerifiedReplanningState:
+        if isinstance(state, Mapping) and state.get("version") in {1, 2}:
+            raise ValueError(
+                "malformed state: historical replanning state is inspection-only"
+            )
+        raise ValueError(
+            "malformed state: live verifier-minted replanning state required; "
+            "serialized state is inspection-only"
+        )
+    with _REPLANNING_STATE_REGISTRY_LOCK:
+        registered = _REPLANNING_STATE_REGISTRY.get(id(state))
+        if registered is None or registered[0]() is not state:
+            raise ValueError("malformed state: replanning live capability unregistered")
+        try:
+            observed_mac = _replanning_capability_mac(state)
+        except (AttributeError, TypeError, UnicodeError, ValueError) as exc:
+            raise ValueError(
+                "malformed state: replanning live capability invalid"
+            ) from exc
+        if not hmac.compare_digest(registered[1], observed_mac):
+            raise ValueError("malformed state: replanning live capability integrity mismatch")
+    _validate_replanning_state(state)
+    return state
 
 
 def _valid_string_list(value: Any, *, nonempty: bool = False) -> bool:
@@ -695,6 +781,19 @@ def _normalize_terminal_latches(
 
 def _normalize_counters(value: Any, *, path: str) -> dict[str, int]:
     source = _ensure_mapping(value, path=path)
+    expected = {
+        "dispatches",
+        "tool_calls_used",
+        "runtime_seconds_used",
+        "context_compactions",
+        "pm_replans_used",
+        "architect_cycles_used",
+    }
+    unknown = sorted(set(source) - expected)
+    if unknown:
+        raise ValueError(
+            f"malformed payload: {path} has unknown field(s) {','.join(unknown)}"
+        )
     return {
         "dispatches": _ensure_int(source.get("dispatches", 0), path=f"{path}.dispatches", minimum=0),
         "tool_calls_used": _ensure_int(source.get("tool_calls_used", 0), path=f"{path}.tool_calls_used", minimum=0),
@@ -906,7 +1005,11 @@ def _replanning_state_sha256(state: Mapping[str, Any]) -> str:
     return canonical_authority_sha256(_state_integrity_subject(state))
 
 
-def _seal_replanning_state(state: Mapping[str, Any]) -> VerifiedReplanningState:
+def _seal_replanning_state(
+    state: Mapping[str, Any],
+    *,
+    bootstrap: bool = False,
+) -> VerifiedReplanningState:
     payload = canonical_json_object(state, label="replanning-state")
     digest = _replanning_state_sha256(payload)
     payload["state_sha256"] = digest
@@ -914,7 +1017,11 @@ def _seal_replanning_state(state: Mapping[str, Any]) -> VerifiedReplanningState:
     if type(receipt) is not dict:
         raise ValueError("malformed state: replanning receipt must be an object")
     receipt["state_sha256"] = digest
-    return VerifiedReplanningState(payload, _VERIFIED_REPLANNING_STATE_TOKEN)
+    _validate_replanning_state(payload)
+    capability = VerifiedReplanningState(
+        payload, _VERIFIED_REPLANNING_STATE_TOKEN
+    )
+    return _register_replanning_state(capability, bootstrap=bootstrap)
 
 
 def _emit_receipt(
@@ -1117,7 +1224,7 @@ def _apply_operator_protected_refinement(
         raise ValueError(str(exc)) from exc
     approvals = []
     if protected_changes:
-        if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
+        if type(operator_approval_verifier) is not OperatorApprovalVerifier:
             raise ValueError(
                 "verified operator approval required for: "
                 + ",".join(protected_changes)
@@ -1131,6 +1238,10 @@ def _apply_operator_protected_refinement(
                     for approval in state["protected_change_authorizations"]
                 },
             )
+            approvals = require_exact_operator_approval_results(
+                approvals,
+                assessment,
+            )
         except AuthorityProvenanceError as exc:
             raise ValueError(str(exc)) from exc
     elif receipts:
@@ -1143,12 +1254,20 @@ def _apply_operator_protected_refinement(
     return audit
 
 
-def build_replanning_state(
+def bootstrap_replanning_state(
     state: Any,
     *,
     caller_authority: VerifiedAuthority,
     policy: Mapping[str, Any] | None = None,
 ) -> VerifiedReplanningState:
+    """Mint one fresh planned lifecycle from trusted bootstrap input.
+
+    Serialized lifecycle projections cannot be resumed here: lifecycle state,
+    counters, latches, mutation, and lineage are fixed to fresh values, and an
+    identity may be bootstrapped only once per process. Cross-process rollback
+    resistance requires a trusted external lifecycle anchor.
+    """
+
     try:
         source = canonical_json_object(state, label="replanning-bootstrap")
     except AuthorityProvenanceError as exc:
@@ -1170,13 +1289,15 @@ def build_replanning_state(
     policy_data = _normalize_autonomous_policy(policy)
 
     replanning_state = str(source.get("state", "planned"))
-    if replanning_state not in REQUIRED_STATES:
-        raise ValueError("malformed payload: state.state must be a valid replanning state")
+    if replanning_state != "planned":
+        raise ValueError("malformed bootstrap: state must be planned")
 
     counters = _normalize_counters(
-        source.get("counters", source),
-        path="state",
+        source.get("counters", {}),
+        path="state.counters",
     )
+    if any(counters.values()):
+        raise ValueError("malformed bootstrap: counters must all be zero")
     allowance = _normalize_allowance(
         source.get("aggregate_allowance", source),
         policy=policy_data,
@@ -1186,6 +1307,8 @@ def build_replanning_state(
         source.get("mutation", {}),
         path="state.mutation",
     )
+    if any(mutation.values()):
+        raise ValueError("malformed bootstrap: mutation flags must be false")
     terminal_latches = _normalize_terminal_latches(
         source.get(
             "terminal_latches",
@@ -1200,6 +1323,8 @@ def build_replanning_state(
         path="state.terminal_latches",
     )
     terminal_latches["tainted"] = terminal_latches["tainted"] or mutation["tainted"]
+    if any(terminal_latches.values()):
+        raise ValueError("malformed bootstrap: terminal latches must be false")
     mutation["tainted"] = terminal_latches["tainted"]
     main_thread = _normalize_main_thread(
         source.get("main_thread", {}),
@@ -1238,6 +1363,14 @@ def build_replanning_state(
             "live_replay_enabled": policy_data["live_replay_enabled"],
         },
     }
+    if not result["model_match"] or not result["control_healthy"]:
+        raise ValueError(
+            "malformed bootstrap: model and control health must start true"
+        )
+    if result["reason_codes"]:
+        raise ValueError("malformed bootstrap: reason_codes must be empty")
+    if result["next_action"] != "wait":
+        raise ValueError("malformed bootstrap: next_action must be wait")
     result["cwo_native_replanning_receipt"] = _emit_receipt(
         state_before=replanning_state,
         state_after=replanning_state,
@@ -1247,9 +1380,24 @@ def build_replanning_state(
         reason_codes=[],
         state=result,
     )
-    sealed = _seal_replanning_state(result)
+    sealed = _seal_replanning_state(result, bootstrap=True)
     _validate_replanning_state(sealed)
     return sealed
+
+
+def build_replanning_state(
+    state: Any,
+    *,
+    caller_authority: VerifiedAuthority,
+    policy: Mapping[str, Any] | None = None,
+) -> VerifiedReplanningState:
+    """Compatibility name for the explicit trusted bootstrap action."""
+
+    return bootstrap_replanning_state(
+        state,
+        caller_authority=caller_authority,
+        policy=policy,
+    )
 
 
 _REPLANNING_STATE_FIELDS = frozenset(
@@ -1465,23 +1613,12 @@ def _transition_replanning_state(
     operator_approval_receipts: Mapping[str, Any] | None = None,
     policy: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any]:
-    source = _ensure_mapping(state, path="state")
-    result_type = source.get("result_type")
-    source_is_raw = result_type is None
-    if source_is_raw:
-        source = build_replanning_state(
-            source,
-            caller_authority=caller_authority,
-            policy=policy,
-        )
-    else:
-        if result_type != REPLANNING_STATE_TYPE:
-            raise ValueError("malformed state: result_type is invalid")
-        if source.get("version") in {1, 2}:
-            raise ValueError("malformed state: historical replanning state is inspection-only")
-        if type(source) is not VerifiedReplanningState:
-            raise ValueError("malformed state: serialized replanning state is inspection-only")
-        _validate_replanning_state(source)
+    source = _require_live_replanning_state(state)
+    if (
+        operator_approval_verifier is not None
+        and type(operator_approval_verifier) is not OperatorApprovalVerifier
+    ):
+        raise ValueError("exact operator approval verifier required")
     normalized_event = _coerce_event(event)
     if normalized_event not in KNOWN_EVENTS:
         raise ValueError("malformed event: unknown event")
@@ -1636,10 +1773,9 @@ def _transition_replanning_state(
 
     if normalized_event == EVENT_DISPATCH_STARTED:
         if current_state != "dispatchable":
-            if not (source_is_raw and current_state == "executing"):
-                raise ValueError("malformed event: dispatch-started is valid only from dispatchable")
-        if source_is_raw and current_state == "executing":
-            current_state = "dispatchable"
+            raise ValueError(
+                "malformed event: dispatch-started is valid only from dispatchable"
+            )
         next_state["state"] = "executing"
         next_state["counters"]["dispatches"] += 1
         reasons = ["dispatch-started"]

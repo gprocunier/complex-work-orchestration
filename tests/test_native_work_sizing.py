@@ -8,6 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -1181,6 +1182,102 @@ class NativeWorkSizingTest(unittest.TestCase):
             ),
             [],
         )
+
+    def test_work_sizing_rejects_verifier_subclasses_and_invalid_results(self):
+        parent = evaluate_work_estimate(_valid_v2_payload())
+        refined_payload = _valid_v2_payload()
+        refined_payload["primary_outcome"] = "publish exact repaired CWO"
+        authority = _refinement_authority("architect")
+
+        class OverridingVerifier(OperatorApprovalVerifier):
+            authorize_calls = 0
+            audit_calls = 0
+
+            def authorize_assessment(self, *args, **kwargs):
+                type(self).authorize_calls += 1
+                return []
+
+            def validate_assessment_audits(self, *args, **kwargs):
+                type(self).audit_calls += 1
+                return None
+
+        subclass = OverridingVerifier(
+            verification_key=b"work-sizing-subclass-key",
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            replay_store_path=Path(self._temporary.name) / "subclass-replay.json",
+            now="2026-07-20T00:05:00Z",
+        )
+        with self.assertRaisesRegex(ValueError, "exact operator approval verifier"):
+            build_work_estimate_refinement(
+                parent,
+                refined_payload,
+                refinement_authority=authority,
+                operator_approval_verifier=subclass,
+            )
+        self.assertEqual(OverridingVerifier.authorize_calls, 0)
+
+        candidate = evaluate_work_estimate(refined_payload)
+        candidate["parent_estimate_sha256"] = canonical_work_estimate_sha256(parent)
+        candidate["refinement_authority"] = authority.serialize()
+        assessment = assess_operator_required_changes(
+            parent,
+            candidate,
+            operator_required_for=OPERATOR_REQUIRED_CHANGE_TYPES,
+            profile="native-work-estimate-refinement",
+            identity=protected_change_identity(
+                artifact_type="cwo-native-work-estimate-refinement",
+                artifact_id=candidate["parent_estimate_sha256"],
+                work_unit_id=candidate["work_unit_id"],
+                bead_id=candidate["bead_id"],
+                packet_id=None,
+            ),
+        )
+        key = b"work-sizing-result-key"
+        receipt = _operator_approval(
+            key,
+            assessment.before_subject,
+            assessment.after_subject,
+            change_type="objective-change",
+        )
+        verifier = OperatorApprovalVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            replay_store_path=Path(self._temporary.name) / "result-replay.json",
+            now="2026-07-20T00:05:00Z",
+        )
+        for returned, error in (([], "result-set"), ([object()], "result-type")):
+            with self.subTest(error=error), patch.object(
+                OperatorApprovalVerifier,
+                "authorize_assessment",
+                return_value=returned,
+            ), self.assertRaisesRegex(ValueError, error):
+                build_work_estimate_refinement(
+                    parent,
+                    refined_payload,
+                    refinement_authority=authority,
+                    operator_approval_verifier=verifier,
+                    operator_approval_receipts={"objective-change": receipt},
+                )
+
+        real = build_work_estimate_refinement(
+            parent,
+            refined_payload,
+            refinement_authority=authority,
+            operator_approval_verifier=verifier,
+            operator_approval_receipts={"objective-change": receipt},
+        )
+        self.assertEqual(
+            validate_work_estimate_refinement(
+                real,
+                parent,
+                refinement_authority=authority,
+                operator_approval_verifier=subclass,
+            ),
+            ["exact operator approval verifier required"],
+        )
+        self.assertEqual(OverridingVerifier.audit_calls, 0)
 
     def test_legacy_estimate_cannot_supply_lineage_for_new_refinement(self):
         parent = evaluate_work_estimate(_valid_raw_payload())

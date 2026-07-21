@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_TYPE,
     OPERATOR_REQUIRED_CHANGE_TYPES,
     OperatorApprovalVerifier,
+    VerifiedOperatorApproval,
     assess_operator_required_changes,
     canonical_authority_sha256,
     protected_change_identity,
@@ -31,6 +33,7 @@ from cwo_core.native_replanning import (  # noqa: E402
 
 POLICY = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
 WORK_SIZING = POLICY["work_sizing"]["enforcement"]["foundation-canary"]["autonomous_replanning"]
+_STATE_SEQUENCE = 0
 
 
 def _sha(label: str) -> str:
@@ -140,11 +143,14 @@ def _policy_with(overrides: dict[str, int] | None = None) -> dict:
 
 
 def _base_state() -> dict:
+    global _STATE_SEQUENCE
+    _STATE_SEQUENCE += 1
+    suffix = str(_STATE_SEQUENCE)
     return {
-        "state": "executing",
-        "work_unit_id": "wu-native-replanning",
-        "bead_id": "bead-native-replanning",
-        "packet_id": "packet-native-replanning",
+        "state": "planned",
+        "work_unit_id": f"wu-native-replanning-{suffix}",
+        "bead_id": f"bead-native-replanning-{suffix}",
+        "packet_id": f"packet-native-replanning-{suffix}",
         "requested_model": "gpt-5.3-codex-spark",
         "objective": "native replanning validation",
         "security_context": "standard",
@@ -182,9 +188,32 @@ def _base_state() -> dict:
 
 def _state_with_overrides(overrides: dict | None = None) -> dict:
     payload = _base_state()
-    if overrides:
-        payload.update(overrides)
-    return build_replanning_state(payload)
+    requested = copy.deepcopy(overrides or {})
+    target_state = requested.pop("state", "executing")
+    observed_mutation = requested.pop("mutation", None)
+    payload.update(requested)
+    state = build_replanning_state(payload)
+    if target_state == "planned":
+        return state
+    state = transition_replanning_state(state, "accepted", {})
+    if target_state == "dispatchable":
+        return state
+    state = transition_replanning_state(state, "dispatch-started", {})
+    if observed_mutation is not None and any(observed_mutation.values()):
+        return transition_replanning_state(
+            state,
+            "needs-replan",
+            {"mutation": observed_mutation},
+        )
+    if target_state == "executing":
+        return state
+    if target_state == "pm-realignment":
+        return transition_replanning_state(
+            state,
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+    raise AssertionError(f"unsupported test lifecycle state: {target_state}")
 
 
 def _protected_change_approval(
@@ -334,7 +363,7 @@ class NativeReplanningTest(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "verified operator approval"):
             transition_replanning_state(pm_state, "pm-refined", evidence)
-        with self.assertRaisesRegex(ValueError, "verified operator approval"):
+        with self.assertRaisesRegex(ValueError, "exact operator approval verifier"):
             _transition_replanning_state(
                 pm_state,
                 "pm-refined",
@@ -546,30 +575,55 @@ class NativeReplanningTest(unittest.TestCase):
         self.assertEqual(second_pm["state"], "protected-stop")
         self.assertIn("pm-replan-exhausted", second_pm["reason_codes"])
 
-        exhausted_source = _base_state()
-        exhausted_source["state"] = "architect-realignment"
-        exhausted_source["counters"]["architect_cycles_used"] = WORK_SIZING[
-            "max_architect_cycles"
-        ]
+        expanded_policy = _policy_with({"max_pm_replans": 2})
+        cycle = build_replanning_state(_base_state(), policy=expanded_policy)
+        cycle = transition_replanning_state(
+            cycle, "accepted", {}, policy=expanded_policy
+        )
+        cycle = transition_replanning_state(
+            cycle, "dispatch-started", {}, policy=expanded_policy
+        )
+        cycle = transition_replanning_state(
+            cycle, "clean-no-artifact", evidence, policy=expanded_policy
+        )
+        cycle = transition_replanning_state(
+            cycle,
+            "pm-refined",
+            {"requires_architect_cycle": True},
+            policy=expanded_policy,
+        )
+        cycle = transition_replanning_state(
+            cycle, "architect-refined", {}, policy=expanded_policy
+        )
+        cycle = transition_replanning_state(
+            cycle, "fresh-worker-assigned", {}, policy=expanded_policy
+        )
+        cycle = transition_replanning_state(
+            cycle, "dispatch-started", {}, policy=expanded_policy
+        )
+        cycle = transition_replanning_state(
+            cycle, "clean-no-artifact", evidence, policy=expanded_policy
+        )
+        cycle = transition_replanning_state(
+            cycle,
+            "pm-refined",
+            {"requires_architect_cycle": True},
+            policy=expanded_policy,
+        )
         exhausted_architect = transition_replanning_state(
-            build_replanning_state(exhausted_source),
-            "architect-refined",
-            {},
+            cycle, "architect-refined", {}, policy=expanded_policy
         )
         self.assertEqual(exhausted_architect["state"], "protected-stop")
         self.assertIn("architect-cycle-exhausted", exhausted_architect["reason_codes"])
 
     def test_all_protected_boundaries_stop(self) -> None:
-        base = _base_state()
         base_execution = _state_with_overrides()
         stopped = transition_replanning_state(base_execution, "model-mismatch", {})
         self.assertEqual(stopped["state"], "protected-stop")
         self.assertEqual(stopped["reason_codes"], ["model-mismatch"])
 
-        base = _base_state()
-        base["state"] = "executing"
         compaction = transition_replanning_state(
-            build_replanning_state(base),
+            _state_with_overrides(),
             "clean-no-artifact",
             {
                 "trusted_evidence": True,
@@ -625,12 +679,12 @@ class NativeReplanningTest(unittest.TestCase):
             "runtime_seconds_delta": 16,
             "mutation": {"out_of_scope": False, "tainted": False},
         }
-        initial = _base_state()
-        initial["state"] = "dispatchable"
-        initial["counters"]["tool_calls_used"] = 8
-        initial["counters"]["runtime_seconds_used"] = 16
+        initial = build_replanning_state(_base_state())
+        initial = transition_replanning_state(initial, "accepted", {})
         with_dispatch = transition_replanning_state(
-            build_replanning_state(initial), "dispatch-started", {}
+            initial,
+            "dispatch-started",
+            {"tool_calls_delta": 8, "runtime_seconds_delta": 16},
         )
         with_dispatch = transition_replanning_state(with_dispatch, "clean-no-artifact", evidence)
         with_dispatch = transition_replanning_state(with_dispatch, "pm-refined", {"requires_architect_cycle": False})
@@ -640,16 +694,12 @@ class NativeReplanningTest(unittest.TestCase):
         self.assertEqual(reassign["counters"]["runtime_seconds_used"], 32)
 
     def test_dispatch_soft_cap_is_warning_only(self) -> None:
-        policy = _policy_with({"dispatch_soft_cap": 1, "dispatch_soft_cap_action": "pm-architect-review"})
-        state = build_replanning_state(
-            {
-                **_base_state(),
-                "state": "dispatchable",
-                "counters": {
-                    **_base_state()["counters"],
-                    "dispatches": 1,
-                },
-            },
+        policy = _policy_with({"dispatch_soft_cap": 0, "dispatch_soft_cap_action": "pm-architect-review"})
+        state = build_replanning_state(_base_state(), policy=policy)
+        state = transition_replanning_state(
+            state,
+            "accepted",
+            {},
             policy=policy,
         )
         dispatch = transition_replanning_state(state, "dispatch-started", {}, policy=policy)
@@ -829,13 +879,227 @@ class NativeReplanningTest(unittest.TestCase):
                     )
         stripped_header = state.serialize()
         stripped_header.pop("result_type")
-        with self.assertRaisesRegex(ValueError, "verifier-owned or unknown"):
+        with self.assertRaisesRegex(ValueError, "live verifier-minted"):
             _transition_replanning_state(
                 stripped_header,
                 "completed",
                 42,
                 caller_authority="operator",  # type: ignore[arg-type]
             )
+
+    def test_transition_never_bootstraps_raw_or_projected_state(self) -> None:
+        live = _state_with_overrides()
+        projected = {
+            field: live[field]
+            for field in (
+                "state",
+                "work_unit_id",
+                "bead_id",
+                "packet_id",
+                "requested_model",
+                "objective",
+                "security_context",
+                "model_match",
+                "control_healthy",
+                "counters",
+                "aggregate_allowance",
+                "mutation",
+                "terminal_latches",
+                "main_thread",
+                "reason_codes",
+                "next_action",
+            )
+        }
+        with self.assertRaisesRegex(ValueError, "live verifier-minted"):
+            transition_replanning_state(projected, "completed", {"completed": True})
+
+        projected.update(
+            {
+                "state": "planned",
+                "model_match": True,
+                "control_healthy": True,
+                "counters": {key: 0 for key in live["counters"]},
+                "mutation": {"out_of_scope": False, "tainted": False},
+                "terminal_latches": {
+                    "tainted": False,
+                    "contradictory_validation": False,
+                },
+                "reason_codes": [],
+                "next_action": "wait",
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "already-bootstrapped"):
+            build_replanning_state(projected)
+
+    def test_explicit_bootstrap_accepts_only_fresh_lifecycle_values(self) -> None:
+        attacks = (
+            ("state", "executing", "state must be planned"),
+            (
+                "counters",
+                {
+                    "dispatches": 1,
+                    "tool_calls_used": 0,
+                    "runtime_seconds_used": 0,
+                    "context_compactions": 0,
+                    "pm_replans_used": 0,
+                    "architect_cycles_used": 0,
+                },
+                "counters must all be zero",
+            ),
+            (
+                "terminal_latches",
+                {"tainted": False, "contradictory_validation": True},
+                "terminal latches must be false",
+            ),
+            ("reason_codes", ["prior-lineage"], "reason_codes must be empty"),
+            ("next_action", "resume", "next_action must be wait"),
+            (
+                "protected_change_authorizations",
+                [],
+                "verifier-owned or unknown",
+            ),
+        )
+        for field, value, error in attacks:
+            payload = _base_state()
+            payload[field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(
+                ValueError, error
+            ):
+                build_replanning_state(payload)
+
+    def test_live_state_capability_rejects_base_construction_and_slot_attacks(self) -> None:
+        live = _state_with_overrides()
+        self.assertNotIsInstance(live, dict)
+        with self.assertRaises(TypeError):
+            dict.__new__(VerifiedReplanningState)
+        with self.assertRaises(TypeError):
+            dict.__setitem__(live, "objective", "forged")
+
+        forged = object.__new__(VerifiedReplanningState)
+        with self.assertRaisesRegex(ValueError, "unregistered"):
+            transition_replanning_state(forged, "completed", {"completed": True})
+        payload_json = object.__getattribute__(
+            live, "_VerifiedReplanningState__payload_json"
+        )
+        object.__setattr__(
+            forged,
+            "_VerifiedReplanningState__payload_json",
+            payload_json,
+        )
+        with self.assertRaisesRegex(ValueError, "unregistered"):
+            transition_replanning_state(forged, "completed", {"completed": True})
+
+        tampered = json.loads(payload_json)
+        tampered["objective"] = "slot mutation"
+        object.__setattr__(
+            live,
+            "_VerifiedReplanningState__payload_json",
+            json.dumps(tampered, sort_keys=True, separators=(",", ":")),
+        )
+        with self.assertRaisesRegex(ValueError, "capability integrity mismatch"):
+            transition_replanning_state(live, "completed", {"completed": True})
+
+        process_bound = _state_with_overrides()
+        with patch(
+            "cwo_core.native_replanning.os.getpid", return_value=-1
+        ), self.assertRaisesRegex(ValueError, "capability integrity mismatch"):
+            transition_replanning_state(
+                process_bound,
+                "completed",
+                {"completed": True},
+            )
+
+    def test_copy_deepcopy_serialization_and_mapping_projection_are_audit_only(self) -> None:
+        live = _state_with_overrides()
+        projections = (
+            copy.copy(live),
+            copy.deepcopy(live),
+            live.copy(),
+            live.serialize(),
+            dict(live),
+        )
+        for projection in projections:
+            with self.subTest(projection=type(projection).__name__):
+                self.assertIs(type(projection), dict)
+                self.assertEqual(read_replanning_state(projection), projection)
+                with self.assertRaisesRegex(ValueError, "inspection-only"):
+                    transition_replanning_state(
+                        projection,
+                        "completed",
+                        {"completed": True},
+                    )
+
+    def test_replanning_rejects_verifier_subclass_and_invalid_return_set(self) -> None:
+        pm_state = transition_replanning_state(
+            _state_with_overrides(),
+            "needs-replan",
+            _needs_replan_evidence(),
+        )
+        evidence = {
+            "requires_architect_cycle": False,
+            "proposed_changes": {"objective": "new exact objective"},
+        }
+        assessment = _protected_refinement_assessment(
+            pm_state, evidence["proposed_changes"]
+        )
+        key = b"replanning-hostile-verifier-key"
+        receipt = _protected_change_approval(
+            key,
+            assessment.before_subject,
+            assessment.after_subject,
+            change_type="objective-change",
+        )
+
+        class OverridingVerifier(OperatorApprovalVerifier):
+            calls = 0
+
+            def authorize_assessment(self, *args, **kwargs):
+                type(self).calls += 1
+                return []
+
+        subclass = OverridingVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            replay_store_path=Path(self._temporary.name) / "subclass-replay.json",
+            now="2026-07-20T00:05:00Z",
+        )
+        with self.assertRaisesRegex(ValueError, "exact operator approval verifier"):
+            transition_replanning_state(
+                pm_state,
+                "pm-refined",
+                evidence,
+                operator_approval_verifier=subclass,
+                operator_approval_receipts={"objective-change": receipt},
+            )
+        self.assertEqual(OverridingVerifier.calls, 0)
+
+        verifier = OperatorApprovalVerifier(
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            replay_store_path=Path(self._temporary.name) / "result-replay.json",
+            now="2026-07-20T00:05:00Z",
+        )
+        forged_approval = object.__new__(VerifiedOperatorApproval)
+        for returned, error in (
+            ([], "result-set"),
+            ([object()], "result-type"),
+            ([forged_approval], "result-audit"),
+        ):
+            with self.subTest(error=error), patch.object(
+                OperatorApprovalVerifier,
+                "authorize_assessment",
+                return_value=returned,
+            ), self.assertRaisesRegex(ValueError, error):
+                transition_replanning_state(
+                    pm_state,
+                    "pm-refined",
+                    evidence,
+                    operator_approval_verifier=verifier,
+                    operator_approval_receipts={"objective-change": receipt},
+                )
+        self.assertEqual(pm_state["objective"], "native replanning validation")
 
     def test_serialized_terminal_stop_cannot_clear_latches_or_resume(self) -> None:
         contradictory = _needs_replan_evidence()
@@ -854,12 +1118,8 @@ class NativeReplanningTest(unittest.TestCase):
                 {"requires_architect_cycle": False},
             )
 
-        tainted_source = _base_state()
-        tainted_source["mutation"]["tainted"] = True
-        taint_stop = transition_replanning_state(
-            build_replanning_state(tainted_source),
-            "needs-replan",
-            _needs_replan_evidence(),
+        taint_stop = _state_with_overrides(
+            {"mutation": {"out_of_scope": False, "tainted": True}}
         )
         forged_taint = taint_stop.serialize()
         forged_taint["mutation"]["tainted"] = False

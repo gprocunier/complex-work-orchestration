@@ -562,6 +562,16 @@ def evaluate_ready_candidate(
     issue_id = _issue_id(item)
     labels = set(_issue_labels(item))
     reasons: list[dict[str, str]] = []
+    if (
+        operator_approval_verifier is not None
+        and type(operator_approval_verifier) is not OperatorApprovalVerifier
+    ):
+        reasons.append(
+            _exclusion(
+                "operator-approval-verifier-invalid",
+                "ready-set admission requires the exact trusted verifier type",
+            )
+        )
     issue_type = str(_field(item, "type", _field(item, "issue_type", "issue"))).strip().lower()
     if issue_type in CONTAINER_TYPES or (
         labels & CONTAINER_LABELS and issue_type not in {"task", "bug", "chore"}

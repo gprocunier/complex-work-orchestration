@@ -248,9 +248,9 @@ _PROTECTED_CHANGE_PROFILES = {
 }
 
 OPERATOR_APPROVAL_REPLAY_STORE_TYPE = "cwo-operator-approval-replay-store"
-OPERATOR_APPROVAL_REPLAY_STORE_VERSION = 1
+OPERATOR_APPROVAL_REPLAY_STORE_VERSION = 2
 OPERATOR_APPROVAL_REPLAY_STORE_FIELDS = frozenset(
-    {"store_type", "version", "entries", "store_sha256"}
+    {"store_type", "version", "entries", "store_hmac_sha256"}
 )
 OPERATOR_APPROVAL_REPLAY_ENTRY_FIELDS = frozenset(
     {
@@ -263,6 +263,18 @@ OPERATOR_APPROVAL_REPLAY_ENTRY_FIELDS = frozenset(
     }
 )
 _MAX_REPLAY_STORE_BYTES = 8 * 1024 * 1024
+_REPLAY_STORE_KEY_CONTEXT = b"cwo-operator-approval-replay-store-v2\x00"
+
+# A keyed local ledger detects novel edits while the key remains outside the
+# hostile process. Same-UID unrestricted filesystem access can still restore a
+# previously valid ledger, and possession of both that access and the verifier
+# key permits arbitrary rewrites. Rollback resistance therefore requires an
+# external trusted monotonic anchor; this file cannot provide that boundary.
+OPERATOR_APPROVAL_REPLAY_THREAT_BOUNDARY = (
+    "same-UID unrestricted filesystem access can restore a prior valid ledger; "
+    "with the verifier key it can also rewrite or reset the ledger, and rollback "
+    "resistance requires an external trusted monotonic anchor"
+)
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _AUTHORITY_TOKEN = object()
@@ -1127,13 +1139,34 @@ def _replay_store_body(entries: list[dict[str, str]]) -> dict[str, Any]:
     }
 
 
-def _sealed_replay_store(entries: list[dict[str, str]]) -> dict[str, Any]:
+def _derive_replay_store_key(verification_key: bytes) -> bytes:
+    return hmac.new(
+        verification_key,
+        _REPLAY_STORE_KEY_CONTEXT,
+        hashlib.sha256,
+    ).digest()
+
+
+def _replay_store_hmac(body: Mapping[str, Any], replay_key: bytes) -> str:
+    encoded = json.dumps(
+        _ordinary_json(body, label="operator-approval-replay-store-body"),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hmac.new(replay_key, encoded, hashlib.sha256).hexdigest()
+
+
+def _sealed_replay_store(
+    entries: list[dict[str, str]], replay_key: bytes
+) -> dict[str, Any]:
     result = _replay_store_body(entries)
-    result["store_sha256"] = canonical_authority_sha256(result)
+    result["store_hmac_sha256"] = _replay_store_hmac(result, replay_key)
     return result
 
 
-def _validate_replay_store(value: Any) -> dict[str, Any]:
+def _validate_replay_store(value: Any, replay_key: bytes) -> dict[str, Any]:
     payload = canonical_json_object(value, label="operator-approval-replay-store")
     if set(payload) != OPERATOR_APPROVAL_REPLAY_STORE_FIELDS:
         raise AuthorityProvenanceError("operator-approval-replay-store-fields-invalid")
@@ -1173,11 +1206,17 @@ def _validate_replay_store(value: Any) -> dict[str, Any]:
         approval_ids.add(entry["approval_id"])
         receipt_hashes.add(entry["receipt_sha256"])
         normalized.append(deepcopy(entry))
-    expected = _sealed_replay_store(normalized)
-    if canonical_authority_sha256(payload) != canonical_authority_sha256(expected):
+    expected = _sealed_replay_store(normalized, replay_key)
+    supplied_hmac = payload.get("store_hmac_sha256")
+    if not (
+        type(supplied_hmac) is str
+        and hmac.compare_digest(supplied_hmac, expected["store_hmac_sha256"])
+    ):
+        raise AuthorityProvenanceError(
+            "operator-approval-replay-store-hmac-mismatch"
+        )
+    if payload != expected:
         raise AuthorityProvenanceError("operator-approval-replay-store-noncanonical")
-    if payload.get("store_sha256") != expected["store_sha256"]:
-        raise AuthorityProvenanceError("operator-approval-replay-store-sha256-mismatch")
     return expected
 
 
@@ -1204,6 +1243,7 @@ def _validate_replay_parent(path: Path) -> tuple[int, int]:
     if (
         not stat.S_ISDIR(identity.st_mode)
         or identity.st_uid != os.getuid()
+        or stat.S_IMODE(identity.st_mode) & 0o077
     ):
         raise AuthorityProvenanceError("operator-approval-replay-store-parent-invalid")
     return identity.st_dev, identity.st_ino
@@ -1245,12 +1285,15 @@ def _replay_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _read_replay_store(path: Path) -> tuple[dict[str, Any], tuple[int, int] | None]:
+def _read_replay_store(
+    path: Path,
+    replay_key: bytes,
+) -> tuple[dict[str, Any], tuple[int, int] | None]:
     _reject_replay_symlink_components(path)
     try:
         descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
     except FileNotFoundError:
-        return _sealed_replay_store([]), None
+        return _sealed_replay_store([], replay_key), None
     except OSError as exc:
         raise AuthorityProvenanceError("operator-approval-replay-store-open-failed") from exc
     try:
@@ -1278,7 +1321,10 @@ def _read_replay_store(path: Path) -> tuple[dict[str, Any], tuple[int, int] | No
             )
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             raise AuthorityProvenanceError("operator-approval-replay-store-corrupt") from exc
-        return _validate_replay_store(payload), (identity.st_dev, identity.st_ino)
+        return _validate_replay_store(payload, replay_key), (
+            identity.st_dev,
+            identity.st_ino,
+        )
     finally:
         os.close(descriptor)
 
@@ -1287,20 +1333,21 @@ def _write_replay_store(
     path: Path,
     payload: Mapping[str, Any],
     *,
+    replay_key: bytes,
     prior_identity: tuple[int, int] | None,
-    prior_store_sha256: str,
+    prior_store_hmac_sha256: str,
     parent_identity: tuple[int, int],
 ) -> None:
     current_parent = _validate_replay_parent(path)
     if current_parent != parent_identity:
         raise AuthorityProvenanceError("operator-approval-replay-store-parent-inode-changed")
-    current, current_identity = _read_replay_store(path)
+    current, current_identity = _read_replay_store(path, replay_key)
     if (
         current_identity != prior_identity
-        or current.get("store_sha256") != prior_store_sha256
+        or current.get("store_hmac_sha256") != prior_store_hmac_sha256
     ):
         raise AuthorityProvenanceError("operator-approval-replay-store-inode-changed")
-    sealed = _validate_replay_store(payload)
+    sealed = _validate_replay_store(payload, replay_key)
     encoded = (
         json.dumps(
             sealed,
@@ -1331,10 +1378,11 @@ def _write_replay_store(
             or temporary_identity.st_nlink != 1
         ):
             raise AuthorityProvenanceError("operator-approval-replay-store-temporary-invalid")
-        final_current, final_identity = _read_replay_store(path)
+        final_current, final_identity = _read_replay_store(path, replay_key)
         if (
             final_identity != prior_identity
-            or final_current.get("store_sha256") != prior_store_sha256
+            or final_current.get("store_hmac_sha256")
+            != prior_store_hmac_sha256
             or _validate_replay_parent(path) != parent_identity
         ):
             raise AuthorityProvenanceError("operator-approval-replay-store-inode-changed")
@@ -1365,6 +1413,7 @@ def _write_replay_store(
 def _locked_replay_store(
     path: Path,
     *,
+    replay_key: bytes,
     write: bool,
 ) -> Iterator[dict[str, Any]]:
     parent_identity = _validate_replay_parent(path)
@@ -1380,16 +1429,17 @@ def _locked_replay_store(
         _validate_open_replay_file(descriptor, lock_path, label="replay-lock")
         fcntl.flock(descriptor, fcntl.LOCK_EX if write else fcntl.LOCK_SH)
         _validate_open_replay_file(descriptor, lock_path, label="replay-lock")
-        store, prior_identity = _read_replay_store(path)
-        prior_store_sha256 = store["store_sha256"]
+        store, prior_identity = _read_replay_store(path, replay_key)
+        prior_store_hmac_sha256 = store["store_hmac_sha256"]
         yield store
         if write:
             _validate_open_replay_file(descriptor, lock_path, label="replay-lock")
             _write_replay_store(
                 path,
                 store,
+                replay_key=replay_key,
                 prior_identity=prior_identity,
-                prior_store_sha256=prior_store_sha256,
+                prior_store_hmac_sha256=prior_store_hmac_sha256,
                 parent_identity=parent_identity,
             )
     finally:
@@ -1412,6 +1462,7 @@ class OperatorApprovalVerifier:
 
     __slots__ = (
         "_verification_key",
+        "_replay_store_key",
         "_expected_actor_id",
         "_expected_identity_source",
         "_replay_store_path",
@@ -1437,6 +1488,7 @@ class OperatorApprovalVerifier:
         _validate_replay_parent(replay_path)
         _reject_replay_symlink_components(replay_path)
         self._verification_key = verification_key
+        self._replay_store_key = _derive_replay_store_key(verification_key)
         self._expected_actor_id = expected_actor_id
         self._expected_identity_source = expected_identity_source
         self._replay_store_path = replay_path
@@ -1445,7 +1497,9 @@ class OperatorApprovalVerifier:
     @property
     def consumed_nonces(self) -> frozenset[str]:
         with _OPERATOR_APPROVAL_LOCK, _locked_replay_store(
-            self._replay_store_path, write=False
+            self._replay_store_path,
+            replay_key=self._replay_store_key,
+            write=False,
         ) as store:
             return frozenset(entry["nonce"] for entry in store["entries"])
 
@@ -1507,7 +1561,9 @@ class OperatorApprovalVerifier:
         before_subject = assessment.before_subject
         after_subject = assessment.after_subject
         with _OPERATOR_APPROVAL_LOCK, _locked_replay_store(
-            self._replay_store_path, write=True
+            self._replay_store_path,
+            replay_key=self._replay_store_key,
+            write=True,
         ) as store:
             existing = store["entries"]
             shadow_nonces = {entry["nonce"] for entry in existing} | set(prior_values)
@@ -1540,7 +1596,8 @@ class OperatorApprovalVerifier:
             store.clear()
             store.update(
                 _sealed_replay_store(
-                    existing + [_approval_replay_entry(item) for item in approvals]
+                    existing + [_approval_replay_entry(item) for item in approvals],
+                    self._replay_store_key,
                 )
             )
         return approvals
@@ -1576,7 +1633,9 @@ class OperatorApprovalVerifier:
         before_subject = assessment.before_subject
         after_subject = assessment.after_subject
         with _OPERATOR_APPROVAL_LOCK, _locked_replay_store(
-            self._replay_store_path, write=False
+            self._replay_store_path,
+            replay_key=self._replay_store_key,
+            write=False,
         ) as store:
             by_hash = {entry["receipt_sha256"]: entry for entry in store["entries"]}
             for change_type in changed:
@@ -1957,6 +2016,59 @@ def validate_operator_approval_audit(value: Any) -> list[str]:
         "operator-approval-audit-" + error for error in authority_errors
     )
     return errors
+
+
+def require_exact_operator_approval_results(
+    approvals: Any,
+    assessment: ProtectedChangeAssessment,
+) -> list[VerifiedOperatorApproval]:
+    """Independently validate a consuming verifier's returned capabilities."""
+
+    if type(assessment) is not ProtectedChangeAssessment:
+        raise AuthorityProvenanceError("protected-change-assessment-required")
+    expected_categories = assessment.required_change_types
+    if type(approvals) is not list or len(approvals) != len(expected_categories):
+        raise AuthorityProvenanceError("operator-approval-result-set-invalid")
+    expected_before = canonical_authority_sha256(assessment.before_subject)
+    expected_after = canonical_authority_sha256(assessment.after_subject)
+    validated: list[VerifiedOperatorApproval] = []
+    for index, expected_category in enumerate(expected_categories):
+        approval = approvals[index]
+        if type(approval) is not VerifiedOperatorApproval:
+            raise AuthorityProvenanceError("operator-approval-result-type-invalid")
+        try:
+            audit = approval.audit_record()
+            observed_category = approval.change_type
+            authority = approval.authority
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise AuthorityProvenanceError(
+                "operator-approval-result-audit-invalid"
+            ) from exc
+        if type(authority) is not VerifiedAuthority:
+            raise AuthorityProvenanceError(
+                "operator-approval-result-authority-invalid"
+            )
+        try:
+            authority_payload = authority.serialize()
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise AuthorityProvenanceError(
+                "operator-approval-result-authority-invalid"
+            ) from exc
+        errors = validate_operator_approval_audit(audit)
+        if errors:
+            raise AuthorityProvenanceError(
+                "operator-approval-result-audit-invalid:" + ";".join(errors)
+            )
+        if (
+            observed_category != expected_category
+            or audit.get("change_type") != expected_category
+            or audit.get("before_sha256") != expected_before
+            or audit.get("after_sha256") != expected_after
+            or audit.get("authority_provenance") != authority_payload
+        ):
+            raise AuthorityProvenanceError("operator-approval-result-binding-invalid")
+        validated.append(approval)
+    return validated
 
 
 def validate_authority_provenance(value: Any) -> list[str]:

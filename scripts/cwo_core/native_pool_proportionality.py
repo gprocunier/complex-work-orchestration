@@ -23,6 +23,7 @@ from .native_authority import (
     assess_operator_required_changes,
     canonical_authority_sha256,
     protected_change_identity,
+    require_exact_operator_approval_results,
     validate_operator_approval_audit,
 )
 from .native_pool_capacity import (
@@ -1162,7 +1163,7 @@ def verify_proportionality_override(
 ) -> VerifiedProportionalityOverride:
     """Consume a fresh exact operator approval and return opaque authority."""
 
-    if not isinstance(operator_approval_verifier, OperatorApprovalVerifier):
+    if type(operator_approval_verifier) is not OperatorApprovalVerifier:
         raise PoolProportionalityError("operator-approval-verifier-required")
     document = (
         policy_document
@@ -1186,12 +1187,12 @@ def verify_proportionality_override(
             assessment,
             receipts={"security-or-authority-change": approval_receipt},
         )
+        approvals = require_exact_operator_approval_results(
+            approvals,
+            assessment,
+        )
     except AuthorityProvenanceError as error:
         raise PoolProportionalityError(str(error)) from error
-    if len(approvals) != 1:
-        raise PoolProportionalityError(
-            "proportionality-override-assessment-category-invalid"
-        )
     approval = approvals[0]
     if (
         AUTHORIZED_SCOPE_RANK.get(approval.authority.authorized_scope, -1)
