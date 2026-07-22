@@ -164,13 +164,38 @@ class TemporaryBeadsPoolGraph:
 
 
 class RecordingBdRunner:
-    def __init__(self, *, preempt_issue_id: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        preempt_issue_id: str | None = None,
+        drift_issue_id: str | None = None,
+    ) -> None:
         self.preempt_issue_id = preempt_issue_id
+        self.drift_issue_id = drift_issue_id
         self.preempted = False
+        self.drifted = False
+        self._show_counts: dict[str, int] = {}
         self.calls: list[tuple[str, ...]] = []
 
     def __call__(self, args: tuple[str, ...], **kwargs: object) -> BdCommandResult:
         self.calls.append(args)
+        if args[:1] == ("show",) and len(args) >= 2:
+            issue_id = args[1]
+            self._show_counts[issue_id] = self._show_counts.get(issue_id, 0) + 1
+            if (
+                issue_id == self.drift_issue_id
+                and self._show_counts[issue_id] == 2
+            ):
+                drift = run_bd_structured(
+                    ("update", issue_id, "--title", "drifted before claim", "--json"),
+                    directory=kwargs["directory"],
+                    database=kwargs["database"],
+                    actor="p1-6-drift-actor",
+                    timeout=kwargs.get("timeout"),
+                )
+                if not drift.succeeded:
+                    raise AssertionError(drift)
+                self.drifted = True
         if (
             self.preempt_issue_id is not None
             and not self.preempted
@@ -629,6 +654,53 @@ class NativePoolPhase1TemporaryBeadsTests(unittest.TestCase):
                     )
             self.assertEqual(commits, [])
             self.assertEqual(reserved.capability.state, "available")
+
+    def test_real_drift_between_cohort_precheck_and_claim_never_claims_or_dispatches(
+        self,
+    ) -> None:
+        policy = load_policy("native-worker-execution")
+        with tempfile.TemporaryDirectory(prefix="cwo-p1-6-preclaim-drift-") as temporary:
+            graph = TemporaryBeadsPoolGraph(
+                Path(temporary),
+                leaf_count=2,
+                policy=policy,
+            )
+            _items, readiness = graph.continuation(policy, requested_workers=2)
+            candidate = _candidate_from(
+                readiness,
+                graph.estimates,
+                policy,
+                requested_workers=2,
+            )
+            drift_issue_id = candidate.proportionality_assessment[
+                "selected_cohort"
+            ]["issue_ids"][0]
+            runner = RecordingBdRunner(drift_issue_id=drift_issue_id)
+            reserved = reserve_pool_cohort(
+                candidate,
+                claim_adapter=claim_adapter(graph, runner),
+                admission_nonce="real-preclaim-drift",
+                live_revalidate=_live,
+                policy_document=policy,
+            )
+
+            self.assertTrue(runner.drifted)
+            self.assertFalse(reserved.admitted)
+            self.assertIsNone(reserved.capability)
+            self.assertEqual(reserved.receipt["status"], "claim-lost")
+            self.assertEqual(reserved.receipt["claims"][0]["outcome"], "claim-lost")
+            self.assertEqual(
+                [
+                    call
+                    for call in runner.calls
+                    if call[:2] == ("update", drift_issue_id)
+                    and "--claim" in call
+                ],
+                [],
+            )
+            issue = graph.show(drift_issue_id)[0]
+            self.assertEqual(issue["status"], "open")
+            self.assertIn(issue.get("assignee"), (None, ""))
 
 
 class NativePoolPhase1InterleavingTests(unittest.TestCase):

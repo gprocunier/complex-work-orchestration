@@ -255,7 +255,12 @@ class ClaimAdapter(Protocol):
 
     def show_exact(self, bead_id: str) -> Mapping[str, Any]: ...
 
-    def claim(self, bead_id: str) -> ClaimTransition: ...
+    def claim(
+        self,
+        bead_id: str,
+        *,
+        expected_pre_show_sha256: str | None = None,
+    ) -> ClaimTransition: ...
 
     def for_admission_attempt(self, admission_nonce: str) -> ClaimAdapter: ...
 
@@ -350,10 +355,31 @@ class BeadsClaimAdapter:
             issue_id,
         )
 
-    def claim(self, bead_id: str) -> ClaimTransition:
+    def claim(
+        self,
+        bead_id: str,
+        *,
+        expected_pre_show_sha256: str | None = None,
+    ) -> ClaimTransition:
         issue_id = str(bead_id).strip()
         pre = dict(self.show_exact(issue_id))
         pre_hash = canonical_admission_sha256(pre)
+        if expected_pre_show_sha256 is not None:
+            if not _sha256(expected_pre_show_sha256):
+                raise NativePoolAdmissionError(
+                    "claim-expected-pre-show-sha256-invalid"
+                )
+            if pre_hash != expected_pre_show_sha256:
+                receipt = _claim_receipt(
+                    issue_id,
+                    actor=self.actor,
+                    outcome="claim-lost",
+                    pre_show_sha256=pre_hash,
+                    post_show_sha256=pre_hash,
+                    result=None,
+                    owned=False,
+                )
+                return ClaimTransition(receipt=receipt, post_issue=pre)
         pre_assignee = pre.get("assignee")
         if pre.get("status") != "open" or pre_assignee not in (None, ""):
             receipt = _claim_receipt(
@@ -1185,7 +1211,12 @@ def reserve_pool_cohort(
 
         lost_issue: str | None = None
         for issue_id in sorted(set(validated.issue_ids) - owned):
-            transition = claim_adapter.claim(issue_id)
+            transition = claim_adapter.claim(
+                issue_id,
+                expected_pre_show_sha256=validated.projections[issue_id][
+                    "exact_show_raw_sha256"
+                ],
+            )
             if type(transition) is not ClaimTransition:
                 raise NativePoolAdmissionError("claim-transition-type-invalid")
             claim = dict(transition.receipt)

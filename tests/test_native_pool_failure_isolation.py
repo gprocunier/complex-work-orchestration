@@ -255,13 +255,14 @@ class NativePoolFailureIsolationTests(unittest.TestCase):
         root: Path,
         *,
         reason: str,
+        size: int = 2,
         failure_class: str = "individual-child-failure",
         evidence_override: str | None = None,
         provide_recovery: bool = True,
     ) -> dict:
         fixture, reservation, contract, request = _admitted_artifacts(
             root,
-            size=2,
+            size=size,
             completion_policy="best-effort",
         )
         result = run_pool_preflight(
@@ -740,6 +741,36 @@ class NativePoolFailureIsolationTests(unittest.TestCase):
                 self.assertTrue(
                     all("interrupt" in adapter.calls for adapter in adapters.values())
                 )
+
+    def test_supported_n3_containment_completes_both_healthy_children(self) -> None:
+        policy = released_three_policy()
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch(
+                "cwo_core.native_pool_capacity.load_policy",
+                return_value=policy,
+            ),
+        ):
+            outcome = self._launch_with_exact_recovery_fault(
+                Path(temporary),
+                reason="isolated-child-failure",
+                size=3,
+            )
+
+        receipt = outcome["launched"]["pool_receipt"]
+        dispositions = {
+            item["child_id"]: item["runtime_disposition"]
+            for item in receipt["child_dispositions"]
+        }
+        failed_id = outcome["contract"]["children"][0]["child_id"]
+        self.assertEqual(receipt["pool_disposition"], "partial")
+        self.assertFalse(receipt["accepting"])
+        self.assertEqual(dispositions[failed_id], "failed-contained")
+        self.assertEqual(list(dispositions.values()).count("completed"), 2)
+        self.assertIn("interrupt", outcome["adapters"][failed_id].calls)
+        for child_id, adapter in outcome["adapters"].items():
+            if child_id != failed_id:
+                self.assertNotIn("interrupt", adapter.calls)
 
     def test_throwing_or_serialized_recovery_resolver_never_contains(self) -> None:
         def throwing(**_kwargs):
