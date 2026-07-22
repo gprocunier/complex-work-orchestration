@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import pickle
+import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -15,6 +16,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+BD_PATH = shutil.which("bd")
 
 from cwo_core.beads import BdCommandResult, run_bd_structured  # noqa: E402
 from cwo_core.beads_ready_set import build_ready_set_evidence  # noqa: E402
@@ -644,17 +646,18 @@ class NativePoolAdmissionTests(unittest.TestCase):
         self.assertEqual(commits, [])
         self.assertEqual(capability.state, "available")
 
+    @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_temporary_beads_claim_has_exact_started_at_transition(self) -> None:
         with TemporaryDirectory(prefix="cwo-p113b-beads-") as directory:
             subprocess.run(
-                ["bd", "init", "--prefix", "p13", "--quiet"],
+                [BD_PATH or "bd", "init", "--prefix", "p13", "--quiet"],
                 cwd=directory,
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             created = subprocess.run(
-                ["bd", "create", "claim target", "--type", "task", "--json"],
+                [BD_PATH or "bd", "create", "claim target", "--type", "task", "--json"],
                 cwd=directory,
                 check=True,
                 text=True,
@@ -678,17 +681,18 @@ class NativePoolAdmissionTests(unittest.TestCase):
             )
             self.assertTrue(transition.post_issue["started_at"])
 
+    @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_concurrent_same_base_actor_allows_one_admission_commit(self) -> None:
         with TemporaryDirectory(prefix="cwo-p113b-real-race-") as directory:
             subprocess.run(
-                ["bd", "init", "--prefix", "race", "--quiet"],
+                [BD_PATH or "bd", "init", "--prefix", "race", "--quiet"],
                 cwd=directory,
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             created = subprocess.run(
-                ["bd", "create", "race target", "--type", "task", "--json"],
+                [BD_PATH or "bd", "create", "race target", "--type", "task", "--json"],
                 cwd=directory,
                 check=True,
                 text=True,
@@ -700,7 +704,7 @@ class NativePoolAdmissionTests(unittest.TestCase):
             template = _set_runtime(ready_item(issue_id), 600, policy=policy)
             subprocess.run(
                 [
-                    "bd",
+                    BD_PATH or "bd",
                     "update",
                     issue_id,
                     "--title",
@@ -720,7 +724,7 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
             )
             shown = subprocess.run(
-                ["bd", "show", issue_id, "--json"],
+                [BD_PATH or "bd", "show", issue_id, "--json"],
                 cwd=directory,
                 check=True,
                 text=True,
@@ -795,7 +799,7 @@ class NativePoolAdmissionTests(unittest.TestCase):
             )
             final_show = json.loads(
                 subprocess.run(
-                    ["bd", "show", issue_id, "--json"],
+                    [BD_PATH or "bd", "show", issue_id, "--json"],
                     cwd=directory,
                     check=True,
                     text=True,
