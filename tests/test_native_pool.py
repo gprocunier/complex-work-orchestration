@@ -472,6 +472,71 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 ["child-0", "child-1", "child-2"],
             )
 
+    def test_active_run_capability_expiry_interrupts_before_next_callback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                decisions=[
+                    ["continue", "complete"],
+                    ["continue", "complete"],
+                ],
+            )
+            for _ in range(32):
+                progress = harness.coordinator.step()
+                if all(
+                    "mark_dispatched" in adapter.calls
+                    for adapter in harness.adapters.values()
+                ):
+                    break
+                if progress["wait_required"]:
+                    harness.clock.sleep(seconds=progress["wait_seconds"])
+            else:
+                self.fail("both children were not dispatched before expiry")
+
+            calls_at_expiry = {
+                child_id: list(adapter.calls)
+                for child_id, adapter in harness.adapters.items()
+            }
+            expires_at = dt.datetime.fromisoformat(
+                harness.capability["expires_at"].replace("Z", "+00:00")
+            )
+            harness.coordinator.pool_callbacks["now_utc"] = lambda: expires_at
+
+            progress = harness.coordinator.step()
+
+            self.assertEqual(progress["decision"]["decision"], "interrupt")
+            self.assertEqual(
+                calls_at_expiry,
+                {
+                    child_id: list(adapter.calls)
+                    for child_id, adapter in harness.adapters.items()
+                },
+            )
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["stop_scope"], "cohort")
+            self.assertEqual(
+                receipt["first_protected_fault"]["code"],
+                "capability-receipt-invalid:capability-receipt-stale",
+            )
+            post_expiry_calls = {
+                child_id: adapter.calls[len(calls_at_expiry[child_id]) :]
+                for child_id, adapter in harness.adapters.items()
+            }
+            self.assertTrue(
+                all(
+                    calls
+                    and set(calls) <= {"interrupt", "finalize", "close"}
+                    for calls in post_expiry_calls.values()
+                ),
+                post_expiry_calls,
+            )
+            self.assertEqual(
+                [item["lifecycle_state"] for item in harness.registry.snapshot()],
+                ["released", "released"],
+            )
+
     def test_first_child_protected_fault_reason_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(

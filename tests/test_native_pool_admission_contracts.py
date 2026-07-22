@@ -87,15 +87,21 @@ def _admitted_artifacts(
     size: int = 2,
     completion_policy: str = "all-or-nothing",
     offline_candidate_harness: bool = False,
+    admission_fixture: tuple[dict, dict[str, dict], list[dict], dict] | None = None,
+    claim_adapter_override: object | None = None,
+    claim_runner_override: object | None = None,
 ) -> tuple[RenderFixture, dict, dict, dict]:
     fixture = RenderFixture(root, size)
     preflight_records = root / "preflight-records"
     preflight_records.mkdir(mode=0o700)
-    policy_fixture = released_three_policy() if size == 3 else None
-    readiness, estimates, items, policy = _fixture(
-        [600] * size,
-        policy=policy_fixture,
-    )
+    if admission_fixture is None:
+        policy_fixture = released_three_policy() if size == 3 else None
+        readiness, estimates, items, policy = _fixture(
+            [600] * size,
+            policy=policy_fixture,
+        )
+    else:
+        readiness, estimates, items, policy = admission_fixture
     assessment = pool_proportionality_check(
         readiness,
         estimates,
@@ -186,8 +192,8 @@ def _admitted_artifacts(
         admission_bindings[bead_id] = binding
         effective_children.append(effective_child)
 
-    runner = MemoryBdRunner(items)
-    claim_adapter = _adapter(runner)
+    runner = claim_runner_override or MemoryBdRunner(items)
+    claim_adapter = claim_adapter_override or _adapter(runner)
     candidate = AdmissionCandidate(
         readiness,
         estimates,

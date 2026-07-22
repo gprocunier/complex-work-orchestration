@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +49,7 @@ from tests.test_native_live_allocation_ledger import (  # noqa: E402
     bindings_v2,
     seed_contained_turn_dispatch,
 )
+from tests.test_beads_ready_set import released_three_policy  # noqa: E402
 from tests.test_native_pool import FakeClock  # noqa: E402
 from tests.test_native_pool_admission import _live  # noqa: E402
 from tests.test_native_pool_admission_contracts import (  # noqa: E402
@@ -700,6 +702,40 @@ class NativePoolFailureIsolationTests(unittest.TestCase):
                 self.assertEqual(
                     runtimes[contract["children"][0]["child_id"]],
                     "failed-ambiguous",
+                )
+                self.assertTrue(
+                    all("interrupt" in adapter.calls for adapter in adapters.values())
+                )
+
+    def test_n3_ambiguous_and_pool_wide_faults_quarantine_fixed_cohort(self) -> None:
+        for evidence_mode in ("protected", "control-loss"):
+            with (
+                self.subTest(evidence_mode=evidence_mode),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                policy = released_three_policy()
+                with mock.patch(
+                    "cwo_core.native_pool_capacity.load_policy",
+                    return_value=policy,
+                ):
+                    contract, adapters, receipt = self._launch(
+                        Path(temporary),
+                        size=3,
+                        completion_policy="best-effort",
+                        evidence_mode=evidence_mode,
+                    )
+                self.assertEqual(receipt["pool_disposition"], "quarantined")
+                self.assertFalse(receipt["accepting"])
+                self.assertEqual(
+                    {item["child_id"] for item in receipt["child_dispositions"]},
+                    {child["child_id"] for child in contract["children"]},
+                )
+                self.assertNotIn(
+                    "failed-contained",
+                    [
+                        item["runtime_disposition"]
+                        for item in receipt["child_dispositions"]
+                    ],
                 )
                 self.assertTrue(
                     all("interrupt" in adapter.calls for adapter in adapters.values())

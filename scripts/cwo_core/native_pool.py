@@ -2197,6 +2197,26 @@ class NativePoolCoordinator:
         self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
         return self.progress()
 
+    def _runtime_capability_errors(self) -> list[str]:
+        """Revalidate concurrent execution authority before the next pool step."""
+
+        if not self.capacity_limits.requires_capability_receipt(
+            self.contract["max_active_workers"]
+        ):
+            return []
+        if self.capability_receipt is None:
+            return ["concurrent-capability-receipt-required"]
+        try:
+            now = _normalize_now(self.pool_callbacks["now_utc"]())
+        except (KeyError, NativePoolError):
+            return ["capability-now-utc-invalid"]
+        return validate_capability_receipt(
+            self.capability_receipt,
+            expected_contract=self.contract,
+            now=now,
+            capacity_limits=self.capacity_limits,
+        )
+
     def _step_once(self) -> dict[str, Any]:
         """Advance one deterministic pool step and never sleep."""
         if self._state["status"] == "closed":
@@ -2210,6 +2230,22 @@ class NativePoolCoordinator:
             self._verify_state_watermark()
         except NativePoolError as exc:
             return self._contain_state_watermark_failure(exc)
+        if not self._protected_fault:
+            capability_errors = self._runtime_capability_errors()
+            if capability_errors:
+                self._enter_fault(
+                    "capability-receipt-invalid:" + ";".join(capability_errors),
+                    control_failed=False,
+                    requested_stop_scope="cohort",
+                    scope_policy_rule="cohort-control",
+                )
+                self._refresh_state(self._status_after_action())
+                self._decision_for(
+                    decision="interrupt",
+                    selected_child_id=None,
+                    actions=["interrupt"],
+                )
+                return self.progress()
         if self._consume_control_request():
             self._refresh_state(self._status_after_action())
             self._decision_for(
