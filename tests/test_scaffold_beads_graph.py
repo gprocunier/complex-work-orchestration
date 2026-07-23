@@ -16,6 +16,10 @@ from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
 from scaffold_workgraph import beads_graph_plan, markdown_workgraph_plan, planned_graph  # noqa: E402
 from summarize_resume_state import parse_markdown_workgraph  # noqa: E402
+from tests.real_beads_fixture import (  # noqa: E402
+    initialize_real_beads,
+    run_fixture_subprocess,
+)
 
 BD_PATH = shutil.which("bd")
 
@@ -239,7 +243,7 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
 
     @unittest.skipUnless(BD_PATH, "bd is not installed")
     def test_cli_beads_graph_output_validates_with_bd_create_graph_dry_run(self) -> None:
-        result = subprocess.run(
+        result = run_fixture_subprocess(
             [
                 sys.executable,
                 str(ROOT / "scripts" / "scaffold_workgraph.py"),
@@ -262,7 +266,7 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertIn("edges", graph)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            init = subprocess.run(
+            init = initialize_real_beads(
                 [BD_PATH or "bd", "init", "--non-interactive", "--skip-agents", "--skip-hooks"],
                 cwd=temp_dir,
                 capture_output=True,
@@ -273,7 +277,7 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
             graph_path = Path(temp_dir) / "graph.json"
             graph_path.write_text(json.dumps(graph), encoding="utf-8")
             env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
-            dry_run = subprocess.run(
+            dry_run = run_fixture_subprocess(
                 [BD_PATH or "bd", "create", "--graph", str(graph_path), "--dry-run", "--json"],
                 cwd=temp_dir,
                 env=env,
