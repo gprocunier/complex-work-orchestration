@@ -2326,6 +2326,36 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
     def owner(self) -> dict:
         return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
 
+    def test_guarded_measure_does_not_yield_when_guard_is_disabled(self) -> None:
+        clock_ns = [0]
+        samples: dict[str, list[float]] = {}
+
+        def action() -> str:
+            clock_ns[0] += 1_000_000
+            return "done"
+
+        def scheduler_yield(_seconds: float) -> None:
+            clock_ns[0] += 250_000_000
+
+        with (
+            mock.patch.object(
+                LIVE.time, "monotonic_ns", side_effect=lambda: clock_ns[0]
+            ),
+            mock.patch.object(
+                LIVE.time, "sleep", side_effect=scheduler_yield
+            ) as sleep,
+        ):
+            result = LIVE.guarded_measure(
+                samples,
+                "finalize",
+                action,
+                guard_seconds=0.0,
+            )
+
+        self.assertEqual(result, "done")
+        self.assertEqual(samples, {"finalize": [1.0]})
+        sleep.assert_not_called()
+
     def test_pool_sleep_adapts_keyword_callback_to_positional_builtin(self) -> None:
         from tests.test_native_pool import PoolHarness
 

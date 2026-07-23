@@ -4594,7 +4594,8 @@ def guarded_measure(
 ) -> Any:
     started = time.monotonic_ns()
     result = action()
-    time.sleep(guard_seconds)
+    if guard_seconds != 0.0:
+        time.sleep(guard_seconds)
     samples.setdefault(name, []).append((time.monotonic_ns() - started) / 1_000_000)
     return result
 
