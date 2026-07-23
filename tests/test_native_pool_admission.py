@@ -41,6 +41,10 @@ from tests.test_native_pool_proportionality import (  # noqa: E402
     _fixture,
     _set_runtime,
 )
+from tests.real_beads_fixture import (  # noqa: E402
+    initialize_real_beads,
+    run_fixture_subprocess,
+)
 
 
 def _hash(value: str) -> str:
@@ -647,14 +651,14 @@ class NativePoolAdmissionTests(unittest.TestCase):
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_temporary_beads_claim_has_exact_started_at_transition(self) -> None:
         with TemporaryDirectory(prefix="cwo-p113b-beads-") as directory:
-            subprocess.run(
+            initialize_real_beads(
                 [BD_PATH or "bd", "init", "--prefix", "p13", "--quiet"],
                 cwd=directory,
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            created = subprocess.run(
+            created = run_fixture_subprocess(
                 [BD_PATH or "bd", "create", "claim target", "--type", "task", "--json"],
                 cwd=directory,
                 check=True,
@@ -682,14 +686,14 @@ class NativePoolAdmissionTests(unittest.TestCase):
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_concurrent_same_base_actor_allows_one_admission_commit(self) -> None:
         with TemporaryDirectory(prefix="cwo-p113b-real-race-") as directory:
-            subprocess.run(
+            initialize_real_beads(
                 [BD_PATH or "bd", "init", "--prefix", "race", "--quiet"],
                 cwd=directory,
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            created = subprocess.run(
+            created = run_fixture_subprocess(
                 [BD_PATH or "bd", "create", "race target", "--type", "task", "--json"],
                 cwd=directory,
                 check=True,
@@ -700,7 +704,7 @@ class NativePoolAdmissionTests(unittest.TestCase):
             issue_id = json.loads(created.stdout)["id"]
             _, _, _, policy = _fixture([600])
             template = _set_runtime(ready_item(issue_id), 600, policy=policy)
-            subprocess.run(
+            run_fixture_subprocess(
                 [
                     BD_PATH or "bd",
                     "update",
@@ -721,7 +725,7 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            shown = subprocess.run(
+            shown = run_fixture_subprocess(
                 [BD_PATH or "bd", "show", issue_id, "--json"],
                 cwd=directory,
                 check=True,
@@ -796,7 +800,7 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 base_adapter.actor,
             )
             final_show = json.loads(
-                subprocess.run(
+                run_fixture_subprocess(
                     [BD_PATH or "bd", "show", issue_id, "--json"],
                     cwd=directory,
                     check=True,

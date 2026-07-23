@@ -45,6 +45,10 @@ from tests.test_native_pool_admission_contracts import (  # noqa: E402
     _execution_inputs,
 )
 from tests.test_native_pool_proportionality import _set_runtime  # noqa: E402
+from tests.real_beads_fixture import (  # noqa: E402
+    initialize_real_beads,
+    run_fixture_subprocess,
+)
 
 
 BD_PATH = shutil.which("bd")
@@ -53,8 +57,8 @@ BD_PATH = shutil.which("bd")
 class TemporaryBeadsPoolGraph:
     def __init__(self, root: Path, *, leaf_count: int, policy: dict) -> None:
         self.root = root
-        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-        subprocess.run(
+        run_fixture_subprocess(["git", "init", "-q"], cwd=root, check=True)
+        initialize_real_beads(
             [
                 BD_PATH or "bd",
                 "init",
@@ -134,11 +138,13 @@ class TemporaryBeadsPoolGraph:
         return self.root / ".beads" / "embeddeddolt"
 
     def bd(self, *args: str) -> str:
-        return subprocess.check_output(
+        return run_fixture_subprocess(
             [BD_PATH or "bd", *args],
             cwd=self.root,
+            check=True,
             text=True,
-        ).strip()
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
 
     def continuation(
         self,

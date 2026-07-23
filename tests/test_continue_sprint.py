@@ -26,6 +26,11 @@ from tests.test_beads_ready_set import (  # noqa: E402
     ready_item,
     released_three_policy,
 )
+from tests.real_beads_fixture import (  # noqa: E402
+    REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
+    initialize_real_beads,
+    run_fixture_subprocess,
+)
 
 BD_PATH = shutil.which("bd")
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -372,8 +377,8 @@ class ContinueSprintTests(unittest.TestCase):
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_cwo_continue_reads_real_bd_dependency_objects(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            subprocess.check_call(["git", "init", "-q"], cwd=temp_dir)
-            subprocess.check_call(
+            run_fixture_subprocess(["git", "init", "-q"], cwd=temp_dir, check=True)
+            initialize_real_beads(
                 [
                     BD_PATH,
                     "init",
@@ -384,11 +389,18 @@ class ContinueSprintTests(unittest.TestCase):
                     "cwo",
                 ],
                 cwd=temp_dir,
+                check=True,
                 stdout=subprocess.DEVNULL,
             )
 
             def bd_output(*args: str) -> str:
-                return subprocess.check_output([BD_PATH, *args], cwd=temp_dir, text=True).strip()
+                return run_fixture_subprocess(
+                    [BD_PATH, *args],
+                    cwd=temp_dir,
+                    check=True,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                ).stdout.strip()
 
             epic = bd_output(
                 "create",
@@ -442,8 +454,12 @@ class ContinueSprintTests(unittest.TestCase):
                 architect,
                 "--silent",
             )
-            env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
-            output = subprocess.check_output(
+            env = {
+                **os.environ,
+                "BEADS_DIR": str(Path(temp_dir) / ".beads"),
+                "CWO_BEADS_TIMEOUT_SECONDS": str(REAL_BEADS_FIXTURE_TIMEOUT_SECONDS),
+            }
+            output = run_fixture_subprocess(
                 [
                     sys.executable,
                     str(ROOT / "scripts" / "cwo.py"),
@@ -455,8 +471,10 @@ class ContinueSprintTests(unittest.TestCase):
                 ],
                 cwd=ROOT,
                 env=env,
+                check=True,
                 text=True,
-            )
+                stdout=subprocess.PIPE,
+            ).stdout
 
         result = json.loads(output)
         blockers = {item["id"]: item["blockers"] for item in result["blocked_issues"]}
@@ -489,8 +507,8 @@ class ContinueSprintTests(unittest.TestCase):
         from jsonschema import Draft202012Validator
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            subprocess.check_call(["git", "init", "-q"], cwd=temp_dir)
-            subprocess.check_call(
+            run_fixture_subprocess(["git", "init", "-q"], cwd=temp_dir, check=True)
+            initialize_real_beads(
                 [
                     BD_PATH,
                     "init",
@@ -501,13 +519,18 @@ class ContinueSprintTests(unittest.TestCase):
                     "cwo",
                 ],
                 cwd=temp_dir,
+                check=True,
                 stdout=subprocess.DEVNULL,
             )
 
             def bd_output(*args: str) -> str:
-                return subprocess.check_output(
-                    [BD_PATH, *args], cwd=temp_dir, text=True
-                ).strip()
+                return run_fixture_subprocess(
+                    [BD_PATH, *args],
+                    cwd=temp_dir,
+                    check=True,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                ).stdout.strip()
 
             def create_leaf(
                 title: str,
@@ -566,9 +589,10 @@ class ContinueSprintTests(unittest.TestCase):
                     bead_id,
                     write_paths=[f"scripts/e2e-{write_index}.py"],
                 )["raw"]["metadata"]
-                subprocess.check_call(
+                run_fixture_subprocess(
                     [BD_PATH, "update", bead_id, "--metadata", json.dumps(metadata)],
                     cwd=temp_dir,
+                    check=True,
                     stdout=subprocess.DEVNULL,
                 )
 
@@ -576,7 +600,7 @@ class ContinueSprintTests(unittest.TestCase):
             claimed_metadata = ready_item(
                 claimed, write_paths=["scripts/claimed.py"]
             )["raw"]["metadata"]
-            subprocess.check_call(
+            run_fixture_subprocess(
                 [
                     BD_PATH,
                     "update",
@@ -587,6 +611,7 @@ class ContinueSprintTests(unittest.TestCase):
                     "existing-owner",
                 ],
                 cwd=temp_dir,
+                check=True,
                 stdout=subprocess.DEVNULL,
             )
 
@@ -601,7 +626,7 @@ class ContinueSprintTests(unittest.TestCase):
                 write_paths=["scripts/restricted.py"],
                 labels=["implementation", "no-codex-exec"],
             )["raw"]["metadata"]
-            subprocess.check_call(
+            run_fixture_subprocess(
                 [
                     BD_PATH,
                     "update",
@@ -610,11 +635,12 @@ class ContinueSprintTests(unittest.TestCase):
                     json.dumps(restricted_metadata),
                 ],
                 cwd=temp_dir,
+                check=True,
                 stdout=subprocess.DEVNULL,
             )
 
             invalid = create_leaf("Invalid metadata", package, priority=2)
-            subprocess.check_call(
+            run_fixture_subprocess(
                 [
                     BD_PATH,
                     "update",
@@ -623,11 +649,16 @@ class ContinueSprintTests(unittest.TestCase):
                     json.dumps({"cwo_ready_set_admission": {"version": 2}}),
                 ],
                 cwd=temp_dir,
+                check=True,
                 stdout=subprocess.DEVNULL,
             )
 
-            env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
-            output = subprocess.check_output(
+            env = {
+                **os.environ,
+                "BEADS_DIR": str(Path(temp_dir) / ".beads"),
+                "CWO_BEADS_TIMEOUT_SECONDS": str(REAL_BEADS_FIXTURE_TIMEOUT_SECONDS),
+            }
+            output = run_fixture_subprocess(
                 [
                     sys.executable,
                     str(ROOT / "scripts" / "cwo.py"),
@@ -641,8 +672,10 @@ class ContinueSprintTests(unittest.TestCase):
                 ],
                 cwd=ROOT,
                 env=env,
+                check=True,
                 text=True,
-            )
+                stdout=subprocess.PIPE,
+            ).stdout
             assignees = {
                 item["id"]: item.get("assignee")
                 for item in json.loads(
@@ -702,8 +735,8 @@ class ContinueSprintTests(unittest.TestCase):
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_beads_issue_and_admission_drift_changes_snapshot_seal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            subprocess.check_call(["git", "init", "-q"], cwd=temp_dir)
-            subprocess.check_call(
+            run_fixture_subprocess(["git", "init", "-q"], cwd=temp_dir, check=True)
+            initialize_real_beads(
                 [
                     BD_PATH,
                     "init",
@@ -714,24 +747,36 @@ class ContinueSprintTests(unittest.TestCase):
                     "cwo",
                 ],
                 cwd=temp_dir,
+                check=True,
                 stdout=subprocess.DEVNULL,
             )
 
             def bd_output(*args: str) -> str:
-                return subprocess.check_output(
-                    [BD_PATH, *args], cwd=temp_dir, text=True
-                ).strip()
+                return run_fixture_subprocess(
+                    [BD_PATH, *args],
+                    cwd=temp_dir,
+                    check=True,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                ).stdout.strip()
 
             def update(*args: str) -> None:
-                subprocess.check_call(
+                run_fixture_subprocess(
                     [BD_PATH, "update", *args],
                     cwd=temp_dir,
+                    check=True,
                     stdout=subprocess.DEVNULL,
                 )
 
             def continuation() -> dict:
-                env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
-                output = subprocess.check_output(
+                env = {
+                    **os.environ,
+                    "BEADS_DIR": str(Path(temp_dir) / ".beads"),
+                    "CWO_BEADS_TIMEOUT_SECONDS": str(
+                        REAL_BEADS_FIXTURE_TIMEOUT_SECONDS
+                    ),
+                }
+                output = run_fixture_subprocess(
                     [
                         sys.executable,
                         str(ROOT / "scripts" / "cwo.py"),
@@ -745,8 +790,10 @@ class ContinueSprintTests(unittest.TestCase):
                     ],
                     cwd=ROOT,
                     env=env,
+                    check=True,
                     text=True,
-                )
+                    stdout=subprocess.PIPE,
+                ).stdout
                 return json.loads(output)
 
             def show(issue_id: str) -> dict:
@@ -866,9 +913,10 @@ class ContinueSprintTests(unittest.TestCase):
             )
             prior_sha256 = issue_drift["beads_readiness_snapshot_sha256"]
 
-            subprocess.check_call(
+            run_fixture_subprocess(
                 [BD_PATH, "dep", "add", leaf, blocker],
                 cwd=temp_dir,
+                check=True,
                 stdout=subprocess.DEVNULL,
             )
             dependency_drift = continuation()
