@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from typing import Mapping
+from typing import Any, Callable, Mapping
 import unittest
 from unittest import mock
 import uuid
@@ -440,6 +440,16 @@ class FakeMonotonicClock:
 
     def advance_ms(self, milliseconds: int) -> None:
         self.now_ns += milliseconds * 1_000_000
+
+
+def deterministic_calibration_measurement(
+    action: Callable[[], Any],
+    *,
+    guard_seconds: float = 0.0,
+) -> tuple[Any, float]:
+    if guard_seconds != 0.0:
+        raise AssertionError("functional calibration fixture requires disabled guard")
+    return action(), 50.0
 
 
 class FakeLiveThreadServer:
@@ -2322,10 +2332,7 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 )
             self.assertFalse(ledger.has_successful_containment("thread-1"))
 
-class LiveCanaryMaterializationTests(unittest.TestCase):
-    def owner(self) -> dict:
-        return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
-
+class CalibrationTimingTests(unittest.TestCase):
     def test_guarded_measure_does_not_yield_when_guard_is_disabled(self) -> None:
         clock_ns = [0]
         samples: dict[str, list[float]] = {}
@@ -2355,6 +2362,48 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
         self.assertEqual(result, "done")
         self.assertEqual(samples, {"finalize": [1.0]})
         sleep.assert_not_called()
+
+    def test_measurement_primitive_preserves_enabled_guard(self) -> None:
+        clock_ns = [0]
+
+        def action() -> str:
+            clock_ns[0] += 1_000_000
+            return "done"
+
+        def guarded_sleep(seconds: float) -> None:
+            self.assertEqual(seconds, 0.02)
+            clock_ns[0] += 20_000_000
+
+        with (
+            mock.patch.object(
+                LIVE.time, "monotonic_ns", side_effect=lambda: clock_ns[0]
+            ),
+            mock.patch.object(
+                LIVE.time, "sleep", side_effect=guarded_sleep
+            ) as sleep,
+        ):
+            result, elapsed_ms = LIVE._measure_action_ms(
+                action,
+                guard_seconds=0.02,
+            )
+
+        self.assertEqual(result, "done")
+        self.assertEqual(elapsed_ms, 21.0)
+        sleep.assert_called_once_with(0.02)
+
+
+class LiveCanaryMaterializationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        patcher = mock.patch.object(
+            LIVE,
+            "_measure_action_ms",
+            side_effect=deterministic_calibration_measurement,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def owner(self) -> dict:
+        return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
 
     def test_pool_sleep_adapts_keyword_callback_to_positional_builtin(self) -> None:
         from tests.test_native_pool import PoolHarness
@@ -2402,6 +2451,40 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 )
             self.assertEqual(server.thread_start_count, 0)
             self.assertEqual(server.turn_start_count, 0)
+
+    def test_functional_calibration_isolated_from_host_artifact_latency(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(root)
+            write_private_artifact = LIVE.write_private_artifact
+
+            def delayed_artifact_write(path: Path, value: Mapping) -> None:
+                write_private_artifact(path, value)
+                if path.name in {
+                    "calibration-mark.json",
+                    "calibration-finalize.json",
+                }:
+                    LIVE.time.sleep(0.11)
+
+            with mock.patch.object(
+                LIVE,
+                "write_private_artifact",
+                side_effect=delayed_artifact_write,
+            ):
+                receipt, _evidence = LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                )
+
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertEqual(receipt["callbacks"]["mark_dispatched"]["max_ms"], 50.0)
+            self.assertEqual(receipt["callbacks"]["finalize"]["max_ms"], 50.0)
 
     def test_one_pre_attestation_internal_read_fault_recovers_in_same_calibration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

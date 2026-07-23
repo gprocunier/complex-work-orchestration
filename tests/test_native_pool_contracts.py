@@ -759,6 +759,46 @@ class NativePoolContractTest(unittest.TestCase):
             "callback-observed-above-certified:check",
             validate_capability_receipt(overrun, now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)),
         )
+        for callback in ("mark_dispatched", "finalize"):
+            with self.subTest(callback=callback):
+                callback_overrun = copy.deepcopy(capability)
+                observed_ms = CERTIFIED_CALLBACK_MAX_MS[callback] + 1
+                callback_overrun["callbacks"][callback] = {
+                    "p50_ms": observed_ms,
+                    "p90_ms": observed_ms,
+                    "p99_ms": observed_ms,
+                    "max_ms": observed_ms,
+                }
+                callback_overrun = seal_artifact(
+                    callback_overrun, "receipt_sha256"
+                )
+                self.assertIn(
+                    f"callback-observed-above-certified:{callback}",
+                    validate_capability_receipt(
+                        callback_overrun,
+                        now=dt.datetime(
+                            2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc
+                        ),
+                    ),
+                )
+        scheduler_overrun = copy.deepcopy(capability)
+        scheduler_ms = CERTIFIED_SCHEDULER_OVERHEAD_MS + 1
+        scheduler_overrun["scheduler_overhead"] = {
+            "p50_ms": scheduler_ms,
+            "p90_ms": scheduler_ms,
+            "p99_ms": scheduler_ms,
+            "max_ms": scheduler_ms,
+        }
+        scheduler_overrun = seal_artifact(
+            scheduler_overrun, "receipt_sha256"
+        )
+        self.assertIn(
+            "scheduler-observed-above-certified",
+            validate_capability_receipt(
+                scheduler_overrun,
+                now=dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc),
+            ),
+        )
         mismatch = copy.deepcopy(capability)
         mismatch["control_turn_id"] = "other"
         mismatch = seal_artifact(mismatch, "receipt_sha256")

@@ -4585,6 +4585,19 @@ class LiveThreadAdapter:
         return summary
 
 
+def _measure_action_ms(
+    action: Callable[[], Any],
+    *,
+    guard_seconds: float = 0.0,
+) -> tuple[Any, float]:
+    started = time.monotonic_ns()
+    result = action()
+    if guard_seconds != 0.0:
+        time.sleep(guard_seconds)
+    elapsed_ms = (time.monotonic_ns() - started) / 1_000_000
+    return result, elapsed_ms
+
+
 def guarded_measure(
     samples: dict[str, list[float]],
     name: str,
@@ -4592,11 +4605,11 @@ def guarded_measure(
     *,
     guard_seconds: float = 0.20,
 ) -> Any:
-    started = time.monotonic_ns()
-    result = action()
-    if guard_seconds != 0.0:
-        time.sleep(guard_seconds)
-    samples.setdefault(name, []).append((time.monotonic_ns() - started) / 1_000_000)
+    result, elapsed_ms = _measure_action_ms(
+        action,
+        guard_seconds=guard_seconds,
+    )
+    samples.setdefault(name, []).append(elapsed_ms)
     return result
 
 
@@ -5911,14 +5924,18 @@ def _run_calibration(
         {"child_id": "b", "next_deadline_ns": 1_000_000_000},
     ]
     cursor = 0
-    for _index in range(4):
-        started = time.monotonic_ns()
+
+    def measure_scheduler_selection() -> None:
+        nonlocal cursor
         selected = select_earliest_deadline(children, cursor=cursor)
         if selected is None:
             raise AppServerError("scheduler-calibration-selection-missing")
         cursor = selected.next_cursor
         time.sleep(0.05)
-        scheduler_samples.append((time.monotonic_ns() - started) / 1_000_000)
+
+    for _index in range(4):
+        _result, elapsed_ms = _measure_action_ms(measure_scheduler_selection)
+        scheduler_samples.append(elapsed_ms)
 
     measured_at = utc_now()
     receipt = seal_artifact(
