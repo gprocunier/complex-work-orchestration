@@ -12,9 +12,9 @@ publication concurrent.
 One worker remains the default. Concurrent native supervision is an opt-in Tech
 Preview that is experimental and disabled by default. It requires one fresh
 same-host capability receipt, a fixed cohort, and either isolated mutable
-worktrees or a shared read-only topology. The canonical policy has a hard design
-ceiling of three but a released ceiling of two. N=3 remains blocked pending the
-Phase 1 technical gate and explicit operator activation. Start with the reader-facing
+worktrees or a shared read-only topology. The canonical policy releases the
+certified hard ceiling of three; N>=4 remains blocked pending Phase 2
+architecture and recertification. Start with the reader-facing
 [Native Supervision Tech Preview](https://gprocunier.github.io/complex-work-orchestration/workflows.html#native-supervision-tech-preview),
 then review the [deferred hardening](#experimental-status-and-deferred-hardening)
 before opting in.
@@ -24,8 +24,8 @@ The public contract is deliberately small:
 - One worker is the default and preserves single-worker behavior.
 - Every concurrent pool requires `--enable-concurrency` and a fresh trusted adapter
   capability receipt from the same live host process.
-- The currently released ceiling is two. The schema hard ceiling of three is a
-  Phase 1 candidate boundary, not permission to dispatch N=3.
+- The currently released and hard ceilings are both three. N>=4 is not
+  represented by the current operative contract and is rejected.
 - Capacity above the policy hard ceiling, capacity above the released ceiling,
   threads, hot admission, replacement children, and a second coordinator are
   rejected.
@@ -136,10 +136,10 @@ generalized capacity fields.
 ## Experimental Status And Deferred Hardening
 
 Concurrent capacity is a practical experimental capability for a trusted
-same-user control plane. The released path remains bounded to two fixed workers,
-explicit opt-in, one connected host process, immutable admission, and isolated
-mutable worktrees or strictly shared read-only topology. The hard ceiling of
-three is preparatory and remains non-operative.
+same-user control plane. The released path remains bounded to three fixed
+workers, explicit opt-in, one connected host process, immutable admission, and
+isolated mutable worktrees or strictly shared read-only topology. Capacity
+N>=4 remains non-operative.
 
 The accepted campaign proved same-epoch application-level recovery for the
 observed pre-attestation startup scaffold, with one guarded wire request, one
@@ -160,12 +160,12 @@ ambiguous-dispatch, terminal-boundary, or second-failure rejection.
 
 Every mutable child needs a distinct clean Git worktree and non-overlapping
 integration target paths. The integration checkout is monitored and must remain
-clean during worker execution. Two read-only children may share one clean
-worktree only when both declare no write or integration target paths.
+clean during worker execution. Three read-only children may share one clean
+worktree only when all declare no write or integration target paths.
 
 | Surface | Single worker | Concurrent pool |
 | --- | --- | --- |
-| Fixed cohort | Required | Required; currently released up to two children |
+| Fixed cohort | Required | Required; currently released up to three children |
 | Mutable worker worktree | Isolated from integration | One distinct worktree per child |
 | Shared read-only worktree | Allowed | Allowed only when every child is read-only |
 | Integration target paths | Scoped, non-symlinked | Scoped and non-overlapping |
@@ -208,7 +208,7 @@ max_lifecycle_ms + N * certified_check_max_ms
   + certified_scheduler_overhead_max_ms <= 1000
 
 250 + 2 * 200 + 100 = 750 <= 1000
-250 + 3 * 200 + 100 = 950 <= 1000  # candidate proof; N=3 not released
+250 + 3 * 200 + 100 = 950 <= 1000  # released N=3
 250 + 4 * 200 + 100 = 1150 > 1000  # rejected
 ```
 
@@ -247,12 +247,14 @@ An economic exception requires a fresh, exact, non-replayable operator approval
 verified by `verify_proportionality_override()`; the resulting opaque capability
 is atomically consumed by one assessment application. Serialized audit
 provenance is not reusable authority, and structural, literal-command,
-capacity, snapshot, or schedulability failures are nonwaivable. An accepted
-N=3 assessment is still marked `offline-unreleased-candidate` while the
-released ceiling is two. P1-13B owns render rejection and pool-contract storage:
-it must re-evaluate the exact readiness and work-estimate inputs, then bind this
-assessment during reservation and contract construction before the result can
-participate in productive admission.
+capacity, snapshot, or schedulability failures are nonwaivable. An accepted N=3
+assessment under the current policy is marked `released-capacity`. The
+historical `offline-unreleased-candidate` mode remains valid under a rollback
+policy whose released ceiling is below the hard ceiling. P1-13B owns render
+rejection and pool-contract storage: it must re-evaluate the exact readiness
+and work-estimate inputs, then bind this assessment during reservation and
+contract construction before the result can participate in productive
+admission.
 
 ## Rendering A Contract
 

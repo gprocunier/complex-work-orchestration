@@ -485,7 +485,7 @@ class ContinueSprintTests(unittest.TestCase):
 
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
-    def test_real_beads_metadata_yields_offline_n3_and_structured_exclusions(self) -> None:
+    def test_real_beads_metadata_yields_released_n3_and_structured_exclusions(self) -> None:
         from jsonschema import Draft202012Validator
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -670,14 +670,14 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIn((valid_ids[1], valid_ids[2], valid_ids[3]), compatible_sets)
         self.assertEqual(
             result["candidate_capacity_evidence"]["released_max_active_workers"],
-            2,
+            3,
         )
-        self.assertTrue(
+        self.assertFalse(
             result["candidate_capacity_evidence"][
                 "selected_exceeds_released_capacity"
             ]
         )
-        self.assertFalse(
+        self.assertTrue(
             result["candidate_capacity_evidence"][
                 "selected_within_released_capacity"
             ]

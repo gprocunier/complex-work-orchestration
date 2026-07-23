@@ -42,7 +42,7 @@
     "proportionality_policy_sha256": {"$ref": "#/$defs/sha256"},
     "requested_workers": {"type": "integer", "minimum": 1, "maximum": 3},
     "candidate_capacity_ceiling": {"type": "integer", "minimum": 1, "maximum": 3},
-    "released_capacity": {"const": 2},
+    "released_capacity": {"type": "integer", "minimum": 1, "maximum": 3},
     "measured_fixed_overhead_ms": {
       "oneOf": [
         {"type": "integer", "minimum": 0},
@@ -416,18 +416,6 @@
         "evaluation_sha256": {"$ref": "#/$defs/sha256"}
       },
       "allOf": [
-        {
-          "if": {
-            "properties": {"worker_count": {"maximum": 2}},
-            "required": ["worker_count"]
-          },
-          "then": {
-            "properties": {"within_released_capacity": {"const": true}}
-          },
-          "else": {
-            "properties": {"within_released_capacity": {"const": false}}
-          }
-        },
         {
           "if": {
             "properties": {"reasons": {"maxItems": 0}},

@@ -64,7 +64,7 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             {
                 "version": 1,
                 "default_max_active_workers": 1,
-                "released_max_active_workers": 2,
+                "released_max_active_workers": 3,
                 "hard_max_active_workers": 3,
                 "concurrency_enabled_by_default": False,
                 "requires_explicit_opt_in": True,

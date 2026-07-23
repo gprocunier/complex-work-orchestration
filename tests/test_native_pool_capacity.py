@@ -26,11 +26,11 @@ def policy_document() -> dict:
 
 
 class NativePoolCapacityTests(unittest.TestCase):
-    def test_canonical_policy_separates_hard_and_released_capacity(self) -> None:
+    def test_canonical_policy_releases_certified_hard_ceiling(self) -> None:
         document = policy_document()
         limits = load_pool_capacity(document)
         self.assertEqual(limits.default_max_active_workers, 1)
-        self.assertEqual(limits.released_max_active_workers, 2)
+        self.assertEqual(limits.released_max_active_workers, 3)
         self.assertEqual(limits.hard_max_active_workers, 3)
         self.assertEqual(limits.supported_capacities, (1, 2, 3))
         for requested in (1, 2, 3):
@@ -40,7 +40,7 @@ class NativePoolCapacityTests(unittest.TestCase):
             with self.subTest(requested=requested):
                 self.assertFalse(limits.validates_requested_capacity(requested))
         self.assertTrue(limits.is_released(2))
-        self.assertFalse(limits.is_released(3))
+        self.assertTrue(limits.is_released(3))
         self.assertFalse(limits.requires_capability_receipt(1))
         self.assertTrue(limits.requires_capability_receipt(2))
         self.assertTrue(limits.requires_capability_receipt(3))
@@ -89,13 +89,14 @@ class NativePoolCapacityTests(unittest.TestCase):
                 ],
             )
 
-    def test_policy_copy_can_release_three_without_changing_hard_limit(self) -> None:
+    def test_policy_copy_can_reduce_release_without_changing_hard_limit(self) -> None:
         document = copy.deepcopy(policy_document())
         document["native_supervision_pool"]["capacity"][
             "released_max_active_workers"
-        ] = 3
+        ] = 2
         limits = load_pool_capacity(document)
-        self.assertTrue(limits.is_released(3))
+        self.assertFalse(limits.is_released(3))
+        self.assertTrue(limits.validates_requested_capacity(3))
         self.assertFalse(limits.validates_requested_capacity(4))
 
 

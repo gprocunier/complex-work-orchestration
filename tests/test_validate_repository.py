@@ -36,7 +36,7 @@ class ValidateRepositoryTests(unittest.TestCase):
         </nav>
         <section id="native-supervision-tech-preview">
           <p>A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default; every concurrent run requires explicit opt-in.</p>
-          <p>Concurrent execution requires one fresh same-host capability receipt, a fixed cohort, and either isolated mutable worktrees or a shared read-only topology. The currently released ceiling is two workers; the hard design ceiling is three. N=3 remains blocked pending the Phase 1 technical gate and explicit operator activation. Precommit, critics, integration, retry, replay, and publication remain single-flight.</p>
+          <p>Concurrent execution requires one fresh same-host capability receipt, a fixed cohort, and either isolated mutable worktrees or a shared read-only topology. The currently released and hard ceilings are both three workers. N&gt;=4 remains blocked pending Phase 2 architecture and recertification. Precommit, critics, integration, retry, replay, and publication remain single-flight.</p>
           <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Operator reference</a>
           <p><code>git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy.</p>
         </section>

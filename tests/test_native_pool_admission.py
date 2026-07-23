@@ -36,7 +36,7 @@ from cwo_core.native_pool_admission import (  # noqa: E402
 from cwo_core.native_pool_proportionality import (  # noqa: E402
     pool_proportionality_check,
 )
-from tests.test_beads_ready_set import released_three_policy, ready_item  # noqa: E402
+from tests.test_beads_ready_set import released_two_policy, ready_item  # noqa: E402
 from tests.test_native_pool_proportionality import (  # noqa: E402
     _fixture,
     _set_runtime,
@@ -231,15 +231,12 @@ class NativePoolAdmissionTests(unittest.TestCase):
         )
         self.assertEqual(reservation.capability.state, "available")
 
-    def test_productive_n3_and_forged_n4_reject_before_any_claim(self) -> None:
+    def test_productive_n3_succeeds_and_forged_n4_rejects_before_claim(self) -> None:
         candidate, items, _ = _fixture_candidate(3)
         runner = MemoryBdRunner(items)
-        with self.assertRaisesRegex(
-            NativePoolAdmissionError,
-            "productive-cohort-size-three-unreleased",
-        ):
-            _reserve(candidate, items, runner=runner)
-        self.assertEqual(runner.claim_order, [])
+        reservation, _ = _reserve(candidate, items, runner=runner)
+        self.assertTrue(reservation.admitted)
+        self.assertEqual(runner.claim_order, ["bead-a", "bead-b", "bead-c"])
 
         forged_assessment = deepcopy(dict(candidate.proportionality_assessment))
         forged_assessment["selected_cohort"]["issue_ids"].append("bead-d")
@@ -249,15 +246,16 @@ class NativePoolAdmissionTests(unittest.TestCase):
             forged_assessment,
             candidate.child_bindings,
         )
+        forged_runner = MemoryBdRunner(items)
         with self.assertRaisesRegex(
             NativePoolAdmissionError,
             "cohort-size-four-or-more-forbidden",
         ):
-            _reserve(forged, items, runner=runner)
-        self.assertEqual(runner.claim_order, [])
+            _reserve(forged, items, runner=forged_runner)
+        self.assertEqual(forged_runner.claim_order, [])
 
-    def test_caller_policy_cannot_widen_productive_n3_authority(self) -> None:
-        policy = released_three_policy()
+    def test_caller_policy_cannot_substitute_productive_n3_authority(self) -> None:
+        policy = released_two_policy()
         readiness, estimates, items, _ = _fixture(
             [600, 600, 600],
             policy=policy,

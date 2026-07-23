@@ -344,46 +344,14 @@ class NativePoolPhase1TemporaryBeadsTests(unittest.TestCase):
                 self.assertEqual(parents[graph.package]["status"], "open")
                 self.assertEqual(parents[graph.epic]["status"], "open")
 
-    def test_n2_rejects_same_graph_before_claim_and_activation_fixture_runs_n3(
-        self,
-    ) -> None:
-        default_policy = load_policy("native-worker-execution")
-        activated_policy = released_three_policy()
+    def test_canonical_policy_runs_claimed_n3_graph(self) -> None:
+        activated_policy = load_policy("native-worker-execution")
         with tempfile.TemporaryDirectory(prefix="cwo-p1-6-e2e-") as temporary:
             graph = TemporaryBeadsPoolGraph(
                 Path(temporary),
                 leaf_count=3,
                 policy=activated_policy,
             )
-            _items, released_readiness = graph.continuation(default_policy)
-            self.assertEqual(
-                [item["id"] for item in released_readiness["recommended_ready_set"]],
-                graph.leaf_ids,
-            )
-            self.assertFalse(released_readiness["dispatch_authorized"])
-            released_candidate = _candidate_from(
-                released_readiness,
-                graph.estimates,
-                default_policy,
-                requested_workers=3,
-            )
-            rejected_runner = RecordingBdRunner()
-            with self.assertRaisesRegex(
-                NativePoolAdmissionError,
-                "productive-cohort-size-three-unreleased",
-            ):
-                reserve_pool_cohort(
-                    released_candidate,
-                    claim_adapter=claim_adapter(graph, rejected_runner),
-                    admission_nonce="released-n2-rejection",
-                    live_revalidate=_live,
-                    policy_document=default_policy,
-                )
-            self.assertEqual(
-                [call for call in rejected_runner.calls if call[0] == "update"],
-                [],
-            )
-
             activated_items, activated_readiness = graph.continuation(
                 activated_policy
             )
