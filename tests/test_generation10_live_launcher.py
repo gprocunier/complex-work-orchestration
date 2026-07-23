@@ -88,7 +88,7 @@ class Generation10LiveLauncherTests(unittest.TestCase):
         }
 
     def test_generation10_contract_is_historical_after_v11_v8_release(self) -> None:
-        LIVE.require_operative_campaign_contract(11, 8, 6, 6)
+        LIVE.require_operative_campaign_contract(12, 8, 6, 6)
         for pair in (
             (8, 5),
             (9, 5),

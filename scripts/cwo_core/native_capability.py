@@ -7,13 +7,35 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Iterable, List
+from typing import Any, Iterable, List, Mapping
+
+from .native_authority import (
+    VerifiedAuthority,
+    validate_authority_provenance,
+)
 
 
 CAPABILITY_RECEIPT_TYPE = "cwo-native-model-capability-receipt"
-CAPABILITY_RECEIPT_VERSION = 1
+CAPABILITY_RECEIPT_VERSION = 2
+CAPABILITY_RECEIPT_VERSION_V1 = 1
+CAPABILITY_EVIDENCE_FIELDS = (
+    "requested_model",
+    "configured_model",
+    "advertised",
+    "advertised_models",
+    "spawn_accepted",
+    "canary_session_id",
+    "attestation_source",
+    "attested_model",
+    "tool_calls",
+    "context_compactions",
+    "runtime_seconds",
+    "closure_receipt",
+    "tool_surface_id",
+)
 
 
 def _to_rfc3339_datetime(value: Any) -> datetime | None:
@@ -183,12 +205,28 @@ def _compute_receipt_sha256(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("ascii")).hexdigest()
 
 
+def canonical_capability_evidence_sha256(evidence: Mapping[str, Any]) -> str:
+    """Hash the exact trusted session evidence used by capability issuance."""
+
+    if not isinstance(evidence, Mapping):
+        raise ValueError("capability evidence must be an object")
+    missing = [field for field in CAPABILITY_EVIDENCE_FIELDS if field not in evidence]
+    if missing:
+        raise ValueError(
+            "capability evidence missing field(s): " + ", ".join(missing)
+        )
+    projection = {
+        field: deepcopy(evidence[field]) for field in CAPABILITY_EVIDENCE_FIELDS
+    }
+    return _compute_receipt_sha256(projection)
+
+
 @dataclass(frozen=True)
 class ReceiptValidationResult:
     errors: List[str]
 
 
-def validate_native_capability_receipt(receipt: dict[str, Any]) -> List[str]:
+def _validate_v1_capability_receipt(receipt: dict[str, Any]) -> List[str]:
     """
     Validate a native capability receipt and return a deterministic list of failures.
     The list is empty only for fully valid receipts.
@@ -232,7 +270,7 @@ def validate_native_capability_receipt(receipt: dict[str, Any]) -> List[str]:
 
     if receipt.get("receipt_type") != CAPABILITY_RECEIPT_TYPE:
         errors.append("receipt-type-mismatch")
-    if receipt.get("version") != CAPABILITY_RECEIPT_VERSION:
+    if receipt.get("version") != CAPABILITY_RECEIPT_VERSION_V1:
         errors.append("receipt-version-mismatch")
 
     requested_model = receipt.get("requested_model")
@@ -335,8 +373,154 @@ def validate_native_capability_receipt(receipt: dict[str, Any]) -> List[str]:
     return errors
 
 
+def validate_native_capability_receipt(receipt: dict[str, Any]) -> List[str]:
+    """Validate the operative provenance-bearing capability receipt."""
+
+    if not isinstance(receipt, dict):
+        return ["invalid-receipt-type"]
+    if receipt.get("version") == CAPABILITY_RECEIPT_VERSION_V1:
+        return ["receipt-version-1-historical-only"]
+    expected_keys = {
+        "receipt_type",
+        "version",
+        *CAPABILITY_EVIDENCE_FIELDS,
+        "decision",
+        "session_evidence_sha256",
+        "authority_provenance",
+        "issued_at",
+        "expires_at",
+        "receipt_sha256",
+    }
+    errors: list[str] = []
+    key_set = set(receipt)
+    for key in sorted(expected_keys - key_set):
+        errors.append(f"missing-{key}")
+    for key in sorted(key_set - expected_keys):
+        errors.append(f"unexpected-{key}")
+    if errors:
+        return errors
+    if receipt.get("receipt_type") != CAPABILITY_RECEIPT_TYPE:
+        errors.append("receipt-type-mismatch")
+    if receipt.get("version") != CAPABILITY_RECEIPT_VERSION:
+        errors.append("receipt-version-mismatch")
+
+    requested_model = receipt.get("requested_model")
+    configured_model = receipt.get("configured_model")
+    if not _nonempty_string(requested_model):
+        errors.append("invalid-requested-model")
+    if not _nonempty_string(configured_model):
+        errors.append("invalid-configured-model")
+    if requested_model != configured_model:
+        errors.append("configured-model-mismatch")
+    if not _is_bool(receipt.get("advertised")):
+        errors.append("invalid-advertised")
+    advertised_models = receipt.get("advertised_models")
+    if not isinstance(advertised_models, list):
+        errors.append("invalid-advertised-models")
+    else:
+        for index, item in enumerate(advertised_models):
+            if not _nonempty_string(item):
+                errors.append(f"invalid-advertised-models[{index}]")
+    if not _is_bool(receipt.get("spawn_accepted")):
+        errors.append("invalid-spawn-accepted")
+    elif receipt.get("spawn_accepted") is not True:
+        errors.append("spawn-accepted-not-true")
+    if not _nonempty_string(receipt.get("canary_session_id")):
+        errors.append("invalid-canary-session-id")
+    if receipt.get("attestation_source") != "trusted-session-jsonl":
+        errors.append("untrusted-attestation-source")
+    if not _nonempty_string(receipt.get("attested_model")):
+        errors.append("invalid-attested-model")
+    elif receipt.get("attested_model") != requested_model:
+        errors.append("attested-model-mismatch")
+    if not _is_int(receipt.get("tool_calls")):
+        errors.append("invalid-tool-calls")
+    elif receipt.get("tool_calls") != 0:
+        errors.append("tool-calls-nonzero")
+    if not _is_int(receipt.get("context_compactions")):
+        errors.append("invalid-context-compactions")
+    elif receipt.get("context_compactions") != 0:
+        errors.append("context-compactions-nonzero")
+    if not _is_number(receipt.get("runtime_seconds")):
+        errors.append("invalid-runtime-seconds")
+    elif receipt.get("runtime_seconds") < 0:
+        errors.append("negative-runtime-seconds")
+    if receipt.get("closure_receipt") is not True:
+        errors.append("closure-receipt-false")
+    if not _nonempty_string(receipt.get("tool_surface_id")):
+        errors.append("invalid-tool-surface-id")
+    if receipt.get("decision") != "native-capability-confirmed":
+        errors.append("invalid-decision")
+
+    issued_dt = _to_rfc3339_datetime(receipt.get("issued_at"))
+    expires_dt = _to_rfc3339_datetime(receipt.get("expires_at"))
+    if issued_dt is None:
+        errors.append("invalid-issued-at")
+    if expires_dt is None:
+        errors.append("invalid-expires-at")
+    elif issued_dt is not None and expires_dt <= issued_dt:
+        errors.append("invalid-expiry-order")
+    try:
+        expected_evidence_sha256 = canonical_capability_evidence_sha256(receipt)
+    except (TypeError, ValueError):
+        expected_evidence_sha256 = None
+        errors.append("invalid-session-evidence")
+    if receipt.get("session_evidence_sha256") != expected_evidence_sha256:
+        errors.append("session-evidence-sha256-mismatch")
+
+    authority = receipt.get("authority_provenance")
+    authority_errors = validate_authority_provenance(authority)
+    errors.extend("invalid-authority-provenance:" + error for error in authority_errors)
+    if isinstance(authority, Mapping) and not authority_errors:
+        if authority.get("source_type") != "worker-discovery":
+            errors.append("capability-authority-source-type-mismatch")
+        if authority.get("source_id") != receipt.get("canary_session_id"):
+            errors.append("capability-authority-session-mismatch")
+        if authority.get("source_sha256") != receipt.get("session_evidence_sha256"):
+            errors.append("capability-authority-evidence-mismatch")
+        if authority.get("actor_role") != "operative-worker":
+            errors.append("capability-authority-role-mismatch")
+        if authority.get("identity_source") != receipt.get("attestation_source"):
+            errors.append("capability-authority-identity-source-mismatch")
+        if authority.get("authorized_scope") != "child":
+            errors.append("capability-authority-scope-mismatch")
+        if authority.get("parent_receipt_sha256") is not None:
+            errors.append("capability-authority-parent-receipt-forbidden")
+
+    sha = receipt.get("receipt_sha256")
+    if not _nonempty_string(sha) or len(sha) != 64 or any(
+        char not in "0123456789abcdef" for char in str(sha)
+    ):
+        errors.append("invalid-receipt-sha256-format")
+    else:
+        payload = {key: receipt[key] for key in receipt if key != "receipt_sha256"}
+        if sha != _compute_receipt_sha256(payload):
+            errors.append("invalid-receipt-sha256")
+    return errors
+
+
+def read_native_capability_receipt(receipt: Any) -> dict[str, Any]:
+    """Read v2 or a historical-only v1 receipt without making it operative."""
+
+    if not isinstance(receipt, dict):
+        raise ValueError("invalid-receipt-type")
+    errors = (
+        _validate_v1_capability_receipt(receipt)
+        if receipt.get("version") == CAPABILITY_RECEIPT_VERSION_V1
+        else validate_native_capability_receipt(receipt)
+    )
+    if errors:
+        raise ValueError("invalid capability receipt: " + "; ".join(errors))
+    return deepcopy(receipt)
+
+
 def build_native_capability_receipt(
-    evidence: dict[str, Any], authorized_models: Iterable[str], issued_at: str, expires_at: str
+    evidence: dict[str, Any],
+    authorized_models: Iterable[str],
+    issued_at: str,
+    expires_at: str,
+    *,
+    session_authority: VerifiedAuthority,
 ) -> dict[str, Any]:
     """
     Build a native capability receipt from evidence.
@@ -358,6 +542,19 @@ def build_native_capability_receipt(
     configured_model = evidence.get("configured_model")
     if not _nonempty_string(requested_model) or not _nonempty_string(configured_model):
         raise ValueError("invalid requested_model or configured_model")
+    evidence_sha256 = canonical_capability_evidence_sha256(evidence)
+    if not isinstance(session_authority, VerifiedAuthority):
+        raise ValueError("capability verified session authority is required")
+    if (
+        session_authority.source_type != "worker-discovery"
+        or session_authority.source_id != evidence.get("canary_session_id")
+        or session_authority.source_sha256 != evidence_sha256
+        or session_authority.actor_role != "operative-worker"
+        or session_authority.identity_source != evidence.get("attestation_source")
+        or session_authority.authorized_scope != "child"
+        or session_authority.serialize().get("parent_receipt_sha256") is not None
+    ):
+        raise ValueError("capability session authority does not match trusted evidence")
 
     receipt_body = {
         "receipt_type": CAPABILITY_RECEIPT_TYPE,
@@ -376,11 +573,17 @@ def build_native_capability_receipt(
         "closure_receipt": True,
         "tool_surface_id": evidence.get("tool_surface_id"),
         "decision": "native-capability-confirmed",
-        "authority": "trusted-session-jsonl",
+        "session_evidence_sha256": evidence_sha256,
+        "authority_provenance": session_authority.serialize(),
         "issued_at": issued_at,
         "expires_at": expires_at,
     }
     receipt_body["receipt_sha256"] = _compute_receipt_sha256(receipt_body)
+    validation_errors = validate_native_capability_receipt(receipt_body)
+    if validation_errors:
+        raise ValueError(
+            "capability receipt validation failed: " + "; ".join(validation_errors)
+        )
     return receipt_body
 
 
@@ -412,12 +615,20 @@ def build_capability_receipt(
     authorized_models: Iterable[str],
     issued_at: str | None = None,
     expires_at: str | None = None,
+    *,
+    session_authority: VerifiedAuthority,
 ) -> dict[str, Any]:
     if isinstance(authorized_models, (str, bytes, bytearray)) or not isinstance(authorized_models, Iterable):
         raise ValueError("authorized_models must be a non-string iterable")
     if issued_at is None or expires_at is None:
         raise ValueError("issued_at and expires_at are required")
-    return build_native_capability_receipt(evidence, authorized_models, issued_at, expires_at)
+    return build_native_capability_receipt(
+        evidence,
+        authorized_models,
+        issued_at,
+        expires_at,
+        session_authority=session_authority,
+    )
 
 
 def validate_capability_receipt(receipt: dict[str, Any]) -> List[str]:

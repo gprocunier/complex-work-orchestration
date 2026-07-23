@@ -63,7 +63,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
-    render = commands.add_parser("render", help="Render a hash-bound fixed-cohort pool contract.")
+    render = commands.add_parser(
+        "render",
+        help="Render a hash-bound bounded-cohort pool contract.",
+    )
     render.add_argument("--request", required=True)
     render.add_argument("--output", required=True)
     render.add_argument("--capability-receipt")

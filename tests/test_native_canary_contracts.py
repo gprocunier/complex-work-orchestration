@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import hmac
 import importlib.util
 import json
 from pathlib import Path
@@ -26,11 +27,16 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     length_framed_sha256,
     materialization_execution_correlation,
     new_authorization_state,
+    neutral_steering_final_text,
+    operator_fact_action_sha256,
+    seal_neutral_steering_receipt,
     seal_materialization_evidence,
     validate_capability_rendered_command,
     validate_authorization_state,
     validate_materialization_evidence,
     validate_steering_receipt,
+    verify_operator_fact_authority,
+    steering_stop_metadata,
 )
 
 
@@ -48,6 +54,7 @@ UUID_TEXT_ALIASES = (
     CANONICAL_UUID_TEXT + " ",
     CANONICAL_UUID_TEXT + "\n",
 )
+OPERATOR_FACT_STATEMENT = "The operator bounded this work to the current task."
 
 
 def boundary(label: str, count: int) -> dict:
@@ -214,7 +221,7 @@ def materialization() -> dict:
 
 def steering() -> dict:
     value = {
-        "schema": "cwo-steering-receipt:v1",
+        "schema": "cwo-steering-receipt:v2",
         "gate": "pre-mutation",
         "bead_id": "complex-work-orchestration-18w.6.1",
         "authorization_id": str(uuid.uuid4()),
@@ -267,41 +274,145 @@ def steering() -> dict:
             "workspace_mutations": 0,
         },
         "guard": {
-            "before": {"repo_head": "a" * 40, "repo_status_sha256": hash_value("status"), "primary_diff_sha256": hash_value("primary")},
-            "after": {"repo_head": "a" * 40, "repo_status_sha256": hash_value("status"), "primary_diff_sha256": hash_value("primary")},
+            "before": {
+                "repo_head": "a" * 40,
+                "repo_status_sha256": hash_value("status"),
+                "primary_diff_sha256": hash_value("primary"),
+            },
+            "after": {
+                "repo_head": "a" * 40,
+                "repo_status_sha256": hash_value("status"),
+                "primary_diff_sha256": hash_value("primary"),
+            },
         },
-        "opinion": {
-            "conditions": ["prove conditions"],
-            "confidence": 0.9,
-            "findings": [{"severity": "high", "code": "condition", "finding": "prove it"}],
-            "recommendation": "conditional-go",
-            "steering_summary": "conditional",
+        "steering": {
+            "operator_facts": [],
+            "observed_evidence": [
+                {
+                    "severity": "high",
+                    "code": "condition",
+                    "observation": "prove it",
+                    "evidence_sha256": hash_value("condition-evidence"),
+                }
+            ],
+            "model_interpretation": "The evidence leaves one material condition.",
+            "recommendation": {
+                "outcome": "conditional-go",
+                "rationale": "Proceed only after the condition is adjudicated.",
+                "confidence": 0.9,
+                "confidence_role": "advisory-only",
+            },
+            "strongest_counterargument": "The condition may warrant a stop.",
+            "agent_authored_constraints": [
+                {
+                    "constraint": "prove conditions",
+                    "origin": "agent-authored",
+                    "authority": "advisory-only",
+                }
+            ],
         },
-        "final_response_sha256": hash_value("final"),
         "started_at": "2026-07-16T00:00:00Z",
         "completed_at": "2026-07-16T00:01:00Z",
         "closure_outcome": "completed-and-archived",
         "disposition": "conditional",
     }
-    value["canonical_receipt_sha256"] = hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    return value
+    return seal_neutral_steering_receipt(value)
 
 
 def stop_steering_receipt() -> dict:
     receipt = steering()
-    receipt["opinion"]["recommendation"] = "stop"
-    receipt["opinion"]["findings"] = [
-        {"severity": "high", "code": "A-1", "finding": "fix this"},
-        {"severity": "medium", "code": "B-2", "finding": "patch this"},
-        {"severity": "low", "code": "L-9", "finding": "non-blocking"},
+    receipt["steering"]["recommendation"]["outcome"] = "stop"
+    receipt["steering"]["observed_evidence"] = [
+        {
+            "severity": "high",
+            "code": "A-1",
+            "observation": "fix this",
+            "evidence_sha256": hash_value("A-1"),
+        },
+        {
+            "severity": "medium",
+            "code": "B-2",
+            "observation": "patch this",
+            "evidence_sha256": hash_value("B-2"),
+        },
+        {
+            "severity": "low",
+            "code": "L-9",
+            "observation": "non-blocking",
+            "evidence_sha256": hash_value("L-9"),
+        },
     ]
-    receipt.pop("canonical_receipt_sha256", None)
-    receipt["canonical_receipt_sha256"] = hashlib.sha256(
-        json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+    receipt["disposition"] = "rejected"
+    return seal_neutral_steering_receipt(receipt)
+
+
+def historical_steering_receipt() -> dict:
+    current = steering()
+    payload = current.pop("steering")
+    for field in ("stop_scope", "authorized_continuation_paths", "scope_authority"):
+        current.pop(field)
+    current["schema"] = "cwo-steering-receipt:v1"
+    current["opinion"] = {
+        "conditions": [
+            item["constraint"] for item in payload["agent_authored_constraints"]
+        ],
+        "confidence": payload["recommendation"]["confidence"],
+        "findings": [
+            {
+                "severity": item["severity"],
+                "code": item["code"],
+                "finding": item["observation"],
+            }
+            for item in payload["observed_evidence"]
+            if item["severity"] != "info"
+        ],
+        "recommendation": payload["recommendation"]["outcome"],
+        "steering_summary": payload["model_interpretation"],
+    }
+    current["final_response_sha256"] = hashlib.sha256(
+        json.dumps(current["opinion"], sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    return receipt
+    current.pop("canonical_receipt_sha256", None)
+    current["canonical_receipt_sha256"] = hashlib.sha256(
+        json.dumps(current, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return current
+
+
+def verified_operator_authority(
+    statement: str = OPERATOR_FACT_STATEMENT,
+):
+    verification_key = b"test-steering-operator-key"
+    action_sha256 = operator_fact_action_sha256(statement)
+    body = {
+        "version": 1,
+        "directive_id": "operator-directive-steering-fact",
+        "action_sha256": action_sha256,
+        "actor_id": "operator-one",
+        "identity_source": "test-operator-keyring",
+        "authorized_scope": "complete-task",
+        "parent_receipt_sha256": None,
+        "issued_at": "2026-07-16T00:00:00Z",
+        "nonce": "operator-steering-fact-nonce",
+    }
+    signature = hmac.new(
+        verification_key,
+        json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return verify_operator_fact_authority(
+        statement,
+        {**body, "signature": signature},
+        verification_key=verification_key,
+        expected_actor_id="operator-one",
+        expected_identity_source="test-operator-keyring",
+    )
 
 
 def resolved_stop_adjudication(receipt: dict) -> dict:
@@ -353,8 +464,11 @@ class NativeCanaryContractTests(unittest.TestCase):
             with self.subTest(surface="phase-nonce", alias=repr(alias)):
                 receipt = steering()
                 adjudication = hash_value("adjudication")
-                with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(
-                    NativeCanaryContractError, "phase-nonce-invalid"
+                with (
+                    tempfile.TemporaryDirectory() as temporary,
+                    self.assertRaisesRegex(
+                        NativeCanaryContractError, "phase-nonce-invalid"
+                    ),
                 ):
                     consume_steering_receipt(
                         receipt,
@@ -390,6 +504,7 @@ class NativeCanaryContractTests(unittest.TestCase):
             "schemas/native-live-campaign-manifest.schema.json",
             "schemas/native-session-materialization-evidence.schema.json",
             "schemas/native-steering-receipt.schema.json",
+            "schemas/native-steering-receipt-v2.schema.json",
         )
         for relative in schema_paths:
             schema = json.loads((ROOT / relative).read_text(encoding="utf-8"))
@@ -430,15 +545,16 @@ class NativeCanaryContractTests(unittest.TestCase):
             "bash -lc 'sleep 20'",
         )
         for rendered in rejected:
-            with self.subTest(rendered=rendered), self.assertRaisesRegex(
-                NativeCanaryContractError, "rendered-command-not-exact-wrapper"
+            with (
+                self.subTest(rendered=rendered),
+                self.assertRaisesRegex(
+                    NativeCanaryContractError, "rendered-command-not-exact-wrapper"
+                ),
             ):
                 validate_capability_rendered_command(rendered, raw_command="sleep 20")
 
     def test_length_framed_hash_binds_domain_order_type_and_value(self) -> None:
-        base = length_framed_sha256(
-            domain="test", fields=(("a", "1"), ("b", 2))
-        )
+        base = length_framed_sha256(domain="test", fields=(("a", "1"), ("b", 2)))
         variants = (
             length_framed_sha256(domain="other", fields=(("a", "1"), ("b", 2))),
             length_framed_sha256(domain="test", fields=(("b", 2), ("a", "1"))),
@@ -448,9 +564,16 @@ class NativeCanaryContractTests(unittest.TestCase):
         self.assertTrue(all(value != base for value in variants))
 
     def test_materialization_accepting_happy_path(self) -> None:
-        self.assertEqual(validate_materialization_evidence(materialization(), require_accepting=True), [])
+        self.assertEqual(
+            validate_materialization_evidence(
+                materialization(), require_accepting=True
+            ),
+            [],
+        )
 
-    def test_materialization_separation_identity_terminal_and_interrupt_races(self) -> None:
+    def test_materialization_separation_identity_terminal_and_interrupt_races(
+        self,
+    ) -> None:
         cases = []
         value = materialization()
         value["liveness_observations"][1]["observed_at"] = "2026-07-16T00:00:01.500Z"
@@ -471,7 +594,9 @@ class NativeCanaryContractTests(unittest.TestCase):
         value["interrupt"]["confirmed_at"] = "2026-07-16T00:00:09Z"
         cases.append((value, "deadline"))
         value = materialization()
-        value["liveness_observations"][1]["function_call_id_sha256"] = hash_value("other-call")
+        value["liveness_observations"][1]["function_call_id_sha256"] = hash_value(
+            "other-call"
+        )
         cases.append((value, "identity"))
         value = materialization()
         value["pre_interrupt_observation"]["completed_event_count"] = 1
@@ -497,7 +622,9 @@ class NativeCanaryContractTests(unittest.TestCase):
         value["interrupt"]["thread_id"] = "other-thread"
         cases.append((value, "session-thread"))
         value = materialization()
-        value["liveness_observations"][0]["connection_epoch_sha256"] = hash_value("other-connection")
+        value["liveness_observations"][0]["connection_epoch_sha256"] = hash_value(
+            "other-connection"
+        )
         cases.append((value, "connection-epoch"))
         value = materialization()
         value["interrupt"]["request_accepted_at"] = "2026-07-16T00:00:02Z"
@@ -505,7 +632,12 @@ class NativeCanaryContractTests(unittest.TestCase):
         for value, expected in cases:
             value = seal_materialization_evidence(value)
             with self.subTest(expected=expected):
-                self.assertTrue(any(expected in error for error in validate_materialization_evidence(value)))
+                self.assertTrue(
+                    any(
+                        expected in error
+                        for error in validate_materialization_evidence(value)
+                    )
+                )
 
     def test_materialization_privacy_unknown_field_and_hash_tamper(self) -> None:
         value = materialization()
@@ -515,7 +647,10 @@ class NativeCanaryContractTests(unittest.TestCase):
         self.assertTrue(any("privacy-key" in error for error in errors))
         value = materialization()
         value["session_id"] = "changed"
-        self.assertIn("materialization-evidence-sha256-mismatch", validate_materialization_evidence(value))
+        self.assertIn(
+            "materialization-evidence-sha256-mismatch",
+            validate_materialization_evidence(value),
+        )
 
     def test_materialization_control_sequence_is_strict_and_nontruncating(self) -> None:
         cases = []
@@ -573,9 +708,7 @@ class NativeCanaryContractTests(unittest.TestCase):
         value["control_observations"][2]["decision"] = "terminal-accepted"
         cases.append((value, "terminal-decision-phase-invalid"))
         value = materialization()
-        value["liveness_observations"][0]["boundary"] = boundary(
-            "unbound-liveness", 5
-        )
+        value["liveness_observations"][0]["boundary"] = boundary("unbound-liveness", 5)
         cases.append((value, "liveness-control-binding"))
         value = materialization()
         value["terminal_event"]["event_type"] = "task_complete"
@@ -596,9 +729,14 @@ class NativeCanaryContractTests(unittest.TestCase):
                     )
                 )
 
-    def test_steering_conditional_requires_bound_go_and_replay_is_rejected(self) -> None:
+    def test_steering_conditional_requires_bound_go_and_replay_is_rejected(
+        self,
+    ) -> None:
         receipt = steering()
-        self.assertIn("steering-receipt-not-accepting", validate_steering_receipt(receipt, require_accepting=True))
+        self.assertIn(
+            "steering-receipt-not-accepting",
+            validate_steering_receipt(receipt, require_accepting=True),
+        )
         adjudication = hash_value("adjudication")
         self.assertEqual(
             validate_steering_receipt(
@@ -621,6 +759,9 @@ class NativeCanaryContractTests(unittest.TestCase):
             )
             self.assertEqual(len(consumption), 64)
             self.assertEqual(stat.S_IMODE(registry.stat().st_mode), 0o600)
+            consumed = json.loads(registry.read_text(encoding="utf-8"))["consumed"][0]
+            self.assertEqual(consumed["stop_scope"], "child")
+            self.assertEqual(consumed["authorized_continuation_paths"], [])
             with self.assertRaisesRegex(NativeCanaryContractError, "replay"):
                 consume_steering_receipt(
                     receipt,
@@ -630,7 +771,322 @@ class NativeCanaryContractTests(unittest.TestCase):
                     architect_decision="go",
                 )
 
-    def test_steering_stop_pre_mutation_requires_resolved_main_architect_adjudication(self) -> None:
+    def test_neutral_steering_is_strict_write_with_compatible_v1_read(self) -> None:
+        receipt = steering()
+        self.assertEqual(
+            validate_steering_receipt(receipt, require_neutral=True),
+            [],
+        )
+        final_text = neutral_steering_final_text(receipt)
+        self.assertEqual(
+            hashlib.sha256(final_text.encode()).hexdigest(),
+            receipt["final_response_sha256"],
+        )
+        historical = historical_steering_receipt()
+        self.assertEqual(validate_steering_receipt(historical), [])
+        historical_go = historical_steering_receipt()
+        historical_go["opinion"]["recommendation"] = "go"
+        historical_go["disposition"] = "accepting"
+        historical_go["final_response_sha256"] = hashlib.sha256(
+            json.dumps(
+                historical_go["opinion"], sort_keys=True, separators=(",", ":")
+            ).encode()
+        ).hexdigest()
+        historical_go.pop("canonical_receipt_sha256")
+        historical_go["canonical_receipt_sha256"] = hashlib.sha256(
+            json.dumps(historical_go, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        self.assertEqual(
+            validate_steering_receipt(historical_go, require_accepting=True), []
+        )
+        self.assertIn(
+            "steering-legacy-v1-inspection-only",
+            validate_steering_receipt(historical, require_neutral=True),
+        )
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            self.assertRaisesRegex(
+                NativeCanaryContractError,
+                "legacy-v1-inspection-only",
+            ),
+        ):
+            consume_steering_receipt(
+                historical,
+                Path(temporary) / "registry.json",
+                phase_nonce=str(uuid.uuid4()),
+                architect_adjudication_sha256=hash_value("adjudication"),
+                architect_decision="go",
+            )
+        tampered = historical_steering_receipt()
+        tampered["opinion"]["steering_summary"] = "tampered legacy opinion"
+        tampered.pop("canonical_receipt_sha256")
+        tampered["canonical_receipt_sha256"] = hashlib.sha256(
+            json.dumps(tampered, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        self.assertIn(
+            "steering-final-response-sha256-mismatch",
+            validate_steering_receipt(tampered),
+        )
+        with self.assertRaisesRegex(
+            NativeCanaryContractError, "legacy-v1-inspection-only"
+        ):
+            steering_stop_metadata(historical)
+
+    def test_neutral_steering_strict_writer_rejects_invalid_envelope(self) -> None:
+        cases = (
+            (("input",), {}, "steering-input-fields-invalid"),
+            (
+                ("model_discovery",),
+                {},
+                "steering-model-discovery-fields-invalid",
+            ),
+            (("guard",), {}, "steering-guard-fields-invalid"),
+            (("boundary",), {}, "steering-boundary-fields-invalid"),
+            (("started_at",), "not-a-time", "steering-started-at-invalid"),
+            (("gate",), "after-release", "steering-gate-invalid"),
+        )
+        for path, replacement, expected in cases:
+            with self.subTest(path=path):
+                receipt = steering()
+                target = receipt
+                for part in path[:-1]:
+                    target = target[part]
+                target[path[-1]] = replacement
+                with self.assertRaisesRegex(NativeCanaryContractError, expected):
+                    seal_neutral_steering_receipt(receipt)
+
+        changed_guard = steering()
+        changed_guard["guard"]["after"]["repo_status_sha256"] = hash_value(
+            "changed-status"
+        )
+        with self.assertRaisesRegex(
+            NativeCanaryContractError, "steering-guard-changed"
+        ):
+            seal_neutral_steering_receipt(changed_guard)
+
+    def test_operator_facts_require_exact_opaque_verified_authority(self) -> None:
+        authority = verified_operator_authority()
+        receipt = steering()
+        receipt["steering"]["operator_facts"] = [
+            {
+                "statement": OPERATOR_FACT_STATEMENT,
+                "authority_provenance": authority.serialize(),
+            }
+        ]
+        receipt = seal_neutral_steering_receipt(
+            receipt,
+            verified_operator_authorities=[authority],
+        )
+        self.assertEqual(
+            validate_steering_receipt(
+                receipt,
+                require_neutral=True,
+                verified_operator_authorities=[authority],
+            ),
+            [],
+        )
+        self.assertIn(
+            "steering-operator-fact-0-authority-unverified",
+            validate_steering_receipt(receipt, require_neutral=True),
+        )
+        with self.assertRaisesRegex(
+            NativeCanaryContractError,
+            "authority-unverified",
+        ):
+            seal_neutral_steering_receipt(receipt)
+        unrelated = copy.deepcopy(receipt)
+        unrelated["steering"]["operator_facts"][0]["statement"] = (
+            "The operator ordered a publication veto."
+        )
+        with self.assertRaisesRegex(
+            NativeCanaryContractError,
+            "authority-action-mismatch",
+        ):
+            seal_neutral_steering_receipt(
+                unrelated,
+                verified_operator_authorities=[authority],
+            )
+
+    def test_neutral_steering_rejects_conflated_or_asserted_authority_fields(
+        self,
+    ) -> None:
+        base = steering()
+        cases = (
+            (
+                ("steering", "strongest_counterargument"),
+                "",
+                "steering-strongest-counterargument-invalid",
+            ),
+            (
+                ("steering", "recommendation", "confidence_role"),
+                "decision-authority",
+                "steering-confidence-role-invalid",
+            ),
+            (
+                ("steering", "agent_authored_constraints", 0, "origin"),
+                "operator-authored",
+                "steering-agent-constraint-0-origin-invalid",
+            ),
+            (
+                ("stop_scope",),
+                "publication",
+                "steering-stop-scope-mismatch",
+            ),
+        )
+        for path, replacement, expected in cases:
+            with self.subTest(path=path):
+                receipt = copy.deepcopy(base)
+                target = receipt
+                for part in path[:-1]:
+                    target = target[part]
+                target[path[-1]] = replacement
+                self.assertIn(
+                    expected,
+                    validate_steering_receipt(receipt, require_neutral=True),
+                )
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("jsonschema") is not None,
+        "jsonschema not installed",
+    )
+    def test_neutral_steering_v2_schema_accepts_strict_writer_output(self) -> None:
+        import jsonschema
+
+        schema = json.loads(
+            (ROOT / "schemas/native-steering-receipt-v2.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        validator = jsonschema.Draft202012Validator(schema)
+        validator.validate(steering())
+        validator.validate(stop_steering_receipt())
+        authority = verified_operator_authority()
+        receipt = steering()
+        receipt["steering"]["operator_facts"] = [
+            {
+                "statement": OPERATOR_FACT_STATEMENT,
+                "authority_provenance": authority.serialize(),
+            }
+        ]
+        validator.validate(
+            seal_neutral_steering_receipt(
+                receipt,
+                verified_operator_authorities=[authority],
+            )
+        )
+        promoted = stop_steering_receipt()
+        promoted["stop_scope"] = "cohort"
+        promoted["scope_authority"].update(
+            {
+                "source_type": "worker-discovery",
+                "source_id": "self-asserted-critic",
+                "actor_id": "critic",
+                "actor_role": "critic",
+                "identity_source": "receipt-string",
+                "authorized_scope": "cohort",
+            }
+        )
+        promoted["scope_authority"]["verification"]["method"] = (
+            "trusted-runtime-role-binding-v1"
+        )
+        self.assertFalse(validator.is_valid(promoted))
+
+    def test_neutral_steering_payload_tamper_cannot_hide_behind_outer_seal(
+        self,
+    ) -> None:
+        receipt = steering()
+        receipt["steering"]["observed_evidence"][0]["observation"] = (
+            "tampered observation"
+        )
+        receipt.pop("canonical_receipt_sha256")
+        receipt["canonical_receipt_sha256"] = hashlib.sha256(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        errors = validate_steering_receipt(receipt, require_neutral=True)
+        self.assertIn("steering-final-response-sha256-mismatch", errors)
+        self.assertNotIn("steering-canonical-sha256-mismatch", errors)
+
+    def test_steering_text_and_confidence_cannot_promote_scope(self) -> None:
+        receipt = steering()
+        receipt["steering"]["model_interpretation"] = "STOP 0.98 block publication"
+        receipt["steering"]["recommendation"]["confidence"] = 0.98
+        receipt = seal_neutral_steering_receipt(receipt)
+        metadata = steering_stop_metadata(receipt)
+        self.assertEqual(metadata["stop_scope"], "child")
+        self.assertNotEqual(
+            metadata["scope_authority"]["authorized_scope"], "publication"
+        )
+
+        stopped = stop_steering_receipt()
+        stopped["steering"]["model_interpretation"] = "STOP 0.98 block publication"
+        stopped["steering"]["recommendation"]["confidence"] = 0.98
+        stopped = seal_neutral_steering_receipt(stopped)
+        stopped_metadata = steering_stop_metadata(stopped)
+        self.assertEqual(stopped_metadata["stop_scope"], "child")
+        self.assertEqual(
+            stopped_metadata["scope_authority"]["source_type"],
+            "policy-enforcement",
+        )
+        self.assertEqual(
+            stopped_metadata["authorized_continuation_paths"][0]["target_id"],
+            stopped["bead_id"],
+        )
+        self.assertNotEqual(stopped_metadata["stop_scope"], "publication")
+        retargeted = copy.deepcopy(stopped)
+        retargeted["bead_id"] = "complex-work-orchestration-other-child"
+        retargeted = seal_neutral_steering_receipt(retargeted)
+        self.assertNotEqual(
+            stopped_metadata["scope_authority"]["source_sha256"],
+            retargeted["scope_authority"]["source_sha256"],
+        )
+        self.assertEqual(
+            retargeted["authorized_continuation_paths"][0]["target_id"],
+            retargeted["bead_id"],
+        )
+
+    def test_v2_go_remains_advisory_until_bound_architect_go(self) -> None:
+        receipt = steering()
+        receipt["steering"]["recommendation"]["outcome"] = "go"
+        receipt["disposition"] = "accepting"
+        receipt = seal_neutral_steering_receipt(receipt)
+        self.assertIn(
+            "steering-receipt-not-accepting",
+            validate_steering_receipt(receipt, require_accepting=True),
+        )
+        adjudication_sha256 = hash_value("architect-go")
+        self.assertEqual(
+            validate_steering_receipt(
+                receipt,
+                architect_adjudication_sha256=adjudication_sha256,
+                architect_decision="go",
+                require_accepting=True,
+            ),
+            [],
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            registry = Path(temporary) / "registry.json"
+            with self.assertRaisesRegex(
+                NativeCanaryContractError, "steering-receipt-not-accepting"
+            ):
+                consume_steering_receipt(
+                    receipt,
+                    registry,
+                    phase_nonce=str(uuid.uuid4()),
+                    architect_adjudication_sha256="garbage",
+                    architect_decision="go",
+                )
+            self.assertFalse(registry.exists())
+            consume_steering_receipt(
+                receipt,
+                registry,
+                phase_nonce=str(uuid.uuid4()),
+                architect_adjudication_sha256=adjudication_sha256,
+                architect_decision="go",
+            )
+
+    def test_steering_stop_pre_mutation_requires_resolved_main_architect_adjudication(
+        self,
+    ) -> None:
         receipt = stop_steering_receipt()
         adjudication = resolved_stop_adjudication(receipt)
         adjudication_hash = "a" * 64
@@ -679,27 +1135,42 @@ class NativeCanaryContractTests(unittest.TestCase):
                 "steering-stop-adjudication-receipt-mismatch",
             ),
             (
-                {"resolved_findings": [{"code": "A-1", "severity": "high", "status": "unresolved"}]},
+                {
+                    "resolved_findings": [
+                        {"code": "A-1", "severity": "high", "status": "unresolved"}
+                    ]
+                },
                 "steering-stop-adjudication-finding-invalid",
             ),
             (
-                {"resolved_findings": [
-                    {"code": "A-1", "severity": "high", "status": "resolved"},
-                    {"code": "Z", "severity": "medium", "status": "resolved"},
-                ]},
+                {
+                    "resolved_findings": [
+                        {"code": "A-1", "severity": "high", "status": "resolved"},
+                        {"code": "Z", "severity": "medium", "status": "resolved"},
+                    ]
+                },
                 "steering-stop-adjudication-finding-codes-mismatch",
             ),
             (
                 {"unresolved_high_severity_findings": ["A-1"]},
                 "steering-stop-adjudication-findings-unresolved",
             ),
-            ({"post_resolution_commit": "e" * 40}, "steering-stop-adjudication-post-commit-mismatch"),
-            ({"resolution_evidence_sha256": "g"}, "steering-stop-adjudication-evidence-digest-invalid"),
+            (
+                {"post_resolution_commit": "e" * 40},
+                "steering-stop-adjudication-post-commit-mismatch",
+            ),
+            (
+                {"resolution_evidence_sha256": "g"},
+                "steering-stop-adjudication-evidence-digest-invalid",
+            ),
             (
                 {"pre_live_reconfirmation_required": False},
                 "steering-stop-adjudication-reconfirmation-required-missing",
             ),
-            ({"post_resolution_commit": "d" * 41}, "steering-stop-adjudication-post-commit-invalid"),
+            (
+                {"post_resolution_commit": "d" * 41},
+                "steering-stop-adjudication-post-commit-invalid",
+            ),
         )
         for mutation, expected in cases:
             with self.subTest(mutation=mutation):
@@ -731,7 +1202,11 @@ class NativeCanaryContractTests(unittest.TestCase):
         pre_live_receipt["gate"] = "pre-live"
         pre_live_receipt["canonical_receipt_sha256"] = hashlib.sha256(
             json.dumps(
-                {k: v for k, v in pre_live_receipt.items() if k != "canonical_receipt_sha256"},
+                {
+                    k: v
+                    for k, v in pre_live_receipt.items()
+                    if k != "canonical_receipt_sha256"
+                },
                 sort_keys=True,
                 separators=(",", ":"),
             ).encode()
@@ -748,7 +1223,9 @@ class NativeCanaryContractTests(unittest.TestCase):
         )
         self.assertIn("steering-stop-receipt-gate-invalid", errors)
 
-    def test_steering_stop_pre_mutation_unknown_adjudication_fields_reject(self) -> None:
+    def test_steering_stop_pre_mutation_unknown_adjudication_fields_reject(
+        self,
+    ) -> None:
         receipt = stop_steering_receipt()
         adjudication = resolved_stop_adjudication(receipt)
         adjudication["unexpected"] = "extra"
@@ -763,7 +1240,9 @@ class NativeCanaryContractTests(unittest.TestCase):
         )
         self.assertIn("steering-stop-adjudication-fields-invalid", errors)
 
-    def test_steering_stop_pre_mutation_reconciles_missing_required_findings(self) -> None:
+    def test_steering_stop_pre_mutation_reconciles_missing_required_findings(
+        self,
+    ) -> None:
         receipt = stop_steering_receipt()
         adjudication = resolved_stop_adjudication(receipt)
         adjudication["resolved_findings"] = [
@@ -780,16 +1259,19 @@ class NativeCanaryContractTests(unittest.TestCase):
         )
         self.assertIn("steering-stop-adjudication-finding-codes-mismatch", errors)
 
-    def test_steering_stop_pre_mutation_rejects_duplicate_receipt_finding_codes(self) -> None:
+    def test_steering_stop_pre_mutation_rejects_duplicate_receipt_finding_codes(
+        self,
+    ) -> None:
         receipt = stop_steering_receipt()
-        receipt["opinion"]["findings"].insert(
+        receipt["steering"]["observed_evidence"].insert(
             1,
-            {"severity": "medium", "code": "A-1", "finding": "duplicate code"},
+            {
+                "severity": "medium",
+                "code": "A-1",
+                "observation": "duplicate code",
+                "evidence_sha256": hash_value("duplicate-A-1"),
+            },
         )
-        receipt.pop("canonical_receipt_sha256", None)
-        receipt["canonical_receipt_sha256"] = hashlib.sha256(
-            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
         adjudication = resolved_stop_adjudication(receipt)
         errors = validate_steering_receipt(
             receipt,
@@ -805,18 +1287,26 @@ class NativeCanaryContractTests(unittest.TestCase):
     def test_steering_model_activity_boundary_and_hash_tamper(self) -> None:
         receipt = steering()
         receipt["model"] = "other"
-        self.assertIn("steering-model-effort-mismatch", validate_steering_receipt(receipt))
+        self.assertIn(
+            "steering-model-effort-mismatch", validate_steering_receipt(receipt)
+        )
         receipt = steering()
         receipt["observed_activity"]["function_calls"] = 1
         self.assertIn("steering-nonzero-activity", validate_steering_receipt(receipt))
         receipt = steering()
         receipt["boundary"]["terminal"]["trailing_partial"] = True
-        self.assertIn("steering-terminal-boundary-not-clean", validate_steering_receipt(receipt))
+        self.assertIn(
+            "steering-terminal-boundary-not-clean", validate_steering_receipt(receipt)
+        )
         receipt = steering()
         receipt["gate"] = "changed"
-        self.assertIn("steering-canonical-sha256-mismatch", validate_steering_receipt(receipt))
+        self.assertIn(
+            "steering-canonical-sha256-mismatch", validate_steering_receipt(receipt)
+        )
 
-    def test_authorization_latch_is_private_monotonic_and_revokes_delayed_actions(self) -> None:
+    def test_authorization_latch_is_private_monotonic_and_revokes_delayed_actions(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "authorization.json"
             store = CanaryAuthorizationStore(path)
@@ -828,31 +1318,60 @@ class NativeCanaryContractTests(unittest.TestCase):
             self.assertEqual(validate_authorization_state(initial), [])
             store.initialize(initial)
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
-            self.assertEqual(store.require_action("tracked-mutation")["state"], "active")
+            self.assertEqual(
+                store.require_action("tracked-mutation")["state"], "active"
+            )
             contained = store.transition(
                 "containment-only", reason="protected-fault", now="2026-07-16T00:00:01Z"
             )
             self.assertEqual(contained["sequence"], 1)
             self.assertIn("tracked-mutation", contained["revoked_actions"])
-            self.assertEqual(store.require_action("interrupt")["state"], "containment-only")
-            for action in ("retry", "relaunch", "tracked-mutation", "release-enable", "push", "install", "publish"):
-                with self.subTest(action=action), self.assertRaisesRegex(
-                    NativeCanaryContractError, "revoked"
+            self.assertEqual(
+                store.require_action("interrupt")["state"], "containment-only"
+            )
+            for action in (
+                "retry",
+                "relaunch",
+                "tracked-mutation",
+                "release-enable",
+                "push",
+                "install",
+                "publish",
+            ):
+                with (
+                    self.subTest(action=action),
+                    self.assertRaisesRegex(NativeCanaryContractError, "revoked"),
                 ):
                     store.require_action(action)
-            with self.assertRaisesRegex(NativeCanaryContractError, "transition-forbidden"):
-                store.transition("active", reason="late-event", now="2026-07-16T00:00:02Z")
-            parked = store.transition("parked", reason="evidence-durable", now="2026-07-16T00:00:03Z")
+            with self.assertRaisesRegex(
+                NativeCanaryContractError, "transition-forbidden"
+            ):
+                store.transition(
+                    "active", reason="late-event", now="2026-07-16T00:00:02Z"
+                )
+            parked = store.transition(
+                "parked", reason="evidence-durable", now="2026-07-16T00:00:03Z"
+            )
             self.assertEqual(parked["state"], "parked")
 
     def test_authorization_complete_is_terminal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             store = CanaryAuthorizationStore(Path(temporary) / "authorization.json")
-            store.initialize(new_authorization_state(authorization_id="a", run_nonce="r", now="2026-07-16T00:00:00Z"))
-            completed = store.transition("complete", reason="accepted", now="2026-07-16T00:00:01Z")
+            store.initialize(
+                new_authorization_state(
+                    authorization_id="a", run_nonce="r", now="2026-07-16T00:00:00Z"
+                )
+            )
+            completed = store.transition(
+                "complete", reason="accepted", now="2026-07-16T00:00:01Z"
+            )
             self.assertEqual(completed["allowed_actions"], [])
-            with self.assertRaisesRegex(NativeCanaryContractError, "transition-forbidden"):
-                store.transition("containment-only", reason="late", now="2026-07-16T00:00:02Z")
+            with self.assertRaisesRegex(
+                NativeCanaryContractError, "transition-forbidden"
+            ):
+                store.transition(
+                    "containment-only", reason="late", now="2026-07-16T00:00:02Z"
+                )
 
     def test_v2_launch_claim_is_atomic_and_survives_transitions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -901,6 +1420,7 @@ class NativeCanaryContractTests(unittest.TestCase):
     def test_schemas_are_json_and_strict(self) -> None:
         for relative in (
             "schemas/native-steering-receipt.schema.json",
+            "schemas/native-steering-receipt-v2.schema.json",
             MATERIALIZATION_EVIDENCE_SCHEMA,
             CANARY_AUTHORIZATION_SCHEMA,
             "schemas/native-canary-authorization-state-v2.schema.json",

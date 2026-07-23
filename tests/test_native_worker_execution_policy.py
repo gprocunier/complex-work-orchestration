@@ -58,13 +58,20 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         pool = self.__class__.policy["native_supervision_pool"]
         self.assertTrue(pool["enabled"])
         self.assertEqual(pool["maturity"], "experimental")
-        self.assertFalse(pool["cap_two_enabled_by_default"])
         self.assertEqual(pool["status"], "operative-authorized")
-        self.assertEqual(pool["default_max_active_workers"], 1)
-        self.assertEqual(pool["hard_max_active_workers"], 2)
-        self.assertTrue(pool["cap_two_requires_explicit_opt_in"])
-        self.assertTrue(pool["cap_two_requires_fresh_capability"])
-        self.assertTrue(pool["cap_two_operative_release"])
+        self.assertEqual(
+            pool["capacity"],
+            {
+                "version": 1,
+                "default_max_active_workers": 1,
+                "released_max_active_workers": 2,
+                "hard_max_active_workers": 3,
+                "concurrency_enabled_by_default": False,
+                "requires_explicit_opt_in": True,
+                "requires_fresh_capability_receipt": True,
+                "operator_activation_required_for_increase": True,
+            },
+        )
         self.assertEqual(pool["release_requires"], "complex-work-orchestration-18w.6")
         self.assertEqual(pool["scheduler"]["poll_interval_ms"], 1000)
         self.assertEqual(pool["scheduler"]["poll_lag_tolerance_ms"], 1500)
@@ -84,9 +91,11 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             },
         )
         self.assertEqual(certification["certified_scheduler_overhead_ms"], 100)
+        self.assertEqual(certification["slack_warning_fraction"], 0.8)
+        self.assertEqual(pool["scheduler"]["slack_warning_fraction"], 0.8)
         self.assertEqual(
             certification["response_time_equation"],
-            "max_lifecycle+2*check+scheduler<=poll_interval",
+            "max_lifecycle+N*check+scheduler<=poll_interval",
         )
         self.assertEqual(pool["max_certified_check_ms"], 200)
         live = pool["trusted_live_canary"]
@@ -239,7 +248,7 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(
             bounded_retry,
             {
-                "version": 1,
+                "version": 2,
                 "enabled": True,
                 "max_retries": 1,
                 "eligible_semantic_statuses": ["delivery-failed", "no-artifact", "no-progress"],
@@ -249,18 +258,23 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
                     "tool-call-interrupt-threshold",
                     "runtime-interrupt-threshold",
                 ],
-                "authority": "cwo-native-supervisor-evidence",
-                "actual_spawn_owner": "native-pm-controller",
+                "evidence_provenance": "cwo-native-supervisor-evidence",
+                "receipt_authority": "audit-only",
+                "dispatch_authorized": False,
+                "required_dispatch_authority": "opaque-verified-recovery-action",
+                "dispatch_owner": "native-pm-controller",
                 "operator_approval_required": False,
                 "immutable_work_hash_required": True,
                 "aggregate_budget_shared": True,
                 "fresh_retry_session_required": True,
                 "exact_model_attestation_required": True,
-                "authorization_receipt": {
-                    "type": "cwo-native-retry-authorization",
-                    "version": 1,
-                    "schema": "schemas/native-retry-authorization.schema.json",
-                    "next_action": "spawn-fresh-native-retry",
+                "audit_receipt": {
+                    "type": "cwo-native-retry-evidence",
+                    "version": 3,
+                    "schema": "schemas/native-retry-evidence.schema.json",
+                    "receipt_authority": "audit-only",
+                    "dispatch_authorized": False,
+                    "next_action": "await-verified-recovery-action",
                 },
                 "hard_stops": [
                     "model-mismatch",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -13,6 +14,7 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
 import cwo_core.native_capability as native_capability
+from cwo_core.native_authority import trusted_actor_authority
 
 
 SCHEMA_PATH = ROOT / "schemas" / "native-model-capability-receipt.schema.json"
@@ -50,6 +52,20 @@ def _build_receipt(evidence: dict, authorized_models: list[str] | None = None) -
         authorized_models,
         issued_at="2026-01-01T12:00:00+00:00",
         expires_at="2026-01-02T12:00:00+00:00",
+        session_authority=_session_authority(evidence),
+    )
+
+
+def _session_authority(evidence: dict):
+    return trusted_actor_authority(
+        source_type="worker-discovery",
+        source_id=evidence["canary_session_id"],
+        source_sha256=native_capability.canonical_capability_evidence_sha256(
+            evidence
+        ),
+        actor_id="capability-worker-1",
+        actor_role="operative-worker",
+        identity_source=evidence["attestation_source"],
     )
 
 
@@ -74,7 +90,7 @@ class NativeCapabilityTests(unittest.TestCase):
             receipt_path = temp / "receipt.json"
             evidence_path.write_text(json.dumps(_base_evidence()), encoding="utf-8")
             built = subprocess.run(
-                [sys.executable, str(script), "build", "--evidence", str(evidence_path), "--authorized-model", "gpt-4o-native", "--issued-at", "2026-01-01T12:00:00+00:00", "--expires-at", "2026-01-02T12:00:00+00:00", "--output", str(receipt_path)],
+                [sys.executable, str(script), "build", "--evidence", str(evidence_path), "--authorized-model", "gpt-4o-native", "--issued-at", "2026-01-01T12:00:00+00:00", "--expires-at", "2026-01-02T12:00:00+00:00", "--actor-id", "capability-worker-1", "--output", str(receipt_path)],
                 cwd=ROOT, text=True, capture_output=True, check=False,
             )
             self.assertEqual(built.returncode, 0, built.stderr + built.stdout)
@@ -107,7 +123,7 @@ class NativeCapabilityTests(unittest.TestCase):
         self.assertTrue(callable(getattr(native_capability, "validate_capability_receipt", None)))
         self.assertTrue(callable(getattr(native_capability, "capability_receipt_applies", None)))
         self.assertEqual(getattr(native_capability, "CAPABILITY_RECEIPT_TYPE", None), "cwo-native-model-capability-receipt")
-        self.assertEqual(getattr(native_capability, "CAPABILITY_RECEIPT_VERSION", None), 1)
+        self.assertEqual(getattr(native_capability, "CAPABILITY_RECEIPT_VERSION", None), 2)
 
     def test_advertised_false_direct_spawn_true_trusted_attestation_zero_usage_dispatches(self) -> None:
         evidence = _base_evidence()
@@ -227,7 +243,11 @@ class NativeCapabilityTests(unittest.TestCase):
         if builder is None:
             builder = native_capability.build_native_capability_receipt
         with self.assertRaises(ValueError):
-            builder(evidence, "gpt-4o-native")
+            builder(
+                evidence,
+                "gpt-4o-native",
+                session_authority=_session_authority(evidence),
+            )
 
     def test_build_receipt_no_mutation_and_strict_fields(self) -> None:
         evidence = _base_evidence()
@@ -252,7 +272,8 @@ class NativeCapabilityTests(unittest.TestCase):
             "closure_receipt",
             "tool_surface_id",
             "decision",
-            "authority",
+            "session_evidence_sha256",
+            "authority_provenance",
             "issued_at",
             "expires_at",
             "receipt_sha256",
@@ -267,8 +288,71 @@ class NativeCapabilityTests(unittest.TestCase):
         self.assertIsInstance(receipt["runtime_seconds"], float)
         self.assertEqual(receipt["tool_calls"], 0)
         self.assertEqual(receipt["context_compactions"], 0)
+        self.assertEqual(
+            receipt["authority_provenance"]["source_id"],
+            evidence["canary_session_id"],
+        )
         self.assertEqual(len(receipt["receipt_sha256"]), 64)
         self.assertEqual(_validate_receipt(receipt), [])
+
+    def test_build_requires_matching_verified_session_authority(self) -> None:
+        evidence = _base_evidence()
+        with self.assertRaisesRegex(ValueError, "verified session authority"):
+            native_capability.build_native_capability_receipt(
+                evidence,
+                ["gpt-4o-native"],
+                "2026-01-01T12:00:00+00:00",
+                "2026-01-02T12:00:00+00:00",
+                session_authority="trusted-session-jsonl",
+            )
+        wrong = trusted_actor_authority(
+            source_type="pm-observation",
+            source_id=evidence["canary_session_id"],
+            source_sha256=native_capability.canonical_capability_evidence_sha256(
+                evidence
+            ),
+            actor_id="pm-1",
+            actor_role="project-manager",
+            identity_source=evidence["attestation_source"],
+        )
+        with self.assertRaisesRegex(ValueError, "does not match trusted evidence"):
+            native_capability.build_native_capability_receipt(
+                evidence,
+                ["gpt-4o-native"],
+                "2026-01-01T12:00:00+00:00",
+                "2026-01-02T12:00:00+00:00",
+                session_authority=wrong,
+            )
+
+    def test_v1_capability_receipt_is_historical_read_only(self) -> None:
+        current = _build_receipt(_base_evidence())
+        legacy = copy.deepcopy(current)
+        legacy.pop("session_evidence_sha256")
+        legacy.pop("authority_provenance")
+        legacy["version"] = native_capability.CAPABILITY_RECEIPT_VERSION_V1
+        legacy["authority"] = "trusted-session-jsonl"
+        legacy.pop("receipt_sha256")
+        legacy["receipt_sha256"] = hashlib.sha256(
+            json.dumps(
+                legacy,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("ascii")
+        ).hexdigest()
+        self.assertEqual(native_capability.read_native_capability_receipt(legacy), legacy)
+        self.assertEqual(
+            native_capability.validate_native_capability_receipt(legacy),
+            ["receipt-version-1-historical-only"],
+        )
+        self.assertFalse(
+            native_capability.capability_receipt_applies(
+                legacy,
+                "gpt-4o-native",
+                "spark-registry",
+                "2026-01-01T13:00:00+00:00",
+            )
+        )
 
     def test_build_receipt_datetime_validation(self) -> None:
         evidence = _base_evidence({"advertised": True})
@@ -281,6 +365,7 @@ class NativeCapabilityTests(unittest.TestCase):
                 ["gpt-4o-native"],
                 issued_at="2026-01-01T12:00:00",
                 expires_at="2026-01-02T12:00:00",
+                session_authority=_session_authority(evidence),
             )
         with self.assertRaises(ValueError):
             builder(
@@ -288,6 +373,7 @@ class NativeCapabilityTests(unittest.TestCase):
                 ["gpt-4o-native"],
                 issued_at="2026-01-02T12:00:00+00:00",
                 expires_at="2026-01-01T12:00:00+00:00",
+                session_authority=_session_authority(evidence),
             )
 
     def test_receipt_tampering_detects_hash_failure(self) -> None:
@@ -355,8 +441,8 @@ class NativeCapabilityTests(unittest.TestCase):
         schema = _load_schema()
         self.assertEqual(schema["type"], "object")
         self.assertEqual(schema.get("additionalProperties"), False)
-        self.assertEqual(len(schema["required"]), 20)
-        self.assertEqual(len(schema["properties"]), 20)
+        self.assertEqual(len(schema["required"]), 21)
+        self.assertEqual(len(schema["properties"]), 21)
 
         expected_required = {
             "receipt_type",
@@ -375,7 +461,8 @@ class NativeCapabilityTests(unittest.TestCase):
             "closure_receipt",
             "tool_surface_id",
             "decision",
-            "authority",
+            "session_evidence_sha256",
+            "authority_provenance",
             "issued_at",
             "expires_at",
             "receipt_sha256",
@@ -403,13 +490,17 @@ class NativeCapabilityTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["tool_surface_id"]["type"], "string")
         self.assertEqual(schema["properties"]["tool_surface_id"]["minLength"], 1)
         self.assertEqual(schema["properties"]["decision"]["const"], "native-capability-confirmed")
-        self.assertEqual(schema["properties"]["authority"]["const"], "trusted-session-jsonl")
+        self.assertEqual(
+            schema["properties"]["authority_provenance"]["$ref"],
+            "#/$defs/authority_provenance",
+        )
         self.assertEqual(schema["properties"]["issued_at"]["type"], "string")
         self.assertEqual(schema["properties"]["issued_at"]["format"], "date-time")
         self.assertEqual(schema["properties"]["expires_at"]["type"], "string")
         self.assertEqual(schema["properties"]["expires_at"]["format"], "date-time")
-        self.assertEqual(schema["properties"]["receipt_sha256"]["type"], "string")
-        self.assertEqual(schema["properties"]["receipt_sha256"]["pattern"], "^[0-9a-f]{64}$")
+        self.assertEqual(
+            schema["properties"]["receipt_sha256"]["$ref"], "#/$defs/sha256"
+        )
 
 
 if __name__ == "__main__":

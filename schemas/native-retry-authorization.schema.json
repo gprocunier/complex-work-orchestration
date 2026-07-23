@@ -22,7 +22,9 @@
     "cumulative_usage",
     "remaining_before_retry",
     "retry_budget",
-    "authority",
+    "evidence_bindings",
+    "retry_evidence_sha256",
+    "authority_provenance",
     "decision",
     "receipt_sha256"
   ],
@@ -33,7 +35,7 @@
     },
     "version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "parent_packet_id": {
       "type": "string",
@@ -93,9 +95,35 @@
     "retry_budget": {
       "$ref": "#/definitions/usage"
     },
-    "authority": {
-      "type": "string",
-      "const": "cwo-native-supervisor-evidence"
+    "evidence_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parent_packet_sha256",
+        "retry_packet_sha256",
+        "supervision_state_sha256",
+        "workspace_report_sha256",
+        "semantic_result_sha256",
+        "recovery_policy_sha256",
+        "fresh_attestation_sha256",
+        "eligibility_sha256"
+      ],
+      "properties": {
+        "parent_packet_sha256": {"$ref": "#/definitions/sha256"},
+        "retry_packet_sha256": {"$ref": "#/definitions/sha256"},
+        "supervision_state_sha256": {"$ref": "#/definitions/sha256"},
+        "workspace_report_sha256": {"$ref": "#/definitions/sha256"},
+        "semantic_result_sha256": {"$ref": "#/definitions/sha256"},
+        "recovery_policy_sha256": {"$ref": "#/definitions/sha256"},
+        "fresh_attestation_sha256": {"$ref": "#/definitions/sha256"},
+        "eligibility_sha256": {"$ref": "#/definitions/sha256"}
+      }
+    },
+    "retry_evidence_sha256": {
+      "$ref": "#/definitions/sha256"
+    },
+    "authority_provenance": {
+      "$ref": "#/definitions/authority_provenance"
     },
     "decision": {
       "type": "string",
@@ -124,6 +152,50 @@
     "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "authority_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "source_type", "source_id", "source_sha256", "actor_id",
+        "actor_role", "identity_source", "authorized_scope",
+        "parent_receipt_sha256", "verification", "authority_sha256"
+      ],
+      "properties": {
+        "version": {"const": 1},
+        "source_type": {
+          "enum": [
+            "worker-discovery", "pm-observation", "architect-judgment",
+            "operator-directive", "policy-enforcement"
+          ]
+        },
+        "source_id": {"type": "string", "minLength": 1},
+        "source_sha256": {"$ref": "#/definitions/sha256"},
+        "actor_id": {"type": "string", "minLength": 1},
+        "actor_role": {
+          "enum": [
+            "operative-worker", "critic", "project-manager", "architect",
+            "supervisor-policy", "operator"
+          ]
+        },
+        "identity_source": {"type": "string", "minLength": 1},
+        "authorized_scope": {
+          "enum": ["child", "cohort", "execution-path", "complete-task", "publication"]
+        },
+        "parent_receipt_sha256": {
+          "oneOf": [{"$ref": "#/definitions/sha256"}, {"type": "null"}]
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "evidence_sha256"],
+          "properties": {
+            "method": {"type": "string", "minLength": 1},
+            "evidence_sha256": {"$ref": "#/definitions/sha256"}
+          }
+        },
+        "authority_sha256": {"$ref": "#/definitions/sha256"}
+      }
     }
   }
 }

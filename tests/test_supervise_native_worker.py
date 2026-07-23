@@ -732,6 +732,53 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertEqual(activity["category_counts"]["unrelated"], 1)
         self.assertIn("unrelated-activity-denied", activity["violations"])
 
+    def test_unpermitted_tool_activity_is_hash_bound_and_interrupting(self) -> None:
+        packet = self.packet()
+        _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        activity = supervisor._classify_native_activity(
+            [tool_record("escape", name="spawn_agent", call_id="forbidden-1")],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertIn("forbidden-tool-activity", activity["violations"])
+        self.assertEqual(
+            activity["forbidden_tool_activity"][0]["tool"], "spawn_agent"
+        )
+        self.assertRegex(
+            activity["forbidden_tool_activity"][0]["evidence_sha256"],
+            r"^[0-9a-f]{64}$",
+        )
+        self.assertNotIn("escape", json.dumps(activity))
+
+    def test_call_shaped_unknown_tool_activity_fails_closed(self) -> None:
+        packet = self.packet()
+        _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        activity = supervisor._classify_native_activity(
+            [
+                {
+                    "response_item": {
+                        "type": "web_search_call",
+                        "name": "exec_command",
+                        "id": "search-1",
+                        "query": "out of contract",
+                    }
+                }
+            ],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertIn("forbidden-tool-activity", activity["violations"])
+        self.assertEqual(
+            activity["forbidden_tool_activity"][0]["tool"], "web_search_call"
+        )
+        self.assertNotIn("out of contract", json.dumps(activity))
+
     def test_declared_long_running_command_authorizes_only_bound_empty_polls(self) -> None:
         command = ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
         packet = self.validation_packet([command])
@@ -1337,6 +1384,9 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         self.assertEqual(payload["segment_start_grace_seconds"], 10)
         self.assertEqual(payload["baseline_record_count"], 1)
         self.assertEqual(payload["status"], "created")
+        self.assertEqual(payload["stop_scope"], "child")
+        self.assertEqual(payload["authorized_continuation_paths"], [])
+        self.assertEqual(payload["scope_authority"]["authorized_scope"], "child")
         observed = payload["observed"]
         self.assertEqual(observed["operative_readiness"]["decision"], "operative-ready")
         self.assertEqual(len(observed["context_units"]), 1)
@@ -1362,6 +1412,21 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         duplicate = self.start()
         self.assertNotEqual(duplicate.returncode, 0)
         self.assertIn("duplicate active", duplicate.stderr)
+
+    def test_legacy_state_is_migrated_on_compatible_read(self) -> None:
+        self.assertEqual(self.start().returncode, 0)
+        state = json.loads(self.state_file.read_text(encoding="utf-8"))
+        for field in ("stop_scope", "authorized_continuation_paths", "scope_authority"):
+            state.pop(field)
+        self.state_file.write_text(json.dumps(state), encoding="utf-8")
+        armed = self.arm("2026-07-11T00:00:01Z")
+        self.assertEqual(armed.returncode, 0, armed.stderr)
+        migrated = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertEqual(migrated["stop_scope"], "child")
+        self.assertEqual(
+            migrated["scope_authority"]["verification"]["method"],
+            "legacy-compatible-read-v1",
+        )
 
     def test_start_rejects_attestation_mismatch(self) -> None:
         records = [session_meta(self.session_id)]
@@ -1498,6 +1563,13 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         payload = json.loads(expired.stdout)
         self.assertEqual(payload["decision"], "control-lost")
         self.assertTrue(payload["control_action_required"])
+        self.assertEqual(payload["stop_scope"], "child")
+        self.assertTrue(
+            all(
+                set(path) == {"path", "target_id", "conditions"}
+                for path in payload["authorized_continuation_paths"]
+            )
+        )
 
     def test_delayed_trusted_completion_is_complete_not_quarantine(self) -> None:
         self.assertEqual(self.start().returncode, 0)

@@ -29,6 +29,28 @@ class RunBdTests(unittest.TestCase):
                     lib.run_bd(["ready"], timeout=3)
         self.assertIn("bd command timed out after 3s: bd ready", str(exc.exception))
 
+    def test_add_dependency_preserves_explicit_nonblocking_type(self) -> None:
+        with patch.object(lib, "run_bd", return_value="") as mocked_run:
+            lib.add_dependency("publication", "implementation", dependency_type="validates")
+
+        mocked_run.assert_called_once_with(
+            [
+                "dep",
+                "add",
+                "publication",
+                "implementation",
+                "--type",
+                "validates",
+            ]
+        )
+
+    def test_add_dependency_rejects_unknown_type_before_bd_call(self) -> None:
+        with patch.object(lib, "run_bd", return_value="") as mocked_run:
+            with self.assertRaises(ValueError):
+                lib.add_dependency("a", "b", dependency_type="integration-order")
+
+        mocked_run.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

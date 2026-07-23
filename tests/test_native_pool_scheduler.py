@@ -12,6 +12,7 @@ from cwo_core.native_pool_contracts import canonical_sha256, zero_usage  # noqa:
 from cwo_core.native_pool_scheduler import (  # noqa: E402
     AggregateUsageLedger,
     PoolAccountingError,
+    PoolSchedulingError,
     exhausted_budget,
     mutation_evidence_sha256,
     peer_deadline_guard,
@@ -19,6 +20,11 @@ from cwo_core.native_pool_scheduler import (  # noqa: E402
     sum_cumulative_usage,
     usage_delta,
     wait_seconds,
+)
+from cwo_core.native_pool_schedulability import (  # noqa: E402
+    PoolSchedulabilityError,
+    latency_consumes_slack_fraction,
+    scheduling_budget_proof,
 )
 
 
@@ -59,7 +65,7 @@ class NativePoolSchedulerTests(unittest.TestCase):
     def test_peer_deadline_guard_preempts_lifecycle_callback(self) -> None:
         children = [
             {"child_id": "a", "next_deadline_ns": None},
-            {"child_id": "b", "next_deadline_ns": 1_350_000_000},
+            {"child_id": "b", "next_deadline_ns": 1_550_000_000},
         ]
         selected = peer_deadline_guard(
             children,
@@ -67,9 +73,11 @@ class NativePoolSchedulerTests(unittest.TestCase):
             proposed_child_id="a",
             now_ns=1_000_000_000,
             certified_callback_ms=250,
+            certified_peer_check_ms=200,
             certified_scheduler_overhead_ms=100,
         )
         self.assertEqual(selected.child_id, "b")
+        children[1]["next_deadline_ns"] = 1_550_000_001
         self.assertIsNone(
             peer_deadline_guard(
                 children,
@@ -77,9 +85,161 @@ class NativePoolSchedulerTests(unittest.TestCase):
                 proposed_child_id="a",
                 now_ns=1_000_000_000,
                 certified_callback_ms=250,
-                certified_scheduler_overhead_ms=99.999999,
+                certified_peer_check_ms=200,
+                certified_scheduler_overhead_ms=100,
             )
         )
+
+    def test_peer_deadline_guard_accounts_for_cumulative_peer_service(self) -> None:
+        children = [
+            {"child_id": "a", "next_deadline_ns": None},
+            {"child_id": "b", "next_deadline_ns": 400_000_001},
+            {"child_id": "c", "next_deadline_ns": 550_000_000},
+        ]
+        selected = peer_deadline_guard(
+            children,
+            cursor=0,
+            proposed_child_id="a",
+            now_ns=0,
+            certified_callback_ms=100,
+            certified_peer_check_ms=200,
+            certified_scheduler_overhead_ms=100,
+        )
+        self.assertEqual(selected.child_id, "b")
+
+        children[2]["next_deadline_ns"] = 600_000_001
+        self.assertIsNone(
+            peer_deadline_guard(
+                children,
+                cursor=0,
+                proposed_child_id="a",
+                now_ns=0,
+                certified_callback_ms=100,
+                certified_peer_check_ms=200,
+                certified_scheduler_overhead_ms=100,
+            )
+        )
+
+    def test_peer_deadline_guard_rejects_invalid_service_inputs(self) -> None:
+        children = [
+            {"child_id": "a", "next_deadline_ns": None},
+            {"child_id": "b", "next_deadline_ns": 1},
+        ]
+        for value in (True, -1, float("nan"), float("inf")):
+            with self.subTest(value=value):
+                with self.assertRaises(PoolSchedulingError):
+                    peer_deadline_guard(
+                        children,
+                        cursor=0,
+                        proposed_child_id="a",
+                        now_ns=0,
+                        certified_callback_ms=100,
+                        certified_peer_check_ms=value,
+                    )
+
+    def test_schedulability_proof_has_exact_current_capacity_arithmetic(self) -> None:
+        callbacks = {
+            "arm": 100,
+            "send_input": 250,
+            "mark_dispatched": 100,
+            "check": 200,
+            "interrupt": 250,
+            "close": 250,
+            "finalize": 100,
+        }
+        expected = {
+            2: (750, 250, True),
+            3: (950, 50, True),
+            4: (1150, -150, False),
+        }
+        for workers, outcome in expected.items():
+            with self.subTest(workers=workers):
+                proof = scheduling_budget_proof(
+                    requested_workers=workers,
+                    certified_callback_max_ms=callbacks,
+                    certified_scheduler_overhead_ms=100,
+                    poll_interval_ms=1000,
+                )
+                self.assertEqual(
+                    (proof.total_demand_ms, proof.slack_ms, proof.accepted),
+                    outcome,
+                )
+                self.assertEqual(proof.as_dict()["inputs"]["requested_workers"], workers)
+
+    def test_schedulability_boundary_and_warning_are_explicit(self) -> None:
+        callbacks = {"send_input": 250, "check": 200}
+        equality = scheduling_budget_proof(
+            requested_workers=2,
+            certified_callback_max_ms=callbacks,
+            certified_scheduler_overhead_ms=100,
+            poll_interval_ms=750,
+        )
+        self.assertTrue(equality.accepted)
+        self.assertEqual(equality.slack_ms, 0)
+        rejected = scheduling_budget_proof(
+            requested_workers=2,
+            certified_callback_max_ms=callbacks,
+            certified_scheduler_overhead_ms=100,
+            poll_interval_ms=749.999,
+        )
+        self.assertFalse(rejected.accepted)
+        self.assertTrue(
+            latency_consumes_slack_fraction(
+                scheduling_budget_proof(
+                    requested_workers=2,
+                    certified_callback_max_ms=callbacks,
+                    certified_scheduler_overhead_ms=100,
+                    poll_interval_ms=1000,
+                ),
+                observed_latency_ms=200,
+                warning_fraction=0.8,
+            )
+        )
+
+    def test_schedulability_property_grid_uses_n_without_clamping(self) -> None:
+        for lifecycle in (1, 100, 250.5):
+            for check in (1, 50, 200):
+                for overhead in (0, 100):
+                    previous = None
+                    for workers in range(1, 7):
+                        with self.subTest(
+                            lifecycle=lifecycle,
+                            check=check,
+                            overhead=overhead,
+                            workers=workers,
+                        ):
+                            proof = scheduling_budget_proof(
+                                requested_workers=workers,
+                                certified_callback_max_ms={
+                                    "lifecycle": lifecycle,
+                                    "check": check,
+                                },
+                                certified_scheduler_overhead_ms=overhead,
+                                poll_interval_ms=5000,
+                            )
+                            expected = max(lifecycle, check) + workers * check + overhead
+                            self.assertEqual(proof.total_demand_ms, expected)
+                            self.assertEqual(proof.slack_ms, 5000 - expected)
+                            if previous is not None:
+                                self.assertEqual(proof.total_demand_ms - previous, check)
+                            previous = proof.total_demand_ms
+
+        invalid_cases = (
+            {"requested_workers": True},
+            {"requested_workers": 0},
+            {"certified_scheduler_overhead_ms": float("nan")},
+            {"poll_interval_ms": float("inf")},
+        )
+        baseline = {
+            "requested_workers": 2,
+            "certified_callback_max_ms": {"lifecycle": 250, "check": 200},
+            "certified_scheduler_overhead_ms": 100,
+            "poll_interval_ms": 1000,
+        }
+        for override in invalid_cases:
+            with self.subTest(override=override):
+                with self.assertRaises(PoolSchedulabilityError):
+                    scheduling_budget_proof(**{**baseline, **override})
 
     def test_usage_delta_rejects_reset_and_availability_change(self) -> None:
         before = available_usage(tools=3, runtime=4, tokens=10)

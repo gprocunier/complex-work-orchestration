@@ -122,13 +122,17 @@
     "version": 1,
     "enabled": true,
     "maturity": "experimental",
-    "cap_two_enabled_by_default": false,
     "status": "operative-authorized",
-    "default_max_active_workers": 1,
-    "hard_max_active_workers": 2,
-    "cap_two_requires_explicit_opt_in": true,
-    "cap_two_requires_fresh_capability": true,
-    "cap_two_operative_release": true,
+    "capacity": {
+      "version": 1,
+      "default_max_active_workers": 1,
+      "released_max_active_workers": 2,
+      "hard_max_active_workers": 3,
+      "concurrency_enabled_by_default": false,
+      "requires_explicit_opt_in": true,
+      "requires_fresh_capability_receipt": true,
+      "operator_activation_required_for_increase": true
+    },
     "release_requires": "complex-work-orchestration-18w.6",
     "required_control_adapter": "native-multi-agent-v1",
     "allowed_execution_surfaces": [
@@ -137,10 +141,10 @@
     "max_capability_ttl_seconds": 3600,
     "max_certified_check_ms": 200,
     "callback_certification": {
-      "version": "live-thread-adapter-callback-certification:v1",
+      "version": "live-thread-adapter-callback-certification:v2",
       "envelope": "live-thread-adapter-callback-v1",
-      "scheduler_model": "nonpreemptive-edf-cap2-v1",
-      "response_time_equation": "max_lifecycle+2*check+scheduler<=poll_interval",
+      "scheduler_model": "nonpreemptive-edf-generalized-v2",
+      "response_time_equation": "max_lifecycle+N*check+scheduler<=poll_interval",
       "observation_authority": "telemetry-only-non-authoritative",
       "certified_callback_max_ms": {
         "arm": 100,
@@ -151,18 +155,39 @@
         "close": 250,
         "finalize": 100
       },
-      "certified_scheduler_overhead_ms": 100
+      "certified_scheduler_overhead_ms": 100,
+      "slack_warning_fraction": 0.8
     },
     "scheduler": {
       "kind": "earliest-deadline-rotating-v1",
       "poll_interval_ms": 1000,
       "poll_lag_tolerance_ms": 1500,
+      "slack_warning_fraction": 0.8,
       "hot_admission_allowed": false,
       "threads_allowed": false
     },
+    "proportionality": {
+      "version": 1,
+      "status": "provisional",
+      "minimum_child_runtime_p90_ms": 300000,
+      "minimum_gross_savings_overhead_multiple_milli": 2000,
+      "conservative_fixed_overhead_ms": 60000,
+      "per_worker_admission_overhead_ms": 10000,
+      "per_worker_evidence_overhead_ms": 10000,
+      "read_only_worker_topology_overhead_ms": 5000,
+      "mutable_worker_topology_overhead_ms": 15000,
+      "per_mutable_worker_mutation_overhead_ms": 15000,
+      "per_mutable_worker_integration_overhead_ms": 15000,
+      "forbidden_task_classes": [
+        "literal-command"
+      ],
+      "override_change_type": "security-or-authority-change",
+      "override_required_scope": "complete-task"
+    },
     "trusted_live_canary": {
       "runner": "scripts/run_native_pool_live_canaries.py",
-      "steering_receipt_schema": "schemas/native-steering-receipt.schema.json",
+      "steering_receipt_schema": "schemas/native-steering-receipt-v2.schema.json",
+      "steering_prompt_template": "templates/native-steering-v2-prompt.md",
       "materialization_evidence_schema": "schemas/native-session-materialization-evidence.schema.json",
       "authorization_state_schema": "schemas/native-canary-authorization-state.schema.json",
       "exact_model": "gpt-5.3-codex-spark",
@@ -706,7 +731,7 @@
     ]
   },
   "bounded_native_retry": {
-    "version": 1,
+    "version": 2,
     "enabled": true,
     "max_retries": 1,
     "eligible_semantic_statuses": [
@@ -720,18 +745,23 @@
       "tool-call-interrupt-threshold",
       "runtime-interrupt-threshold"
     ],
-    "authority": "cwo-native-supervisor-evidence",
-    "actual_spawn_owner": "native-pm-controller",
+    "evidence_provenance": "cwo-native-supervisor-evidence",
+    "receipt_authority": "audit-only",
+    "dispatch_authorized": false,
+    "required_dispatch_authority": "opaque-verified-recovery-action",
+    "dispatch_owner": "native-pm-controller",
     "operator_approval_required": false,
     "immutable_work_hash_required": true,
     "aggregate_budget_shared": true,
     "fresh_retry_session_required": true,
     "exact_model_attestation_required": true,
-    "authorization_receipt": {
-      "type": "cwo-native-retry-authorization",
-      "version": 1,
-      "schema": "schemas/native-retry-authorization.schema.json",
-      "next_action": "spawn-fresh-native-retry"
+    "audit_receipt": {
+      "type": "cwo-native-retry-evidence",
+      "version": 3,
+      "schema": "schemas/native-retry-evidence.schema.json",
+      "receipt_authority": "audit-only",
+      "dispatch_authorized": false,
+      "next_action": "await-verified-recovery-action"
     },
     "hard_stops": [
       "model-mismatch",
@@ -1113,6 +1143,17 @@
             "materially_refined_child": "fresh-deterministic-estimate-and-allowance",
             "immutable_retry": "share-parent-allowance",
             "cumulative_lineage_usage_required": true
+          },
+          "progress_decision_schema": "schemas/native-progress-decision-v2.schema.json",
+          "neutral_steering_contract": {
+            "write_version": 2,
+            "legacy_v1": "inspection-only",
+            "operator_facts_require_verified_authority": true,
+            "operator_fact_action_hash_binding_required": true,
+            "scope_authority": "repository-policy-child-only",
+            "all_v2_outcomes_require_bound_architect_go": true,
+            "agent_authored_constraints": "explicit-advisory-only",
+            "confidence_role": "advisory-only"
           },
           "live_replay_enabled": false,
           "dispatch_soft_cap": 3,

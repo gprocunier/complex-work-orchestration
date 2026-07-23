@@ -7,6 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.beads import run_bd
+from cwo_core.beads_ready_set import (
+    CONTAINER_LABELS,
+    CONTAINER_TYPES,
+    MAX_PHASE1_CANDIDATE_WORKERS,
+    build_ready_set_evidence,
+    markdown_fallback_evidence,
+)
 from summarize_resume_state import coerce_items, parse_markdown_workgraph
 
 RESULT_TYPE = "complex-work-orchestration-sprint-continuation"
@@ -15,7 +22,7 @@ CODEX_BLOCKING_LABELS = {"contractor-only", "local-worker-only", "no-codex-exec"
 CLOSED_STATUSES = {"closed", "done", "completed", "resolved"}
 VALIDATION_LABELS = {"validation", "test", "testing", "acceptance"}
 FOLLOWUP_LABELS = {"follow-up", "followup", "carry-forward", "carried-forward"}
-NON_BLOCKING_DEPENDENCY_TYPES = {"parent-child"}
+HARD_BLOCKING_DEPENDENCY_TYPES = {"blocks", "until"}
 
 
 def bd_json(args: list[str]) -> Any:
@@ -45,7 +52,10 @@ def dependency_entry_ids(value: Any) -> list[str]:
         return [item.strip() for item in value.split(",") if item.strip()]
     if not isinstance(value, dict):
         return string_list(value)
-    if normalized_dependency_type(value.get("type") or value.get("dependency_type")) in NON_BLOCKING_DEPENDENCY_TYPES:
+    dependency_type = normalized_dependency_type(
+        value.get("type") or value.get("dependency_type") or "blocks"
+    )
+    if dependency_type not in HARD_BLOCKING_DEPENDENCY_TYPES:
         return []
     for name in ["depends_on_id", "depends_on", "dependency_id", "blocked_by", "blocker_id", "id", "key"]:
         candidate = value.get(name)
@@ -147,23 +157,81 @@ def belongs_to_epic(item: dict[str, Any], epic_id: str) -> bool:
 
 
 def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
-    payload = bd_json(["list", "--json", "--all", "--limit", "0"])
-    all_items = coerce_items(payload)
-    items = [item for item in all_items if issue_id(item) == epic_id or belongs_to_epic(item, epic_id)]
-    dependency_ids = {
-        dependency
-        for item in items
-        for dependency in issue_dependencies(item)
-    }
-    seen = {issue_id(item) for item in items}
-    items.extend(
-        item
-        for item in all_items
-        if issue_id(item) in dependency_ids and issue_id(item) not in seen
+    """Load exact issue projections while taking readiness only from ``bd ready``."""
+
+    ready_payload = bd_json(
+        [
+            "ready",
+            "--json",
+            "--parent",
+            epic_id,
+            "--unassigned",
+            "--limit",
+            "0",
+        ]
     )
-    if not items:
-        raise SystemExit(f"no Beads issues found for epic {epic_id!r}")
-    return items
+    ready_items = coerce_items(ready_payload)
+    ready_order: list[str] = []
+    for item in ready_items:
+        item_id = issue_id(item)
+        if item_id and item_id not in ready_order:
+            ready_order.append(item_id)
+    ready_ids = set(ready_order)
+    ready_rank = {item_id: rank for rank, item_id in enumerate(ready_order)}
+
+    discovered_ids = {epic_id, *ready_ids}
+    pending_parents = [epic_id]
+    queried_parents: set[str] = set()
+    while pending_parents:
+        parent_id = pending_parents.pop(0)
+        if parent_id in queried_parents:
+            continue
+        queried_parents.add(parent_id)
+        children = coerce_items(
+            bd_json(
+                [
+                    "list",
+                    "--json",
+                    "--all",
+                    "--parent",
+                    parent_id,
+                    "--limit",
+                    "0",
+                ]
+            )
+        )
+        for child in children:
+            child_id = issue_id(child)
+            if child_id:
+                discovered_ids.add(child_id)
+                if child_id not in queried_parents and child_id not in pending_parents:
+                    pending_parents.append(child_id)
+
+    exact_items: list[dict[str, Any]] = []
+    exact_ids = sorted(discovered_ids)
+    for start in range(0, len(exact_ids), 50):
+        chunk = exact_ids[start : start + 50]
+        exact_items.extend(coerce_items(bd_json(["show", *chunk, "--json"])))
+    exact_by_id = {issue_id(item): item for item in exact_items if issue_id(item)}
+    missing = sorted(discovered_ids - set(exact_by_id))
+    if missing:
+        raise SystemExit(
+            "Beads exact-show enrichment omitted issue(s): " + ", ".join(missing)
+        )
+
+    parent_ids = {
+        str(field(item, "parent", "parent_id") or "").strip()
+        for item in exact_items
+        if str(field(item, "parent", "parent_id") or "").strip()
+    }
+    result: list[dict[str, Any]] = []
+    for item_id in exact_ids:
+        enriched = dict(exact_by_id[item_id])
+        enriched["_cwo_canonical_ready"] = item_id in ready_ids
+        enriched["_cwo_canonical_ready_rank"] = ready_rank.get(item_id)
+        enriched["_cwo_executable_leaf"] = item_id not in parent_ids
+        result.append(enriched)
+    return result
 
 
 def load_markdown_items(path: Path, epic_id: str) -> list[dict[str, Any]]:
@@ -327,6 +395,8 @@ def build_continuation_brief(
     sprint_id: str | None = None,
     source: str = "beads",
     markdown_workgraph_path: str | None = None,
+    requested_workers: int = MAX_PHASE1_CANDIDATE_WORKERS,
+    policy_document: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     items = [normalize_item(item) for item in raw_items if issue_id(item)]
     lookup = dependency_lookup(items)
@@ -336,10 +406,45 @@ def build_continuation_brief(
         for item in items
         if not is_closed(item) and item["id"] != epic_id and item["type"].strip().lower() != "epic"
     ]
-    blocked_pairs = [(item, blocker_reasons(item, lookup)) for item in open_items]
+    canonical_ready_mode = any(
+        "_cwo_canonical_ready" in item["raw"] for item in items
+    )
+    blocked_pairs: list[tuple[dict[str, Any], list[str]]] = []
+    canonical_ready_items: list[dict[str, Any]] = []
+    for item in open_items:
+        reasons = blocker_reasons(item, lookup)
+        if canonical_ready_mode:
+            canonical_ready = item["raw"].get("_cwo_canonical_ready") is True
+            executable_leaf = item["raw"].get("_cwo_executable_leaf") is not False
+            executable_container = (
+                item["type"].strip().lower() in CONTAINER_TYPES
+                or (
+                    bool(set(item["labels"]) & CONTAINER_LABELS)
+                    and item["type"].strip().lower()
+                    not in {"task", "bug", "chore"}
+                )
+            )
+            if canonical_ready and executable_leaf:
+                canonical_ready_items.append(item)
+                if executable_container:
+                    reasons.append(
+                        "grouping container or publication parent is not executable work"
+                    )
+            elif canonical_ready:
+                reasons.append("grouping container has descendant work items")
+            elif not reasons:
+                reasons.append(
+                    "not returned by canonical Beads readiness "
+                    f"({item['status']})"
+                )
+        blocked_pairs.append((item, reasons))
     blocked = [(item, reasons) for item, reasons in blocked_pairs if reasons]
     ready = [item for item, reasons in blocked_pairs if not reasons]
     ranked_ready = rank_ready_issues(ready, items)
+    ranked_candidate_input = rank_ready_issues(
+        canonical_ready_items if canonical_ready_mode else ready,
+        items,
+    )
     recommended = ranked_ready[0] if ranked_ready else None
     sprint_goal = infer_sprint_goal(epic, sprint_id)
     dor, dod = definition_checks(epic_id=epic_id, sprint_goal=sprint_goal, items=items, blocked=[item for item, _ in blocked])
@@ -352,7 +457,7 @@ def build_continuation_brief(
     ]
     durability = "reduced" if source == "markdown-workgraph" else "durable"
     resume_commands = [
-        "bd ready --exclude-label contractor-only --exclude-label local-worker-only --exclude-label no-codex-exec --json",
+        f"bd ready --json --parent {epic_id} --unassigned --limit 0",
         f"python3 scripts/cwo.py continue --epic {epic_id}",
     ]
     if source == "markdown-workgraph":
@@ -364,11 +469,12 @@ def build_continuation_brief(
     warnings = [MODELING_NOTE]
     if source == "markdown-workgraph":
         warnings.append("Markdown fallback has no durable ready filtering, comments, or shared Beads handoff.")
+        warnings.append("Markdown fallback cannot authorize or evidence native-pool fanout.")
     if not recommended and blocked:
         warnings.append("No ready issue is available; resolve the first blocker before implementation.")
     result = {
         "continuation_result_type": RESULT_TYPE,
-        "version": 1,
+        "version": 2,
         "source": source,
         "durability": durability,
         "epic_id": epic_id,
@@ -391,6 +497,23 @@ def build_continuation_brief(
         "resume_commands": resume_commands,
         "warnings": warnings,
     }
+    if source == "markdown-workgraph":
+        ready_set = markdown_fallback_evidence(ranked_ready)
+    else:
+        ready_set = build_ready_set_evidence(
+            ranked_candidate_input,
+            epic_id=epic_id,
+            requested_workers=requested_workers,
+            policy_document=policy_document,
+            scope_items=open_items,
+        )
+    ready_by_id = {item["id"]: issue_summary(item) for item in ranked_candidate_input}
+    ready_set["ranked_ready_issues"] = [
+        ready_by_id[item_id]
+        for item_id in ready_set["ranked_ready_issues"]
+        if item_id in ready_by_id
+    ]
+    result.update(ready_set)
     result["operator_handoff_packet"] = operator_handoff_packet(result)
     return result
 
@@ -412,6 +535,13 @@ def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
             f"Use $complex-work-orchestration to continue epic {result['epic_id']}; "
             "resolve the first blocker before implementation."
         )
+    if result.get("fanout_decision") == "pool":
+        execution_prompt += (
+            " A bounded pool candidate is available as evidence only; do not "
+            "dispatch it until P1-13B completes Beads claims, full drift and "
+            "capability revalidation, proportionality, operative lease acquisition, "
+            "and native-pool preflight."
+        )
     return {
         "next_executable_bead": next_bead,
         "why_it_is_next": result.get("why_next") or "No ready work item is available.",
@@ -419,7 +549,8 @@ def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
         "execution_prompt": execution_prompt,
         "what_must_not_run_yet": (
             "Do not run blocked, contractor-only, local-worker-only, no-codex-exec, "
-            "unsafe, or unapproved lanes until their guard clears."
+            "unsafe, or unapproved lanes until their guard clears. Ready-set "
+            "candidate evidence is never dispatch authority."
         ),
         "commit_push_status": "not evaluated by continuation helper; report current repo closeout status in the final response",
         "validation_status": "pending for the next lane; use the Definition of Done and evidence expectations above",
@@ -465,6 +596,21 @@ def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None
         print(f"- {item['id']} {item['title']} [{','.join(item['labels'])}]")
     if not result.get("ready_issues"):
         print("- none")
+    print("\n## Bounded Ready-Set Candidate")
+    print(f"- Decision: {result.get('fanout_decision', 'blocked')}")
+    print(f"- Authority: {result.get('ready_set_authority', 'candidate-evidence-only')}")
+    print(f"- Dispatch authorized: {str(bool(result.get('dispatch_authorized'))).lower()}")
+    snapshot_sha256 = result.get("beads_readiness_snapshot_sha256")
+    print(f"- Beads readiness snapshot: {snapshot_sha256 or 'unavailable'}")
+    selected = result.get("recommended_ready_set") or []
+    if selected:
+        print("- Selected candidate IDs: " + ", ".join(item["id"] for item in selected))
+    else:
+        print("- Selected candidate IDs: none")
+    print(
+        "- Compatible safe cohorts: "
+        + str(len(result.get("compatible_ready_sets") or []))
+    )
     blocked = result.get("blocked_issues", [])
     print("\n## Blocked Issues")
     display_blocked = blocked if include_blocked else blocked[:5]
@@ -510,6 +656,15 @@ def main() -> None:
     )
     parser.add_argument("--format", choices=["text", "json"], default="text")
     parser.add_argument("--include-blocked", action="store_true", help="Show all blocked issues in text output.")
+    parser.add_argument(
+        "--requested-workers",
+        type=int,
+        default=MAX_PHASE1_CANDIDATE_WORKERS,
+        help=(
+            "Requested bounded candidate size. Capacity policy and the Phase 1 "
+            "ceiling still apply; this never grants dispatch authority."
+        ),
+    )
     args = parser.parse_args()
 
     if args.markdown_workgraph:
@@ -524,6 +679,7 @@ def main() -> None:
         sprint_id=args.sprint,
         source=source,
         markdown_workgraph_path=str(args.markdown_workgraph) if args.markdown_workgraph else None,
+        requested_workers=args.requested_workers,
     )
     if args.format == "json":
         print(json.dumps(result, indent=2, sort_keys=True))

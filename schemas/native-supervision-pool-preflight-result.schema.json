@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Supervision Pool Preflight Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_type", "version", "schema", "stage", "request_sha256",
+    "contract_sha256", "decision", "accepted", "findings",
+    "override_authority", "result_sha256"
+  ],
+  "properties": {
+    "result_type": {"const": "cwo-native-supervision-pool-preflight-result"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-supervision-pool-preflight-result.schema.json"},
+    "stage": {"oneOf": [{"enum": ["pre-allocation", "pre-dispatch"]}, {"type": "null"}]},
+    "request_sha256": {"$ref": "#/$defs/sha256"},
+    "contract_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "decision": {"enum": ["accept", "reject"]},
+    "accepted": {"type": "boolean"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "override_authority": {
+      "oneOf": [
+        {"$ref": "native-authority-provenance.schema.json"},
+        {"type": "null"}
+      ]
+    },
+    "result_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id", "severity", "evidence", "remediation", "waivable",
+        "overridden", "override_reason_sha256", "authority_provenance"
+      ],
+      "properties": {
+        "rule_id": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["error", "warning", "info"]},
+        "evidence": {"type": "object"},
+        "remediation": {"type": "string", "minLength": 1},
+        "waivable": {"type": "boolean"},
+        "overridden": {"type": "boolean"},
+        "override_reason_sha256": {
+          "oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]
+        },
+        "authority_provenance": {
+          "oneOf": [
+            {"$ref": "native-authority-provenance.schema.json"},
+            {"type": "null"}
+          ]
+        }
+      }
+    }
+  }
+}

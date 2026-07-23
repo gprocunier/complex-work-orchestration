@@ -20,6 +20,7 @@ from cwo_core.native_control import (  # noqa: E402
     run_control_turn,
     validate_control_callbacks,
     validate_control_turn_contract,
+    validate_control_turn_receipt,
 )
 
 
@@ -76,6 +77,57 @@ class FakeAdapter:
 
 
 class NativeControlTest(unittest.TestCase):
+    def test_terminal_receipt_is_strict_and_control_contract_bound(self) -> None:
+        control = contract()
+        receipt = run_control_turn(
+            control,
+            TASK,
+            FakeAdapter(["complete"]).callbacks(),
+        )
+        self.assertEqual(
+            validate_control_turn_receipt(receipt, contract=control),
+            [],
+        )
+        swapped = dict(receipt)
+        swapped["contract_sha256"] = "f" * 64
+        self.assertIn(
+            "control-receipt-contract-sha256-mismatch",
+            validate_control_turn_receipt(swapped, contract=control),
+        )
+
+    def test_terminal_receipt_accepts_exact_prefixed_interrupt_decisions(self) -> None:
+        control = contract()
+        receipt = run_control_turn(
+            control,
+            TASK,
+            FakeAdapter(["complete"]).callbacks(),
+        )
+        for decisions in (
+            ["continue", "interrupt:pool-protected-fault"],
+            ["complete", "interrupt:completion-race"],
+        ):
+            with self.subTest(decisions=decisions):
+                candidate = {**receipt, "decisions": decisions}
+                self.assertEqual(
+                    validate_control_turn_receipt(candidate, contract=control),
+                    [],
+                )
+
+        for malformed in (
+            "interrupt:",
+            "interrupt:   ",
+            "interrupt:reason ",
+            " interrupt:reason",
+            "interrupt :reason",
+            "interrupt-only",
+        ):
+            with self.subTest(malformed=malformed):
+                candidate = {**receipt, "decisions": [malformed]}
+                self.assertIn(
+                    "control-receipt-decisions-invalid",
+                    validate_control_turn_receipt(candidate, contract=control),
+                )
+
     def run_renderer(self, state: object, *, agent_id: str = "agent-1", task: str = TASK):
         with tempfile.TemporaryDirectory() as temporary:
             state_path = Path(temporary) / "state.json"
@@ -329,6 +381,7 @@ class NativeControlTest(unittest.TestCase):
             requested = waiting.step()
         self.assertEqual(requested["receipt"]["terminal_state"], "closed")
         self.assertIn("interrupt:pool-protected-fault", requested["receipt"]["decisions"])
+        self.assertEqual(validate_control_turn_receipt(requested["receipt"]), [])
 
         complete_adapter = FakeAdapter(["complete"])
         completing = NativeControlTurn(contract(), complete_adapter.callbacks())
@@ -340,6 +393,7 @@ class NativeControlTest(unittest.TestCase):
             progress = completing.step()
         self.assertEqual(progress["receipt"]["terminal_state"], "closed")
         self.assertIn("interrupt:completion-race", progress["receipt"]["decisions"])
+        self.assertEqual(validate_control_turn_receipt(progress["receipt"]), [])
 
     def test_invalid_start_and_invalid_resume_use_zero_callbacks(self) -> None:
         adapter = FakeAdapter(["complete"])

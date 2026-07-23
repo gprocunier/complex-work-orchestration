@@ -26,10 +26,27 @@ from cwo_core.native_containment import require_native_operative_dispatch
 from cwo_core.native_precommit import canonical_sha256
 from cwo_core.native_retry import (
     build_retry_authorization,
+    canonical_retry_artifact_sha256,
     canonical_work_sha256,
     evaluate_retry_eligibility,
     validate_retry_authorization,
 )
+from cwo_core.native_recovery_authority import (
+    RecoveryActionStore,
+    RecoveryAuthorityError,
+    VerifiedRecoveryAction,
+)
+from cwo_core.native_recovery_policy import PROVISIONAL_ADMISSION_GRADE
+from cwo_core.native_authority import build_reason_records
+from cwo_core.native_stop_scope import (
+    STOP_METADATA_FIELDS,
+    build_stop_metadata,
+    canonical_scope_sha256,
+    continuation_path,
+    policy_scope_authority,
+    read_stop_metadata,
+)
+from cwo_core.native_worker_contracts import is_tool_call_item, trusted_tool_name
 from cwo_core.policy import load_policy
 from cwo_core.paths import AUDIT_LOG, cwo_temp_path, is_cwo_temp_path
 from cwo_core.util import artifact_hash, atomic_write_text, make_dispatch_id
@@ -468,6 +485,7 @@ def _empty_activity() -> dict[str, Any]:
         "pre_mutation_read_calls": 0,
         "pre_mutation_semantic_units": [],
         "mutation_started": False,
+        "forbidden_tool_activity": [],
         "warnings": [],
         "violations": [],
     }
@@ -495,8 +513,45 @@ def _tool_arguments(item: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _tool_call_id(item: dict[str, Any]) -> str | None:
-    value = item.get("call_id")
-    return value if isinstance(value, str) and value else None
+    for key in ("call_id", "callId", "id"):
+        value = item.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _tool_policy_violation(
+    item: dict[str, Any], packet: dict[str, Any]
+) -> dict[str, str] | None:
+    policy = packet.get("tool_policy")
+    if not isinstance(policy, dict):
+        return {
+            "tool": "unknown",
+            "evidence_sha256": canonical_sha256(
+                {"reason": "tool-policy-missing", "item_type": item.get("type")}
+            ),
+        }
+    raw_name = trusted_tool_name(item).strip().lower()
+    name = raw_name if re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", raw_name) else "unknown"
+    permitted = set(str(value) for value in policy.get("permitted_tools", []))
+    forbidden = set(str(value) for value in policy.get("forbidden_tools", []))
+    if name in permitted and name not in forbidden:
+        return None
+    arguments = _tool_arguments(item)
+    call_id = _tool_call_id(item)
+    evidence = {
+        "tool": name,
+        "item_sha256": canonical_sha256(item),
+        "arguments_sha256": canonical_sha256(
+            arguments if arguments is not None else {"unparseable": True}
+        ),
+        "call_id_sha256": (
+            hashlib.sha256(call_id.encode("utf-8")).hexdigest()
+            if call_id is not None
+            else None
+        ),
+    }
+    return {"tool": name, "evidence_sha256": canonical_sha256(evidence)}
 
 
 def _continuation_session_id(value: Any) -> int | None:
@@ -1052,8 +1107,7 @@ def _classify_native_activity(
         item
         for record in records
         for item in _normalize_response_items(record)
-        if isinstance(item, dict)
-        and item.get("type") in {"function_call", "custom_tool_call"}
+        if isinstance(item, dict) and is_tool_call_item(item)
     ]
     processed = int(activity.get("processed_items", 0) or 0)
     violations = set(str(value) for value in activity.get("violations", []))
@@ -1079,8 +1133,27 @@ def _classify_native_activity(
         packet,
         declared_validation_commands,
     )
+    prior_forbidden = activity.setdefault("forbidden_tool_activity", [])
+    forbidden_activity = {
+        (str(item.get("tool")), str(item.get("evidence_sha256"))): {
+            "tool": str(item.get("tool")),
+            "evidence_sha256": str(item.get("evidence_sha256")),
+        }
+        for item in prior_forbidden
+        if isinstance(item, dict)
+    }
 
     for item in items[processed:]:
+        tool_violation = _tool_policy_violation(item, packet)
+        if tool_violation is not None:
+            forbidden_activity[
+                (tool_violation["tool"], tool_violation["evidence_sha256"])
+            ] = tool_violation
+            category_counts["unrelated"] = int(
+                category_counts.get("unrelated", 0)
+            ) + 1
+            violations.add("forbidden-tool-activity")
+            continue
         command = _extract_command(item) or ""
         workdir_violation = _exec_command_workdir_violation(item, packet)
         if workdir_violation is not None:
@@ -1139,6 +1212,9 @@ def _classify_native_activity(
         warnings.add("pre-mutation-read-warning")
 
     activity["mutation_started"] = mutation_already_started or scoped_mutation
+    activity["forbidden_tool_activity"] = [
+        forbidden_activity[key] for key in sorted(forbidden_activity)
+    ]
     activity["warnings"] = sorted(warnings)
     activity["violations"] = sorted(violations)
     return activity
@@ -1258,6 +1334,7 @@ def _state_path(packet: dict[str, Any], session_id: str, raw: str | None) -> Pat
     path = Path(raw).expanduser() if raw else cwo_temp_path(
         f"{packet['packet_id']}-{session_id}.json",
         purpose="native-supervision",
+        create_parent=False,
     )
     path = path.resolve()
     if not is_cwo_temp_path(path):
@@ -1265,7 +1342,67 @@ def _state_path(packet: dict[str, Any], session_id: str, raw: str | None) -> Pat
     return path
 
 
+def _supervision_stop_metadata(
+    decision: str,
+    reasons: list[str],
+    *,
+    agent_id: str | None,
+) -> dict[str, Any]:
+    paths: list[dict[str, Any]] = []
+    if decision in {"interrupt", "control-lost"}:
+        paths = [
+            continuation_path(
+                "replace-child",
+                target_id=agent_id if isinstance(agent_id, str) and agent_id else None,
+                conditions=["interrupt-confirmed", "fresh-attempt"],
+            ),
+            continuation_path(
+                "continue-cohort",
+                conditions=["healthy-peer-evidence-preserved"],
+            ),
+        ]
+    return build_stop_metadata(
+        "child",
+        authority=policy_scope_authority(
+            "native-worker-supervision-policy-v1",
+            authorized_scope="child",
+            source_sha256=canonical_scope_sha256(
+                {"decision": decision, "reasons": sorted(set(reasons))}
+            ),
+        ),
+        authorized_continuation_paths=paths,
+    )
+
+
+def _apply_supervision_stop_metadata(state: dict[str, Any]) -> None:
+    reasons = [str(value) for value in state.get("reasons", [])]
+    metadata = _supervision_stop_metadata(
+        str(state.get("decision", "continue")),
+        reasons,
+        agent_id=state.get("agent_id"),
+    )
+    state.update(metadata)
+    state["reason_records"] = build_reason_records(
+        reasons,
+        metadata["scope_authority"],
+        detected_by="native-worker-supervision",
+    )
+
+
 def _write_state(path: Path, state: dict[str, Any]) -> None:
+    if not STOP_METADATA_FIELDS.issubset(state):
+        state.update(
+            read_stop_metadata(
+                state,
+                legacy_source_id="native-worker-supervision-state-v1",
+            )
+        )
+    if "reason_records" not in state:
+        state["reason_records"] = build_reason_records(
+            [str(value) for value in state.get("reasons", [])],
+            state["scope_authority"],
+            detected_by="native-worker-supervision-compatible-read",
+        )
     lock, _ = acquire_audit_lock(path)
     try:
         atomic_write_text(path, json.dumps(state, indent=2, sort_keys=True) + "\n")
@@ -1275,6 +1412,10 @@ def _write_state(path: Path, state: dict[str, Any]) -> None:
 
 def _decision(state: dict[str, Any]) -> dict[str, Any]:
     recovery = _recovery_payload(state.get("recovery"))
+    stop_metadata = read_stop_metadata(
+        state,
+        legacy_source_id="native-worker-supervision-decision-v1",
+    )
     return {
         "result_type": DECISION_TYPE,
         "version": 1,
@@ -1284,6 +1425,7 @@ def _decision(state: dict[str, Any]) -> dict[str, Any]:
         "session_id": state["session_id"],
         "decision": state["decision"],
         "reasons": list(state.get("reasons", [])),
+        "reason_records": list(state.get("reason_records", [])),
         "immutable_work_sha256": state.get("immutable_work_sha256"),
         "observed": dict(state.get("observed", {})),
         "interrupt_thresholds": dict(state["interrupt_thresholds"]),
@@ -1295,6 +1437,7 @@ def _decision(state: dict[str, Any]) -> dict[str, Any]:
         "artifact_disposition": state["artifact_disposition"],
         "artifact_validation": dict(state["artifact_validation"]),
         "trailing_partial_record_ignored": bool(state.get("trailing_partial_record_ignored")),
+        **stop_metadata,
     }
 
 
@@ -1365,6 +1508,10 @@ def _compact_projection(state: dict[str, Any]) -> dict[str, Any]:
         "started_at": state.get("started_at"),
         "updated_at": state.get("updated_at"),
         "finalized_at": state.get("finalized_at"),
+        **read_stop_metadata(
+            state,
+            legacy_source_id="native-worker-supervision-compact-v1",
+        ),
     }
     rendered = json.dumps(compact, sort_keys=True, separators=(",", ":")).encode("utf-8")
     if len(rendered) > 4096:
@@ -1477,7 +1624,80 @@ def _audit_event(
     )
 
 
-def start(args: argparse.Namespace) -> dict[str, Any]:
+def _consume_retry_recovery_action(
+    authorization: dict[str, Any],
+    *,
+    immutable_work_sha256: str,
+    verified_recovery_action: object,
+    recovery_action_store: object,
+) -> None:
+    """Consume one exact in-process action, then enforce the P1-7 stop.
+
+    P1-7 deliberately has no productive success branch: its fixed cohort is
+    provisional and its ledger evidence cannot prove admission origin.  P1-13B
+    must replace the final stop with a separately minted, ledger-origin action;
+    serialized receipts or a weakened variant of this provisional store must
+    never become that interface.
+    """
+
+    if type(recovery_action_store) is not RecoveryActionStore:
+        _fail("retry recovery action store must be the exact trusted store type")
+    if type(verified_recovery_action) is not VerifiedRecoveryAction:
+        _fail("retry requires an exact verified recovery action object")
+    try:
+        projection = recovery_action_store.inspect(verified_recovery_action)
+    except RecoveryAuthorityError as exc:
+        _fail(f"retry recovery action rejected: {exc}")
+
+    expected_bindings = {
+        "retry_receipt_sha256": authorization["receipt_sha256"],
+        "retry_evidence_sha256": authorization["retry_evidence_sha256"],
+        "retry_packet_id": authorization["retry_packet_id"],
+        "bead_id": authorization["bead_id"],
+        "requested_model": authorization["requested_model"],
+        "attested_model": authorization["attested_model"],
+        "work_sha256": immutable_work_sha256,
+        "attempt_from": authorization["attempt_from"],
+        "attempt_to": authorization["attempt_to"],
+    }
+    if any(projection.get(key) != value for key, value in expected_bindings.items()):
+        _fail("retry recovery action binding mismatch")
+    if (
+        projection.get("recovery_action") != "replace-same-admitted-bead"
+        or projection.get("admitted_bead_id") != authorization["bead_id"]
+        or projection.get("fixed_cohort_required") is not True
+        or projection.get("newly_ready_refill_allowed") is not False
+    ):
+        _fail("retry recovery action does not preserve the admitted fixed cohort")
+
+    try:
+        consumed = recovery_action_store.consume(verified_recovery_action)
+    except RecoveryAuthorityError as exc:
+        _fail(f"retry recovery action rejected: {exc}")
+    if dict(consumed) != dict(projection):
+        _fail("retry recovery action changed while being consumed")
+    if (
+        consumed.get("admission_grade") == PROVISIONAL_ADMISSION_GRADE
+        and consumed.get("dispatch_authorized") is False
+    ):
+        _fail(
+            "retry recovery action is provisional and non-dispatching; "
+            "P1-13B ledger-origin admission authority is required"
+        )
+    _fail("retry recovery action authority is unsupported pending P1-13B")
+
+
+def start(
+    args: argparse.Namespace,
+    *,
+    verified_recovery_action: object | None = None,
+    recovery_action_store: object | None = None,
+) -> dict[str, Any]:
+    retry_authorization_path = getattr(args, "retry_authorization", None)
+    if not retry_authorization_path and (
+        verified_recovery_action is not None or recovery_action_store is not None
+    ):
+        _fail("recovery action hooks require --retry-authorization")
     packet_path = Path(args.packet).expanduser().resolve()
     packet = _load_json(packet_path, "packet")
     _require_packet_release(packet, "supervision-start")
@@ -1495,6 +1715,7 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
     if models != {requested_model}:
         _fail(f"control-lost: trusted attestation mismatch: expected {requested_model!r}, observed {sorted(models)!r}")
     policy = load_policy("native-worker-execution")
+    bounded_retry_policy = _policy_mapping(policy, "bounded_native_retry")
     readiness, context_units = _evaluate_operative_readiness(packet, policy)
     if packet.get("lane") == "implementation" and readiness["decision"] != "operative-ready":
         details = ", ".join([*readiness["reasons"], *readiness["open_decisions"]])
@@ -1506,7 +1727,6 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
             _fail("duplicate active supervision state for packet/session")
         _fail("finalized supervision state cannot be reopened")
     now = _iso_now(args.now)
-    baseline = _persist_workspace_baseline(packet, args.session_id)
     clean_budget = {key: int(value) for key, value in packet["budget"].items()}
     disposition = derive_disposition(
         status="within-budget",
@@ -1517,9 +1737,11 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
     )
     immutable_work_sha256 = canonical_work_sha256(packet)
     recovery = _recovery_payload(None)
-    retry_authorization = None
-    if args.retry_authorization:
-        authorization = _load_json(Path(args.retry_authorization).expanduser().resolve(), "retry authorization")
+    if retry_authorization_path:
+        authorization = _load_json(
+            Path(retry_authorization_path).expanduser().resolve(),
+            "retry authorization",
+        )
         errors = validate_retry_authorization(authorization)
         if errors:
             _fail("retry authorization validation failed: " + "; ".join(errors))
@@ -1529,16 +1751,40 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
             _fail("retry authorization bead mismatch")
         if authorization["requested_model"] != requested_model or authorization["attested_model"] != requested_model:
             _fail("retry authorization model mismatch")
+        if authorization["retry_session_id"] != args.session_id:
+            _fail("retry authorization session mismatch")
         if authorization["attempt_from"] != 0 or authorization["attempt_to"] != 1:
             _fail("retry authorization attempt lineage must be 0->1")
         if authorization["work_sha256"] != immutable_work_sha256:
             _fail("retry authorization work hash mismatch")
+        if (
+            authorization["evidence_bindings"]["retry_packet_sha256"]
+            != canonical_retry_artifact_sha256(packet)
+        ):
+            _fail("retry authorization packet evidence mismatch")
+        if (
+            authorization["evidence_bindings"]["recovery_policy_sha256"]
+            != canonical_retry_artifact_sha256(bounded_retry_policy)
+        ):
+            _fail("retry authorization policy evidence mismatch")
+        if verified_recovery_action is None or recovery_action_store is None:
+            _fail(
+                "serialized retry authorization is audit-only; "
+                "an exact in-process verified recovery action is required"
+            )
+        _consume_retry_recovery_action(
+            authorization,
+            immutable_work_sha256=immutable_work_sha256,
+            verified_recovery_action=verified_recovery_action,
+            recovery_action_store=recovery_action_store,
+        )
         recovery = _recovery_payload({
             "attempt": int(authorization["attempt_to"]),
             "cumulative_usage": authorization["cumulative_usage"],
             "eligibility": None,
             "authorization": authorization,
         })
+    baseline = _persist_workspace_baseline(packet, args.session_id)
     state = {
         "result_type": STATE_TYPE,
         "version": 1,
@@ -1606,6 +1852,7 @@ def start(args: argparse.Namespace) -> dict[str, Any]:
             "late_poll_count": 0,
         },
     }
+    _apply_supervision_stop_metadata(state)
     _write_state(path, state)
     _audit_event(state, "native_supervision_started")
     state["state_file"] = str(path)
@@ -1616,7 +1863,21 @@ def _load_control_state(path_value: str) -> tuple[Path, dict[str, Any]]:
     path = Path(path_value).expanduser().resolve()
     if not is_cwo_temp_path(path):
         _fail("supervision state must be under a CWO-owned temporary directory")
-    return path, _load_json(path, "supervision state")
+    state = _load_json(path, "supervision state")
+    if not STOP_METADATA_FIELDS.issubset(state):
+        state.update(
+            read_stop_metadata(
+                state,
+                legacy_source_id="native-worker-supervision-state-v1",
+            )
+        )
+    if "reason_records" not in state:
+        state["reason_records"] = build_reason_records(
+            [str(value) for value in state.get("reasons", [])],
+            state["scope_authority"],
+            detected_by="native-worker-supervision-compatible-read",
+        )
+    return path, state
 
 
 def _require_packet_release(packet: dict[str, Any], operation: str) -> None:
@@ -1704,6 +1965,7 @@ def _set_control_lost(
             "updated_at": _iso(now),
         }
     )
+    _apply_supervision_stop_metadata(state)
 
 
 def arm(args: argparse.Namespace) -> dict[str, Any]:
@@ -1976,6 +2238,7 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 **disposition,
             }
         )
+        _apply_supervision_stop_metadata(state)
     except SystemExit as exc:
         state.update(
             {
@@ -1995,6 +2258,7 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "updated_at": _iso(now),
             }
         )
+        _apply_supervision_stop_metadata(state)
     if state.get("decision") != previous_audited_decision:
         _audit_event(state, "native_supervision_decision")
         state["last_audited_decision"] = state.get("decision")
@@ -2036,6 +2300,7 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
         state["artifact_disposition"] = "architect-adjudication-required"
         state["control_action_required"] = False
         state["finalized_at"] = _iso(_iso_now(args.now))
+    _apply_supervision_stop_metadata(state)
     state["updated_at"] = _iso(_iso_now(args.now))
     _audit_event(state, "native_supervision_control_receipt", control_action=action)
     _write_state(path, state)

@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import copy
 import datetime as dt
 import fcntl
 import json
 import os
 from pathlib import Path
-import time
 from typing import Any, Callable, Mapping, Sequence
 
-from .native_control import NativeControlTurn, validate_control_turn_contract
+from .native_control import (
+    NativeControlTurn,
+    RECEIPT_TYPE as CONTROL_RECEIPT_TYPE,
+    validate_control_turn_contract,
+)
+from .native_pool_capacity import load_pool_capacity
 from .native_pool_contracts import (
+    ADMITTED_POOL_RECEIPT_SCHEMA,
+    ADMITTED_POOL_VERSION,
     POOL_DECISION_SCHEMA,
     POOL_DECISION_TYPE,
     POOL_RECEIPT_SCHEMA,
@@ -19,9 +26,11 @@ from .native_pool_contracts import (
     POOL_STATE_SCHEMA,
     POOL_STATE_TYPE,
     VERSION,
+    DEFAULT_COMPLETION_POLICY,
     canonical_sha256,
     seal_artifact,
     validate_capability_receipt,
+    validate_lease,
     validate_pool_contract,
     validate_pool_control_request,
     validate_pool_decision,
@@ -29,6 +38,13 @@ from .native_pool_contracts import (
     validate_pool_state,
     write_private_artifact,
     zero_usage,
+)
+from .native_recovery_authority import (
+    FixedCohortControllerRoot,
+    FixedCohortRecoveryActionStore,
+    RecoveryAuthorityError,
+    VerifiedFixedCohortRecoveryAction,
+    validate_fixed_cohort_consumption_projection,
 )
 from .native_pool_leases import PoolLeaseError, PoolLeaseRegistry, owner_identity_is_live
 from .native_pool_scheduler import (
@@ -41,6 +57,22 @@ from .native_pool_scheduler import (
     peer_deadline_guard,
     select_earliest_deadline,
     wait_seconds,
+)
+from .native_pool_schedulability import (
+    PoolSchedulabilityError,
+    SchedulingBudgetProof,
+    latency_consumes_slack_fraction,
+    scheduling_budget_proof,
+)
+from .native_authority import build_reason_records
+from .native_stop_scope import (
+    STOP_SCOPE_RANK,
+    STOP_SCOPES,
+    VerifiedScopeAuthority,
+    build_stop_metadata,
+    continuation_path,
+    merge_stop_metadata,
+    policy_scope_authority,
 )
 
 
@@ -56,16 +88,66 @@ CHILD_EVIDENCE_FIELDS = {
     "usage",
     "protected_fault",
     "control_loss",
+    "failure_class",
+    "recovery_evidence_sha256",
     "reasons",
     "session_disposition",
     "artifact_disposition",
 }
+CHILD_EVIDENCE_FAILURE_CLASSES = frozenset(
+    {
+        "contained-semantic-no-op",
+        "contradictory-authority-changing-validation",
+        "control-security-failure",
+        "deterministic-construction-failure",
+        "individual-child-failure",
+        "pre-dispatch-transport-failure",
+    }
+)
+POOL_WIDE_CHILD_FAULT_REASON_CODES = frozenset(
+    {
+        "authority-violation",
+        "contradictory-validation",
+        "control-loss",
+        "failed-ambiguous-dispatch",
+        "forbidden-tool-activity",
+        "mutation-attribution-ambiguous",
+        "security-violation",
+        "shared-mutation",
+    }
+)
 SESSION_DISPOSITIONS = {"accepted", "accepted-with-warning", "quarantined"}
 ARTIFACT_DISPOSITIONS = {
     "accepted",
     "independent-validation-required",
     "architect-adjudication-required",
     "rejected",
+}
+_ADMITTED_POOL_BRIDGE_TOKEN = object()
+
+
+def _read_only_fast_path_child_ids(
+    children: Sequence[Mapping[str, Any]],
+) -> frozenset[str]:
+    """Return the immutable admission-validated read-only fast-path cohort."""
+
+    return frozenset(
+        str(child["child_id"])
+        for child in children
+        if child.get("isolation_class") == "read-only-shared"
+        and isinstance(child.get("completion_evidence_policy"), Mapping)
+        and child["completion_evidence_policy"].get("expected_mutation_mode")
+        == "read-only"
+        and child.get("declared_write_paths") == []
+        and child.get("integration_target_paths") == []
+    )
+
+
+FAULT_SCOPE_POLICY_CAPS = {
+    "child-fault": "child",
+    "cohort-budget": "cohort",
+    "cohort-control": "cohort",
+    "execution-integrity": "execution-path",
 }
 POOL_LEASE_ERROR_CODES = {
     "boot-identity-empty",
@@ -84,8 +166,10 @@ POOL_LEASE_ERROR_CODES = {
     "lease-registry-leases-invalid",
     "lease-registry-lock-is-symlink",
     "lease-registry-path-is-symlink",
+    "lease-registry-rollback-failed",
     "lease-registry-sha256-mismatch",
     "lease-registry-unreadable",
+    "lease-registry-write-failed",
     "lease-release-requires-completed-or-closed-pool",
     "lease-time-must-be-timezone-aware",
     "lease-transition-not-allowed",
@@ -158,6 +242,28 @@ def _normalize_child_evidence(value: Any) -> dict[str, Any]:
         raise NativePoolError("child-evidence-protected-fault-invalid")
     if not isinstance(value.get("control_loss"), bool):
         raise NativePoolError("child-evidence-control-loss-invalid")
+    failure_class = value.get("failure_class")
+    if (
+        failure_class is not None
+        and failure_class not in CHILD_EVIDENCE_FAILURE_CLASSES
+    ):
+        raise NativePoolError("child-evidence-failure-class-invalid")
+    recovery_evidence_sha256 = value.get("recovery_evidence_sha256")
+    if recovery_evidence_sha256 is not None and not _is_sha256(
+        recovery_evidence_sha256
+    ):
+        raise NativePoolError("child-evidence-recovery-sha256-invalid")
+    faulted = value["protected_fault"] or value["control_loss"]
+    if faulted and (
+        failure_class is None or recovery_evidence_sha256 is None
+    ):
+        raise NativePoolError("child-evidence-fault-correlation-required")
+    if not faulted and (
+        failure_class is not None or recovery_evidence_sha256 is not None
+    ):
+        raise NativePoolError("child-evidence-fault-correlation-without-fault")
+    if value["control_loss"] and failure_class != "control-security-failure":
+        raise NativePoolError("child-evidence-control-loss-class-mismatch")
     reasons = value.get("reasons")
     if not isinstance(reasons, list) or any(not isinstance(reason, str) or not reason for reason in reasons):
         raise NativePoolError("child-evidence-reasons-invalid")
@@ -217,13 +323,69 @@ class NativePoolCoordinator:
         state_file: Path | str | None = None,
         decision_file: Path | str | None = None,
         control_file: Path | str | None = None,
+        policy_document: Mapping[str, Any] | None = None,
+        recovery_authority_store: FixedCohortRecoveryActionStore | None = None,
+        recovery_controller_root: FixedCohortControllerRoot | None = None,
+        recovery_action_resolver: Callable[..., object] | None = None,
+        _admitted_bridge_token: object | None = None,
+        _preacquired_leases: Sequence[Mapping[str, Any]] | None = None,
+        _admission_evidence: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
-        contract_errors = validate_pool_contract(contract)
+        self.capacity_limits = load_pool_capacity(policy_document)
+        admitted_v2 = contract.get("version") == ADMITTED_POOL_VERSION
+        admitted_bridge = _admitted_bridge_token is _ADMITTED_POOL_BRIDGE_TOKEN
+        if admitted_v2 and not admitted_bridge:
+            raise NativePoolError("admitted-pool-launcher-required")
+        if admitted_bridge != (
+            _preacquired_leases is not None and _admission_evidence is not None
+        ):
+            raise NativePoolError("admitted-pool-bridge-incomplete")
+        contract_errors = validate_pool_contract(
+            contract,
+            capacity_limits=self.capacity_limits,
+            admission_reservation=(
+                _admission_evidence.get("reservation")
+                if _admission_evidence is not None
+                else None
+            ),
+        )
         if contract_errors:
             raise NativePoolError("pool-contract-invalid:" + ";".join(contract_errors))
-        self.contract = dict(contract)
+        if not self.capacity_limits.is_released(
+            contract.get("max_active_workers")
+        ):
+            raise NativePoolError("requested-capacity-not-released")
+        # Keep the validated admission artifact isolated from caller mutation.
+        # The fast-path cohort below must never widen after admission.
+        self.contract = copy.deepcopy(dict(contract))
+        self.completion_policy = self.contract.get(
+            "completion_policy", DEFAULT_COMPLETION_POLICY
+        )
+        recovery_items = (
+            recovery_authority_store,
+            recovery_controller_root,
+            recovery_action_resolver,
+        )
+        if any(item is not None for item in recovery_items):
+            if (
+                type(recovery_authority_store)
+                is not FixedCohortRecoveryActionStore
+                or type(recovery_controller_root) is not FixedCohortControllerRoot
+                or not callable(recovery_action_resolver)
+            ):
+                raise NativePoolError("recovery-authority-bridge-incomplete")
+        self._recovery_authority_store = recovery_authority_store
+        self._recovery_controller_root = recovery_controller_root
+        self._recovery_action_resolver = recovery_action_resolver
         self.children = [dict(child) for child in self.contract["children"]]
         self.child_ids = [str(child["child_id"]) for child in self.children]
+        self._read_only_fast_path_children = _read_only_fast_path_child_ids(
+            self.children
+        )
+        self._invalidated_read_only_fast_path_children: frozenset[str] = (
+            frozenset()
+        )
+        self._deferred_read_only_workspace_check = False
         if set(child_contracts) != set(self.child_ids):
             raise NativePoolError("child-control-contract-set-mismatch")
         if set(task_inputs) != set(self.child_ids) or any(not isinstance(value, str) for value in task_inputs.values()):
@@ -258,6 +420,65 @@ class NativePoolCoordinator:
         self._last_poll_ns: dict[str, int | None] = {child_id: None for child_id in self.child_ids}
         self._max_poll_gap_ms = 0.0
         self._leases: dict[str, dict[str, Any]] = {}
+        self._admission_reservation: dict[str, Any] | None = None
+        self._dispatch_receipt: dict[str, Any] | None = None
+        if admitted_bridge:
+            assert _preacquired_leases is not None
+            assert _admission_evidence is not None
+            from .native_pool_admission import (
+                validate_dispatch_receipt,
+                validate_reservation_receipt,
+            )
+
+            reservation = _admission_evidence.get("reservation")
+            dispatch = _admission_evidence.get("dispatch")
+            reservation_errors = validate_reservation_receipt(reservation)
+            dispatch_errors = validate_dispatch_receipt(
+                dispatch,
+                reservation_receipt=reservation,
+            )
+            if reservation_errors:
+                raise NativePoolError(
+                    "admitted-reservation-invalid:" + ";".join(reservation_errors)
+                )
+            if dispatch_errors:
+                raise NativePoolError(
+                    "admitted-dispatch-invalid:" + ";".join(dispatch_errors)
+                )
+            assert isinstance(reservation, Mapping)
+            assert isinstance(dispatch, Mapping)
+            if (
+                dispatch.get("pool_contract_sha256")
+                != self.contract["contract_sha256"]
+                or dispatch.get("reservation_sha256")
+                != reservation.get("reservation_sha256")
+            ):
+                raise NativePoolError("admitted-dispatch-binding-mismatch")
+            leases = [copy.deepcopy(dict(lease)) for lease in _preacquired_leases]
+            if [lease.get("child_id") for lease in leases] != self.child_ids:
+                raise NativePoolError("admitted-lease-set-child-mismatch")
+            for lease in leases:
+                lease_errors = validate_lease(lease, contract=self.contract)
+                if lease_errors or lease.get("lifecycle_state") != "acquired":
+                    raise NativePoolError("admitted-lease-set-invalid")
+            if dispatch.get("lease_set_sha256") != canonical_sha256(
+                {"leases": leases}
+            ):
+                raise NativePoolError("admitted-lease-set-sha256-mismatch")
+            registry_by_id = {
+                str(lease["lease_id"]): lease
+                for lease in self.lease_registry.snapshot()
+            }
+            if any(
+                registry_by_id.get(str(lease["lease_id"])) != lease
+                for lease in leases
+            ):
+                raise NativePoolError("admitted-lease-set-registry-mismatch")
+            self._leases = {
+                str(lease["child_id"]): lease for lease in leases
+            }
+            self._admission_reservation = copy.deepcopy(dict(reservation))
+            self._dispatch_receipt = copy.deepcopy(dict(dispatch))
         self._progress: dict[str, dict[str, Any]] = {
             child_id: {
                 "status": "pending",
@@ -271,6 +492,7 @@ class NativePoolCoordinator:
         self._first_poll = {child_id: False for child_id in self.child_ids}
         self._dispositions = {
             child_id: {
+                "runtime_disposition": "active",
                 "session_disposition": "quarantined",
                 "artifact_disposition": "rejected",
             }
@@ -280,9 +502,19 @@ class NativePoolCoordinator:
         self._reasons: list[str] = []
         self._first_protected_fault: dict[str, Any] | None = None
         self._protected_fault = False
+        self._contained_fault_children: set[str] = set()
+        self._classified_fault_children: set[str] = set()
+        self._rejected_children: set[str] = set()
         self._control_failed = False
         self._ledger = AggregateUsageLedger(self.child_ids)
         self._started_ns = self._monotonic_ns()
+        self._pool_wall_ns = 0
+        self._callback_ns = 0
+        self._noncallback_invoke_ns = 0
+        self._coordinator_ns = 0
+        self._wait_ns = 0
+        self._wait_started_ns: int | None = None
+        self._timing_frozen = False
         self._last_mutation_evidence = self._compare_workspaces("create")
         self._initial_mutation_fault = not all(
             self._last_mutation_evidence[field]
@@ -298,16 +530,28 @@ class NativePoolCoordinator:
         self._decision: dict[str, Any] | None = None
         self._crash_cleanup_started = False
         self._crash_cleanup_complete = False
+        self._stop_metadata = build_stop_metadata(
+            "child",
+            authority=policy_scope_authority(
+                "native-pool-baseline-v1",
+                authorized_scope="child",
+            ),
+        )
 
         self._certified_callback_max_ms: Mapping[str, Any] = {}
         self._certified_scheduler_overhead_ms = 0.0
-        if self.contract["max_active_workers"] == 2:
+        self._schedulability_proof: SchedulingBudgetProof | None = None
+        self._slack_warning_fraction = 1.0
+        self._slack_warning_active = False
+        configured_capacity = self.contract["max_active_workers"]
+        if self.capacity_limits.requires_capability_receipt(configured_capacity):
             if self.capability_receipt is None:
-                raise NativePoolError("cap-two-capability-receipt-required")
+                raise NativePoolError("concurrent-capability-receipt-required")
             capability_errors = validate_capability_receipt(
                 self.capability_receipt,
                 expected_contract=self.contract,
                 now=_normalize_now(self.pool_callbacks["now_utc"]()),
+                capacity_limits=self.capacity_limits,
             )
             if capability_errors:
                 raise NativePoolError("capability-receipt-invalid:" + ";".join(capability_errors))
@@ -316,8 +560,30 @@ class NativePoolCoordinator:
             self._certified_scheduler_overhead_ms = float(
                 certification["certified_scheduler_overhead_ms"]
             )
+            self._slack_warning_fraction = float(
+                certification["slack_warning_fraction"]
+            )
+            try:
+                self._schedulability_proof = scheduling_budget_proof(
+                    requested_workers=configured_capacity,
+                    certified_callback_max_ms=(
+                        self._certified_callback_max_ms
+                    ),
+                    certified_scheduler_overhead_ms=(
+                        self._certified_scheduler_overhead_ms
+                    ),
+                    poll_interval_ms=self.contract["scheduler"][
+                        "poll_interval_ms"
+                    ],
+                )
+            except PoolSchedulabilityError as error:
+                raise NativePoolError(
+                    f"pool-schedulability-input-invalid:{error}"
+                ) from error
+            if not self._schedulability_proof.accepted:
+                raise NativePoolError("pool-schedulability-proof-rejected")
         elif self.capability_receipt is not None:
-            raise NativePoolError("cap-one-capability-receipt-forbidden")
+            raise NativePoolError("single-worker-capability-receipt-forbidden")
 
         for child in self.children:
             child_id = child["child_id"]
@@ -419,18 +685,24 @@ class NativePoolCoordinator:
             self._enter_fault(
                 f"external-control-request:{request_id}:{reason_hash}",
                 control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
             )
             return True
         except NativePoolError as exc:
             self._enter_fault(
                 f"pool-control-request-failed:{type(exc).__name__}:{exc}",
                 control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
             )
             return True
         except (OSError, json.JSONDecodeError, TypeError) as exc:
             self._enter_fault(
                 f"pool-control-request-failed:{type(exc).__name__}",
                 control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
             )
             return True
 
@@ -440,6 +712,44 @@ class NativePoolCoordinator:
             raise NativePoolError("monotonic-clock-invalid")
         return value
 
+    def _capture_timing(self, now_ns: int, *, freeze: bool = False) -> None:
+        """Reconcile mutually exclusive timing buckets against pool wall time."""
+        if self._timing_frozen:
+            return
+        self._pool_wall_ns = max(0, now_ns - self._started_ns)
+        attributed_ns = (
+            self._callback_ns + self._noncallback_invoke_ns + self._wait_ns
+        )
+        self._coordinator_ns = max(0, self._pool_wall_ns - attributed_ns)
+        self._poll_overhead_seconds = (
+            self._noncallback_invoke_ns + self._coordinator_ns
+        ) / 1_000_000_000
+        if freeze:
+            self._timing_frozen = True
+
+    def _complete_wait(self) -> None:
+        if self._wait_started_ns is None:
+            return
+        ended_ns = self._monotonic_ns()
+        if not self._timing_frozen:
+            self._wait_ns += max(0, ended_ns - self._wait_started_ns)
+        self._wait_started_ns = None
+
+    def _timing_receipt(self) -> dict[str, int | float | str]:
+        return {
+            "max_callback_latency_ms": self._max_callback_latency_ms,
+            "max_poll_gap_ms": self._max_poll_gap_ms,
+            "poll_interval_ms": self.contract["scheduler"]["poll_interval_ms"],
+            "poll_lag_tolerance_ms": self.contract["scheduler"][
+                "poll_lag_tolerance_ms"
+            ],
+            "accounting_version": "exclusive-v1",
+            "callback_ns": self._callback_ns,
+            "noncallback_invoke_ns": self._noncallback_invoke_ns,
+            "coordinator_ns": self._coordinator_ns,
+            "wait_ns": self._wait_ns,
+        }
+
     def _compare_workspaces(self, phase: str) -> dict[str, Any]:
         try:
             value = self.pool_callbacks["compare_workspaces"](contract=self.contract, phase=phase)
@@ -447,6 +757,59 @@ class NativePoolCoordinator:
         except (TypeError, ValueError, PoolSchedulingError) as exc:
             raise NativePoolError(f"workspace-comparison-failed:{exc}") from exc
         return dict(value)
+
+    def _invalidate_read_only_fast_path(self) -> None:
+        """Contain the optimized cohort and revoke its fast path for this run."""
+
+        optimized_children = self._read_only_fast_path_children
+        self._invalidated_read_only_fast_path_children = (
+            self._invalidated_read_only_fast_path_children | optimized_children
+        )
+        for child_id in optimized_children:
+            self._dispositions[child_id] = {
+                "runtime_disposition": self._dispositions[child_id][
+                    "runtime_disposition"
+                ],
+                "session_disposition": "quarantined",
+                "artifact_disposition": "rejected",
+            }
+        self._read_only_fast_path_children = frozenset()
+        self._deferred_read_only_workspace_check = False
+
+    def _compare_deferred_workspace_on_control_failure(self) -> None:
+        """Close the skipped-check interval before an abnormal terminal receipt."""
+
+        if (
+            not self._deferred_read_only_workspace_check
+            or self._terminal_comparison_complete
+        ):
+            return
+        try:
+            self._last_mutation_evidence = self._compare_workspaces("close")
+            if not all(
+                self._last_mutation_evidence[field]
+                for field in (
+                    "integration_root_clean",
+                    "shared_read_only_clean",
+                    "child_worktrees_clean",
+                )
+            ):
+                self._invalidate_read_only_fast_path()
+                self._enter_fault(
+                    "terminal-workspace-comparison-failed",
+                    control_failed=True,
+                    requested_stop_scope="execution-path",
+                    scope_policy_rule="execution-integrity",
+                )
+            self._terminal_comparison_complete = True
+        except NativePoolError as exc:
+            self._invalidate_read_only_fast_path()
+            self._enter_fault(
+                str(exc),
+                control_failed=True,
+                requested_stop_scope="execution-path",
+                scope_policy_rule="execution-integrity",
+            )
 
     def _wrap_callbacks(
         self,
@@ -468,9 +831,12 @@ class NativePoolCoordinator:
                     return _callback(*args, **kwargs)
                 finally:
                     ended = self._monotonic_ns()
-                    latency_ms = (ended - started) / 1_000_000
+                    latency_ns = ended - started
+                    latency_ms = latency_ns / 1_000_000
                     if latency_ms < 0:
                         self._callback_fault = "nonmonotonic-callback-clock"
+                    if not self._timing_frozen:
+                        self._callback_ns += max(0, latency_ns)
                     self._last_callback_latency_ms = max(0.0, latency_ms)
                     self._max_callback_latency_ms = max(
                         self._max_callback_latency_ms, self._last_callback_latency_ms
@@ -508,6 +874,8 @@ class NativePoolCoordinator:
                     "ordinal": child["ordinal"],
                     "child_id": child["child_id"],
                     "status": "created",
+                    "runtime_disposition": "active",
+                    "recovery_projection": None,
                     "last_deadline_ns": None,
                     "next_deadline_ns": None,
                     "child_state_sha256": None,
@@ -524,8 +892,10 @@ class NativePoolCoordinator:
             "poll_overhead_seconds": 0.0,
             "lease_bindings": [],
             "reasons": [],
+            "reason_records": [],
             "first_protected_fault": None,
             "control_loss_scope": None,
+            **self._stop_metadata,
         }
         return seal_artifact(state, "state_sha256")
 
@@ -543,8 +913,15 @@ class NativePoolCoordinator:
         if self.state_file is not None:
             write_private_artifact(self.state_file, self._state)
 
-    def _refresh_state(self, status: str, *, increment: bool = True) -> None:
+    def _refresh_state(
+        self,
+        status: str,
+        *,
+        increment: bool = True,
+        freeze_timing: bool = False,
+    ) -> None:
         now = self._monotonic_ns()
+        self._capture_timing(now, freeze=freeze_timing)
         active = [
             child_id
             for child_id in self.child_ids
@@ -558,7 +935,7 @@ class NativePoolCoordinator:
                 "active_children": active,
                 "terminal_children": terminal,
                 "aggregate_usage": self._ledger.aggregate,
-                "pool_wall_seconds": max(0.0, (now - self._started_ns) / 1_000_000_000),
+                "pool_wall_seconds": self._pool_wall_ns / 1_000_000_000,
                 "worker_seconds": self._ledger.aggregate["runtime_seconds"],
                 "poll_overhead_seconds": self._poll_overhead_seconds,
                 "lease_bindings": [
@@ -567,14 +944,24 @@ class NativePoolCoordinator:
                     if child_id in self._leases
                 ],
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "first_protected_fault": (
                     dict(self._first_protected_fault)
                     if self._first_protected_fault is not None
                     else None
                 ),
                 "control_loss_scope": "pool" if self._control_failed else None,
+                **self._stop_metadata,
             }
         )
+        for child_id in self.child_ids:
+            self._child_state(child_id)["runtime_disposition"] = self._dispositions[
+                child_id
+            ]["runtime_disposition"]
         self._state = seal_artifact(self._state, "state_sha256")
         self._persist_state()
 
@@ -607,7 +994,13 @@ class NativePoolCoordinator:
                 "observed_callback_latency_ms": self._last_callback_latency_ms,
                 "aggregate_usage": self._state["aggregate_usage"],
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "required_control_actions": list(actions),
+                **self._stop_metadata,
             },
             "decision_sha256",
         )
@@ -627,7 +1020,88 @@ class NativePoolCoordinator:
         operation: str | None = None,
         observed_callback_latency_ms: float | None = None,
         certified_callback_max_ms: float | None = None,
+        requested_stop_scope: str = "child",
+        scope_authority: VerifiedScopeAuthority | None = None,
+        authorized_continuation_paths: Sequence[Mapping[str, Any]] | None = None,
+        affected_child_id: str | None = None,
+        scope_policy_rule: str = "child-fault",
     ) -> None:
+        if requested_stop_scope not in STOP_SCOPE_RANK:
+            raise NativePoolError("fault-stop-scope-invalid")
+        if scope_authority is not None and not isinstance(
+            scope_authority, VerifiedScopeAuthority
+        ):
+            raise NativePoolError("verified-scope-authority-required")
+        if scope_authority is None:
+            policy_cap = FAULT_SCOPE_POLICY_CAPS.get(scope_policy_rule)
+            if policy_cap is None:
+                raise NativePoolError("fault-scope-policy-rule-invalid")
+            scope_authority = policy_scope_authority(
+                f"native-pool-fault-policy:{scope_policy_rule}",
+                authorized_scope=policy_cap,
+                source_sha256=canonical_sha256(
+                    {
+                        "reason": reason,
+                        "requested_stop_scope": requested_stop_scope,
+                        "scope_policy_rule": scope_policy_rule,
+                        "operation": operation,
+                        "affected_child_id": affected_child_id,
+                    }
+                ),
+            )
+        continuation_scope = STOP_SCOPES[
+            min(
+                STOP_SCOPE_RANK[requested_stop_scope],
+                STOP_SCOPE_RANK[scope_authority.authorized_scope],
+            )
+        ]
+        if authorized_continuation_paths is None:
+            if continuation_scope == "child":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "replace-child",
+                        target_id=affected_child_id,
+                        conditions=["fault-contained", "fresh-attempt"],
+                    ),
+                    continuation_path(
+                        "continue-cohort",
+                        conditions=["healthy-peer-evidence-preserved"],
+                    ),
+                ]
+            elif continuation_scope == "cohort":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "retry-cohort",
+                        conditions=["fault-remediated", "new-pool-epoch"],
+                    )
+                ]
+            elif continuation_scope == "execution-path":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "alternate-execution-path",
+                        conditions=["independent-validation"],
+                    )
+                ]
+            elif continuation_scope == "complete-task":
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "task-remediation",
+                        conditions=["architect-approved-remediation"],
+                    )
+                ]
+            else:
+                authorized_continuation_paths = [
+                    continuation_path(
+                        "operator-adjudication",
+                        conditions=["new-verified-operator-directive"],
+                    )
+                ]
+        incoming_stop = build_stop_metadata(
+            requested_stop_scope,
+            authority=scope_authority,
+            authorized_continuation_paths=authorized_continuation_paths,
+        )
+        self._stop_metadata = merge_stop_metadata(self._stop_metadata, incoming_stop)
         if self._first_protected_fault is None:
             state_sequence = self._state["state_sequence"] if hasattr(self, "_state") else 0
             self._first_protected_fault = {
@@ -640,6 +1114,27 @@ class NativePoolCoordinator:
         self._add_reason(reason)
         self._protected_fault = True
         self._control_failed = self._control_failed or control_failed
+        self._rejected_children.update(self.child_ids)
+        if affected_child_id is not None:
+            self._classified_fault_children.add(affected_child_id)
+        for child_id in self.child_ids:
+            current_runtime = self._dispositions[child_id]["runtime_disposition"]
+            runtime_disposition = (
+                "failed-ambiguous"
+                if child_id == affected_child_id
+                else (
+                    current_runtime
+                    if current_runtime == "completed"
+                    else "interrupted"
+                )
+            )
+            self._dispositions[child_id] = {
+                "runtime_disposition": runtime_disposition,
+                "session_disposition": "quarantined",
+                "artifact_disposition": "rejected",
+            }
+            if runtime_disposition != "failed-contained":
+                self._child_state(child_id)["recovery_projection"] = None
         for child_id in self.child_ids:
             progress = self._progress[child_id]
             if progress["status"] == "pending":
@@ -671,12 +1166,185 @@ class NativePoolCoordinator:
                 except ValueError:
                     self._control_failed = True
 
-    def request_interrupt(self, reason: str = "operator-request") -> dict[str, Any]:
+    def _record_contained_fault(
+        self,
+        child_id: str,
+        reason: str,
+        projection: Mapping[str, Any],
+    ) -> None:
+        if self._first_protected_fault is None:
+            self._first_protected_fault = {
+                "code": reason,
+                "operation": None,
+                "observed_callback_latency_ms": None,
+                "certified_callback_max_ms": None,
+                "latched_state_sequence": self._state["state_sequence"],
+            }
+        self._add_reason(reason)
+        self._contained_fault_children.add(child_id)
+        self._classified_fault_children.add(child_id)
+        self._rejected_children.add(child_id)
+        self._dispositions[child_id] = {
+            "runtime_disposition": "failed-contained",
+            "session_disposition": "quarantined",
+            "artifact_disposition": "rejected",
+        }
+        self._child_state(child_id)["recovery_projection"] = copy.deepcopy(
+            dict(projection)
+        )
+        authority = policy_scope_authority(
+            "native-pool-verified-fixed-cohort-recovery-v1",
+            authorized_scope="child",
+            source_sha256=str(projection["audit_projection_sha256"]),
+        )
+        contained_stop = build_stop_metadata(
+            "child",
+            authority=authority,
+            authorized_continuation_paths=[
+                continuation_path(
+                    "continue-cohort",
+                    conditions=[
+                        "failed-child-closed",
+                        "fixed-cohort-no-refill",
+                        "verified-containment-consumed",
+                    ],
+                )
+            ],
+        )
+        self._stop_metadata = merge_stop_metadata(
+            self._stop_metadata, contained_stop
+        )
+        progress = self._progress[child_id]
+        if progress["status"] != "terminal" and progress.get("phase") not in {
+            "interrupt",
+            "finalize-interrupt",
+            "close-interrupt",
+            "finalize-close",
+        }:
+            try:
+                progress.update(self._turns[child_id].request_interrupt(reason))
+            except ValueError:
+                self._enter_fault(
+                    "contained-child-interrupt-request-failed",
+                    control_failed=True,
+                    affected_child_id=child_id,
+                )
+
+    def _try_contain_child_fault(
+        self,
+        child_id: str,
+        reason: str,
+        *,
+        failure_class: str,
+        recovery_evidence_sha256: str,
+    ) -> bool:
+        if child_id in self._classified_fault_children:
+            return child_id in self._contained_fault_children
+        if (
+            self.completion_policy != "best-effort"
+            or self.contract.get("version") != ADMITTED_POOL_VERSION
+        ):
+            return False
+        reason_code = reason.removeprefix("child-protected-fault:").partition(":")[0]
+        if (
+            failure_class != "individual-child-failure"
+            or reason_code in POOL_WIDE_CHILD_FAULT_REASON_CODES
+        ):
+            return False
+        child_contract = next(
+            child for child in self.children if child["child_id"] == child_id
+        )
+        try:
+            if (
+                self._recovery_authority_store is None
+                or self._recovery_controller_root is None
+                or self._recovery_action_resolver is None
+            ):
+                raise RecoveryAuthorityError("recovery-authority-missing")
+            action = self._recovery_action_resolver(
+                child_id=child_id,
+                fault_reason=reason,
+                failure_class=failure_class,
+                recovery_evidence_sha256=recovery_evidence_sha256,
+                contract=copy.deepcopy(self.contract),
+                child_contract=copy.deepcopy(child_contract),
+            )
+            if type(action) is not VerifiedFixedCohortRecoveryAction:
+                raise RecoveryAuthorityError(
+                    "verified-fixed-cohort-recovery-action-type-invalid"
+                )
+            projection = dict(
+                self._recovery_authority_store.consume(
+                    self._recovery_controller_root,
+                    action,
+                )
+            )
+            projection_errors = validate_fixed_cohort_consumption_projection(
+                projection
+            )
+            if projection_errors:
+                raise RecoveryAuthorityError(
+                    "consumed-recovery-action-projection-invalid:"
+                    + ";".join(projection_errors)
+                )
+            expected = {
+                "recovery_class": failure_class,
+                "evidence_sha256": recovery_evidence_sha256,
+                "fixed_cohort_sha256": self.contract["fixed_cohort_sha256"],
+                "bead_id": child_contract["bead_id"],
+                "work_unit_id": child_contract["work_unit_id"],
+                "admitted_child_sha256": child_contract[
+                    "admitted_child_sha256"
+                ],
+                "required_authority": (
+                    "pm-controller-plus-verified-containment"
+                ),
+                "stop_scope": "child",
+            }
+            if any(projection.get(field) != value for field, value in expected.items()):
+                raise RecoveryAuthorityError(
+                    "consumed-recovery-action-binding-mismatch"
+                )
+        except BaseException as error:
+            self._enter_fault(
+                "child-recovery-authority-failed:"
+                f"{type(error).__name__}:{_sanitize_exception_message(error)}",
+                control_failed=False,
+                affected_child_id=child_id,
+            )
+            return True
+        self._record_contained_fault(child_id, reason, projection)
+        return True
+
+    def request_interrupt(
+        self,
+        reason: str = "operator-request",
+        *,
+        stop_scope: str = "cohort",
+        scope_authority: VerifiedScopeAuthority | None = None,
+    ) -> dict[str, Any]:
         if not isinstance(reason, str) or not reason.strip():
             raise NativePoolError("interrupt-reason-invalid")
         if self._state["status"] in {"closed", "control-failed"}:
             return self.progress()
-        self._enter_fault(f"pool-interrupt:{reason.strip()}", control_failed=False)
+        if scope_authority is None:
+            scope_authority = policy_scope_authority(
+                "native-pool-explicit-interrupt-v1",
+                authorized_scope="cohort",
+                source_sha256=canonical_sha256({"reason": reason.strip()}),
+            )
+        elif (
+            STOP_SCOPE_RANK.get(stop_scope, len(STOP_SCOPES))
+            > STOP_SCOPE_RANK["cohort"]
+            and scope_authority.source_type != "operator-directive"
+        ):
+            raise NativePoolError("broad-interrupt-requires-operator-directive")
+        self._enter_fault(
+            f"pool-interrupt:{reason.strip()}",
+            control_failed=False,
+            requested_stop_scope=stop_scope,
+            scope_authority=scope_authority,
+        )
         self._refresh_state("interrupt-pending")
         self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
         return self.progress()
@@ -699,30 +1367,61 @@ class NativePoolCoordinator:
             child_state = self._child_state(child_id)
             child_state["child_state_sha256"] = evidence["state_sha256"]
             child_state["last_cumulative_usage"] = self._ledger.latest_for(child_id)
-            self._dispositions[child_id] = {
-                "session_disposition": evidence["session_disposition"],
-                "artifact_disposition": evidence["artifact_disposition"],
-            }
+            if (
+                child_id not in self._invalidated_read_only_fast_path_children
+                and child_id not in self._rejected_children
+            ):
+                self._dispositions[child_id] = {
+                    "runtime_disposition": self._dispositions[child_id][
+                        "runtime_disposition"
+                    ],
+                    "session_disposition": evidence["session_disposition"],
+                    "artifact_disposition": evidence["artifact_disposition"],
+                }
             for reason in evidence["reasons"]:
                 self._add_reason(reason)
             budget_reasons = exhausted_budget(observation.aggregate, self.contract["aggregate_hard_budget"])
             if budget_reasons:
                 for reason in budget_reasons:
                     self._add_reason(reason)
-                self._enter_fault("aggregate-budget-exhausted", control_failed=False)
+                self._enter_fault(
+                    "aggregate-budget-exhausted",
+                    control_failed=False,
+                    requested_stop_scope="cohort",
+                    scope_policy_rule="cohort-budget",
+                )
             if evidence["control_loss"]:
-                self._enter_fault("child-control-loss", control_failed=True)
+                self._enter_fault(
+                    "child-control-loss",
+                    control_failed=True,
+                    affected_child_id=child_id,
+                )
             elif evidence["protected_fault"]:
                 first_reason = (
                     evidence["reasons"][0]
                     if evidence["reasons"]
                     else "reason-unavailable"
                 )
-                self._enter_fault(
-                    f"child-protected-fault:{first_reason}", control_failed=False
-                )
+                reason = f"child-protected-fault:{first_reason}"
+                if not self._try_contain_child_fault(
+                    child_id,
+                    reason,
+                    failure_class=evidence["failure_class"],
+                    recovery_evidence_sha256=evidence[
+                        "recovery_evidence_sha256"
+                    ],
+                ):
+                    self._enter_fault(
+                        reason,
+                        control_failed=False,
+                        affected_child_id=child_id,
+                    )
         except (NativePoolError, PoolAccountingError, TypeError, ValueError) as exc:
-            self._enter_fault(f"child-evidence-failed:{type(exc).__name__}:{exc}", control_failed=True)
+            self._enter_fault(
+                f"child-evidence-failed:{type(exc).__name__}:{exc}",
+                control_failed=True,
+                affected_child_id=child_id,
+            )
 
     def _record_poll(self, child_id: str, now_ns: int) -> None:
         child = self._child_state(child_id)
@@ -732,7 +1431,12 @@ class NativePoolCoordinator:
         else:
             gap_ms = (now_ns - previous) / 1_000_000
         if gap_ms < 0:
-            self._enter_fault("nonmonotonic-poll-clock", control_failed=True)
+            self._enter_fault(
+                "nonmonotonic-poll-clock",
+                control_failed=True,
+                requested_stop_scope="execution-path",
+                scope_policy_rule="execution-integrity",
+            )
             gap_ms = 0.0
         self._max_poll_gap_ms = max(self._max_poll_gap_ms, gap_ms)
         maximum = (
@@ -740,7 +1444,12 @@ class NativePoolCoordinator:
             + self.contract["scheduler"]["poll_lag_tolerance_ms"]
         )
         if gap_ms > maximum:
-            self._enter_fault("maximum-poll-gap-exceeded", control_failed=False)
+            self._enter_fault(
+                "maximum-poll-gap-exceeded",
+                control_failed=False,
+                requested_stop_scope="cohort",
+                scope_policy_rule="cohort-control",
+            )
         child["last_deadline_ns"] = child["next_deadline_ns"] if child["next_deadline_ns"] is not None else now_ns
         child["next_deadline_ns"] = now_ns + self.contract["scheduler"]["poll_interval_ms"] * 1_000_000
         self._last_poll_ns[child_id] = now_ns
@@ -768,12 +1477,25 @@ class NativePoolCoordinator:
             receipt = progress.get("receipt")
             terminal_state = receipt.get("terminal_state") if isinstance(receipt, Mapping) else None
             child["status"] = "control-failed" if terminal_state == "control-failed" else "closed"
+            current_runtime = self._dispositions[child_id]["runtime_disposition"]
+            if current_runtime == "active":
+                self._dispositions[child_id]["runtime_disposition"] = (
+                    "completed"
+                    if terminal_state == "completed"
+                    else "failed-ambiguous"
+                    if terminal_state == "control-failed"
+                    else "interrupted"
+                )
             child["next_deadline_ns"] = None
             child["child_receipt_sha256"] = canonical_sha256(receipt)
             if child_id not in self._terminal_order:
                 self._terminal_order.append(child_id)
             if terminal_state == "control-failed":
-                self._enter_fault("child-control-turn-failed", control_failed=True)
+                self._enter_fault(
+                    "child-control-turn-failed",
+                    control_failed=True,
+                    affected_child_id=child_id,
+                )
         elif phase in {"send-input", "mark-dispatched"}:
             child["status"] = "armed"
         elif phase in {"interrupt", "finalize-interrupt", "close-interrupt", "finalize-close"}:
@@ -792,21 +1514,40 @@ class NativePoolCoordinator:
         self._last_callback_latency_ms = None
         self._callback_fault = None
         self._callback_fault_detail = None
+        self._slack_warning_active = False
         started = self._monotonic_ns()
-        if progress["status"] == "pending":
-            result = turn.step(self._task_inputs[child_id])
-        elif poll and progress.get("wait_required"):
-            turn.resume_after_wait()
-            result = turn.step()
-        else:
-            result = turn.step()
-        ended = self._monotonic_ns()
-        callback_seconds = (self._last_callback_latency_ms or 0.0) / 1000
-        self._poll_overhead_seconds += max(0.0, (ended - started) / 1_000_000_000 - callback_seconds)
+        callback_started_ns = self._callback_ns
+        try:
+            if progress["status"] == "pending":
+                result = turn.step(self._task_inputs[child_id])
+            elif poll and progress.get("wait_required"):
+                turn.resume_after_wait()
+                result = turn.step()
+            else:
+                result = turn.step()
+        finally:
+            ended = self._monotonic_ns()
+            callback_ns = self._callback_ns - callback_started_ns
+            if not self._timing_frozen:
+                self._noncallback_invoke_ns += max(
+                    0,
+                    ended - started - callback_ns,
+                )
         if self._callback_count > 1:
             self._enter_fault("more-than-one-adapter-callback-in-step", control_failed=True)
         self._update_child_progress(child_id, result)
         if self._callback_count == 1:
+            if (
+                self._schedulability_proof is not None
+                and self._last_callback_latency_ms is not None
+            ):
+                self._slack_warning_active = (
+                    latency_consumes_slack_fraction(
+                        self._schedulability_proof,
+                        observed_latency_ms=self._last_callback_latency_ms,
+                        warning_fraction=self._slack_warning_fraction,
+                    )
+                )
             self._read_evidence(child_id)
             if self._last_callback_name == "check":
                 if result.get("phase") in {"waiting", "finalize-complete", "interrupt"}:
@@ -822,20 +1563,41 @@ class NativePoolCoordinator:
                     observed_callback_latency_ms=detail.get("observed_callback_latency_ms"),
                     certified_callback_max_ms=detail.get("certified_callback_max_ms"),
                 )
-            try:
-                mutation = self._compare_workspaces(f"after-{child_id}-{self._last_callback_name}")
-                self._last_mutation_evidence = mutation
-                if not all(
-                    mutation[field]
-                    for field in (
-                        "integration_root_clean",
-                        "shared_read_only_clean",
-                        "child_worktrees_clean",
+            if child_id in self._read_only_fast_path_children:
+                self._deferred_read_only_workspace_check = True
+            else:
+                try:
+                    mutation = self._compare_workspaces(
+                        f"after-{child_id}-{self._last_callback_name}"
                     )
-                ):
-                    self._enter_fault("workspace-mutation-attribution-failed", control_failed=False)
-            except NativePoolError as exc:
-                self._enter_fault(str(exc), control_failed=True)
+                    self._last_mutation_evidence = mutation
+                    if not all(
+                        mutation[field]
+                        for field in (
+                            "integration_root_clean",
+                            "shared_read_only_clean",
+                            "child_worktrees_clean",
+                        )
+                    ):
+                        if self._read_only_fast_path_children:
+                            self._invalidate_read_only_fast_path()
+                        self._enter_fault(
+                            "workspace-mutation-attribution-failed",
+                            control_failed=False,
+                            requested_stop_scope="execution-path",
+                            scope_policy_rule="execution-integrity",
+                        )
+                    else:
+                        self._deferred_read_only_workspace_check = False
+                except NativePoolError as exc:
+                    if self._read_only_fast_path_children:
+                        self._invalidate_read_only_fast_path()
+                    self._enter_fault(
+                        str(exc),
+                        control_failed=True,
+                        requested_stop_scope="execution-path",
+                        scope_policy_rule="execution-integrity",
+                    )
 
     def _next_lifecycle_child(self, now_ns: int) -> tuple[str | None, bool, float]:
         state_children = self._state["children"]
@@ -862,6 +1624,9 @@ class NativePoolCoordinator:
                 proposed_child_id=proposed,
                 now_ns=now_ns,
                 certified_callback_ms=float(maximum),
+                certified_peer_check_ms=float(
+                    self._certified_callback_max_ms.get("check", 0)
+                ),
                 certified_scheduler_overhead_ms=self._certified_scheduler_overhead_ms,
             )
             if guard is not None:
@@ -880,6 +1645,8 @@ class NativePoolCoordinator:
             return "interrupt-pending"
         if self._all_terminal():
             return "control-failed" if self._control_failed else "completed"
+        if self._contained_fault_children:
+            return "partial-drain"
         if not all(self._first_poll.values()):
             return "admitting"
         if any(self._progress[child_id]["status"] == "terminal" for child_id in self.child_ids):
@@ -907,7 +1674,11 @@ class NativePoolCoordinator:
             f"lease={_evidence_identifier(self._child_state(child_id)['lease_id'])}:"
             f"target={target_state}:error={error_code}:evidence={evidence_sha256}"
         )
-        self._enter_fault(reason, control_failed=control_failed)
+        self._enter_fault(
+            reason,
+            control_failed=control_failed,
+            affected_child_id=child_id,
+        )
         return reason
 
     def _mark_lease_release_pending(
@@ -965,6 +1736,7 @@ class NativePoolCoordinator:
         return attempted
 
     def _finish_control_failed(self) -> None:
+        self._compare_deferred_workspace_on_control_failure()
         terminal_hash = self._state["state_sha256"]
         for child_id in self.child_ids:
             try:
@@ -981,7 +1753,7 @@ class NativePoolCoordinator:
                     error,
                     control_failed=True,
                 )
-        self._refresh_state("control-failed")
+        self._refresh_state("control-failed", freeze_timing=True)
         self._receipt = self._build_receipt()
         self._release_state_lock()
 
@@ -999,6 +1771,7 @@ class NativePoolCoordinator:
         )
 
     def _seal_crash_state(self, *, increment: bool) -> None:
+        self._capture_timing(self._monotonic_ns(), freeze=True)
         aggregate_usage = zero_usage()
         token_values: list[Mapping[str, Any]] = []
         for child in self._state["children"]:
@@ -1043,6 +1816,7 @@ class NativePoolCoordinator:
                 "active_children": [],
                 "terminal_children": list(self.child_ids),
                 "aggregate_usage": aggregate_usage,
+                "pool_wall_seconds": self._pool_wall_ns / 1_000_000_000,
                 "worker_seconds": aggregate_usage["runtime_seconds"],
                 "poll_overhead_seconds": self._poll_overhead_seconds,
                 "lease_bindings": [
@@ -1051,12 +1825,18 @@ class NativePoolCoordinator:
                     if child_id in self._leases
                 ],
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "first_protected_fault": (
                     dict(self._first_protected_fault)
                     if self._first_protected_fault is not None
                     else None
                 ),
                 "control_loss_scope": "pool",
+                **self._stop_metadata,
             }
         )
         self._state = seal_artifact(self._state, "state_sha256")
@@ -1078,6 +1858,30 @@ class NativePoolCoordinator:
         crash_reason: str,
         affected_child_ids: Sequence[str],
     ) -> None:
+        crash_authority = policy_scope_authority(
+            "native-pool-coordinator-crash-v1",
+            authorized_scope="execution-path",
+            source_sha256=canonical_sha256(
+                {
+                    "crash_reason": crash_reason,
+                    "exception_type": type(original_error).__name__,
+                    "affected_child_ids": list(affected_child_ids),
+                }
+            ),
+        )
+        self._stop_metadata = merge_stop_metadata(
+            self._stop_metadata,
+            build_stop_metadata(
+                "execution-path",
+                authority=crash_authority,
+                authorized_continuation_paths=[
+                    continuation_path(
+                        "alternate-execution-path",
+                        conditions=["coordinator-remediated", "independent-validation"],
+                    )
+                ],
+            ),
+        )
         if self._first_protected_fault is None:
             self._first_protected_fault = {
                 "code": crash_reason,
@@ -1204,15 +2008,76 @@ class NativePoolCoordinator:
         )
 
     def _build_receipt(self) -> dict[str, Any]:
+        admitted_v2 = (
+            self._admission_reservation is not None
+            and self._dispatch_receipt is not None
+        )
         child_receipts = []
         dispositions = []
-        for child_id in self.child_ids:
+        for child_contract in self.children:
+            child_id = str(child_contract["child_id"])
             child = self._child_state(child_id)
+            raw_control_receipt = self._progress[child_id].get("receipt")
+            control_receipt = (
+                copy.deepcopy(dict(raw_control_receipt))
+                if admitted_v2
+                and isinstance(raw_control_receipt, Mapping)
+                and raw_control_receipt.get("receipt_type") == CONTROL_RECEIPT_TYPE
+                else None
+            )
             receipt_hash = child.get("child_receipt_sha256") or canonical_sha256(
                 {"child_id": child_id, "terminal_state": "control-failed", "reason": "not-admitted"}
             )
-            child_receipts.append({"child_id": child_id, "receipt_sha256": receipt_hash})
-            dispositions.append({"child_id": child_id, **self._dispositions[child_id]})
+            child_receipt = {
+                "child_id": child_id,
+                "receipt_sha256": receipt_hash,
+            }
+            disposition = {"child_id": child_id, **self._dispositions[child_id]}
+            if admitted_v2:
+                child_receipt.update(
+                    {
+                        field: child_contract[field]
+                        for field in (
+                            "bead_id",
+                            "work_unit_id",
+                            "packet_sha256",
+                            "admitted_child_sha256",
+                        )
+                    }
+                )
+                child_receipt["control_receipt"] = control_receipt
+                implementation_close = (
+                    disposition["runtime_disposition"] == "completed"
+                    and disposition["session_disposition"]
+                    in {"accepted", "accepted-with-warning"}
+                    and disposition["artifact_disposition"] == "accepted"
+                    and isinstance(control_receipt, Mapping)
+                    and control_receipt.get("terminal_state") == "completed"
+                    and control_receipt.get("errors") == []
+                )
+                disposition.update(
+                    {
+                        field: child_contract[field]
+                        for field in (
+                            "bead_id",
+                            "work_unit_id",
+                            "packet_sha256",
+                            "admitted_child_sha256",
+                        )
+                    }
+                )
+                disposition.update(
+                    {
+                        "recovery_projection": copy.deepcopy(
+                            child["recovery_projection"]
+                        ),
+                        "implementation_bead_close_authorized": implementation_close,
+                        "parent_close_authorized": False,
+                        "publication_close_authorized": False,
+                    }
+                )
+            child_receipts.append(child_receipt)
+            dispositions.append(disposition)
         lease_evidence = [
             {
                 "lease_id": self._leases[child_id]["lease_id"],
@@ -1235,7 +2100,9 @@ class NativePoolCoordinator:
             and len(lease_evidence) == len(self.child_ids)
             and all(item["lifecycle_state"] == "released" for item in lease_evidence)
             and all(
-                item["session_disposition"] in {"accepted", "accepted-with-warning"}
+                item["runtime_disposition"] == "completed"
+                and item["session_disposition"]
+                in {"accepted", "accepted-with-warning"}
                 and item["artifact_disposition"] == "accepted"
                 for item in dispositions
             )
@@ -1249,14 +2116,17 @@ class NativePoolCoordinator:
             else "quarantined"
             if self._protected_fault or self._control_failed
             else "partial"
-            if accepted_children
+            if accepted_children and not self._protected_fault
             else "rejected"
         )
-        value = seal_artifact(
-            {
+        receipt_body = {
                 "receipt_type": POOL_RECEIPT_TYPE,
-                "version": VERSION,
-                "schema": POOL_RECEIPT_SCHEMA,
+                "version": ADMITTED_POOL_VERSION if admitted_v2 else VERSION,
+                "schema": (
+                    ADMITTED_POOL_RECEIPT_SCHEMA
+                    if admitted_v2
+                    else POOL_RECEIPT_SCHEMA
+                ),
                 "pool_id": self.contract["pool_id"],
                 "pool_epoch": self.contract["pool_epoch"],
                 "contract_sha256": self.contract["contract_sha256"],
@@ -1265,12 +2135,7 @@ class NativePoolCoordinator:
                 "admission_order": list(self._admission_order),
                 "poll_order": list(self._poll_order),
                 "terminal_order": list(self._terminal_order),
-                "timing": {
-                    "max_callback_latency_ms": self._max_callback_latency_ms,
-                    "max_poll_gap_ms": self._max_poll_gap_ms,
-                    "poll_interval_ms": self.contract["scheduler"]["poll_interval_ms"],
-                    "poll_lag_tolerance_ms": self.contract["scheduler"]["poll_lag_tolerance_ms"],
-                },
+                "timing": self._timing_receipt(),
                 "child_terminal_receipts": child_receipts,
                 "final_aggregate_usage": self._state["aggregate_usage"],
                 "pool_wall_seconds": self._state["pool_wall_seconds"],
@@ -1278,6 +2143,11 @@ class NativePoolCoordinator:
                 "lease_evidence": lease_evidence,
                 "mutation_evidence": dict(self._last_mutation_evidence),
                 "reasons": list(self._reasons),
+                "reason_records": build_reason_records(
+                    self._reasons,
+                    self._stop_metadata["scope_authority"],
+                    detected_by="native-pool-supervision",
+                ),
                 "first_protected_fault": (
                     dict(self._first_protected_fault)
                     if self._first_protected_fault is not None
@@ -1286,22 +2156,68 @@ class NativePoolCoordinator:
                 "child_dispositions": dispositions,
                 "pool_disposition": pool_disposition,
                 "accepting": accepting,
-            },
+                **self._stop_metadata,
+            }
+        if admitted_v2:
+            assert self._admission_reservation is not None
+            assert self._dispatch_receipt is not None
+            receipt_body.update(
+                {
+                    "reservation_sha256": self._admission_reservation[
+                        "reservation_sha256"
+                    ],
+                    "dispatch_sha256": self._dispatch_receipt["dispatch_sha256"],
+                }
+            )
+        value = seal_artifact(
+            receipt_body,
             "receipt_sha256",
         )
-        errors = validate_pool_receipt(value, contract=self.contract, terminal_state=self._state)
+        errors = validate_pool_receipt(
+            value,
+            contract=self.contract,
+            terminal_state=self._state,
+            admission_reservation=self._admission_reservation,
+            dispatch_receipt=self._dispatch_receipt,
+            capacity_limits=self.capacity_limits,
+        )
         if errors:
             raise NativePoolError("pool-receipt-invalid:" + ";".join(errors))
         return value
 
     def _contain_state_watermark_failure(self, error: NativePoolError) -> dict[str, Any]:
-        self._enter_fault(str(error), control_failed=False)
+        self._enter_fault(
+            str(error),
+            control_failed=False,
+            requested_stop_scope="execution-path",
+            scope_policy_rule="execution-integrity",
+        )
         status = self._status_after_action()
         self._refresh_state(status)
         self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
         return self.progress()
 
-    def step(self) -> dict[str, Any]:
+    def _runtime_capability_errors(self) -> list[str]:
+        """Revalidate concurrent execution authority before the next pool step."""
+
+        if not self.capacity_limits.requires_capability_receipt(
+            self.contract["max_active_workers"]
+        ):
+            return []
+        if self.capability_receipt is None:
+            return ["concurrent-capability-receipt-required"]
+        try:
+            now = _normalize_now(self.pool_callbacks["now_utc"]())
+        except (KeyError, NativePoolError):
+            return ["capability-now-utc-invalid"]
+        return validate_capability_receipt(
+            self.capability_receipt,
+            expected_contract=self.contract,
+            now=now,
+            capacity_limits=self.capacity_limits,
+        )
+
+    def _step_once(self) -> dict[str, Any]:
         """Advance one deterministic pool step and never sleep."""
         if self._state["status"] == "closed":
             return self.progress()
@@ -1314,6 +2230,22 @@ class NativePoolCoordinator:
             self._verify_state_watermark()
         except NativePoolError as exc:
             return self._contain_state_watermark_failure(exc)
+        if not self._protected_fault:
+            capability_errors = self._runtime_capability_errors()
+            if capability_errors:
+                self._enter_fault(
+                    "capability-receipt-invalid:" + ";".join(capability_errors),
+                    control_failed=False,
+                    requested_stop_scope="cohort",
+                    scope_policy_rule="cohort-control",
+                )
+                self._refresh_state(self._status_after_action())
+                self._decision_for(
+                    decision="interrupt",
+                    selected_child_id=None,
+                    actions=["interrupt"],
+                )
+                return self.progress()
         if self._consume_control_request():
             self._refresh_state(self._status_after_action())
             self._decision_for(
@@ -1322,15 +2254,24 @@ class NativePoolCoordinator:
                 actions=["interrupt"],
             )
             return self.progress()
-        step_started = self._monotonic_ns()
-
         if self._state["status"] == "created":
             if self._initial_mutation_fault:
-                self._enter_fault("initial-workspace-comparison-failed", control_failed=False)
+                self._enter_fault(
+                    "initial-workspace-comparison-failed",
+                    control_failed=False,
+                    requested_stop_scope="execution-path",
+                    scope_policy_rule="execution-integrity",
+                )
                 self._refresh_state(self._status_after_action())
                 self._decision_for(decision="interrupt", selected_child_id=None, actions=["interrupt"])
                 return self.progress()
-            status = "capability-validated" if self.contract["max_active_workers"] == 2 else "admitting"
+            status = (
+                "capability-validated"
+                if self.capacity_limits.requires_capability_receipt(
+                    self.contract["max_active_workers"]
+                )
+                else "admitting"
+            )
             self._refresh_state(status)
             self._decision_for(decision="continue", selected_child_id=None, actions=["admit"])
             return self.progress()
@@ -1347,12 +2288,24 @@ class NativePoolCoordinator:
                             "child_worktrees_clean",
                         )
                     ):
+                        if self._read_only_fast_path_children:
+                            self._invalidate_read_only_fast_path()
                         self._enter_fault(
-                            "terminal-workspace-comparison-failed", control_failed=False
+                            "terminal-workspace-comparison-failed",
+                            control_failed=False,
+                            requested_stop_scope="execution-path",
+                            scope_policy_rule="execution-integrity",
                         )
                     self._terminal_comparison_complete = True
                 except NativePoolError as exc:
-                    self._enter_fault(str(exc), control_failed=True)
+                    if self._read_only_fast_path_children:
+                        self._invalidate_read_only_fast_path()
+                    self._enter_fault(
+                        str(exc),
+                        control_failed=True,
+                        requested_stop_scope="execution-path",
+                        scope_policy_rule="execution-integrity",
+                    )
                 if self._control_failed:
                     self._refresh_state("control-failed")
                     self._finish_control_failed()
@@ -1382,43 +2335,51 @@ class NativePoolCoordinator:
                         actions=["release-leases"],
                     )
                 return self.progress()
-            self._refresh_state("closed")
+            self._refresh_state("closed", freeze_timing=True)
             self._receipt = self._build_receipt()
             self._decision_for(decision="complete", selected_child_id=None, actions=["finalize"])
             self._release_state_lock()
             return self.progress()
 
-        if not self._protected_fault:
-            pending_child = None
-            for index, child_id in enumerate(self.child_ids):
-                if self._progress[child_id]["status"] != "pending":
-                    continue
-                if all(self._first_poll[prior] for prior in self.child_ids[:index]):
-                    pending_child = child_id
-                break
-            if pending_child is not None and pending_child not in self._leases:
+        if not self._protected_fault and len(self._leases) != len(self.child_ids):
+            if self._leases:
+                self._enter_fault(
+                    "partial-cohort-lease-set-forbidden",
+                    control_failed=True,
+                    requested_stop_scope="cohort",
+                    scope_policy_rule="cohort-control",
+                )
+                selected_child = self.child_ids[0]
+            else:
+                selected_child = self.child_ids[0]
                 try:
-                    self._leases[pending_child] = self.lease_registry.acquire(
-                        self.contract, pending_child
+                    acquired = self.lease_registry.acquire_many(
+                        self.contract,
+                        self.child_ids,
+                        capacity_limits=self.capacity_limits,
                     )
+                    self._leases = {
+                        str(lease["child_id"]): lease for lease in acquired
+                    }
                 except PoolLeaseError as exc:
+                    selected_child = getattr(exc, "child_id", None) or selected_child
                     self._record_lease_failure(
-                        pending_child,
+                        selected_child,
                         "acquire",
                         "acquired",
                         exc,
                         control_failed=False,
                     )
-                status = self._status_after_action()
-                self._refresh_state(status)
-                decision = "interrupt" if self._protected_fault else "continue"
-                actions = ["interrupt"] if self._protected_fault else ["admit"]
-                self._decision_for(
-                    decision=decision,
-                    selected_child_id=pending_child,
-                    actions=actions,
-                )
-                return self.progress()
+            status = self._status_after_action()
+            self._refresh_state(status)
+            decision = "interrupt" if self._protected_fault else "continue"
+            actions = ["interrupt"] if self._protected_fault else ["admit"]
+            self._decision_for(
+                decision=decision,
+                selected_child_id=selected_child,
+                actions=actions,
+            )
+            return self.progress()
 
         now_ns = self._monotonic_ns()
         selected, poll, wait_for = self._next_lifecycle_child(now_ns)
@@ -1452,14 +2413,20 @@ class NativePoolCoordinator:
             else "complete"
             if status == "completed"
             else "warn"
-            if self._reasons
+            if self._reasons or self._slack_warning_active
             else "continue"
         )
         actions = ["interrupt"] if status == "interrupt-pending" else ["release-leases"] if status == "completed" else ["step"]
         self._decision_for(decision=decision, selected_child_id=selected, actions=actions)
-        step_ended = self._monotonic_ns()
-        self._poll_overhead_seconds += max(0.0, (step_ended - step_started) / 1_000_000_000)
         return self.progress()
+
+    def step(self) -> dict[str, Any]:
+        """Advance one deterministic pool step and never sleep."""
+        self._complete_wait()
+        progress = self._step_once()
+        if progress["wait_required"] and not self._timing_frozen:
+            self._wait_started_ns = self._monotonic_ns()
+        return progress
 
     def run(self) -> dict[str, Any]:
         """Blocking compatibility wrapper; only this method sleeps."""
@@ -1518,6 +2485,52 @@ class NativePoolCoordinator:
             "decision": dict(self._decision) if self._decision is not None else None,
             "receipt": dict(self._receipt) if self._receipt is not None else None,
         }
+
+
+def _build_admitted_pool_coordinator(
+    contract: Mapping[str, Any],
+    child_contracts: Mapping[str, Mapping[str, Any]],
+    task_inputs: Mapping[str, str],
+    child_callbacks: Mapping[str, Mapping[str, Callable[..., Any]]],
+    *,
+    pool_callbacks: Mapping[str, Callable[..., Any]],
+    lease_registry: PoolLeaseRegistry,
+    capability_receipt: Mapping[str, Any] | None,
+    preacquired_leases: Sequence[Mapping[str, Any]],
+    reservation_receipt: Mapping[str, Any],
+    dispatch_receipt: Mapping[str, Any],
+    state_file: Path | str | None = None,
+    decision_file: Path | str | None = None,
+    control_file: Path | str | None = None,
+    policy_document: Mapping[str, Any] | None = None,
+    recovery_authority_store: FixedCohortRecoveryActionStore | None = None,
+    recovery_controller_root: FixedCohortControllerRoot | None = None,
+    recovery_action_resolver: Callable[..., object] | None = None,
+) -> NativePoolCoordinator:
+    """Internal bridge used only after admitted authority has been consumed."""
+
+    return NativePoolCoordinator(
+        contract,
+        child_contracts,
+        task_inputs,
+        child_callbacks,
+        pool_callbacks=pool_callbacks,
+        lease_registry=lease_registry,
+        capability_receipt=capability_receipt,
+        state_file=state_file,
+        decision_file=decision_file,
+        control_file=control_file,
+        policy_document=policy_document,
+        recovery_authority_store=recovery_authority_store,
+        recovery_controller_root=recovery_controller_root,
+        recovery_action_resolver=recovery_action_resolver,
+        _admitted_bridge_token=_ADMITTED_POOL_BRIDGE_TOKEN,
+        _preacquired_leases=preacquired_leases,
+        _admission_evidence={
+            "reservation": reservation_receipt,
+            "dispatch": dispatch_receipt,
+        },
+    )
 
 
 def run_native_pool(

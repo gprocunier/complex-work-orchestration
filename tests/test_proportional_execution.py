@@ -4,7 +4,11 @@ import copy
 import unittest
 from unittest import mock
 
-from cwo_core.native_capability import build_native_capability_receipt
+from cwo_core.native_authority import trusted_actor_authority
+from cwo_core.native_capability import (
+    build_native_capability_receipt,
+    canonical_capability_evidence_sha256,
+)
 from cwo_core.proportional_execution import (
     FAST_PATH_ROUTE,
     REQUIRED_STEPS,
@@ -96,7 +100,21 @@ def _receipt(tool_surface: str = TOOL_SURFACE) -> dict:
         "closure_receipt": True,
         "tool_surface_id": tool_surface,
     }
-    return build_native_capability_receipt(evidence, [MODEL], ISSUED, EXPIRES)
+    authority = trusted_actor_authority(
+        source_type="worker-discovery",
+        source_id=evidence["canary_session_id"],
+        source_sha256=canonical_capability_evidence_sha256(evidence),
+        actor_id="proportional-capability-worker",
+        actor_role="operative-worker",
+        identity_source=evidence["attestation_source"],
+    )
+    return build_native_capability_receipt(
+        evidence,
+        [MODEL],
+        ISSUED,
+        EXPIRES,
+        session_authority=authority,
+    )
 
 
 def _evaluate(brief: dict, receipt: dict | None = None, at: str = AT) -> dict:

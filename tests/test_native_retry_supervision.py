@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -22,6 +24,16 @@ from tests.test_supervise_native_worker import (  # noqa: E402
     write_records,
 )
 from cwo_core.native_retry import build_retry_authorization, canonical_work_sha256
+from cwo_core.native_recovery_authority import (
+    RecoveryActionStore,
+    RecoveryAuthorityError,
+    VerifiedRecoveryAction,
+)
+from cwo_core.native_recovery_policy import (
+    RECOVERY_SIGNAL_FIELDS,
+    build_recovery_audit_decision,
+)
+from cwo_core.paths import cwo_temp_path
 from cwo_core.policy import load_policy
 
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -61,6 +73,35 @@ def _fresh_attestation(*, session_id: str, model: str = MODEL, tool_surface_id: 
     }
 
 
+def _canonical_sha256(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("ascii")
+    ).hexdigest()
+
+
+def _reseal_retry_receipt(receipt: dict) -> None:
+    body = copy.deepcopy(receipt)
+    body.pop("receipt_sha256", None)
+    receipt["receipt_sha256"] = _canonical_sha256(body)
+
+
+def _reseal_retry_evidence_bindings(receipt: dict) -> None:
+    evidence_sha256 = _canonical_sha256(receipt["evidence_bindings"])
+    receipt["retry_evidence_sha256"] = evidence_sha256
+    provenance = receipt["evidence_provenance"]
+    provenance["source_sha256"] = evidence_sha256
+    provenance["verification"]["evidence_sha256"] = evidence_sha256
+    provenance_body = copy.deepcopy(provenance)
+    provenance_body.pop("provenance_sha256", None)
+    provenance["provenance_sha256"] = _canonical_sha256(provenance_body)
+    _reseal_retry_receipt(receipt)
+
+
 class NativeRetrySupervisionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-native-retry-supervision-")
@@ -68,7 +109,10 @@ class NativeRetrySupervisionTests(unittest.TestCase):
         supervisor_fixtures._FIXTURE_ROOT = self.root
         self.environment = mock.patch.dict(
             os.environ,
-            {"CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry")},
+            {
+                "CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry"),
+                "CWO_SESSION_ID": self.root.name,
+            },
         )
         self.environment.start()
         self.session_id = "spark-session"
@@ -123,6 +167,27 @@ class NativeRetrySupervisionTests(unittest.TestCase):
         if retry_authorization is not None:
             args.extend(["--retry-authorization", str(retry_authorization)])
         return run_cli(*args)
+
+    def _start_args(
+        self,
+        *,
+        packet_file: Path | None = None,
+        retry_authorization: Path | None = None,
+        now: str = "2026-07-11T00:00:00Z",
+    ) -> argparse.Namespace:
+        return argparse.Namespace(
+            packet=str(packet_file or self.packet_file),
+            session_id=self.session_id,
+            session_file=str(self.session_file),
+            agent_id="agent-spark",
+            state_file=str(self.state_file),
+            audit_file=str(self.audit_file),
+            retry_authorization=(
+                str(retry_authorization) if retry_authorization is not None else None
+            ),
+            now=now,
+            json=True,
+        )
 
     def _assess(self, *, now: str, workspace: dict, semantic: dict) -> subprocess.CompletedProcess[str]:
         self.workspace_report_file.write_text(json.dumps(workspace, separators=(",", ":")), encoding="utf-8")
@@ -219,6 +284,7 @@ class NativeRetrySupervisionTests(unittest.TestCase):
         cumulative_tool_calls: int = 0,
         cumulative_runtime_seconds: int = 0,
         model: str | None = None,
+        retry_session_id: str | None = None,
     ) -> dict:
         policy = load_policy("native-worker-execution")
         if not isinstance(policy.get("bounded_native_retry"), dict):
@@ -239,8 +305,29 @@ class NativeRetrySupervisionTests(unittest.TestCase):
             workspace_report=_workspace_report(),
             semantic_result=_semantic_result(status="no-progress"),
             recovery_policy=policy["bounded_native_retry"],
-            fresh_attestation=_fresh_attestation(session_id="spark-native-retry-session", model=model or parent["requested_model"]),
+            fresh_attestation=_fresh_attestation(
+                session_id=retry_session_id or self.session_id,
+                model=model or parent["requested_model"],
+            ),
         )
+
+    def _make_provisional_recovery_action(
+        self,
+        authorization: dict,
+    ) -> tuple[RecoveryActionStore, VerifiedRecoveryAction]:
+        signals = {field: False for field in RECOVERY_SIGNAL_FIELDS}
+        signals["pre_dispatch_transport_failure"] = True
+        decision = build_recovery_audit_decision(
+            signals,
+            replacement_count=0,
+            construction_attempt_count=0,
+            evidence_sha256="c" * 64,
+            fixed_cohort_sha256="a" * 64,
+            admitted_bead_id=authorization["bead_id"],
+            admitted_child_sha256="b" * 64,
+        )
+        store = RecoveryActionStore()
+        return store, store.issue_provisional(authorization, decision)
 
     def _make_closed_interrupt_state(
         self,
@@ -311,18 +398,23 @@ class NativeRetrySupervisionTests(unittest.TestCase):
             schema = json.loads((ROOT / "schemas" / "native-supervision-state.schema.json").read_text(encoding="utf-8"))
             jsonschema.validate(state, schema)
 
-    def test_start_with_retry_authorization_and_tamper_cases(self) -> None:
+    def test_start_with_retry_authorization_is_audit_only_and_tamper_fails(self) -> None:
         retry_packet = self._make_retry_packet(packet_id="packet-native-retry-supervision-retry")
         retry_authorization = self._make_retry_authorization(parent=self.parent_packet, retry=retry_packet)
         self.retry_authorization_file.write_text(json.dumps(retry_authorization), encoding="utf-8")
 
         self.packet_file.write_text(json.dumps(retry_packet), encoding="utf-8")
+        baseline_path = cwo_temp_path(
+            f"{retry_packet['packet_id']}-{self.session_id}-workspace-baseline.json",
+            purpose="native-supervision",
+        )
+        baseline_path.unlink(missing_ok=True)
         started = self._start(retry_authorization=self.retry_authorization_file)
-        self.assertEqual(started.returncode, 0, started.stderr)
-        state = self._load_state()
-        self.assertEqual(state["recovery"]["attempt"], 1)
-        self.assertEqual(state["recovery"]["cumulative_usage"], retry_authorization["cumulative_usage"])
-        self.assertEqual(state["recovery"]["authorization"]["retry_packet_id"], state["packet_id"])
+        self.assertNotEqual(started.returncode, 0)
+        self.assertIn("serialized retry authorization is audit-only", started.stderr)
+        self.assertFalse(self.state_file.exists())
+        self.assertFalse(self.audit_file.exists())
+        self.assertFalse(baseline_path.exists())
 
         for label, tamper in (
             ("retry_packet_id", {"retry_packet_id": "wrong-retry-id"}),
@@ -340,6 +432,230 @@ class NativeRetrySupervisionTests(unittest.TestCase):
                 self.retry_authorization_file.write_text(json.dumps(tampered), encoding="utf-8")
                 result = self._start(retry_authorization=self.retry_authorization_file)
                 self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.state_file.exists())
+                self.assertFalse(self.audit_file.exists())
+                self.assertFalse(baseline_path.exists())
+
+    def test_retry_start_rechecks_live_session_packet_and_policy_evidence(self) -> None:
+        retry_packet = self._make_retry_packet(
+            packet_id="packet-native-retry-supervision-live-bindings"
+        )
+        authorization = self._make_retry_authorization(
+            parent=self.parent_packet,
+            retry=retry_packet,
+        )
+        self.packet_file.write_text(json.dumps(retry_packet), encoding="utf-8")
+        baseline_path = cwo_temp_path(
+            f"{retry_packet['packet_id']}-{self.session_id}-workspace-baseline.json",
+            purpose="native-supervision",
+        )
+
+        cases: list[tuple[str, dict, str]] = []
+        wrong_session = copy.deepcopy(authorization)
+        wrong_session["retry_session_id"] = "other-retry-session"
+        _reseal_retry_receipt(wrong_session)
+        cases.append(("session", wrong_session, "session mismatch"))
+
+        wrong_packet = copy.deepcopy(authorization)
+        wrong_packet["evidence_bindings"]["retry_packet_sha256"] = "f" * 64
+        _reseal_retry_evidence_bindings(wrong_packet)
+        cases.append(("packet", wrong_packet, "packet evidence mismatch"))
+
+        wrong_policy = copy.deepcopy(authorization)
+        wrong_policy["evidence_bindings"]["recovery_policy_sha256"] = "f" * 64
+        _reseal_retry_evidence_bindings(wrong_policy)
+        cases.append(("policy", wrong_policy, "policy evidence mismatch"))
+
+        for label, receipt, expected in cases:
+            with self.subTest(label=label):
+                self._reset_workflow_artifacts()
+                baseline_path.unlink(missing_ok=True)
+                self.retry_authorization_file.write_text(
+                    json.dumps(receipt),
+                    encoding="utf-8",
+                )
+                result = self._start(
+                    retry_authorization=self.retry_authorization_file
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+                self.assertFalse(self.state_file.exists())
+                self.assertFalse(self.audit_file.exists())
+                self.assertFalse(baseline_path.exists())
+
+    def test_provisional_recovery_action_is_consumed_then_rejected_before_writes(self) -> None:
+        retry_packet = self._make_retry_packet(
+            packet_id="packet-native-retry-supervision-provisional"
+        )
+        authorization = self._make_retry_authorization(
+            parent=self.parent_packet,
+            retry=retry_packet,
+        )
+        self.packet_file.write_text(json.dumps(retry_packet), encoding="utf-8")
+        self.retry_authorization_file.write_text(
+            json.dumps(authorization), encoding="utf-8"
+        )
+        store, action = self._make_provisional_recovery_action(authorization)
+
+        with (
+            mock.patch.object(supervisor_fixtures.supervisor, "_require_packet_release"),
+            mock.patch.object(
+                supervisor_fixtures.supervisor,
+                "validate_native_worker_packet",
+                return_value=[],
+            ),
+            mock.patch.object(
+                supervisor_fixtures.supervisor, "_persist_workspace_baseline"
+            ) as persist_baseline,
+            mock.patch.object(
+                supervisor_fixtures.supervisor, "_write_state"
+            ) as write_state,
+            mock.patch.object(
+                supervisor_fixtures.supervisor, "_audit_event"
+            ) as audit_event,
+        ):
+            with self.assertRaisesRegex(
+                SystemExit,
+                "provisional and non-dispatching",
+            ):
+                supervisor_fixtures.supervisor.start(
+                    self._start_args(
+                        packet_file=self.packet_file,
+                        retry_authorization=self.retry_authorization_file,
+                    ),
+                    verified_recovery_action=action,
+                    recovery_action_store=store,
+                )
+
+        persist_baseline.assert_not_called()
+        write_state.assert_not_called()
+        audit_event.assert_not_called()
+        with self.assertRaisesRegex(
+            RecoveryAuthorityError,
+            "not-registered-or-spent",
+        ):
+            store.inspect(action)
+        self.assertFalse(self.state_file.exists())
+        self.assertFalse(self.audit_file.exists())
+
+    def test_recovery_action_binding_mismatch_fails_read_only_without_consuming(self) -> None:
+        first_packet = self._make_retry_packet(
+            packet_id="packet-native-retry-supervision-binding-first"
+        )
+        first_authorization = self._make_retry_authorization(
+            parent=self.parent_packet,
+            retry=first_packet,
+        )
+        store, action = self._make_provisional_recovery_action(first_authorization)
+
+        second_packet = self._make_retry_packet(
+            packet_id="packet-native-retry-supervision-binding-second"
+        )
+        second_authorization = self._make_retry_authorization(
+            parent=self.parent_packet,
+            retry=second_packet,
+        )
+        self.packet_file.write_text(json.dumps(second_packet), encoding="utf-8")
+        self.retry_authorization_file.write_text(
+            json.dumps(second_authorization), encoding="utf-8"
+        )
+
+        with (
+            mock.patch.object(supervisor_fixtures.supervisor, "_require_packet_release"),
+            mock.patch.object(
+                supervisor_fixtures.supervisor,
+                "validate_native_worker_packet",
+                return_value=[],
+            ),
+            mock.patch.object(
+                supervisor_fixtures.supervisor, "_persist_workspace_baseline"
+            ) as persist_baseline,
+        ):
+            with self.assertRaisesRegex(SystemExit, "binding mismatch"):
+                supervisor_fixtures.supervisor.start(
+                    self._start_args(
+                        packet_file=self.packet_file,
+                        retry_authorization=self.retry_authorization_file,
+                    ),
+                    verified_recovery_action=action,
+                    recovery_action_store=store,
+                )
+
+        persist_baseline.assert_not_called()
+        self.assertEqual(
+            store.inspect(action)["retry_packet_id"],
+            first_packet["packet_id"],
+        )
+
+    def test_recovery_action_identity_store_rejects_forgery_without_protocol_calls(self) -> None:
+        retry_packet = self._make_retry_packet(
+            packet_id="packet-native-retry-supervision-identity"
+        )
+        authorization = self._make_retry_authorization(
+            parent=self.parent_packet,
+            retry=retry_packet,
+        )
+        store, action = self._make_provisional_recovery_action(authorization)
+
+        class HostileAlias:
+            def __init__(self) -> None:
+                self.eq_calls = 0
+                self.hash_calls = 0
+
+            def __eq__(self, other: object) -> bool:
+                self.eq_calls += 1
+                raise AssertionError("attacker equality must not run")
+
+            def __hash__(self) -> int:
+                self.hash_calls += 1
+                raise AssertionError("attacker hash must not run")
+
+        hostile = HostileAlias()
+        with self.assertRaisesRegex(RecoveryAuthorityError, "type-invalid"):
+            store.inspect(hostile)
+        self.assertEqual((hostile.eq_calls, hostile.hash_calls), (0, 0))
+
+        forged = object.__new__(VerifiedRecoveryAction)
+        with self.assertRaisesRegex(RecoveryAuthorityError, "not-registered-or-spent"):
+            store.inspect(forged)
+
+        class ForgedActionSubclass(VerifiedRecoveryAction):
+            pass
+
+        forged_subclass = object.__new__(ForgedActionSubclass)
+        with self.assertRaisesRegex(RecoveryAuthorityError, "type-invalid"):
+            store.inspect(forged_subclass)
+
+        class StoreSubclass(RecoveryActionStore):
+            pass
+
+        with self.assertRaisesRegex(RecoveryAuthorityError, "store-invalid"):
+            StoreSubclass().inspect(action)
+        with self.assertRaisesRegex(RecoveryAuthorityError, "store-invalid"):
+            object.__new__(RecoveryActionStore).inspect(action)
+
+        other_store = RecoveryActionStore()
+        with self.assertRaisesRegex(RecoveryAuthorityError, "not-registered-or-spent"):
+            other_store.inspect(action)
+        store.consume(action)
+        with self.assertRaisesRegex(RecoveryAuthorityError, "not-registered-or-spent"):
+            store.consume(action)
+
+    def test_stray_recovery_hooks_without_retry_fail_before_writes(self) -> None:
+        with mock.patch.object(
+            supervisor_fixtures.supervisor,
+            "_persist_workspace_baseline",
+        ) as persist_baseline:
+            with self.assertRaisesRegex(
+                SystemExit,
+                "hooks require --retry-authorization",
+            ):
+                supervisor_fixtures.supervisor.start(
+                    self._start_args(),
+                    verified_recovery_action=object(),
+                    recovery_action_store=RecoveryActionStore(),
+                )
+        persist_baseline.assert_not_called()
 
     def test_assess_retry_eligible_projection(self) -> None:
         self._make_closed_interrupt_state()
@@ -349,7 +665,15 @@ class NativeRetrySupervisionTests(unittest.TestCase):
         self.assertEqual(assessed.returncode, 0, assessed.stderr)
         assessment = json.loads(assessed.stdout)
         self.assertTrue(assessment["eligible"])
-        self.assertEqual(assessment["next_action"], "spawn-fresh-native-retry")
+        self.assertEqual(
+            assessment["next_action"], "await-verified-recovery-action"
+        )
+        self.assertFalse(assessment["dispatch_authorized"])
+        self.assertEqual(assessment["receipt_authority"], "audit-only")
+        self.assertEqual(
+            assessment["required_dispatch_authority"],
+            "opaque-verified-recovery-action",
+        )
         state = self._load_state()
         self.assertEqual(state["recovery"]["eligibility"], assessment)
 

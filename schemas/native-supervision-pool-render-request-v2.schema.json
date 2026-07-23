@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Admission-Bound Native Supervision Pool Render Request v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_type", "version", "schema", "pool_id", "pool_epoch",
+    "control_turn_id", "created_at", "max_active_workers",
+    "aggregate_hard_budget", "integration_root", "children",
+    "admission_reservation"
+  ],
+  "properties": {
+    "request_type": {"const": "cwo-native-supervision-pool-render-request"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-supervision-pool-render-request-v2.schema.json"},
+    "pool_id": {"type": "string", "minLength": 1},
+    "pool_epoch": {"type": "string", "minLength": 1},
+    "control_turn_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "max_active_workers": {"enum": [1, 2, 3]},
+    "completion_policy": {"enum": ["all-or-nothing", "best-effort"]},
+    "aggregate_hard_budget": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/budget"},
+    "integration_root": {"type": "string", "pattern": "^/", "minLength": 2},
+    "children": {
+      "type": "array", "minItems": 1, "maxItems": 3,
+      "items": {"$ref": "#/$defs/child"}
+    },
+    "admission_reservation": {"$ref": "native-pool-admission-reservation.schema.json"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "child": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "child_id", "packet_id", "attempt_nonce", "session_id", "agent_id",
+        "control_turn_id", "packet_sha256", "control_contract_file", "state_file",
+        "worktree", "isolation_class", "completion_evidence_policy", "tool_policy",
+        "declared_write_paths", "integration_target_paths", "lease_id",
+        "bead_id", "work_unit_id", "candidate_sha256", "claim_sha256",
+        "work_estimate_sha256", "worker_commitment_sha256", "lease_scope_sha256",
+        "worktree_identity_sha256", "hard_budget", "requested_model",
+        "admitted_child_sha256"
+      ],
+      "properties": {
+        "child_id": {"type": "string", "minLength": 1},
+        "packet_id": {"type": "string", "minLength": 1},
+        "attempt_nonce": {"type": "string", "minLength": 1},
+        "session_id": {"type": "string", "minLength": 1},
+        "agent_id": {"type": "string", "minLength": 1},
+        "control_turn_id": {"type": "string", "minLength": 1},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "control_contract_file": {"type": "string", "pattern": "^/", "minLength": 2},
+        "state_file": {"type": "string", "pattern": "^/", "minLength": 2},
+        "worktree": {"type": "string", "pattern": "^/", "minLength": 2},
+        "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
+        "completion_evidence_policy": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/completion_evidence_policy"},
+        "tool_policy": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/tool_policy"},
+        "declared_write_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "integration_target_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "lease_id": {"type": "string", "minLength": 1},
+        "bead_id": {"type": "string", "minLength": 1},
+        "work_unit_id": {"type": "string", "minLength": 1},
+        "candidate_sha256": {"$ref": "#/$defs/sha256"},
+        "claim_sha256": {"$ref": "#/$defs/sha256"},
+        "work_estimate_sha256": {"$ref": "#/$defs/sha256"},
+        "worker_commitment_sha256": {"$ref": "#/$defs/sha256"},
+        "lease_scope_sha256": {"$ref": "#/$defs/sha256"},
+        "worktree_identity_sha256": {"$ref": "#/$defs/sha256"},
+        "hard_budget": {"$ref": "native-supervision-pool-contract.schema.json#/$defs/budget"},
+        "requested_model": {"type": "string", "minLength": 1},
+        "admitted_child_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

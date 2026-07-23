@@ -1,0 +1,857 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Admitted Native Supervision Pool Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_type",
+    "version",
+    "schema",
+    "pool_id",
+    "pool_epoch",
+    "contract_sha256",
+    "terminal_state_sha256",
+    "reservation_sha256",
+    "dispatch_sha256",
+    "capability_receipt_sha256",
+    "admission_order",
+    "poll_order",
+    "terminal_order",
+    "timing",
+    "child_terminal_receipts",
+    "final_aggregate_usage",
+    "pool_wall_seconds",
+    "worker_seconds",
+    "lease_evidence",
+    "mutation_evidence",
+    "reasons",
+    "reason_records",
+    "first_protected_fault",
+    "child_dispositions",
+    "pool_disposition",
+    "accepting",
+    "stop_scope",
+    "authorized_continuation_paths",
+    "scope_authority",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "receipt_type": {
+      "const": "cwo-native-supervision-pool-receipt"
+    },
+    "version": {
+      "const": 2
+    },
+    "schema": {
+      "const": "schemas/native-supervision-pool-receipt-v2.schema.json"
+    },
+    "pool_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pool_epoch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "terminal_state_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "capability_receipt_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "admission_order": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "poll_order": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "terminal_order": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "timing": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_callback_latency_ms",
+            "max_poll_gap_ms",
+            "poll_interval_ms",
+            "poll_lag_tolerance_ms"
+          ],
+          "properties": {
+            "max_callback_latency_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_poll_gap_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "poll_interval_ms": {
+              "type": "number",
+              "minimum": 1
+            },
+            "poll_lag_tolerance_ms": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_callback_latency_ms",
+            "max_poll_gap_ms",
+            "poll_interval_ms",
+            "poll_lag_tolerance_ms",
+            "accounting_version",
+            "callback_ns",
+            "noncallback_invoke_ns",
+            "coordinator_ns",
+            "wait_ns"
+          ],
+          "properties": {
+            "max_callback_latency_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_poll_gap_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "poll_interval_ms": {
+              "type": "number",
+              "minimum": 1
+            },
+            "poll_lag_tolerance_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "accounting_version": {
+              "const": "exclusive-v1"
+            },
+            "callback_ns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "noncallback_invoke_ns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "coordinator_ns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wait_ns": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "child_terminal_receipts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "child_id",
+          "bead_id",
+          "work_unit_id",
+          "packet_sha256",
+          "admitted_child_sha256",
+          "control_receipt",
+          "receipt_sha256"
+        ],
+        "properties": {
+          "child_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bead_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "work_unit_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "packet_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "admitted_child_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "control_receipt": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/control_receipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "final_aggregate_usage": {
+      "$ref": "#/$defs/usage"
+    },
+    "pool_wall_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "worker_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "lease_evidence": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lease_id",
+          "lease_sha256",
+          "lifecycle_state"
+        ],
+        "properties": {
+          "lease_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lease_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "lifecycle_state": {
+            "enum": [
+              "acquired",
+              "held",
+              "release-pending",
+              "released",
+              "orphaned-active"
+            ]
+          }
+        }
+      }
+    },
+    "mutation_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integration_root_clean",
+        "shared_read_only_clean",
+        "child_worktrees_clean",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "integration_root_clean": {
+          "type": "boolean"
+        },
+        "shared_read_only_clean": {
+          "type": "boolean"
+        },
+        "child_worktrees_clean": {
+          "type": "boolean"
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reason_records": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reason_record"
+      }
+    },
+    "first_protected_fault": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/first_fault"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "child_dispositions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "child_id",
+          "runtime_disposition",
+          "bead_id",
+          "work_unit_id",
+          "packet_sha256",
+          "admitted_child_sha256",
+          "recovery_projection",
+          "session_disposition",
+          "artifact_disposition",
+          "implementation_bead_close_authorized",
+          "parent_close_authorized",
+          "publication_close_authorized"
+        ],
+        "properties": {
+          "child_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "runtime_disposition": {
+            "enum": [
+              "active",
+              "completed",
+              "failed-contained",
+              "failed-ambiguous",
+              "interrupted"
+            ]
+          },
+          "bead_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "work_unit_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "packet_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "admitted_child_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "recovery_projection": {
+            "oneOf": [
+              {"$ref": "#/$defs/recovery_projection"},
+              {"type": "null"}
+            ]
+          },
+          "session_disposition": {
+            "enum": [
+              "accepted",
+              "accepted-with-warning",
+              "quarantined"
+            ]
+          },
+          "artifact_disposition": {
+            "enum": [
+              "accepted",
+              "independent-validation-required",
+              "architect-adjudication-required",
+              "rejected"
+            ]
+          },
+          "implementation_bead_close_authorized": {
+            "type": "boolean"
+          },
+          "parent_close_authorized": {
+            "const": false
+          },
+          "publication_close_authorized": {
+            "const": false
+          }
+        }
+      }
+    },
+    "pool_disposition": {
+      "enum": [
+        "accepted",
+        "partial",
+        "quarantined",
+        "rejected"
+      ]
+    },
+    "accepting": {
+      "type": "boolean"
+    },
+    "stop_scope": {
+      "$ref": "#/$defs/stop_scope"
+    },
+    "authorized_continuation_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/continuation_path"
+      }
+    },
+    "scope_authority": {
+      "$ref": "#/$defs/scope_authority"
+    },
+    "receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "reservation_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "dispatch_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "recovery_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_sha256", "evidence_sha256", "classification_evidence_sha256",
+        "recovery_evidence_binding_sha256", "evidence_kind", "ledger_result_sha256",
+        "execution_binding_sha256", "fixed_cohort_sha256", "recovery_class",
+        "bead_id", "admitted_work_unit_id", "work_unit_id", "admitted_child_sha256",
+        "action", "required_authority", "stop_scope", "replacement_count",
+        "construction_attempt_count", "terminal", "consumed_revision",
+        "persisted_revision", "prior_state_sha256", "persisted_state_sha256",
+        "admission_grade", "dispatch_authorized", "audit_projection_sha256"
+      ],
+      "properties": {
+        "decision_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "classification_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_evidence_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "evidence_kind": {"enum": ["controller-observation", "verified-contained-ledger-dispatch"]},
+        "ledger_result_sha256": {"$ref": "#/$defs/sha256"},
+        "execution_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "fixed_cohort_sha256": {"$ref": "#/$defs/sha256"},
+        "recovery_class": {"enum": ["deterministic-construction-failure", "pre-dispatch-transport-failure", "contained-semantic-no-op", "individual-child-failure"]},
+        "bead_id": {"type": "string", "minLength": 1},
+        "admitted_work_unit_id": {"type": "string", "minLength": 1},
+        "work_unit_id": {"type": "string", "minLength": 1},
+        "admitted_child_sha256": {"$ref": "#/$defs/sha256"},
+        "action": {"enum": ["reconstruct-same-admitted-bead", "replace-same-admitted-bead", "return-same-admitted-bead-to-main-thread"]},
+        "required_authority": {"type": "string", "minLength": 1},
+        "stop_scope": {"const": "child"},
+        "replacement_count": {"type": "integer", "minimum": 0, "maximum": 1},
+        "construction_attempt_count": {"type": "integer", "minimum": 0, "maximum": 1},
+        "terminal": {"type": "boolean"},
+        "consumed_revision": {"type": "integer", "minimum": 0},
+        "persisted_revision": {"type": "integer", "minimum": 1},
+        "prior_state_sha256": {"$ref": "#/$defs/sha256"},
+        "persisted_state_sha256": {"$ref": "#/$defs/sha256"},
+        "admission_grade": {"const": "provisional-fixed-cohort"},
+        "dispatch_authorized": {"const": false},
+        "audit_projection_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "control_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_type",
+        "version",
+        "contract_sha256",
+        "task_sha256",
+        "submission_id",
+        "actions",
+        "decisions",
+        "poll_count",
+        "terminal_state",
+        "errors"
+      ],
+      "properties": {
+        "receipt_type": {
+          "const": "cwo-native-control-turn-receipt"
+        },
+        "version": {
+          "const": 1
+        },
+        "contract_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "task_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "submission_id": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "actions": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "enum": ["continue", "warn", "complete", "interrupt", "control-lost"]
+              },
+              {
+                "type": "string",
+                "pattern": "^interrupt:\\S(?:[\\s\\S]*\\S)?$"
+              }
+            ]
+          }
+        },
+        "poll_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "terminal_state": {
+          "enum": ["completed", "closed", "control-failed"]
+        },
+        "errors": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "input",
+        "cached_input",
+        "output",
+        "reasoning",
+        "total",
+        "unavailable_reason"
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "input": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cached_input": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "output": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasoning": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "total": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "unavailable_reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_calls",
+        "runtime_seconds",
+        "compactions",
+        "full_suite_runs",
+        "mutations",
+        "tokens"
+      ],
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "full_suite_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mutations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "$ref": "#/$defs/tokens"
+        }
+      }
+    },
+    "first_fault": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "operation",
+        "observed_callback_latency_ms",
+        "certified_callback_max_ms",
+        "latched_state_sequence"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "enum": [
+            null,
+            "arm",
+            "send_input",
+            "mark_dispatched",
+            "check",
+            "interrupt",
+            "close",
+            "finalize"
+          ]
+        },
+        "observed_callback_latency_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "certified_callback_max_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "latched_state_sequence": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "stop_scope": {
+      "enum": [
+        "child",
+        "cohort",
+        "execution-path",
+        "complete-task",
+        "publication"
+      ]
+    },
+    "continuation_path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "target_id",
+        "conditions"
+      ],
+      "properties": {
+        "path": {
+          "enum": [
+            "retry-child",
+            "replace-child",
+            "continue-cohort",
+            "retry-cohort",
+            "alternate-execution-path",
+            "resume-task",
+            "task-remediation",
+            "publication-review",
+            "operator-adjudication"
+          ]
+        },
+        "target_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "conditions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "scope_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "source_type",
+        "source_id",
+        "source_sha256",
+        "actor_id",
+        "actor_role",
+        "identity_source",
+        "authorized_scope",
+        "parent_receipt_sha256",
+        "verification",
+        "authority_sha256"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "source_type": {
+          "enum": [
+            "worker-discovery",
+            "pm-observation",
+            "architect-judgment",
+            "operator-directive",
+            "policy-enforcement"
+          ]
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "actor_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor_role": {
+          "enum": [
+            "operative-worker",
+            "critic",
+            "project-manager",
+            "architect",
+            "supervisor-policy",
+            "operator"
+          ]
+        },
+        "identity_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authorized_scope": {
+          "$ref": "#/$defs/stop_scope"
+        },
+        "parent_receipt_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "evidence_sha256"
+          ],
+          "properties": {
+            "method": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "authority_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "reason_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "authority_provenance",
+        "detected_by"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authority_provenance": {
+          "$ref": "#/$defs/scope_authority"
+        },
+        "detected_by": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

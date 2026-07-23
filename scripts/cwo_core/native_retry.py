@@ -1,4 +1,10 @@
-"""Pure bounded retry eligibility and authorization contracts."""
+"""Pure bounded retry eligibility and non-authorizing evidence contracts.
+
+New writes use the explicit version-3 audit-evidence wire.  Version 1 and 2
+authorization-shaped receipts remain readable as historical evidence only.
+No receipt shape grants productive dispatch authority; that requires a separate
+opaque, identity-bound verified recovery action.
+"""
 
 from __future__ import annotations
 
@@ -8,14 +14,56 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from .native_authority import validate_authority_provenance
 
-RETRY_AUTHORIZATION_TYPE = "cwo-native-retry-authorization"
-RETRY_AUTHORIZATION_VERSION = 1
+
+RETRY_EVIDENCE_TYPE = "cwo-native-retry-evidence"
+RETRY_EVIDENCE_VERSION = 3
+RETRY_EVIDENCE_SCHEMA = "schemas/native-retry-evidence.schema.json"
+# Compatibility API names identify the current write format.  The builder keeps
+# its established function name while emitting only non-authorizing v3 evidence.
+RETRY_AUTHORIZATION_TYPE = RETRY_EVIDENCE_TYPE
+RETRY_AUTHORIZATION_VERSION = RETRY_EVIDENCE_VERSION
+RETRY_AUTHORIZATION_TYPE_V2 = "cwo-native-retry-authorization"
+RETRY_AUTHORIZATION_VERSION_V2 = 2
+RETRY_AUTHORIZATION_VERSION_V1 = 1
+RETRY_V2_EVIDENCE_SOURCE_ID = "native-retry-supervisor-policy-v2"
+RETRY_V2_EVIDENCE_IDENTITY_SOURCE = "native-retry-policy"
 RETRY_ELIGIBILITY_TYPE = "cwo-native-retry-eligibility"
+RETRY_ELIGIBILITY_VERSION = 1
+RETRY_EVIDENCE_SOURCE_ID = "native-retry-audit-evidence-v3"
+RETRY_EVIDENCE_IDENTITY_SOURCE = "native-retry-policy"
+RETRY_RECEIPT_AUTHORITY = "audit-only"
+RETRY_REQUIRED_DISPATCH_AUTHORITY = "opaque-verified-recovery-action"
+RETRY_ELIGIBLE_NEXT_ACTION = "await-verified-recovery-action"
+RETRY_EVIDENCE_BINDING_FIELDS = frozenset(
+    {
+        "parent_packet_sha256",
+        "retry_packet_sha256",
+        "supervision_state_sha256",
+        "workspace_report_sha256",
+        "semantic_result_sha256",
+        "recovery_policy_sha256",
+        "fresh_attestation_sha256",
+        "eligibility_sha256",
+    }
+)
+RETRY_EVIDENCE_PROVENANCE_FIELDS = frozenset(
+    {
+        "version",
+        "provenance_type",
+        "source_id",
+        "source_sha256",
+        "identity_source",
+        "verification",
+        "provenance_sha256",
+    }
+)
 IMMUTABLE_WORK_FIELDS = (
     "bead_id",
     "lane",
     "requested_model",
+    "tool_policy",
     "scope",
     "acceptance_checks",
     "budget",
@@ -38,12 +86,55 @@ def _integer(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _exact_integer(value: Any, expected: int) -> bool:
+    return type(value) is int and value == expected
+
+
 def _number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def _sha256_value(value: Any) -> str:
+    return hashlib.sha256(_canonical(value).encode("ascii")).hexdigest()
+
+
+def canonical_retry_artifact_sha256(value: Any) -> str:
+    """Hash one retry input using the receipt's canonical JSON contract."""
+
+    return _sha256_value(value)
+
+
+def _plain_retry_receipt_snapshot(value: Any) -> dict[str, Any] | None:
+    """Snapshot untrusted JSON once and discard hostile mapping behavior."""
+
+    try:
+        rendered = _canonical(value)
+        snapshot = json.loads(rendered)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if type(snapshot) is not dict or _canonical(snapshot) != rendered:
+        return None
+    return snapshot
+
+
+def _retry_evidence_provenance(source_sha256: str) -> dict[str, Any]:
+    body = {
+        "version": 1,
+        "provenance_type": "audit-evidence",
+        "source_id": RETRY_EVIDENCE_SOURCE_ID,
+        "source_sha256": source_sha256,
+        "identity_source": RETRY_EVIDENCE_IDENTITY_SOURCE,
+        "verification": {
+            "method": "repository-policy-v1",
+            "evidence_sha256": source_sha256,
+        },
+    }
+    body["provenance_sha256"] = _sha256_value(body)
+    return body
 
 
 def canonical_work_payload(packet: Mapping[str, Any]) -> dict[str, Any]:
@@ -188,8 +279,11 @@ def evaluate_retry_eligibility(
     reasons = sorted(set(reasons))
     return {
         "result_type": RETRY_ELIGIBILITY_TYPE,
-        "version": RETRY_AUTHORIZATION_VERSION,
+        "version": RETRY_ELIGIBILITY_VERSION,
         "eligible": not reasons,
+        "receipt_authority": RETRY_RECEIPT_AUTHORITY,
+        "dispatch_authorized": False,
+        "required_dispatch_authority": RETRY_REQUIRED_DISPATCH_AUTHORITY,
         "reasons": reasons,
         "work_sha256": canonical_work_sha256(packet),
         "attempt": attempt,
@@ -197,7 +291,7 @@ def evaluate_retry_eligibility(
         "cumulative_usage": cumulative,
         "remaining_before_retry": remaining,
         "retry_budget": retry_budget,
-        "next_action": "spawn-fresh-native-retry" if not reasons else "protected-stop",
+        "next_action": RETRY_ELIGIBLE_NEXT_ACTION if not reasons else "protected-stop",
     }
 
 
@@ -210,6 +304,13 @@ def build_retry_authorization(
     recovery_policy: Mapping[str, Any],
     fresh_attestation: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Build strict v3 retry evidence, never dispatch authority.
+
+    The function name is retained for API compatibility.  New writes use the
+    non-authorizing evidence wire and callers must obtain a separate opaque
+    verified recovery action before any productive dispatch.
+    """
+
     eligibility = evaluate_retry_eligibility(
         parent_packet,
         supervision_state,
@@ -258,9 +359,22 @@ def build_retry_authorization(
     retry_packet_id = retry_packet.get("packet_id")
     if not _nonempty(parent_packet_id) or not _nonempty(retry_packet_id) or parent_packet_id == retry_packet_id:
         raise ValueError("retry packet requires a distinct packet_id")
+    evidence_bindings = {
+        "parent_packet_sha256": _sha256_value(parent_packet),
+        "retry_packet_sha256": _sha256_value(retry_packet),
+        "supervision_state_sha256": _sha256_value(state),
+        "workspace_report_sha256": _sha256_value(workspace_report),
+        "semantic_result_sha256": _sha256_value(semantic_result),
+        "recovery_policy_sha256": _sha256_value(recovery_policy),
+        "fresh_attestation_sha256": _sha256_value(attestation),
+        "eligibility_sha256": _sha256_value(eligibility),
+    }
+    retry_evidence_sha256 = _sha256_value(evidence_bindings)
+    evidence_provenance = _retry_evidence_provenance(retry_evidence_sha256)
     body = {
         "receipt_type": RETRY_AUTHORIZATION_TYPE,
         "version": RETRY_AUTHORIZATION_VERSION,
+        "schema": RETRY_EVIDENCE_SCHEMA,
         "parent_packet_id": parent_packet_id,
         "retry_packet_id": retry_packet_id,
         "bead_id": parent_packet["bead_id"],
@@ -276,17 +390,22 @@ def build_retry_authorization(
         "cumulative_usage": eligibility["cumulative_usage"],
         "remaining_before_retry": eligibility["remaining_before_retry"],
         "retry_budget": eligibility["retry_budget"],
-        "authority": "cwo-native-supervisor-evidence",
-        "decision": "authorize-one-fresh-retry",
+        "evidence_bindings": evidence_bindings,
+        "retry_evidence_sha256": retry_evidence_sha256,
+        "evidence_provenance": evidence_provenance,
+        "receipt_authority": RETRY_RECEIPT_AUTHORITY,
+        "dispatch_authorized": False,
+        "required_dispatch_authority": RETRY_REQUIRED_DISPATCH_AUTHORITY,
+        "next_action": RETRY_ELIGIBLE_NEXT_ACTION,
     }
     body["receipt_sha256"] = hashlib.sha256(_canonical(body).encode("ascii")).hexdigest()
     errors = validate_retry_authorization(body)
     if errors:
-        raise ValueError("retry authorization validation failed: " + ", ".join(errors))
+        raise ValueError("retry evidence validation failed: " + ", ".join(errors))
     return body
 
 
-def validate_retry_authorization(receipt: Any) -> list[str]:
+def _validate_v1_retry_authorization(receipt: Any) -> list[str]:
     if not isinstance(receipt, Mapping):
         return ["receipt must be an object"]
     required = {
@@ -315,9 +434,11 @@ def validate_retry_authorization(receipt: Any) -> list[str]:
     if set(receipt) != required:
         errors.append("receipt fields do not match the strict contract")
         return errors
-    if receipt.get("receipt_type") != RETRY_AUTHORIZATION_TYPE:
+    if receipt.get("receipt_type") != RETRY_AUTHORIZATION_TYPE_V2:
         errors.append("receipt_type mismatch")
-    if receipt.get("version") != RETRY_AUTHORIZATION_VERSION:
+    if not _exact_integer(
+        receipt.get("version"), RETRY_AUTHORIZATION_VERSION_V1
+    ):
         errors.append("version mismatch")
     for field in ("parent_packet_id", "retry_packet_id", "bead_id", "requested_model", "attested_model", "parent_session_id", "retry_session_id", "tool_surface_id", "attestation_source", "work_sha256", "authority", "decision", "receipt_sha256"):
         if not _nonempty(receipt.get(field)):
@@ -330,7 +451,9 @@ def validate_retry_authorization(receipt: Any) -> list[str]:
         errors.append("attested_model mismatch")
     if receipt.get("attestation_source") != "trusted-session-jsonl":
         errors.append("attestation_source mismatch")
-    if receipt.get("attempt_from") != 0 or receipt.get("attempt_to") != 1:
+    if not _exact_integer(receipt.get("attempt_from"), 0) or not _exact_integer(
+        receipt.get("attempt_to"), 1
+    ):
         errors.append("retry attempt lineage must be 0 to 1")
     if receipt.get("authority") != "cwo-native-supervisor-evidence":
         errors.append("authority mismatch")
@@ -356,3 +479,271 @@ def validate_retry_authorization(receipt: Any) -> list[str]:
         if actual != expected:
             errors.append("receipt_sha256 mismatch")
     return errors
+
+
+def _validate_evidence_bindings(receipt: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    bindings = receipt.get("evidence_bindings")
+    if not isinstance(bindings, Mapping) or set(bindings) != RETRY_EVIDENCE_BINDING_FIELDS:
+        errors.append("evidence_bindings fields do not match the strict contract")
+    else:
+        for field, value in bindings.items():
+            if not isinstance(value, str) or len(value) != 64 or any(
+                char not in "0123456789abcdef" for char in value
+            ):
+                errors.append(f"evidence_bindings.{field} must be lowercase SHA-256")
+        if receipt.get("retry_evidence_sha256") != _sha256_value(bindings):
+            errors.append("retry_evidence_sha256 mismatch")
+    retry_evidence_sha256 = receipt.get("retry_evidence_sha256")
+    if not isinstance(retry_evidence_sha256, str) or len(retry_evidence_sha256) != 64 or any(
+        char not in "0123456789abcdef" for char in retry_evidence_sha256
+    ):
+        errors.append("retry_evidence_sha256 must be lowercase SHA-256")
+    return errors
+
+
+def _validate_receipt_sha256(receipt: Mapping[str, Any]) -> list[str]:
+    receipt_sha256 = receipt.get("receipt_sha256")
+    if not isinstance(receipt_sha256, str) or len(receipt_sha256) != 64 or any(
+        char not in "0123456789abcdef" for char in receipt_sha256
+    ):
+        return ["receipt_sha256 must be lowercase SHA-256"]
+    body = dict(receipt)
+    body.pop("receipt_sha256")
+    if receipt_sha256 != _sha256_value(body):
+        return ["receipt_sha256 mismatch"]
+    return []
+
+
+def _historical_v1_shadow(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    common_fields = (
+        "parent_packet_id",
+        "retry_packet_id",
+        "bead_id",
+        "requested_model",
+        "attested_model",
+        "parent_session_id",
+        "retry_session_id",
+        "tool_surface_id",
+        "attestation_source",
+        "work_sha256",
+        "attempt_from",
+        "attempt_to",
+        "cumulative_usage",
+        "remaining_before_retry",
+        "retry_budget",
+    )
+    shadow = {field: copy.deepcopy(receipt.get(field)) for field in common_fields}
+    shadow.update(
+        {
+            "receipt_type": RETRY_AUTHORIZATION_TYPE_V2,
+            "version": RETRY_AUTHORIZATION_VERSION_V1,
+            "authority": "cwo-native-supervisor-evidence",
+            "decision": "authorize-one-fresh-retry",
+        }
+    )
+    shadow["receipt_sha256"] = _sha256_value(shadow)
+    return shadow
+
+
+def _validate_v2_retry_authorization(receipt: Any) -> list[str]:
+    if not isinstance(receipt, Mapping):
+        return ["receipt must be an object"]
+    required = {
+        "receipt_type",
+        "version",
+        "parent_packet_id",
+        "retry_packet_id",
+        "bead_id",
+        "requested_model",
+        "attested_model",
+        "parent_session_id",
+        "retry_session_id",
+        "tool_surface_id",
+        "attestation_source",
+        "work_sha256",
+        "attempt_from",
+        "attempt_to",
+        "cumulative_usage",
+        "remaining_before_retry",
+        "retry_budget",
+        "evidence_bindings",
+        "retry_evidence_sha256",
+        "authority_provenance",
+        "decision",
+        "receipt_sha256",
+    }
+    if set(receipt) != required:
+        return ["receipt fields do not match the strict contract"]
+    errors: list[str] = []
+    if receipt.get("receipt_type") != RETRY_AUTHORIZATION_TYPE_V2:
+        errors.append("receipt_type mismatch")
+    if not _exact_integer(
+        receipt.get("version"), RETRY_AUTHORIZATION_VERSION_V2
+    ):
+        errors.append("version mismatch")
+    if receipt.get("decision") != "authorize-one-fresh-retry":
+        errors.append("decision mismatch")
+    errors.extend(_validate_v1_retry_authorization(_historical_v1_shadow(receipt)))
+    errors.extend(_validate_evidence_bindings(receipt))
+
+    retry_evidence_sha256 = receipt.get("retry_evidence_sha256")
+    authority = receipt.get("authority_provenance")
+    authority_errors = validate_authority_provenance(authority)
+    errors.extend("authority_provenance invalid: " + error for error in authority_errors)
+    if isinstance(authority, Mapping):
+        if not _exact_integer(authority.get("version"), 1):
+            errors.append("authority_provenance version mismatch")
+    if isinstance(authority, Mapping) and not authority_errors:
+        verification = authority.get("verification")
+        if authority.get("source_type") != "policy-enforcement":
+            errors.append("authority_provenance source_type mismatch")
+        if authority.get("source_id") != RETRY_V2_EVIDENCE_SOURCE_ID:
+            errors.append("authority_provenance source_id mismatch")
+        if authority.get("source_sha256") != retry_evidence_sha256:
+            errors.append("authority_provenance evidence binding mismatch")
+        if authority.get("actor_id") != "native-supervisor-policy":
+            errors.append("authority_provenance actor_id mismatch")
+        if authority.get("actor_role") != "supervisor-policy":
+            errors.append("authority_provenance actor_role mismatch")
+        if authority.get("identity_source") != RETRY_V2_EVIDENCE_IDENTITY_SOURCE:
+            errors.append("authority_provenance identity_source mismatch")
+        if authority.get("authorized_scope") != "execution-path":
+            errors.append("authority_provenance scope mismatch")
+        if authority.get("parent_receipt_sha256") is not None:
+            errors.append("authority_provenance parent receipt forbidden")
+        if not isinstance(verification, Mapping) or (
+            verification.get("method") != "repository-policy-v1"
+            or verification.get("evidence_sha256") != retry_evidence_sha256
+        ):
+            errors.append("authority_provenance verification mismatch")
+    errors.extend(_validate_receipt_sha256(receipt))
+    return errors
+
+
+def _validate_v3_retry_evidence(receipt: Any) -> list[str]:
+    if not isinstance(receipt, Mapping):
+        return ["receipt must be an object"]
+    required = {
+        "receipt_type",
+        "version",
+        "schema",
+        "parent_packet_id",
+        "retry_packet_id",
+        "bead_id",
+        "requested_model",
+        "attested_model",
+        "parent_session_id",
+        "retry_session_id",
+        "tool_surface_id",
+        "attestation_source",
+        "work_sha256",
+        "attempt_from",
+        "attempt_to",
+        "cumulative_usage",
+        "remaining_before_retry",
+        "retry_budget",
+        "evidence_bindings",
+        "retry_evidence_sha256",
+        "evidence_provenance",
+        "receipt_authority",
+        "dispatch_authorized",
+        "required_dispatch_authority",
+        "next_action",
+        "receipt_sha256",
+    }
+    if set(receipt) != required:
+        return ["receipt fields do not match the strict contract"]
+    errors: list[str] = []
+    if receipt.get("receipt_type") != RETRY_EVIDENCE_TYPE:
+        errors.append("receipt_type mismatch")
+    if not _exact_integer(receipt.get("version"), RETRY_EVIDENCE_VERSION):
+        errors.append("version mismatch")
+    if receipt.get("schema") != RETRY_EVIDENCE_SCHEMA:
+        errors.append("schema mismatch")
+    errors.extend(_validate_v1_retry_authorization(_historical_v1_shadow(receipt)))
+    errors.extend(_validate_evidence_bindings(receipt))
+
+    if receipt.get("receipt_authority") != RETRY_RECEIPT_AUTHORITY:
+        errors.append("receipt_authority mismatch")
+    if receipt.get("dispatch_authorized") is not False:
+        errors.append("dispatch_authorized must be false")
+    if receipt.get("required_dispatch_authority") != RETRY_REQUIRED_DISPATCH_AUTHORITY:
+        errors.append("required_dispatch_authority mismatch")
+    if receipt.get("next_action") != RETRY_ELIGIBLE_NEXT_ACTION:
+        errors.append("next_action mismatch")
+
+    retry_evidence_sha256 = receipt.get("retry_evidence_sha256")
+    provenance = receipt.get("evidence_provenance")
+    if not isinstance(provenance, Mapping) or set(provenance) != RETRY_EVIDENCE_PROVENANCE_FIELDS:
+        errors.append("evidence_provenance fields do not match the strict contract")
+    else:
+        verification = provenance.get("verification")
+        if not _exact_integer(provenance.get("version"), 1):
+            errors.append("evidence_provenance version mismatch")
+        if provenance.get("provenance_type") != "audit-evidence":
+            errors.append("evidence_provenance type mismatch")
+        if provenance.get("source_id") != RETRY_EVIDENCE_SOURCE_ID:
+            errors.append("evidence_provenance source_id mismatch")
+        if provenance.get("source_sha256") != retry_evidence_sha256:
+            errors.append("evidence_provenance source binding mismatch")
+        if provenance.get("identity_source") != RETRY_EVIDENCE_IDENTITY_SOURCE:
+            errors.append("evidence_provenance identity_source mismatch")
+        if not isinstance(verification, Mapping) or set(verification) != {
+            "method",
+            "evidence_sha256",
+        }:
+            errors.append("evidence_provenance verification fields mismatch")
+        elif (
+            verification.get("method") != "repository-policy-v1"
+            or verification.get("evidence_sha256") != retry_evidence_sha256
+        ):
+            errors.append("evidence_provenance verification mismatch")
+        provenance_sha256 = provenance.get("provenance_sha256")
+        provenance_body = dict(provenance)
+        provenance_body.pop("provenance_sha256")
+        if provenance_sha256 != _sha256_value(provenance_body):
+            errors.append("evidence_provenance sha256 mismatch")
+    errors.extend(_validate_receipt_sha256(receipt))
+    return errors
+
+
+def validate_retry_authorization(receipt: Any) -> list[str]:
+    """Validate current v3 evidence or mark valid v1/v2 shapes historical.
+
+    An empty result only means that the current evidence is structurally valid.
+    It never grants dispatch authority.
+    """
+
+    snapshot = _plain_retry_receipt_snapshot(receipt)
+    if snapshot is None:
+        return ["receipt must be a canonical JSON object"]
+    version = snapshot.get("version")
+    if type(version) is not int:
+        return ["version must be an exact integer"]
+    if version == RETRY_AUTHORIZATION_VERSION_V1:
+        errors = _validate_v1_retry_authorization(snapshot)
+        return errors or ["retry authorization version 1 is historical-only"]
+    if version == RETRY_AUTHORIZATION_VERSION_V2:
+        errors = _validate_v2_retry_authorization(snapshot)
+        return errors or ["retry authorization version 2 is historical-only"]
+    return _validate_v3_retry_evidence(snapshot)
+
+
+def read_retry_authorization(receipt: Any) -> dict[str, Any]:
+    """Read v3 or historical v1/v2 evidence without authorizing dispatch."""
+
+    snapshot = _plain_retry_receipt_snapshot(receipt)
+    if snapshot is None:
+        errors = ["receipt must be a canonical JSON object"]
+    elif type(snapshot.get("version")) is not int:
+        errors = ["version must be an exact integer"]
+    elif snapshot.get("version") == RETRY_AUTHORIZATION_VERSION_V1:
+        errors = _validate_v1_retry_authorization(snapshot)
+    elif snapshot.get("version") == RETRY_AUTHORIZATION_VERSION_V2:
+        errors = _validate_v2_retry_authorization(snapshot)
+    else:
+        errors = _validate_v3_retry_evidence(snapshot)
+    if errors:
+        raise ValueError("invalid retry evidence: " + "; ".join(errors))
+    return snapshot

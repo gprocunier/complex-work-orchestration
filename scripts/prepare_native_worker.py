@@ -23,6 +23,12 @@ from cwo_core.native_precommit import (
 )
 from cwo_core.native_release import validate_native_release_evidence
 from cwo_core.native_recovery import verify_native_worker_semantics
+from cwo_core.native_tool_isolation import (
+    NativeToolIsolationError,
+    default_tool_policy,
+    require_prompt_preflight,
+    validate_tool_policy,
+)
 from cwo_core.native_worker_contracts import (
     ALLOWED_ATTESTATION_FIELDS,
     ALLOWED_ATTESTATION_STATUSES,
@@ -530,6 +536,8 @@ def _build_native_worker_packet_unreserved(
     packet_version: int = 2,
     experimental_v3: bool = False,
     phase: str | None = None,
+    permitted_tools: list[str] | None = None,
+    forbidden_tools: list[str] | None = None,
 ) -> dict[str, Any]:
     if not str(bead_id).strip():
         raise SystemExit("bead-id must be non-empty")
@@ -598,6 +606,15 @@ def _build_native_worker_packet_unreserved(
         raise SystemExit("validation attempt 0 cannot have a parent packet id")
     root_packet_id = validation_root_packet_id or packet_id
     read_only_plan = _read_only_work_plan(work_plan)
+    try:
+        tool_policy = default_tool_policy(
+            mutable=not read_only_plan,
+            workload_class="operative",
+            permitted_tools=permitted_tools,
+            forbidden_tools=forbidden_tools,
+        )
+    except NativeToolIsolationError as exc:
+        raise SystemExit(str(exc)) from exc
     if validation_attempt == 0 and root_packet_id != packet_id:
         raise SystemExit("validation attempt 0 root packet id must equal packet id")
     if validation_attempt == 1 and lane != "validation":
@@ -624,6 +641,7 @@ def _build_native_worker_packet_unreserved(
         "lane": lane,
         "requested_model": selected_model,
         "session_policy": _build_session_policy(selected_model),
+        "tool_policy": tool_policy,
         "scope": {
             "workdir": str(workdir_path),
             "allowed_paths": normalized_paths,
@@ -972,6 +990,15 @@ def validate_native_worker_packet(
         elif session_policy["source"] != NATIVE_WORKER_POLICY_PATH:
             errors.append("session_policy.source must be policy/native-worker-execution.yaml")
 
+    tool_policy = payload.get("tool_policy")
+    if version in {2, 3} and tool_policy is None:
+        errors.append("tool_policy must be an object for packet version 2")
+    if tool_policy is not None:
+        errors.extend(
+            error.replace("tool-policy", "tool_policy", 1)
+            for error in validate_tool_policy(tool_policy)
+        )
+
     scope = payload.get("scope")
     if not isinstance(scope, dict):
         errors.append("scope must be an object")
@@ -1141,6 +1168,13 @@ def validate_native_worker_packet(
             if str(work_plan.get("requested_model", "")) != str(payload.get("requested_model", "")):
                 errors.append("work_plan.requested_model must match packet.requested_model")
             if _read_only_work_plan(work_plan):
+                if (
+                    isinstance(tool_policy, dict)
+                    and "apply_patch" in tool_policy.get("permitted_tools", [])
+                ):
+                    errors.append(
+                        "read-only work_plan tool_policy must not permit apply_patch"
+                    )
                 manifest_paths = [
                     item.get("path")
                     for item in work_plan.get("context_manifest", [])
@@ -1754,6 +1788,7 @@ def _render_prompt(payload: dict[str, Any]) -> str:
     triggers = ", ".join(
         f"{key}:{value}" for key, value in payload["escalation_triggers"].items()
     )
+    tool_policy = payload["tool_policy"]
     return_skeleton = {
         "return_type": "cwo-native-worker-return",
         "version": 1,
@@ -1806,6 +1841,8 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         f"Lane: {payload['lane']}",
         f"Model: {payload['requested_model']}",
         f"Session policy: fresh session, no-tools attestation, self-report forbidden",
+        f"Permitted tools: {', '.join(tool_policy['permitted_tools'])}",
+        f"Tool enforcement: {tool_policy['enforcement_mode']}",
         f"Workdir: {scope['workdir']}",
         "Allowed paths:",
         paths,
@@ -1861,7 +1898,12 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         "Return skeleton (required fields):",
         json.dumps(return_skeleton, indent=2),
     ]
-    return "\n".join(lines).strip() + "\n"
+    rendered = "\n".join(lines).strip() + "\n"
+    try:
+        require_prompt_preflight(rendered, tool_policy)
+    except NativeToolIsolationError as exc:
+        raise SystemExit(str(exc)) from exc
+    return rendered
 
 
 def validate_schema_files() -> list[str]:
@@ -1899,6 +1941,8 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--trusted-session-id")
     build.add_argument("--attested-model")
     build.add_argument("--requested-model")
+    build.add_argument("--permitted-tool", action="append", dest="permitted_tools")
+    build.add_argument("--forbidden-tool", action="append", dest="forbidden_tools")
     for field in sorted(ALLOWED_BUDGET_FIELDS):
         build.add_argument("--" + field.replace("_", "-"), type=int, dest=field)
     build.add_argument("--validation-root-packet-id")
@@ -1952,6 +1996,8 @@ def main() -> None:
             validation_parent_packet_id=args.validation_parent_packet_id,
             validation_attempt=args.validation_attempt,
             requested_model=args.requested_model,
+            permitted_tools=args.permitted_tools,
+            forbidden_tools=args.forbidden_tools,
         )
         _emit_payload(packet, args.output)
         return

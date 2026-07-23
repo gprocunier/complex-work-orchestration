@@ -122,6 +122,62 @@ class NativePoolWorkspaceTests(unittest.TestCase):
             self.assertFalse(evidence["shared_read_only_clean"])
             self.assertFalse(evidence["child_worktrees_clean"])
 
+    def test_incompatible_contract_profiles_cannot_reuse_physical_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            contract, _ = fixture.contract()
+            read_only_contract, _ = pool_contract(cap=2, read_only=True)
+            changed = copy.deepcopy(contract)
+            changed["children"][0].update(
+                {
+                    "isolation_class": "read-only-shared",
+                    "completion_evidence_policy": read_only_contract["children"][0][
+                        "completion_evidence_policy"
+                    ],
+                    "tool_policy": read_only_contract["children"][0]["tool_policy"],
+                    "declared_write_paths": [],
+                    "integration_target_paths": [],
+                    "worktree_identity": capture_workspace_snapshot(
+                        fixture.first,
+                        allowed_paths=[],
+                    )["identity"],
+                }
+            )
+            changed = seal_artifact(changed, "contract_sha256")
+
+            with self.assertRaisesRegex(
+                PoolWorkspaceError,
+                "incompatible-physical-worktree-reuse:child-1",
+            ):
+                PoolWorkspaceMonitor(
+                    changed,
+                    integration_root=fixture.integration,
+                    child_worktrees={
+                        "child-0": fixture.first,
+                        "child-1": fixture.first,
+                    },
+                )
+
+    def test_post_admission_contract_tampering_is_rejected_before_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            contract, worktrees = fixture.contract(read_only=True)
+            monitor = PoolWorkspaceMonitor(
+                contract,
+                integration_root=fixture.integration,
+                child_worktrees=worktrees,
+            )
+            changed = copy.deepcopy(contract)
+            changed["children"][0]["completion_evidence_policy"][
+                "expected_mutation_mode"
+            ] = "mutable-isolated"
+
+            with self.assertRaisesRegex(
+                PoolWorkspaceError,
+                "workspace-contract-content-mismatch",
+            ):
+                monitor.compare(contract=changed, phase="tampered")
+
     def test_symlinked_integration_target_component_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = WorkspaceFixture(Path(temporary))

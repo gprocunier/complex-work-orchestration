@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Pool Fixed-Cohort Admission Dispatch v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dispatch_type",
+    "version",
+    "schema",
+    "dispatch_id",
+    "consumed_at",
+    "reservation_sha256",
+    "fixed_cohort_sha256",
+    "pool_contract_sha256",
+    "preflight_request_sha256",
+    "preflight_result_sha256",
+    "lease_set_sha256",
+    "child_bindings_sha256",
+    "live_revalidation_sha256",
+    "authority",
+    "dispatch_authorized",
+    "dispatch_sha256"
+  ],
+  "properties": {
+    "dispatch_type": {"const": "cwo-native-pool-admission-dispatch:v2"},
+    "version": {"const": 2},
+    "schema": {"const": "schemas/native-pool-admission-dispatch.schema.json"},
+    "dispatch_id": {"$ref": "#/$defs/sha256"},
+    "consumed_at": {"type": "string", "format": "date-time"},
+    "reservation_sha256": {"$ref": "#/$defs/sha256"},
+    "fixed_cohort_sha256": {"$ref": "#/$defs/sha256"},
+    "pool_contract_sha256": {"$ref": "#/$defs/sha256"},
+    "preflight_request_sha256": {"$ref": "#/$defs/sha256"},
+    "preflight_result_sha256": {"$ref": "#/$defs/sha256"},
+    "lease_set_sha256": {"$ref": "#/$defs/sha256"},
+    "child_bindings_sha256": {"$ref": "#/$defs/sha256"},
+    "live_revalidation_sha256": {"$ref": "#/$defs/sha256"},
+    "authority": {"const": "dispatch-evidence-only"},
+    "dispatch_authorized": {"const": true},
+    "dispatch_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

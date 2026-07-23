@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,16 @@ from cwo_core.packets import (
 from cwo_core.paths import (
     POLICY_DIR,
     REPO_ROOT,
+)
+from cwo_core.native_pool_capacity import (
+    NativePoolCapacityPolicyError,
+    capacity_schema_errors,
+    load_pool_capacity,
+)
+from cwo_core.native_pool_schedulability import (
+    PoolSchedulabilityError,
+    scheduling_budget_proof,
+    validate_slack_warning_fraction,
 )
 from cwo_core.coach import PROMPT_COACH_RESULT_REQUIRED_FIELDS
 from cwo_core.harness import (
@@ -76,6 +87,15 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "audit": {"paths", "policy", "telemetry", "util"},
     "waivers": set(),
     "beads": {"paths", "util"},
+    "beads_ready_set": {
+        "native_authority",
+        "native_capability",
+        "native_pool_capacity",
+        "native_pool_schedulability",
+        "native_tool_isolation",
+        "policy",
+        "work_sizing",
+    },
     "harness": {"access_profiles", "policy", "util"},
     "native_disposition": set(),
     "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths"},
@@ -83,44 +103,115 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_session": {"native_disposition"},
     "native_session_boundary": {"native_session"},
     "native_worker_contracts": {"native_disposition"},
-    "native_capability": set(),
-    "native_canary_contracts": {"util"},
+    "native_authority": set(),
+    "native_capability": {"native_authority"},
+    "native_canary_contracts": {"native_stop_scope", "util"},
     "native_live_campaign_contracts": {
+        "native_authority",
         "native_canary_contracts",
         "native_live_allocation_ledger",
     },
-    "native_live_allocation_ledger": {"audit", "native_canary_contracts"},
+    "native_live_allocation_ledger": {
+        "audit",
+        "native_canary_contracts",
+        "native_turn_dispatch",
+    },
+    "native_turn_dispatch": set(),
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
     "native_release": {"native_precommit", "paths", "policy", "util"},
     "proportional_execution": {"native_capability", "native_containment"},
     "native_recovery": set(),
-    "native_retry": set(),
+    "native_recovery_authority": {
+        "native_live_allocation_ledger",
+        "native_recovery_policy",
+        "native_retry",
+    },
+    "native_recovery_policy": set(),
+    "native_retry": {"native_authority"},
     "native_control": set(),
-    "native_pool_contracts": set(),
+    "native_tool_isolation": set(),
+    "native_stop_scope": {"native_authority"},
+    "native_pool_admission": {
+        "beads",
+        "beads_ready_set",
+        "native_pool_capacity",
+        "native_pool_proportionality",
+        "native_recovery_authority",
+        "policy",
+        "work_sizing",
+    },
+    "native_pool_capacity": {"paths", "policy"},
+    "native_pool_capacity_compat": set(),
+    "native_pool_schedulability": set(),
+    "native_pool_contracts": {
+        "native_authority",
+        "native_control",
+        "native_pool_admission",
+        "native_pool_capacity",
+        "native_pool_capacity_compat",
+        "native_recovery_authority",
+        "native_pool_schedulability",
+        "native_stop_scope",
+        "native_tool_isolation",
+    },
     "native_pool_scheduler": {"native_pool_contracts"},
     "native_pool_leases": {"native_pool_contracts"},
     "native_pool_workspace": {"native_pool_contracts", "workspace"},
     "native_pool": {
+        "native_authority",
         "native_control",
+        "native_pool_admission",
+        "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_leases",
+        "native_recovery_authority",
         "native_pool_scheduler",
+        "native_pool_schedulability",
+        "native_stop_scope",
+    },
+    "native_pool_admitted": {
+        "native_pool",
+        "native_pool_admission",
+        "native_pool_capacity",
+        "native_pool_contracts",
+        "native_pool_leases",
+        "native_pool_preflight",
     },
     "native_pool_config": {
         "native_control",
         "native_live_campaign_contracts",
+        "native_pool_capacity",
+        "native_pool_capacity_compat",
+        "native_pool_admission",
         "native_pool_contracts",
+        "native_pool_schedulability",
         "native_pool_leases",
         "native_pool_workspace",
+        "native_tool_isolation",
         "policy",
     },
+    "native_pool_preflight": {
+        "native_authority",
+        "native_pool_admission",
+        "native_pool_capacity",
+        "native_pool_contracts",
+        "native_pool_schedulability",
+        "native_tool_isolation",
+    },
+    "native_pool_proportionality": {
+        "native_authority",
+        "native_pool_capacity",
+        "native_pool_schedulability",
+        "policy",
+        "work_sizing",
+    },
     "native_pool_reporting": {"audit", "native_pool_contracts"},
-    "native_replanning": {"policy"},
-    "native_progress": {"policy"},
+    "native_replanning": {"native_authority", "policy"},
+    "native_progress": {"native_authority", "native_stop_scope", "policy"},
     "checked_command": set(),
     "checked_command_sequence": {"checked_command"},
-    "work_sizing": {"checked_command", "native_containment", "native_precommit", "policy"},
+    "work_sizing": {"checked_command", "native_authority", "native_containment", "native_precommit", "policy"},
     "epic_convergence": set(),
     "public_copy": set(),
     "errors": set(),
@@ -443,9 +534,135 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
             )
 
 
+_CAPACITY_SOURCE_GLOBS = (
+    "scripts/cwo_core/native_pool*.py",
+    "scripts/run_native_pool_live_canaries.py",
+    "scripts/supervise_native_pool.py",
+)
+_CAPACITY_COMPATIBILITY_SOURCES = {
+    "scripts/cwo_core/native_pool_capacity_compat.py",
+}
+_SCHEDULABILITY_PROOF_SOURCE = "scripts/cwo_core/native_pool_schedulability.py"
+_DEPRECATED_CAPACITY_PATTERNS = (
+    ("MAX_ACTIVE_WORKERS", re.compile(r"\bMAX_ACTIVE_WORKERS\b")),
+    ("cap_two field", re.compile(r"\bcap_two_[a-z0-9_]*\b")),
+    ("cap-two diagnostic", re.compile(r"cap-two")),
+    (
+        "capacity-two scheduler model",
+        re.compile(r"nonpreemptive-edf-cap2|max_lifecycle\+2\*check"),
+    ),
+    (
+        "literal capacity-two branch",
+        re.compile(
+            r"(?:max_active_workers|requested_cap)[^\n]{0,120}(?:==|!=)\s*2"
+        ),
+    ),
+)
+
+
+def validate_native_pool_capacity_invariants(
+    errors: list[str],
+    *,
+    repo_root: Path = REPO_ROOT,
+    policy_document: dict[str, Any] | None = None,
+) -> None:
+    """Keep runtime, schemas, and active naming bound to one policy source."""
+
+    document = policy_document
+    if document is None:
+        policy_path = repo_root / "policy/native-worker-execution.yaml"
+        try:
+            loaded = json.loads(policy_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            errors.append(
+                "pool-capacity-policy-unreadable:"
+                f"{type(error).__name__}"
+            )
+            return
+        if not isinstance(loaded, dict):
+            errors.append("pool-capacity-policy-not-object")
+            return
+        document = loaded
+    try:
+        limits = load_pool_capacity(document)
+    except NativePoolCapacityPolicyError as error:
+        errors.append(str(error))
+        return
+
+    pool = document.get("native_supervision_pool")
+    certification = (
+        pool.get("callback_certification")
+        if isinstance(pool, dict)
+        else None
+    )
+    scheduler = pool.get("scheduler") if isinstance(pool, dict) else None
+    if not isinstance(certification, dict) or not isinstance(scheduler, dict):
+        errors.append("pool-schedulability-policy-missing")
+    else:
+        try:
+            warning_fraction = validate_slack_warning_fraction(
+                certification.get("slack_warning_fraction")
+            )
+            proof = scheduling_budget_proof(
+                requested_workers=limits.hard_max_active_workers,
+                certified_callback_max_ms=certification.get(
+                    "certified_callback_max_ms"
+                ),
+                certified_scheduler_overhead_ms=certification.get(
+                    "certified_scheduler_overhead_ms"
+                ),
+                poll_interval_ms=scheduler.get("poll_interval_ms"),
+            )
+        except PoolSchedulabilityError as error:
+            errors.append(f"pool-schedulability-policy-invalid:{error}")
+        else:
+            if scheduler.get("slack_warning_fraction") != warning_fraction:
+                errors.append("pool-slack-warning-fraction-mismatch")
+            if not proof.accepted:
+                errors.append(
+                    "pool-hard-cap-unschedulable:"
+                    f"demand={proof.total_demand_ms}:slack={proof.slack_ms}"
+                )
+    try:
+        errors.extend(
+            capacity_schema_errors(
+                repo_root=repo_root,
+                limits=limits,
+            )
+        )
+    except NativePoolCapacityPolicyError as error:
+        errors.append(str(error))
+
+    source_paths: set[Path] = set()
+    for pattern in _CAPACITY_SOURCE_GLOBS:
+        source_paths.update(path for path in repo_root.glob(pattern) if path.is_file())
+    for path in sorted(source_paths):
+        relative = path.relative_to(repo_root).as_posix()
+        if relative in _CAPACITY_COMPATIBILITY_SOURCES:
+            continue
+        content = path.read_text(encoding="utf-8")
+        for label, pattern in _DEPRECATED_CAPACITY_PATTERNS:
+            if pattern.search(content):
+                errors.append(
+                    f"active native-pool source uses deprecated {label}: {relative}"
+                )
+        if relative != _SCHEDULABILITY_PROOF_SOURCE:
+            compact = re.sub(r"\s+", "", content)
+            if re.search(
+                r"lifecycle_max(?:_ms)?\+[^+]{0,120}\*"
+                r"(?:float\()?check(?:_max|_ms)?",
+                compact,
+            ):
+                errors.append(
+                    "active native-pool source duplicates schedulability "
+                    f"arithmetic: {relative}"
+                )
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
     validate_cwo_core_contract(errors)
+    validate_native_pool_capacity_invariants(errors)
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
     validate_native_supervision_tech_preview_copy(errors)
@@ -874,6 +1091,16 @@ def validate_repository() -> list[str]:
             "resume_commands",
             "operator_handoff_packet",
             "modeling_note",
+            "ranked_ready_issues",
+            "recommended_ready_set",
+            "excluded_ready_issues",
+            "beads_readiness_snapshot",
+            "beads_readiness_snapshot_sha256",
+            "fanout_decision",
+            "fanout_reasons",
+            "candidate_capacity_evidence",
+            "ready_set_authority",
+            "dispatch_authorized",
         ],
     )
     sprint_continuation_schema = load_json(REPO_ROOT / "schemas" / "sprint-continuation.schema.json")
@@ -1966,16 +2193,22 @@ def validate_native_supervision_tech_preview_copy(
         ("page navigation link", 'href="#native-supervision-tech-preview"'),
         (
             "stability/default wording",
-            "Capacity one is the default. Capacity two is an experimental Tech Preview and is disabled by default",
+            "A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default",
         ),
         ("explicit opt-in wording", "requires explicit opt-in"),
         ("same-host capability wording", "one fresh same-host capability receipt"),
-        ("fixed-cohort wording", "exactly two fixed workers"),
+        ("fixed-cohort wording", "a fixed cohort"),
+        ("released ceiling wording", "currently released ceiling is two workers"),
+        ("hard ceiling wording", "hard design ceiling is three"),
+        (
+            "activation gate wording",
+            "N=3 remains blocked pending the Phase 1 technical gate and explicit operator activation",
+        ),
         ("isolated topology wording", "isolated mutable worktrees"),
         ("shared topology wording", "shared read-only topology"),
         (
             "single-flight boundary wording",
-            "Precommit, critics, integration, retry, replay, publication, and higher capacities remain single-flight or unsupported",
+            "Precommit, critics, integration, retry, replay, and publication remain single-flight",
         ),
         (
             "operator link",

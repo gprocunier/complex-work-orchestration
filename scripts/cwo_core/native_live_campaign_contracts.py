@@ -15,6 +15,12 @@ import tempfile
 from typing import Any, Mapping
 import uuid
 
+from .native_authority import (
+    AuthorityProvenanceError,
+    VerifiedAuthority,
+    policy_authority,
+    validate_authority_provenance,
+)
 from .native_canary_contracts import (
     canonical_sha256 as _domain_sha256,
     validate_authorization_state,
@@ -43,6 +49,8 @@ AUTHORIZATION_VERSION_V10 = 10
 AUTHORIZATION_SCHEMA_V10 = "schemas/full-auto-run-authorization-v10.schema.json"
 AUTHORIZATION_VERSION_V11 = 11
 AUTHORIZATION_SCHEMA_V11 = "schemas/full-auto-run-authorization-v11.schema.json"
+AUTHORIZATION_VERSION_V12 = 12
+AUTHORIZATION_SCHEMA_V12 = "schemas/full-auto-run-authorization-v12.schema.json"
 MANIFEST_TYPE = "cwo-native-live-campaign-manifest"
 MANIFEST_VERSION = 2
 MANIFEST_SCHEMA = "schemas/native-live-campaign-manifest.schema.json"
@@ -61,7 +69,7 @@ MANIFEST_SCHEMA_V8 = "schemas/native-live-campaign-manifest-v8.schema.json"
 LAUNCH_CLAIM_VERSION_V6 = 6
 VALIDATOR_CONTRACT_VERSION_V6 = 6
 OPERATIVE_VERSION_TUPLE = (
-    AUTHORIZATION_VERSION_V11,
+    AUTHORIZATION_VERSION_V12,
     MANIFEST_VERSION_V8,
     LAUNCH_CLAIM_VERSION_V6,
     VALIDATOR_CONTRACT_VERSION_V6,
@@ -72,6 +80,9 @@ EXACT_OPERATIVE_MODEL = "gpt-5.3-codex-spark"
 EXACT_OPERATIVE_EFFORT = "low"
 EXACT_CRITIC_MODEL = "claude-opus-4-6"
 EXACT_CRITIC_EFFORT = "max"
+CAMPAIGN_AUTHORITY_IDENTITY_SOURCE = (
+    "native-live-campaign-outer-authority-policy:v1"
+)
 EXPECTED_ROLES = (
     "capability-calibration",
     "read-only-0",
@@ -129,6 +140,12 @@ AUTHORIZATION_FIELDS = {
     "live_relaunch_rule",
     "release",
     "canonical_authorization_sha256",
+}
+AUTHORIZATION_FIELDS_V12 = (
+    AUTHORIZATION_FIELDS - {"operator_authority"}
+) | {
+    "authorization_evidence_sha256",
+    "authority_provenance",
 }
 SCOPE_FIELDS = {"epic_id", "parent_work_unit_id", "ordered_work_units"}
 BINDING_FIELDS = {
@@ -360,6 +377,9 @@ MANDATORY_GATE_FIELDS_V11 = (
     "terminal_recovery_facts_binding",
     "consumed_steering_receipts_binding",
 }
+MANDATORY_GATE_FIELDS_V12 = (
+    MANDATORY_GATE_FIELDS_V11 - {"strict_authorization_v11"}
+) | {"strict_authorization_v12"}
 PERSISTENCE_FIELDS = {
     "run_level_full_auto_survives_recoverable_failure",
     "operator_recheck_required_for_routine_recovery",
@@ -6366,6 +6386,229 @@ def _validate_full_auto_authorization_v11(
     return sorted(set(errors))
 
 
+def campaign_policy_authority(
+    authorization: Mapping[str, Any],
+) -> VerifiedAuthority:
+    """Resolve campaign authority from the already hash-bound outer authority.
+
+    The returned object is opaque and deterministic.  A caller cannot replace
+    it with an authoritative-looking string or choose a broader actor role.
+    """
+
+    if not isinstance(authorization, Mapping):
+        raise AuthorityProvenanceError("campaign-authorization-must-be-object")
+    bindings = authorization.get("bindings")
+    if not isinstance(bindings, Mapping):
+        raise AuthorityProvenanceError("campaign-authority-bindings-invalid")
+    source_id = bindings.get("outer_authority_id")
+    source_sha256 = bindings.get("outer_authority_file_sha256")
+    if not isinstance(source_id, str) or not _is_uuid(source_id):
+        raise AuthorityProvenanceError("campaign-authority-source-id-invalid")
+    if not _is_hash(source_sha256):
+        raise AuthorityProvenanceError(
+            "campaign-authority-source-sha256-invalid"
+        )
+    return policy_authority(
+        source_id,
+        authorized_scope="complete-task",
+        source_sha256=str(source_sha256),
+        identity_source=CAMPAIGN_AUTHORITY_IDENTITY_SOURCE,
+    )
+
+
+def _authorization_evidence_sha256_v12(
+    authorization: Mapping[str, Any],
+) -> str:
+    """Hash the exact campaign content authorized by v12 provenance."""
+
+    evidence = json.loads(json.dumps(dict(authorization)))
+    for field in (
+        "authorization_evidence_sha256",
+        "authority_provenance",
+        "canonical_authorization_sha256",
+    ):
+        evidence.pop(field, None)
+    return canonical_sha256(evidence)
+
+
+def _v12_common_shadow(authorization: Mapping[str, Any]) -> dict[str, Any]:
+    """Project v12 into frozen v11 solely for historical semantic checks."""
+
+    shadow = json.loads(json.dumps(dict(authorization)))
+    shadow["version"] = AUTHORIZATION_VERSION_V11
+    shadow["schema"] = AUTHORIZATION_SCHEMA_V11
+    shadow.pop("authorization_evidence_sha256", None)
+    shadow.pop("authority_provenance", None)
+    shadow["operator_authority"] = "verified-provenance-compatibility-shadow"
+    gates = (
+        dict(shadow.get("mandatory_gates"))
+        if isinstance(shadow.get("mandatory_gates"), Mapping)
+        else {}
+    )
+    shadow["mandatory_gates"] = gates
+    gates.pop("strict_authorization_v12", None)
+    gates["strict_authorization_v11"] = True
+    shadow.pop("canonical_authorization_sha256", None)
+    shadow["canonical_authorization_sha256"] = canonical_sha256(shadow)
+    return shadow
+
+
+def _validate_full_auto_authorization_v12(
+    value: Any,
+    *,
+    expected_campaign_nonce: str | None = None,
+    predecessor_proof: (
+        Version10InterruptedEmptyBoundaryPredecessorProofInputs | None
+    ) = None,
+    recovery_cause_evidence: JsonArtifactSnapshot | None = None,
+    recovery_cause_source_analysis: bytes | None = None,
+    expected_validator_contract_sha256: str | None = None,
+    repo_root: Path | None = None,
+) -> list[str]:
+    """Validate the operative authorization and its resolvable provenance."""
+
+    errors: list[str] = []
+    authorization = _strict(
+        value, AUTHORIZATION_FIELDS_V12, "authorization-v12", errors
+    )
+    if not authorization:
+        return sorted(set(errors))
+    if (
+        authorization.get("authorization_type") != AUTHORIZATION_TYPE
+        or authorization.get("version") != AUTHORIZATION_VERSION_V12
+        or authorization.get("schema") != AUTHORIZATION_SCHEMA_V12
+    ):
+        errors.append("authorization-v12-header-invalid")
+    try:
+        common_errors = _validate_full_auto_authorization_v11(
+            _v12_common_shadow(authorization),
+            expected_campaign_nonce=expected_campaign_nonce,
+            predecessor_proof=predecessor_proof,
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            expected_validator_contract_sha256=(
+                expected_validator_contract_sha256
+            ),
+            repo_root=repo_root,
+        )
+    except (AttributeError, KeyError, TypeError, ValueError):
+        common_errors = ["authorization-v12-common-scalar-invalid"]
+    errors.extend(f"authorization-v12-common:{item}" for item in common_errors)
+    gates = _strict(
+        authorization.get("mandatory_gates"),
+        MANDATORY_GATE_FIELDS_V12,
+        "authorization-v12-mandatory-gates",
+        errors,
+    )
+    if any(gates.get(field) is not True for field in MANDATORY_GATE_FIELDS_V12):
+        errors.append("authorization-v12-mandatory-gate-disabled")
+    provenance = authorization.get("authority_provenance")
+    provenance_errors = validate_authority_provenance(provenance)
+    errors.extend(
+        "authorization-v12-" + error for error in provenance_errors
+    )
+    try:
+        expected_provenance = campaign_policy_authority(
+            authorization
+        ).serialize()
+    except AuthorityProvenanceError:
+        expected_provenance = None
+        errors.append("authorization-v12-authority-source-unresolvable")
+    if expected_provenance is not None and provenance != expected_provenance:
+        errors.append("authorization-v12-authority-provenance-mismatch")
+    if (
+        isinstance(provenance, Mapping)
+        and authorization.get("issued_by") != provenance.get("actor_id")
+    ):
+        errors.append("authorization-v12-issued-by-authority-mismatch")
+    if authorization.get(
+        "authorization_evidence_sha256"
+    ) != _authorization_evidence_sha256_v12(authorization):
+        errors.append("authorization-v12-evidence-sha256-mismatch")
+    unsigned = dict(authorization)
+    unsigned.pop("canonical_authorization_sha256", None)
+    if authorization.get("canonical_authorization_sha256") != canonical_sha256(
+        unsigned
+    ):
+        errors.append("authorization-v12-canonical-sha256-mismatch")
+    return sorted(set(errors))
+
+
+def build_full_auto_authorization_v12(
+    historical_authorization: Mapping[str, Any],
+    *,
+    campaign_authority: VerifiedAuthority,
+    expected_campaign_nonce: str | None = None,
+    predecessor_proof: (
+        Version10InterruptedEmptyBoundaryPredecessorProofInputs | None
+    ) = None,
+    recovery_cause_evidence: JsonArtifactSnapshot | None = None,
+    recovery_cause_source_analysis: bytes | None = None,
+    expected_validator_contract_sha256: str | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Migrate a verified v11 authorization into the only writable version."""
+
+    if not isinstance(campaign_authority, VerifiedAuthority):
+        raise AuthorityProvenanceError(
+            "campaign-authorization-verified-authority-required"
+        )
+    historical_errors = _validate_full_auto_authorization_v11(
+        historical_authorization,
+        expected_campaign_nonce=expected_campaign_nonce,
+        predecessor_proof=predecessor_proof,
+        recovery_cause_evidence=recovery_cause_evidence,
+        recovery_cause_source_analysis=recovery_cause_source_analysis,
+        expected_validator_contract_sha256=expected_validator_contract_sha256,
+        repo_root=repo_root,
+    )
+    if historical_errors:
+        raise ValueError(
+            "campaign-authorization-historical-source-invalid:"
+            + ";".join(historical_errors)
+        )
+    expected_authority = campaign_policy_authority(historical_authorization)
+    if campaign_authority.serialize() != expected_authority.serialize():
+        raise AuthorityProvenanceError(
+            "campaign-authorization-authority-source-mismatch"
+        )
+    authorization = json.loads(json.dumps(dict(historical_authorization)))
+    authorization["version"] = AUTHORIZATION_VERSION_V12
+    authorization["schema"] = AUTHORIZATION_SCHEMA_V12
+    authorization.pop("operator_authority", None)
+    authorization["issued_by"] = campaign_authority.actor_id
+    gates = (
+        dict(authorization.get("mandatory_gates"))
+        if isinstance(authorization.get("mandatory_gates"), Mapping)
+        else {}
+    )
+    authorization["mandatory_gates"] = gates
+    gates.pop("strict_authorization_v11", None)
+    gates["strict_authorization_v12"] = True
+    authorization["authority_provenance"] = campaign_authority.serialize()
+    authorization["authorization_evidence_sha256"] = (
+        _authorization_evidence_sha256_v12(authorization)
+    )
+    authorization.pop("canonical_authorization_sha256", None)
+    authorization["canonical_authorization_sha256"] = canonical_sha256(
+        authorization
+    )
+    errors = _validate_full_auto_authorization_v12(
+        authorization,
+        expected_campaign_nonce=expected_campaign_nonce,
+        predecessor_proof=predecessor_proof,
+        recovery_cause_evidence=recovery_cause_evidence,
+        recovery_cause_source_analysis=recovery_cause_source_analysis,
+        expected_validator_contract_sha256=expected_validator_contract_sha256,
+        repo_root=repo_root,
+    )
+    if errors:
+        raise ValueError(
+            "campaign-authorization-v12-build-invalid:" + ";".join(errors)
+        )
+    return authorization
+
+
 def _dispatch_validate_full_auto_authorization(
     value: Any,
     *,
@@ -6554,15 +6797,59 @@ def _dispatch_validate_full_auto_authorization(
             expected_validator_contract_sha256=expected_validator_contract_sha256,
             repo_root=legacy_kwargs.get("repo_root"),
         )
+    if version == AUTHORIZATION_VERSION_V12:
+        legacy_predecessor_keys = {
+            key
+            for key, item in legacy_kwargs.items()
+            if key.startswith("predecessor_") and item is not None
+        }
+        if legacy_predecessor_keys:
+            return ["authorization-v12-legacy-proof-input-forbidden"]
+        allowed = {"expected_campaign_nonce", "repo_root"}
+        if set(legacy_kwargs) - allowed:
+            return ["authorization-v12-validator-arguments-invalid"]
+        return _validate_full_auto_authorization_v12(
+            value,
+            expected_campaign_nonce=legacy_kwargs.get("expected_campaign_nonce"),
+            predecessor_proof=(
+                predecessor_proof
+                if isinstance(
+                    predecessor_proof,
+                    Version10InterruptedEmptyBoundaryPredecessorProofInputs,
+                )
+                else None
+            ),
+            recovery_cause_evidence=recovery_cause_evidence,
+            recovery_cause_source_analysis=recovery_cause_source_analysis,
+            expected_validator_contract_sha256=expected_validator_contract_sha256,
+            repo_root=legacy_kwargs.get("repo_root"),
+        )
     return ["authorization-header-invalid"]
 
 
-def validate_full_auto_authorization(value: Any, **kwargs: Any) -> list[str]:
-    """Fail closed instead of raising when an untrusted proof graph is malformed."""
+def read_full_auto_authorization(value: Any, **kwargs: Any) -> list[str]:
+    """Read historical or operative artifacts without granting launch authority."""
     try:
         return _dispatch_validate_full_auto_authorization(value, **kwargs)
     except (AttributeError, IndexError, KeyError, TypeError, ValueError):
         return ["authorization-proof-structure-invalid"]
+
+
+def validate_full_auto_authorization(value: Any, **kwargs: Any) -> list[str]:
+    """Compatibility read API; use the operative validator before execution."""
+
+    return read_full_auto_authorization(value, **kwargs)
+
+
+def validate_operative_full_auto_authorization(
+    value: Any, **kwargs: Any
+) -> list[str]:
+    """Reject historical authorizations before any live campaign operation."""
+
+    version = value.get("version") if isinstance(value, Mapping) else None
+    if version != AUTHORIZATION_VERSION_V12:
+        return ["authorization-version-historical-only"]
+    return read_full_auto_authorization(value, **kwargs)
 
 
 def _validate_campaign_manifest_v2(
@@ -11232,12 +11519,13 @@ def _validate_generation11_containment(
         is not True
         or generation12_contract.get("live_launch_authorized_by_this_artifact")
         is not False
-        or validate_operative_version_tuple(
+        or (
             generation12_contract.get("required_authorization_version"),
             generation12_contract.get("required_manifest_version"),
             generation12_contract.get("required_launch_claim_version"),
             generation12_contract.get("required_validator_version"),
         )
+        != (AUTHORIZATION_VERSION_V11, MANIFEST_VERSION_V8, 6, 6)
         or disposition
         != {
             "authorization_state": "containment-only",
@@ -13187,9 +13475,14 @@ def _validate_campaign_manifest_v7(
 def _v8_manifest_common_shadow(
     manifest: Mapping[str, Any], authorization: Mapping[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], str]:
-    """Project v8/v11 common fields into the frozen v2/v5 validators."""
+    """Project v8/v11-v12 common fields into frozen v2/v5 validators."""
 
-    shadow_authorization = _v11_common_shadow(authorization)
+    historical_authorization = (
+        _v12_common_shadow(authorization)
+        if authorization.get("version") == AUTHORIZATION_VERSION_V12
+        else authorization
+    )
+    shadow_authorization = _v11_common_shadow(historical_authorization)
     shadow_authorization_raw = json.dumps(
         shadow_authorization,
         sort_keys=True,
@@ -13300,9 +13593,14 @@ def _validate_campaign_manifest_v8(
     except (AttributeError, KeyError, TypeError, ValueError):
         common_errors = ["campaign-manifest-v8-common-scalar-invalid"]
     errors.extend(f"campaign-manifest-v8-common:{item}" for item in common_errors)
+    authorization_validator = (
+        _validate_full_auto_authorization_v12
+        if authorization.get("version") == AUTHORIZATION_VERSION_V12
+        else _validate_full_auto_authorization_v11
+    )
     errors.extend(
         f"campaign-manifest-v8-authorization:{item}"
-        for item in _validate_full_auto_authorization_v11(
+        for item in authorization_validator(
             authorization,
             predecessor_proof=predecessor_proof,
             recovery_cause_evidence=recovery_cause_evidence,

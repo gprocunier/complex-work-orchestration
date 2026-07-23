@@ -537,6 +537,18 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         self.assertNotIn("edit-scoped-files", packet["scope"]["allowed_actions"])
         self.assertIn("source-mutation", packet["scope"]["prohibited_actions"])
         self.assertEqual(validate_native_worker_packet(packet), [])
+        widened = copy.deepcopy(packet)
+        widened["tool_policy"]["permitted_tools"] = [
+            "apply_patch",
+            "exec_command",
+            "write_stdin",
+        ]
+        self.assertTrue(
+            _contains(
+                validate_native_worker_packet(widened),
+                "read-only work_plan tool_policy must not permit apply_patch",
+            )
+        )
         self.assertTrue(_contains(validate_native_worker_packet(packet, dispatchable=True), "operative-dispatch-forbidden"))
 
         rendered = _render_prompt(packet)

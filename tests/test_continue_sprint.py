@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -17,11 +18,65 @@ from continue_sprint import (  # noqa: E402
     build_continuation_brief,
     load_markdown_items,
 )
+from cwo_core.beads_ready_set import (  # noqa: E402
+    build_ready_set_evidence,
+    canonical_json_sha256,
+)
+from tests.test_beads_ready_set import (  # noqa: E402
+    ready_item,
+    released_three_policy,
+)
 
 BD_PATH = shutil.which("bd")
+HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
+V2_READY_SET_FIELDS = {
+    "ranked_ready_issues",
+    "recommended_ready_set",
+    "compatible_ready_sets",
+    "excluded_ready_issues",
+    "beads_readiness_snapshot",
+    "beads_readiness_snapshot_sha256",
+    "fanout_decision",
+    "fanout_reasons",
+    "candidate_capacity_evidence",
+    "ready_set_authority",
+    "dispatch_authorized",
+}
 
 
 class ContinueSprintTests(unittest.TestCase):
+    @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
+    def test_v2_output_and_historical_v1_shape_validate(self) -> None:
+        from jsonschema import Draft202012Validator, ValidationError
+
+        result = build_continuation_brief(
+            [
+                {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
+                {"id": "task", "title": "Do Work", "type": "task", "status": "open"},
+            ],
+            epic_id="epic",
+        )
+        schema = json.loads(
+            (ROOT / "schemas" / "sprint-continuation.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        validator = Draft202012Validator(schema)
+
+        validator.validate(result)
+        historical = {
+            key: value for key, value in result.items() if key not in V2_READY_SET_FIELDS
+        }
+        historical["version"] = 1
+        validator.validate(historical)
+        historical_with_explicit_safe_default = {
+            **historical,
+            "dispatch_authorized": False,
+        }
+        validator.validate(historical_with_explicit_safe_default)
+        with self.assertRaises(ValidationError):
+            validator.validate({**historical, "dispatch_authorized": True})
+
     def test_ranks_ready_issues_by_priority_then_unblocking_value(self) -> None:
         items = [
             {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
@@ -77,6 +132,29 @@ class ContinueSprintTests(unittest.TestCase):
 
         self.assertEqual(result["recommended_next_issue"]["id"], "architect")
         self.assertEqual(blockers["implementation"], ["depends on architect (open)"])
+
+    def test_nonblocking_relationship_types_do_not_suppress_ready_work(self) -> None:
+        items = [
+            {"id": "epic", "title": "Continuation", "issue_type": "epic", "status": "open"},
+            {"id": "publication", "title": "Publication parent", "issue_type": "feature", "status": "open"},
+            {
+                "id": "implementation",
+                "title": "Implement",
+                "issue_type": "task",
+                "status": "open",
+                "priority": 1,
+                "dependencies": [
+                    {"depends_on_id": "publication", "type": "tracks"},
+                    {"depends_on_id": "publication", "type": "validates"},
+                    {"depends_on_id": "publication", "type": "related"},
+                ],
+            },
+        ]
+
+        result = build_continuation_brief(items, epic_id="epic")
+
+        self.assertEqual(result["recommended_next_issue"]["id"], "implementation")
+        self.assertEqual(result["recommended_next_issue"]["dependencies"], [])
 
     def test_epic_typed_items_are_not_recommended_as_next_work(self) -> None:
         items = [
@@ -186,6 +264,11 @@ class ContinueSprintTests(unittest.TestCase):
             result["operator_handoff_packet"]["exact_command_resume"],
             "python3 scripts/cwo.py continue --epic epic --markdown-workgraph <path>",
         )
+        self.assertEqual(result["version"], 2)
+        self.assertEqual(result["fanout_decision"], "single")
+        self.assertEqual(result["recommended_ready_set"], [])
+        self.assertIsNone(result["beads_readiness_snapshot_sha256"])
+        self.assertFalse(result["dispatch_authorized"])
 
     def test_cli_json_uses_markdown_workgraph_without_bd(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -318,13 +401,26 @@ class ContinueSprintTests(unittest.TestCase):
                 "orchestration",
                 "--silent",
             )
+            package = bd_output(
+                "create",
+                "Open package parent",
+                "--type",
+                "feature",
+                "--parent",
+                epic,
+                "--priority",
+                "1",
+                "--labels",
+                "publication-parent",
+                "--silent",
+            )
             architect = bd_output(
                 "create",
                 "Architect frame",
                 "--type",
                 "task",
                 "--parent",
-                epic,
+                package,
                 "--priority",
                 "1",
                 "--labels",
@@ -337,7 +433,7 @@ class ContinueSprintTests(unittest.TestCase):
                 "--type",
                 "task",
                 "--parent",
-                epic,
+                package,
                 "--priority",
                 "2",
                 "--labels",
@@ -367,9 +463,473 @@ class ContinueSprintTests(unittest.TestCase):
 
         self.assertEqual(result["source"], "beads")
         self.assertEqual(result["durability"], "durable")
+        self.assertEqual(result["version"], 2)
         self.assertEqual(result["recommended_next_issue"]["id"], architect)
         self.assertEqual(blockers[implementation], [f"depends on {architect} (open)"])
+        self.assertIn(package, blockers)
+        self.assertIn("grouping container", " ".join(blockers[package]))
+        self.assertEqual(
+            [item["id"] for item in result["ranked_ready_issues"]],
+            [architect],
+        )
+        self.assertEqual(
+            result["beads_readiness_snapshot"]["snapshot_type"],
+            "cwo-beads-ready-set-snapshot:v2",
+        )
+        self.assertEqual(
+            result["beads_readiness_snapshot_sha256"],
+            result["beads_readiness_snapshot"]["snapshot_sha256"],
+        )
+        self.assertFalse(result["dispatch_authorized"])
         self.assertIn("operator_handoff_packet", result)
+
+    @unittest.skipUnless(BD_PATH, "bd CLI not available")
+    @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
+    def test_real_beads_metadata_yields_offline_n3_and_structured_exclusions(self) -> None:
+        from jsonschema import Draft202012Validator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subprocess.check_call(["git", "init", "-q"], cwd=temp_dir)
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "init",
+                    "--non-interactive",
+                    "--skip-agents",
+                    "--skip-hooks",
+                    "-p",
+                    "cwo",
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            def bd_output(*args: str) -> str:
+                return subprocess.check_output(
+                    [BD_PATH, *args], cwd=temp_dir, text=True
+                ).strip()
+
+            def create_leaf(
+                title: str,
+                parent: str,
+                *,
+                priority: int,
+                labels: str = "implementation",
+            ) -> str:
+                return bd_output(
+                    "create",
+                    title,
+                    "--type",
+                    "task",
+                    "--parent",
+                    parent,
+                    "--priority",
+                    str(priority),
+                    "--labels",
+                    labels,
+                    "--silent",
+                )
+
+            epic = bd_output(
+                "create",
+                "Ready-set metadata smoke",
+                "--type",
+                "epic",
+                "--priority",
+                "1",
+                "--labels",
+                "orchestration",
+                "--silent",
+            )
+            package = bd_output(
+                "create",
+                "Open package parent",
+                "--type",
+                "feature",
+                "--parent",
+                epic,
+                "--priority",
+                "1",
+                "--labels",
+                "publication-parent",
+                "--silent",
+            )
+            valid_ids = [
+                create_leaf("Ready A", package, priority=1),
+                create_leaf("Ready B", package, priority=2),
+                create_leaf("Ready C", package, priority=3),
+                create_leaf("Ready D", package, priority=4),
+            ]
+            for index, bead_id in enumerate(valid_ids):
+                write_index = 0 if index == 1 else index
+                metadata = ready_item(
+                    bead_id,
+                    write_paths=[f"scripts/e2e-{write_index}.py"],
+                )["raw"]["metadata"]
+                subprocess.check_call(
+                    [BD_PATH, "update", bead_id, "--metadata", json.dumps(metadata)],
+                    cwd=temp_dir,
+                    stdout=subprocess.DEVNULL,
+                )
+
+            claimed = create_leaf("Claimed", package, priority=2)
+            claimed_metadata = ready_item(
+                claimed, write_paths=["scripts/claimed.py"]
+            )["raw"]["metadata"]
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "update",
+                    claimed,
+                    "--metadata",
+                    json.dumps(claimed_metadata),
+                    "--assignee",
+                    "existing-owner",
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            restricted = create_leaf(
+                "Restricted",
+                package,
+                priority=2,
+                labels="implementation,no-codex-exec",
+            )
+            restricted_metadata = ready_item(
+                restricted,
+                write_paths=["scripts/restricted.py"],
+                labels=["implementation", "no-codex-exec"],
+            )["raw"]["metadata"]
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "update",
+                    restricted,
+                    "--metadata",
+                    json.dumps(restricted_metadata),
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            invalid = create_leaf("Invalid metadata", package, priority=2)
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "update",
+                    invalid,
+                    "--metadata",
+                    json.dumps({"cwo_ready_set_admission": {"version": 2}}),
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
+            output = subprocess.check_output(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "cwo.py"),
+                    "continue",
+                    "--epic",
+                    epic,
+                    "--requested-workers",
+                    "3",
+                    "--format",
+                    "json",
+                ],
+                cwd=ROOT,
+                env=env,
+                text=True,
+            )
+            assignees = {
+                item["id"]: item.get("assignee")
+                for item in json.loads(
+                    bd_output("show", *valid_ids, claimed, "--json")
+                )
+            }
+
+        result = json.loads(output)
+        schema = json.loads(
+            (ROOT / "schemas" / "sprint-continuation.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        Draft202012Validator(schema).validate(result)
+        self.assertEqual(
+            [item["id"] for item in result["recommended_ready_set"]],
+            [valid_ids[0], valid_ids[2], valid_ids[3]],
+            json.dumps(result["excluded_ready_issues"], indent=2),
+        )
+        compatible_sets = {
+            tuple(item["issue_ids"]) for item in result["compatible_ready_sets"]
+        }
+        self.assertNotIn((valid_ids[0], valid_ids[1]), compatible_sets)
+        self.assertIn((valid_ids[0], valid_ids[2], valid_ids[3]), compatible_sets)
+        self.assertIn((valid_ids[1], valid_ids[2], valid_ids[3]), compatible_sets)
+        self.assertEqual(
+            result["candidate_capacity_evidence"]["released_max_active_workers"],
+            2,
+        )
+        self.assertTrue(
+            result["candidate_capacity_evidence"][
+                "selected_exceeds_released_capacity"
+            ]
+        )
+        self.assertFalse(
+            result["candidate_capacity_evidence"][
+                "selected_within_released_capacity"
+            ]
+        )
+        self.assertFalse(result["dispatch_authorized"])
+        self.assertEqual(assignees[valid_ids[0]], None)
+        self.assertEqual(assignees[valid_ids[1]], None)
+        self.assertEqual(assignees[valid_ids[2]], None)
+        self.assertEqual(assignees[claimed], "existing-owner")
+
+        excluded = {
+            item["id"]: {reason["code"] for reason in item["reasons"]}
+            for item in result["excluded_ready_issues"]
+        }
+        self.assertIn("grouping-container", excluded[package])
+        self.assertIn("non-leaf", excluded[package])
+        self.assertIn("already-claimed", excluded[claimed])
+        self.assertIn("not-canonical-ready", excluded[claimed])
+        self.assertIn("restricted-label", excluded[restricted])
+        self.assertIn("invalid-admission-metadata", excluded[invalid])
+
+    @unittest.skipUnless(BD_PATH, "bd CLI not available")
+    def test_real_beads_issue_and_admission_drift_changes_snapshot_seal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subprocess.check_call(["git", "init", "-q"], cwd=temp_dir)
+            subprocess.check_call(
+                [
+                    BD_PATH,
+                    "init",
+                    "--non-interactive",
+                    "--skip-agents",
+                    "--skip-hooks",
+                    "-p",
+                    "cwo",
+                ],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+
+            def bd_output(*args: str) -> str:
+                return subprocess.check_output(
+                    [BD_PATH, *args], cwd=temp_dir, text=True
+                ).strip()
+
+            def update(*args: str) -> None:
+                subprocess.check_call(
+                    [BD_PATH, "update", *args],
+                    cwd=temp_dir,
+                    stdout=subprocess.DEVNULL,
+                )
+
+            def continuation() -> dict:
+                env = {**os.environ, "BEADS_DIR": str(Path(temp_dir) / ".beads")}
+                output = subprocess.check_output(
+                    [
+                        sys.executable,
+                        str(ROOT / "scripts" / "cwo.py"),
+                        "continue",
+                        "--epic",
+                        epic,
+                        "--requested-workers",
+                        "3",
+                        "--format",
+                        "json",
+                    ],
+                    cwd=ROOT,
+                    env=env,
+                    text=True,
+                )
+                return json.loads(output)
+
+            def show(issue_id: str) -> dict:
+                return json.loads(bd_output("show", issue_id, "--json"))[0]
+
+            epic = bd_output(
+                "create",
+                "Drift test epic",
+                "--type",
+                "epic",
+                "--priority",
+                "1",
+                "--labels",
+                "orchestration",
+                "--silent",
+            )
+            package = bd_output(
+                "create",
+                "Drift package",
+                "--type",
+                "feature",
+                "--parent",
+                epic,
+                "--priority",
+                "1",
+                "--labels",
+                "publication-parent",
+                "--silent",
+            )
+            leaf = bd_output(
+                "create",
+                "Original title",
+                "--description",
+                "Original description",
+                "--type",
+                "task",
+                "--parent",
+                package,
+                "--priority",
+                "1",
+                "--labels",
+                "implementation",
+                "--silent",
+            )
+            blocker = bd_output(
+                "create",
+                "Open blocker",
+                "--type",
+                "task",
+                "--parent",
+                package,
+                "--priority",
+                "4",
+                "--silent",
+            )
+            admission_metadata = ready_item(
+                leaf, write_paths=["scripts/real-drift.py"]
+            )["raw"]["metadata"]
+            update(leaf, "--metadata", json.dumps(admission_metadata))
+
+            baseline = continuation()
+            prior_sha256 = baseline["beads_readiness_snapshot_sha256"]
+            self.assertEqual(
+                [item["id"] for item in baseline["recommended_ready_set"]],
+                [leaf],
+            )
+
+            same_second_pair: tuple[dict, dict] | None = None
+            for attempt in range(8):
+                before = show(leaf)
+                update(
+                    leaf,
+                    "--title",
+                    f"Same-second title drift {attempt}",
+                    "--description",
+                    f"Same-second description drift {attempt}",
+                )
+                after = show(leaf)
+                if before["updated_at"] == after["updated_at"]:
+                    same_second_pair = (before, after)
+                    break
+            self.assertIsNotNone(
+                same_second_pair,
+                "could not reproduce Beads' second-resolution update timestamp",
+            )
+            assert same_second_pair is not None
+            before, after = same_second_pair
+            self.assertNotEqual(before["title"], after["title"])
+            self.assertNotEqual(before["description"], after["description"])
+            before_seal = build_ready_set_evidence(
+                [before],
+                epic_id=epic,
+                policy_document=released_three_policy(),
+            )
+            after_seal = build_ready_set_evidence(
+                [after],
+                epic_id=epic,
+                policy_document=released_three_policy(),
+            )
+            self.assertNotEqual(
+                before_seal["beads_readiness_snapshot_sha256"],
+                after_seal["beads_readiness_snapshot_sha256"],
+            )
+            projection = after_seal["beads_readiness_snapshot"][
+                "issue_projections"
+            ][0]
+            self.assertEqual(projection["title"], after["title"])
+            self.assertEqual(projection["description"], after["description"])
+            self.assertEqual(
+                projection["exact_show_raw_sha256"],
+                canonical_json_sha256(after),
+            )
+
+            issue_drift = continuation()
+            self.assertNotEqual(
+                prior_sha256, issue_drift["beads_readiness_snapshot_sha256"]
+            )
+            prior_sha256 = issue_drift["beads_readiness_snapshot_sha256"]
+
+            subprocess.check_call(
+                [BD_PATH, "dep", "add", leaf, blocker],
+                cwd=temp_dir,
+                stdout=subprocess.DEVNULL,
+            )
+            dependency_drift = continuation()
+            self.assertNotEqual(
+                prior_sha256,
+                dependency_drift["beads_readiness_snapshot_sha256"],
+            )
+            self.assertNotIn(
+                leaf,
+                [item["id"] for item in dependency_drift["recommended_ready_set"]],
+            )
+            prior_sha256 = dependency_drift["beads_readiness_snapshot_sha256"]
+
+            update(leaf, "--add-label", "no-codex-exec")
+            label_drift = continuation()
+            self.assertNotEqual(
+                prior_sha256, label_drift["beads_readiness_snapshot_sha256"]
+            )
+            label_exclusions = {
+                item["id"]: {reason["code"] for reason in item["reasons"]}
+                for item in label_drift["excluded_ready_issues"]
+            }
+            self.assertIn("restricted-label", label_exclusions[leaf])
+            prior_sha256 = label_drift["beads_readiness_snapshot_sha256"]
+
+            admission = admission_metadata["cwo_ready_set_admission"]
+            admission["work_plan"]["primary_outcome"] = "drifted estimate"
+            update(leaf, "--metadata", json.dumps(admission_metadata))
+            estimate_drift = continuation()
+            self.assertNotEqual(
+                prior_sha256, estimate_drift["beads_readiness_snapshot_sha256"]
+            )
+            estimate_exclusions = {
+                item["id"]: {reason["code"] for reason in item["reasons"]}
+                for item in estimate_drift["excluded_ready_issues"]
+            }
+            self.assertIn("invalid-worker-commitment", estimate_exclusions[leaf])
+            prior_sha256 = estimate_drift["beads_readiness_snapshot_sha256"]
+
+            admission["architecture_authority"] = "different-architect"
+            update(leaf, "--metadata", json.dumps(admission_metadata))
+            ownership_drift = continuation()
+            self.assertNotEqual(
+                prior_sha256, ownership_drift["beads_readiness_snapshot_sha256"]
+            )
+            ownership_exclusions = {
+                item["id"]: {reason["code"] for reason in item["reasons"]}
+                for item in ownership_drift["excluded_ready_issues"]
+            }
+            self.assertIn(
+                "unapproved-architecture-authority",
+                ownership_exclusions[leaf],
+            )
+            prior_sha256 = ownership_drift["beads_readiness_snapshot_sha256"]
+
+            admission["declared_read_paths"] = ["new/real/read/scope"]
+            update(leaf, "--metadata", json.dumps(admission_metadata))
+            scope_drift = continuation()
+            self.assertNotEqual(
+                prior_sha256, scope_drift["beads_readiness_snapshot_sha256"]
+            )
 
 
 if __name__ == "__main__":

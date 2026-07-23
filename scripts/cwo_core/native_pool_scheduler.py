@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any, Iterable, Mapping, Sequence
 
 from .native_pool_contracts import canonical_sha256, zero_token_usage, zero_usage
@@ -242,11 +243,15 @@ def select_earliest_deadline(
     if isinstance(cursor, bool) or not isinstance(cursor, int) or not 0 <= cursor < len(children):
         raise PoolSchedulingError("scheduler-cursor-out-of-range")
     candidates: list[tuple[int, int, str]] = []
+    seen_child_ids: set[str] = set()
     for ordinal, child in enumerate(children):
         child_id = child.get("child_id")
         deadline = child.get("next_deadline_ns")
         if not isinstance(child_id, str) or not child_id:
             raise PoolSchedulingError("child-id-invalid")
+        if child_id in seen_child_ids:
+            raise PoolSchedulingError("duplicate-child-id")
+        seen_child_ids.add(child_id)
         if deadline is None:
             continue
         if isinstance(deadline, bool) or not isinstance(deadline, int) or deadline < 0:
@@ -276,48 +281,74 @@ def peer_deadline_guard(
     proposed_child_id: str,
     now_ns: int,
     certified_callback_ms: float,
+    certified_peer_check_ms: float,
     certified_scheduler_overhead_ms: float = 0.0,
 ) -> SchedulerSelection | None:
-    """Choose a peer first when one would cross deadline during a lifecycle call."""
+    """Choose the EDF peer when cumulative service would cross a deadline."""
     if isinstance(now_ns, bool) or not isinstance(now_ns, int) or now_ns < 0:
         raise PoolSchedulingError("monotonic-time-invalid")
-    if isinstance(certified_callback_ms, bool) or not isinstance(certified_callback_ms, (int, float)):
-        raise PoolSchedulingError("certified-callback-latency-invalid")
-    if certified_callback_ms < 0:
-        raise PoolSchedulingError("certified-callback-latency-invalid")
-    if (
-        isinstance(certified_scheduler_overhead_ms, bool)
-        or not isinstance(certified_scheduler_overhead_ms, (int, float))
-        or certified_scheduler_overhead_ms < 0
-    ):
-        raise PoolSchedulingError("certified-scheduler-overhead-invalid")
-    horizon = now_ns + int(
-        (certified_callback_ms + certified_scheduler_overhead_ms) * 1_000_000
+    if not isinstance(proposed_child_id, str) or not proposed_child_id:
+        raise PoolSchedulingError("proposed-child-id-invalid")
+
+    def duration_ns(value: Any, field: str) -> int:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or value < 0
+        ):
+            raise PoolSchedulingError(f"{field}-invalid")
+        return math.ceil(float(value) * 1_000_000)
+
+    proposed_ns = duration_ns(
+        certified_callback_ms,
+        "certified-callback-latency",
     )
+    peer_check_ns = duration_ns(
+        certified_peer_check_ms,
+        "certified-peer-check-latency",
+    )
+    overhead_ns = duration_ns(
+        certified_scheduler_overhead_ms,
+        "certified-scheduler-overhead",
+    )
+    all_ids = [child.get("child_id") for child in children]
+    if proposed_child_id not in all_ids:
+        raise PoolSchedulingError("proposed-child-unknown")
+    select_earliest_deadline(children, cursor=cursor)
     peers = [
-        child
-        for child in children
+        (ordinal, child)
+        for ordinal, child in enumerate(children)
         if child.get("child_id") != proposed_child_id
         and child.get("next_deadline_ns") is not None
-        and child.get("next_deadline_ns") <= horizon
     ]
     if not peers:
         return None
-    eligible_ids = {child.get("child_id") for child in peers}
-    selection = select_earliest_deadline(children, cursor=cursor)
-    if selection is not None and selection.child_id in eligible_ids:
-        return selection
-    ordered = [child for child in children if child.get("child_id") in eligible_ids]
-    fallback = select_earliest_deadline(ordered, cursor=0)
-    if fallback is None:
-        return None
-    original_ordinal = next(
-        index for index, child in enumerate(children) if child.get("child_id") == fallback.child_id
+    ordered = sorted(
+        peers,
+        key=lambda item: (
+            item[1]["next_deadline_ns"],
+            (item[0] - cursor) % len(children),
+        ),
     )
+    violates_deadline = False
+    for position, (_ordinal, child) in enumerate(ordered, start=1):
+        projected_completion_ns = (
+            now_ns
+            + proposed_ns
+            + overhead_ns
+            + position * peer_check_ns
+        )
+        if child["next_deadline_ns"] <= projected_completion_ns:
+            violates_deadline = True
+            break
+    if not violates_deadline:
+        return None
+    original_ordinal, earliest = ordered[0]
     return SchedulerSelection(
-        child_id=fallback.child_id,
+        child_id=earliest["child_id"],
         ordinal=original_ordinal,
-        deadline_ns=fallback.deadline_ns,
+        deadline_ns=earliest["next_deadline_ns"],
         next_cursor=(original_ordinal + 1) % len(children),
     )
 

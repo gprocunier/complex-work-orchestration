@@ -32,7 +32,9 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     validate_pool_contract,
     write_private_artifact,
 )
+from cwo_core.native_tool_isolation import default_tool_policy  # noqa: E402
 from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
+from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload, sha  # noqa: E402
 from tests import test_run_native_pool_live_canaries as live_test_helpers  # noqa: E402
 
@@ -101,6 +103,13 @@ class RenderFixture:
                 "poll_interval_ms": 1000,
                 "control_adapter": "native-multi-agent-v1",
                 "required_capabilities": ["interrupt", "close", "wait"],
+                **build_stop_metadata(
+                    "child",
+                    authority=policy_scope_authority(
+                        "pool-config-test-child-state-v1",
+                        authorized_scope="child",
+                    ),
+                ),
             }
             write_private_artifact(control_file, control)
             write_private_artifact(state_file, state)
@@ -120,6 +129,7 @@ class RenderFixture:
                     "completion_evidence_policy": default_completion_evidence_policy(
                         "mutable-isolated"
                     ),
+                    "tool_policy": default_tool_policy(mutable=True),
                     "declared_write_paths": [f"scripts/child_{index}.py"],
                     "integration_target_paths": [f"scripts/child_{index}.py"],
                     "lease_id": f"lease-{index}",
@@ -170,7 +180,22 @@ class NativePoolConfigTests(unittest.TestCase):
             self.assertTrue(any("unknown-fields" in error for error in errors))
             self.assertIn("duplicate-child-attempt-nonce", errors)
 
-    def test_cap_two_requires_explicit_opt_in_and_fresh_exact_capability(self) -> None:
+    def test_read_only_render_request_rejects_mutating_tool_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 1)
+            child = fixture.request["children"][0]
+            child["isolation_class"] = "read-only-shared"
+            child["completion_evidence_policy"] = default_completion_evidence_policy(
+                "read-only-shared"
+            )
+            child["declared_write_paths"] = []
+            child["integration_target_paths"] = []
+            self.assertIn(
+                "read-only-child[0]-tool-policy-permits-apply-patch",
+                validate_pool_render_request(fixture.request),
+            )
+
+    def test_concurrency_requires_explicit_opt_in_and_fresh_exact_capability(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = RenderFixture(Path(temporary), 2)
             owner = capture_owner_identity()
@@ -191,10 +216,10 @@ class NativePoolConfigTests(unittest.TestCase):
             )
             canary_policy["native_supervision_pool"]["status"] = "canary-gated"
             canary_policy["native_supervision_pool"][
-                "cap_two_operative_release"
-            ] = False
+                "capacity"
+            ]["released_max_active_workers"] = 1
             with self.assertRaisesRegex(
-                NativePoolConfigError, "operative-release-required"
+                NativePoolConfigError, "requested-capacity-not-released"
             ):
                 build_pool_contract(
                     fixture.request,
@@ -211,6 +236,7 @@ class NativePoolConfigTests(unittest.TestCase):
                 owner_pid=owner["pid"],
                 now=now,
             )
+            self.assertEqual(contract["completion_policy"], "all-or-nothing")
             self.assertEqual(validate_pool_contract(contract), [])
             self.assertEqual(contract["owner"], owner)
             self.assertEqual(contract["scheduler"]["certified_max_check_ms"], 200)
@@ -227,6 +253,45 @@ class NativePoolConfigTests(unittest.TestCase):
                     owner_pid=owner["pid"],
                     now=now,
                 )
+
+    def test_capacity_three_is_structurally_supported_but_not_yet_released(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 3)
+            owner = capture_owner_identity()
+            payload = capability_payload(requested_cap=3)
+            payload["host_identity"] = owner
+            capability = seal_artifact(payload, "receipt_sha256")
+            now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
+            with self.assertRaisesRegex(
+                NativePoolConfigError,
+                "requested-capacity-not-released",
+            ):
+                build_pool_contract(
+                    fixture.request,
+                    capability_receipt=capability,
+                    enable_concurrency=True,
+                    owner_pid=owner["pid"],
+                    now=now,
+                )
+
+            candidate_policy = json.loads(
+                (ROOT / "policy" / "native-worker-execution.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            candidate_policy["native_supervision_pool"]["capacity"][
+                "released_max_active_workers"
+            ] = 3
+            contract = build_pool_contract(
+                fixture.request,
+                capability_receipt=capability,
+                enable_concurrency=True,
+                owner_pid=owner["pid"],
+                now=now,
+                policy_document=candidate_policy,
+            )
+            self.assertEqual(contract["max_active_workers"], 3)
+            self.assertEqual(validate_pool_contract(contract), [])
 
     def test_worker_state_identity_or_status_mismatch_fails_before_render(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

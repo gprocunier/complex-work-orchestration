@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 from .audit import record_audit_event
 from .native_pool_contracts import (
+    pool_capacity_limits,
     validate_pool_contract,
     validate_pool_receipt,
     validate_pool_state,
@@ -35,16 +36,32 @@ def build_pool_status_report(
     contract: Mapping[str, Any],
     state: Mapping[str, Any],
     receipt: Mapping[str, Any] | None = None,
+    *,
+    policy_document: Mapping[str, Any] | None = None,
+    admission_reservation: Mapping[str, Any] | None = None,
+    dispatch_receipt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a complete local status view without task inputs or filesystem paths."""
-    contract_errors = validate_pool_contract(contract)
+    capacity_limits = pool_capacity_limits(policy_document)
+    contract_errors = validate_pool_contract(
+        contract,
+        capacity_limits=capacity_limits,
+        admission_reservation=admission_reservation,
+    )
     if contract_errors:
         raise NativePoolReportingError("pool-contract-invalid:" + ";".join(contract_errors))
     state_errors = validate_pool_state(state, contract=contract)
     if state_errors:
         raise NativePoolReportingError("pool-state-invalid:" + ";".join(state_errors))
     if receipt is not None:
-        receipt_errors = validate_pool_receipt(receipt, contract=contract, terminal_state=state)
+        receipt_errors = validate_pool_receipt(
+            receipt,
+            contract=contract,
+            terminal_state=state,
+            admission_reservation=admission_reservation,
+            dispatch_receipt=dispatch_receipt,
+            capacity_limits=capacity_limits,
+        )
         if receipt_errors:
             raise NativePoolReportingError("pool-receipt-invalid:" + ";".join(receipt_errors))
 
@@ -63,6 +80,7 @@ def build_pool_status_report(
 
     receipt_dispositions = {
         item["child_id"]: {
+            "runtime_disposition": item["runtime_disposition"],
             "session_disposition": item["session_disposition"],
             "artifact_disposition": item["artifact_disposition"],
         }
@@ -88,6 +106,7 @@ def build_pool_status_report(
                 "ordinal": contract_child["ordinal"],
                 "child_id": contract_child["child_id"],
                 "status": status,
+                "runtime_disposition": state_child["runtime_disposition"],
                 "usage": dict(state_child["last_cumulative_usage"]),
                 "last_deadline_ns": state_child["last_deadline_ns"],
                 "next_deadline_ns": state_child["next_deadline_ns"],
@@ -115,6 +134,9 @@ def build_pool_status_report(
         "state_sha256": state["state_sha256"],
         "receipt_sha256": receipt.get("receipt_sha256") if receipt is not None else None,
         "status": state["status"],
+        "completion_policy": contract.get(
+            "completion_policy", "all-or-nothing"
+        ),
         "state_sequence": state["state_sequence"],
         "capacity": {
             "configured_workers": len(contract["children"]),

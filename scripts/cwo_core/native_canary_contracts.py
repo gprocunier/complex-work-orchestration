@@ -12,20 +12,34 @@ import os
 from pathlib import Path
 import re
 import shlex
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 import uuid
 
 from .util import atomic_write_text
+from .native_stop_scope import (
+    VerifiedScopeAuthority,
+    build_stop_metadata,
+    continuation_path,
+    policy_scope_authority,
+    validate_scope_authority,
+    verify_operator_scope_directive,
+)
 
 
-STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v1"
+STEERING_RECEIPT_TYPE_V1 = "cwo-steering-receipt:v1"
+STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v2"
 MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v4"
 CANARY_AUTHORIZATION_TYPE = "cwo-native-canary-authorization-state:v1"
 CANARY_AUTHORIZATION_TYPE_V2 = "cwo-native-canary-authorization-state:v2"
-STEERING_RECEIPT_SCHEMA = "schemas/native-steering-receipt.schema.json"
-MATERIALIZATION_EVIDENCE_SCHEMA = "schemas/native-session-materialization-evidence.schema.json"
+STEERING_RECEIPT_SCHEMA_V1 = "schemas/native-steering-receipt.schema.json"
+STEERING_RECEIPT_SCHEMA = "schemas/native-steering-receipt-v2.schema.json"
+MATERIALIZATION_EVIDENCE_SCHEMA = (
+    "schemas/native-session-materialization-evidence.schema.json"
+)
 CANARY_AUTHORIZATION_SCHEMA = "schemas/native-canary-authorization-state.schema.json"
-CANARY_AUTHORIZATION_SCHEMA_V2 = "schemas/native-canary-authorization-state-v2.schema.json"
+CANARY_AUTHORIZATION_SCHEMA_V2 = (
+    "schemas/native-canary-authorization-state-v2.schema.json"
+)
 FULL_AUTO_STOP_RESOLUTION_FIELDS = {
     "schema",
     "gate",
@@ -135,7 +149,7 @@ MATERIALIZATION_FIELDS = {
     "disposition",
     "evidence_sha256",
 }
-STEERING_FIELDS = {
+STEERING_FIELDS_V1 = {
     "schema",
     "gate",
     "bead_id",
@@ -162,6 +176,58 @@ STEERING_FIELDS = {
     "disposition",
     "canonical_receipt_sha256",
 }
+STEERING_FIELDS = (STEERING_FIELDS_V1 - {"opinion"}) | {
+    "steering",
+    "stop_scope",
+    "authorized_continuation_paths",
+    "scope_authority",
+}
+NEUTRAL_STEERING_FIELDS = {
+    "operator_facts",
+    "observed_evidence",
+    "model_interpretation",
+    "recommendation",
+    "strongest_counterargument",
+    "agent_authored_constraints",
+}
+OPERATOR_FACT_FIELDS = {"statement", "authority_provenance"}
+OBSERVED_EVIDENCE_FIELDS = {
+    "code",
+    "severity",
+    "observation",
+    "evidence_sha256",
+}
+RECOMMENDATION_FIELDS = {
+    "outcome",
+    "rationale",
+    "confidence",
+    "confidence_role",
+}
+AGENT_CONSTRAINT_FIELDS = {"constraint", "origin", "authority"}
+STEERING_MODEL_DISCOVERY_FIELDS = {
+    "id",
+    "model",
+    "display_name",
+    "default_reasoning_effort",
+    "supported_reasoning_efforts_sha256",
+    "model_record_sha256",
+}
+STEERING_INPUT_FIELDS = {
+    "brief_sha256",
+    "recovery_plan_sha256",
+    "pickup_sha256",
+}
+STEERING_BASELINE_FIELDS = {
+    "availability",
+    "record_count",
+    "byte_offset",
+    "boundary_sha256",
+    "path_sha256",
+    "invalid_record_count",
+    "trailing_partial",
+}
+STEERING_TERMINAL_FIELDS = STEERING_BASELINE_FIELDS - {"availability"}
+STEERING_GUARD_FIELDS = {"repo_head", "repo_status_sha256", "primary_diff_sha256"}
 AUTHORIZATION_FIELDS = {
     "authorization_type",
     "version",
@@ -222,13 +288,91 @@ class NativeCanaryContractError(ValueError):
     """Raised when a canary artifact or transition fails closed."""
 
 
+_OPERATOR_FACT_AUTHORITY_TOKEN = object()
+
+
+class VerifiedOperatorFactAuthority:
+    """Opaque operator authority bound to one exact steering fact statement."""
+
+    __slots__ = ("_action_sha256", "_authority")
+
+    def __init__(
+        self,
+        authority: VerifiedScopeAuthority,
+        action_sha256: str,
+        token: object,
+    ) -> None:
+        if token is not _OPERATOR_FACT_AUTHORITY_TOKEN:
+            raise NativeCanaryContractError(
+                "operator-fact-authority-construction-forbidden"
+            )
+        if not isinstance(authority, VerifiedScopeAuthority) or not _is_hash(
+            action_sha256
+        ):
+            raise NativeCanaryContractError("operator-fact-authority-invalid")
+        payload = authority.serialize()
+        if (
+            payload.get("source_type") != "operator-directive"
+            or payload.get("actor_role") != "operator"
+            or payload.get("verification", {}).get("method")
+            != "hmac-sha256-operator-directive-v1"
+        ):
+            raise NativeCanaryContractError("operator-fact-authority-invalid")
+        self._authority = authority
+        self._action_sha256 = action_sha256
+
+    @property
+    def action_sha256(self) -> str:
+        return self._action_sha256
+
+    def serialize(self) -> dict[str, Any]:
+        return self._authority.serialize()
+
+
 def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode()
 
 
 def canonical_sha256(value: Any, *, domain: str) -> str:
     prefix = f"cwo:{domain}:v1\0".encode()
     return hashlib.sha256(prefix + _canonical_bytes(value)).hexdigest()
+
+
+def operator_fact_action_sha256(statement: str) -> str:
+    """Bind a signed operator directive to one exact fact statement."""
+
+    if not isinstance(statement, str) or not statement.strip():
+        raise NativeCanaryContractError("operator-fact-statement-invalid")
+    return canonical_sha256(
+        {"statement": statement}, domain="native-steering-operator-fact"
+    )
+
+
+def verify_operator_fact_authority(
+    statement: str,
+    receipt: Mapping[str, Any],
+    *,
+    verification_key: bytes,
+    expected_actor_id: str,
+    expected_identity_source: str,
+) -> VerifiedOperatorFactAuthority:
+    """Verify a signed directive for the exact operator fact being asserted."""
+
+    action_sha256 = operator_fact_action_sha256(statement)
+    authority = verify_operator_scope_directive(
+        receipt,
+        verification_key=verification_key,
+        expected_actor_id=expected_actor_id,
+        expected_identity_source=expected_identity_source,
+        expected_action_sha256=action_sha256,
+    )
+    return VerifiedOperatorFactAuthority(
+        authority,
+        action_sha256,
+        _OPERATOR_FACT_AUTHORITY_TOKEN,
+    )
 
 
 def length_framed_sha256(
@@ -340,8 +484,14 @@ def _is_canonical_uuid(value: Any) -> bool:
 
 def _is_valid_resolved_finding(value: Any) -> bool:
     errors: list[str] = []
-    finding = _exact_fields(value, FULL_AUTO_FINDING_FIELDS, "steering-stop-finding", errors)
-    if errors or not isinstance(finding, dict) or set(finding) != FULL_AUTO_FINDING_FIELDS:
+    finding = _exact_fields(
+        value, FULL_AUTO_FINDING_FIELDS, "steering-stop-finding", errors
+    )
+    if (
+        errors
+        or not isinstance(finding, dict)
+        or set(finding) != FULL_AUTO_FINDING_FIELDS
+    ):
         return False
     return (
         finding.get("status") == "resolved"
@@ -366,7 +516,9 @@ def _parse_time(value: Any, label: str, errors: list[str]) -> dt.datetime:
     return parsed.astimezone(dt.timezone.utc)
 
 
-def _exact_fields(value: Any, expected: set[str], label: str, errors: list[str]) -> dict[str, Any]:
+def _exact_fields(
+    value: Any, expected: set[str], label: str, errors: list[str]
+) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         errors.append(f"{label}-not-object")
         return {}
@@ -374,6 +526,261 @@ def _exact_fields(value: Any, expected: set[str], label: str, errors: list[str])
     if set(result) != expected:
         errors.append(f"{label}-fields-invalid")
     return result
+
+
+def steering_payload(receipt: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the versioned model-authored payload without granting it authority."""
+
+    field = "steering" if receipt.get("schema") == STEERING_RECEIPT_TYPE else "opinion"
+    value = receipt.get(field)
+    return value if isinstance(value, Mapping) else {}
+
+
+def steering_recommendation(receipt: Mapping[str, Any]) -> Any:
+    """Read the recommendation outcome across the compatible-read boundary."""
+
+    payload = steering_payload(receipt)
+    recommendation = payload.get("recommendation")
+    if isinstance(recommendation, Mapping):
+        return recommendation.get("outcome")
+    return recommendation
+
+
+def _expected_neutral_stop_metadata(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    recommendation = steering_recommendation(receipt)
+    if recommendation not in {"go", "conditional-go", "stop"}:
+        raise NativeCanaryContractError("steering-scope-recommendation-invalid")
+    final_response_sha256 = receipt.get("final_response_sha256")
+    if not _is_hash(final_response_sha256):
+        raise NativeCanaryContractError("steering-scope-final-response-hash-invalid")
+    authority = policy_scope_authority(
+        "native-steering-advisory-policy-v2",
+        authorized_scope="child",
+        source_sha256=canonical_sha256(
+            {
+                "schema": receipt.get("schema"),
+                "gate": receipt.get("gate"),
+                "bead_id": receipt.get("bead_id"),
+                "authorization_id": receipt.get("authorization_id"),
+                "authorization_sha256": receipt.get("authorization_sha256"),
+                "control_turn_id": receipt.get("control_turn_id"),
+                "submission_id": receipt.get("submission_id"),
+                "final_response_sha256": final_response_sha256,
+                "recommendation": recommendation,
+            },
+            domain="native-steering-advisory-policy",
+        ),
+    )
+    paths = []
+    if recommendation == "stop":
+        paths = [
+            continuation_path(
+                "retry-child",
+                target_id=str(receipt.get("bead_id")),
+                conditions=["architect-adjudication", "findings-resolved"],
+            ),
+        ]
+    return build_stop_metadata(
+        "child",
+        authority=authority,
+        authorized_continuation_paths=paths,
+    )
+
+
+def _verified_operator_authorities(
+    values: Iterable[VerifiedOperatorFactAuthority] | None,
+    errors: list[str],
+) -> dict[str, tuple[dict[str, Any], str]]:
+    verified: dict[str, tuple[dict[str, Any], str]] = {}
+    if values is None:
+        return verified
+    try:
+        candidates = list(values)
+    except TypeError:
+        errors.append("steering-verified-operator-authorities-invalid")
+        return verified
+    for value in candidates:
+        if not isinstance(value, VerifiedOperatorFactAuthority):
+            errors.append("steering-verified-operator-authority-not-opaque")
+            continue
+        payload = value.serialize()
+        authority_hash = payload.get("authority_sha256")
+        if (
+            payload.get("source_type") != "operator-directive"
+            or payload.get("actor_role") != "operator"
+            or payload.get("verification", {}).get("method")
+            != "hmac-sha256-operator-directive-v1"
+            or not _is_hash(authority_hash)
+            or not _is_hash(value.action_sha256)
+        ):
+            errors.append("steering-verified-operator-authority-invalid")
+            continue
+        verified[str(authority_hash)] = (payload, value.action_sha256)
+    return verified
+
+
+def _validate_neutral_steering(
+    receipt: Mapping[str, Any],
+    *,
+    verified_operator_authorities: Iterable[VerifiedOperatorFactAuthority] | None,
+    errors: list[str],
+) -> None:
+    steering = _exact_fields(
+        receipt.get("steering"),
+        NEUTRAL_STEERING_FIELDS,
+        "steering-neutral-packet",
+        errors,
+    )
+    if steering and receipt.get("final_response_sha256") != _legacy_sha256(steering):
+        errors.append("steering-final-response-sha256-mismatch")
+    verified = _verified_operator_authorities(verified_operator_authorities, errors)
+
+    operator_facts = steering.get("operator_facts")
+    if not isinstance(operator_facts, list):
+        errors.append("steering-operator-facts-invalid")
+    else:
+        for index, value in enumerate(operator_facts):
+            fact = _exact_fields(
+                value,
+                OPERATOR_FACT_FIELDS,
+                f"steering-operator-fact-{index}",
+                errors,
+            )
+            if (
+                not isinstance(fact.get("statement"), str)
+                or not fact.get("statement", "").strip()
+            ):
+                errors.append(f"steering-operator-fact-{index}-statement-invalid")
+            provenance = fact.get("authority_provenance")
+            provenance_errors = validate_scope_authority(provenance)
+            errors.extend(
+                f"steering-operator-fact-{index}-{item}" for item in provenance_errors
+            )
+            if not isinstance(provenance, Mapping):
+                continue
+            authority_hash = provenance.get("authority_sha256")
+            verified_binding = verified.get(str(authority_hash))
+            if (
+                provenance.get("source_type") != "operator-directive"
+                or provenance.get("actor_role") != "operator"
+            ):
+                errors.append(
+                    f"steering-operator-fact-{index}-operator-provenance-required"
+                )
+            if (
+                not _is_hash(authority_hash)
+                or verified_binding is None
+                or verified_binding[0] != dict(provenance)
+            ):
+                errors.append(f"steering-operator-fact-{index}-authority-unverified")
+            elif (
+                isinstance(fact.get("statement"), str)
+                and fact.get("statement", "").strip()
+                and verified_binding[1]
+                != operator_fact_action_sha256(str(fact["statement"]))
+            ):
+                errors.append(
+                    f"steering-operator-fact-{index}-authority-action-mismatch"
+                )
+
+    observed = steering.get("observed_evidence")
+    if not isinstance(observed, list) or not observed:
+        errors.append("steering-observed-evidence-invalid")
+    else:
+        seen_codes: set[str] = set()
+        for index, value in enumerate(observed):
+            evidence = _exact_fields(
+                value,
+                OBSERVED_EVIDENCE_FIELDS,
+                f"steering-observed-evidence-{index}",
+                errors,
+            )
+            code = evidence.get("code")
+            if not isinstance(code, str) or not code.strip() or code in seen_codes:
+                errors.append(f"steering-observed-evidence-{index}-code-invalid")
+            else:
+                seen_codes.add(code)
+            if evidence.get("severity") not in {"high", "medium", "low", "info"}:
+                errors.append(f"steering-observed-evidence-{index}-severity-invalid")
+            if (
+                not isinstance(evidence.get("observation"), str)
+                or not evidence.get("observation", "").strip()
+            ):
+                errors.append(f"steering-observed-evidence-{index}-observation-invalid")
+            if not _is_hash(evidence.get("evidence_sha256")):
+                errors.append(f"steering-observed-evidence-{index}-sha256-invalid")
+
+    for field in ("model_interpretation", "strongest_counterargument"):
+        if (
+            not isinstance(steering.get(field), str)
+            or not steering.get(field, "").strip()
+        ):
+            errors.append(f"steering-{field.replace('_', '-')}-invalid")
+
+    recommendation = _exact_fields(
+        steering.get("recommendation"),
+        RECOMMENDATION_FIELDS,
+        "steering-recommendation",
+        errors,
+    )
+    if recommendation.get("outcome") not in {"go", "conditional-go", "stop"}:
+        errors.append("steering-recommendation-invalid")
+    if (
+        not isinstance(recommendation.get("rationale"), str)
+        or not recommendation.get("rationale", "").strip()
+    ):
+        errors.append("steering-recommendation-rationale-invalid")
+    confidence = recommendation.get("confidence")
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or confidence < 0
+        or confidence > 1
+    ):
+        errors.append("steering-confidence-invalid")
+    if recommendation.get("confidence_role") != "advisory-only":
+        errors.append("steering-confidence-role-invalid")
+
+    constraints = steering.get("agent_authored_constraints")
+    if not isinstance(constraints, list):
+        errors.append("steering-agent-authored-constraints-invalid")
+    else:
+        for index, value in enumerate(constraints):
+            constraint = _exact_fields(
+                value,
+                AGENT_CONSTRAINT_FIELDS,
+                f"steering-agent-constraint-{index}",
+                errors,
+            )
+            if (
+                not isinstance(constraint.get("constraint"), str)
+                or not constraint.get("constraint", "").strip()
+            ):
+                errors.append(f"steering-agent-constraint-{index}-text-invalid")
+            if constraint.get("origin") != "agent-authored":
+                errors.append(f"steering-agent-constraint-{index}-origin-invalid")
+            if constraint.get("authority") != "advisory-only":
+                errors.append(f"steering-agent-constraint-{index}-authority-invalid")
+
+    try:
+        expected_stop = _expected_neutral_stop_metadata(receipt)
+    except (NativeCanaryContractError, ValueError) as exc:
+        errors.append(str(exc))
+    else:
+        for field in ("stop_scope", "authorized_continuation_paths", "scope_authority"):
+            if receipt.get(field) != expected_stop[field]:
+                errors.append(f"steering-{field.replace('_', '-')}-mismatch")
+    expected_disposition = {
+        "go": "accepting",
+        "conditional-go": "conditional",
+        "stop": "rejected",
+    }.get(recommendation.get("outcome"))
+    if (
+        expected_disposition is not None
+        and receipt.get("disposition") != expected_disposition
+    ):
+        errors.append("steering-disposition-mismatch")
 
 
 def _validate_boundary(value: Any, label: str, errors: list[str]) -> dict[str, Any]:
@@ -402,9 +809,13 @@ def _privacy_errors(value: Any, *, prefix: str = "artifact") -> list[str]:
     return errors
 
 
-def _validate_observation(value: Any, label: str, errors: list[str]) -> tuple[dict[str, Any], dt.datetime]:
+def _validate_observation(
+    value: Any, label: str, errors: list[str]
+) -> tuple[dict[str, Any], dt.datetime]:
     observation = _exact_fields(value, OBSERVATION_FIELDS, label, errors)
-    observed = _parse_time(observation.get("observed_at"), f"{label}-observed-at", errors)
+    observed = _parse_time(
+        observation.get("observed_at"), f"{label}-observed-at", errors
+    )
     _validate_boundary(observation.get("boundary"), f"{label}-boundary", errors)
     for field in (
         "notification_sequence",
@@ -521,16 +932,23 @@ def _validate_control_observation(
 def seal_materialization_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
     body = dict(value)
     body.pop("evidence_sha256", None)
-    body["evidence_sha256"] = canonical_sha256(body, domain="native-session-materialization")
+    body["evidence_sha256"] = canonical_sha256(
+        body, domain="native-session-materialization"
+    )
     return body
 
 
-def validate_materialization_evidence(value: Any, *, require_accepting: bool = False) -> list[str]:
+def validate_materialization_evidence(
+    value: Any, *, require_accepting: bool = False
+) -> list[str]:
     errors: list[str] = []
     evidence = _exact_fields(value, MATERIALIZATION_FIELDS, "materialization", errors)
     if evidence.get("evidence_type") != MATERIALIZATION_EVIDENCE_TYPE:
         errors.append("materialization-type-invalid")
-    if evidence.get("version") != 4 or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA:
+    if (
+        evidence.get("version") != 4
+        or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA
+    ):
         errors.append("materialization-header-invalid")
     for field in (
         "evidence_id",
@@ -561,8 +979,12 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
     ):
         if not _is_hash(evidence.get(field)):
             errors.append(f"materialization-{field}-invalid")
-    baseline = _validate_boundary(evidence.get("baseline"), "materialization-baseline", errors)
-    terminal = _validate_boundary(evidence.get("terminal"), "materialization-terminal", errors)
+    baseline = _validate_boundary(
+        evidence.get("baseline"), "materialization-baseline", errors
+    )
+    terminal = _validate_boundary(
+        evidence.get("terminal"), "materialization-terminal", errors
+    )
     control_observations = evidence.get("control_observations")
     if (
         not isinstance(control_observations, list)
@@ -572,9 +994,7 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         errors.append("materialization-control-observations-invalid")
         control_observations = []
     parsed_control = [
-        _validate_control_observation(
-            item, f"materialization-control-{index}", errors
-        )
+        _validate_control_observation(item, f"materialization-control-{index}", errors)
         for index, item in enumerate(control_observations)
     ]
     previous_boundary = baseline
@@ -594,12 +1014,13 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
                 errors.append("materialization-control-elapsed-regressed")
             if (
                 previous_elapsed >= 0
-                and current_elapsed - previous_elapsed
-                > CONTROL_OBSERVATION_MAX_GAP_MS
+                and current_elapsed - previous_elapsed > CONTROL_OBSERVATION_MAX_GAP_MS
             ):
                 errors.append("materialization-control-observation-gap-exceeded")
             previous_elapsed = max(previous_elapsed, current_elapsed)
-        boundary = item.get("boundary") if isinstance(item.get("boundary"), Mapping) else {}
+        boundary = (
+            item.get("boundary") if isinstance(item.get("boundary"), Mapping) else {}
+        )
         if item.get("previous_boundary_sha256") != previous_boundary.get(
             "boundary_sha256"
         ):
@@ -620,13 +1041,10 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             and current_offset < prior_offset
         ):
             errors.append("materialization-control-byte-offset-regressed")
-        if (
-            current_offset == prior_offset
-            and (
-                current_count != prior_count
-                or boundary.get("boundary_sha256")
-                != previous_boundary.get("boundary_sha256")
-            )
+        if current_offset == prior_offset and (
+            current_count != prior_count
+            or boundary.get("boundary_sha256")
+            != previous_boundary.get("boundary_sha256")
         ):
             errors.append("materialization-control-equal-offset-boundary-changed")
         if boundary:
@@ -736,7 +1154,9 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         for index, item in enumerate(observations)
     ]
     pre_interrupt, pre_time = _validate_observation(
-        evidence.get("pre_interrupt_observation"), "materialization-pre-interrupt", errors
+        evidence.get("pre_interrupt_observation"),
+        "materialization-pre-interrupt",
+        errors,
     )
     if len(parsed_observations) == 2:
         first, first_time = parsed_observations[0]
@@ -758,12 +1178,15 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         )
         if any(first.get(field) != second.get(field) for field in identity_fields):
             errors.append("materialization-liveness-identity-changed")
-        if any(second.get(field) != pre_interrupt.get(field) for field in identity_fields):
+        if any(
+            second.get(field) != pre_interrupt.get(field) for field in identity_fields
+        ):
             errors.append("materialization-pre-interrupt-identity-changed")
         if pre_time < second_time:
             errors.append("materialization-pre-interrupt-precedes-liveness")
         if any(
-            item.get("connection_epoch_sha256") != evidence.get("connection_epoch_sha256")
+            item.get("connection_epoch_sha256")
+            != evidence.get("connection_epoch_sha256")
             for item, _time in (*parsed_observations, (pre_interrupt, pre_time))
         ):
             errors.append("materialization-connection-epoch-mismatch")
@@ -798,7 +1221,9 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
             not in pre_interrupt_control_hashes
         ):
             errors.append("materialization-pre-interrupt-control-binding-missing")
-        for index, (item, _time) in enumerate((*parsed_observations, (pre_interrupt, pre_time))):
+        for index, (item, _time) in enumerate(
+            (*parsed_observations, (pre_interrupt, pre_time))
+        ):
             try:
                 expected_correlation = materialization_execution_correlation(
                     connection_epoch_sha256=str(item.get("connection_epoch_sha256")),
@@ -818,16 +1243,28 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
                     raw_command_sha256=str(evidence.get("command_sha256")),
                 )
             except NativeCanaryContractError:
-                errors.append(f"materialization-observation-{index}-correlation-input-invalid")
+                errors.append(
+                    f"materialization-observation-{index}-correlation-input-invalid"
+                )
             else:
                 if item.get("execution_correlation_sha256") != expected_correlation:
-                    errors.append(f"materialization-observation-{index}-correlation-mismatch")
-    interrupt = _exact_fields(evidence.get("interrupt"), INTERRUPT_FIELDS, "materialization-interrupt", errors)
-    requested = _parse_time(interrupt.get("requested_at"), "materialization-interrupt-requested", errors)
-    accepted = _parse_time(
-        interrupt.get("request_accepted_at"), "materialization-interrupt-request-accepted", errors
+                    errors.append(
+                        f"materialization-observation-{index}-correlation-mismatch"
+                    )
+    interrupt = _exact_fields(
+        evidence.get("interrupt"), INTERRUPT_FIELDS, "materialization-interrupt", errors
     )
-    confirmed = _parse_time(interrupt.get("confirmed_at"), "materialization-interrupt-confirmed", errors)
+    requested = _parse_time(
+        interrupt.get("requested_at"), "materialization-interrupt-requested", errors
+    )
+    accepted = _parse_time(
+        interrupt.get("request_accepted_at"),
+        "materialization-interrupt-request-accepted",
+        errors,
+    )
+    confirmed = _parse_time(
+        interrupt.get("confirmed_at"), "materialization-interrupt-confirmed", errors
+    )
     if (
         interrupt.get("session_id") != evidence.get("session_id")
         or interrupt.get("thread_id") != evidence.get("thread_id")
@@ -838,25 +1275,154 @@ def validate_materialization_evidence(value: Any, *, require_accepting: bool = F
         errors.append("materialization-interrupt-request-outcome-invalid")
     if interrupt.get("outcome") != "interrupt-confirmed":
         errors.append("materialization-interrupt-outcome-invalid")
-    if accepted < requested or confirmed < accepted or (confirmed - requested).total_seconds() > 5.0:
+    if (
+        accepted < requested
+        or confirmed < accepted
+        or (confirmed - requested).total_seconds() > 5.0
+    ):
         errors.append("materialization-interrupt-confirmation-deadline-invalid")
     if baseline and terminal:
-        if terminal.get("record_count", 0) < baseline.get("record_count", 0) or terminal.get(
-            "byte_offset", 0
-        ) < baseline.get("byte_offset", 0):
+        if terminal.get("record_count", 0) < baseline.get(
+            "record_count", 0
+        ) or terminal.get("byte_offset", 0) < baseline.get("byte_offset", 0):
             errors.append("materialization-terminal-boundary-regressed")
-    if terminal.get("invalid_record_count") != 0 or terminal.get("trailing_partial") is not False:
+    if (
+        terminal.get("invalid_record_count") != 0
+        or terminal.get("trailing_partial") is not False
+    ):
         errors.append("materialization-terminal-boundary-not-clean")
     errors.extend(_privacy_errors(evidence))
     expected_hash = evidence.get("evidence_sha256")
     unsigned = dict(evidence)
     unsigned.pop("evidence_sha256", None)
-    if expected_hash != canonical_sha256(unsigned, domain="native-session-materialization"):
+    if expected_hash != canonical_sha256(
+        unsigned, domain="native-session-materialization"
+    ):
         errors.append("materialization-evidence-sha256-mismatch")
-    accepting = evidence.get("status") == "interrupt-confirmed" and evidence.get("disposition") == "accepted"
+    accepting = (
+        evidence.get("status") == "interrupt-confirmed"
+        and evidence.get("disposition") == "accepted"
+    )
     if require_accepting and not accepting:
         errors.append("materialization-evidence-not-accepting")
     return sorted(set(errors))
+
+
+def _validate_steering_v2_envelope(
+    receipt: Mapping[str, Any], errors: list[str]
+) -> None:
+    if receipt.get("gate") not in {"pre-mutation", "pre-live"}:
+        errors.append("steering-gate-invalid")
+
+    discovery = _exact_fields(
+        receipt.get("model_discovery"),
+        STEERING_MODEL_DISCOVERY_FIELDS,
+        "steering-model-discovery",
+        errors,
+    )
+    if discovery.get("id") != "gpt-5.6-sol" or discovery.get("model") != (
+        "gpt-5.6-sol"
+    ):
+        errors.append("steering-model-discovery-model-invalid")
+    for field in ("display_name", "default_reasoning_effort"):
+        if discovery.get(field) is not None and not isinstance(
+            discovery.get(field), str
+        ):
+            errors.append(f"steering-model-discovery-{field}-invalid")
+    for field in ("supported_reasoning_efforts_sha256", "model_record_sha256"):
+        if not _is_hash(discovery.get(field)):
+            errors.append(f"steering-model-discovery-{field}-invalid")
+
+    inputs = _exact_fields(
+        receipt.get("input"), STEERING_INPUT_FIELDS, "steering-input", errors
+    )
+    for field in STEERING_INPUT_FIELDS:
+        if not _is_hash(inputs.get(field)):
+            errors.append(f"steering-input-{field}-invalid")
+
+    boundaries = _exact_fields(
+        receipt.get("boundary"), {"baseline", "terminal"}, "steering-boundary", errors
+    )
+    baseline = _exact_fields(
+        boundaries.get("baseline"),
+        STEERING_BASELINE_FIELDS,
+        "steering-baseline",
+        errors,
+    )
+    terminal = _exact_fields(
+        boundaries.get("terminal"),
+        STEERING_TERMINAL_FIELDS,
+        "steering-terminal",
+        errors,
+    )
+    if baseline.get("availability") not in {"available", "not-yet-materialized"}:
+        errors.append("steering-baseline-availability-invalid")
+    for label, boundary, minimum in (
+        ("baseline", baseline, 0),
+        ("terminal", terminal, 1),
+    ):
+        for field in ("record_count", "byte_offset"):
+            value = boundary.get(field)
+            if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+                errors.append(f"steering-{label}-{field}-invalid")
+        if not _is_hash(boundary.get("boundary_sha256")):
+            errors.append(f"steering-{label}-boundary-sha256-invalid")
+        path_sha256 = boundary.get("path_sha256")
+        if label == "terminal":
+            if not _is_hash(path_sha256):
+                errors.append("steering-terminal-path-sha256-invalid")
+        elif path_sha256 is not None and not _is_hash(path_sha256):
+            errors.append("steering-baseline-path-sha256-invalid")
+        if boundary.get("invalid_record_count") != 0:
+            errors.append(f"steering-{label}-invalid-record-count-nonzero")
+        if boundary.get("trailing_partial") is not False:
+            errors.append(f"steering-{label}-trailing-partial-invalid")
+    for field in ("record_count", "byte_offset"):
+        before = baseline.get(field)
+        after = terminal.get(field)
+        if (
+            isinstance(before, int)
+            and not isinstance(before, bool)
+            and isinstance(after, int)
+            and not isinstance(after, bool)
+            and after < before
+        ):
+            errors.append(f"steering-boundary-{field}-regressed")
+    if (
+        terminal.get("invalid_record_count") != 0
+        or terminal.get("trailing_partial") is not False
+    ):
+        errors.append("steering-terminal-boundary-not-clean")
+
+    guard = _exact_fields(
+        receipt.get("guard"), {"before", "after"}, "steering-guard", errors
+    )
+    guard_values: dict[str, dict[str, Any]] = {}
+    for label in ("before", "after"):
+        current = _exact_fields(
+            guard.get(label),
+            STEERING_GUARD_FIELDS,
+            f"steering-guard-{label}",
+            errors,
+        )
+        guard_values[label] = current
+        if (
+            not isinstance(current.get("repo_head"), str)
+            or COMMIT_RE.fullmatch(str(current.get("repo_head"))) is None
+        ):
+            errors.append(f"steering-guard-{label}-repo-head-invalid")
+        for field in ("repo_status_sha256", "primary_diff_sha256"):
+            if not _is_hash(current.get(field)):
+                errors.append(f"steering-guard-{label}-{field}-invalid")
+    if guard_values.get("before") != guard_values.get("after"):
+        errors.append("steering-guard-changed")
+
+    started = _parse_time(receipt.get("started_at"), "steering-started-at", errors)
+    completed = _parse_time(
+        receipt.get("completed_at"), "steering-completed-at", errors
+    )
+    if started != ISO_MINIMUM and completed != ISO_MINIMUM and completed < started:
+        errors.append("steering-time-order-invalid")
 
 
 def validate_steering_receipt(
@@ -868,11 +1434,22 @@ def validate_steering_receipt(
     resolved_stop_adjudication: Mapping[str, Any] | None = None,
     resolved_stop_post_resolution_commit: str | None = None,
     require_accepting: bool = False,
+    require_neutral: bool = False,
+    verified_operator_authorities: Iterable[VerifiedOperatorFactAuthority]
+    | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    receipt = _exact_fields(value, STEERING_FIELDS, "steering", errors)
-    if receipt.get("schema") != STEERING_RECEIPT_TYPE:
+    is_v2 = isinstance(value, Mapping) and value.get("schema") == STEERING_RECEIPT_TYPE
+    receipt = _exact_fields(
+        value,
+        STEERING_FIELDS if is_v2 else STEERING_FIELDS_V1,
+        "steering",
+        errors,
+    )
+    if receipt.get("schema") not in {STEERING_RECEIPT_TYPE, STEERING_RECEIPT_TYPE_V1}:
         errors.append("steering-schema-invalid")
+    elif not is_v2 and require_neutral:
+        errors.append("steering-legacy-v1-inspection-only")
     for field in (
         "gate",
         "bead_id",
@@ -895,19 +1472,18 @@ def validate_steering_receipt(
             errors.append(f"steering-{field}-not-canonical-uuid")
     if receipt.get("model") != "gpt-5.6-sol" or receipt.get("effort") != "max":
         errors.append("steering-model-effort-mismatch")
-    if receipt.get("attestation_source") != "initialized-codex-home-session-jsonl-turn-context":
+    if (
+        receipt.get("attestation_source")
+        != "initialized-codex-home-session-jsonl-turn-context"
+    ):
         errors.append("steering-attestation-source-invalid")
-    for field in ("authorization_sha256", "final_response_sha256", "canonical_receipt_sha256"):
+    for field in (
+        "authorization_sha256",
+        "final_response_sha256",
+        "canonical_receipt_sha256",
+    ):
         if not _is_hash(receipt.get(field)):
             errors.append(f"steering-{field}-invalid")
-    boundaries = receipt.get("boundary")
-    if not isinstance(boundaries, Mapping) or set(boundaries) != {"baseline", "terminal"}:
-        errors.append("steering-boundary-fields-invalid")
-        terminal: Mapping[str, Any] = {}
-    else:
-        terminal = boundaries.get("terminal") if isinstance(boundaries.get("terminal"), Mapping) else {}
-    if terminal.get("invalid_record_count") != 0 or terminal.get("trailing_partial") is not False:
-        errors.append("steering-terminal-boundary-not-clean")
     activity = receipt.get("observed_activity")
     expected_activity = {
         "function_calls": 0,
@@ -918,23 +1494,39 @@ def validate_steering_receipt(
     }
     if activity != expected_activity:
         errors.append("steering-nonzero-activity")
-    opinion = receipt.get("opinion") if isinstance(receipt.get("opinion"), Mapping) else {}
-    recommendation = opinion.get("recommendation")
+    if is_v2:
+        _validate_steering_v2_envelope(receipt, errors)
+        _validate_neutral_steering(
+            receipt,
+            verified_operator_authorities=verified_operator_authorities,
+            errors=errors,
+        )
+    recommendation = steering_recommendation(receipt)
     if recommendation not in {"go", "conditional-go", "stop"}:
         errors.append("steering-recommendation-invalid")
+    if not is_v2 and receipt.get("final_response_sha256") != _legacy_sha256(
+        dict(steering_payload(receipt))
+    ):
+        errors.append("steering-final-response-sha256-mismatch")
     if receipt.get("closure_outcome") != "completed-and-archived":
         errors.append("steering-closure-invalid")
     unsigned = dict(receipt)
     unsigned.pop("canonical_receipt_sha256", None)
     if receipt.get("canonical_receipt_sha256") != _legacy_sha256(unsigned):
         errors.append("steering-canonical-sha256-mismatch")
-    accepting = recommendation == "go"
+    architect_go = (
+        _is_hash(architect_adjudication_sha256) and architect_decision == "go"
+    )
+    accepting = recommendation == "go" and (not is_v2 or architect_go)
     if recommendation == "conditional-go":
-        accepting = _is_hash(architect_adjudication_sha256) and architect_decision == "go"
+        accepting = architect_go
     elif recommendation == "stop":
         if allow_resolved_stop:
             stop_errors = []
-            if not _is_hash(architect_adjudication_sha256) or architect_decision != "go":
+            if (
+                not _is_hash(architect_adjudication_sha256)
+                or architect_decision != "go"
+            ):
                 stop_errors.append("steering-stop-main-adjudication-not-bound-go")
             stop_errors.extend(
                 _validate_resolved_pre_mutation_stop_steering_receipt(
@@ -950,6 +1542,53 @@ def validate_steering_receipt(
     if require_accepting and not accepting:
         errors.append("steering-receipt-not-accepting")
     return sorted(set(errors))
+
+
+def seal_neutral_steering_receipt(
+    value: Mapping[str, Any],
+    *,
+    verified_operator_authorities: Iterable[VerifiedOperatorFactAuthority]
+    | None = None,
+) -> dict[str, Any]:
+    """Strict-write a v2 receipt with derived advisory scope and canonical JSON."""
+
+    receipt = dict(value)
+    if receipt.get("schema") != STEERING_RECEIPT_TYPE:
+        raise NativeCanaryContractError("steering-neutral-schema-required")
+    payload = receipt.get("steering")
+    if not isinstance(payload, Mapping):
+        raise NativeCanaryContractError("steering-neutral-packet-not-object")
+    receipt["final_response_sha256"] = _legacy_sha256(dict(payload))
+    for field in (
+        "stop_scope",
+        "authorized_continuation_paths",
+        "scope_authority",
+        "canonical_receipt_sha256",
+    ):
+        receipt.pop(field, None)
+    receipt.update(_expected_neutral_stop_metadata(receipt))
+    receipt["canonical_receipt_sha256"] = _legacy_sha256(receipt)
+    errors = validate_steering_receipt(
+        receipt,
+        require_neutral=True,
+        verified_operator_authorities=verified_operator_authorities,
+    )
+    if errors:
+        raise NativeCanaryContractError(
+            "steering-neutral-receipt-invalid:" + ";".join(errors)
+        )
+    return receipt
+
+
+def neutral_steering_final_text(receipt: Mapping[str, Any]) -> str:
+    """Render the only final-response serialization accepted for new receipts."""
+
+    if receipt.get("schema") != STEERING_RECEIPT_TYPE:
+        raise NativeCanaryContractError("steering-neutral-schema-required")
+    payload = steering_payload(receipt)
+    if not payload:
+        raise NativeCanaryContractError("steering-neutral-packet-not-object")
+    return json.dumps(dict(payload), sort_keys=True, separators=(",", ":"))
 
 
 def _validate_resolved_pre_mutation_stop_steering_receipt(
@@ -1015,17 +1654,44 @@ def _validate_resolved_pre_mutation_stop_steering_receipt(
 
 
 def _extract_findings(receipt: Mapping[str, Any]) -> list[dict[str, Any]]:
-    opinion = receipt.get("opinion") if isinstance(receipt.get("opinion"), Mapping) else {}
-    findings = opinion.get("findings")
-    return findings if isinstance(findings, list) and all(isinstance(item, dict) for item in findings) else []
+    payload = steering_payload(receipt)
+    if receipt.get("schema") == STEERING_RECEIPT_TYPE:
+        observed = payload.get("observed_evidence")
+        if not isinstance(observed, list):
+            return []
+        return [
+            {
+                "code": item["code"],
+                "severity": item["severity"],
+                "finding": item["observation"],
+            }
+            for item in observed
+            if isinstance(item, Mapping)
+            and item.get("severity") in {"high", "medium", "low"}
+            and isinstance(item.get("code"), str)
+            and isinstance(item.get("observation"), str)
+        ]
+    findings = payload.get("findings")
+    return (
+        findings
+        if isinstance(findings, list)
+        and all(isinstance(item, dict) for item in findings)
+        else []
+    )
 
 
 def _private_write(path: Path, value: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     path.parent.chmod(0o700)
-    atomic_write_text(path, json.dumps(dict(value), sort_keys=True, separators=(",", ":")) + "\n")
+    atomic_write_text(
+        path, json.dumps(dict(value), sort_keys=True, separators=(",", ":")) + "\n"
+    )
     path.chmod(0o600)
-    if path.is_symlink() or path.stat().st_uid != os.geteuid() or path.stat().st_mode & 0o077:
+    if (
+        path.is_symlink()
+        or path.stat().st_uid != os.geteuid()
+        or path.stat().st_mode & 0o077
+    ):
         raise NativeCanaryContractError("private-artifact-permissions-invalid")
 
 
@@ -1046,6 +1712,20 @@ def _exclusive_lock(path: Path) -> Iterator[None]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def steering_stop_metadata(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    """Return policy-bounded v2 scope without trusting prose or confidence."""
+
+    if receipt.get("schema") != STEERING_RECEIPT_TYPE:
+        raise NativeCanaryContractError("steering-legacy-v1-inspection-only")
+    expected = _expected_neutral_stop_metadata(receipt)
+    for field in ("stop_scope", "authorized_continuation_paths", "scope_authority"):
+        if receipt.get(field) != expected[field]:
+            raise NativeCanaryContractError(
+                f"steering-{field.replace('_', '-')}-mismatch"
+            )
+    return expected
+
+
 def consume_steering_receipt(
     receipt: Mapping[str, Any],
     registry_file: Path | str,
@@ -1056,6 +1736,8 @@ def consume_steering_receipt(
     allow_resolved_stop: bool = False,
     resolved_stop_adjudication: Mapping[str, Any] | None = None,
     resolved_stop_post_resolution_commit: str | None = None,
+    verified_operator_authorities: Iterable[VerifiedOperatorFactAuthority]
+    | None = None,
     dry_run: bool = False,
 ) -> str:
     errors = validate_steering_receipt(
@@ -1066,11 +1748,14 @@ def consume_steering_receipt(
         resolved_stop_adjudication=resolved_stop_adjudication,
         resolved_stop_post_resolution_commit=resolved_stop_post_resolution_commit,
         require_accepting=True,
+        require_neutral=True,
+        verified_operator_authorities=verified_operator_authorities,
     )
     if errors:
         raise NativeCanaryContractError("steering-receipt-invalid:" + ";".join(errors))
     if not _is_canonical_uuid(phase_nonce):
         raise NativeCanaryContractError("phase-nonce-invalid")
+    stop_metadata = steering_stop_metadata(receipt)
     path = Path(registry_file).absolute()
     key = canonical_sha256(
         {
@@ -1080,6 +1765,7 @@ def consume_steering_receipt(
             "gate": receipt["gate"],
             "phase_nonce": phase_nonce,
             "adjudication": architect_adjudication_sha256,
+            "stop_metadata": stop_metadata,
         },
         domain="steering-receipt-consumption",
     )
@@ -1091,15 +1777,20 @@ def consume_steering_receipt(
                 raise NativeCanaryContractError("steering-registry-unreadable") from exc
         else:
             registry = {"consumed": []}
-        if not isinstance(registry, Mapping) or set(registry) != {"consumed"} or not isinstance(
-            registry.get("consumed"), list
+        if (
+            not isinstance(registry, Mapping)
+            or set(registry) != {"consumed"}
+            or not isinstance(registry.get("consumed"), list)
         ):
             raise NativeCanaryContractError("steering-registry-invalid")
         consumed = list(registry["consumed"])
         receipt_hash = receipt["canonical_receipt_sha256"]
         if any(
             isinstance(item, Mapping)
-            and (item.get("receipt_sha256") == receipt_hash or item.get("consumption_sha256") == key)
+            and (
+                item.get("receipt_sha256") == receipt_hash
+                or item.get("consumption_sha256") == key
+            )
             for item in consumed
         ):
             raise NativeCanaryContractError("steering-receipt-replay")
@@ -1110,6 +1801,7 @@ def consume_steering_receipt(
                 "receipt_sha256": receipt_hash,
                 "consumption_sha256": key,
                 "phase_nonce": phase_nonce,
+                **stop_metadata,
             }
         )
         _private_write(path, {"consumed": consumed})
@@ -1124,7 +1816,13 @@ def seal_authorization_state(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _actions_for(state: str) -> set[str]:
-    return ACTIVE_ACTIONS if state == "active" else CONTAINMENT_ACTIONS if state == "containment-only" else TERMINAL_ACTIONS
+    return (
+        ACTIVE_ACTIONS
+        if state == "active"
+        else CONTAINMENT_ACTIONS
+        if state == "containment-only"
+        else TERMINAL_ACTIONS
+    )
 
 
 def validate_authorization_state(value: Any) -> list[str]:
@@ -1161,9 +1859,11 @@ def validate_authorization_state(value: Any) -> list[str]:
     for field in ("authorization_id", "run_nonce"):
         if is_v2 and not _is_canonical_uuid(state.get(field)):
             errors.append(f"authorization-{field}-not-canonical-uuid")
-    if isinstance(state.get("sequence"), bool) or not isinstance(state.get("sequence"), int) or state.get(
-        "sequence", -1
-    ) < 0:
+    if (
+        isinstance(state.get("sequence"), bool)
+        or not isinstance(state.get("sequence"), int)
+        or state.get("sequence", -1) < 0
+    ):
         errors.append("authorization-sequence-invalid")
     expected_allowed = _actions_for(str(state.get("state")))
     if state.get("allowed_actions") != sorted(expected_allowed):
@@ -1173,7 +1873,9 @@ def validate_authorization_state(value: Any) -> list[str]:
     _parse_time(state.get("updated_at"), "authorization-updated-at", errors)
     unsigned = dict(state)
     unsigned.pop("state_sha256", None)
-    if state.get("state_sha256") != canonical_sha256(unsigned, domain="native-canary-authorization"):
+    if state.get("state_sha256") != canonical_sha256(
+        unsigned, domain="native-canary-authorization"
+    ):
         errors.append("authorization-state-sha256-mismatch")
     return sorted(set(errors))
 
@@ -1186,33 +1888,32 @@ def new_authorization_state(
     launch_claim_sha256: str | None = None,
 ) -> dict[str, Any]:
     if launch_claim_sha256 is not None and (
-        not _is_canonical_uuid(authorization_id)
-        or not _is_canonical_uuid(run_nonce)
+        not _is_canonical_uuid(authorization_id) or not _is_canonical_uuid(run_nonce)
     ):
         raise NativeCanaryContractError("authorization-identity-invalid")
     if launch_claim_sha256 is not None and not _is_hash(launch_claim_sha256):
         raise NativeCanaryContractError("authorization-launch-claim-sha256-invalid")
     state = {
-            "authorization_type": (
-                CANARY_AUTHORIZATION_TYPE_V2
-                if launch_claim_sha256 is not None
-                else CANARY_AUTHORIZATION_TYPE
-            ),
-            "version": 2 if launch_claim_sha256 is not None else 1,
-            "schema": (
-                CANARY_AUTHORIZATION_SCHEMA_V2
-                if launch_claim_sha256 is not None
-                else CANARY_AUTHORIZATION_SCHEMA
-            ),
-            "authorization_id": authorization_id,
-            "run_nonce": run_nonce,
-            "state": "active",
-            "sequence": 0,
-            "allowed_actions": sorted(ACTIVE_ACTIONS),
-            "revoked_actions": [],
-            "updated_at": now,
-            "reason": "initialized",
-        }
+        "authorization_type": (
+            CANARY_AUTHORIZATION_TYPE_V2
+            if launch_claim_sha256 is not None
+            else CANARY_AUTHORIZATION_TYPE
+        ),
+        "version": 2 if launch_claim_sha256 is not None else 1,
+        "schema": (
+            CANARY_AUTHORIZATION_SCHEMA_V2
+            if launch_claim_sha256 is not None
+            else CANARY_AUTHORIZATION_SCHEMA
+        ),
+        "authorization_id": authorization_id,
+        "run_nonce": run_nonce,
+        "state": "active",
+        "sequence": 0,
+        "allowed_actions": sorted(ACTIVE_ACTIONS),
+        "revoked_actions": [],
+        "updated_at": now,
+        "reason": "initialized",
+    }
     if launch_claim_sha256 is not None:
         state["launch_claim_sha256"] = launch_claim_sha256
     return seal_authorization_state(state)
@@ -1227,7 +1928,9 @@ class CanaryAuthorizationStore:
     def initialize(self, state: Mapping[str, Any]) -> dict[str, Any]:
         errors = validate_authorization_state(state)
         if errors or state.get("state") != "active" or state.get("sequence") != 0:
-            raise NativeCanaryContractError("authorization-initial-state-invalid:" + ";".join(errors))
+            raise NativeCanaryContractError(
+                "authorization-initial-state-invalid:" + ";".join(errors)
+            )
         with _exclusive_lock(self.path):
             if self.path.exists():
                 raise NativeCanaryContractError("authorization-state-already-exists")
@@ -1241,7 +1944,9 @@ class CanaryAuthorizationStore:
             raise NativeCanaryContractError("authorization-state-unreadable") from exc
         errors = validate_authorization_state(value)
         if errors:
-            raise NativeCanaryContractError("authorization-state-invalid:" + ";".join(errors))
+            raise NativeCanaryContractError(
+                "authorization-state-invalid:" + ";".join(errors)
+            )
         return dict(value)
 
     def load(self) -> dict[str, Any]:

@@ -4,6 +4,7 @@ import copy
 import datetime as dt
 import fcntl
 import hashlib
+import hmac
 import json
 from pathlib import Path
 import sys
@@ -30,7 +31,16 @@ from cwo_core.native_pool_leases import (  # noqa: E402
     PoolLeaseRegistry,
     capture_owner_identity,
 )
-from tests.test_native_pool_contracts import control_request, pool_contract, sha  # noqa: E402
+from cwo_core.native_stop_scope import (  # noqa: E402
+    policy_scope_authority,
+    verify_operator_scope_directive,
+)
+from tests.test_native_pool_contracts import (  # noqa: E402
+    child as pool_child,
+    control_request,
+    pool_contract,
+    sha,
+)
 
 
 class FakeClock:
@@ -60,17 +70,19 @@ class FakeAdapter:
         decisions: list[str],
         *,
         callback_ms: float = 1,
+        callback_ms_by_name: dict[str, float] | None = None,
         fail: str | None = None,
     ) -> None:
         self.clock = clock
         self.decisions = list(decisions)
         self.callback_ms = callback_ms
+        self.callback_ms_by_name = dict(callback_ms_by_name or {})
         self.fail = fail
         self.calls: list[str] = []
 
     def _call(self, name: str, result=None):
         self.calls.append(name)
-        self.clock.advance_ms(self.callback_ms)
+        self.clock.advance_ms(self.callback_ms_by_name.get(name, self.callback_ms))
         if self.fail == name:
             raise RuntimeError(f"{name} failed")
         return result
@@ -102,6 +114,7 @@ class PoolHarness:
         cap: int,
         decisions: list[list[str]] | None = None,
         callback_ms: float = 1,
+        callback_ms_by_name: dict[str, float] | None = None,
         fail: tuple[int, str] | None = None,
         dirty_phases: set[str] | None = None,
         usage_by_child: dict[str, dict] | None = None,
@@ -110,10 +123,18 @@ class PoolHarness:
         protected_fault_reasons_by_child: dict[str, list[str]] | None = None,
         budget_overrides: dict[str, int] | None = None,
         read_only: bool = False,
+        read_only_children: set[str] | None = None,
         control_file: Path | None = None,
+        policy_document: dict | None = None,
     ) -> None:
         self.clock = FakeClock()
         self.contract, self.capability = pool_contract(cap=cap, read_only=read_only)
+        for index, existing_child in enumerate(self.contract["children"]):
+            if existing_child["child_id"] in (read_only_children or set()):
+                self.contract["children"][index] = pool_child(
+                    index,
+                    isolation="read-only-shared",
+                )
         live_owner = capture_owner_identity()
         self.contract["owner"] = live_owner
         if budget_overrides:
@@ -142,6 +163,7 @@ class PoolHarness:
                 self.clock,
                 decision_sets[index],
                 callback_ms=callback_ms,
+                callback_ms_by_name=callback_ms_by_name,
                 fail=fail[1] if fail is not None and fail[0] == index else None,
             )
             for index in range(cap)
@@ -180,6 +202,7 @@ class PoolHarness:
             state_file=Path(temporary) / "pool-state.json",
             decision_file=Path(temporary) / "pool-decision.json",
             control_file=control_file,
+            policy_document=policy_document,
         )
 
     def read_child_evidence(self, *, child_id: str, state_file: str) -> dict:
@@ -195,13 +218,20 @@ class PoolHarness:
         protected_fault_reasons = self.protected_fault_reasons_by_child.get(
             child_id, []
         )
+        state_sha256 = sha(
+            f"{child_id}:{state_file}:{len(self.adapters[child_id].calls)}"
+        )
         return {
-            "state_sha256": sha(
-                f"{child_id}:{state_file}:{len(self.adapters[child_id].calls)}"
-            ),
+            "state_sha256": state_sha256,
             "usage": usage,
             "protected_fault": bool(protected_fault_reasons),
             "control_loss": False,
+            "failure_class": (
+                "individual-child-failure" if protected_fault_reasons else None
+            ),
+            "recovery_evidence_sha256": (
+                state_sha256 if protected_fault_reasons else None
+            ),
             "reasons": list(protected_fault_reasons),
             "session_disposition": session_disposition,
             "artifact_disposition": artifact_disposition,
@@ -246,6 +276,267 @@ def assert_state_lock_released(test: unittest.TestCase, temporary: str) -> None:
 
 
 class NativePoolCoordinatorTests(unittest.TestCase):
+    @staticmethod
+    def _add_noncallback_invoke_time(
+        harness: PoolHarness,
+        *,
+        milliseconds: float,
+    ) -> list[str]:
+        invocations: list[str] = []
+        turn = harness.coordinator._turns["child-0"]
+        original_step = turn.step
+
+        def timed_step(*args, **kwargs):
+            invocations.append("step")
+            harness.clock.advance_ms(milliseconds)
+            return original_step(*args, **kwargs)
+
+        turn.step = timed_step
+        return invocations
+
+    def test_exclusive_timing_buckets_reconcile_and_count_invoke_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=1,
+                callback_ms=1,
+                decisions=[["continue", "complete"]],
+            )
+            invocations = self._add_noncallback_invoke_time(
+                harness,
+                milliseconds=3,
+            )
+            evidence_calls: list[str] = []
+            compare_calls: list[str] = []
+            original_evidence = harness.coordinator.pool_callbacks[
+                "read_child_evidence"
+            ]
+            original_compare = harness.coordinator.pool_callbacks[
+                "compare_workspaces"
+            ]
+
+            def timed_evidence(**kwargs):
+                evidence_calls.append("read")
+                harness.clock.advance_ms(2)
+                return original_evidence(**kwargs)
+
+            def timed_compare(**kwargs):
+                compare_calls.append("compare")
+                harness.clock.advance_ms(4)
+                return original_compare(**kwargs)
+
+            harness.coordinator.pool_callbacks["read_child_evidence"] = (
+                timed_evidence
+            )
+            harness.coordinator.pool_callbacks["compare_workspaces"] = (
+                timed_compare
+            )
+
+            receipt = harness.coordinator.run()
+            timing = receipt["timing"]
+            expected_callback_ns = len(harness.adapters["child-0"].calls) * 1_000_000
+            expected_invoke_ns = len(invocations) * 3_000_000
+            expected_coordinator_ns = (
+                len(evidence_calls) * 2_000_000
+                + len(compare_calls) * 4_000_000
+            )
+            expected_wait_ns = round(sum(harness.clock.sleeps) * 1_000_000_000)
+
+            self.assertEqual(timing["accounting_version"], "exclusive-v1")
+            self.assertEqual(timing["callback_ns"], expected_callback_ns)
+            self.assertEqual(
+                timing["noncallback_invoke_ns"],
+                expected_invoke_ns,
+            )
+            self.assertEqual(timing["coordinator_ns"], expected_coordinator_ns)
+            self.assertEqual(timing["wait_ns"], expected_wait_ns)
+            self.assertEqual(
+                sum(
+                    timing[field]
+                    for field in (
+                        "callback_ns",
+                        "noncallback_invoke_ns",
+                        "coordinator_ns",
+                        "wait_ns",
+                    )
+                ),
+                round(receipt["pool_wall_seconds"] * 1_000_000_000),
+            )
+            terminal_state = harness.coordinator.progress()["state"]
+            self.assertEqual(
+                terminal_state["poll_overhead_seconds"],
+                (expected_invoke_ns + expected_coordinator_ns) / 1_000_000_000,
+            )
+
+    def test_manual_and_blocking_runs_account_wait_without_overlap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            blocking = PoolHarness(
+                temporary,
+                cap=1,
+                decisions=[["continue", "complete"]],
+            )
+            blocking_receipt = blocking.coordinator.run()
+            self.assertEqual(
+                blocking_receipt["timing"]["wait_ns"],
+                round(sum(blocking.clock.sleeps) * 1_000_000_000),
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            manual = PoolHarness(
+                temporary,
+                cap=1,
+                decisions=[["continue", "complete"]],
+            )
+            progress = manual.coordinator.step()
+            while progress["status"] not in {"closed", "control-failed"}:
+                if progress["wait_required"]:
+                    manual.clock.sleep(seconds=progress["wait_seconds"])
+                progress = manual.coordinator.step()
+            manual_receipt = progress["receipt"]
+            self.assertEqual(
+                manual_receipt["timing"]["wait_ns"],
+                round(sum(manual.clock.sleeps) * 1_000_000_000),
+            )
+
+    def test_exception_path_accounts_invoke_once_and_freezes_timing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1, fail=(0, "arm"))
+            invocations = self._add_noncallback_invoke_time(
+                harness,
+                milliseconds=3,
+            )
+
+            receipt = harness.coordinator.run()
+
+            state = copy.deepcopy(harness.coordinator.progress()["state"])
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(
+                harness.coordinator._callback_ns,
+                len(harness.adapters["child-0"].calls) * 1_000_000,
+            )
+            self.assertEqual(
+                harness.coordinator._noncallback_invoke_ns,
+                len(invocations) * 3_000_000,
+            )
+            self.assertEqual(
+                state["poll_overhead_seconds"],
+                len(invocations) * 0.003,
+            )
+            self.assertTrue(harness.coordinator._timing_frozen)
+
+            harness.clock.advance_ms(5000)
+            self.assertEqual(harness.coordinator.progress()["state"], state)
+
+    def test_successful_terminal_receipt_timing_is_frozen(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            receipt = harness.coordinator.run()
+            state = copy.deepcopy(harness.coordinator.progress()["state"])
+
+            harness.clock.advance_ms(5000)
+
+            self.assertEqual(harness.coordinator.run(), receipt)
+            self.assertEqual(harness.coordinator.progress()["state"], state)
+
+    def test_capacity_three_requires_release_and_runs_when_candidate_policy_allows(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                NativePoolError,
+                "requested-capacity-not-released",
+            ):
+                PoolHarness(temporary, cap=3)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            policy_document = json.loads(
+                (ROOT / "policy/native-worker-execution.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            policy_document["native_supervision_pool"]["capacity"][
+                "released_max_active_workers"
+            ] = 3
+            harness = PoolHarness(
+                temporary,
+                cap=3,
+                decisions=[
+                    ["continue", "complete"],
+                    ["continue", "complete"],
+                    ["continue", "complete"],
+                ],
+                policy_document=policy_document,
+            )
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(
+                receipt["admission_order"],
+                ["child-0", "child-1", "child-2"],
+            )
+
+    def test_active_run_capability_expiry_interrupts_before_next_callback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                decisions=[
+                    ["continue", "complete"],
+                    ["continue", "complete"],
+                ],
+            )
+            for _ in range(32):
+                progress = harness.coordinator.step()
+                if all(
+                    "mark_dispatched" in adapter.calls
+                    for adapter in harness.adapters.values()
+                ):
+                    break
+                if progress["wait_required"]:
+                    harness.clock.sleep(seconds=progress["wait_seconds"])
+            else:
+                self.fail("both children were not dispatched before expiry")
+
+            calls_at_expiry = {
+                child_id: list(adapter.calls)
+                for child_id, adapter in harness.adapters.items()
+            }
+            expires_at = dt.datetime.fromisoformat(
+                harness.capability["expires_at"].replace("Z", "+00:00")
+            )
+            harness.coordinator.pool_callbacks["now_utc"] = lambda: expires_at
+
+            progress = harness.coordinator.step()
+
+            self.assertEqual(progress["decision"]["decision"], "interrupt")
+            self.assertEqual(
+                calls_at_expiry,
+                {
+                    child_id: list(adapter.calls)
+                    for child_id, adapter in harness.adapters.items()
+                },
+            )
+            receipt = harness.coordinator.run()
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["stop_scope"], "cohort")
+            self.assertEqual(
+                receipt["first_protected_fault"]["code"],
+                "capability-receipt-invalid:capability-receipt-stale",
+            )
+            post_expiry_calls = {
+                child_id: adapter.calls[len(calls_at_expiry[child_id]) :]
+                for child_id, adapter in harness.adapters.items()
+            }
+            self.assertTrue(
+                all(
+                    calls
+                    and set(calls) <= {"interrupt", "finalize", "close"}
+                    for calls in post_expiry_calls.values()
+                ),
+                post_expiry_calls,
+            )
+            self.assertEqual(
+                [item["lifecycle_state"] for item in harness.registry.snapshot()],
+                ["released", "released"],
+            )
+
     def test_first_child_protected_fault_reason_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(
@@ -260,6 +551,13 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(
                 receipt["first_protected_fault"]["code"],
                 "child-protected-fault:unexpected-mutation:targets/child_1.txt",
+            )
+            self.assertEqual(receipt["stop_scope"], "child")
+            self.assertTrue(
+                all(
+                    set(path) == {"path", "target_id", "conditions"}
+                    for path in receipt["authorized_continuation_paths"]
+                )
             )
 
     def test_zero_work_completion_contains_cohort_before_peer_admission(self) -> None:
@@ -310,7 +608,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             )
             self.assertEqual(
                 [item["lifecycle_state"] for item in receipt["lease_evidence"]],
-                ["released"],
+                ["released", "released"],
             )
 
     def test_cap_one_runs_to_accepting_receipt(self) -> None:
@@ -373,6 +671,30 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertTrue(receipt["accepting"])
             self.assertIsNone(receipt["first_protected_fault"])
 
+    def test_slack_pressure_warns_without_changing_certification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                callback_ms_by_name={"send_input": 210},
+            )
+            warning = None
+            for _ in range(32):
+                progress = harness.coordinator.step()
+                decision = progress["decision"]
+                if decision is not None and decision["decision"] == "warn":
+                    warning = decision
+                    break
+                if progress["wait_required"]:
+                    harness.clock.sleep(seconds=progress["wait_seconds"])
+            self.assertIsNotNone(warning)
+            self.assertEqual(warning["observed_callback_latency_ms"], 210.0)
+            self.assertEqual(warning["reasons"], [])
+
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertIsNone(receipt["first_protected_fault"])
+
     def test_step_invokes_at_most_one_adapter_callback_and_never_sleeps(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=2)
@@ -396,6 +718,141 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertIn("initial-workspace-comparison-failed", receipt["reasons"])
             self.assertEqual(harness.adapters["child-0"].calls, [])
             self.assertEqual(receipt["lease_evidence"], [])
+
+    def test_read_only_fast_path_retains_only_boundary_comparisons(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                read_only=True,
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(harness.compare_phases, ["create", "close"])
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset({"child-0", "child-1"}),
+            )
+
+    def test_mixed_topology_skips_only_validated_read_only_child(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                read_only_children={"child-0"},
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertTrue(receipt["accepting"])
+            self.assertFalse(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases
+                )
+            )
+            self.assertTrue(
+                any(
+                    phase.startswith("after-child-1-")
+                    for phase in harness.compare_phases
+                )
+            )
+
+    def test_mixed_topology_mutation_disables_later_callback_skipping(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            detected_phase = "after-child-1-arm"
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                read_only_children={"child-0"},
+                decisions=[["continue", "complete"], ["continue", "complete"]],
+                dirty_phases={detected_phase},
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            detection_index = harness.compare_phases.index(detected_phase)
+            self.assertFalse(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases[:detection_index]
+                )
+            )
+            self.assertTrue(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases[detection_index + 1 :]
+                )
+            )
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset(),
+            )
+            self.assertEqual(
+                harness.coordinator._invalidated_read_only_fast_path_children,
+                frozenset({"child-0"}),
+            )
+            self.assertFalse(
+                harness.coordinator._deferred_read_only_workspace_check
+            )
+            dispositions = {
+                item["child_id"]: item for item in receipt["child_dispositions"]
+            }
+            self.assertEqual(
+                dispositions["child-0"]["session_disposition"],
+                "quarantined",
+            )
+
+    def test_read_only_control_failure_runs_deferred_terminal_comparison(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=1,
+                read_only=True,
+                fail=(0, "arm"),
+                dirty_phases={"close"},
+            )
+
+            receipt = harness.coordinator.run()
+
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(harness.compare_phases, ["create", "close"])
+            self.assertIn(
+                "terminal-workspace-comparison-failed",
+                receipt["reasons"],
+            )
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset(),
+            )
+            self.assertFalse(
+                harness.coordinator._deferred_read_only_workspace_check
+            )
+
+    def test_post_admission_contract_tampering_cannot_widen_fast_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            replacement = pool_child(0, isolation="read-only-shared")
+            harness.contract["children"][0].update(replacement)
+
+            receipt = harness.coordinator.run()
+
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(
+                harness.coordinator._read_only_fast_path_children,
+                frozenset(),
+            )
+            self.assertTrue(
+                any(
+                    phase.startswith("after-child-0-")
+                    for phase in harness.compare_phases
+                )
+            )
 
     def test_callback_failure_marks_lease_release_pending(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -577,6 +1034,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 "coordinator-crash-affected-children:child-0",
                 state["reasons"],
             )
+            self.assertEqual(state["stop_scope"], "execution-path")
             self.assertIsNone(harness.coordinator._state_lock_handle)
             assert_state_lock_released(self, temporary)
 
@@ -827,6 +1285,81 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertIn("aggregate-tool-calls-exhausted", receipt["reasons"])
             self.assertIn("aggregate-budget-exhausted", receipt["reasons"])
             self.assertEqual(receipt["final_aggregate_usage"]["tool_calls"], 3)
+            self.assertEqual(receipt["stop_scope"], "cohort")
+            self.assertNotEqual(receipt["stop_scope"], "publication")
+
+    def test_free_text_interrupt_cannot_authorize_publication_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            harness.coordinator.request_interrupt(
+                "STOP 0.98 block publication",
+                stop_scope="publication",
+            )
+            receipt = harness.coordinator.run()
+            self.assertEqual(receipt["stop_scope"], "cohort")
+            self.assertEqual(receipt["scope_authority"]["authorized_scope"], "cohort")
+
+    def test_public_policy_factory_cannot_broaden_interrupt_api(self) -> None:
+        forged_policy = policy_scope_authority(
+            "caller-asserted-policy",
+            authorized_scope="complete-task",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            with self.assertRaisesRegex(
+                NativePoolError,
+                "broad-interrupt-requires-operator-directive",
+            ):
+                harness.coordinator.request_interrupt(
+                    "caller requests complete task stop",
+                    stop_scope="complete-task",
+                    scope_authority=forged_policy,
+                )
+            harness.coordinator.request_interrupt("test-cleanup")
+            harness.coordinator.run()
+
+    def test_verified_operator_directive_enforces_publication_scope(self) -> None:
+        key = b"test-only-pool-operator-key"
+        action_sha256 = sha("pool-publication-stop-action")
+        directive = {
+            "version": 1,
+            "directive_id": "pool-operator-stop-1",
+            "action_sha256": action_sha256,
+            "actor_id": "operator-1",
+            "identity_source": "trusted-control-session",
+            "authorized_scope": "publication",
+            "parent_receipt_sha256": None,
+            "issued_at": "2026-07-20T00:00:00Z",
+            "nonce": "pool-directive-nonce-1",
+        }
+        directive["signature"] = hmac.new(
+            key,
+            json.dumps(
+                directive,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            ).encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        authority = verify_operator_scope_directive(
+            directive,
+            verification_key=key,
+            expected_actor_id="operator-1",
+            expected_identity_source="trusted-control-session",
+            expected_action_sha256=action_sha256,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            harness.coordinator.request_interrupt(
+                "verified-operator-publication-stop",
+                stop_scope="publication",
+                scope_authority=authority,
+            )
+            receipt = harness.coordinator.run()
+            self.assertEqual(receipt["stop_scope"], "publication")
+            self.assertEqual(receipt["scope_authority"]["source_type"], "operator-directive")
 
     def test_cumulative_counter_reset_is_control_failure(self) -> None:
         first = zero_usage()
@@ -862,7 +1395,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(harness.adapters["child-0"].calls, [])
             self.assertTrue(any("lease-id-already-active" in reason for reason in receipt["reasons"]))
 
-    def test_second_child_lease_collision_interrupts_already_active_first_child(self) -> None:
+    def test_second_child_lease_collision_yields_zero_pool_callbacks(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(
                 temporary,
@@ -872,10 +1405,41 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             harness.registry.acquire(harness.contract, "child-1")
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
-            self.assertEqual(receipt["admission_order"], ["child-0"])
-            self.assertIn("interrupt", harness.adapters["child-0"].calls)
+            self.assertEqual(receipt["admission_order"], [])
+            self.assertEqual(harness.adapters["child-0"].calls, [])
             self.assertEqual(harness.adapters["child-1"].calls, [])
-            self.assertEqual([item["lease_id"] for item in receipt["lease_evidence"]], ["lease-0"])
+            self.assertEqual(receipt["lease_evidence"], [])
+            self.assertEqual(
+                [lease["lease_id"] for lease in harness.registry.snapshot()],
+                ["lease-1"],
+            )
+
+    def test_cohort_lease_allocation_error_yields_zero_callbacks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=2)
+            with mock.patch.object(
+                harness.registry,
+                "acquire_many",
+                side_effect=PoolLeaseError("lease-registry-write-failed"),
+            ) as acquire:
+                receipt = harness.coordinator.run()
+            acquire.assert_called_once_with(
+                harness.coordinator.contract,
+                ["child-0", "child-1"],
+                capacity_limits=harness.coordinator.capacity_limits,
+            )
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["admission_order"], [])
+            self.assertEqual(receipt["lease_evidence"], [])
+            self.assertEqual(harness.registry.snapshot(), [])
+            self.assertEqual(harness.adapters["child-0"].calls, [])
+            self.assertEqual(harness.adapters["child-1"].calls, [])
+            self.assertTrue(
+                any(
+                    "lease-registry-write-failed" in reason
+                    for reason in receipt["reasons"]
+                )
+            )
 
     def test_state_file_tamper_is_detected_before_next_adapter_callback(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -908,6 +1472,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             interrupted = harness.coordinator.step()
             self.assertEqual(len(harness.adapters["child-0"].calls), before)
             self.assertTrue(any(reason.startswith("external-control-request:interrupt-1:") for reason in interrupted["state"]["reasons"]))
+            self.assertEqual(interrupted["state"]["stop_scope"], "cohort")
             harness.coordinator.step()
             self.assertEqual(
                 sum(reason.startswith("external-control-request:interrupt-1:") for reason in harness.coordinator.progress()["state"]["reasons"]),
@@ -1010,21 +1575,32 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(harness.registry.snapshot()[0]["lifecycle_state"], "released")
             harness.coordinator.run()
 
-    def test_shared_read_only_mutation_quarantines_both_children(self) -> None:
+    def test_deferred_shared_read_only_mutation_quarantines_cohort(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(
                 temporary,
                 cap=2,
                 read_only=True,
-                dirty_phases={"after-child-0-check", "close"},
+                dirty_phases={"close"},
             )
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
             self.assertEqual(receipt["pool_disposition"], "quarantined")
-            self.assertIn("interrupt", harness.adapters["child-0"].calls)
-            self.assertEqual(harness.adapters["child-1"].calls, [])
+            self.assertIn("terminal-workspace-comparison-failed", receipt["reasons"])
+            self.assertFalse(
+                any(phase.startswith("after-") for phase in harness.compare_phases)
+            )
+            self.assertTrue(harness.adapters["child-0"].calls)
+            self.assertTrue(harness.adapters["child-1"].calls)
             dispositions = {item["child_id"]: item for item in receipt["child_dispositions"]}
-            self.assertEqual(dispositions["child-1"]["session_disposition"], "quarantined")
+            self.assertEqual(
+                {item["session_disposition"] for item in dispositions.values()},
+                {"quarantined"},
+            )
+            self.assertEqual(
+                {item["artifact_disposition"] for item in dispositions.values()},
+                {"rejected"},
+            )
 
 
 if __name__ == "__main__":

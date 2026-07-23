@@ -24,6 +24,7 @@ ALLOWED_PACKET_FIELDS = {
     "lane",
     "requested_model",
     "session_policy",
+    "tool_policy",
     "scope",
     "acceptance_checks",
     "budget",
@@ -44,6 +45,16 @@ ALLOWED_PACKET_FIELDS = {
     "release_evidence",
     "release_evidence_sha256",
 }
+STANDARD_TOOL_CALL_TYPES = frozenset(
+    {
+        "function_call",
+        "functioncall",
+        "custom_tool_call",
+        "customtoolcall",
+        "tool_call",
+        "toolcall",
+    }
+)
 ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS = {
     "mode",
     "spec",
@@ -407,6 +418,41 @@ def _timestamp(record: Mapping[str, Any], item: Mapping[str, Any]) -> str | None
     return None
 
 
+def is_tool_call_item(item: Mapping[str, Any]) -> bool:
+    """Recognize known and future call-shaped response items fail closed."""
+
+    item_type = str(item.get("type") or item.get("kind") or "").lower()
+    if not item_type or item_type.endswith("output"):
+        return False
+    return item_type in STANDARD_TOOL_CALL_TYPES or (
+        item_type.endswith("_call") or item_type.endswith("call")
+    )
+
+
+def is_tool_output_item(item: Mapping[str, Any]) -> bool:
+    item_type = str(item.get("type") or item.get("kind") or "").lower()
+    return item_type in {
+        "function_call_output",
+        "custom_tool_call_output",
+        "tool_output",
+        "function_output",
+    } or item_type.endswith("_call_output") or item_type.endswith("calloutput")
+
+
+def trusted_tool_name(item: Mapping[str, Any]) -> str:
+    """Return a tool identity that special call transports cannot spoof."""
+
+    item_type = str(item.get("type") or item.get("kind") or "").lower()
+    if item_type not in STANDARD_TOOL_CALL_TYPES:
+        return item_type or "unknown"
+    return str(
+        item.get("name")
+        or item.get("tool")
+        or item.get("tool_name")
+        or "unknown"
+    )
+
+
 def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: str | None = None) -> list[dict[str, Any]]:
     """Normalize tool calls and outputs into deterministic fail-closed receipts."""
     calls: dict[str, dict[str, Any]] = {}
@@ -414,10 +460,9 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
     events: list[tuple[int, Mapping[str, Any], dict[str, Any]]] = []
     for record_index, record in enumerate(records):
         for item_index, item in enumerate(_event_items(record)):
-            item_type = str(item.get("type") or item.get("kind") or "").lower()
-            if item_type in {"function_call", "custom_tool_call", "tool_call"}:
+            if is_tool_call_item(item):
                 events.append((record_index * 1000 + item_index, record, item))
-            elif item_type in {"function_call_output", "custom_tool_call_output", "tool_output", "function_output"}:
+            elif is_tool_output_item(item):
                 events.append((record_index * 1000 + item_index, record, item))
     for order, record, item in events:
         item_type = str(item.get("type") or item.get("kind") or "").lower()
@@ -428,7 +473,7 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
             else:
                 outputs.setdefault(f"__unpaired_{order}", []).append({"order": order, "record": record, "item": item})
             continue
-        tool = str(item.get("name") or item.get("tool") or item.get("tool_name") or "unknown")
+        tool = trusted_tool_name(item)
         arguments = _argument_value(item)
         command = _command_from_arguments(arguments)
         calls[call_id or f"__anonymous_{order}"] = {

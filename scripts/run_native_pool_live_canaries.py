@@ -24,7 +24,7 @@ import sys
 import tempfile
 import threading
 import time
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 import uuid
 
 
@@ -45,6 +45,7 @@ from cwo_core.native_live_campaign_contracts import (  # noqa: E402
     active_outer_authority_scope_key,
     validate_campaign_manifest,
     validate_full_auto_authorization as validate_full_auto_authorization_contract,
+    validate_operative_full_auto_authorization,
     validate_release_patch_result,
     validator_contract_sha256,  # noqa: F401
     validator_contract_sha256_v3,
@@ -64,13 +65,29 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     materialization_execution_correlation,
     new_authorization_state,
     seal_materialization_evidence,
+    steering_payload,
+    steering_recommendation,
     validate_capability_rendered_command,
     validate_materialization_evidence,
 )
 from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402
+from cwo_core.native_pool_capacity import load_pool_capacity  # noqa: E402
+from cwo_core.native_pool_capacity_compat import (  # noqa: E402
+    LEGACY_CONCURRENT_CAPACITY,
+    historical_release_snapshot,
+)
 from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     EXPECTED_ROLES,
     NativeLiveAllocationLedgerStore,
+    _IdentityCapabilityRegistry,
+    _TurnNegativeResponseObserverBinding,
+)
+from cwo_core.native_turn_dispatch import (  # noqa: E402
+    TURN_ABSENCE_PROOF_ARTIFACT_TYPE,
+    TurnDispatchReservation,
+    evolve_turn_dispatch_record,
+    seal_turn_absence_proof,
+    validate_turn_dispatch_record,
 )
 from cwo_core.native_pool_config import (  # noqa: E402
     build_live_canary_pool_contract,
@@ -83,10 +100,12 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     CAPABILITY_OBSERVATION_AUTHORITY,
     CAPABILITY_RESPONSE_TIME_EQUATION,
     CAPABILITY_SCHEDULER_MODEL,
+    CAPABILITY_SLACK_WARNING_FRACTION,
     CAPABILITY_RECEIPT_SCHEMA,
     CAPABILITY_RECEIPT_TYPE,
     CERTIFIED_CALLBACK_MAX_MS,
     CERTIFIED_SCHEDULER_OVERHEAD_MS,
+    POOL_POLL_INTERVAL_MS,
     POOL_POLL_LAG_TOLERANCE_MS,
     canonical_sha256,
     callback_certification_policy_sha256,
@@ -98,9 +117,34 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     write_private_artifact,
     zero_token_usage,
 )
+from cwo_core.native_pool_preflight import (  # noqa: E402
+    PREFLIGHT_REQUEST_SCHEMA,
+    PREFLIGHT_REQUEST_TYPE,
+    NativePoolPreflightError,
+    default_callback_certification,
+    effective_child_packet_sha256,
+    require_pool_preflight,
+    validate_pool_preflight_result,
+)
 from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
+from cwo_core.native_pool_schedulability import (  # noqa: E402
+    PoolSchedulabilityError,
+    scheduling_budget_proof,
+)
+from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
+from cwo_core.native_tool_isolation import (  # noqa: E402
+    NativeToolIsolationError,
+    build_tool_surface_snapshot,
+    default_tool_policy,
+    forbidden_tool_activity,
+    normalize_tool_policy,
+    require_prompt_preflight,
+    require_unchanged_tool_surface,
+    validate_tool_policy,
+    validate_tool_surface_snapshot,
+)
 from cwo_core.native_worker_contracts import normalize_action_receipts  # noqa: E402
 from cwo_core.native_session import _record_token_snapshot  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
@@ -122,6 +166,8 @@ CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
 POST_SUBMISSION_MATERIALIZATION_GRACE_MS = POOL_POLL_LAG_TOLERANCE_MS
 PROVISIONAL_TERMINAL_GRACE_SECONDS = 5.0
 THREAD_READ_TIMEOUT_SECONDS = 15.0
+AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS = 5.0
+AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS = 0.05
 CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
 CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
 DESCRIPTOR_CAPTURE_ATTEMPT_MAX = 8
@@ -985,9 +1031,28 @@ def callback_certification_policy() -> dict[str, Any]:
         "observation_authority": CAPABILITY_OBSERVATION_AUTHORITY,
         "certified_callback_max_ms": CERTIFIED_CALLBACK_MAX_MS,
         "certified_scheduler_overhead_ms": CERTIFIED_SCHEDULER_OVERHEAD_MS,
+        "slack_warning_fraction": CAPABILITY_SLACK_WARNING_FRACTION,
     }
     if not isinstance(certification, Mapping) or dict(certification) != expected:
         raise AppServerError("callback-certification-policy-invalid")
+    limits = load_pool_capacity(document)
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=limits.hard_max_active_workers,
+            certified_callback_max_ms=CERTIFIED_CALLBACK_MAX_MS,
+            certified_scheduler_overhead_ms=(
+                CERTIFIED_SCHEDULER_OVERHEAD_MS
+            ),
+            poll_interval_ms=pool.get("scheduler", {}).get(
+                "poll_interval_ms"
+            ),
+        )
+    except PoolSchedulabilityError as error:
+        raise AppServerError(
+            "callback-certification-schedulability-input-invalid"
+        ) from error
+    if not proof.accepted:
+        raise AppServerError("callback-certification-hard-cap-unschedulable")
     return dict(certification)
 
 
@@ -1034,10 +1099,16 @@ def validate_full_auto_authorization(
     recovery_cause_evidence: JsonArtifactSnapshot | None = None,
     recovery_cause_source_analysis: bytes | None = None,
     expected_validator_contract_sha256: str | None = None,
+    operative: bool = False,
     repo_root: Path,
 ) -> tuple[str, str]:
-    if authorization.get("version") in {6, 7, 8, 9, 10, 11}:
-        errors = validate_full_auto_authorization_contract(
+    contract_validator = (
+        validate_operative_full_auto_authorization
+        if operative
+        else validate_full_auto_authorization_contract
+    )
+    if authorization.get("version") in {6, 7, 8, 9, 10, 11, 12}:
+        errors = contract_validator(
             authorization,
             expected_campaign_nonce=campaign_nonce,
             predecessor_proof=predecessor_proof,
@@ -1047,7 +1118,7 @@ def validate_full_auto_authorization(
             repo_root=repo_root,
         )
     else:
-        errors = validate_full_auto_authorization_contract(
+        errors = contract_validator(
             authorization,
             expected_campaign_nonce=campaign_nonce,
             predecessor_authorization=predecessor_authorization,
@@ -1157,6 +1228,8 @@ def plan_steering_receipt_consumptions(
     pre_live_receipt: Mapping[str, Any],
     pre_live_adjudication: Mapping[str, Any],
     pre_live_adjudication_sha256: str,
+    pre_mutation_verified_operator_authorities: Iterable[Any] | None = None,
+    pre_live_verified_operator_authorities: Iterable[Any] | None = None,
 ) -> dict[str, tuple[str, dict[str, Any]]]:
     if not _valid_uuid_text(campaign_nonce):
         raise AppServerError("steering-control-identity-invalid")
@@ -1170,23 +1243,40 @@ def plan_steering_receipt_consumptions(
         pre_live_adjudication=pre_live_adjudication,
         pre_live_adjudication_sha256=pre_live_adjudication_sha256,
     )
+    try:
+        pre_mutation_verified = (
+            None
+            if pre_mutation_verified_operator_authorities is None
+            else tuple(pre_mutation_verified_operator_authorities)
+        )
+        pre_live_verified = (
+            None
+            if pre_live_verified_operator_authorities is None
+            else tuple(pre_live_verified_operator_authorities)
+        )
+    except TypeError as exc:
+        raise AppServerError(
+            "steering-verified-operator-authorities-invalid"
+        ) from exc
     bundles = (
         (
             "pre-mutation",
             pre_mutation_receipt,
             pre_mutation_adjudication,
             pre_mutation_adjudication_sha256,
+            pre_mutation_verified,
         ),
         (
             "pre-live",
             pre_live_receipt,
             pre_live_adjudication,
             pre_live_adjudication_sha256,
+            pre_live_verified,
         ),
     )
 
     steering_prepared: dict[str, tuple[str, dict[str, Any]]] = {}
-    for label, receipt, adjudication, adjudication_sha256 in bundles:
+    for label, receipt, adjudication, adjudication_sha256, verified in bundles:
         phase_nonce = str(
             uuid.uuid5(
                 uuid.NAMESPACE_URL,
@@ -1198,7 +1288,9 @@ def plan_steering_receipt_consumptions(
             "architect_adjudication_sha256": adjudication_sha256,
             "architect_decision": "go",
         }
-        if label == "pre-mutation" and receipt.get("opinion", {}).get("recommendation") == "stop":
+        if verified is not None:
+            kwargs["verified_operator_authorities"] = verified
+        if label == "pre-mutation" and steering_recommendation(receipt) == "stop":
             kwargs.update(
                 {
                     "allow_resolved_stop": True,
@@ -1221,6 +1313,48 @@ def plan_steering_receipt_consumptions(
 
 class AppServerError(RuntimeError):
     pass
+
+
+def capture_server_tool_surface(
+    server: Any,
+    tool_policy: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Capture one strict, truthful tool-surface snapshot from a server."""
+
+    policy = normalize_tool_policy(tool_policy)
+    reader = getattr(server, "tool_surface_capability", None)
+    if reader is None:
+        capability: Mapping[str, Any] = {
+            "source": "legacy-app-server-interface-no-allowlist",
+            "server_allowlist_supported": False,
+            "allowlist_parameter": None,
+            "effective_allowlist": None,
+        }
+    else:
+        raw = reader(permitted_tools=list(policy["permitted_tools"]))
+        if not isinstance(raw, Mapping):
+            raise AppServerError("tool-surface-capability-invalid")
+        expected = {
+            "source",
+            "server_allowlist_supported",
+            "allowlist_parameter",
+            "effective_allowlist",
+        }
+        if set(raw) != expected:
+            raise AppServerError("tool-surface-capability-fields-invalid")
+        capability = raw
+    try:
+        return build_tool_surface_snapshot(
+            policy,
+            source=capability.get("source"),
+            server_allowlist_supported=capability.get(
+                "server_allowlist_supported"
+            ),
+            allowlist_parameter=capability.get("allowlist_parameter"),
+            effective_allowlist=capability.get("effective_allowlist"),
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
 
 
 class AppServerRpcError(AppServerError):
@@ -1252,6 +1386,17 @@ class AppServerRpcError(AppServerError):
         self.request_id = request_id
         self.latency_ms = float(latency_ms)
         super().__init__(f"app-server-request-failed:{method}:{code}")
+
+
+class AmbiguousTurnStartError(AppServerError):
+    """A single turn write whose server-side effect required containment."""
+
+    def __init__(self, record: Mapping[str, Any]) -> None:
+        errors = validate_turn_dispatch_record(record)
+        if errors:
+            raise ValueError("ambiguous-turn-start-record-invalid:" + ";".join(errors))
+        self.record = dict(record)
+        super().__init__(f"turn-start-{record['status']}:{record['ambiguity_reason']}")
 
 
 def validate_calibration_read_recovery_telemetry(
@@ -1627,6 +1772,13 @@ class AppServer:
         )
         self.rpc_latencies: dict[str, list[float]] = {}
         self.started_threads: dict[str, str | None] = {}
+        self._known_thread_turn_ids: dict[str, set[str]] = {}
+        self._turn_dispatch_records: dict[str, dict[str, Any]] = {}
+        self._pending_turn_start_response_observers: dict[int, dict[str, Any]] = {}
+        self._observed_negative_turn_response_capabilities_by_request: dict[
+            int, object
+        ] = {}
+        self._negative_turn_response_capabilities = _IdentityCapabilityRegistry()
         self.allocation_ledger: NativeLiveAllocationLedgerStore | None = None
         threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._drain_stderr, daemon=True).start()
@@ -1650,8 +1802,79 @@ class AppServer:
     def attach_allocation_ledger(self, ledger: NativeLiveAllocationLedgerStore) -> None:
         if self.started_threads or self.allocation_ledger is not None:
             raise AppServerError("allocation-ledger-attach-state-invalid")
-        ledger.load()
+        state = ledger.load()
         self.allocation_ledger = ledger
+        try:
+            self._load_durable_turn_dispatch_records(state)
+        except BaseException:
+            self._turn_dispatch_records = {}
+            self.started_threads = {}
+            self.allocation_ledger = None
+            raise
+
+    def _load_durable_turn_dispatch_records(
+        self, ledger_state: Mapping[str, Any]
+    ) -> None:
+        """Recover private dispatch correlations before containment resumes."""
+
+        ledger = self.allocation_ledger
+        if ledger is None:
+            raise AppServerError("turn-dispatch-recovery-ledger-missing")
+        directory = ledger.directory / "turn-dispatch"
+        if not directory.exists():
+            self._turn_dispatch_records = {}
+            return
+        metadata = directory.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o700
+        ):
+            raise AppServerError("turn-dispatch-recovery-directory-invalid")
+        intent_entries = {
+            str(entry["turn_intent_id"]): entry
+            for entry in ledger_state.get("entries", [])
+            if isinstance(entry, Mapping)
+            and entry.get("event") == "turn-intent"
+            and isinstance(entry.get("turn_intent_id"), str)
+        }
+        recovered: dict[str, dict[str, Any]] = {}
+        recovered_threads: dict[str, str | None] = {}
+        for path in sorted(directory.iterdir(), key=lambda item: item.name):
+            if path.suffix != ".json":
+                raise AppServerError("turn-dispatch-recovery-file-invalid")
+            record = load_private_json(path, "turn-dispatch-recovery")
+            errors = validate_turn_dispatch_record(record)
+            intent_id = record.get("turn_intent_id")
+            intent_entry = intent_entries.get(str(intent_id))
+            if (
+                errors
+                or path.name != f"{intent_id}.json"
+                or record.get("ledger_id") != ledger_state.get("ledger_id")
+                or intent_entry is None
+                or record.get("thread_id") != intent_entry.get("thread_id")
+                or record.get("turn_intent_entry_sha256")
+                != intent_entry.get("entry_sha256")
+                or record.get("ledger_head_entry_sha256")
+                != intent_entry.get("entry_sha256")
+            ):
+                raise AppServerError("turn-dispatch-recovery-link-invalid")
+            thread_id = str(record["thread_id"])
+            if thread_id in recovered:
+                raise AppServerError("turn-dispatch-recovery-thread-duplicate")
+            resolution = ledger.turn_intent_resolution(str(intent_id))
+            durable_resolution = str(resolution["resolution"])
+            record_resolution = str(record["ledger_resolution"])
+            if record_resolution != "pending" and record_resolution != durable_resolution:
+                raise AppServerError("turn-dispatch-recovery-resolution-mismatch")
+            turn_id = resolution.get("turn_id")
+            recovered[thread_id] = dict(record)
+            recovered_threads[thread_id] = (
+                str(turn_id) if isinstance(turn_id, str) and turn_id else None
+            )
+        self._turn_dispatch_records = recovered
+        self.started_threads.update(recovered_threads)
 
     def _read_stdout(self) -> None:
         assert self.process.stdout is not None
@@ -1664,13 +1887,191 @@ class AppServer:
                         self._reader_error = "app-server-non-json-output"
                         self._condition.notify_all()
                     continue
+                if not isinstance(message, Mapping):
+                    with self._condition:
+                        self._reader_error = "app-server-non-object-output"
+                        self._condition.notify_all()
+                    continue
                 with self._condition:
                     if type(message.get("id")) is int and (
                         "result" in message or "error" in message
                     ):
-                        self._responses[int(message["id"])] = message
+                        response_id = int(message["id"])
+                        pending = getattr(
+                            self, "_pending_turn_start_response_observers", {}
+                        ).pop(response_id, None)
+                        observed_capability: object | None = None
+                        error = message.get("error")
+                        exact_negative = bool(
+                            "result" not in message
+                            and isinstance(error, Mapping)
+                            and type(error.get("code")) is int
+                            and isinstance(error.get("message"), str)
+                        )
+                        if isinstance(pending, Mapping):
+                            pending_capability = pending.get("capability")
+                            if (
+                                exact_negative
+                                and pending_capability is not None
+                                and isinstance(pending.get("thread_id"), str)
+                                and isinstance(
+                                    pending.get("turn_intent_id"), str
+                                )
+                                and pending.get("request_id") == response_id
+                                and pending.get("connection_epoch_sha256")
+                                == self.connection_epoch_sha256
+                                and isinstance(
+                                    pending.get("wire_request_sha256"), str
+                                )
+                                and isinstance(
+                                    pending.get("dispatch_record_sha256"), str
+                                )
+                            ):
+                                witness = {
+                                    "request_id": response_id,
+                                    "connection_epoch_sha256": str(
+                                        pending["connection_epoch_sha256"]
+                                    ),
+                                    "wire_request_sha256": str(
+                                        pending["wire_request_sha256"]
+                                    ),
+                                    "code": int(error["code"]),
+                                    "response_sha256": domain_sha256(
+                                        dict(message),
+                                        domain=(
+                                            "app-server-turn-start-negative-response"
+                                        ),
+                                    ),
+                                }
+                                # Security boundary: keep the pending-to-observed
+                                # transition in the sole raw-stdout parser. Do not
+                                # extract this into a helper that accepts a caller-
+                                # supplied response mapping.
+                                observed_candidate = object()
+                                ledger = self.allocation_ledger
+                                ledger_observed = ledger is None
+                                if ledger is not None:
+                                    with ledger._instance_lock:
+                                        try:
+                                            pending_binding = ledger._pending_turn_negative_response_observer_capabilities.pop(
+                                                pending_capability
+                                            )
+                                        except (KeyError, TypeError):
+                                            pending_binding = None
+                                        if (
+                                            pending_binding is not None
+                                            and pending_binding.thread_id
+                                            == pending.get("thread_id")
+                                            and pending_binding.turn_intent_id
+                                            == pending.get("turn_intent_id")
+                                            and pending_binding.request_id
+                                            == response_id
+                                            and pending_binding.connection_epoch_sha256
+                                            == pending.get(
+                                                "connection_epoch_sha256"
+                                            )
+                                            and pending_binding.wire_request_sha256
+                                            == pending.get("wire_request_sha256")
+                                            and pending_binding.dispatch_record_sha256
+                                            == pending.get(
+                                                "dispatch_record_sha256"
+                                            )
+                                        ):
+                                            ledger._turn_negative_response_observer_capabilities.register(
+                                                observed_candidate,
+                                                _TurnNegativeResponseObserverBinding(
+                                                    thread_id=str(
+                                                        pending["thread_id"]
+                                                    ),
+                                                    turn_intent_id=str(
+                                                        pending[
+                                                            "turn_intent_id"
+                                                        ]
+                                                    ),
+                                                    request_id=response_id,
+                                                    connection_epoch_sha256=str(
+                                                        pending[
+                                                            "connection_epoch_sha256"
+                                                        ]
+                                                    ),
+                                                    wire_request_sha256=str(
+                                                        pending[
+                                                            "wire_request_sha256"
+                                                        ]
+                                                    ),
+                                                    response_sha256=str(
+                                                        witness[
+                                                            "response_sha256"
+                                                        ]
+                                                    ),
+                                                    response_code=int(
+                                                        witness["code"]
+                                                    ),
+                                                ),
+                                            )
+                                            ledger_observed = True
+                                if ledger_observed:
+                                    capabilities = getattr(
+                                        self,
+                                        "_negative_turn_response_capabilities",
+                                        None,
+                                    )
+                                    if capabilities is None:
+                                        capabilities = (
+                                            _IdentityCapabilityRegistry()
+                                        )
+                                        self._negative_turn_response_capabilities = (
+                                            capabilities
+                                        )
+                                    by_request = getattr(
+                                        self,
+                                        "_observed_negative_turn_response_capabilities_by_request",
+                                        None,
+                                    )
+                                    if by_request is None:
+                                        by_request = {}
+                                        self._observed_negative_turn_response_capabilities_by_request = (
+                                            by_request
+                                        )
+                                    capabilities.register(
+                                        observed_candidate,
+                                        witness,
+                                    )
+                                    by_request[response_id] = observed_candidate
+                                    observed_capability = observed_candidate
+                            if observed_capability is None:
+                                ledger = self.allocation_ledger
+                                if (
+                                    ledger is not None
+                                    and pending_capability is not None
+                                ):
+                                    ledger._discard_turn_negative_response_observer_capability(
+                                        pending_capability
+                                    )
+                        if response_id in self._responses:
+                            self._reader_error = "app-server-duplicate-response-id"
+                            if observed_capability is not None:
+                                getattr(
+                                    self,
+                                    "_negative_turn_response_capabilities",
+                                    {},
+                                ).pop(observed_capability, None)
+                                getattr(
+                                    self,
+                                    "_observed_negative_turn_response_capabilities_by_request",
+                                    {},
+                                ).pop(response_id, None)
+                                ledger = self.allocation_ledger
+                                if ledger is not None:
+                                    ledger._discard_turn_negative_response_observer_capability(
+                                        observed_capability
+                                    )
+                        else:
+                            self._responses[response_id] = dict(message)
                     elif isinstance(message.get("method"), str):
-                        self._notifications.append((time.monotonic_ns(), message))
+                        self._notifications.append(
+                            (time.monotonic_ns(), dict(message))
+                        )
                     self._condition.notify_all()
         finally:
             with self._condition:
@@ -1831,34 +2232,70 @@ class AppServer:
             "latency_ms": round(latency, 3),
         }
 
+    @staticmethod
+    def tool_surface_capability(
+        *, permitted_tools: list[str]
+    ) -> dict[str, Any]:
+        _ = permitted_tools
+        # Codex app-server v2 ThreadStartParams in the pinned runtime has no
+        # built-in tool allowlist.  `dynamicTools` adds tools and therefore is
+        # not a restriction mechanism.
+        return {
+            "source": "codex-app-server-v2-thread-start-schema",
+            "server_allowlist_supported": False,
+            "allowlist_parameter": None,
+            "effective_allowlist": None,
+        }
+
     def start_thread(
         self,
         cwd: Path,
         *,
         mutable: bool,
         role: str | None = None,
+        permitted_tools: list[str] | None = None,
+        allowlist_parameter: str | None = None,
     ) -> tuple[dict[str, Any], float]:
         allocation_intent_id: str | None = None
         if self.allocation_ledger is not None:
             if role not in EXPECTED_ROLES:
                 raise AppServerError("allocation-ledger-role-required")
             allocation_intent_id = self.allocation_ledger.allocation_intent(str(role))
+        params: dict[str, Any] = {
+            "model": EXACT_MODEL,
+            "allowProviderModelFallback": False,
+            "cwd": str(cwd.resolve()),
+            "runtimeWorkspaceRoots": [str(cwd.resolve())],
+            "approvalPolicy": "never",
+            "sandbox": "workspace-write" if mutable else "read-only",
+            "ephemeral": False,
+            "historyMode": "legacy",
+            "developerInstructions": (
+                "This is a bounded CWO live canary. Do not spawn subagents, use network access, "
+                "or access paths outside the supplied workspace. Follow the user task exactly."
+            ),
+        }
+        if permitted_tools is not None:
+            if (
+                not isinstance(allowlist_parameter, str)
+                or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,127}", allowlist_parameter)
+                is None
+            ):
+                raise AppServerError("thread-start-tool-allowlist-parameter-missing")
+            if allowlist_parameter in params:
+                raise AppServerError("thread-start-tool-allowlist-parameter-collision")
+            if (
+                not permitted_tools
+                or permitted_tools != sorted(permitted_tools)
+                or len(permitted_tools) != len(set(permitted_tools))
+            ):
+                raise AppServerError("thread-start-tool-allowlist-invalid")
+            params[allowlist_parameter] = list(permitted_tools)
+        elif allowlist_parameter is not None:
+            raise AppServerError("thread-start-tool-allowlist-without-tools")
         result, latency = self.request(
             "thread/start",
-            {
-                "model": EXACT_MODEL,
-                "allowProviderModelFallback": False,
-                "cwd": str(cwd.resolve()),
-                "runtimeWorkspaceRoots": [str(cwd.resolve())],
-                "approvalPolicy": "never",
-                "sandbox": "workspace-write" if mutable else "read-only",
-                "ephemeral": False,
-                "historyMode": "legacy",
-                "developerInstructions": (
-                    "This is a bounded CWO live canary. Do not spawn subagents, use network access, "
-                    "or access paths outside the supplied workspace. Follow the user task exactly."
-                ),
-            },
+            params,
             timeout=30,
         )
         thread = result.get("thread")
@@ -1866,6 +2303,20 @@ class AppServer:
             raise AppServerError("thread-start-response-invalid")
         thread_id = str(thread["id"])
         self.started_threads[thread_id] = None
+        turns = thread.get("turns")
+        if not hasattr(self, "_known_thread_turn_ids"):
+            self._known_thread_turn_ids = {}
+        self._known_thread_turn_ids[thread_id] = (
+            {
+                str(item["id"])
+                for item in turns
+                if isinstance(item, Mapping)
+                and isinstance(item.get("id"), str)
+                and item.get("id")
+            }
+            if isinstance(turns, list)
+            else set()
+        )
         if self.allocation_ledger is not None and allocation_intent_id is not None:
             self.allocation_ledger.bind_thread(allocation_intent_id, thread_id)
         if result.get("model") != EXACT_MODEL:
@@ -1908,37 +2359,1044 @@ class AppServer:
             raise AppServerError("thread-read-response-invalid")
         return dict(thread), latency, guarded, request_id, payload_sha256
 
-    def start_turn(self, thread_id: str, prompt: str) -> tuple[dict[str, Any], float]:
-        turn_intent_id: str | None = None
-        if self.allocation_ledger is not None:
-            turn_intent_id = self.allocation_ledger.turn_intent(thread_id)
-        result, latency = self.request(
-            "turn/start",
-            {
-                "threadId": thread_id,
-                "input": [{"type": "text", "text": prompt, "text_elements": []}],
-                "model": EXACT_MODEL,
-                "effort": "low",
-                "clientUserMessageId": str(uuid.uuid4()),
-                "responsesapiClientMetadata": {
-                    "cwo_bead": "complex-work-orchestration-18w.6",
-                    "cwo_control_turn": CONTROL_TURN_ID,
-                },
-            },
-            timeout=30,
-        )
-        turn = result.get("turn")
-        if not isinstance(turn, Mapping) or not turn.get("id"):
-            raise AppServerError("turn-start-response-invalid")
-        turn_id = str(turn["id"])
-        self.started_threads[thread_id] = turn_id
-        if self.allocation_ledger is not None and turn_intent_id is not None:
-            self.allocation_ledger.bind_turn(thread_id, turn_intent_id, turn_id)
-        return dict(turn), latency
+    def _turn_dispatch_path(self, turn_intent_id: str) -> Path | None:
+        ledger = self.allocation_ledger
+        if ledger is None:
+            return None
+        return ledger.directory / "turn-dispatch" / f"{turn_intent_id}.json"
 
-    def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
+    def _consume_negative_turn_response_capability(
+        self,
+        capability: object,
+        record: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Consume the exact object identity bound to this dispatch action."""
+
+        capabilities = getattr(self, "_negative_turn_response_capabilities", {})
+        try:
+            witness = capabilities.pop(capability)
+        except (KeyError, TypeError) as exc:
+            raise AppServerError(
+                "turn-negative-response-capability-invalid"
+            ) from exc
+        if (
+            witness.get("request_id") != record.get("request_id")
+            or witness.get("connection_epoch_sha256")
+            != record.get("connection_epoch_sha256")
+            or witness.get("wire_request_sha256")
+            != record.get("wire_request_sha256")
+        ):
+            raise AppServerError("turn-negative-response-capability-mismatch")
+        return dict(witness)
+
+    def _discard_negative_turn_response_capability(
+        self,
+        capability: object,
+    ) -> None:
+        """Revoke an observed capability without creating replacement authority."""
+
+        try:
+            getattr(self, "_negative_turn_response_capabilities", {}).pop(
+                capability, None
+            )
+        except TypeError:
+            return
+        by_request = getattr(
+            self,
+            "_observed_negative_turn_response_capabilities_by_request",
+            {},
+        )
+        for request_id, candidate in tuple(by_request.items()):
+            if candidate is capability:
+                by_request.pop(request_id, None)
+        ledger = self.allocation_ledger
+        if ledger is not None:
+            ledger._discard_turn_negative_response_observer_capability(capability)
+
+    def _persist_turn_dispatch_record(
+        self, record: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        with self._condition:
+            descriptor = self._open_turn_dispatch_lock(
+                str(record["turn_intent_id"])
+            )
+            try:
+                if descriptor is not None:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX)
+                return self._persist_turn_dispatch_record_locked(record)
+            finally:
+                if descriptor is not None:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                    os.close(descriptor)
+
+    def _persist_turn_dispatch_record_locked(
+        self, record: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Persist while the caller holds this turn's condition and file lock."""
+
+        errors = validate_turn_dispatch_record(record)
+        if errors:
+            raise AppServerError("turn-dispatch-record-invalid:" + ";".join(errors))
+        persisted = dict(record)
+        records = getattr(self, "_turn_dispatch_records", None)
+        if records is None:
+            records = {}
+            self._turn_dispatch_records = records
+        records[str(record["thread_id"])] = persisted
+        path = self._turn_dispatch_path(str(record["turn_intent_id"]))
+        if path is not None:
+            write_private_artifact(path, persisted)
+        return persisted
+
+    def _open_turn_dispatch_lock(self, turn_intent_id: str) -> int | None:
+        """Open the cross-AppServer lock for one exact durable turn intent."""
+
+        ledger = self.allocation_ledger
+        if ledger is None:
+            return None
+        lock_directory = _private_control_directory(
+            ledger.directory / "turn-dispatch-locks",
+            "turn-dispatch",
+        )
+        return _open_private_control_lock(
+            lock_directory / f"{turn_intent_id}.lock",
+            "turn-dispatch",
+        )
+
+    def turn_dispatch_record(self, thread_id: str) -> dict[str, Any] | None:
+        with self._condition:
+            record = getattr(self, "_turn_dispatch_records", {}).get(thread_id)
+            return dict(record) if isinstance(record, Mapping) else None
+
+    def _turn_intent_ledger_link(
+        self, turn_intent_id: str
+    ) -> tuple[str | None, str | None, str | None]:
+        ledger = self.allocation_ledger
+        if ledger is None:
+            return None, None, None
+        state = ledger.load()
+        entries = state.get("entries")
+        if not isinstance(entries, list):
+            raise AppServerError("turn-dispatch-ledger-intent-link-invalid")
+        matches = [
+            entry
+            for entry in entries
+            if isinstance(entry, Mapping)
+            and entry.get("event") == "turn-intent"
+            and entry.get("turn_intent_id") == turn_intent_id
+        ]
+        if len(matches) != 1:
+            raise AppServerError("turn-dispatch-ledger-intent-link-invalid")
+        return (
+            str(state["ledger_id"]),
+            str(state["head_entry_sha256"]),
+            str(matches[0]["entry_sha256"]),
+        )
+
+    @staticmethod
+    def _projected_turns(thread: Mapping[str, Any]) -> dict[str, str | None]:
+        turns = thread.get("turns")
+        if not isinstance(turns, list):
+            raise AppServerError("ambiguous-turn-thread-projection-invalid")
+        projected: dict[str, str | None] = {}
+        for item in turns:
+            if not isinstance(item, Mapping):
+                raise AppServerError("ambiguous-turn-thread-projection-invalid")
+            turn_id = item.get("id")
+            if not isinstance(turn_id, str) or not turn_id or turn_id in projected:
+                raise AppServerError("ambiguous-turn-thread-projection-invalid")
+            raw_status = item.get("status")
+            projected[turn_id] = str(raw_status) if raw_status else None
+        return projected
+
+    @staticmethod
+    def _normalized_terminal_status(status: str | None) -> str | None:
+        normalized = {
+            "completed": "completed",
+            "failed": "failed",
+            "interrupted": "interrupted",
+        }
+        return normalized.get(status or "")
+
+    def _late_turn_start_response(
+        self,
+        record: Mapping[str, Any],
+    ) -> tuple[str | None, object | None]:
+        """Consume only stdout-observed late evidence for the reserved request."""
+
+        request_id = int(record["request_id"])
+        with self._condition:
+            message = self._responses.pop(request_id, None)
+            if message is None:
+                return None, None
+            observed = getattr(
+                self,
+                "_observed_negative_turn_response_capabilities_by_request",
+                {},
+            ).pop(request_id, None)
+        if not isinstance(message, Mapping):
+            if observed is not None:
+                self._discard_negative_turn_response_capability(observed)
+            return None, None
+        error = message.get("error")
+        if "error" in message:
+            witness = getattr(
+                self, "_negative_turn_response_capabilities", {}
+            ).get(observed)
+            if (
+                "result" not in message
+                and isinstance(error, Mapping)
+                and type(error.get("code")) is int
+                and isinstance(error.get("message"), str)
+                and observed is not None
+                and isinstance(witness, Mapping)
+                and message.get("id") == request_id
+                and witness.get("request_id") == request_id
+                and witness.get("connection_epoch_sha256")
+                == record.get("connection_epoch_sha256")
+                and witness.get("wire_request_sha256")
+                == record.get("wire_request_sha256")
+                and witness.get("code") == error.get("code")
+                and witness.get("response_sha256")
+                == domain_sha256(
+                    dict(message),
+                    domain="app-server-turn-start-negative-response",
+                )
+            ):
+                return None, observed
+            if observed is not None:
+                self._discard_negative_turn_response_capability(observed)
+            return None, None
+        if observed is not None:
+            self._discard_negative_turn_response_capability(observed)
+        result = message.get("result")
+        turn = result.get("turn") if isinstance(result, Mapping) else None
+        turn_id = turn.get("id") if isinstance(turn, Mapping) else None
+        return (
+            str(turn_id) if isinstance(turn_id, str) and turn_id else None,
+            None,
+        )
+
+    def _post_cursor_turn_starts(
+        self,
+        *,
+        thread_id: str,
+        after_sequence: int,
+        preexisting_turn_ids: set[str],
+    ) -> tuple[set[str], set[int], int]:
+        turn_ids: set[str] = set()
+        sequences: set[int] = set()
+        with self._condition:
+            notifications = list(self._notifications)
+            observed_cursor = len(notifications)
+        for sequence, (_received_ns, message) in enumerate(notifications, 1):
+            if sequence <= after_sequence or message.get("method") != "turn/started":
+                continue
+            params = (
+                message.get("params")
+                if isinstance(message.get("params"), Mapping)
+                else {}
+            )
+            if params.get("threadId") != thread_id:
+                continue
+            turn = params.get("turn") if isinstance(params.get("turn"), Mapping) else {}
+            turn_id = turn.get("id") or params.get("turnId")
+            if (
+                isinstance(turn_id, str)
+                and turn_id
+                and turn_id not in preexisting_turn_ids
+            ):
+                turn_ids.add(turn_id)
+                sequences.add(sequence)
+        return turn_ids, sequences, observed_cursor
+
+    def _bind_ambiguous_turn_candidate(
+        self,
+        record: Mapping[str, Any],
+        candidate_turn_ids: set[str],
+        *,
+        exact_response_turn_id: str | None,
+    ) -> str:
+        canonical = (
+            exact_response_turn_id
+            if exact_response_turn_id in candidate_turn_ids
+            else sorted(candidate_turn_ids)[0]
+        )
+        if record.get("ledger_resolution") == "pending":
+            if self.allocation_ledger is not None:
+                self.allocation_ledger.bind_turn(
+                    str(record["thread_id"]),
+                    str(record["turn_intent_id"]),
+                    canonical,
+                )
+            self.started_threads[str(record["thread_id"])] = canonical
+        return canonical
+
+    def contain_ambiguous_turn_dispatch(
+        self,
+        thread_id: str,
+        *,
+        timeout: float = AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS,
+        negative_response_capability: object | None = None,
+    ) -> dict[str, Any]:
+        """Discover and contain one uncertain ``turn/start`` without replaying it."""
+
+        current = self.turn_dispatch_record(thread_id)
+        if current is None:
+            raise AppServerError("ambiguous-turn-dispatch-record-missing")
+        ledger = self.allocation_ledger
+
+        def exactly_verified_failed_contained(record: Mapping[str, Any]) -> bool:
+            """Accept a final record only through the exact durable verifier."""
+
+            if (
+                ledger is None
+                or record.get("status") != "failed-contained"
+                or record.get("thread_id") != thread_id
+            ):
+                return False
+            try:
+                witness = ledger.verify_contained_turn_dispatch(
+                    thread_id,
+                    str(record["turn_intent_id"]),
+                )
+                verified = ledger.consume_verified_contained_turn_dispatch(
+                    witness,
+                    expected_thread_id=thread_id,
+                    expected_turn_intent_id=str(record["turn_intent_id"]),
+                )
+                return bool(
+                    verified.get("verification_grade") == "ledger-chain-only"
+                    and verified.get("dispatch_authorized") is False
+                    and verified.get("dispatch_record_sha256")
+                    == record.get("record_sha256")
+                )
+            except Exception:
+                return False
+
+        def persist_exact_audited_success(
+            precursor: Mapping[str, Any],
+            *,
+            allow_audit_create: bool,
+        ) -> dict[str, Any]:
+            """Audit an exact successor while the durable status stays ambiguous."""
+
+            with self._condition:
+                descriptor = self._open_turn_dispatch_lock(
+                    str(precursor["turn_intent_id"])
+                )
+                try:
+                    if descriptor is not None:
+                        fcntl.flock(descriptor, fcntl.LOCK_EX)
+                    path = self._turn_dispatch_path(
+                        str(precursor["turn_intent_id"])
+                    )
+                    durable = (
+                        load_private_json(path, "turn-dispatch-cas")
+                        if path is not None
+                        else self.turn_dispatch_record(thread_id)
+                    )
+                    if durable is None:
+                        raise AppServerError("turn-dispatch-cas-record-missing")
+                    errors = validate_turn_dispatch_record(durable)
+                    if errors:
+                        raise AppServerError(
+                            "turn-dispatch-cas-record-invalid:" + ";".join(errors)
+                        )
+                    if durable != dict(precursor):
+                        conflict = dict(durable)
+                        if (
+                            conflict["status"] == "failed-contained"
+                            and not exactly_verified_failed_contained(conflict)
+                        ):
+                            conflict = evolve_turn_dispatch_record(
+                                conflict,
+                                status="failed-ambiguous",
+                            )
+                            return self._persist_turn_dispatch_record_locked(conflict)
+                        self._turn_dispatch_records[thread_id] = conflict
+                        return conflict
+                    if ledger is None:
+                        return dict(precursor)
+                    candidate = evolve_turn_dispatch_record(
+                        precursor,
+                        status="failed-contained",
+                    )
+                    try:
+                        if allow_audit_create:
+                            ledger.record_containment_audit(
+                                thread_id,
+                                outcome="contained",
+                                evidence={
+                                    "dispatch_record_sha256": candidate[
+                                        "record_sha256"
+                                    ],
+                                    "absence_proof_sha256": candidate[
+                                        "absence_proof_sha256"
+                                    ],
+                                    "discovered_turn_ids": candidate[
+                                        "discovered_turn_ids"
+                                    ],
+                                    "terminal_status_by_turn": candidate[
+                                        "terminal_status_by_turn"
+                                    ],
+                                    "absence_verified": True,
+                                    "archive_request_accepted": True,
+                                },
+                            )
+                        elif not ledger.has_exact_containment_audit_for_dispatch(
+                            candidate
+                        ):
+                            return dict(precursor)
+                    except Exception:
+                        return dict(precursor)
+                    durable_after_audit = load_private_json(
+                        path, "turn-dispatch-cas"
+                    )
+                    errors = validate_turn_dispatch_record(durable_after_audit)
+                    if errors:
+                        raise AppServerError(
+                            "turn-dispatch-cas-record-invalid:" + ";".join(errors)
+                        )
+                    if durable_after_audit != dict(precursor):
+                        conflict = dict(durable_after_audit)
+                        if (
+                            conflict["status"] == "failed-contained"
+                            and not exactly_verified_failed_contained(conflict)
+                        ):
+                            conflict = evolve_turn_dispatch_record(
+                                conflict,
+                                status="failed-ambiguous",
+                            )
+                            return self._persist_turn_dispatch_record_locked(conflict)
+                        self._turn_dispatch_records[thread_id] = conflict
+                        return conflict
+                    return self._persist_turn_dispatch_record_locked(candidate)
+                finally:
+                    if descriptor is not None:
+                        fcntl.flock(descriptor, fcntl.LOCK_UN)
+                        os.close(descriptor)
+
+        if current["status"] == "failed-contained":
+            if not exactly_verified_failed_contained(current):
+                current = self._persist_turn_dispatch_record(
+                    evolve_turn_dispatch_record(
+                        current,
+                        status="failed-ambiguous",
+                    )
+                )
+            else:
+                return current
+        if current["status"] not in {"dispatching", "failed-ambiguous"}:
+            raise AppServerError("ambiguous-turn-dispatch-state-invalid")
+        ambiguity_reason = (
+            str(current["ambiguity_reason"])
+            if current["ambiguity_reason"] is not None
+            else "dispatch-interrupted-before-response"
+        )
+
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        same_connection_epoch = (
+            current["connection_epoch_sha256"] == self.connection_epoch_sha256
+        )
+        discovery_cursor = (
+            int(current["notification_cursor"]) if same_connection_epoch else 0
+        )
+        preexisting = set(current["preexisting_turn_ids"])
+        discovered = set(current["discovered_turn_ids"])
+        attempted = set(current["interrupt_attempted_turn_ids"])
+        interrupt_failed = set(current["interrupt_failed_turn_ids"])
+        terminal_statuses = dict(current["terminal_status_by_turn"])
+        notification_epoch = self.connection_epoch_sha256
+        notification_sequences = (
+            set(current["notification_sequences"])
+            if current.get("notification_connection_epoch_sha256")
+            == notification_epoch
+            else set()
+        )
+        exact_response_turn_id = current.get("exact_response_turn_id")
+        query_count = int(current["query_count"])
+        final_active: set[str] = set(current["active_turn_ids_at_final_check"])
+        absence_verified = False
+        ledger_resolution = str(current["ledger_resolution"])
+        durable_absence_authorized = False
+        if ledger is not None:
+            durable = ledger.turn_intent_resolution(str(current["turn_intent_id"]))
+            durable_resolution = str(durable["resolution"])
+            if ledger_resolution != "pending" and ledger_resolution != durable_resolution:
+                raise AppServerError("ambiguous-turn-ledger-resolution-mismatch")
+            if durable_resolution == "turn-bound":
+                durable_turn_id = durable.get("turn_id")
+                if not isinstance(durable_turn_id, str) or not durable_turn_id:
+                    raise AppServerError("ambiguous-turn-ledger-binding-invalid")
+                discovered.add(durable_turn_id)
+                self.started_threads[thread_id] = durable_turn_id
+                ledger_resolution = "turn-bound"
+            elif durable_resolution == "verified-absent":
+                evidence_sha256 = durable.get("evidence_sha256")
+                if not isinstance(evidence_sha256, str):
+                    raise AppServerError("ambiguous-turn-ledger-absence-invalid")
+                if current.get("absence_proof_sha256") not in {
+                    None,
+                    evidence_sha256,
+                }:
+                    raise AppServerError("ambiguous-turn-ledger-absence-mismatch")
+                ledger_resolution = "verified-absent"
+                durable_absence_authorized = True
+        audit_pending = bool(
+            current.get("status") == "failed-ambiguous"
+            and current.get("archived") is True
+            and current.get("absence_verified") is True
+            and not current.get("active_turn_ids_at_final_check")
+            and not current.get("interrupt_failed_turn_ids")
+            and set(current.get("discovered_turn_ids", []))
+            == set(current.get("terminal_status_by_turn", {}))
+            and current.get("ledger_resolution") in {"turn-bound", "verified-absent"}
+            and current.get("ledger_resolution") == ledger_resolution
+        )
+        if audit_pending:
+            return persist_exact_audited_success(
+                current,
+                allow_audit_create=False,
+            )
+        first_pass = True
+
+        while first_pass or time.monotonic() < deadline:
+            first_pass = False
+            late_turn, late_negative = (
+                self._late_turn_start_response(current)
+                if same_connection_epoch
+                else (None, None)
+            )
+            if late_turn is not None:
+                exact_response_turn_id = late_turn
+                if late_turn not in preexisting:
+                    discovered.add(late_turn)
+            if late_negative is not None:
+                if negative_response_capability is None:
+                    negative_response_capability = late_negative
+                    ambiguity_reason = "rpc-error-response"
+                elif late_negative is not negative_response_capability:
+                    self._discard_negative_turn_response_capability(late_negative)
+            notified, sequences, observed_cursor = self._post_cursor_turn_starts(
+                thread_id=thread_id,
+                after_sequence=discovery_cursor,
+                preexisting_turn_ids=preexisting,
+            )
+            discovered.update(notified)
+            notification_sequences.update(sequences)
+
+            remaining = max(0.001, deadline - time.monotonic())
+            query_succeeded = False
+            try:
+                thread, _latency = self.read_thread(
+                    thread_id,
+                    timeout=min(THREAD_READ_TIMEOUT_SECONDS, remaining),
+                )
+                query_count += 1
+                query_succeeded = True
+                projected = self._projected_turns(thread)
+            except Exception:
+                projected = {}
+            # A turn/start notification can be delivered after the thread/read
+            # snapshot but before the proof decision. Recheck the receive queue
+            # after every successful or failed query and fold it into discovery.
+            post_notified, post_sequences, observed_cursor = (
+                self._post_cursor_turn_starts(
+                    thread_id=thread_id,
+                    after_sequence=discovery_cursor,
+                    preexisting_turn_ids=preexisting,
+                )
+            )
+            discovered.update(post_notified)
+            notification_sequences.update(post_sequences)
+            discovered.update(set(projected) - preexisting)
+
+            final_active = {
+                turn_id
+                for turn_id, status in projected.items()
+                if self._normalized_terminal_status(status) is None
+            }
+            for turn_id in discovered:
+                terminal = self._normalized_terminal_status(projected.get(turn_id))
+                if terminal is not None:
+                    terminal_statuses[turn_id] = terminal
+            interrupt_failed.difference_update(terminal_statuses)
+            # Exact responses and post-cursor start notifications prove that a
+            # candidate existed even when thread/read is unavailable. Treat
+            # every discovered candidate as active until a trusted terminal
+            # projection proves otherwise, so query failure cannot leave it
+            # running merely because its current status is unknown.
+            active_candidates = sorted(discovered - set(terminal_statuses))
+            for turn_id in active_candidates:
+                attempted.add(turn_id)
+                try:
+                    self.interrupt_turn(
+                        thread_id,
+                        turn_id,
+                        timeout=min(
+                            15.0,
+                            max(0.001, deadline - time.monotonic()),
+                        ),
+                    )
+                except Exception:
+                    interrupt_failed.add(turn_id)
+                else:
+                    # The failure set describes the latest attempt, not a sticky
+                    # historical veto. A later accepted interrupt is retryable.
+                    interrupt_failed.discard(turn_id)
+
+            all_discovered_terminal = set(terminal_statuses) == discovered
+            terminal_snapshot = bool(
+                query_succeeded
+                and not final_active
+                and all_discovered_terminal
+                and not interrupt_failed
+                and not active_candidates
+            )
+            if terminal_snapshot and (
+                discovered
+                or negative_response_capability is not None
+                or durable_absence_authorized
+            ):
+                # A terminal projection proves discovered turns inactive. An
+                # empty projection is never authoritative by itself: only the
+                # exact negative-response capability or an already-bound
+                # durable proof may authorize the no-turn branch.
+                absence_verified = bool(discovered or durable_absence_authorized)
+                break
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(
+                min(
+                    AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS,
+                    max(0.0, deadline - time.monotonic()),
+                )
+            )
+
+        containment_state_complete = bool(
+            set(terminal_statuses) == discovered
+            and not interrupt_failed
+            and not final_active
+        )
+        contained = bool(
+            containment_state_complete
+            and (
+                discovered
+                or negative_response_capability is not None
+                or durable_absence_authorized
+            )
+        )
+        absence_proof_sha256 = current.get("absence_proof_sha256")
+        archived = False
+        if contained:
+            try:
+                if discovered and ledger_resolution == "verified-absent":
+                    raise AppServerError("ambiguous-turn-after-absence-resolution")
+                if discovered and ledger_resolution == "pending":
+                    self._bind_ambiguous_turn_candidate(
+                        current,
+                        discovered,
+                        exact_response_turn_id=exact_response_turn_id,
+                    )
+                    ledger_resolution = "turn-bound"
+                elif not discovered and ledger_resolution == "pending":
+                    if ledger is None:
+                        raise AppServerError("turn-absence-proof-ledger-missing")
+                    if negative_response_capability is None:
+                        raise AppServerError(
+                            "turn-absence-negative-response-capability-missing"
+                        )
+                    negative_response = (
+                        self._consume_negative_turn_response_capability(
+                            negative_response_capability,
+                            current,
+                        )
+                    )
+                    proof_dispatch = evolve_turn_dispatch_record(
+                        current,
+                        wire_write_attempt_count=1,
+                        status="failed-ambiguous",
+                        ambiguity_reason=ambiguity_reason,
+                        exact_response_turn_id=None,
+                        notification_connection_epoch_sha256=notification_epoch,
+                        notification_sequences=sorted(notification_sequences),
+                        discovered_turn_ids=[],
+                        interrupt_attempted_turn_ids=[],
+                        interrupt_failed_turn_ids=[],
+                        terminal_status_by_turn={},
+                        active_turn_ids_at_final_check=[],
+                        query_count=query_count,
+                        absence_verified=False,
+                        absence_proof_sha256=None,
+                        archived=False,
+                        ledger_resolution="pending",
+                    )
+                    current = self._persist_turn_dispatch_record(proof_dispatch)
+                    proof = seal_turn_absence_proof(
+                        {
+                            "artifact_type": TURN_ABSENCE_PROOF_ARTIFACT_TYPE,
+                            "version": 1,
+                            "thread_id": thread_id,
+                            "turn_intent_id": current["turn_intent_id"],
+                            "ledger_id": current["ledger_id"],
+                            "turn_intent_entry_sha256": current[
+                                "turn_intent_entry_sha256"
+                            ],
+                            "dispatch_record": current,
+                            "negative_response": negative_response,
+                            "proof_sha256": "",
+                        }
+                    )
+                    verifier_capability = (
+                        ledger._mint_turn_absence_verifier_capability(
+                            proof,
+                            negative_response_capability=(
+                                negative_response_capability
+                            ),
+                        )
+                    )
+                    ledger.resolve_turn_intent_absent(
+                        thread_id,
+                        str(current["turn_intent_id"]),
+                        proof=proof,
+                        verifier_capability=verifier_capability,
+                    )
+                    absence_proof_sha256 = str(proof["proof_sha256"])
+                    ledger_resolution = "verified-absent"
+                    absence_verified = True
+                elif not discovered and ledger_resolution == "verified-absent":
+                    if ledger is None:
+                        raise AppServerError("turn-absence-proof-ledger-missing")
+                    durable = ledger.turn_intent_resolution(
+                        str(current["turn_intent_id"])
+                    )
+                    absence_proof_sha256 = str(durable["evidence_sha256"])
+                    absence_verified = True
+            except Exception:
+                contained = False
+        if contained and discovered:
+            absence_verified = True
+        if negative_response_capability is not None:
+            self._discard_negative_turn_response_capability(
+                negative_response_capability
+            )
+        if contained:
+            try:
+                self.archive_thread(thread_id)
+                archived = True
+            except Exception:
+                archived = False
+                contained = False
+        precursor = evolve_turn_dispatch_record(
+            current,
+            wire_write_attempt_count=1,
+            status="failed-ambiguous",
+            ambiguity_reason=ambiguity_reason,
+            exact_response_turn_id=exact_response_turn_id,
+            notification_connection_epoch_sha256=notification_epoch,
+            notification_sequences=sorted(notification_sequences),
+            discovered_turn_ids=sorted(discovered),
+            interrupt_attempted_turn_ids=sorted(attempted),
+            interrupt_failed_turn_ids=sorted(interrupt_failed),
+            terminal_status_by_turn={
+                key: terminal_statuses[key] for key in sorted(terminal_statuses)
+            },
+            active_turn_ids_at_final_check=sorted(final_active),
+            query_count=query_count,
+            absence_verified=absence_verified,
+            absence_proof_sha256=absence_proof_sha256,
+            archived=archived,
+            ledger_resolution=ledger_resolution,
+        )
+        precursor = self._persist_turn_dispatch_record(precursor)
+        if contained:
+            return persist_exact_audited_success(
+                precursor,
+                allow_audit_create=True,
+            )
+        return precursor
+
+    def start_turn(
+        self,
+        thread_id: str,
+        prompt: str,
+        *,
+        timeout: float = 30,
+        ambiguity_timeout: float = AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS,
+    ) -> tuple[dict[str, Any], float]:
+        """Write ``turn/start`` exactly once and contain uncertain outcomes."""
+
+        with self._condition:
+            if self.process.poll() is not None:
+                raise AppServerError(
+                    f"app-server-exited-before-turn-intent:{self.process.returncode}"
+                )
+            if self._reader_error:
+                raise AppServerError(self._reader_error)
+        turn_intent_id = (
+            self.allocation_ledger.turn_intent(thread_id)
+            if self.allocation_ledger is not None
+            else str(uuid.uuid4())
+        )
+        params = {
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": prompt, "text_elements": []}],
+            "model": EXACT_MODEL,
+            "effort": "low",
+            "clientUserMessageId": turn_intent_id,
+            "responsesapiClientMetadata": {
+                "cwo_bead": "complex-work-orchestration-18w.6",
+                "cwo_control_turn": CONTROL_TURN_ID,
+            },
+        }
+        ledger_id, ledger_head, intent_entry = self._turn_intent_ledger_link(
+            turn_intent_id
+        )
+        unobserved_response_observer: Mapping[str, Any] | None = None
+        with self._condition:
+            if self.process.poll() is not None:
+                raise AppServerError(
+                    f"app-server-exited-before-turn-start:{self.process.returncode}"
+                )
+            if self._reader_error:
+                raise AppServerError(self._reader_error)
+            self._request_id += 1
+            request_id = self._request_id
+            notification_cursor = len(self._notifications)
+            payload = {
+                "id": request_id,
+                "method": "turn/start",
+                "params": params,
+            }
+            wire_request_sha256 = domain_sha256(
+                payload, domain="app-server-single-wire-request"
+            )
+            known = getattr(self, "_known_thread_turn_ids", {}).get(thread_id, set())
+            reservation = TurnDispatchReservation(
+                thread_id=thread_id,
+                turn_intent_id=turn_intent_id,
+                request_id=request_id,
+                connection_epoch_sha256=self.connection_epoch_sha256,
+                notification_cursor=notification_cursor,
+                preexisting_turn_ids=tuple(sorted(known)),
+                ledger_id=ledger_id,
+                ledger_head_entry_sha256=ledger_head,
+                turn_intent_entry_sha256=intent_entry,
+                wire_request_sha256=wire_request_sha256,
+            )
+            record = self._persist_turn_dispatch_record(reservation.prepared_record())
+            record = self._persist_turn_dispatch_record(
+                evolve_turn_dispatch_record(
+                    record,
+                    status="dispatching",
+                    wire_write_attempt_count=1,
+                )
+            )
+            observer_capability = object()
+            pending_observers = getattr(
+                self, "_pending_turn_start_response_observers", None
+            )
+            if pending_observers is None:
+                pending_observers = {}
+                self._pending_turn_start_response_observers = pending_observers
+            if request_id in pending_observers:
+                raise AppServerError(
+                    "turn-start-response-observer-request-duplicate"
+                )
+            pending_observers[request_id] = {
+                "capability": observer_capability,
+                "thread_id": thread_id,
+                "turn_intent_id": turn_intent_id,
+                "request_id": request_id,
+                "connection_epoch_sha256": self.connection_epoch_sha256,
+                "wire_request_sha256": wire_request_sha256,
+                "dispatch_record_sha256": record["record_sha256"],
+            }
+            if self.allocation_ledger is not None:
+                try:
+                    self.allocation_ledger._register_pending_turn_negative_response_observer_capability(
+                        observer_capability,
+                        record,
+                    )
+                except BaseException:
+                    pending_observers.pop(request_id, None)
+                    raise
+            started = time.monotonic_ns()
+            try:
+                assert self.process.stdin is not None
+                self.process.stdin.write(
+                    json.dumps(payload, separators=(",", ":")) + "\n"
+                )
+                self.process.stdin.flush()
+            except OSError:
+                ambiguity_reason = "wire-write-error"
+            else:
+                ambiguity_reason = None
+                deadline = time.monotonic() + timeout
+                while request_id not in self._responses:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        ambiguity_reason = "response-timeout"
+                        break
+                    if self.process.poll() is not None:
+                        ambiguity_reason = "app-server-exited"
+                        break
+                    if self._reader_error:
+                        ambiguity_reason = "reader-error"
+                        break
+                    self._condition.wait(timeout=remaining)
+                message = (
+                    self._responses.pop(request_id)
+                    if ambiguity_reason is None
+                    else None
+                )
+                if ambiguity_reason is None:
+                    candidate = pending_observers.pop(request_id, None)
+                    if isinstance(candidate, Mapping):
+                        unobserved_response_observer = candidate
+
+        if unobserved_response_observer is not None:
+            unobserved_capability = unobserved_response_observer.get("capability")
+            if unobserved_capability is not None:
+                self._discard_negative_turn_response_capability(
+                    unobserved_capability
+                )
+
+        if ambiguity_reason is not None:
+            record = self._persist_turn_dispatch_record(
+                evolve_turn_dispatch_record(
+                    record,
+                    status="failed-ambiguous",
+                    ambiguity_reason=ambiguity_reason,
+                )
+            )
+            contained = self.contain_ambiguous_turn_dispatch(
+                thread_id, timeout=ambiguity_timeout
+            )
+            raise AmbiguousTurnStartError(contained)
+
+        latency_ms = (time.monotonic_ns() - started) / 1_000_000
+        self.rpc_latencies.setdefault("turn/start", []).append(latency_ms)
+        rpc_error: AppServerRpcError | None = None
+        negative_response_capability: object | None = None
+        if not isinstance(message, Mapping) or message.get("id") != request_id:
+            ambiguity_reason = "response-id-invalid"
+        elif "error" in message:
+            error = message.get("error")
+            if (
+                "result" in message
+                or not isinstance(error, Mapping)
+                or type(error.get("code")) is not int
+                or not isinstance(error.get("message"), str)
+            ):
+                ambiguity_reason = "error-response-invalid"
+            else:
+                rpc_error = AppServerRpcError(
+                    method="turn/start",
+                    code=int(error["code"]),
+                    request_id=request_id,
+                    latency_ms=latency_ms,
+                )
+                observed_by_request = getattr(
+                    self,
+                    "_observed_negative_turn_response_capabilities_by_request",
+                    {},
+                )
+                observed = observed_by_request.pop(request_id, None)
+                witness = getattr(
+                    self, "_negative_turn_response_capabilities", {}
+                ).get(observed)
+                if (
+                    observed is not None
+                    and isinstance(witness, Mapping)
+                    and witness.get("request_id") == request_id
+                    and witness.get("connection_epoch_sha256")
+                    == record.get("connection_epoch_sha256")
+                    and witness.get("wire_request_sha256")
+                    == record.get("wire_request_sha256")
+                    and witness.get("code") == error.get("code")
+                    and witness.get("response_sha256")
+                    == domain_sha256(
+                        dict(message),
+                        domain="app-server-turn-start-negative-response",
+                    )
+                ):
+                    negative_response_capability = observed
+                    ambiguity_reason = "rpc-error-response"
+                else:
+                    if observed is not None:
+                        self._discard_negative_turn_response_capability(observed)
+                    ambiguity_reason = "rpc-error-response-unobserved"
+        else:
+            result = message.get("result")
+            turn = result.get("turn") if isinstance(result, Mapping) else None
+            turn_id = turn.get("id") if isinstance(turn, Mapping) else None
+            if not isinstance(turn_id, str) or not turn_id:
+                ambiguity_reason = "response-turn-invalid"
+
+        if ambiguity_reason is not None:
+            record = self._persist_turn_dispatch_record(
+                evolve_turn_dispatch_record(
+                    record,
+                    status="failed-ambiguous",
+                    ambiguity_reason=ambiguity_reason,
+                )
+            )
+            contained = self.contain_ambiguous_turn_dispatch(
+                thread_id,
+                timeout=ambiguity_timeout,
+                negative_response_capability=negative_response_capability,
+            )
+            if (
+                rpc_error is not None
+                and contained["status"] == "failed-contained"
+                and contained["ledger_resolution"] == "verified-absent"
+            ):
+                raise rpc_error
+            raise AmbiguousTurnStartError(contained)
+
+        assert isinstance(turn, Mapping) and isinstance(turn_id, str)
+        self.started_threads[thread_id] = turn_id
+        if self.allocation_ledger is not None:
+            try:
+                self.allocation_ledger.bind_turn(thread_id, turn_intent_id, turn_id)
+            except Exception:
+                record = self._persist_turn_dispatch_record(
+                    evolve_turn_dispatch_record(
+                        record,
+                        status="failed-ambiguous",
+                        ambiguity_reason="ledger-turn-bind-failed",
+                        exact_response_turn_id=turn_id,
+                        discovered_turn_ids=[turn_id],
+                    )
+                )
+                contained = self.contain_ambiguous_turn_dispatch(
+                    thread_id, timeout=ambiguity_timeout
+                )
+                raise AmbiguousTurnStartError(contained)
+        record = evolve_turn_dispatch_record(
+            record,
+            status="acknowledged",
+            exact_response_turn_id=turn_id,
+            discovered_turn_ids=[turn_id],
+            wire_write_attempt_count=1,
+            ledger_resolution="turn-bound",
+        )
+        self._persist_turn_dispatch_record(record)
+        return dict(turn), latency_ms
+
+    def interrupt_turn(
+        self,
+        thread_id: str,
+        turn_id: str,
+        *,
+        timeout: float = 15,
+    ) -> float:
         _result, latency = self.request(
-            "turn/interrupt", {"threadId": thread_id, "turnId": turn_id}, timeout=15
+            "turn/interrupt",
+            {"threadId": thread_id, "turnId": turn_id},
+            timeout=timeout,
         )
         if self.allocation_ledger is not None:
             self.allocation_ledger.record_lifecycle(
@@ -2057,6 +3515,8 @@ def trusted_tool_evidence_summary(
         "trusted_tool_calls": 0,
         "trusted_completed_tool_calls": 0,
         "trusted_tool_evidence_sha256": [],
+        "trusted_tool_names": [],
+        "trusted_tool_activity": [],
     }
     if turn_id is None:
         return empty
@@ -2102,6 +3562,28 @@ def trusted_tool_evidence_summary(
     completed = [
         receipt for receipt in calls if receipt.get("pairing_status") == "paired"
     ]
+    trusted_activity = []
+    for receipt in calls:
+        raw_tool = str(receipt.get("tool") or "").strip().lower()
+        tool = raw_tool if re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", raw_tool) else "unknown"
+        activity_payload = {
+            "tool": tool,
+            "call_id_sha256": (
+                hashlib.sha256(str(receipt["call_id"]).encode("utf-8")).hexdigest()
+                if receipt.get("call_id")
+                else None
+            ),
+            "canonical_argument_hash": receipt.get("canonical_argument_hash"),
+            "action_class": receipt.get("action_class"),
+            "determinable_target_paths": receipt.get("determinable_target_paths"),
+            "pairing_status": receipt.get("pairing_status"),
+        }
+        trusted_activity.append(
+            {
+                "tool": tool,
+                "evidence_sha256": canonical_sha256(activity_payload),
+            }
+        )
     evidence_sha256 = sorted(
         canonical_sha256(
             {
@@ -2120,6 +3602,8 @@ def trusted_tool_evidence_summary(
         "trusted_tool_calls": len(calls),
         "trusted_completed_tool_calls": len(completed),
         "trusted_tool_evidence_sha256": evidence_sha256,
+        "trusted_tool_names": sorted({item["tool"] for item in trusted_activity}),
+        "trusted_tool_activity": trusted_activity,
     }
 
 
@@ -2170,6 +3654,8 @@ def session_boundary_summary(
             "trusted_tool_calls": 0,
             "trusted_completed_tool_calls": 0,
             "trusted_tool_evidence_sha256": [],
+            "trusted_tool_names": [],
+            "trusted_tool_activity": [],
         }
     models: list[str] = []
     efforts: list[str] = []
@@ -2293,6 +3779,10 @@ class LiveThreadAdapter:
         mutable: bool,
         expected_mutation: str | None,
         completion_evidence_policy: Mapping[str, Any] | None = None,
+        tool_policy: Mapping[str, Any] | None = None,
+        prompt_preflight_receipt: Mapping[str, Any] | None = None,
+        preflight_tool_surface: Mapping[str, Any] | None = None,
+        tool_surface_reader: Callable[[], Mapping[str, Any]] | None = None,
         force_interrupt_after_checks: int | None = None,
         record_dir: Path,
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
@@ -2336,6 +3826,46 @@ class LiveThreadAdapter:
         self.completion_evidence_policy_sha256 = canonical_sha256(
             self.completion_evidence_policy
         )
+        raw_tool_policy = (
+            default_tool_policy(
+                mutable=mutable,
+                workload_class="safety-canary",
+            )
+            if tool_policy is None
+            else tool_policy
+        )
+        try:
+            self.tool_policy = normalize_tool_policy(raw_tool_policy)
+            observed_prompt_preflight = require_prompt_preflight(
+                prompt, self.tool_policy
+            )
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        if (
+            prompt_preflight_receipt is not None
+            and dict(prompt_preflight_receipt) != observed_prompt_preflight
+        ):
+            raise AppServerError("prompt-preflight-receipt-mismatch")
+        self.prompt_preflight = observed_prompt_preflight
+        self.tool_policy_sha256 = canonical_sha256(self.tool_policy)
+        self._tool_surface_reader = tool_surface_reader or (
+            lambda: capture_server_tool_surface(self.server, self.tool_policy)
+        )
+        initial_surface = (
+            dict(preflight_tool_surface)
+            if preflight_tool_surface is not None
+            else dict(self._tool_surface_reader())
+        )
+        surface_errors = validate_tool_surface_snapshot(
+            initial_surface, self.tool_policy
+        )
+        if surface_errors:
+            raise AppServerError(
+                "preflight-tool-surface-invalid:" + ";".join(surface_errors)
+            )
+        self.preflight_tool_surface = initial_surface
+        self.pre_dispatch_tool_surface: dict[str, Any] | None = None
+        self._forbidden_tool_activity: list[dict[str, str]] = []
         self.force_interrupt_after_checks = force_interrupt_after_checks
         self.record_dir = record_dir
         self.turn_id: str | None = None
@@ -2376,6 +3906,30 @@ class LiveThreadAdapter:
         def action() -> dict[str, str]:
             if message != self.prompt:
                 raise AppServerError("turn-prompt-binding-mismatch")
+            try:
+                current_prompt_preflight = require_prompt_preflight(
+                    message, self.tool_policy
+                )
+            except NativeToolIsolationError as exc:
+                raise AppServerError(str(exc)) from exc
+            if current_prompt_preflight != self.prompt_preflight:
+                raise AppServerError("prompt-preflight-changed-before-dispatch")
+            current_surface = dict(self._tool_surface_reader())
+            surface_errors = validate_tool_surface_snapshot(
+                current_surface, self.tool_policy
+            )
+            if surface_errors:
+                raise AppServerError(
+                    "pre-dispatch-tool-surface-invalid:"
+                    + ";".join(surface_errors)
+                )
+            try:
+                require_unchanged_tool_surface(
+                    self.preflight_tool_surface, current_surface
+                )
+            except NativeToolIsolationError as exc:
+                raise AppServerError(str(exc)) from exc
+            self.pre_dispatch_tool_surface = current_surface
             with self._boundary_lock:
                 # Revoke the pre-dispatch allowance before the RPC. Failed or
                 # ambiguous submission can never recover it from a missing id.
@@ -2421,6 +3975,8 @@ class LiveThreadAdapter:
             self.last_thread = thread
             self.reported_session_path = thread.get("path") or self.reported_session_path
             boundary = self._capture_trusted_boundary(allow_pending=True)
+            if self._observe_forbidden_tool_activity(boundary):
+                return {"decision": "interrupt"}
             status = turn_status(self.last_thread, self.turn_id)
             terminal_event = boundary.get("terminal_event")
             durable_status = (
@@ -2471,6 +4027,24 @@ class LiveThreadAdapter:
             return {"decision": "control-lost"}
 
         return self._timed("check", action)
+
+    def _observe_forbidden_tool_activity(
+        self, boundary: Mapping[str, Any]
+    ) -> list[dict[str, str]]:
+        try:
+            observed = forbidden_tool_activity(
+                boundary.get("trusted_tool_activity", []), self.tool_policy
+            )
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        combined = {
+            (item["tool"], item["evidence_sha256"]): item
+            for item in [*self._forbidden_tool_activity, *observed]
+        }
+        self._forbidden_tool_activity = [
+            combined[key] for key in sorted(combined)
+        ]
+        return list(self._forbidden_tool_activity)
 
     def _known_completion_evidence_missing(
         self,
@@ -2707,6 +4281,7 @@ class LiveThreadAdapter:
 
     def _trusted_summary(self, *, allow_pending: bool = True) -> dict[str, Any]:
         boundary = self._capture_trusted_boundary(allow_pending=allow_pending)
+        violations = self._observe_forbidden_tool_activity(boundary)
         items = turn_items(self.last_thread, self.turn_id)
         item_types = [str(item.get("type")) for item in items if item.get("type")]
         projected_tool_calls = sum(
@@ -2767,6 +4342,11 @@ class LiveThreadAdapter:
             "trusted_tool_evidence_sha256": list(
                 boundary.get("trusted_tool_evidence_sha256", [])
             ),
+            "trusted_tool_names": list(boundary.get("trusted_tool_names", [])),
+            "trusted_tool_activity": list(
+                boundary.get("trusted_tool_activity", [])
+            ),
+            "forbidden_tool_activity": violations,
             "item_types": sorted(set(item_types)),
             "token_telemetry": {
                 "availability": "available" if token_total is not None else "unavailable",
@@ -2866,6 +4446,8 @@ class LiveThreadAdapter:
         status = summary["turn_status"]
         terminal = status in {"completed", "interrupted", "failed"}
         reasons: list[str] = []
+        if summary["forbidden_tool_activity"]:
+            reasons.append("forbidden-tool-activity")
         if terminal and not summary["model_exact"]:
             reasons.append("trusted-model-attestation-mismatch")
         if (
@@ -2913,8 +4495,18 @@ class LiveThreadAdapter:
             "mutations": usage["mutations"],
             "compactions": usage["compactions"],
             "completion_evidence_policy_sha256": self.completion_evidence_policy_sha256,
+            "tool_policy_sha256": self.tool_policy_sha256,
+            "preflight_tool_surface_sha256": self.preflight_tool_surface[
+                "surface_sha256"
+            ],
+            "pre_dispatch_tool_surface_sha256": (
+                self.pre_dispatch_tool_surface.get("surface_sha256")
+                if self.pre_dispatch_tool_surface is not None
+                else None
+            ),
             "trusted_completed_tool_calls": summary["completed_tool_calls"],
             "trusted_tool_evidence_sha256": summary["trusted_tool_evidence_sha256"],
+            "forbidden_tool_activity": summary["forbidden_tool_activity"],
             "completion_evidence_satisfied": completion_observation["satisfied"],
             "evidence_sequence": self._evidence_sequence,
         }
@@ -2939,11 +4531,33 @@ class LiveThreadAdapter:
         else:
             session_disposition = "accepted"
             artifact_disposition = "accepted"
+        state_sha256 = canonical_sha256(state_payload)
+        control_loss = (
+            status == "failed"
+            or "trusted-model-attestation-mismatch" in reasons
+        )
+        pool_wide_reason_codes = {
+            "authority-violation",
+            "forbidden-tool-activity",
+            "mutation-attribution-ambiguous",
+            "read-only-workspace-mutation",
+            "security-violation",
+            "trusted-model-attestation-mismatch",
+        }
+        failure_class = (
+            "control-security-failure"
+            if control_loss or any(reason in pool_wide_reason_codes for reason in reasons)
+            else "individual-child-failure"
+            if reasons
+            else None
+        )
         return {
-            "state_sha256": canonical_sha256(state_payload),
+            "state_sha256": state_sha256,
             "usage": usage,
             "protected_fault": bool(reasons),
-            "control_loss": status == "failed" or "trusted-model-attestation-mismatch" in reasons,
+            "control_loss": control_loss,
+            "failure_class": failure_class,
+            "recovery_evidence_sha256": state_sha256 if reasons else None,
             "reasons": reasons,
             "session_disposition": session_disposition,
             "artifact_disposition": artifact_disposition,
@@ -2958,11 +4572,30 @@ class LiveThreadAdapter:
         ] = self.completion_evidence_policy_sha256
         summary["completion_evidence_observation"] = completion_observation
         summary["completion_evidence_satisfied"] = completion_observation["satisfied"]
+        summary["tool_policy"] = self.tool_policy
+        summary["tool_policy_sha256"] = self.tool_policy_sha256
+        summary["prompt_preflight"] = self.prompt_preflight
+        summary["preflight_tool_surface"] = self.preflight_tool_surface
+        summary["pre_dispatch_tool_surface"] = self.pre_dispatch_tool_surface
+        summary["override_provenance"] = self.tool_policy["override_provenance"]
         summary["callback_stats"] = {
             name: stats(values) for name, values in sorted(self.callback_latencies.items())
         }
         summary["prompt_sha256"] = sha256_text(self.prompt)
         return summary
+
+
+def _measure_action_ms(
+    action: Callable[[], Any],
+    *,
+    guard_seconds: float = 0.0,
+) -> tuple[Any, float]:
+    started = time.monotonic_ns()
+    result = action()
+    if guard_seconds != 0.0:
+        time.sleep(guard_seconds)
+    elapsed_ms = (time.monotonic_ns() - started) / 1_000_000
+    return result, elapsed_ms
 
 
 def guarded_measure(
@@ -2972,10 +4605,11 @@ def guarded_measure(
     *,
     guard_seconds: float = 0.20,
 ) -> Any:
-    started = time.monotonic_ns()
-    result = action()
-    time.sleep(guard_seconds)
-    samples.setdefault(name, []).append((time.monotonic_ns() - started) / 1_000_000)
+    result, elapsed_ms = _measure_action_ms(
+        action,
+        guard_seconds=guard_seconds,
+    )
+    samples.setdefault(name, []).append(elapsed_ms)
     return result
 
 
@@ -2998,6 +4632,24 @@ def _run_calibration(
     pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     samples: dict[str, list[float]] = {}
+    prompt = (
+        "Use the exec_command tool exactly once to run `sleep 20`. After it finishes, return "
+        "exactly CAPABILITY_LONG_DONE. Do not use any other tool."
+    )
+    calibration_tool_policy = default_tool_policy(
+        mutable=False,
+        workload_class="safety-canary",
+        permitted_tools=["exec_command"],
+    )
+    try:
+        calibration_prompt_preflight = require_prompt_preflight(
+            prompt, calibration_tool_policy
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
+    calibration_preflight_surface = capture_server_tool_surface(
+        server, calibration_tool_policy
+    )
 
     def workspace_snapshot() -> tuple[str, str | None]:
         completed = subprocess.run(
@@ -3015,9 +4667,31 @@ def _run_calibration(
     workspace_monitoring_status, workspace_baseline_sha256 = workspace_snapshot()
     if pre_allocation_check is not None:
         pre_allocation_check()
-    result, preallocation_latency = server.start_thread(
-        cwd, mutable=False, role="capability-calibration"
+    allocation_surface = capture_server_tool_surface(
+        server, calibration_tool_policy
     )
+    try:
+        require_unchanged_tool_surface(
+            calibration_preflight_surface, allocation_surface
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
+    start_kwargs: dict[str, Any] = {
+        "mutable": False,
+        "role": "capability-calibration",
+    }
+    if allocation_surface["server_allowlist_supported"]:
+        start_kwargs.update(
+            {
+                "permitted_tools": list(
+                    calibration_tool_policy["permitted_tools"]
+                ),
+                "allowlist_parameter": allocation_surface[
+                    "allowlist_parameter"
+                ],
+            }
+        )
+    result, preallocation_latency = server.start_thread(cwd, **start_kwargs)
     thread_id = str(result["thread"]["id"])
     guarded_measure(
         samples,
@@ -3030,10 +4704,15 @@ def _run_calibration(
         or (_ for _ in ()).throw(AppServerError("prearmed-thread-binding-invalid")),
         guard_seconds=0.0,
     )
-    prompt = (
-        "Use the exec_command tool exactly once to run `sleep 20`. After it finishes, return "
-        "exactly CAPABILITY_LONG_DONE. Do not use any other tool."
+    calibration_pre_dispatch_surface = capture_server_tool_surface(
+        server, calibration_tool_policy
     )
+    try:
+        require_unchanged_tool_surface(
+            calibration_preflight_surface, calibration_pre_dispatch_surface
+        )
+    except NativeToolIsolationError as exc:
+        raise AppServerError(str(exc)) from exc
     notification_floor = server.notification_cursor()
     turn = guarded_measure(
         samples,
@@ -4245,14 +5924,18 @@ def _run_calibration(
         {"child_id": "b", "next_deadline_ns": 1_000_000_000},
     ]
     cursor = 0
-    for _index in range(4):
-        started = time.monotonic_ns()
+
+    def measure_scheduler_selection() -> None:
+        nonlocal cursor
         selected = select_earliest_deadline(children, cursor=cursor)
         if selected is None:
             raise AppServerError("scheduler-calibration-selection-missing")
         cursor = selected.next_cursor
         time.sleep(0.05)
-        scheduler_samples.append((time.monotonic_ns() - started) / 1_000_000)
+
+    for _index in range(4):
+        _result, elapsed_ms = _measure_action_ms(measure_scheduler_selection)
+        scheduler_samples.append(elapsed_ms)
 
     measured_at = utc_now()
     receipt = seal_artifact(
@@ -4268,7 +5951,7 @@ def _run_calibration(
             "measured_at": iso(measured_at),
             "expires_at": iso(measured_at + dt.timedelta(minutes=55)),
             "sample_count": min(len(values) for values in samples.values()),
-            "requested_cap": 2,
+            "requested_cap": LEGACY_CONCURRENT_CAPACITY,
             "clock": "monotonic_ns",
             "callbacks": {name: stats(samples[name]) for name in sorted(samples)},
             "scheduler_overhead": stats(scheduler_samples),
@@ -4288,10 +5971,19 @@ def _run_calibration(
     if errors:
         raise AppServerError("capability-receipt-invalid:" + ";".join(errors))
     ceilings = receipt["certification"]["certified_callback_max_ms"]
-    check_max = ceilings["check"]
-    lifecycle_max = max(ceilings.values())
     overhead_max = receipt["certification"]["certified_scheduler_overhead_ms"]
-    if lifecycle_max + 2 * check_max + overhead_max > 1000:
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=receipt["requested_cap"],
+            certified_callback_max_ms=ceilings,
+            certified_scheduler_overhead_ms=overhead_max,
+            poll_interval_ms=POOL_POLL_INTERVAL_MS,
+        )
+    except PoolSchedulabilityError as error:
+        raise AppServerError(
+            "capability-schedulability-input-invalid"
+        ) from error
+    if not proof.accepted:
         raise AppServerError("capability-response-time-bound-failed")
 
     thread = last_threads[thread_id]
@@ -4328,6 +6020,12 @@ def _run_calibration(
         "reroute_count": len(server.notifications(thread_id, "model/rerouted")),
         "compactions": len(server.notifications(thread_id, "thread/compacted"))
         + int(boundary.get("compactions", 0)),
+        "tool_policy": calibration_tool_policy,
+        "tool_policy_sha256": canonical_sha256(calibration_tool_policy),
+        "prompt_preflight": calibration_prompt_preflight,
+        "preflight_tool_surface": calibration_preflight_surface,
+        "pre_dispatch_tool_surface": calibration_pre_dispatch_surface,
+        "override_provenance": calibration_tool_policy["override_provenance"],
     }
     if summary["thread_start_model"] != EXACT_MODEL:
         raise AppServerError("capability-thread-start-model-mismatch")
@@ -4337,6 +6035,12 @@ def _run_calibration(
         raise AppServerError("capability-session-effort-mismatch")
     if summary["compactions"] or summary["reroute_count"]:
         raise AppServerError("capability-session-containment-failed")
+    calibration_violations = forbidden_tool_activity(
+        boundary.get("trusted_tool_activity", []), calibration_tool_policy
+    )
+    summary["forbidden_tool_activity"] = calibration_violations
+    if calibration_violations:
+        raise AppServerError("capability-forbidden-tool-activity")
 
     evidence = {
         "thread_preallocation_stats": stats([preallocation_latency]),
@@ -4357,10 +6061,8 @@ def _run_calibration(
         ) if len(poll_started) > 1 else 0.0,
         "interrupt_confirmed": True,
         "peer_completion_deferred_to_coordinator_interrupt_canary": True,
-        "scheduler_inequality_lhs_ms": round(
-            lifecycle_max + 2 * check_max + overhead_max, 3
-        ),
-        "scheduler_inequality_rhs_ms": 1000,
+        "scheduler_inequality_lhs_ms": round(proof.total_demand_ms, 3),
+        "scheduler_inequality_rhs_ms": proof.poll_interval_ms,
     }
     return receipt, evidence
 
@@ -4426,6 +6128,21 @@ def make_git_layout(root: Path) -> dict[str, Path]:
     return paths
 
 
+def split_fixed_pool_budget(
+    aggregate: Mapping[str, int], child_count: int
+) -> list[dict[str, int]]:
+    """Split every hard-budget dimension exactly and deterministically."""
+
+    if child_count < 1:
+        raise AppServerError("pool-budget-child-count-invalid")
+    children = [dict.fromkeys(aggregate, 0) for _ in range(child_count)]
+    for field, total in aggregate.items():
+        quotient, remainder = divmod(total, child_count)
+        for index in range(child_count):
+            children[index][field] = quotient + (1 if index < remainder else 0)
+    return children
+
+
 def build_pool_inputs(
     server: AppServer,
     capability_receipt: Mapping[str, Any],
@@ -4439,6 +6156,7 @@ def build_pool_inputs(
     prompts: list[str],
     expected_tokens: list[str],
     completion_evidence_policies: list[Mapping[str, Any]] | None = None,
+    tool_policies: list[Mapping[str, Any]] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
@@ -4448,8 +6166,12 @@ def build_pool_inputs(
     dict[str, dict[str, Any]],
     dict[str, LiveThreadAdapter],
     PoolWorkspaceMonitor,
+    dict[str, dict[str, Any]],
 ]:
-    record_dir = root / f"{pool_name}-records"
+    launch_id = str(uuid.uuid4())
+    pool_id = str(uuid.uuid4())
+    pool_epoch = str(uuid.uuid4())
+    record_dir = root / f"{pool_name}-{launch_id}-records"
     isolation_class = "mutable-isolated" if mutable else "read-only-shared"
     if completion_evidence_policies is None:
         policies = [
@@ -4460,6 +6182,8 @@ def build_pool_inputs(
         policies = list(completion_evidence_policies)
     if len(policies) != len(worktrees):
         raise AppServerError("completion-evidence-policy-cardinality-mismatch")
+    if len(prompts) != len(worktrees) or len(expected_tokens) != len(worktrees):
+        raise AppServerError("pool-input-cardinality-mismatch")
     for index, policy in enumerate(policies):
         errors = validate_completion_evidence_policy(
             policy,
@@ -4470,6 +6194,123 @@ def build_pool_inputs(
             raise AppServerError(
                 "completion-evidence-policy-invalid:" + ";".join(errors)
             )
+    raw_tool_policies = (
+        [
+            default_tool_policy(
+                mutable=mutable,
+                workload_class="safety-canary",
+            )
+            for _ in worktrees
+        ]
+        if tool_policies is None
+        else list(tool_policies)
+    )
+    if len(raw_tool_policies) != len(worktrees):
+        raise AppServerError("tool-policy-cardinality-mismatch")
+    normalized_tool_policies: list[dict[str, Any]] = []
+    prompt_preflights: list[dict[str, Any]] = []
+    preflight_tool_surfaces: list[dict[str, Any]] = []
+    for index, (prompt, raw_tool_policy) in enumerate(
+        zip(prompts, raw_tool_policies)
+    ):
+        policy_errors = validate_tool_policy(
+            raw_tool_policy, prefix=f"child[{index}]-tool-policy"
+        )
+        if policy_errors:
+            raise AppServerError(
+                "tool-policy-invalid:" + ";".join(policy_errors)
+            )
+        try:
+            normalized_policy = normalize_tool_policy(raw_tool_policy)
+            prompt_receipt = require_prompt_preflight(prompt, normalized_policy)
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        normalized_tool_policies.append(normalized_policy)
+        prompt_preflights.append(prompt_receipt)
+        preflight_tool_surfaces.append(
+            capture_server_tool_surface(server, normalized_policy)
+        )
+    requested_workers = len(worktrees)
+    aggregate_hard_budget = {
+        "tool_calls": 20,
+        "runtime_seconds": 300,
+        "compactions": 0,
+        "full_suite_runs": 0,
+        "mutations": requested_workers if mutable else 0,
+    }
+    child_hard_budgets = split_fixed_pool_budget(
+        aggregate_hard_budget, requested_workers
+    )
+    planned_children: list[dict[str, Any]] = []
+    for index, (
+        worktree,
+        prompt,
+        completion_policy,
+        tool_policy,
+        prompt_receipt,
+        tool_surface,
+    ) in enumerate(
+        zip(
+            worktrees,
+            prompts,
+            policies,
+            normalized_tool_policies,
+            prompt_preflights,
+            preflight_tool_surfaces,
+        )
+    ):
+        target = f"targets/child_{index}.txt" if mutable else None
+        planned_child = {
+            "child_id": f"{pool_name}-child-{index}",
+            "packet_id": str(uuid.uuid4()),
+            "attempt_nonce": str(uuid.uuid4()),
+            "session_id": None,
+            "agent_id": None,
+            "lease_id": str(uuid.uuid4()),
+            "worktree": str(worktree),
+            "isolation_class": isolation_class,
+            "completion_evidence_policy": dict(completion_policy),
+            "tool_policy": dict(tool_policy),
+            "prompt": prompt,
+            "prompt_preflight": dict(prompt_receipt),
+            "tool_surface": dict(tool_surface),
+            "hard_budget": child_hard_budgets[index],
+            "declared_write_paths": [target] if target else [],
+            "integration_target_paths": [target] if target else [],
+        }
+        planned_child["packet_sha256"] = effective_child_packet_sha256(
+            planned_child
+        )
+        planned_children.append(planned_child)
+    preallocation_request = {
+        "preflight_type": PREFLIGHT_REQUEST_TYPE,
+        "version": 1,
+        "schema": PREFLIGHT_REQUEST_SCHEMA,
+        "stage": "pre-allocation",
+        "launch_id": launch_id,
+        "campaign_nonce": campaign_manifest.get("campaign_nonce"),
+        "pool_id": pool_id,
+        "pool_epoch": pool_epoch,
+        "integration_root": str(integration),
+        "artifact_directories": [str(record_dir)],
+        "requested_workers": requested_workers,
+        "released_capacity": load_pool_capacity().released_max_active_workers,
+        "aggregate_hard_budget": aggregate_hard_budget,
+        "children": planned_children,
+        "fallback": {
+            "main_thread": "main-thread",
+            "recovery": "operator-recovery",
+        },
+        "productive_dogfood_delivery_prerequisite": False,
+        "callback_certification": default_callback_certification(),
+        "poll_interval_ms": POOL_POLL_INTERVAL_MS,
+        "pool_contract": None,
+        "overrides": [],
+    }
+    try:
+        preallocation_preflight = require_pool_preflight(preallocation_request)
+    except NativePoolPreflightError as exc:
+        raise AppServerError(str(exc)) from exc
     thread_results = []
     bound_manifest_validation: Mapping[str, Any] | None = None
     for index, worktree in enumerate(worktrees):
@@ -4492,59 +6333,111 @@ def build_pool_inputs(
         role = f"{pool_name}-{index}"
         if pre_allocation_check is not None:
             pre_allocation_check()
-        result, _latency = server.start_thread(worktree, mutable=mutable, role=role)
+        current_surface = capture_server_tool_surface(
+            server, normalized_tool_policies[index]
+        )
+        try:
+            require_unchanged_tool_surface(
+                preflight_tool_surfaces[index], current_surface
+            )
+        except NativeToolIsolationError as exc:
+            raise AppServerError(str(exc)) from exc
+        start_kwargs: dict[str, Any] = {
+            "mutable": mutable,
+            "role": role,
+        }
+        if current_surface["server_allowlist_supported"]:
+            start_kwargs.update(
+                {
+                    "permitted_tools": list(
+                        normalized_tool_policies[index]["permitted_tools"]
+                    ),
+                    "allowlist_parameter": current_surface[
+                        "allowlist_parameter"
+                    ],
+                }
+            )
+        result, _latency = server.start_thread(worktree, **start_kwargs)
         thread_results.append(result)
-    record_dir.mkdir(mode=0o700)
+    record_dir.mkdir(mode=0o700, exist_ok=True)
+    try:
+        preallocation_preflight = require_pool_preflight(preallocation_request)
+    except NativePoolPreflightError as exc:
+        raise AppServerError(str(exc)) from exc
+    write_private_artifact(
+        record_dir / "preallocation-pool-preflight.json",
+        preallocation_preflight,
+    )
     children = []
     child_contracts: dict[str, dict[str, Any]] = {}
     adapters: dict[str, LiveThreadAdapter] = {}
-    for index, (result, worktree, prompt, expected_token, completion_policy) in enumerate(
-        zip(thread_results, worktrees, prompts, expected_tokens, policies)
+    for index, (
+        result,
+        worktree,
+        prompt,
+        expected_token,
+        completion_policy,
+        tool_policy,
+        prompt_receipt,
+        preflight_surface,
+    ) in enumerate(
+        zip(
+            thread_results,
+            worktrees,
+            prompts,
+            expected_tokens,
+            policies,
+            normalized_tool_policies,
+            prompt_preflights,
+            preflight_tool_surfaces,
+        )
     ):
-        child_id = f"{pool_name}-child-{index}"
+        planned = planned_children[index]
+        child_id = str(planned["child_id"])
         thread_id = str(result["thread"]["id"])
         state_file = record_dir / f"{child_id}-worker-state.json"
         control_file = record_dir / f"{child_id}-control-contract.json"
         control_turn_id = f"{CONTROL_TURN_ID}:{pool_name}:{index}"
-        packet_sha256 = sha256_text(
-            json.dumps(
-                {
-                    "pool": pool_name,
-                    "child": index,
-                    "prompt_sha256": sha256_text(prompt),
-                    "thread_id": thread_id,
-                },
-                sort_keys=True,
-            )
-        )
+        packet_sha256 = str(planned["packet_sha256"])
         control = build_control_turn_contract(
             state_file=str(state_file),
             agent_id=thread_id,
             control_turn_id=control_turn_id,
             task_sha256=sha256_text(prompt),
-            poll_interval_ms=1000,
+            poll_interval_ms=POOL_POLL_INTERVAL_MS,
         )
         state = {
             "result_type": "cwo-native-supervision-state",
             "version": 1,
             "schema": "schemas/native-supervision-state.schema.json",
-            "packet_id": f"{pool_name}-packet-{uuid.uuid4()}",
+            "packet_id": planned["packet_id"],
             "packet_sha256": packet_sha256,
             "agent_id": thread_id,
             "session_id": thread_id,
             "status": "created",
             "control_turn_id": None,
-            "poll_interval_ms": 1000,
+            "poll_interval_ms": POOL_POLL_INTERVAL_MS,
             "control_adapter": "native-multi-agent-v1",
             "required_capabilities": ["interrupt", "close", "wait"],
+            **build_stop_metadata(
+                "child",
+                authority=policy_scope_authority(
+                    "live-canary-child-state-baseline-v1",
+                    authorized_scope="child",
+                ),
+            ),
         }
         write_private_artifact(control_file, control)
         write_private_artifact(state_file, state)
-        target = f"targets/child_{index}.txt" if mutable else None
+        target = (
+            str(planned["integration_target_paths"][0])
+            if planned["integration_target_paths"]
+            else None
+        )
         child = {
             "child_id": child_id,
             "packet_id": state["packet_id"],
-            "attempt_nonce": f"{pool_name}-attempt-{uuid.uuid4()}",
+            "attempt_nonce": planned["attempt_nonce"],
             "session_id": thread_id,
             "agent_id": thread_id,
             "control_turn_id": control_turn_id,
@@ -4554,9 +6447,10 @@ def build_pool_inputs(
             "worktree": str(worktree),
             "isolation_class": "mutable-isolated" if mutable else "read-only-shared",
             "completion_evidence_policy": completion_policy,
+            "tool_policy": tool_policy,
             "declared_write_paths": [target] if target else [],
             "integration_target_paths": [target] if target else [],
-            "lease_id": f"{pool_name}-lease-{uuid.uuid4()}",
+            "lease_id": planned["lease_id"],
         }
         children.append(child)
         child_contracts[child_id] = control
@@ -4569,6 +6463,14 @@ def build_pool_inputs(
             mutable=mutable,
             expected_mutation=target,
             completion_evidence_policy=completion_policy,
+            tool_policy=tool_policy,
+            prompt_preflight_receipt=prompt_receipt,
+            preflight_tool_surface=preflight_surface,
+            tool_surface_reader=(
+                lambda policy=tool_policy: capture_server_tool_surface(
+                    server, policy
+                )
+            ),
             force_interrupt_after_checks=(interrupt_after or [None, None])[index],
             record_dir=record_dir,
         )
@@ -4576,18 +6478,12 @@ def build_pool_inputs(
         "request_type": "cwo-native-supervision-pool-render-request",
         "version": 1,
         "schema": "schemas/native-supervision-pool-render-request.schema.json",
-        "pool_id": f"18w6-{pool_name}-{uuid.uuid4()}",
-        "pool_epoch": f"18w6-{pool_name}-epoch-{uuid.uuid4()}",
+        "pool_id": pool_id,
+        "pool_epoch": pool_epoch,
         "control_turn_id": CONTROL_TURN_ID,
         "created_at": iso(),
-        "max_active_workers": 2,
-        "aggregate_hard_budget": {
-            "tool_calls": 20,
-            "runtime_seconds": 300,
-            "compactions": 0,
-            "full_suite_runs": 0,
-            "mutations": 2 if mutable else 0,
-        },
+        "max_active_workers": requested_workers,
+        "aggregate_hard_budget": aggregate_hard_budget,
         "integration_root": str(integration),
         "children": children,
     }
@@ -4600,12 +6496,41 @@ def build_pool_inputs(
         owner_pid=os.getpid(),
         now=utc_now(),
     )
+    predispatch_children: list[dict[str, Any]] = []
+    for planned, child in zip(planned_children, children):
+        effective = dict(planned)
+        effective["session_id"] = child["session_id"]
+        effective["agent_id"] = child["agent_id"]
+        predispatch_children.append(effective)
+    predispatch_request = {
+        **preallocation_request,
+        "stage": "pre-dispatch",
+        "children": predispatch_children,
+        "pool_contract": contract,
+    }
+    try:
+        predispatch_preflight = require_pool_preflight(predispatch_request)
+    except NativePoolPreflightError as exc:
+        raise AppServerError(str(exc)) from exc
+    write_private_artifact(
+        record_dir / "predispatch-pool-preflight.json",
+        predispatch_preflight,
+    )
     monitor = PoolWorkspaceMonitor(
         contract,
         integration_root=integration,
         child_worktrees={child_id: adapter.worktree for child_id, adapter in adapters.items()},
     )
-    return contract, child_contracts, adapters, monitor
+    return (
+        contract,
+        child_contracts,
+        adapters,
+        monitor,
+        {
+            "preallocation": preallocation_preflight,
+            "predispatch": predispatch_preflight,
+        },
+    )
 
 
 def run_pool_canary(
@@ -4621,12 +6546,19 @@ def run_pool_canary(
     prompts: list[str],
     expected_tokens: list[str],
     completion_evidence_policies: list[Mapping[str, Any]] | None = None,
+    tool_policies: list[Mapping[str, Any]] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     interrupt_after: list[int | None] | None = None,
 ) -> dict[str, Any]:
-    contract, child_contracts, adapters, monitor = build_pool_inputs(
+    (
+        contract,
+        child_contracts,
+        adapters,
+        monitor,
+        pool_preflights,
+    ) = build_pool_inputs(
         server,
         capability_receipt,
         campaign_manifest,
@@ -4638,6 +6570,7 @@ def run_pool_canary(
         prompts=prompts,
         expected_tokens=expected_tokens,
         completion_evidence_policies=completion_evidence_policies,
+        tool_policies=tool_policies,
         pre_thread_start_check=pre_thread_start_check,
         pre_allocation_check=pre_allocation_check,
         expected_bound_manifest_validation=expected_bound_manifest_validation,
@@ -4656,6 +6589,8 @@ def run_pool_canary(
             != child_contract["completion_evidence_policy"]
         ):
             raise AppServerError("child-completion-evidence-policy-mismatch")
+        if adapters[child_id].tool_policy != child_contract["tool_policy"]:
+            raise AppServerError("child-tool-policy-mismatch")
         return adapters[child_id].evidence()
 
     coordinator = NativePoolCoordinator(
@@ -4699,6 +6634,7 @@ def run_pool_canary(
         "pool_id": contract["pool_id"],
         "pool_epoch": contract["pool_epoch"],
         "contract_sha256": contract["contract_sha256"],
+        "preflight": pool_preflights,
         "receipt": receipt,
         "receipt_validation_errors": receipt_errors,
         "terminal_state_sha256": terminal_state["state_sha256"],
@@ -4731,21 +6667,115 @@ def validate_campaign(
         errors.append("capability-read-recovery-sha256-mismatch")
     certification = capability["certification"]
     ceilings = certification["certified_callback_max_ms"]
-    check_max = ceilings["check"]
     overhead = certification["certified_scheduler_overhead_ms"]
-    lifecycle_max = max(ceilings.values())
-    if check_max > 200:
+    if ceilings["check"] > 200:
         errors.append("capability-check-max-exceeded")
-    if lifecycle_max + 2 * check_max + overhead > 1000:
-        errors.append("capability-response-time-bound-failed")
+    try:
+        proof = scheduling_budget_proof(
+            requested_workers=capability["requested_cap"],
+            certified_callback_max_ms=ceilings,
+            certified_scheduler_overhead_ms=overhead,
+            poll_interval_ms=POOL_POLL_INTERVAL_MS,
+        )
+    except PoolSchedulabilityError:
+        errors.append("capability-schedulability-input-invalid")
+    else:
+        if not proof.accepted:
+            errors.append("capability-response-time-bound-failed")
     all_sessions = list(calibration_evidence.get("sessions", []))
     for canary in canaries:
+        pool_preflights = canary.get("preflight")
+        if not isinstance(pool_preflights, Mapping) or set(pool_preflights) != {
+            "preallocation",
+            "predispatch",
+        }:
+            errors.append("pool-preflight-receipts-missing")
+        else:
+            for label, stage in (
+                ("preallocation", "pre-allocation"),
+                ("predispatch", "pre-dispatch"),
+            ):
+                preflight_errors = validate_pool_preflight_result(
+                    pool_preflights.get(label),
+                    expected_stage=stage,
+                    expected_contract_sha256=(
+                        str(canary.get("contract_sha256"))
+                        if stage == "pre-dispatch"
+                        else None
+                    ),
+                )
+                errors.extend(
+                    f"pool-{label}-preflight:{item}"
+                    for item in preflight_errors
+                )
+                receipt = pool_preflights.get(label)
+                if (
+                    not isinstance(receipt, Mapping)
+                    or receipt.get("accepted") is not True
+                ):
+                    errors.append(f"pool-{label}-preflight-not-accepting")
         all_sessions.extend(canary.get("sessions", []))
     thread_ids = [session.get("thread_id") for session in all_sessions]
     if len(thread_ids) != 7 or len(thread_ids) != len(set(thread_ids)):
         errors.append("fresh-session-cardinality-or-uniqueness-failed")
     for session in all_sessions:
         boundary = session.get("session_boundary", {})
+        tool_policy = session.get("tool_policy")
+        tool_policy_errors = validate_tool_policy(tool_policy)
+        errors.extend(
+            f"session-tool-policy:{item}" for item in tool_policy_errors
+        )
+        if isinstance(tool_policy, Mapping):
+            if session.get("tool_policy_sha256") != canonical_sha256(tool_policy):
+                errors.append("session-tool-policy-sha256-mismatch")
+            for label in ("preflight_tool_surface", "pre_dispatch_tool_surface"):
+                surface_errors = validate_tool_surface_snapshot(
+                    session.get(label), tool_policy
+                )
+                errors.extend(
+                    f"session-{label.replace('_', '-')}:{item}"
+                    for item in surface_errors
+                )
+            if session.get("preflight_tool_surface") != session.get(
+                "pre_dispatch_tool_surface"
+            ):
+                errors.append("session-tool-surface-changed-before-dispatch")
+            if session.get("override_provenance") != tool_policy.get(
+                "override_provenance"
+            ):
+                errors.append("session-tool-override-provenance-mismatch")
+        prompt_receipt = session.get("prompt_preflight")
+        if not isinstance(prompt_receipt, Mapping):
+            errors.append("session-prompt-preflight-missing")
+        else:
+            unsigned_prompt_receipt = dict(prompt_receipt)
+            prompt_receipt_sha256 = unsigned_prompt_receipt.pop(
+                "preflight_sha256", None
+            )
+            if (
+                set(prompt_receipt)
+                != {
+                    "preflight_type",
+                    "version",
+                    "prompt_sha256",
+                    "tool_policy_sha256",
+                    "findings",
+                    "accepted",
+                    "preflight_sha256",
+                }
+                or prompt_receipt.get("accepted") is not True
+                or prompt_receipt.get("findings") != []
+                or prompt_receipt_sha256
+                != canonical_sha256(unsigned_prompt_receipt)
+                or (
+                    isinstance(tool_policy, Mapping)
+                    and prompt_receipt.get("tool_policy_sha256")
+                    != canonical_sha256(tool_policy)
+                )
+            ):
+                errors.append("session-prompt-preflight-invalid")
+        if session.get("forbidden_tool_activity"):
+            errors.append("session-forbidden-tool-activity")
         if session.get("thread_start_model") != EXACT_MODEL:
             errors.append("session-thread-start-model-mismatch")
         if boundary.get("attested_models") != [EXACT_MODEL]:
@@ -4810,7 +6840,7 @@ def validate_campaign(
 
 
 def contain_started_threads(server: AppServer) -> dict[str, Any]:
-    """Idempotently interrupt, archive, and audit every allocated thread."""
+    """Idempotently prove terminal absence, then archive allocated threads."""
 
     interrupted: list[str] = []
     archived: list[str] = []
@@ -4818,6 +6848,25 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
     ambiguous: list[str] = []
     ledger_errors: list[str] = []
     ledger = getattr(server, "allocation_ledger", None)
+
+    for thread_id, record in list(
+        getattr(server, "_turn_dispatch_records", {}).items()
+    ):
+        if not isinstance(record, Mapping):
+            ambiguous.append(str(thread_id))
+            continue
+        errors = validate_turn_dispatch_record(record)
+        if errors:
+            ambiguous.append(str(thread_id))
+            continue
+        if record.get("status") in {"dispatching", "failed-ambiguous"}:
+            try:
+                record = server.contain_ambiguous_turn_dispatch(str(thread_id))
+            except Exception:
+                ambiguous.append(str(thread_id))
+                continue
+        if record.get("status") == "failed-ambiguous":
+            ambiguous.append(str(thread_id))
 
     def audit_containment(thread_id: str, outcome: str, status: str | None) -> None:
         if ledger is None:
@@ -4836,37 +6885,112 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
             ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
 
     for thread_id, turn_id in list(server.started_threads.items()):
+        dispatch_record = (
+            server.turn_dispatch_record(thread_id)
+            if hasattr(server, "turn_dispatch_record")
+            else None
+        )
+        if (
+            isinstance(dispatch_record, Mapping)
+            and dispatch_record.get("status") == "failed-ambiguous"
+        ):
+            ambiguous.append(thread_id)
+            continue
+        if (
+            isinstance(dispatch_record, Mapping)
+            and dispatch_record.get("status") == "failed-contained"
+            and dispatch_record.get("archived") is True
+        ):
+            try:
+                success_audited = bool(
+                    ledger is None or ledger.has_successful_containment(thread_id)
+                )
+            except Exception as exc:
+                success_audited = False
+                ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
+            if success_audited:
+                already_contained.append(thread_id)
+            else:
+                ambiguous.append(thread_id)
+            continue
         try:
             thread, _latency = server.read_thread(thread_id)
-            status = turn_status(thread, turn_id) if turn_id else None
-            if turn_id and status == "inProgress":
-                server.interrupt_turn(thread_id, turn_id)
-                interrupted.append(thread_id)
-                deadline = time.monotonic() + 5
-                while time.monotonic() < deadline:
+            projected = AppServer._projected_turns(thread)
+            expected_turns = {turn_id} if turn_id is not None else set()
+            active = {
+                candidate
+                for candidate, status in projected.items()
+                if AppServer._normalized_terminal_status(status) is None
+            }
+            interrupt_failed = False
+            for candidate in sorted(active):
+                try:
+                    server.interrupt_turn(thread_id, candidate)
+                    interrupted.append(thread_id)
+                except Exception:
+                    interrupt_failed = True
+            deadline = time.monotonic() + AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS
+            terminal: dict[str, str] = {
+                candidate: normalized
+                for candidate, status in projected.items()
+                if (normalized := AppServer._normalized_terminal_status(status))
+                is not None
+            }
+            while active and time.monotonic() < deadline and not interrupt_failed:
+                try:
+                    thread, _latency = server.read_thread(
+                        thread_id,
+                        timeout=max(0.001, deadline - time.monotonic()),
+                    )
+                except TypeError as exc:
+                    if "timeout" not in str(exc):
+                        raise
                     thread, _latency = server.read_thread(thread_id)
-                    status = turn_status(thread, turn_id)
-                    if status in {"interrupted", "completed", "failed"}:
-                        break
-                    time.sleep(0.05)
-            if turn_id is None or status in {"interrupted", "completed", "failed"}:
+                projected = AppServer._projected_turns(thread)
+                terminal.update(
+                    {
+                        candidate: normalized
+                        for candidate, status in projected.items()
+                        if (normalized := AppServer._normalized_terminal_status(status))
+                        is not None
+                    }
+                )
+                active = {
+                    candidate
+                    for candidate, status in projected.items()
+                    if AppServer._normalized_terminal_status(status) is None
+                }
+                if active:
+                    time.sleep(AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS)
+            terminal_proven = expected_turns.issubset(terminal)
+            absence_proven = not active
+            if not interrupt_failed and terminal_proven and absence_proven:
                 server.archive_thread(thread_id)
                 archived.append(thread_id)
-                audit_containment(thread_id, "contained", status)
+                audit_containment(
+                    thread_id,
+                    "contained",
+                    terminal.get(turn_id) if turn_id is not None else None,
+                )
             else:
                 ambiguous.append(thread_id)
         except Exception:
             try:
-                archived_in_ledger = bool(
+                containment_audited = bool(
                     ledger is not None
-                    and ledger.has_lifecycle(thread_id, "archive-observed")
+                    and ledger.has_successful_containment(thread_id)
                 )
             except Exception as exc:
-                archived_in_ledger = False
+                containment_audited = False
                 ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
-            if archived_in_ledger:
+            record_proves_containment = bool(
+                isinstance(dispatch_record, Mapping)
+                and not validate_turn_dispatch_record(dispatch_record)
+                and dispatch_record.get("status") == "failed-contained"
+                and dispatch_record.get("absence_verified") is True
+            )
+            if containment_audited or (ledger is None and record_proves_containment):
                 already_contained.append(thread_id)
-                audit_containment(thread_id, "already-contained", None)
             else:
                 ambiguous.append(thread_id)
     unresolved_allocations = 0
@@ -4882,7 +7006,7 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
             ledger_allocation_count = int(ledger_summary["allocation_intent_count"])
         except Exception as exc:
             ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
-    ambiguous_count = len(set(ambiguous)) + unresolved_allocations
+    ambiguous_count = len(set(ambiguous)) + unresolved_allocations + unresolved_turns
     return {
         "allocated_count": ledger_allocation_count,
         "identified_thread_count": len(server.started_threads),
@@ -4892,8 +7016,10 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
         "unresolved_allocation_intent_count": unresolved_allocations,
         "unresolved_turn_intent_count": unresolved_turns,
         "ambiguous_count": ambiguous_count,
-        "all_contained": ambiguous_count == 0,
-        "ledger_consistent": not ledger_errors and not unresolved_allocations and not unresolved_turns,
+        "all_contained": ambiguous_count == 0 and not ledger_errors,
+        "ledger_consistent": not ledger_errors
+        and not unresolved_allocations
+        and not unresolved_turns,
         "ledger_error_sha256": sorted(set(ledger_errors)),
     }
 
@@ -7026,7 +9152,7 @@ def require_generation12_launch_inputs(
     """Return the exact terminal Gen11 leaf or reject a mixed generation."""
 
     if (
-        inputs.authorization.value.get("version") != 11
+        inputs.authorization.value.get("version") not in {11, 12}
         or inputs.manifest.value.get("version") != 8
         or not isinstance(
             inputs.predecessor_proof,
@@ -7242,7 +9368,7 @@ def require_trusted_session_snapshots_unchanged(
 ) -> None:
     """Re-read every trusted JSONL immediately before the first allocation."""
 
-    if inputs.authorization.value.get("version") == 11:
+    if inputs.authorization.value.get("version") in {11, 12}:
         expected = generation12_trusted_session_snapshots(inputs)
     elif inputs.authorization.value.get("version") == 10:
         expected = generation11_trusted_session_snapshots(inputs)
@@ -7293,7 +9419,7 @@ def require_launch_source_snapshots_unchanged(
 ) -> None:
     """Recheck every mutable source against the read-once launch snapshots."""
 
-    if inputs.authorization.value.get("version") == 11:
+    if inputs.authorization.value.get("version") in {11, 12}:
         expected = generation12_private_source_snapshots(inputs)
     elif inputs.authorization.value.get("version") == 10:
         expected = generation11_private_source_snapshots(inputs)
@@ -7593,7 +9719,7 @@ def validate_independent_validation_session_snapshot(
         raise AppServerError("spark-validation-session-final-json-invalid") from exc
     if (
         sha256_text(final_text) != receipt.get("final_response_sha256")
-        or final_opinion != receipt.get("opinion")
+        or final_opinion != steering_payload(receipt)
     ):
         raise AppServerError("spark-validation-session-final-binding-mismatch")
     return str(observed_boundary["boundary_sha256"])
@@ -7686,7 +9812,7 @@ def validate_campaign_launch_bindings(
     )
     preallocation_failed: Version9PreallocationFaultPredecessorProofInputs | None
     failed_predecessor: Version8ProtectedFaultPredecessorProofInputs | None
-    if authorization_version == 11:
+    if authorization_version in {11, 12}:
         interrupted_failed = require_generation12_launch_inputs(inputs)
         preallocation_failed = interrupted_failed.ancestor
         failed_predecessor = preallocation_failed.ancestor
@@ -8165,19 +10291,20 @@ def validate_campaign_launch_bindings(
         if isinstance(policy_document, Mapping)
         else None
     )
-    current_policy = {
-        "status": pool_policy.get("status") if isinstance(pool_policy, Mapping) else None,
-        "cap_two_operative_release": (
-            pool_policy.get("cap_two_operative_release")
-            if isinstance(pool_policy, Mapping)
-            else None
+    capacity_limits = load_pool_capacity(policy_document)
+    current_policy = historical_release_snapshot(
+        status=(
+            pool_policy.get("status") if isinstance(pool_policy, Mapping) else None
         ),
-    }
+        released_max_active_workers=(
+            capacity_limits.released_max_active_workers
+        ),
+    )
     if current_policy != manifest["release"]["policy_before"]:
         raise AppServerError("campaign-policy-before-mismatch")
     all_source_file_sha256s = (
         generation12_source_file_sha256s(inputs)
-        if authorization_version == 11
+        if authorization_version in {11, 12}
         else (
             generation11_source_file_sha256s(inputs)
             if authorization_version == 10
@@ -8807,7 +10934,7 @@ def campaign_launch_claim_payload_v6(
         "claim_type": "cwo-native-live-campaign-launch-claim",
         "version": 6,
         "operative_version_tuple": {
-            "authorization_version": 11,
+            "authorization_version": authorization.get("version"),
             "manifest_version": 8,
             "launch_claim_version": 6,
             "validator_contract_version": 6,
@@ -9190,7 +11317,7 @@ def campaign_launch_claim_sha256(
     """Seal one immutable versioned launch claim under its exact domain."""
 
     authorization_version = inputs.authorization.value.get("version")
-    if authorization_version == 11:
+    if authorization_version in {11, 12}:
         claim = campaign_launch_claim_payload_v6(
             inputs,
             output=output,
@@ -9308,6 +11435,8 @@ def validate_and_acquire_global_campaign_claim(
     authorization_state: Path,
     steering_registry: Path,
     allocation_ledger: Path,
+    pre_mutation_verified_operator_authorities: Iterable[Any] | None = None,
+    pre_live_verified_operator_authorities: Iterable[Any] | None = None,
 ) -> tuple[
     dict[str, Any],
     str,
@@ -9335,6 +11464,12 @@ def validate_and_acquire_global_campaign_claim(
         pre_live_receipt=inputs.pre_live_receipt.value,
         pre_live_adjudication=inputs.pre_live_adjudication.value,
         pre_live_adjudication_sha256=inputs.pre_live_adjudication.raw_sha256,
+        pre_mutation_verified_operator_authorities=(
+            pre_mutation_verified_operator_authorities
+        ),
+        pre_live_verified_operator_authorities=(
+            pre_live_verified_operator_authorities
+        ),
     )
     launch_claim_sha256 = campaign_launch_claim_sha256(
         inputs,
@@ -9395,7 +11530,7 @@ def require_operative_campaign_contract(
     )
     if not errors:
         return
-    if authorization_version != 11:
+    if authorization_version != 12:
         raise AppServerError("campaign-authorization-version-historical-only")
     raise AppServerError(
         "campaign-contract-version-mismatch:" + ";".join(errors)
@@ -10732,6 +12867,7 @@ def main() -> int:
             expected_validator_contract_sha256=validator_contract_sha256_v6(
                 ROOT, authorization.get("bindings", {}).get("checkpoint_tree")
             ),
+            operative=True,
             repo_root=ROOT,
         )
 

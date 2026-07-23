@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.cwo.local/native-recovery-decision.schema.json",
+  "title": "Native Recovery Audit Decision",
+  "description": "A deterministic audit projection. This document is never executable authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision_type",
+    "version",
+    "schema",
+    "recovery_class",
+    "action",
+    "replacement_budget",
+    "replacement_count",
+    "replacements_remaining",
+    "construction_attempt_budget",
+    "construction_attempt_count",
+    "construction_attempts_remaining",
+    "stop_scope",
+    "required_authority",
+    "signals",
+    "classification_evidence_sha256",
+    "evidence_sha256",
+    "fixed_cohort_sha256",
+    "admitted_bead_id",
+    "admitted_child_sha256",
+    "admission_grade",
+    "dispatch_authorized",
+    "newly_ready_refill_allowed",
+    "fixed_cohort_required",
+    "decision_sha256"
+  ],
+  "properties": {
+    "decision_type": {"const": "cwo-native-recovery-decision"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-recovery-decision.schema.json"},
+    "recovery_class": {
+      "enum": [
+        "deterministic-construction-failure",
+        "pre-dispatch-transport-failure",
+        "contained-semantic-no-op",
+        "individual-child-failure",
+        "control-security-failure",
+        "contradictory-authority-changing-validation"
+      ]
+    },
+    "action": {
+      "enum": [
+        "reconstruct-same-admitted-bead",
+        "replace-same-admitted-bead",
+        "return-same-admitted-bead-to-main-thread",
+        "stop-execution-path",
+        "await-operator-input"
+      ]
+    },
+    "replacement_budget": {"type": "integer", "minimum": 0, "maximum": 1},
+    "replacement_count": {"type": "integer", "minimum": 0, "maximum": 1},
+    "replacements_remaining": {"type": "integer", "minimum": 0, "maximum": 1},
+    "construction_attempt_budget": {"type": "integer", "minimum": 0, "maximum": 1},
+    "construction_attempt_count": {"type": "integer", "minimum": 0, "maximum": 1},
+    "construction_attempts_remaining": {"type": "integer", "minimum": 0, "maximum": 1},
+    "stop_scope": {"enum": ["child", "execution-path", "complete-task"]},
+    "required_authority": {
+      "enum": [
+        "verified-project-manager",
+        "pm-controller-plus-supervisor-policy",
+        "pm-controller-plus-verified-containment",
+        "supervisor-policy",
+        "verified-operator-directive"
+      ]
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deterministic_construction_failure",
+        "pre_dispatch_transport_failure",
+        "contained_semantic_no_op",
+        "individual_child_failure",
+        "control_security_failure",
+        "failed_ambiguous_dispatch",
+        "contradictory_authority_changing_validation"
+      ],
+      "properties": {
+        "deterministic_construction_failure": {"type": "boolean"},
+        "pre_dispatch_transport_failure": {"type": "boolean"},
+        "contained_semantic_no_op": {"type": "boolean"},
+        "individual_child_failure": {"type": "boolean"},
+        "control_security_failure": {"type": "boolean"},
+        "failed_ambiguous_dispatch": {"type": "boolean"},
+        "contradictory_authority_changing_validation": {"type": "boolean"}
+      },
+      "anyOf": [
+        {"properties": {"deterministic_construction_failure": {"const": true}}},
+        {"properties": {"pre_dispatch_transport_failure": {"const": true}}},
+        {"properties": {"contained_semantic_no_op": {"const": true}}},
+        {"properties": {"individual_child_failure": {"const": true}}},
+        {"properties": {"control_security_failure": {"const": true}}},
+        {"properties": {"failed_ambiguous_dispatch": {"const": true}}},
+        {"properties": {"contradictory_authority_changing_validation": {"const": true}}}
+      ]
+    },
+    "classification_evidence_sha256": {"$ref": "#/$defs/sha256"},
+    "evidence_sha256": {"$ref": "#/$defs/sha256"},
+    "fixed_cohort_sha256": {"$ref": "#/$defs/sha256"},
+    "admitted_bead_id": {"type": "string", "minLength": 1},
+    "admitted_child_sha256": {"$ref": "#/$defs/sha256"},
+    "admission_grade": {"const": "provisional-fixed-cohort"},
+    "dispatch_authorized": {"const": false},
+    "newly_ready_refill_allowed": {"const": false},
+    "fixed_cohort_required": {"const": true},
+    "decision_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "signals": {
+            "properties": {
+              "contradictory_authority_changing_validation": {"const": true}
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "recovery_class": {"const": "contradictory-authority-changing-validation"}
+        }
+      },
+      "else": {
+        "if": {
+          "properties": {
+            "signals": {
+              "anyOf": [
+                {"properties": {"failed_ambiguous_dispatch": {"const": true}}},
+                {"properties": {"control_security_failure": {"const": true}}}
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {"recovery_class": {"const": "control-security-failure"}}
+        },
+        "else": {
+          "if": {
+            "properties": {
+              "signals": {
+                "properties": {"individual_child_failure": {"const": true}}
+              }
+            }
+          },
+          "then": {
+            "properties": {"recovery_class": {"const": "individual-child-failure"}}
+          },
+          "else": {
+            "if": {
+              "properties": {
+                "signals": {
+                  "properties": {"contained_semantic_no_op": {"const": true}}
+                }
+              }
+            },
+            "then": {
+              "properties": {"recovery_class": {"const": "contained-semantic-no-op"}}
+            },
+            "else": {
+              "if": {
+                "properties": {
+                  "signals": {
+                    "properties": {"pre_dispatch_transport_failure": {"const": true}}
+                  }
+                }
+              },
+              "then": {
+                "properties": {"recovery_class": {"const": "pre-dispatch-transport-failure"}}
+              },
+              "else": {
+                "properties": {
+                  "recovery_class": {"const": "deterministic-construction-failure"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"recovery_class": {"const": "deterministic-construction-failure"}}},
+      "then": {
+        "properties": {
+          "replacement_budget": {"const": 0},
+          "replacements_remaining": {"const": 0},
+          "construction_attempt_budget": {"const": 1},
+          "stop_scope": {"const": "child"},
+          "required_authority": {"const": "verified-project-manager"}
+        },
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {"properties": {"replacement_count": {"const": 1}}},
+                {"properties": {"construction_attempt_count": {"const": 1}}}
+              ]
+            },
+            "then": {
+              "properties": {"action": {"const": "return-same-admitted-bead-to-main-thread"}}
+            },
+            "else": {
+              "properties": {"action": {"const": "reconstruct-same-admitted-bead"}}
+            }
+          },
+          {
+            "if": {"properties": {"construction_attempt_count": {"const": 0}}},
+            "then": {"properties": {"construction_attempts_remaining": {"const": 1}}},
+            "else": {"properties": {"construction_attempts_remaining": {"const": 0}}}
+          }
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"recovery_class": {"const": "pre-dispatch-transport-failure"}}},
+      "then": {
+        "properties": {
+          "replacement_budget": {"const": 1},
+          "construction_attempt_budget": {"const": 0},
+          "construction_attempts_remaining": {"const": 0},
+          "stop_scope": {"const": "child"},
+          "required_authority": {"const": "pm-controller-plus-supervisor-policy"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"replacement_count": {"const": 0}}},
+            "then": {
+              "properties": {
+                "action": {"const": "replace-same-admitted-bead"},
+                "replacements_remaining": {"const": 1}
+              }
+            },
+            "else": {
+              "properties": {
+                "action": {"const": "return-same-admitted-bead-to-main-thread"},
+                "replacements_remaining": {"const": 0}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recovery_class": {
+            "enum": ["contained-semantic-no-op", "individual-child-failure"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "replacement_budget": {"const": 1},
+          "construction_attempt_budget": {"const": 0},
+          "construction_attempts_remaining": {"const": 0},
+          "stop_scope": {"const": "child"},
+          "required_authority": {"const": "pm-controller-plus-verified-containment"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"replacement_count": {"const": 0}}},
+            "then": {
+              "properties": {
+                "action": {"const": "replace-same-admitted-bead"},
+                "replacements_remaining": {"const": 1}
+              }
+            },
+            "else": {
+              "properties": {
+                "action": {"const": "return-same-admitted-bead-to-main-thread"},
+                "replacements_remaining": {"const": 0}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"recovery_class": {"const": "control-security-failure"}}},
+      "then": {
+        "properties": {
+          "action": {"const": "stop-execution-path"},
+          "replacement_budget": {"const": 0},
+          "replacements_remaining": {"const": 0},
+          "construction_attempt_budget": {"const": 0},
+          "construction_attempts_remaining": {"const": 0},
+          "stop_scope": {"const": "execution-path"},
+          "required_authority": {"const": "supervisor-policy"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "recovery_class": {"const": "contradictory-authority-changing-validation"}
+        }
+      },
+      "then": {
+        "properties": {
+          "action": {"const": "await-operator-input"},
+          "replacement_budget": {"const": 0},
+          "replacements_remaining": {"const": 0},
+          "construction_attempt_budget": {"const": 0},
+          "construction_attempts_remaining": {"const": 0},
+          "stop_scope": {"const": "complete-task"},
+          "required_authority": {"const": "verified-operator-directive"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

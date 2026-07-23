@@ -11,6 +11,7 @@ from unittest import mock
 import uuid
 
 from tests.test_run_native_pool_live_canaries import (
+    deterministic_calibration_measurement,
     FakeCalibrationServer,
     LIVE,
 )
@@ -637,6 +638,15 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
 
 
 class Generation12CalibrationRecoveryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        patcher = mock.patch.object(
+            LIVE,
+            "_measure_action_ms",
+            side_effect=deterministic_calibration_measurement,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     @staticmethod
     def owner() -> dict:
         return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}

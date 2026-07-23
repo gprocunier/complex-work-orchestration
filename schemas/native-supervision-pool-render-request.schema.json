@@ -16,11 +16,12 @@
     "pool_epoch": {"type": "string", "minLength": 1},
     "control_turn_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
-    "max_active_workers": {"enum": [1, 2]},
+    "max_active_workers": {"enum": [1, 2, 3]},
+    "completion_policy": {"enum": ["all-or-nothing", "best-effort"]},
     "aggregate_hard_budget": {"$ref": "#/$defs/budget"},
     "integration_root": {"type": "string", "pattern": "^/", "minLength": 2},
     "children": {
-      "type": "array", "minItems": 1, "maxItems": 2,
+      "type": "array", "minItems": 1, "maxItems": 3,
       "items": {"$ref": "#/$defs/child"}
     }
   },
@@ -42,7 +43,7 @@
       "required": [
         "child_id", "packet_id", "attempt_nonce", "session_id", "agent_id",
         "control_turn_id", "packet_sha256", "control_contract_file", "state_file",
-        "worktree", "isolation_class", "completion_evidence_policy", "declared_write_paths",
+        "worktree", "isolation_class", "completion_evidence_policy", "tool_policy", "declared_write_paths",
         "integration_target_paths", "lease_id"
       ],
       "properties": {
@@ -58,6 +59,7 @@
         "worktree": {"type": "string", "pattern": "^/", "minLength": 2},
         "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
         "completion_evidence_policy": {"$ref": "#/$defs/completion_evidence_policy"},
+        "tool_policy": {"$ref": "#/$defs/tool_policy"},
         "declared_write_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "integration_target_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
         "lease_id": {"type": "string", "minLength": 1}
@@ -72,6 +74,24 @@
         "allow_zero_tool_completion": {"type": "boolean"},
         "expected_mutation_mode": {"enum": ["read-only", "mutable-isolated"]}
       }
+    },
+    "tool_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "permitted_tools", "forbidden_tools", "enforcement_mode", "workload_class", "override_provenance"],
+      "properties": {
+        "version": {"const": 1},
+        "permitted_tools": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["apply_patch", "exec_command", "write_stdin"]}},
+        "forbidden_tools": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_.:-]{0,127}$"}},
+        "enforcement_mode": {"enum": ["server-allowlist-required", "trusted-detect-and-contain"]},
+        "workload_class": {"enum": ["operative", "safety-canary"]},
+        "override_provenance": {"type": "null"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"workload_class": {"const": "operative"}}, "required": ["workload_class"]},
+          "then": {"properties": {"enforcement_mode": {"const": "server-allowlist-required"}}}
+        }
+      ]
     },
     "required_evidence": {
       "type": "object", "additionalProperties": false,
