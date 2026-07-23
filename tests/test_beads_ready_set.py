@@ -238,6 +238,12 @@ def released_three_policy() -> dict:
     return policy
 
 
+def released_two_policy() -> dict:
+    policy = deepcopy(load_policy("native-worker-execution"))
+    policy["native_supervision_pool"]["capacity"]["released_max_active_workers"] = 2
+    return policy
+
+
 def signed_operator_approval(
     key: bytes,
     before: dict,
@@ -403,7 +409,7 @@ class BeadsReadySetTests(unittest.TestCase):
             result["beads_readiness_snapshot"]
         )
 
-    def test_actual_released_n2_policy_produces_offline_n3_candidate(self) -> None:
+    def test_actual_released_n3_policy_selects_n3_within_release(self) -> None:
         items = [
             ready_item("bead-a", write_paths=["scripts/a.py"]),
             ready_item("bead-b", write_paths=["scripts/b.py"]),
@@ -430,17 +436,17 @@ class BeadsReadySetTests(unittest.TestCase):
         )
         self.assertEqual(
             result["candidate_capacity_evidence"]["released_max_active_workers"],
-            2,
+            3,
         )
-        self.assertTrue(
+        self.assertFalse(
             result["candidate_capacity_evidence"][
                 "selected_exceeds_released_capacity"
             ]
         )
-        self.assertFalse(
+        self.assertTrue(
             result["candidate_capacity_evidence"]["selected_within_released_capacity"]
         )
-        self.assertIn(
+        self.assertNotIn(
             "offline-unreleased-capacity-candidate",
             {reason["code"] for reason in result["fanout_reasons"]},
         )

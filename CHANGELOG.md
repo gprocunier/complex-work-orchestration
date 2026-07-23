@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- Release bounded two-worker native supervision pool. Capacity two requires
-  explicit opt-in, a fresh capability receipt, and isolated or shared-read-only
-  topology. It remains experimental and disabled by default.
+- Release bounded three-worker native supervision pool. Concurrent capacity
+  requires explicit opt-in, a fresh capability receipt, and isolated or
+  shared-read-only topology. It remains experimental and disabled by default;
+  N>=4 remains blocked.
 - Restrict `--snippet-file` contractor-packet inputs to repository-safe files.
   Outside-repository absolute paths are now rejected; use a repo-local ignored
   work-packet file for external review snippets.

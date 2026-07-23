@@ -444,11 +444,10 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
                 Concurrent execution also requires one fresh same-host
                 capability receipt, a fixed cohort, and either isolated mutable
                 worktrees or a shared read-only topology. The currently
-                released ceiling is two workers; the hard design ceiling is
-                three. N=3 remains blocked pending the Phase 1 technical gate
-                and explicit operator activation. Precommit, critics,
-                integration, retry, replay, and publication remain
-                single-flight.
+                released and hard ceilings are both three workers. N&gt;=4
+                remains blocked pending Phase 2 architecture and
+                recertification. Precommit, critics, integration, retry,
+                replay, and publication remain single-flight.
               </p>
               <p>
                 Before opting in, read the

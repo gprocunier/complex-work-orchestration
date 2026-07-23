@@ -438,23 +438,8 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(harness.coordinator.run(), receipt)
             self.assertEqual(harness.coordinator.progress()["state"], state)
 
-    def test_capacity_three_requires_release_and_runs_when_candidate_policy_allows(self) -> None:
+    def test_capacity_three_runs_and_reduced_policy_rejects(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            with self.assertRaisesRegex(
-                NativePoolError,
-                "requested-capacity-not-released",
-            ):
-                PoolHarness(temporary, cap=3)
-
-        with tempfile.TemporaryDirectory() as temporary:
-            policy_document = json.loads(
-                (ROOT / "policy/native-worker-execution.yaml").read_text(
-                    encoding="utf-8"
-                )
-            )
-            policy_document["native_supervision_pool"]["capacity"][
-                "released_max_active_workers"
-            ] = 3
             harness = PoolHarness(
                 temporary,
                 cap=3,
@@ -463,7 +448,6 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                     ["continue", "complete"],
                     ["continue", "complete"],
                 ],
-                policy_document=policy_document,
             )
             receipt = harness.coordinator.run()
             self.assertTrue(receipt["accepting"])
@@ -471,6 +455,21 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 receipt["admission_order"],
                 ["child-0", "child-1", "child-2"],
             )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            reduced_policy = json.loads(
+                (ROOT / "policy/native-worker-execution.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            reduced_policy["native_supervision_pool"]["capacity"][
+                "released_max_active_workers"
+            ] = 2
+            with self.assertRaisesRegex(
+                NativePoolError,
+                "requested-capacity-not-released",
+            ):
+                PoolHarness(temporary, cap=3, policy_document=reduced_policy)
 
     def test_active_run_capability_expiry_interrupts_before_next_callback(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

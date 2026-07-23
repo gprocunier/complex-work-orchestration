@@ -189,7 +189,7 @@ class NativePoolProportionalityTests(unittest.TestCase):
         self._replay_index += 1
         return self.replay_root / f"operator-replay-{self._replay_index}.json"
 
-    def test_policy_defaults_are_provisional_and_capacity_remains_n2(self) -> None:
+    def test_policy_defaults_are_provisional_and_capacity_releases_n3(self) -> None:
         document = load_policy("native-worker-execution")
         policy = load_pool_proportionality_policy(document)
         self.assertEqual(policy.minimum_child_runtime_p90_ms, 300_000)
@@ -199,7 +199,7 @@ class NativePoolProportionalityTests(unittest.TestCase):
             document["native_supervision_pool"]["capacity"][
                 "released_max_active_workers"
             ],
-            2,
+            3,
         )
 
     def test_incident_sized_lanes_are_rejected(self) -> None:
@@ -256,7 +256,7 @@ class NativePoolProportionalityTests(unittest.TestCase):
         self.assertFalse(empty["accepted"])
         self.assertIsNone(empty["fallback_issue_id"])
 
-    def test_adequate_n3_is_offline_candidate_only(self) -> None:
+    def test_adequate_n3_is_within_released_capacity(self) -> None:
         readiness, estimates, _, policy = _fixture([480, 480, 480])
         result = pool_proportionality_check(
             readiness,
@@ -266,9 +266,9 @@ class NativePoolProportionalityTests(unittest.TestCase):
         )
         self.assertTrue(result["accepted"])
         self.assertEqual(result["selected_cohort"]["worker_count"], 3)
-        self.assertEqual(result["candidate_mode"], "offline-unreleased-candidate")
+        self.assertEqual(result["candidate_mode"], "released-capacity")
         self.assertFalse(result["dispatch_authorized"])
-        self.assertFalse(result["selected_cohort"]["within_released_capacity"])
+        self.assertTrue(result["selected_cohort"]["within_released_capacity"])
 
     def test_capacity_is_ceiling_when_only_two_lanes_are_economical(self) -> None:
         readiness, estimates, _, policy = _fixture([480, 480, 120])
@@ -1159,7 +1159,7 @@ class NativePoolProportionalityTests(unittest.TestCase):
         n3_release_contradiction = deepcopy(n3)
         n3_release_contradiction["cohort_evaluations"][0][
             "within_released_capacity"
-        ] = True
+        ] = False
         errors = validate_pool_proportionality_assessment(
             _reseal_assessment(n3_release_contradiction),
             policy_document=n3_policy,
@@ -1183,7 +1183,9 @@ class NativePoolProportionalityTests(unittest.TestCase):
         self.assertIn("assessment-cohort[0]-accepted-above-requested-workers", errors)
 
         candidate_mode_contradiction = deepcopy(n3)
-        candidate_mode_contradiction["candidate_mode"] = "released-capacity"
+        candidate_mode_contradiction["candidate_mode"] = (
+            "offline-unreleased-candidate"
+        )
         errors = validate_pool_proportionality_assessment(
             _reseal_assessment(candidate_mode_contradiction),
             policy_document=n3_policy,
@@ -1191,10 +1193,15 @@ class NativePoolProportionalityTests(unittest.TestCase):
         self.assertIn("assessment-candidate-mode-mismatch", errors)
 
         released_policy_contradiction = deepcopy(n3)
-        released_policy_contradiction["released_capacity"] = 3
-        released_policy_contradiction["candidate_mode"] = "released-capacity"
+        released_policy_contradiction["released_capacity"] = 2
+        released_policy_contradiction["candidate_mode"] = (
+            "offline-unreleased-candidate"
+        )
         for evaluation in released_policy_contradiction["cohort_evaluations"]:
-            evaluation["within_released_capacity"] = True
+            evaluation["within_released_capacity"] = False
+        released_policy_contradiction["selected_cohort"][
+            "within_released_capacity"
+        ] = False
         errors = validate_pool_proportionality_assessment(
             _reseal_assessment(released_policy_contradiction),
             policy_document=n3_policy,
@@ -1212,12 +1219,9 @@ class NativePoolProportionalityTests(unittest.TestCase):
             )
             validator = Draft202012Validator(schema)
             for contradiction in (
-                n2_contradiction,
-                n3_release_contradiction,
                 n3_ceiling_contradiction,
                 n3_request_contradiction,
                 candidate_mode_contradiction,
-                released_policy_contradiction,
             ):
                 self.assertTrue(list(validator.iter_errors(contradiction)))
 

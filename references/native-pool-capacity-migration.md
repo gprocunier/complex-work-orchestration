@@ -7,7 +7,7 @@ different limits:
 | Canonical field | Meaning | Current value |
 | --- | --- | --- |
 | `default_max_active_workers` | Capacity used without concurrency opt-in | `1` |
-| `released_max_active_workers` | Highest capacity an operative launch may use | `2` |
+| `released_max_active_workers` | Highest capacity an operative launch may use | `3` |
 | `hard_max_active_workers` | Highest capacity represented by current schemas and runtime | `3` |
 
 Changing a limit requires one policy edit followed by

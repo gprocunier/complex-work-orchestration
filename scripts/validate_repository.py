@@ -2198,11 +2198,13 @@ def validate_native_supervision_tech_preview_copy(
         ("explicit opt-in wording", "requires explicit opt-in"),
         ("same-host capability wording", "one fresh same-host capability receipt"),
         ("fixed-cohort wording", "a fixed cohort"),
-        ("released ceiling wording", "currently released ceiling is two workers"),
-        ("hard ceiling wording", "hard design ceiling is three"),
         (
-            "activation gate wording",
-            "N=3 remains blocked pending the Phase 1 technical gate and explicit operator activation",
+            "released ceiling wording",
+            "currently released and hard ceilings are both three workers",
+        ),
+        (
+            "higher-capacity gate wording",
+            "N&gt;=4 remains blocked pending Phase 2 architecture and recertification",
         ),
         ("isolated topology wording", "isolated mutable worktrees"),
         ("shared topology wording", "shared read-only topology"),
