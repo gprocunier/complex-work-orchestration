@@ -34,6 +34,7 @@ from cwo_core.workgraph_markdown import (
     FIELD_LABELS,
     FIELD_LANE,
     FIELD_SKILLS,
+    FIELD_STATUS,
     FIELD_TYPE,
     WORKGRAPH_FALLBACK_MARKER,
 )
@@ -1074,6 +1075,7 @@ def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
                 f"### {key}: {title_text}",
                 "",
                 f"- {FIELD_TYPE}: `{item.get('type', 'task')}`",
+                f"- {FIELD_STATUS}: `{item.get('status', 'open')}`",
                 f"- {FIELD_LANE}: `{item.get('lane', 'epic')}`",
                 f"- {FIELD_LABELS}: {markdown_inline_list(list(item.get('labels', [])))}",
                 f"- {FIELD_DEPENDS_ON_LANES}: {markdown_inline_list(list(item.get('depends_on_lanes', [])))}",

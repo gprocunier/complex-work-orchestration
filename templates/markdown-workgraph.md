@@ -21,6 +21,7 @@ Generated workgraphs should use this structure:
 ### <lane-key>: <title>
 
 - Type: `<epic|task>`
+- Status: `<open|in_progress|blocked|completed>`
 - Lane: `<lane>`
 - Labels: `<label>`, `<label>`
 - Depends on lanes: `<lane>`, `<lane>`

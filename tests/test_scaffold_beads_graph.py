@@ -144,9 +144,39 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
 
         by_id = {item["id"]: item for item in parsed}
         self.assertEqual(by_id["epic"]["type"], "epic")
+        self.assertEqual(by_id["epic"]["status"], "open")
         self.assertEqual(by_id["implementation"]["lane"], "implementation")
+        self.assertEqual(by_id["implementation"]["status"], "open")
         self.assertIn("workerbee", by_id["implementation"]["labels"])
         self.assertIn("architect", by_id["implementation"]["depends_on_lanes"])
+
+    def test_markdown_workgraph_round_trip_preserves_explicit_completed_status(self) -> None:
+        plan = [
+            {
+                "title": "Completed Example",
+                "type": "epic",
+                "status": "open",
+                "labels": ["orchestration"],
+            },
+            {
+                "title": "Finished Work",
+                "type": "task",
+                "lane": "validation",
+                "status": "completed",
+                "labels": ["validation"],
+                "depends_on_lanes": [],
+            },
+        ]
+
+        rendered = markdown_workgraph_plan("Completed Example", plan)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(rendered, encoding="utf-8")
+            parsed = parse_markdown_workgraph(path)
+
+        by_id = {item["id"]: item for item in parsed}
+        self.assertEqual(by_id["epic"]["status"], "open")
+        self.assertEqual(by_id["validation"]["status"], "completed")
 
     def test_markdown_workgraph_preserves_hard_stop_metadata(self) -> None:
         route = classify_work(
