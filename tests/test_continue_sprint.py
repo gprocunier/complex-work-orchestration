@@ -275,6 +275,117 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIsNone(result["beads_readiness_snapshot_sha256"])
         self.assertFalse(result["dispatch_authorized"])
 
+    def test_completed_markdown_graph_stops_without_execution_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(
+                """# Example
+
+> Reduced durability fallback: Beads is unavailable or not in use.
+
+## Work Items
+
+### epic: Example
+
+- Type: `epic`
+- Status: `open`
+- Lane: `epic`
+- Labels: `orchestration`
+- Depends on lanes: none
+
+### done: Finished Work
+
+- Type: `task`
+- Status: `completed`
+- Lane: `validation`
+- Labels: `validation`
+- Depends on lanes: none
+""",
+                encoding="utf-8",
+            )
+
+            items = load_markdown_items(path, "epic")
+
+        result = build_continuation_brief(
+            items,
+            epic_id="epic",
+            source="markdown-workgraph",
+        )
+        packet = result["operator_handoff_packet"]
+
+        self.assertIsNone(result["recommended_next_issue"])
+        self.assertEqual(result["ready_issues"], [])
+        self.assertEqual(result["blocked_issues"], [])
+        self.assertEqual(packet["next_executable_bead"], "none - stop condition met")
+        self.assertTrue(packet["execution_prompt"].startswith("STOP:"))
+        self.assertNotIn(
+            "Use $complex-work-orchestration to continue",
+            packet["execution_prompt"],
+        )
+        self.assertEqual(
+            packet["exact_command_resume"],
+            "python3 scripts/cwo.py continue --epic epic --markdown-workgraph <path>",
+        )
+        self.assertEqual(result["ready_set_authority"], "candidate-evidence-only")
+        self.assertFalse(result["dispatch_authorized"])
+        self.assertIn(
+            "Markdown fallback cannot authorize or evidence native-pool fanout.",
+            result["warnings"],
+        )
+
+    def test_blocked_markdown_status_requests_decision_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(
+                """# Example
+
+> Reduced durability fallback: Beads is unavailable or not in use.
+
+## Work Items
+
+### epic: Example
+
+- Type: `epic`
+- Status: `open`
+- Lane: `epic`
+- Labels: `orchestration`
+- Depends on lanes: none
+
+### guarded: Guarded Work
+
+- Type: `task`
+- Status: `blocked`
+- Lane: `implementation`
+- Labels: `implementation`
+- Depends on lanes: none
+""",
+                encoding="utf-8",
+            )
+
+            items = load_markdown_items(path, "epic")
+
+        result = build_continuation_brief(
+            items,
+            epic_id="epic",
+            source="markdown-workgraph",
+        )
+        packet = result["operator_handoff_packet"]
+
+        self.assertIsNone(result["recommended_next_issue"])
+        self.assertEqual(result["ready_issues"], [])
+        self.assertEqual([item["id"] for item in result["blocked_issues"]], ["guarded"])
+        self.assertEqual(packet["next_executable_bead"], "none - blocked")
+        self.assertTrue(packet["execution_prompt"].startswith("DECIDE:"))
+        self.assertNotIn(
+            "Use $complex-work-orchestration to continue",
+            packet["execution_prompt"],
+        )
+        self.assertEqual(
+            packet["exact_command_resume"],
+            "python3 scripts/cwo.py continue --epic epic --markdown-workgraph <path>",
+        )
+        self.assertFalse(result["dispatch_authorized"])
+
     def test_cli_json_uses_markdown_workgraph_without_bd(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "workgraph.md"

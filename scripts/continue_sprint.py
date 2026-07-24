@@ -264,6 +264,8 @@ def dependency_lookup(items: list[dict[str, Any]]) -> dict[str, list[dict[str, A
 
 def blocker_reasons(item: dict[str, Any], lookup: dict[str, list[dict[str, Any]]]) -> list[str]:
     reasons: list[str] = []
+    if item["status"] == "blocked":
+        reasons.append("status blocked requires operator decision")
     label_set = set(item["labels"])
     for label in sorted(label_set & CODEX_BLOCKING_LABELS):
         reasons.append(f"guard label {label} prevents normal Codex pickup")
@@ -529,11 +531,17 @@ def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
             f"{recommended['id']} under epic {result['epic_id']}; start with "
             f"`{resume}` and execute only that bounded lane."
         )
-    else:
-        next_bead = "none - stop condition met" if not result.get("blocked_issues") else "none - blocked"
+    elif result.get("blocked_issues"):
+        next_bead = "none - blocked"
         execution_prompt = (
-            f"Use $complex-work-orchestration to continue epic {result['epic_id']}; "
-            "resolve the first blocker before implementation."
+            f"DECIDE: epic {result['epic_id']} has no ready issue; resolve the "
+            "first recorded blocker before implementation."
+        )
+    else:
+        next_bead = "none - stop condition met"
+        execution_prompt = (
+            f"STOP: epic {result['epic_id']} has no ready or blocked work; do not "
+            "start another lane."
         )
     if result.get("fanout_decision") == "pool":
         execution_prompt += (

@@ -71,6 +71,31 @@ Done.
         self.assertEqual(items[0]["status"], "markdown-fallback")
         self.assertEqual(items[0]["labels"], ["orchestration", "policy-routed"])
 
+    def test_parse_markdown_workgraph_preserves_explicit_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workgraph.md"
+            path.write_text(
+                """# Example
+
+> Reduced durability fallback: Beads is unavailable or not in use.
+
+## Work Items
+
+### done: Finished Work
+
+- Type: `task`
+- Status: `completed`
+- Lane: `validation`
+- Labels: `validation`
+- Depends on lanes: none
+""",
+                encoding="utf-8",
+            )
+
+            items = parse_markdown_workgraph(path)
+
+        self.assertEqual(items[0]["status"], "completed")
+
     def test_parse_markdown_workgraph_rejects_unknown_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "notes.md"
