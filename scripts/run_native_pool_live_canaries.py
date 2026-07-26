@@ -2247,6 +2247,75 @@ class AppServer:
             "effective_allowlist": None,
         }
 
+    def _thread_tool_allowlist_params(
+        self,
+        *,
+        permitted_tools: list[str] | None,
+        allowlist_parameter: str | None,
+    ) -> dict[str, list[str]]:
+        """Return only a capability-backed, exact server allowlist parameter."""
+
+        if permitted_tools is None:
+            if allowlist_parameter is not None:
+                raise AppServerError("thread-start-tool-allowlist-without-tools")
+            return {}
+        if (
+            not isinstance(allowlist_parameter, str)
+            or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,127}", allowlist_parameter)
+            is None
+        ):
+            raise AppServerError("thread-start-tool-allowlist-parameter-missing")
+        if (
+            not isinstance(permitted_tools, list)
+            or not permitted_tools
+            or any(
+                not isinstance(tool, str)
+                or re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", tool) is None
+                for tool in permitted_tools
+            )
+            or permitted_tools != sorted(permitted_tools)
+            or len(permitted_tools) != len(set(permitted_tools))
+        ):
+            raise AppServerError("thread-start-tool-allowlist-invalid")
+        # This method is part of the trusted in-process controller. Worker
+        # input cannot replace the capability reader or its result.
+        capability = self.tool_surface_capability(
+            permitted_tools=list(permitted_tools)
+        )
+        expected_fields = {
+            "source",
+            "server_allowlist_supported",
+            "allowlist_parameter",
+            "effective_allowlist",
+        }
+        if not isinstance(capability, Mapping) or set(capability) != expected_fields:
+            raise AppServerError("thread-start-tool-surface-capability-invalid")
+        if (
+            not isinstance(capability.get("source"), str)
+            or not capability["source"].strip()
+            or type(capability.get("server_allowlist_supported")) is not bool
+        ):
+            raise AppServerError("thread-start-tool-surface-capability-invalid")
+        if capability["server_allowlist_supported"] is not True:
+            raise AppServerError("thread-start-tool-restriction-unsupported")
+        if capability.get("allowlist_parameter") != allowlist_parameter:
+            raise AppServerError("thread-start-tool-allowlist-parameter-mismatch")
+        effective_allowlist = capability.get("effective_allowlist")
+        if (
+            not isinstance(effective_allowlist, list)
+            or any(
+                not isinstance(tool, str)
+                or re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", tool) is None
+                for tool in effective_allowlist
+            )
+            or effective_allowlist != sorted(effective_allowlist)
+            or len(effective_allowlist) != len(set(effective_allowlist))
+        ):
+            raise AppServerError("thread-start-tool-surface-capability-invalid")
+        if effective_allowlist != permitted_tools:
+            raise AppServerError("thread-start-tool-allowlist-effective-mismatch")
+        return {allowlist_parameter: list(permitted_tools)}
+
     def start_thread(
         self,
         cwd: Path,
@@ -2256,11 +2325,9 @@ class AppServer:
         permitted_tools: list[str] | None = None,
         allowlist_parameter: str | None = None,
     ) -> tuple[dict[str, Any], float]:
-        allocation_intent_id: str | None = None
         if self.allocation_ledger is not None:
             if role not in EXPECTED_ROLES:
                 raise AppServerError("allocation-ledger-role-required")
-            allocation_intent_id = self.allocation_ledger.allocation_intent(str(role))
         params: dict[str, Any] = {
             "model": EXACT_MODEL,
             "allowProviderModelFallback": False,
@@ -2275,24 +2342,16 @@ class AppServer:
                 "or access paths outside the supplied workspace. Follow the user task exactly."
             ),
         }
-        if permitted_tools is not None:
-            if (
-                not isinstance(allowlist_parameter, str)
-                or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,127}", allowlist_parameter)
-                is None
-            ):
-                raise AppServerError("thread-start-tool-allowlist-parameter-missing")
-            if allowlist_parameter in params:
-                raise AppServerError("thread-start-tool-allowlist-parameter-collision")
-            if (
-                not permitted_tools
-                or permitted_tools != sorted(permitted_tools)
-                or len(permitted_tools) != len(set(permitted_tools))
-            ):
-                raise AppServerError("thread-start-tool-allowlist-invalid")
-            params[allowlist_parameter] = list(permitted_tools)
-        elif allowlist_parameter is not None:
-            raise AppServerError("thread-start-tool-allowlist-without-tools")
+        tool_allowlist_params = self._thread_tool_allowlist_params(
+            permitted_tools=permitted_tools,
+            allowlist_parameter=allowlist_parameter,
+        )
+        if set(tool_allowlist_params).intersection(params):
+            raise AppServerError("thread-start-tool-allowlist-parameter-collision")
+        params.update(tool_allowlist_params)
+        allocation_intent_id: str | None = None
+        if self.allocation_ledger is not None:
+            allocation_intent_id = self.allocation_ledger.allocation_intent(str(role))
         result, latency = self.request(
             "thread/start",
             params,

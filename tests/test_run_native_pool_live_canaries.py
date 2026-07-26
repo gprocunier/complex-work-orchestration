@@ -629,7 +629,46 @@ class AppServerRpcErrorTests(unittest.TestCase):
             server.request("thread/read", {"threadId": "thread-1"})
         self.assertNotIsInstance(raised.exception, LIVE.AppServerRpcError)
 
-    def test_supported_thread_start_forwards_exact_tool_allowlist_parameter(self) -> None:
+    def test_current_thread_start_rejects_unenforced_tool_allowlist_before_allocation(
+        self,
+    ) -> None:
+        class RecordingLedger:
+            def __init__(self) -> None:
+                self.roles: list[str] = []
+
+            def allocation_intent(self, role: str) -> str:
+                self.roles.append(role)
+                return "allocation-intent"
+
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        ledger = RecordingLedger()
+        server.allocation_ledger = ledger
+        server.started_threads = {}
+        with self.assertRaisesRegex(
+            LIVE.AppServerError, "tool-restriction-unsupported"
+        ):
+            server.start_thread(
+                ROOT,
+                mutable=False,
+                role="capability-calibration",
+                permitted_tools=["exec_command"],
+                allowlist_parameter="tools",
+            )
+        self.assertEqual(ledger.roles, [])
+        self.assertEqual(server.process.stdin.getvalue(), "")
+
+    def test_synthetic_capability_backed_thread_start_forwards_exact_tool_allowlist(
+        self,
+    ) -> None:
         thread_id = str(uuid.uuid4())
         server = self.request_server(
             {
@@ -642,6 +681,12 @@ class AppServerRpcErrorTests(unittest.TestCase):
         )
         server.allocation_ledger = None
         server.started_threads = {}
+        server.tool_surface_capability = lambda *, permitted_tools: {
+            "source": "supported-test-server",
+            "server_allowlist_supported": True,
+            "allowlist_parameter": "tools",
+            "effective_allowlist": list(permitted_tools),
+        }
         server.start_thread(
             ROOT,
             mutable=False,
@@ -651,15 +696,96 @@ class AppServerRpcErrorTests(unittest.TestCase):
         wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
         self.assertEqual(wire["params"]["tools"], ["exec_command"])
         self.assertNotIn("dynamicTools", wire["params"])
-        with self.assertRaisesRegex(
-            LIVE.AppServerError, "allowlist-parameter-collision"
-        ):
-            server.start_thread(
-                ROOT,
-                mutable=False,
-                permitted_tools=["exec_command"],
-                allowlist_parameter="sandbox",
-            )
+
+    def test_thread_start_rejects_untrusted_capability_claims_before_allocation(
+        self,
+    ) -> None:
+        cases = (
+            (
+                "missing-field",
+                {
+                    "source": "test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                },
+                "capability-invalid",
+                "tools",
+            ),
+            (
+                "empty-source",
+                {
+                    "source": "",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                    "effective_allowlist": ["exec_command"],
+                },
+                "capability-invalid",
+                "tools",
+            ),
+            (
+                "parameter-mismatch",
+                {
+                    "source": "test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "allowedTools",
+                    "effective_allowlist": ["exec_command"],
+                },
+                "parameter-mismatch",
+                "tools",
+            ),
+            (
+                "malformed-effective-set",
+                {
+                    "source": "test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                    "effective_allowlist": [1],
+                },
+                "capability-invalid",
+                "tools",
+            ),
+            (
+                "expanded-effective-set",
+                {
+                    "source": "test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                    "effective_allowlist": ["exec_command", "spawn_agent"],
+                },
+                "effective-mismatch",
+                "tools",
+            ),
+            (
+                "parameter-collision",
+                {
+                    "source": "test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "sandbox",
+                    "effective_allowlist": ["exec_command"],
+                },
+                "parameter-collision",
+                "sandbox",
+            ),
+        )
+        for name, capability, error, allowlist_parameter in cases:
+            with self.subTest(name=name):
+                server = self.request_server({})
+                ledger = mock.Mock()
+                server.allocation_ledger = ledger
+                server.started_threads = {}
+                server.tool_surface_capability = (
+                    lambda *, permitted_tools, result=capability: dict(result)
+                )
+                with self.assertRaisesRegex(LIVE.AppServerError, error):
+                    server.start_thread(
+                        ROOT,
+                        mutable=False,
+                        role="capability-calibration",
+                        permitted_tools=["exec_command"],
+                        allowlist_parameter=allowlist_parameter,
+                    )
+                ledger.allocation_intent.assert_not_called()
+                self.assertEqual(server.process.stdin.getvalue(), "")
 
 
 class AmbiguousTurnDispatchTests(unittest.TestCase):
