@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from contextlib import redirect_stderr
+import hashlib
 import importlib.util
 import io
 import json
@@ -601,6 +602,90 @@ class NativeActivationPreviewTests(unittest.TestCase):
             evidence = _contain_allocated_threads(server, ledger)
             self.assertTrue(evidence["preview_pending_allocation"])
             self.assertFalse(evidence["all_contained"])
+
+    def test_activation_containment_deletes_fresh_never_turned_thread(
+        self,
+    ) -> None:
+        class FreshNeverTurnedServer:
+            def __init__(self, *, delete_fails: bool = False) -> None:
+                self.thread_id = str(uuid.uuid4())
+                self.allocation_ledger = None
+                self.started_threads = {self.thread_id: None}
+                self._turn_dispatch_records: dict[str, dict] = {}
+                self.delete_fails = delete_fails
+                self.deleted: list[str] = []
+                self.proof: dict | None = None
+
+            def same_process_containment_proof(
+                self,
+                _thread_id: str,
+            ) -> dict | None:
+                return self.proof
+
+            @staticmethod
+            def fresh_never_turned_thread_proof(
+                _thread_id: str,
+            ) -> dict:
+                return {"proof_sha256": "a" * 64}
+
+            def delete_thread(self, thread_id: str) -> None:
+                if self.delete_fails:
+                    raise RuntimeError("fixed-delete-failure")
+                self.deleted.append(thread_id)
+
+            def record_never_turned_delete_containment(
+                self,
+                _thread_id: str,
+            ) -> dict:
+                self.proof = {
+                    "proof_type": "app-server-same-process-containment",
+                    "version": 2,
+                    "kind": "never-turned-deleted",
+                    "proof_sha256": "b" * 64,
+                }
+                return self.proof
+
+            def same_process_containment_proofs(self) -> list[dict]:
+                return [self.proof] if self.proof is not None else []
+
+            @staticmethod
+            def read_thread(_thread_id: str) -> tuple[dict, float]:
+                raise AssertionError("thread/read must not run")
+
+            @staticmethod
+            def archive_thread(_thread_id: str) -> None:
+                raise AssertionError("thread/archive must not run")
+
+        contained = FreshNeverTurnedServer()
+        evidence = _contain_allocated_threads(contained, None)
+        self.assertTrue(evidence["all_contained"])
+        self.assertEqual(contained.deleted, [contained.thread_id])
+        self.assertEqual(evidence["deleted_count"], 1)
+        self.assertEqual(
+            evidence["same_process_containment_proofs"],
+            [contained.proof],
+        )
+        self.assertNotIn("failure_diagnostics", evidence)
+
+        ambiguous = FreshNeverTurnedServer(delete_fails=True)
+        evidence = _contain_allocated_threads(ambiguous, None)
+        self.assertFalse(evidence["all_contained"])
+        self.assertNotIn("deleted_count", evidence)
+        self.assertEqual(
+            evidence["failure_diagnostics"],
+            [
+                {
+                    "thread_id_sha256": hashlib.sha256(
+                        ambiguous.thread_id.encode("utf-8")
+                    ).hexdigest(),
+                    "substep": "never-turned-delete",
+                    "failure_class": "RuntimeError",
+                    "failure_message_sha256": hashlib.sha256(
+                        b"fixed-delete-failure"
+                    ).hexdigest(),
+                }
+            ],
+        )
 
     def test_pool_receipt_must_be_exactly_accepting(self) -> None:
         accepted = {

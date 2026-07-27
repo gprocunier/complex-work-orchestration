@@ -568,6 +568,8 @@ def _contain_allocated_threads(
     server: AppServer | None,
     ledger: NativeActivationLedgerStore | None,
 ) -> dict[str, Any]:
+    failure_diagnostics: list[dict[str, Any]] = []
+    containment_actions: list[dict[str, Any]] = []
     preview_summary = (
         ledger.summary()
         if ledger is not None
@@ -587,6 +589,9 @@ def _contain_allocated_threads(
             contain_started_threads(
                 server,
                 allow_same_process_proofs=not preview_unresolved,
+                delete_proven_never_turned=True,
+                failure_diagnostics=failure_diagnostics,
+                containment_actions=containment_actions,
             )
             if server is not None
             else {
@@ -628,7 +633,7 @@ def _contain_allocated_threads(
             ],
         }
         proof_objects = []
-    return {
+    result = {
         **containment,
         "same_process_containment_proofs": proof_objects,
         "preview_phase": preview_summary["phase"],
@@ -642,6 +647,22 @@ def _contain_allocated_threads(
             and not preview_unresolved
         ),
     }
+    deleted_count = sum(
+        action.get("action") == "never-turned-delete"
+        for action in containment_actions
+    )
+    if deleted_count:
+        result["deleted_count"] = deleted_count
+    if failure_diagnostics:
+        result["failure_diagnostics"] = sorted(
+            failure_diagnostics,
+            key=lambda item: (
+                item["thread_id_sha256"],
+                item["substep"],
+                item["failure_message_sha256"],
+            ),
+        )
+    return result
 
 
 def run_live_activation(

@@ -690,6 +690,7 @@ class AppServerRpcErrorTests(unittest.TestCase):
         server._turn_dispatch_records = {}
         server._fresh_never_turned_thread_proofs = {}
         server._archive_acceptance_proofs = {}
+        server._delete_acceptance_proofs = {}
         server._same_process_containment_proofs = {}
         server.allocation_ledger = None
         return server
@@ -889,6 +890,80 @@ class AppServerRpcErrorTests(unittest.TestCase):
             server.same_process_containment_proof(thread_id)
         )
 
+    def test_activation_containment_deletes_proven_never_turned_without_read(
+        self,
+    ) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.start_thread(ROOT, mutable=False)
+        server._responses[2] = {"id": 2, "result": {}}
+        server.read_thread = mock.Mock(
+            side_effect=AssertionError("thread/read must not run")
+        )
+        server.archive_thread = mock.Mock(
+            side_effect=AssertionError("thread/archive must not run")
+        )
+        actions: list[dict] = []
+        result = LIVE.contain_started_threads(
+            server,
+            allow_same_process_proofs=True,
+            delete_proven_never_turned=True,
+            containment_actions=actions,
+        )
+        self.assertTrue(result["all_contained"])
+        self.assertEqual(result["archived_count"], 0)
+        self.assertEqual(
+            set(result),
+            {
+                "allocated_count",
+                "identified_thread_count",
+                "interrupted_count",
+                "archived_count",
+                "already_contained_count",
+                "unresolved_allocation_intent_count",
+                "unresolved_turn_intent_count",
+                "ambiguous_count",
+                "all_contained",
+                "ledger_consistent",
+                "ledger_error_sha256",
+            },
+        )
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "action": "never-turned-delete",
+                    "thread_id_sha256": LIVE.sha256_text(thread_id),
+                    "proof_sha256": server.same_process_containment_proofs()[
+                        0
+                    ]["proof_sha256"],
+                }
+            ],
+        )
+        server.read_thread.assert_not_called()
+        server.archive_thread.assert_not_called()
+        wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
+        self.assertEqual(wire["method"], "thread/delete")
+        proofs = server.same_process_containment_proofs()
+        self.assertEqual(len(proofs), 1)
+        self.assertEqual(proofs[0]["kind"], "never-turned-deleted")
+        self.assertEqual(proofs[0]["version"], 2)
+        self.assertNotIn(thread_id, json.dumps(proofs))
+        server._delete_acceptance_proofs[thread_id][
+            "delete_response_sha256"
+        ] = "0" * 64
+        self.assertIsNone(
+            server.same_process_containment_proof(thread_id)
+        )
+
     def test_preview_containment_rejects_absence_and_archive_failure(
         self,
     ) -> None:
@@ -899,12 +974,15 @@ class AppServerRpcErrorTests(unittest.TestCase):
                 "app-server-request-failed:thread/read:-32600"
             )
         )
+        unproven.delete_thread = mock.Mock()
         result = LIVE.contain_started_threads(
             unproven,
             allow_same_process_proofs=True,
+            delete_proven_never_turned=True,
         )
         self.assertFalse(result["all_contained"])
         self.assertEqual(result["ambiguous_count"], 1)
+        unproven.delete_thread.assert_not_called()
 
         thread_id = str(uuid.uuid4())
         archive_failure = self.request_server(
@@ -923,13 +1001,87 @@ class AppServerRpcErrorTests(unittest.TestCase):
         archive_failure.archive_thread = mock.Mock(
             side_effect=LIVE.AppServerError("fixed-archive-failure")
         )
+        diagnostics: list[dict] = []
         result = LIVE.contain_started_threads(
             archive_failure,
             allow_same_process_proofs=True,
+            failure_diagnostics=diagnostics,
         )
         self.assertFalse(result["all_contained"])
         self.assertEqual(result["ambiguous_count"], 1)
+        self.assertEqual(
+            diagnostics,
+            [
+                {
+                    "thread_id_sha256": LIVE.sha256_text(thread_id),
+                    "substep": "never-turned-archive",
+                    "failure_class": "AppServerError",
+                    "failure_message_sha256": LIVE.sha256_text(
+                        "fixed-archive-failure"
+                    ),
+                }
+            ],
+        )
         archive_failure.read_thread.assert_not_called()
+
+    def test_activation_delete_failure_is_ambiguous_and_diagnostic(
+        self,
+    ) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.start_thread(ROOT, mutable=False)
+        server.delete_thread = mock.Mock(
+            side_effect=LIVE.AppServerRpcError(
+                method="thread/delete",
+                code=-32603,
+                request_id=2,
+                latency_ms=1.0,
+            )
+        )
+        server.archive_thread = mock.Mock(
+            side_effect=AssertionError("thread/archive must not run")
+        )
+        server.read_thread = mock.Mock(
+            side_effect=AssertionError("thread/read must not run")
+        )
+        diagnostics: list[dict] = []
+        actions: list[dict] = []
+        result = LIVE.contain_started_threads(
+            server,
+            allow_same_process_proofs=True,
+            delete_proven_never_turned=True,
+            failure_diagnostics=diagnostics,
+            containment_actions=actions,
+        )
+        self.assertFalse(result["all_contained"])
+        self.assertEqual(result["ambiguous_count"], 1)
+        self.assertEqual(actions, [])
+        self.assertEqual(
+            diagnostics,
+            [
+                {
+                    "thread_id_sha256": LIVE.sha256_text(thread_id),
+                    "substep": "never-turned-delete",
+                    "failure_class": "AppServerRpcError",
+                    "failure_message_sha256": LIVE.sha256_text(
+                        "app-server-request-failed:thread/delete:-32603"
+                    ),
+                    "rpc_method": "thread/delete",
+                    "rpc_code": -32603,
+                }
+            ],
+        )
+        server.delete_thread.assert_called_once_with(thread_id)
+        server.archive_thread.assert_not_called()
+        server.read_thread.assert_not_called()
 
     def test_preview_containment_proves_calibration_plus_n1_and_n2_workers(
         self,
@@ -5028,6 +5180,102 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 evidence = adapter.evidence()
             self.assertEqual(evidence["reasons"], [])
             self.assertEqual(evidence["artifact_disposition"], "accepted")
+
+    def test_mutable_empty_workspace_is_not_faulted_before_or_after_dispatch(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="missing")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="targets/child_0.txt",
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            self.assertEqual(adapter.arm(), {"ack": "armed"})
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=[],
+            ):
+                armed_evidence = adapter.evidence()
+                self.assertFalse(armed_evidence["protected_fault"])
+                self.assertNotIn(
+                    "mutable-workspace-attribution-mismatch",
+                    armed_evidence["reasons"],
+                )
+                adapter.send_input(message="bounded prompt")
+                dispatched_evidence = adapter.evidence()
+            self.assertFalse(dispatched_evidence["protected_fault"])
+            self.assertNotIn(
+                "mutable-workspace-attribution-mismatch",
+                dispatched_evidence["reasons"],
+            )
+
+    def test_mutable_predispatch_mutation_is_rejected_even_at_expected_path(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="missing")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="targets/child_0.txt",
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=["targets/child_0.txt"],
+            ):
+                evidence = adapter.evidence()
+            self.assertIn(
+                "mutable-workspace-attribution-mismatch",
+                evidence["reasons"],
+            )
+            self.assertTrue(evidence["protected_fault"])
+
+    def test_mutable_wrong_postdispatch_mutation_is_rejected_immediately(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="missing")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="targets/child_0.txt",
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message="bounded prompt")
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=["targets/unexpected.txt"],
+            ):
+                evidence = adapter.evidence()
+            self.assertIn(
+                "mutable-workspace-attribution-mismatch",
+                evidence["reasons"],
+            )
+            self.assertTrue(evidence["protected_fault"])
 
     def test_mutable_completion_without_expected_mutation_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

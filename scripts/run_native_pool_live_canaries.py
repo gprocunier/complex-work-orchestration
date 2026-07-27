@@ -1811,6 +1811,7 @@ class AppServer:
         self._turn_dispatch_records: dict[str, dict[str, Any]] = {}
         self._fresh_never_turned_thread_proofs: dict[str, dict[str, Any]] = {}
         self._archive_acceptance_proofs: dict[str, dict[str, Any]] = {}
+        self._delete_acceptance_proofs: dict[str, dict[str, Any]] = {}
         self._same_process_containment_proofs: dict[str, dict[str, Any]] = {}
         self._pending_turn_start_response_observers: dict[int, dict[str, Any]] = {}
         self._observed_negative_turn_response_capabilities_by_request: dict[
@@ -2405,6 +2406,10 @@ class AppServer:
             None,
         )
         getattr(self, "_archive_acceptance_proofs", {}).pop(
+            thread_id,
+            None,
+        )
+        getattr(self, "_delete_acceptance_proofs", {}).pop(
             thread_id,
             None,
         )
@@ -3578,6 +3583,32 @@ class AppServer:
             )
         return latency
 
+    def delete_thread(self, thread_id: str) -> float:
+        result, latency = self.request(
+            "thread/delete",
+            {"threadId": thread_id},
+            timeout=15,
+        )
+        delete_proofs = getattr(self, "_delete_acceptance_proofs", None)
+        if delete_proofs is None:
+            delete_proofs = {}
+            self._delete_acceptance_proofs = delete_proofs
+        delete_proofs[thread_id] = _seal_same_process_proof(
+            {
+                "proof_type": "app-server-connection-local-thread-proof",
+                "version": 1,
+                "kind": "delete-accepted",
+                "thread_id_sha256": sha256_text(thread_id),
+                "connection_epoch_sha256": self.connection_epoch_sha256,
+                "delete_response_sha256": domain_sha256(
+                    result,
+                    domain="app-server-thread-delete-response",
+                ),
+            },
+            domain="app-server-connection-local-thread-proof",
+        )
+        return latency
+
     def fresh_never_turned_thread_proof(
         self,
         thread_id: str,
@@ -3648,6 +3679,39 @@ class AppServer:
             != "app-server-connection-local-thread-proof"
             or proof.get("version") != 1
             or proof.get("kind") != "archive-accepted"
+            or proof.get("thread_id_sha256") != sha256_text(thread_id)
+            or proof.get("connection_epoch_sha256")
+            != self.connection_epoch_sha256
+        ):
+            return None
+        return proof
+
+    def delete_acceptance_proof(
+        self,
+        thread_id: str,
+    ) -> dict[str, Any] | None:
+        proof = _validated_same_process_proof(
+            getattr(
+                self,
+                "_delete_acceptance_proofs",
+                {},
+            ).get(thread_id),
+            domain="app-server-connection-local-thread-proof",
+            expected_fields={
+                "proof_type",
+                "version",
+                "kind",
+                "thread_id_sha256",
+                "connection_epoch_sha256",
+                "delete_response_sha256",
+            },
+        )
+        if (
+            proof is None
+            or proof.get("proof_type")
+            != "app-server-connection-local-thread-proof"
+            or proof.get("version") != 1
+            or proof.get("kind") != "delete-accepted"
             or proof.get("thread_id_sha256") != sha256_text(thread_id)
             or proof.get("connection_epoch_sha256")
             != self.connection_epoch_sha256
@@ -3744,17 +3808,110 @@ class AppServer:
         )
         return dict(proof)
 
+    def record_never_turned_delete_containment(
+        self,
+        thread_id: str,
+    ) -> dict[str, Any]:
+        """Bind a fresh no-turn allocation to this connection's accepted delete."""
+
+        fresh_proof = self.fresh_never_turned_thread_proof(thread_id)
+        delete_proof = self.delete_acceptance_proof(thread_id)
+        dispatch_record = getattr(
+            self,
+            "_turn_dispatch_records",
+            {},
+        ).get(thread_id)
+        if (
+            self.started_threads.get(thread_id) is not None
+            or dispatch_record is not None
+            or fresh_proof is None
+            or delete_proof is None
+        ):
+            raise AppServerError("never-turned-delete-containment-proof-invalid")
+        proof = _seal_same_process_proof(
+            {
+                "proof_type": "app-server-same-process-containment",
+                "version": 2,
+                "kind": "never-turned-deleted",
+                "thread_id_sha256": sha256_text(thread_id),
+                "turn_id_sha256": None,
+                "connection_epoch_sha256": self.connection_epoch_sha256,
+                "fresh_thread_proof_sha256": fresh_proof[
+                    "proof_sha256"
+                ],
+                "delete_acceptance_sha256": delete_proof[
+                    "proof_sha256"
+                ],
+                "terminal_evidence_sha256": None,
+            },
+            domain="app-server-same-process-containment",
+        )
+        proofs = getattr(self, "_same_process_containment_proofs", None)
+        if proofs is None:
+            proofs = {}
+            self._same_process_containment_proofs = proofs
+        proofs[thread_id] = proof
+        getattr(self, "_fresh_never_turned_thread_proofs", {}).pop(
+            thread_id,
+            None,
+        )
+        return dict(proof)
+
     def same_process_containment_proof(
         self,
         thread_id: str,
     ) -> dict[str, Any] | None:
+        raw_proof = getattr(
+            self,
+            "_same_process_containment_proofs",
+            {},
+        ).get(thread_id)
+        if (
+            isinstance(raw_proof, Mapping)
+            and raw_proof.get("kind") == "never-turned-deleted"
+        ):
+            proof = _validated_same_process_proof(
+                raw_proof,
+                domain="app-server-same-process-containment",
+                expected_fields={
+                    "proof_type",
+                    "version",
+                    "kind",
+                    "thread_id_sha256",
+                    "turn_id_sha256",
+                    "connection_epoch_sha256",
+                    "fresh_thread_proof_sha256",
+                    "delete_acceptance_sha256",
+                    "terminal_evidence_sha256",
+                },
+            )
+            delete_proof = self.delete_acceptance_proof(thread_id)
+            if (
+                proof is None
+                or proof.get("proof_type")
+                != "app-server-same-process-containment"
+                or proof.get("version") != 2
+                or proof.get("thread_id_sha256")
+                != sha256_text(thread_id)
+                or proof.get("connection_epoch_sha256")
+                != self.connection_epoch_sha256
+                or delete_proof is None
+                or proof.get("delete_acceptance_sha256")
+                != delete_proof.get("proof_sha256")
+                or self.started_threads.get(thread_id) is not None
+                or proof.get("turn_id_sha256") is not None
+                or proof.get("terminal_evidence_sha256") is not None
+                or re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    str(proof.get("fresh_thread_proof_sha256")),
+                )
+                is None
+            ):
+                return None
+            return proof
         archive_proof = self.archive_acceptance_proof(thread_id)
         proof = _validated_same_process_proof(
-            getattr(
-                self,
-                "_same_process_containment_proofs",
-                {},
-            ).get(thread_id),
+            raw_proof,
             domain="app-server-same-process-containment",
             expected_fields={
                 "proof_type",
@@ -4982,7 +5139,17 @@ class LiveThreadAdapter:
             self._completion_evidence_reasons(summary, completion_observation)
         )
         if self.mutable:
-            if mutations != [self.expected_mutation]:
+            expected_mutations = [self.expected_mutation]
+            if (
+                mutations
+                and (
+                    self.turn_id is None
+                    or mutations != expected_mutations
+                )
+            ) or (
+                status == "completed"
+                and mutations != expected_mutations
+            ):
                 reasons.append("mutable-workspace-attribution-mismatch")
         elif mutations:
             reasons.append("read-only-workspace-mutation")
@@ -7445,8 +7612,11 @@ def contain_started_threads(
     server: AppServer,
     *,
     allow_same_process_proofs: bool = False,
+    delete_proven_never_turned: bool = False,
+    failure_diagnostics: list[dict[str, Any]] | None = None,
+    containment_actions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Idempotently prove terminal absence, then archive allocated threads."""
+    """Idempotently prove terminal absence, then contain allocated threads."""
 
     interrupted: list[str] = []
     archived: list[str] = []
@@ -7462,6 +7632,28 @@ def contain_started_threads(
             )
         except Exception as exc:
             ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
+
+    def record_failure(
+        thread_id: str,
+        substep: str,
+        exc: Exception,
+    ) -> None:
+        if failure_diagnostics is None:
+            return
+        diagnostic: dict[str, Any] = {
+            "thread_id_sha256": sha256_text(thread_id),
+            "substep": substep,
+            "failure_class": type(exc).__name__,
+            "failure_message_sha256": sha256_text(str(exc)),
+        }
+        if isinstance(exc, AppServerRpcError):
+            diagnostic.update(
+                {
+                    "rpc_method": exc.method,
+                    "rpc_code": exc.code,
+                }
+            )
+        failure_diagnostics.append(diagnostic)
 
     for thread_id, record in list(
         getattr(server, "_turn_dispatch_records", {}).items()
@@ -7579,13 +7771,35 @@ def contain_started_threads(
             and no_pending_turn_intent
             and fresh_proof is not None
         ):
+            delete_fresh_thread = (
+                delete_proven_never_turned and ledger is None
+            )
+            substep = (
+                "never-turned-delete"
+                if delete_fresh_thread
+                else "never-turned-archive"
+            )
             try:
-                server.archive_thread(thread_id)
-                local_proof = (
-                    server.record_never_turned_archive_containment(
-                        thread_id
+                if delete_fresh_thread:
+                    # Archive requires a materialized rollout. The activation
+                    # delete opt-in is limited to a proven fresh, loaded,
+                    # non-ephemeral thread that has never received a turn.
+                    server.delete_thread(thread_id)
+                    substep = "never-turned-delete-proof"
+                    local_proof = (
+                        server.record_never_turned_delete_containment(
+                            thread_id
+                        )
                     )
-                )
+                else:
+                    server.archive_thread(thread_id)
+                    substep = "never-turned-archive-proof"
+                    local_proof = (
+                        server.record_never_turned_archive_containment(
+                            thread_id
+                        )
+                    )
+                substep = "never-turned-containment-audit"
                 if not audit_containment(
                     thread_id,
                     "contained",
@@ -7597,8 +7811,23 @@ def contain_started_threads(
                     raise AppServerError(
                         "never-turned-containment-audit-failed"
                     )
-                archived.append(thread_id)
-            except Exception:
+                if delete_fresh_thread:
+                    if containment_actions is not None:
+                        containment_actions.append(
+                            {
+                                "action": "never-turned-delete",
+                                "thread_id_sha256": sha256_text(
+                                    thread_id
+                                ),
+                                "proof_sha256": local_proof[
+                                    "proof_sha256"
+                                ],
+                            }
+                        )
+                else:
+                    archived.append(thread_id)
+            except Exception as exc:
+                record_failure(thread_id, substep, exc)
                 ambiguous.append(thread_id)
             continue
         try:
