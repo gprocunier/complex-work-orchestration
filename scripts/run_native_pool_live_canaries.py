@@ -382,6 +382,38 @@ def sha256_text(value: str) -> str:
     return sha256_bytes(value.encode("utf-8"))
 
 
+def _seal_same_process_proof(
+    payload: Mapping[str, Any],
+    *,
+    domain: str,
+) -> dict[str, Any]:
+    proof = dict(payload)
+    proof["proof_sha256"] = domain_sha256(proof, domain=domain)
+    return proof
+
+
+def _validated_same_process_proof(
+    value: Any,
+    *,
+    domain: str,
+    expected_fields: set[str],
+) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping) or set(value) != {
+        *expected_fields,
+        "proof_sha256",
+    }:
+        return None
+    proof = dict(value)
+    supplied = proof.pop("proof_sha256")
+    if (
+        not isinstance(supplied, str)
+        or re.fullmatch(r"[0-9a-f]{64}", supplied) is None
+        or domain_sha256(proof, domain=domain) != supplied
+    ):
+        return None
+    return dict(value)
+
+
 def _strict_json_object_pairs(
     pairs: list[tuple[str, Any]],
 ) -> dict[str, Any]:
@@ -1775,6 +1807,9 @@ class AppServer:
         self.started_threads: dict[str, str | None] = {}
         self._known_thread_turn_ids: dict[str, set[str]] = {}
         self._turn_dispatch_records: dict[str, dict[str, Any]] = {}
+        self._fresh_never_turned_thread_proofs: dict[str, dict[str, Any]] = {}
+        self._archive_acceptance_proofs: dict[str, dict[str, Any]] = {}
+        self._same_process_containment_proofs: dict[str, dict[str, Any]] = {}
         self._pending_turn_start_response_observers: dict[int, dict[str, Any]] = {}
         self._observed_negative_turn_response_capabilities_by_request: dict[
             int, object
@@ -2363,6 +2398,18 @@ class AppServer:
             raise AppServerError("thread-start-response-invalid")
         thread_id = str(thread["id"])
         self.started_threads[thread_id] = None
+        getattr(self, "_fresh_never_turned_thread_proofs", {}).pop(
+            thread_id,
+            None,
+        )
+        getattr(self, "_archive_acceptance_proofs", {}).pop(
+            thread_id,
+            None,
+        )
+        getattr(self, "_same_process_containment_proofs", {}).pop(
+            thread_id,
+            None,
+        )
         turns = thread.get("turns")
         if not hasattr(self, "_known_thread_turn_ids"):
             self._known_thread_turn_ids = {}
@@ -2381,6 +2428,33 @@ class AppServer:
             self.allocation_ledger.bind_thread(allocation_intent_id, thread_id)
         if result.get("model") != EXACT_MODEL:
             raise AppServerError("thread-start-model-mismatch")
+        if type(turns) is list and not turns:
+            fresh_proofs = getattr(
+                self,
+                "_fresh_never_turned_thread_proofs",
+                None,
+            )
+            if fresh_proofs is None:
+                fresh_proofs = {}
+                self._fresh_never_turned_thread_proofs = fresh_proofs
+            fresh_proofs[thread_id] = _seal_same_process_proof(
+                {
+                    "proof_type": "app-server-connection-local-thread-proof",
+                    "version": 1,
+                    "kind": "fresh-never-turned",
+                    "thread_id_sha256": sha256_text(thread_id),
+                    "connection_epoch_sha256": self.connection_epoch_sha256,
+                    "known_turn_ids_sha256": domain_sha256(
+                        [],
+                        domain="app-server-known-thread-turn-ids",
+                    ),
+                    "thread_start_response_sha256": domain_sha256(
+                        dict(result),
+                        domain="app-server-fresh-thread-start-response",
+                    ),
+                },
+                domain="app-server-connection-local-thread-proof",
+            )
         return dict(result), latency
 
     def read_thread(
@@ -3187,6 +3261,14 @@ class AppServer:
     ) -> tuple[dict[str, Any], float]:
         """Write ``turn/start`` exactly once and contain uncertain outcomes."""
 
+        getattr(self, "_fresh_never_turned_thread_proofs", {}).pop(
+            thread_id,
+            None,
+        )
+        getattr(self, "_same_process_containment_proofs", {}).pop(
+            thread_id,
+            None,
+        )
         with self._condition:
             if self.process.poll() is not None:
                 raise AppServerError(
@@ -3465,12 +3547,288 @@ class AppServer:
         return latency
 
     def archive_thread(self, thread_id: str) -> float:
-        _result, latency = self.request("thread/archive", {"threadId": thread_id}, timeout=15)
+        result, latency = self.request(
+            "thread/archive",
+            {"threadId": thread_id},
+            timeout=15,
+        )
+        archive_proofs = getattr(self, "_archive_acceptance_proofs", None)
+        if archive_proofs is None:
+            archive_proofs = {}
+            self._archive_acceptance_proofs = archive_proofs
+        archive_proofs[thread_id] = _seal_same_process_proof(
+            {
+                "proof_type": "app-server-connection-local-thread-proof",
+                "version": 1,
+                "kind": "archive-accepted",
+                "thread_id_sha256": sha256_text(thread_id),
+                "connection_epoch_sha256": self.connection_epoch_sha256,
+                "archive_response_sha256": domain_sha256(
+                    result,
+                    domain="app-server-thread-archive-response",
+                ),
+            },
+            domain="app-server-connection-local-thread-proof",
+        )
         if self.allocation_ledger is not None:
             self.allocation_ledger.record_lifecycle(
                 thread_id, "archive-observed", "archive-request-accepted"
             )
         return latency
+
+    def fresh_never_turned_thread_proof(
+        self,
+        thread_id: str,
+    ) -> dict[str, Any] | None:
+        proof = _validated_same_process_proof(
+            getattr(
+                self,
+                "_fresh_never_turned_thread_proofs",
+                {},
+            ).get(thread_id),
+            domain="app-server-connection-local-thread-proof",
+            expected_fields={
+                "proof_type",
+                "version",
+                "kind",
+                "thread_id_sha256",
+                "connection_epoch_sha256",
+                "known_turn_ids_sha256",
+                "thread_start_response_sha256",
+            },
+        )
+        if (
+            proof is None
+            or proof.get("proof_type")
+            != "app-server-connection-local-thread-proof"
+            or proof.get("version") != 1
+            or proof.get("kind") != "fresh-never-turned"
+            or proof.get("thread_id_sha256") != sha256_text(thread_id)
+            or proof.get("connection_epoch_sha256")
+            != self.connection_epoch_sha256
+            or proof.get("known_turn_ids_sha256")
+            != domain_sha256(
+                [],
+                domain="app-server-known-thread-turn-ids",
+            )
+            or self.started_threads.get(thread_id) is not None
+            or getattr(self, "_known_thread_turn_ids", {}).get(thread_id)
+            != set()
+            or getattr(self, "_turn_dispatch_records", {}).get(thread_id)
+            is not None
+        ):
+            return None
+        return proof
+
+    def archive_acceptance_proof(
+        self,
+        thread_id: str,
+    ) -> dict[str, Any] | None:
+        proof = _validated_same_process_proof(
+            getattr(
+                self,
+                "_archive_acceptance_proofs",
+                {},
+            ).get(thread_id),
+            domain="app-server-connection-local-thread-proof",
+            expected_fields={
+                "proof_type",
+                "version",
+                "kind",
+                "thread_id_sha256",
+                "connection_epoch_sha256",
+                "archive_response_sha256",
+            },
+        )
+        if (
+            proof is None
+            or proof.get("proof_type")
+            != "app-server-connection-local-thread-proof"
+            or proof.get("version") != 1
+            or proof.get("kind") != "archive-accepted"
+            or proof.get("thread_id_sha256") != sha256_text(thread_id)
+            or proof.get("connection_epoch_sha256")
+            != self.connection_epoch_sha256
+        ):
+            return None
+        return proof
+
+    def record_terminal_archive_containment(
+        self,
+        thread_id: str,
+        turn_id: str,
+        *,
+        terminal_evidence_sha256: str,
+    ) -> dict[str, Any]:
+        """Bind trusted terminal evidence to this connection's accepted archive."""
+
+        archive_proof = self.archive_acceptance_proof(thread_id)
+        if (
+            self.started_threads.get(thread_id) != turn_id
+            or archive_proof is None
+            or re.fullmatch(r"[0-9a-f]{64}", terminal_evidence_sha256)
+            is None
+        ):
+            raise AppServerError("terminal-archive-containment-proof-invalid")
+        proof = _seal_same_process_proof(
+            {
+                "proof_type": "app-server-same-process-containment",
+                "version": 1,
+                "kind": "terminal-turn-archived",
+                "thread_id_sha256": sha256_text(thread_id),
+                "turn_id_sha256": sha256_text(turn_id),
+                "connection_epoch_sha256": self.connection_epoch_sha256,
+                "fresh_thread_proof_sha256": None,
+                "archive_acceptance_sha256": archive_proof[
+                    "proof_sha256"
+                ],
+                "terminal_evidence_sha256": terminal_evidence_sha256,
+            },
+            domain="app-server-same-process-containment",
+        )
+        proofs = getattr(self, "_same_process_containment_proofs", None)
+        if proofs is None:
+            proofs = {}
+            self._same_process_containment_proofs = proofs
+        proofs[thread_id] = proof
+        return dict(proof)
+
+    def record_never_turned_archive_containment(
+        self,
+        thread_id: str,
+    ) -> dict[str, Any]:
+        """Bind a fresh no-turn allocation to this connection's accepted archive."""
+
+        fresh_proof = self.fresh_never_turned_thread_proof(thread_id)
+        archive_proof = self.archive_acceptance_proof(thread_id)
+        dispatch_record = getattr(
+            self,
+            "_turn_dispatch_records",
+            {},
+        ).get(thread_id)
+        if (
+            self.started_threads.get(thread_id) is not None
+            or dispatch_record is not None
+            or fresh_proof is None
+            or archive_proof is None
+        ):
+            raise AppServerError("never-turned-archive-containment-proof-invalid")
+        proof = _seal_same_process_proof(
+            {
+                "proof_type": "app-server-same-process-containment",
+                "version": 1,
+                "kind": "never-turned-archived",
+                "thread_id_sha256": sha256_text(thread_id),
+                "turn_id_sha256": None,
+                "connection_epoch_sha256": self.connection_epoch_sha256,
+                "fresh_thread_proof_sha256": fresh_proof[
+                    "proof_sha256"
+                ],
+                "archive_acceptance_sha256": archive_proof[
+                    "proof_sha256"
+                ],
+                "terminal_evidence_sha256": None,
+            },
+            domain="app-server-same-process-containment",
+        )
+        proofs = getattr(self, "_same_process_containment_proofs", None)
+        if proofs is None:
+            proofs = {}
+            self._same_process_containment_proofs = proofs
+        proofs[thread_id] = proof
+        getattr(self, "_fresh_never_turned_thread_proofs", {}).pop(
+            thread_id,
+            None,
+        )
+        return dict(proof)
+
+    def same_process_containment_proof(
+        self,
+        thread_id: str,
+    ) -> dict[str, Any] | None:
+        archive_proof = self.archive_acceptance_proof(thread_id)
+        proof = _validated_same_process_proof(
+            getattr(
+                self,
+                "_same_process_containment_proofs",
+                {},
+            ).get(thread_id),
+            domain="app-server-same-process-containment",
+            expected_fields={
+                "proof_type",
+                "version",
+                "kind",
+                "thread_id_sha256",
+                "turn_id_sha256",
+                "connection_epoch_sha256",
+                "fresh_thread_proof_sha256",
+                "archive_acceptance_sha256",
+                "terminal_evidence_sha256",
+            },
+        )
+        if (
+            proof is None
+            or proof.get("proof_type")
+            != "app-server-same-process-containment"
+            or proof.get("version") != 1
+            or proof.get("thread_id_sha256") != sha256_text(thread_id)
+            or proof.get("connection_epoch_sha256")
+            != self.connection_epoch_sha256
+            or archive_proof is None
+            or proof.get("archive_acceptance_sha256")
+            != archive_proof.get("proof_sha256")
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(proof.get("archive_acceptance_sha256")),
+            )
+            is None
+        ):
+            return None
+        if proof.get("kind") == "terminal-turn-archived":
+            turn_id = self.started_threads.get(thread_id)
+            if (
+                not isinstance(turn_id, str)
+                or proof.get("turn_id_sha256") != sha256_text(turn_id)
+                or proof.get("fresh_thread_proof_sha256") is not None
+                or re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    str(proof.get("terminal_evidence_sha256")),
+                )
+                is None
+            ):
+                return None
+        elif proof.get("kind") == "never-turned-archived":
+            if (
+                self.started_threads.get(thread_id) is not None
+                or proof.get("turn_id_sha256") is not None
+                or proof.get("terminal_evidence_sha256") is not None
+                or re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    str(proof.get("fresh_thread_proof_sha256")),
+                )
+                is None
+            ):
+                return None
+        else:
+            return None
+        return proof
+
+    def same_process_containment_proofs(self) -> list[dict[str, Any]]:
+        proofs = [
+            proof
+            for thread_id in getattr(
+                self,
+                "_same_process_containment_proofs",
+                {},
+            )
+            if (
+                proof := self.same_process_containment_proof(
+                    thread_id
+                )
+            )
+            is not None
+        ]
+        return sorted(proofs, key=lambda proof: proof["proof_sha256"])
 
     def notifications(self, thread_id: str, method: str | None = None) -> list[dict[str, Any]]:
         with self._condition:
@@ -6070,6 +6428,17 @@ def _run_calibration(
         raise AppServerError(
             "capability-materialization-evidence-invalid:" + ";".join(materialization_errors)
         )
+    record_terminal_containment = getattr(
+        server,
+        "record_terminal_archive_containment",
+        None,
+    )
+    if callable(record_terminal_containment):
+        record_terminal_containment(
+            thread_id,
+            turn_id,
+            terminal_evidence_sha256=materialization["evidence_sha256"],
+        )
 
     scheduler_samples: list[float] = []
     children = [
@@ -7041,7 +7410,11 @@ def validate_campaign(
     return sorted(set(errors))
 
 
-def contain_started_threads(server: AppServer) -> dict[str, Any]:
+def contain_started_threads(
+    server: AppServer,
+    *,
+    allow_same_process_proofs: bool = False,
+) -> dict[str, Any]:
     """Idempotently prove terminal absence, then archive allocated threads."""
 
     interrupted: list[str] = []
@@ -7050,6 +7423,14 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
     ambiguous: list[str] = []
     ledger_errors: list[str] = []
     ledger = getattr(server, "allocation_ledger", None)
+    no_pending_turn_intent = allow_same_process_proofs and ledger is None
+    if allow_same_process_proofs and ledger is not None:
+        try:
+            no_pending_turn_intent = (
+                int(ledger.summary()["unresolved_turn_intent_count"]) == 0
+            )
+        except Exception as exc:
+            ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
 
     for thread_id, record in list(
         getattr(server, "_turn_dispatch_records", {}).items()
@@ -7070,21 +7451,34 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
         if record.get("status") == "failed-ambiguous":
             ambiguous.append(str(thread_id))
 
-    def audit_containment(thread_id: str, outcome: str, status: str | None) -> None:
+    def audit_containment(
+        thread_id: str,
+        outcome: str,
+        status: str | None,
+        *,
+        local_proof_sha256: str | None = None,
+    ) -> bool:
         if ledger is None:
-            return
+            return True
         try:
+            evidence = {
+                "thread_id_sha256": sha256_text(thread_id),
+                "turn_status": status,
+                "outcome": outcome,
+            }
+            if local_proof_sha256 is not None:
+                evidence["same_process_proof_sha256"] = (
+                    local_proof_sha256
+                )
             ledger.record_containment_audit(
                 thread_id,
                 outcome=outcome,
-                evidence={
-                    "thread_id_sha256": sha256_text(thread_id),
-                    "turn_status": status,
-                    "outcome": outcome,
-                },
+                evidence=evidence,
             )
         except Exception as exc:
             ledger_errors.append(sha256_text(f"{type(exc).__name__}:{exc}"))
+            return False
+        return True
 
     for thread_id, turn_id in list(server.started_threads.items()):
         dispatch_record = (
@@ -7113,6 +7507,67 @@ def contain_started_threads(server: AppServer) -> dict[str, Any]:
             if success_audited:
                 already_contained.append(thread_id)
             else:
+                ambiguous.append(thread_id)
+            continue
+        local_proof = (
+            server.same_process_containment_proof(thread_id)
+            if allow_same_process_proofs
+            and hasattr(server, "same_process_containment_proof")
+            else None
+        )
+        if local_proof is not None:
+            try:
+                success_audited = bool(
+                    ledger is not None
+                    and ledger.has_successful_containment(thread_id)
+                )
+            except Exception as exc:
+                success_audited = False
+                ledger_errors.append(
+                    sha256_text(f"{type(exc).__name__}:{exc}")
+                )
+            if success_audited or audit_containment(
+                thread_id,
+                "already-contained",
+                None,
+                local_proof_sha256=local_proof["proof_sha256"],
+            ):
+                already_contained.append(thread_id)
+            else:
+                ambiguous.append(thread_id)
+            continue
+        fresh_proof = (
+            server.fresh_never_turned_thread_proof(thread_id)
+            if allow_same_process_proofs
+            and hasattr(server, "fresh_never_turned_thread_proof")
+            else None
+        )
+        if (
+            turn_id is None
+            and dispatch_record is None
+            and no_pending_turn_intent
+            and fresh_proof is not None
+        ):
+            try:
+                server.archive_thread(thread_id)
+                local_proof = (
+                    server.record_never_turned_archive_containment(
+                        thread_id
+                    )
+                )
+                if not audit_containment(
+                    thread_id,
+                    "contained",
+                    None,
+                    local_proof_sha256=local_proof[
+                        "proof_sha256"
+                    ],
+                ):
+                    raise AppServerError(
+                        "never-turned-containment-audit-failed"
+                    )
+                archived.append(thread_id)
+            except Exception:
                 ambiguous.append(thread_id)
             continue
         try:

@@ -40,6 +40,7 @@ from cwo_core.native_tool_activation import (  # noqa: E402
 from run_native_pool_activation_preview import (  # noqa: E402
     ActivationLedgerTransport,
     _contain_allocated_threads,
+    _pool_capability_receipt,
     _persist_pool_outcome,
     _require_accepting_pool_receipt,
     _result,
@@ -301,6 +302,13 @@ class NativeActivationPreviewTests(unittest.TestCase):
                         },
                     )
 
+    def test_pool_capability_receipt_is_omitted_for_n1_and_preserved_for_n2(
+        self,
+    ) -> None:
+        capability = {"receipt_sha256": "a" * 64}
+        self.assertIsNone(_pool_capability_receipt(capability, 1))
+        self.assertIs(_pool_capability_receipt(capability, 2), capability)
+
     def test_cli_has_no_arbitrary_work_or_continuation_options(self) -> None:
         command = parser()
         help_text = command.format_help()
@@ -548,6 +556,51 @@ class NativeActivationPreviewTests(unittest.TestCase):
         evidence = _contain_allocated_threads(ambiguous, None)
         self.assertFalse(evidence["all_contained"])
         self.assertEqual(ambiguous.archived, [])
+
+    def test_activation_containment_persists_proofs_and_pending_intent_wins(
+        self,
+    ) -> None:
+        proof = {
+            "proof_type": "app-server-same-process-containment",
+            "version": 1,
+            "kind": "never-turned-archived",
+            "proof_sha256": "d" * 64,
+        }
+        server = type(
+            "ProofReportingServer",
+            (),
+            {
+                "allocation_ledger": None,
+                "started_threads": {},
+                "_turn_dispatch_records": {},
+                "same_process_containment_proofs": lambda self: [proof],
+            },
+        )()
+        evidence = _contain_allocated_threads(server, None)
+        self.assertTrue(evidence["all_contained"])
+        self.assertEqual(
+            evidence["same_process_containment_proofs"],
+            [proof],
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            ledger = NativeActivationLedgerStore.create(
+                root / "ledger",
+                profile="n1-read-only",
+                plan_sha256="a" * 64,
+                claim_sha256="b" * 64,
+                action_sha256="c" * 64,
+                campaign_nonce=str(uuid.uuid4()),
+            )
+            ledger.append("approval-consume-intent")
+            ledger.append("approval-verified")
+            ledger.append("activation-dispatch-intent")
+            ledger.allocation_intent("calibration")
+            evidence = _contain_allocated_threads(server, ledger)
+            self.assertTrue(evidence["preview_pending_allocation"])
+            self.assertFalse(evidence["all_contained"])
 
     def test_pool_receipt_must_be_exactly_accepting(self) -> None:
         accepted = {

@@ -144,7 +144,7 @@ def run_admitted_native_pool(
         child_ids,
         capacity_limits=capacity_limits,
     )
-    commit_invoked = False
+    lease_ownership_transferred = False
     try:
         lease_set_sha256 = canonical_sha256({"leases": acquired})
         dispatch_context = build_dispatch_context(
@@ -157,8 +157,7 @@ def run_admitted_native_pool(
         terminal: dict[str, Any] = {}
 
         def commit(dispatch_receipt: Mapping[str, Any]) -> None:
-            nonlocal commit_invoked
-            commit_invoked = True
+            nonlocal lease_ownership_transferred
             coordinator = _build_admitted_pool_coordinator(
                 contract,
                 child_contracts,
@@ -178,6 +177,7 @@ def run_admitted_native_pool(
                 recovery_controller_root=recovery_controller_root,
                 recovery_action_resolver=recovery_action_resolver,
             )
+            lease_ownership_transferred = True
             terminal["pool_receipt"] = coordinator.run()
 
         dispatch = consume_pool_admission(
@@ -193,7 +193,7 @@ def run_admitted_native_pool(
             "pool_receipt": deepcopy(terminal["pool_receipt"]),
         }
     except BaseException:
-        if not commit_invoked:
+        if not lease_ownership_transferred:
             try:
                 lease_registry.release_uncommitted_many(
                     contract,
