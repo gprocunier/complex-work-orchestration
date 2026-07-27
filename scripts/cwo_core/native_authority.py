@@ -22,6 +22,7 @@ import stat
 import tempfile
 from threading import RLock
 from typing import Any, Iterable, Mapping
+import uuid
 
 
 AUTHORITY_PROVENANCE_VERSION = 1
@@ -652,6 +653,116 @@ def _operator_approval_signature(
     ).hexdigest()
 
 
+def sign_operator_approval_receipt(
+    assessment: ProtectedChangeAssessment,
+    *,
+    change_type: str,
+    signing_key: bytes,
+    actor_id: str,
+    identity_source: str,
+    authorized_scope: str,
+    issued_at: datetime | str,
+    expires_at: datetime | str,
+    approval_id: str | None = None,
+    nonce: str | None = None,
+    parent_receipt_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Sign evidence for one exact protected change without granting authority.
+
+    The returned mapping remains inert until an ``OperatorApprovalVerifier``
+    independently verifies it against the same assessment and durably consumes
+    its nonce.  Keeping receipt construction here prevents command-line tools
+    from reimplementing the canonical HMAC format.
+    """
+
+    if type(assessment) is not ProtectedChangeAssessment:
+        raise AuthorityProvenanceError("protected-change-assessment-required")
+    if assessment.identity is None:
+        raise AuthorityProvenanceError(
+            "protected-change-assessment-identity-required"
+        )
+    if change_type not in assessment.required_change_types:
+        raise AuthorityProvenanceError(
+            "operator-approval-change-type-not-required"
+        )
+    if change_type in TERMINAL_PROTECTED_CHANGE_TYPES:
+        raise AuthorityProvenanceError(
+            "operator-approval-terminal-change-not-authorizable:" + change_type
+        )
+    if type(signing_key) is not bytes or not signing_key:
+        raise AuthorityProvenanceError(
+            "operator-approval-signing-key-invalid"
+        )
+    if not _nonempty(actor_id) or not _nonempty(identity_source):
+        raise AuthorityProvenanceError(
+            "operator-approval-signer-identity-invalid"
+        )
+    if authorized_scope not in AUTHORIZED_SCOPES:
+        raise AuthorityProvenanceError(
+            "operator-approval-authorized-scope-invalid"
+        )
+    issued = (
+        issued_at.astimezone(timezone.utc)
+        if isinstance(issued_at, datetime) and issued_at.tzinfo is not None
+        else _parse_utc_timestamp(
+            issued_at,
+            label="operator-approval-issued-at",
+        )
+    )
+    expires = (
+        expires_at.astimezone(timezone.utc)
+        if isinstance(expires_at, datetime) and expires_at.tzinfo is not None
+        else _parse_utc_timestamp(
+            expires_at,
+            label="operator-approval-expires-at",
+        )
+    )
+    if expires <= issued:
+        raise AuthorityProvenanceError(
+            "operator-approval-expiry-window-invalid"
+        )
+    if parent_receipt_sha256 is not None and not is_sha256(
+        parent_receipt_sha256
+    ):
+        raise AuthorityProvenanceError(
+            "operator-approval-parent-receipt-sha256-invalid"
+        )
+    receipt: dict[str, Any] = {
+        "approval_type": OPERATOR_APPROVAL_TYPE,
+        "version": OPERATOR_APPROVAL_VERSION,
+        "approval_id": approval_id or str(uuid.uuid4()),
+        "change_type": change_type,
+        "before_sha256": canonical_authority_sha256(
+            assessment.before_subject
+        ),
+        "after_sha256": canonical_authority_sha256(
+            assessment.after_subject
+        ),
+        "actor_id": actor_id,
+        "identity_source": identity_source,
+        "authorized_scope": authorized_scope,
+        "parent_receipt_sha256": parent_receipt_sha256,
+        "issued_at": issued.isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z"
+        ),
+        "expires_at": expires.isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z"
+        ),
+        "nonce": nonce or str(uuid.uuid4()),
+    }
+    if not _nonempty(receipt["approval_id"]) or not _nonempty(
+        receipt["nonce"]
+    ):
+        raise AuthorityProvenanceError(
+            "operator-approval-signer-identifier-invalid"
+        )
+    receipt["signature"] = _operator_approval_signature(
+        receipt,
+        signing_key,
+    )
+    return receipt
+
+
 def _nested_value(value: Mapping[str, Any], *path: str) -> Any:
     current: Any = value
     for part in path:
@@ -1138,6 +1249,36 @@ def _verify_operator_approval(
     return VerifiedOperatorApproval(
         receipt_payload, authority, _OPERATOR_APPROVAL_TOKEN
     )
+
+
+def validate_operator_approval_receipt(
+    receipt: Any,
+    *,
+    verification_key: bytes,
+    expected_actor_id: str,
+    expected_identity_source: str,
+    expected_change_type: str,
+    before_artifact: Mapping[str, Any],
+    after_artifact: Mapping[str, Any],
+    now: datetime | str | None = None,
+) -> list[str]:
+    """Validate one signed receipt without consuming it or returning authority."""
+
+    try:
+        _verify_operator_approval(
+            receipt,
+            verification_key=verification_key,
+            expected_actor_id=expected_actor_id,
+            expected_identity_source=expected_identity_source,
+            expected_change_type=expected_change_type,
+            before_artifact=before_artifact,
+            after_artifact=after_artifact,
+            seen_nonces=set(),
+            now=_current_time(now),
+        )
+        return []
+    except (AuthorityProvenanceError, TypeError, ValueError) as exc:
+        return [str(exc)]
 
 
 def _replay_store_body(entries: list[dict[str, str]]) -> dict[str, Any]:

@@ -104,6 +104,22 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_session_boundary": {"native_session"},
     "native_worker_contracts": {"native_disposition"},
     "native_authority": set(),
+    "native_activation_ledger": set(),
+    "native_activation_preview": {
+        "beads_ready_set",
+        "native_activation_ledger",
+        "native_authority",
+        "native_capability",
+        "native_pool_admission",
+        "native_pool_contracts",
+        "native_pool_preflight",
+        "native_pool_proportionality",
+        "native_pool_workspace",
+        "native_tool_activation",
+        "native_tool_isolation",
+        "policy",
+        "work_sizing",
+    },
     "native_capability": {"native_authority"},
     "native_canary_contracts": {"native_stop_scope", "util"},
     "native_live_campaign_contracts": {
@@ -544,6 +560,8 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
 
 _CAPACITY_SOURCE_GLOBS = (
     "scripts/cwo_core/native_pool*.py",
+    "scripts/cwo_core/native_activation_preview.py",
+    "scripts/run_native_pool_activation_preview.py",
     "scripts/run_native_pool_live_canaries.py",
     "scripts/supervise_native_pool.py",
 )
@@ -683,7 +701,14 @@ def validate_repository() -> list[str]:
             "VerifiedToolEnforcementActivation",
             "keeps its verification key and",
             "rejected by dispatchable packet validation",
-            "no live activation is implied",
+            "scripts/run_native_pool_activation_preview.py",
+            "n1-read-only",
+            "n2-read-only",
+            "n1-mutable",
+            "--dry-run",
+            "--enable-tech-preview",
+            "permanently claims the activation ID and campaign nonce",
+            "There is no retry, resume,",
         ],
     )
     require_doc_terms(
@@ -694,6 +719,10 @@ def validate_repository() -> list[str]:
             "audit-only intent",
             "cannot start `supervise_native_worker.py`",
             "Activation authority has no JSON or CLI form",
+            "scripts/run_native_pool_activation_preview.py",
+            "mints and consumes",
+            "--dry-run",
+            "--enable-tech-preview",
         ],
     )
     validate_closure_pressure_contract(errors)
@@ -2252,7 +2281,23 @@ def validate_native_supervision_tech_preview_copy(
         ),
         (
             "activation gate wording",
-            "unavailable until a separate one-shot runner and explicit activation gate are published",
+            "The one-shot activation runner is disabled by default",
+        ),
+        (
+            "fixed activation profiles",
+            "<code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code>",
+        ),
+        (
+            "non-consuming dry-run wording",
+            "Non-consuming validation uses <code>--dry-run</code>",
+        ),
+        (
+            "exact activation risk wording",
+            "<code>unlisted-built-ins-may-act-before-detection</code> risk acknowledgement",
+        ),
+        (
+            "explicit activation switch",
+            "<code>--enable-tech-preview</code>",
         ),
         (
             "operator link",

@@ -75,10 +75,55 @@ There is deliberately no JSON or command-line representation of activation
 authority. `prepare_native_worker.py --tool-enforcement-override` may embed the
 audit-only intent in a packet, but that packet is rejected by dispatchable
 packet validation and cannot start the single-worker supervisor. Preflight
-acceptance is evidence, not dispatch permission. The normal operator path
-remains unavailable until the separate one-shot activation runner is reviewed,
-published, and explicitly activated; no live activation is implied by the
-presence of these contracts.
+acceptance is evidence, not dispatch permission.
+
+The disabled-by-default operator path is
+`scripts/run_native_pool_activation_preview.py`. It accepts only three fixed
+profiles: `n1-read-only`, `n2-read-only`, and `n1-mutable`. It has no arbitrary
+prompt, model, tool, task, mutation-path, retry, resume, refill, or replacement
+input. It also does not enter the historical
+`run_native_pool_live_canaries.py` campaign workflow; its claim, ledger, and
+result formats are separate.
+
+Use an absolute owner-private control root outside a clean source repository:
+
+```bash
+python3 scripts/run_native_pool_activation_preview.py keygen \
+  --control-root /absolute/private/activation-preview
+
+python3 scripts/run_native_pool_activation_preview.py prepare \
+  --control-root /absolute/private/activation-preview \
+  --profile n1-read-only \
+  --source-repo /absolute/clean/source-repository
+
+python3 scripts/run_native_pool_activation_preview.py approve \
+  --control-root /absolute/private/activation-preview \
+  --prepared /absolute/private/activation-preview/runs/<activation-id>/prepared.json \
+  --operator-id "<operator-id>" \
+  --identity-source "<trusted-identity-source>" \
+  --accept-risk unlisted-built-ins-may-act-before-detection
+
+python3 scripts/run_native_pool_activation_preview.py run \
+  --control-root /absolute/private/activation-preview \
+  --prepared /absolute/private/activation-preview/runs/<activation-id>/prepared.json \
+  --approval /absolute/private/activation-preview/runs/<activation-id>/approval.json \
+  --operator-id "<operator-id>" \
+  --identity-source "<trusted-identity-source>" \
+  --dry-run
+```
+
+`--dry-run` verifies the clean commit/tree, signed approval, fixed cohort,
+tool-boundary bindings, and offline admission without consuming the approval,
+creating a permanent claim, or making an app-server RPC. Live execution remains
+a separate operator decision: replace `--dry-run` with
+`--enable-tech-preview` only for the exact prepared attempt.
+
+The live path permanently claims the activation ID and campaign nonce before
+approval verification, Beads claims, leases, or RPC. A bad, expired, mismatched,
+or raced approval therefore burns that plan; prepare a new one instead of
+retrying. Owner-private mode 0700 directories and mode 0600 key, plan, approval,
+claim, ledger, and result artifacts are required. There is no retry, resume,
+refill, replacement, or salvage path.
 
 ## Trusted Live Canary Gate
 

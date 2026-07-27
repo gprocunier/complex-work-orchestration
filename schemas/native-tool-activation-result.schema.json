@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-tool-activation-result.schema.json",
+  "title": "CWO native tool activation result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_type",
+    "version",
+    "schema",
+    "activation_id",
+    "profile",
+    "live",
+    "status",
+    "plan_sha256",
+    "claim_sha256",
+    "action_sha256",
+    "approval_sha256",
+    "ledger_sha256",
+    "reservation_sha256",
+    "dispatch_sha256",
+    "pool_receipt_sha256",
+    "risk_acknowledgement",
+    "no_resume_or_salvage",
+    "started_at",
+    "finished_at",
+    "failure_class",
+    "failure_message_sha256",
+    "result_sha256"
+  ],
+  "properties": {
+    "result_type": {"const": "cwo-native-tool-activation-result"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-tool-activation-result.schema.json"},
+    "activation_id": {"type": "string", "format": "uuid"},
+    "profile": {
+      "enum": ["n1-read-only", "n2-read-only", "n1-mutable"]
+    },
+    "live": {"const": true},
+    "status": {"enum": ["accepted", "rejected"]},
+    "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "claim_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "action_sha256": {"$ref": "#/$defs/sha256"},
+    "approval_sha256": {"$ref": "#/$defs/sha256"},
+    "ledger_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "reservation_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "dispatch_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "pool_receipt_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "risk_acknowledgement": {
+      "const": "unlisted-built-ins-may-act-before-detection"
+    },
+    "no_resume_or_salvage": {"const": true},
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "failure_class": {"type": ["string", "null"]},
+    "failure_message_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "result_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nullableSha256": {
+      "anyOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    }
+  }
+}

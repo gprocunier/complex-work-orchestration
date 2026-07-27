@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-tool-activation-ledger.schema.json",
+  "title": "CWO native tool activation ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ledger_type",
+    "version",
+    "schema",
+    "ledger_id",
+    "profile",
+    "plan_sha256",
+    "claim_sha256",
+    "action_sha256",
+    "campaign_nonce",
+    "expected_roles",
+    "created_at",
+    "entries",
+    "head_entry_sha256",
+    "ledger_sha256"
+  ],
+  "properties": {
+    "ledger_type": {"const": "cwo-native-tool-activation-ledger"},
+    "version": {"const": 1},
+    "schema": {"const": "schemas/native-tool-activation-ledger.schema.json"},
+    "ledger_id": {"type": "string", "format": "uuid"},
+    "profile": {
+      "enum": ["n1-read-only", "n2-read-only", "n1-mutable"]
+    },
+    "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "claim_sha256": {"$ref": "#/$defs/sha256"},
+    "action_sha256": {"$ref": "#/$defs/sha256"},
+    "campaign_nonce": {"type": "string", "format": "uuid"},
+    "expected_roles": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["calibration", "read-only-0", "read-only-1", "mutable-0"]
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sequence",
+          "event",
+          "recorded_at",
+          "role",
+          "intent_id",
+          "subject_id",
+          "detail_sha256",
+          "previous_entry_sha256",
+          "entry_sha256"
+        ],
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 0},
+          "event": {
+            "enum": [
+              "claim-acquired",
+              "approval-consume-intent",
+              "approval-verified",
+              "activation-dispatch-intent",
+              "allocation-intent",
+              "thread-bound",
+              "turn-intent",
+              "turn-bound",
+              "terminal"
+            ]
+          },
+          "recorded_at": {"type": "string", "format": "date-time"},
+          "role": {"type": ["string", "null"]},
+          "intent_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "subject_id": {"type": ["string", "null"]},
+          "detail_sha256": {"$ref": "#/$defs/sha256"},
+          "previous_entry_sha256": {
+            "anyOf": [
+              {"$ref": "#/$defs/sha256"},
+              {"type": "null"}
+            ]
+          },
+          "entry_sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    },
+    "head_entry_sha256": {
+      "anyOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "ledger_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

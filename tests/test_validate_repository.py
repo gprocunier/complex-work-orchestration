@@ -37,7 +37,7 @@ class ValidateRepositoryTests(unittest.TestCase):
         <section id="native-supervision-tech-preview">
           <p>A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default; every concurrent run requires explicit opt-in.</p>
           <p>Concurrent execution requires one fresh same-host capability receipt, a fixed cohort, and either isolated mutable worktrees or a shared read-only topology. The currently released and hard ceilings are both three workers. N&gt;=4 remains blocked pending Phase 2 architecture and recertification. Precommit, critics, integration, retry, replay, and publication remain single-flight.</p>
-          <p>Exact server-side tool allowlisting remains the operative default. A serialized <code>trusted-detect-and-contain</code> override is audit-only intent, not dispatch authority. The temporary path remains unavailable until a separate one-shot runner and explicit activation gate are published.</p>
+          <p>Exact server-side tool allowlisting remains the operative default. A serialized <code>trusted-detect-and-contain</code> override is audit-only intent, not dispatch authority. The one-shot activation runner is disabled by default and accepts only <code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code>. Non-consuming validation uses <code>--dry-run</code>. Live execution requires the exact <code>unlisted-built-ins-may-act-before-detection</code> risk acknowledgement and <code>--enable-tech-preview</code>.</p>
           <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Operator reference</a>
           <p><code>git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy.</p>
         </section>
@@ -146,8 +146,24 @@ class ValidateRepositoryTests(unittest.TestCase):
                 "<code>trusted-detect-and-contain</code> override grants dispatch authority",
             ),
             "activation gate wording": (
-                "unavailable until a separate one-shot runner and explicit activation gate are published",
+                "The one-shot activation runner is disabled by default",
                 "available through the existing supervisor",
+            ),
+            "fixed activation profiles": (
+                "<code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code>",
+                "arbitrary profiles",
+            ),
+            "non-consuming dry-run wording": (
+                "Non-consuming validation uses <code>--dry-run</code>",
+                "Validation starts workers",
+            ),
+            "exact activation risk wording": (
+                "<code>unlisted-built-ins-may-act-before-detection</code> risk acknowledgement",
+                "generic risk acceptance",
+            ),
+            "explicit activation switch": (
+                "<code>--enable-tech-preview</code>",
+                "<code>--run</code>",
             ),
         }
         for expected_label, (required, replacement) in cases.items():
