@@ -24,7 +24,10 @@ from prepare_native_worker import (  # noqa: E402
 )
 from cwo_core.native_disposition import derive_disposition  # noqa: E402
 from cwo_core import native_worker_contracts as contracts  # noqa: E402
-from cwo_core.native_tool_isolation import TOOL_POLICY_FIELDS  # noqa: E402
+from cwo_core.native_tool_isolation import (  # noqa: E402
+    TOOL_POLICY_FIELDS,
+    seal_tool_enforcement_override,
+)
 
 
 def set_disposition(packet: dict, result: dict) -> None:
@@ -47,6 +50,30 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
         check=False,
         capture_output=True,
         text=True,
+    )
+
+
+def temporary_override() -> dict[str, object]:
+    return seal_tool_enforcement_override(
+        {
+            "override_type": "cwo-native-tool-enforcement-override",
+            "version": 1,
+            "schema": "schemas/native-tool-enforcement-override.schema.json",
+            "authorization_id": "11111111-1111-4111-8111-111111111111",
+            "authorization_canonical_sha256": "a" * 64,
+            "outer_authority_id": "22222222-2222-4222-8222-222222222222",
+            "outer_authority_file_sha256": "b" * 64,
+            "outer_authority_canonical_sha256": "c" * 64,
+            "campaign_nonce": "33333333-3333-4333-8333-333333333333",
+            "candidate_commit": "d" * 40,
+            "candidate_tree": "e" * 40,
+            "max_workers": 2,
+            "max_mutating_workers": 1,
+            "single_use": True,
+            "risk_acknowledgement": (
+                "unlisted-built-ins-may-act-before-detection"
+            ),
+        }
     )
 
 
@@ -226,6 +253,72 @@ class NativeWorkerPacketTests(unittest.TestCase):
                 "tool_policy must be an object for packet version 2",
                 validate_native_worker_packet(missing),
             )
+
+    def test_build_accepts_only_a_sealed_temporary_tool_override(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            allowed = Path(workdir) / "allowed"
+            allowed.mkdir()
+            override = temporary_override()
+            packet = build_native_worker_packet(
+                bead_id="bead-temporary-tools",
+                lane="review",
+                workdir=workdir,
+                allowed_paths=[str(allowed)],
+                acceptance_checks=["review complete"],
+                tool_enforcement_override=override,
+            )
+            self.assertEqual(
+                packet["tool_policy"]["enforcement_mode"],
+                "trusted-detect-and-contain",
+            )
+            self.assertEqual(
+                packet["tool_policy"]["override_provenance"], override
+            )
+            self.assertEqual(validate_native_worker_packet(packet), [])
+            self.assertIn(
+                "temporary enforcement requires an admitted-pool activation capability",
+                " ".join(
+                    validate_native_worker_packet(
+                        packet,
+                        dispatchable=True,
+                    )
+                ),
+            )
+
+            override_path = Path(workdir) / "override.json"
+            override_path.write_text(json.dumps(override), encoding="utf-8")
+            result = run_cli(
+                "build",
+                "--bead-id",
+                "bead-temporary-tools-cli",
+                "--lane",
+                "review",
+                "--workdir",
+                workdir,
+                "--allowed-path",
+                str(allowed),
+                "--acceptance-check",
+                "review complete",
+                "--tool-enforcement-override",
+                str(override_path),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                json.loads(result.stdout)["tool_policy"]["override_provenance"],
+                override,
+            )
+
+            tampered = copy.deepcopy(override)
+            tampered["candidate_tree"] = "f" * 40
+            with self.assertRaisesRegex(SystemExit, "canonical-hash-mismatch"):
+                build_native_worker_packet(
+                    bead_id="bead-temporary-tools-tampered",
+                    lane="review",
+                    workdir=workdir,
+                    allowed_paths=[str(allowed)],
+                    acceptance_checks=["review complete"],
+                    tool_enforcement_override=tampered,
+                )
 
     def test_prompt_trigger_conflict_is_rejected_during_render_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

@@ -21,6 +21,9 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core import native_live_campaign_contracts as CAMPAIGN_CONTRACTS  # noqa: E402
+from cwo_core.native_tool_isolation import (  # noqa: E402
+    seal_tool_enforcement_override,
+)
 
 SPEC = importlib.util.spec_from_file_location(
     "run_native_pool_live_canaries", ROOT / "scripts" / "run_native_pool_live_canaries.py"
@@ -41,6 +44,52 @@ UUID_TEXT_ALIASES = (
     CANONICAL_UUID_TEXT + "\n",
 )
 PARSEABLE_UUID_ALIASES = UUID_TEXT_ALIASES[:4]
+
+
+def temporary_tool_override_fixture() -> tuple[dict[str, object], dict[str, object]]:
+    manifest: dict[str, object] = {
+        "authorization_id": str(uuid.uuid4()),
+        "authorization_canonical_sha256": "a" * 64,
+        "outer_authority": {
+            "authority_id": str(uuid.uuid4()),
+            "file_sha256": "b" * 64,
+            "canonical_sha256": "c" * 64,
+        },
+        "campaign_nonce": str(uuid.uuid4()),
+        "candidate": {
+            "commit": "d" * 40,
+            "tree": "e" * 40,
+        },
+        "control_turn_id": LIVE.CONTROL_TURN_ID,
+    }
+    outer = manifest["outer_authority"]
+    candidate = manifest["candidate"]
+    assert isinstance(outer, dict)
+    assert isinstance(candidate, dict)
+    override = seal_tool_enforcement_override(
+        {
+            "override_type": "cwo-native-tool-enforcement-override",
+            "version": 1,
+            "schema": "schemas/native-tool-enforcement-override.schema.json",
+            "authorization_id": manifest["authorization_id"],
+            "authorization_canonical_sha256": manifest[
+                "authorization_canonical_sha256"
+            ],
+            "outer_authority_id": outer["authority_id"],
+            "outer_authority_file_sha256": outer["file_sha256"],
+            "outer_authority_canonical_sha256": outer["canonical_sha256"],
+            "campaign_nonce": manifest["campaign_nonce"],
+            "candidate_commit": candidate["commit"],
+            "candidate_tree": candidate["tree"],
+            "max_workers": 2,
+            "max_mutating_workers": 1,
+            "single_use": True,
+            "risk_acknowledgement": (
+                "unlisted-built-ins-may-act-before-detection"
+            ),
+        }
+    )
+    return manifest, override
 
 
 class FakeCalibrationServer:
@@ -3575,6 +3624,163 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
         self.assertEqual(summary["trusted_completed_tool_calls"], 0)
         self.assertEqual(summary["trusted_tool_evidence_sha256"], [])
 
+    def test_trusted_tool_evidence_quarantines_receipt_grammar_anomalies(
+        self,
+    ) -> None:
+        cases = (
+            (
+                "paired",
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "call-1",
+                            "arguments": json.dumps({"cmd": "rg bounded"}),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "call-1",
+                            "exit_code": 0,
+                            "output": "bounded",
+                        },
+                    },
+                ],
+                "exec_command",
+                1,
+            ),
+            (
+                "unpaired-call",
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "call-1",
+                            "arguments": json.dumps({"cmd": "rg bounded"}),
+                        },
+                    }
+                ],
+                "exec_command",
+                0,
+            ),
+            (
+                "unpaired-output",
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "call-1",
+                            "exit_code": 0,
+                            "output": "bounded",
+                        },
+                    }
+                ],
+                "telemetry_anomaly.unknown",
+                0,
+            ),
+            (
+                "duplicate-call-id",
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "call-1",
+                            "arguments": json.dumps({"cmd": "rg bounded"}),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "call-1",
+                            "arguments": json.dumps({"cmd": "rg spoofed"}),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "call-1",
+                            "exit_code": 0,
+                            "output": "bounded",
+                        },
+                    },
+                ],
+                "telemetry_anomaly.exec_command",
+                0,
+            ),
+            (
+                "duplicate-output",
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "call-1",
+                            "arguments": json.dumps({"cmd": "rg bounded"}),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "call-1",
+                            "exit_code": 0,
+                            "output": "bounded",
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "call-1",
+                            "exit_code": 0,
+                            "output": "spoofed",
+                        },
+                    },
+                ],
+                "telemetry_anomaly.exec_command",
+                0,
+            ),
+        )
+        for label, events, expected_tool, completed in cases:
+            with self.subTest(label=label):
+                records = [
+                    {
+                        "type": "turn_context",
+                        "payload": {"turn_id": "current-turn"},
+                    },
+                    *events,
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "task_complete",
+                            "turn_id": "current-turn",
+                        },
+                    },
+                ]
+                summary = LIVE.trusted_tool_evidence_summary(
+                    records,
+                    turn_id="current-turn",
+                    terminal_event={"record_index": len(records) - 1},
+                )
+                self.assertEqual(summary["trusted_tool_calls"], 1)
+                self.assertEqual(
+                    summary["trusted_completed_tool_calls"], completed
+                )
+                self.assertEqual(summary["trusted_tool_names"], [expected_tool])
+
     def test_pre_dispatch_missing_and_empty_boundaries_are_unavailable(self) -> None:
         for materialization in ("missing", "empty"):
             with self.subTest(materialization=materialization), tempfile.TemporaryDirectory() as temporary:
@@ -3928,6 +4134,118 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             self.assertEqual(evidence["reasons"], [])
             self.assertFalse(evidence["protected_fault"])
             self.assertEqual(evidence["artifact_disposition"], "accepted")
+
+    def test_projected_tool_without_trusted_receipt_interrupts_temporary_operative(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            _manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=False,
+                enforcement_override=override,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                tool_policy=policy,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message="bounded prompt")
+            self.complete_turn(
+                server,
+                trusted_tool_calls=1,
+                projected_tool_calls=2,
+            )
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            adapter.interrupt()
+            with mock.patch.object(
+                adapter, "_workspace_mutations", return_value=[]
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertIn("forbidden-tool-activity", evidence["reasons"])
+            self.assertEqual(
+                summary["forbidden_tool_activity"][0]["tool"],
+                "telemetry_anomaly.missing_call_receipt",
+            )
+
+    def test_terminal_unpaired_call_interrupts_temporary_operative(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            _manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=False,
+                enforcement_override=override,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                tool_policy=policy,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message="bounded prompt")
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call",
+                                "name": "exec_command",
+                                "call_id": "incomplete-call",
+                                "arguments": json.dumps({"cmd": "rg bounded"}),
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+                stream.write(
+                    json.dumps(
+                        {
+                            "type": "event_msg",
+                            "payload": {
+                                "type": "task_complete",
+                                "turn_id": server.turn_id,
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+            server.items = [
+                {"type": "commandExecution", "status": "completed"},
+                {
+                    "type": "agentMessage",
+                    "phase": "finalAnswer",
+                    "text": "DONE",
+                },
+            ]
+            server.status = "completed"
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            with mock.patch.object(
+                adapter, "_workspace_mutations", return_value=[]
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertIn("forbidden-tool-activity", evidence["reasons"])
+            self.assertEqual(
+                summary["forbidden_tool_activity"][0]["tool"],
+                "telemetry_anomaly.exec_command",
+            )
 
     def test_unpermitted_trusted_tool_activity_interrupts_and_is_classified(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -4373,6 +4691,182 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 )
             self.assertEqual(server.starts, 0)
             self.assertEqual(checks, [])
+
+    def test_temporary_operative_override_binds_before_thread_allocation(
+        self,
+    ) -> None:
+        class NoThreadStartServer:
+            def __init__(self) -> None:
+                self.starts = 0
+
+            def start_thread(self, *_args, **_kwargs):
+                self.starts += 1
+                raise AssertionError("override gate must precede allocation")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            integration = root / "integration"
+            first = root / "worker-0"
+            second = root / "worker-1"
+            integration.mkdir()
+            first.mkdir()
+            second.mkdir()
+            manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=False,
+                enforcement_override=override,
+            )
+
+            mismatched = dict(manifest)
+            mismatched["campaign_nonce"] = str(uuid.uuid4())
+            server = NoThreadStartServer()
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "campaign-nonce-mismatch",
+            ):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    mismatched,
+                    root=root,
+                    integration=integration,
+                    pool_name="mismatched-override",
+                    worktrees=[first],
+                    mutable=False,
+                    prompts=["Inspect the assigned file."],
+                    expected_tokens=["DONE"],
+                    tool_policies=[policy],
+                    pre_thread_start_check=lambda: {},
+                )
+            self.assertEqual(server.starts, 0)
+
+            server = NoThreadStartServer()
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "mutating-workers-exceed-override",
+            ):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    manifest,
+                    root=root,
+                    integration=integration,
+                    pool_name="excess-mutation-override",
+                    worktrees=[first, second],
+                    mutable=True,
+                    prompts=["Inspect one.", "Inspect two."],
+                    expected_tokens=["ONE", "TWO"],
+                    tool_policies=[policy, policy],
+                    pre_thread_start_check=lambda: {},
+                )
+            self.assertEqual(server.starts, 0)
+
+    def test_temporary_operative_override_rejects_exact_server_surface(
+        self,
+    ) -> None:
+        class ExactSurfaceServer:
+            def __init__(self) -> None:
+                self.starts = 0
+
+            @staticmethod
+            def tool_surface_capability(
+                *, permitted_tools: list[str]
+            ) -> dict[str, object]:
+                return {
+                    "source": "supported-test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                    "effective_allowlist": list(permitted_tools),
+                }
+
+            def start_thread(self, *_args, **_kwargs):
+                self.starts += 1
+                raise AssertionError("weaker override must not allocate")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            integration = root / "integration"
+            worktree = root / "worker"
+            integration.mkdir()
+            worktree.mkdir()
+            manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=False,
+                enforcement_override=override,
+            )
+            server = ExactSurfaceServer()
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "override-unnecessary-exact-capability-available",
+            ):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    manifest,
+                    root=root,
+                    integration=integration,
+                    pool_name="exact-surface",
+                    worktrees=[worktree],
+                    mutable=False,
+                    prompts=["Inspect the assigned file."],
+                    expected_tokens=["DONE"],
+                    tool_policies=[policy],
+                    pre_thread_start_check=lambda: {},
+                )
+            self.assertEqual(server.starts, 0)
+
+    def test_raw_temporary_operative_override_fails_before_thread_start(
+        self,
+    ) -> None:
+        class RecordingThreadStartServer:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def start_thread(
+                self,
+                _worktree: Path,
+                **kwargs: object,
+            ) -> tuple[dict[str, object], float]:
+                self.calls.append(dict(kwargs))
+                return {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {
+                        "id": str(uuid.uuid4()),
+                        "turns": [],
+                    },
+                }, 0.0
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            integration = root / "integration"
+            worktree = root / "worker"
+            integration.mkdir()
+            worktree.mkdir()
+            manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=False,
+                enforcement_override=override,
+            )
+            server = RecordingThreadStartServer()
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "tools.policy-enforcement-activation",
+            ):
+                LIVE.build_pool_inputs(
+                    server,
+                    {},
+                    manifest,
+                    root=root,
+                    integration=integration,
+                    pool_name="temporary-operative",
+                    worktrees=[worktree],
+                    mutable=False,
+                    prompts=["Inspect the assigned file."],
+                    expected_tokens=["DONE"],
+                    tool_policies=[policy],
+                    pre_thread_start_check=lambda: {},
+                )
+            self.assertEqual(server.calls, [])
 
     def test_tool_surface_expansion_after_pool_preflight_blocks_thread_start(self) -> None:
         class ExpandingSurfaceServer:

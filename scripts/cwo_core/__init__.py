@@ -52,6 +52,7 @@ __all__ = [
     "native_session",
     "native_session_boundary",
     "native_stop_scope",
+    "native_tool_activation",
     "native_tool_isolation",
     "native_worker_contracts",
     "packets",

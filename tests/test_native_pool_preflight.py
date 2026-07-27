@@ -46,6 +46,7 @@ from cwo_core.native_tool_isolation import (  # noqa: E402
     build_tool_surface_snapshot,
     default_tool_policy,
     prompt_preflight,
+    seal_tool_enforcement_override,
 )
 
 
@@ -68,6 +69,30 @@ def identity(label: str, ordinal: int) -> dict[str, object]:
         "inode": ordinal + 101,
         "baseline_sha256": sha(f"{label}-baseline"),
     }
+
+
+def temporary_tool_override(campaign_nonce: str) -> dict[str, object]:
+    return seal_tool_enforcement_override(
+        {
+            "override_type": "cwo-native-tool-enforcement-override",
+            "version": 1,
+            "schema": "schemas/native-tool-enforcement-override.schema.json",
+            "authorization_id": new_uuid(),
+            "authorization_canonical_sha256": sha("authorization"),
+            "outer_authority_id": new_uuid(),
+            "outer_authority_file_sha256": sha("outer-file"),
+            "outer_authority_canonical_sha256": sha("outer-canonical"),
+            "campaign_nonce": campaign_nonce,
+            "candidate_commit": "a" * 40,
+            "candidate_tree": "b" * 40,
+            "max_workers": 2,
+            "max_mutating_workers": 1,
+            "single_use": True,
+            "risk_acknowledgement": (
+                "unlisted-built-ins-may-act-before-detection"
+            ),
+        }
+    )
 
 
 class PreflightFixture:
@@ -357,6 +382,77 @@ class NativePoolPreflightTests(unittest.TestCase):
             result = run_pool_preflight(request)
             self.assertIn("tools.effective-surface", finding_rules(result))
             self.assertFalse(result["accepted"])
+
+    def test_shared_temporary_override_requires_live_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = PreflightFixture(Path(temporary))
+            request = fixture.preallocation_request()
+            override = temporary_tool_override(fixture.campaign_nonce)
+            request["aggregate_hard_budget"]["mutations"] = 0  # type: ignore[index]
+            for child in request["children"]:  # type: ignore[union-attr]
+                child["isolation_class"] = "read-only-shared"
+                child["completion_evidence_policy"] = (
+                    default_completion_evidence_policy("read-only-shared")
+                )
+                child["tool_policy"] = default_tool_policy(
+                    mutable=False,
+                    enforcement_override=override,
+                )
+                child["prompt_preflight"] = prompt_preflight(
+                    child["prompt"], child["tool_policy"]
+                )
+                child["tool_surface"] = build_tool_surface_snapshot(
+                    child["tool_policy"],
+                    source="offline-test-surface",
+                    server_allowlist_supported=False,
+                    allowlist_parameter=None,
+                    effective_allowlist=None,
+                )
+                child["hard_budget"]["mutations"] = 0
+                child["declared_write_paths"] = []
+                child["integration_target_paths"] = []
+                child["packet_sha256"] = effective_child_packet_sha256(child)
+            result = run_pool_preflight(request)
+            self.assertFalse(result["accepted"])
+            self.assertIn(
+                "tools.policy-enforcement-activation",
+                finding_rules(result),
+            )
+            self.assertNotIn(
+                "tools.policy-enforcement-override", finding_rules(result)
+            )
+            self.assertNotIn(
+                "tools.policy-enforcement-override-capacity",
+                finding_rules(result),
+            )
+
+    def test_temporary_override_rejects_two_mutating_children(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = PreflightFixture(Path(temporary))
+            request = fixture.preallocation_request()
+            override = temporary_tool_override(fixture.campaign_nonce)
+            for child in request["children"]:  # type: ignore[union-attr]
+                child["tool_policy"] = default_tool_policy(
+                    mutable=True,
+                    enforcement_override=override,
+                )
+                child["prompt_preflight"] = prompt_preflight(
+                    child["prompt"], child["tool_policy"]
+                )
+                child["tool_surface"] = build_tool_surface_snapshot(
+                    child["tool_policy"],
+                    source="offline-test-surface",
+                    server_allowlist_supported=False,
+                    allowlist_parameter=None,
+                    effective_allowlist=None,
+                )
+                child["packet_sha256"] = effective_child_packet_sha256(child)
+            result = run_pool_preflight(request)
+            self.assertFalse(result["accepted"])
+            self.assertIn(
+                "tools.policy-enforcement-override-capacity",
+                finding_rules(result),
+            )
 
     def test_overlapping_mutable_paths_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

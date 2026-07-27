@@ -39,6 +39,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     ADMITTED_POOL_CONTRACT_SCHEMA,
     ADMITTED_POOL_RECEIPT_SCHEMA,
     canonical_sha256,
+    default_completion_evidence_policy,
     seal_artifact,
     validate_pool_artifact,
     validate_pool_contract,
@@ -64,6 +65,7 @@ from cwo_core.native_pool_proportionality import (  # noqa: E402
 from cwo_core.native_pool_workspace import capture_workspace_snapshot  # noqa: E402
 from cwo_core.native_tool_isolation import (  # noqa: E402
     build_tool_surface_snapshot,
+    default_tool_policy,
     prompt_preflight,
 )
 from tests.test_native_pool_admission import (  # noqa: E402
@@ -75,6 +77,13 @@ from tests.test_native_pool_config import RenderFixture  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload  # noqa: E402
 from tests.test_native_pool import FakeAdapter, FakeClock  # noqa: E402
 from tests.test_native_pool_proportionality import _fixture  # noqa: E402
+from tests.test_native_pool_preflight import (  # noqa: E402
+    temporary_tool_override,
+)
+from tests.test_native_tool_activation import (  # noqa: E402
+    MutableClock,
+    activation_for,
+)
 from tests.test_beads_ready_set import released_three_policy  # noqa: E402
 
 
@@ -90,8 +99,15 @@ def _admitted_artifacts(
     admission_fixture: tuple[dict, dict[str, dict], list[dict], dict] | None = None,
     claim_adapter_override: object | None = None,
     claim_runner_override: object | None = None,
+    temporary_tool_boundary: bool = False,
 ) -> tuple[RenderFixture, dict, dict, dict]:
     fixture = RenderFixture(root, size)
+    campaign_nonce = str(uuid.uuid4())
+    enforcement_override = (
+        temporary_tool_override(campaign_nonce)
+        if temporary_tool_boundary
+        else None
+    )
     preflight_records = root / "preflight-records"
     preflight_records.mkdir(mode=0o700)
     if admission_fixture is None:
@@ -114,14 +130,35 @@ def _admitted_artifacts(
 
     for index, bead_id in enumerate(issue_ids):
         render_child = fixture.request["children"][index]
+        if temporary_tool_boundary:
+            render_child["isolation_class"] = "read-only-shared"
+            render_child["completion_evidence_policy"] = (
+                default_completion_evidence_policy("read-only-shared")
+            )
+            render_child["declared_write_paths"] = []
+            render_child["integration_target_paths"] = []
         prompt = f"Inspect admitted target {bead_id}."
-        tool_policy = render_child["tool_policy"]
+        tool_policy = (
+            default_tool_policy(
+                mutable=render_child["isolation_class"] == "mutable-isolated",
+                enforcement_override=enforcement_override,
+            )
+            if enforcement_override is not None
+            else render_child["tool_policy"]
+        )
+        render_child["tool_policy"] = tool_policy
         tool_surface = build_tool_surface_snapshot(
             tool_policy,
             source="offline-admission-test",
-            server_allowlist_supported=True,
-            allowlist_parameter="tools",
-            effective_allowlist=tool_policy["permitted_tools"],
+            server_allowlist_supported=enforcement_override is None,
+            allowlist_parameter=(
+                "tools" if enforcement_override is None else None
+            ),
+            effective_allowlist=(
+                tool_policy["permitted_tools"]
+                if enforcement_override is None
+                else None
+            ),
         )
         estimate_budget = estimates[bead_id]["aggregate_allowance"]
         hard_budget = {
@@ -129,7 +166,7 @@ def _admitted_artifacts(
             "runtime_seconds": estimate_budget["runtime_seconds_hard"],
             "compactions": estimate_budget["max_compactions"],
             "full_suite_runs": 0,
-            "mutations": 1,
+            "mutations": 0 if temporary_tool_boundary else 1,
         }
         effective_child = {
             "child_id": render_child["child_id"],
@@ -295,7 +332,7 @@ def _admitted_artifacts(
         "schema": ADMITTED_PREFLIGHT_REQUEST_SCHEMA,
         "stage": "pre-dispatch",
         "launch_id": str(uuid.uuid4()),
-        "campaign_nonce": str(uuid.uuid4()),
+        "campaign_nonce": campaign_nonce,
         "pool_id": str(uuid.uuid4()),
         "pool_epoch": str(uuid.uuid4()),
         "integration_root": str(fixture.integration),
@@ -400,6 +437,7 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
         result: dict,
         *,
         registry: PoolLeaseRegistry | None = None,
+        activation_capability: object | None = None,
     ) -> tuple[dict, PoolLeaseRegistry, dict]:
         (
             child_contracts,
@@ -428,8 +466,185 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
             pool_callbacks=pool_callbacks,
             lease_registry=effective_registry,
             capability_receipt=fixture.pool_capability_receipt,
+            activation_capability=activation_capability,  # type: ignore[arg-type]
         )
         return launched, effective_registry, adapters
+
+    def test_raw_temporary_override_rejects_before_lease_or_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, reservation, contract, request = _admitted_artifacts(
+                root,
+            )
+            request = copy.deepcopy(request)
+            override = temporary_tool_override(str(request["campaign_nonce"]))
+            child = request["children"][0]
+            child["tool_policy"] = default_tool_policy(
+                mutable=True,
+                enforcement_override=override,
+            )
+            child["prompt_preflight"] = prompt_preflight(
+                child["prompt"],
+                child["tool_policy"],
+            )
+            child["tool_surface"] = build_tool_surface_snapshot(
+                child["tool_policy"],
+                source="offline-admission-test",
+                server_allowlist_supported=False,
+                allowlist_parameter=None,
+                effective_allowlist=None,
+            )
+            child["packet_sha256"] = effective_child_packet_sha256(child)
+            result = run_pool_preflight(request)
+            self.assertFalse(result["accepted"])
+            self.assertIn(
+                "tools.policy-enforcement-activation",
+                {
+                    finding["rule_id"]
+                    for finding in result["findings"]
+                },
+            )
+            (
+                child_contracts,
+                tasks,
+                child_callbacks,
+                _adapters,
+                pool_callbacks,
+                _clock,
+            ) = _execution_inputs(fixture, contract)
+            registry = PoolLeaseRegistry(
+                root / "raw-override-leases.json",
+                owner_alive=lambda _owner: True,
+                now=FakeClock.now_utc,
+            )
+
+            with self.assertRaisesRegex(
+                Exception,
+                "admitted-launch-preflight-not-exact-accept",
+            ):
+                run_admitted_native_pool(
+                    reservation,
+                    fixture.admission_capability,
+                    contract,
+                    request,
+                    result,
+                    child_contracts,
+                    tasks,
+                    child_callbacks,
+                    claim_adapter=fixture.claim_adapter,
+                    live_revalidate=_live,
+                    pool_callbacks=pool_callbacks,
+                    lease_registry=registry,
+                    capability_receipt=fixture.pool_capability_receipt,
+                )
+            self.assertEqual(registry.snapshot(), [])
+            self.assertEqual(fixture.admission_capability.state, "available")
+
+    def test_verified_activation_is_burned_before_lease_acquisition(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, reservation, contract, request = _admitted_artifacts(
+                root,
+                temporary_tool_boundary=True,
+            )
+            preclaim_activation_request = copy.deepcopy(request)
+            preclaim_activation_request.pop("admission_reservation")
+            for child in preclaim_activation_request["children"]:
+                child.pop("claim_sha256")
+            activation_capability = activation_for(
+                preclaim_activation_request,
+                root,
+            )
+            result = run_pool_preflight(
+                request,
+                activation_capability=activation_capability,
+            )
+            self.assertTrue(result["accepted"], result["findings"])
+            observed_activation_states: list[str] = []
+
+            class ObservingLeaseRegistry(PoolLeaseRegistry):
+                def acquire_many(self, *args, **kwargs):
+                    observed_activation_states.append(
+                        activation_capability.state
+                    )
+                    return super().acquire_many(*args, **kwargs)
+
+            registry = ObservingLeaseRegistry(
+                root / "activation-order-leases.json",
+                owner_alive=lambda _owner: True,
+                now=FakeClock.now_utc,
+            )
+
+            launched, _registry, _adapters = self._launch(
+                root,
+                fixture,
+                reservation,
+                contract,
+                request,
+                result,
+                registry=registry,
+                activation_capability=activation_capability,
+            )
+
+            self.assertIn("dispatch_receipt", launched)
+            self.assertEqual(observed_activation_states, ["retired"])
+            self.assertEqual(activation_capability.state, "retired")
+
+    def test_expired_activation_rejects_before_lease_acquisition(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, reservation, contract, request = _admitted_artifacts(
+                root,
+                temporary_tool_boundary=True,
+            )
+            preclaim_activation_request = copy.deepcopy(request)
+            preclaim_activation_request.pop("admission_reservation")
+            for child in preclaim_activation_request["children"]:
+                child.pop("claim_sha256")
+            clock = MutableClock()
+            activation_capability = activation_for(
+                preclaim_activation_request,
+                root,
+                now=clock,
+            )
+            result = run_pool_preflight(
+                request,
+                activation_capability=activation_capability,
+            )
+            self.assertTrue(result["accepted"], result["findings"])
+            lease_attempts = 0
+
+            class ObservingLeaseRegistry(PoolLeaseRegistry):
+                def acquire_many(self, *args, **kwargs):
+                    nonlocal lease_attempts
+                    lease_attempts += 1
+                    return super().acquire_many(*args, **kwargs)
+
+            registry = ObservingLeaseRegistry(
+                root / "expired-activation-leases.json",
+                owner_alive=lambda _owner: True,
+                now=FakeClock.now_utc,
+            )
+            clock.value = "2026-07-27T12:10:00Z"
+
+            with self.assertRaisesRegex(
+                Exception,
+                "admitted-launch-preflight-not-exact-accept",
+            ):
+                self._launch(
+                    root,
+                    fixture,
+                    reservation,
+                    contract,
+                    request,
+                    result,
+                    registry=registry,
+                    activation_capability=activation_capability,
+                )
+
+            self.assertEqual(lease_attempts, 0)
+            self.assertEqual(registry.snapshot(), [])
+            self.assertEqual(activation_capability.state, "retired")
 
     def test_admitted_n2_consumes_once_and_emits_exact_v2_terminal_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

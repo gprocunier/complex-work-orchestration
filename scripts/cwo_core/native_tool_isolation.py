@@ -10,10 +10,20 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import uuid
 from typing import Any, Mapping
 
 
 TOOL_POLICY_VERSION = 1
+TOOL_ENFORCEMENT_OVERRIDE_VERSION = 1
+TOOL_ENFORCEMENT_OVERRIDE_TYPE = "cwo-native-tool-enforcement-override"
+TOOL_ENFORCEMENT_OVERRIDE_SCHEMA = (
+    "schemas/native-tool-enforcement-override.schema.json"
+)
+TOOL_ENFORCEMENT_OVERRIDE_RISK = (
+    "unlisted-built-ins-may-act-before-detection"
+)
+TOOL_ENFORCEMENT_OVERRIDE_SHA256 = "canonical_override_sha256"
 TOOL_POLICY_FIELDS = {
     "version",
     "permitted_tools",
@@ -39,6 +49,24 @@ TOOL_SURFACE_FIELDS = {
 }
 TOOL_SURFACE_TYPE = "cwo-native-tool-surface-snapshot"
 PROMPT_PREFLIGHT_TYPE = "cwo-native-worker-prompt-preflight"
+TOOL_ENFORCEMENT_OVERRIDE_FIELDS = {
+    "override_type",
+    "version",
+    "schema",
+    "authorization_id",
+    "authorization_canonical_sha256",
+    "outer_authority_id",
+    "outer_authority_file_sha256",
+    "outer_authority_canonical_sha256",
+    "campaign_nonce",
+    "candidate_commit",
+    "candidate_tree",
+    "max_workers",
+    "max_mutating_workers",
+    "single_use",
+    "risk_acknowledgement",
+    TOOL_ENFORCEMENT_OVERRIDE_SHA256,
+}
 
 DEFAULT_FORBIDDEN_TOOLS = (
     "followup_task",
@@ -137,12 +165,197 @@ def _validate_tool_names(value: Any, prefix: str, errors: list[str]) -> list[str
     return normalized
 
 
+def _sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _git_object(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 40
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _strict_uuid(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = uuid.UUID(value)
+    except (AttributeError, ValueError):
+        return False
+    return str(parsed) == value
+
+
+def seal_tool_enforcement_override(value: Any) -> dict[str, Any]:
+    """Seal a complete unsigned override without granting it launch authority."""
+
+    if not isinstance(value, Mapping):
+        raise NativeToolIsolationError("tool-enforcement-override-must-be-object")
+    unsigned = dict(value)
+    unsigned.pop(TOOL_ENFORCEMENT_OVERRIDE_SHA256, None)
+    sealed = {
+        **unsigned,
+        TOOL_ENFORCEMENT_OVERRIDE_SHA256: canonical_sha256(unsigned),
+    }
+    return normalize_tool_enforcement_override(sealed)
+
+
+def normalize_tool_enforcement_override(value: Any) -> dict[str, Any]:
+    errors = validate_tool_enforcement_override(value)
+    if errors:
+        raise NativeToolIsolationError(
+            "tool-enforcement-override-invalid:" + ";".join(errors)
+        )
+    assert isinstance(value, Mapping)
+    return {
+        "override_type": TOOL_ENFORCEMENT_OVERRIDE_TYPE,
+        "version": TOOL_ENFORCEMENT_OVERRIDE_VERSION,
+        "schema": TOOL_ENFORCEMENT_OVERRIDE_SCHEMA,
+        "authorization_id": str(value["authorization_id"]),
+        "authorization_canonical_sha256": str(
+            value["authorization_canonical_sha256"]
+        ),
+        "outer_authority_id": str(value["outer_authority_id"]),
+        "outer_authority_file_sha256": str(value["outer_authority_file_sha256"]),
+        "outer_authority_canonical_sha256": str(
+            value["outer_authority_canonical_sha256"]
+        ),
+        "campaign_nonce": str(value["campaign_nonce"]),
+        "candidate_commit": str(value["candidate_commit"]),
+        "candidate_tree": str(value["candidate_tree"]),
+        "max_workers": int(value["max_workers"]),
+        "max_mutating_workers": int(value["max_mutating_workers"]),
+        "single_use": bool(value["single_use"]),
+        "risk_acknowledgement": str(value["risk_acknowledgement"]),
+        TOOL_ENFORCEMENT_OVERRIDE_SHA256: str(
+            value[TOOL_ENFORCEMENT_OVERRIDE_SHA256]
+        ),
+    }
+
+
+def validate_tool_enforcement_override(
+    value: Any,
+    *,
+    prefix: str = "tool-enforcement-override",
+) -> list[str]:
+    errors: list[str] = []
+    override = _strict_fields(value, TOOL_ENFORCEMENT_OVERRIDE_FIELDS, prefix, errors)
+    if override is None:
+        return errors
+    if override.get("override_type") != TOOL_ENFORCEMENT_OVERRIDE_TYPE:
+        errors.append(f"{prefix}-type-invalid")
+    if override.get("version") != TOOL_ENFORCEMENT_OVERRIDE_VERSION:
+        errors.append(f"{prefix}-version-invalid")
+    if override.get("schema") != TOOL_ENFORCEMENT_OVERRIDE_SCHEMA:
+        errors.append(f"{prefix}-schema-invalid")
+    if not _strict_uuid(override.get("authorization_id")):
+        errors.append(f"{prefix}-authorization-id-invalid")
+    if not _sha256(override.get("authorization_canonical_sha256")):
+        errors.append(f"{prefix}-authorization-canonical-sha256-invalid")
+    if not _strict_uuid(override.get("outer_authority_id")):
+        errors.append(f"{prefix}-outer-authority-id-invalid")
+    if not _sha256(override.get("outer_authority_file_sha256")):
+        errors.append(f"{prefix}-outer-authority-file-sha256-invalid")
+    if not _sha256(override.get("outer_authority_canonical_sha256")):
+        errors.append(f"{prefix}-outer-authority-canonical-sha256-invalid")
+    if not _strict_uuid(override.get("campaign_nonce")):
+        errors.append(f"{prefix}-campaign-nonce-invalid")
+    if not _git_object(override.get("candidate_commit")):
+        errors.append(f"{prefix}-candidate-commit-invalid")
+    if not _git_object(override.get("candidate_tree")):
+        errors.append(f"{prefix}-candidate-tree-invalid")
+    if type(override.get("max_workers")) is not int or override.get(
+        "max_workers"
+    ) != 2:
+        errors.append(f"{prefix}-max-workers-invalid")
+    if type(override.get("max_mutating_workers")) is not int or override.get(
+        "max_mutating_workers"
+    ) != 1:
+        errors.append(f"{prefix}-max-mutating-workers-invalid")
+    if override.get("single_use") is not True:
+        errors.append(f"{prefix}-single-use-invalid")
+    if override.get("risk_acknowledgement") != TOOL_ENFORCEMENT_OVERRIDE_RISK:
+        errors.append(f"{prefix}-risk-acknowledgement-required")
+    if not _sha256(override.get(TOOL_ENFORCEMENT_OVERRIDE_SHA256)):
+        errors.append(f"{prefix}-canonical-hash-missing")
+    else:
+        canonical = {
+            key: override[key]
+            for key in override
+            if key != TOOL_ENFORCEMENT_OVERRIDE_SHA256
+        }
+        if canonical_sha256(canonical) != override[TOOL_ENFORCEMENT_OVERRIDE_SHA256]:
+            errors.append(f"{prefix}-canonical-hash-mismatch")
+    return sorted(set(errors))
+
+
+def validate_tool_enforcement_override_binding(
+    value: Any,
+    *,
+    authorization_id: Any,
+    authorization_canonical_sha256: Any,
+    outer_authority_id: Any,
+    outer_authority_file_sha256: Any,
+    outer_authority_canonical_sha256: Any,
+    campaign_nonce: Any,
+    candidate_commit: Any,
+    candidate_tree: Any,
+    requested_workers: Any,
+    mutating_workers: Any,
+    prefix: str = "tool-enforcement-override",
+) -> list[str]:
+    """Bind a sealed override to already-validated live campaign evidence."""
+
+    errors = validate_tool_enforcement_override(value, prefix=prefix)
+    if not isinstance(value, Mapping):
+        return errors
+    expected = {
+        "authorization_id": authorization_id,
+        "authorization_canonical_sha256": authorization_canonical_sha256,
+        "outer_authority_id": outer_authority_id,
+        "outer_authority_file_sha256": outer_authority_file_sha256,
+        "outer_authority_canonical_sha256": outer_authority_canonical_sha256,
+        "campaign_nonce": campaign_nonce,
+        "candidate_commit": candidate_commit,
+        "candidate_tree": candidate_tree,
+    }
+    for field, expected_value in expected.items():
+        if value.get(field) != expected_value:
+            errors.append(f"{prefix}-{field.replace('_', '-')}-mismatch")
+    if (
+        isinstance(requested_workers, bool)
+        or not isinstance(requested_workers, int)
+        or requested_workers < 1
+        or requested_workers > 2
+    ):
+        errors.append(f"{prefix}-requested-workers-exceed-override")
+    if (
+        isinstance(mutating_workers, bool)
+        or not isinstance(mutating_workers, int)
+        or mutating_workers < 0
+        or mutating_workers > 1
+        or (
+            isinstance(requested_workers, int)
+            and not isinstance(requested_workers, bool)
+            and mutating_workers > requested_workers
+        )
+    ):
+        errors.append(f"{prefix}-mutating-workers-exceed-override")
+    return sorted(set(errors))
+
+
 def default_tool_policy(
     *,
     mutable: bool,
     workload_class: str = "operative",
     permitted_tools: list[str] | tuple[str, ...] | None = None,
     forbidden_tools: list[str] | tuple[str, ...] | None = None,
+    enforcement_override: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the narrow default for an operative worker or safety canary."""
 
@@ -173,13 +386,11 @@ def default_tool_policy(
         "forbidden_tools": forbidden,
         "enforcement_mode": (
             "trusted-detect-and-contain"
-            if workload_class == "safety-canary"
+            if workload_class == "safety-canary" or enforcement_override is not None
             else "server-allowlist-required"
         ),
         "workload_class": workload_class,
-        # Authority-bearing overrides are introduced by the provenance repair.
-        # Until then, the only accepted value is an explicit null.
-        "override_provenance": None,
+        "override_provenance": enforcement_override,
     }
     errors = validate_tool_policy(value)
     if errors:
@@ -226,10 +437,28 @@ def validate_tool_policy(
         errors.append(f"{prefix}-enforcement-mode-invalid")
     if workload not in TOOL_WORKLOAD_CLASSES:
         errors.append(f"{prefix}-workload-class-invalid")
-    if workload == "operative" and mode != "server-allowlist-required":
-        errors.append(f"{prefix}-operative-requires-server-allowlist")
-    if policy.get("override_provenance") is not None:
-        errors.append(f"{prefix}-override-provenance-not-yet-authorized")
+    override = policy.get("override_provenance")
+    if workload == "operative":
+        if mode == "server-allowlist-required":
+            if override is not None:
+                errors.append(f"{prefix}-operative-unnecessary-tool-enforcement-override")
+        elif mode == "trusted-detect-and-contain":
+            if override is None:
+                errors.append(
+                    f"{prefix}-operative-detect-and-contain-requires-enforcement-override"
+                )
+            else:
+                errors.extend(
+                    validate_tool_enforcement_override(
+                        override,
+                        prefix=f"{prefix}-override-provenance",
+                    )
+                )
+        else:
+            errors.append(f"{prefix}-workload-mode-combination-invalid")
+    elif workload == "safety-canary":
+        if override is not None:
+            errors.append(f"{prefix}-safety-canary-override-forbidden")
     return sorted(set(errors))
 
 
@@ -244,7 +473,11 @@ def normalize_tool_policy(value: Any) -> dict[str, Any]:
         "forbidden_tools": list(value["forbidden_tools"]),
         "enforcement_mode": str(value["enforcement_mode"]),
         "workload_class": str(value["workload_class"]),
-        "override_provenance": None,
+        "override_provenance": (
+            normalize_tool_enforcement_override(value["override_provenance"])
+            if value["override_provenance"] is not None
+            else None
+        ),
     }
 
 
@@ -340,6 +573,13 @@ def build_tool_surface_snapshot(
     if not isinstance(server_allowlist_supported, bool):
         raise NativeToolIsolationError("tool-surface-support-invalid")
     if server_allowlist_supported:
+        if (
+            policy["workload_class"] == "operative"
+            and policy["enforcement_mode"] == "trusted-detect-and-contain"
+        ):
+            raise NativeToolIsolationError(
+                "tool-enforcement-override-unnecessary-exact-capability-available"
+            )
         if not isinstance(allowlist_parameter, str) or not allowlist_parameter.strip():
             raise NativeToolIsolationError("tool-surface-allowlist-parameter-invalid")
         tool_errors: list[str] = []

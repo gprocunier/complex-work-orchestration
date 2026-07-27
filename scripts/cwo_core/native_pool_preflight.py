@@ -40,8 +40,13 @@ from .native_pool_schedulability import (
 from .native_tool_isolation import (
     NativeToolIsolationError,
     prompt_preflight,
+    validate_tool_enforcement_override,
     validate_tool_policy,
     validate_tool_surface_snapshot,
+)
+from .native_tool_activation import (
+    VerifiedToolEnforcementActivation,
+    validate_tool_enforcement_activation_binding,
 )
 
 
@@ -858,6 +863,7 @@ def _admission_findings(
 def run_pool_preflight(
     request: Mapping[str, Any],
     *,
+    activation_capability: VerifiedToolEnforcementActivation | None = None,
     override_authorization: VerifiedPoolPreflightOverride | None = None,
     policy_document: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -1044,6 +1050,8 @@ def run_pool_preflight(
         )
     }
     mutable_targets: list[tuple[int, str]] = []
+    temporary_operative_children: list[int] = []
+    operative_override_by_child: list[tuple[int, str, bool]] = []
     for index, raw_child in enumerate(children):
         shape = _shape_finding(
             "child.shape",
@@ -1211,6 +1219,54 @@ def run_pool_preflight(
                     "Use the strict worker tool policy.",
                 )
             )
+        temporary_operative = (
+            isinstance(tool_policy, Mapping)
+            and tool_policy.get("workload_class") == "operative"
+            and tool_policy.get("enforcement_mode") == "trusted-detect-and-contain"
+        )
+        if temporary_operative:
+            temporary_operative_children.append(index)
+        if temporary_operative and isinstance(
+            tool_policy.get("override_provenance"), Mapping
+        ):
+            override = tool_policy["override_provenance"]
+            if override.get("campaign_nonce") != request_map.get("campaign_nonce"):
+                findings.append(
+                    _finding(
+                        "tools.policy-enforcement-override",
+                        "error",
+                        {
+                            "child_index": index,
+                            "override_campaign_nonce": _value_sha256(
+                                override.get("campaign_nonce")
+                            ),
+                            "request_campaign_nonce": _value_sha256(
+                                request_map.get("campaign_nonce")
+                            ),
+                        },
+                        "Bind the override to the preflight request campaign nonce.",
+                    )
+                )
+            override_errors = validate_tool_enforcement_override(
+                override, prefix=f"child[{index}]-tool-policy.override"
+            )
+            if override_errors:
+                findings.append(
+                    _finding(
+                        "tools.policy-enforcement-override",
+                        "error",
+                        {"child_index": index, "errors": override_errors},
+                        "Provide a valid tool-enforcement override contract.",
+                    )
+                )
+            elif isinstance(override.get("canonical_override_sha256"), str):
+                operative_override_by_child.append(
+                    (
+                        index,
+                        str(override["canonical_override_sha256"]),
+                        child.get("isolation_class") == "mutable-isolated",
+                    )
+                )
         if isinstance(tool_policy, Mapping):
             surface_errors = validate_tool_surface_snapshot(
                 child.get("tool_surface"), tool_policy
@@ -1424,6 +1480,76 @@ def run_pool_preflight(
                     "Use a unique value for every child identity and nonce field.",
                 )
             )
+    override_children_by_hash: dict[str, list[int]] = {}
+    for child_index, override_hash, _mutable in operative_override_by_child:
+        override_children_by_hash.setdefault(override_hash, []).append(child_index)
+    if len(override_children_by_hash) > 1:
+        findings.append(
+            _finding(
+                "tools.policy-enforcement-override",
+                "error",
+                {
+                    "canonical_override_sha256s": sorted(
+                        override_children_by_hash
+                    )
+                },
+                "Bind every temporary operative in a cohort to one override.",
+            )
+        )
+    if operative_override_by_child:
+        mutating_override_children = sum(
+            1 for _index, _override_hash, mutable in operative_override_by_child
+            if mutable
+        )
+        requested_workers_invalid = (
+            isinstance(requested_workers, bool)
+            or not isinstance(requested_workers, int)
+            or requested_workers < 1
+            or requested_workers > 2
+        )
+        if requested_workers_invalid or mutating_override_children > 1:
+            findings.append(
+                _finding(
+                    "tools.policy-enforcement-override-capacity",
+                    "error",
+                    {
+                        "requested_workers": requested_workers,
+                        "mutating_override_workers": mutating_override_children,
+                        "maximum_workers": 2,
+                        "maximum_mutating_workers": 1,
+                    },
+                    "Limit the temporary cohort to two workers and one mutation lane.",
+                )
+            )
+    activation_provenance: dict[str, Any] | None = None
+    if temporary_operative_children:
+        activation_errors, activation_provenance = (
+            validate_tool_enforcement_activation_binding(
+                activation_capability,
+                request_map,
+            )
+        )
+        if activation_errors:
+            findings.append(
+                _finding(
+                    "tools.policy-enforcement-activation",
+                    "error",
+                    {
+                        "child_indices": temporary_operative_children,
+                        "errors": activation_errors,
+                    },
+                    "Provide live operator approval for this exact temporary cohort.",
+                )
+            )
+    elif activation_capability is not None:
+        findings.append(
+            _finding(
+                "tools.policy-enforcement-activation",
+                "error",
+                {"reason": "unrequested-authority"},
+                "Omit temporary tool-boundary authority for exact-enforcement cohorts.",
+            )
+        )
 
     if budgets_complete and isinstance(aggregate_budget, Mapping):
         expected = {field: int(aggregate_budget[field]) for field in BUDGET_FIELDS}
@@ -1677,6 +1803,16 @@ def run_pool_preflight(
     findings, override_provenance = _apply_overrides(
         findings, request_map, override_authorization
     )
+    if activation_provenance is not None and override_provenance is not None:
+        findings.append(
+            _finding(
+                "tools.policy-enforcement-activation",
+                "error",
+                {"reason": "conflicting-operator-authority"},
+                "Use one operator-authority path for this preflight request.",
+            )
+        )
+    result_authority = override_provenance or activation_provenance
     findings.sort(
         key=lambda item: (
             item["rule_id"],
@@ -1700,7 +1836,7 @@ def run_pool_preflight(
         "decision": "accept" if accepted else "reject",
         "accepted": accepted,
         "findings": findings,
-        "override_authority": override_provenance,
+        "override_authority": result_authority,
     }
     if admitted_v2:
         result.update(
@@ -1884,11 +2020,16 @@ def validate_pool_preflight_result(
 def require_pool_preflight(
     request: Mapping[str, Any],
     *,
+    activation_capability: VerifiedToolEnforcementActivation | None = None,
     override_authorization: VerifiedPoolPreflightOverride | None = None,
 ) -> dict[str, Any]:
     """Run preflight and raise with stable rule IDs when dispatch is forbidden."""
 
-    result = run_pool_preflight(request, override_authorization=override_authorization)
+    result = run_pool_preflight(
+        request,
+        activation_capability=activation_capability,
+        override_authorization=override_authorization,
+    )
     if result["accepted"] is not True:
         rules = sorted(
             {

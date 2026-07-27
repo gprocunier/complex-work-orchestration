@@ -32,6 +32,11 @@ from .native_pool_preflight import (
     run_pool_preflight,
     validate_pool_preflight_result,
 )
+from .native_tool_activation import (
+    NativeToolEnforcementActivationError,
+    VerifiedToolEnforcementActivation,
+    consume_tool_enforcement_activation,
+)
 
 
 def run_admitted_native_pool(
@@ -49,6 +54,7 @@ def run_admitted_native_pool(
     pool_callbacks: Mapping[str, Callable[..., Any]],
     lease_registry: PoolLeaseRegistry,
     capability_receipt: Mapping[str, Any] | None = None,
+    activation_capability: VerifiedToolEnforcementActivation | None = None,
     state_file: Path | str | None = None,
     decision_file: Path | str | None = None,
     control_file: Path | str | None = None,
@@ -111,7 +117,9 @@ def run_admitted_native_pool(
             + ";".join(preflight_errors)
         )
     replayed_preflight = run_pool_preflight(
-        preflight_request, policy_document=effective_policy
+        preflight_request,
+        activation_capability=activation_capability,
+        policy_document=effective_policy,
     )
     if (
         preflight_result.get("accepted") is not True
@@ -119,6 +127,16 @@ def run_admitted_native_pool(
         or dict(preflight_result) != replayed_preflight
     ):
         raise NativePoolAdmissionError("admitted-launch-preflight-not-exact-accept")
+    if activation_capability is not None:
+        try:
+            consume_tool_enforcement_activation(
+                activation_capability,
+                preflight_request,
+            )
+        except NativeToolEnforcementActivationError as error:
+            raise NativePoolAdmissionError(
+                "admitted-launch-tool-enforcement-activation-invalid:" + str(error)
+            ) from error
 
     child_ids = [str(child["child_id"]) for child in contract["children"]]
     acquired = lease_registry.acquire_many(

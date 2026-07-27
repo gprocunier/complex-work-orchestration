@@ -480,6 +480,15 @@ class VerifiedOperatorApproval:
     def nonce(self) -> str:
         return str(self._audit["nonce"])
 
+    @property
+    def expires_at(self) -> datetime:
+        """Return the verifier-validated approval expiry."""
+
+        return _parse_utc_timestamp(
+            self._audit["expires_at"],
+            label="operator-approval-expires-at",
+        )
+
     def audit_record(self) -> dict[str, Any]:
         return deepcopy(self._audit)
 
@@ -1502,6 +1511,16 @@ class OperatorApprovalVerifier:
             write=False,
         ) as store:
             return frozenset(entry["nonce"] for entry in store["entries"])
+
+    def activation_clock(self) -> Callable[[], datetime]:
+        """Return a trusted clock without retaining the verifier or its key."""
+
+        source = self._now
+
+        def current_time() -> datetime:
+            return _current_time(source)
+
+        return current_time
 
     @staticmethod
     def _validate_assessment(assessment: ProtectedChangeAssessment) -> list[str]:
