@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a disabled-by-default, one-shot native tool-boundary activation preview
+  for fixed N=1/N=2 read-only or N=1 mutable certification, with private signed
+  approvals, permanent claims, a separate intent ledger, and no retry or
+  resume path.
 - Release bounded three-worker native supervision pool. Concurrent capacity
   requires explicit opt-in, a fresh capability receipt, and isolated or
   shared-read-only topology. It remains experimental and disabled by default;

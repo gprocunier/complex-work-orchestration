@@ -166,8 +166,13 @@ authority. A packet containing that intent is deliberately rejected by
 dispatchable packet validation and cannot start `supervise_native_worker.py`.
 Activation authority has no JSON or CLI form: it must be an opaque,
 operator-verified, exact-cohort capability consumed by the admitted pool
-launcher. Until the separate one-shot activation runner is published and
-explicitly activated, do not use the override for operative work.
+launcher. `scripts/run_native_pool_activation_preview.py` serializes only the
+fixed plan and signed approval evidence. Its live process mints and consumes
+the opaque activation capability internally after a permanent claim; it never
+writes that capability to disk or accepts it as an argument. The path remains
+disabled by default: use `--dry-run` for non-consuming validation and
+`--enable-tech-preview` only after the operator explicitly authorizes the exact
+prepared attempt.
 
 Packet version 1 is historical-inspection-only. Rendering or dispatching it
 fails closed. Commitment version 1 is historical-inspection-only; commitment v2
