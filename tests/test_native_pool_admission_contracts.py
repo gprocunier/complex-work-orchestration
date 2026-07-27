@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import uuid
 import warnings
 
@@ -858,6 +859,64 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                 self.assertEqual(registry.snapshot(), [])
                 if case == "live-drift":
                     self.assertEqual(fixture.admission_capability.state, "available")
+
+    def test_coordinator_construction_failure_releases_preacquired_leases_before_transfer(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, reservation, contract, request = _admitted_artifacts(root)
+            result = run_pool_preflight(request)
+            (
+                child_contracts,
+                tasks,
+                child_callbacks,
+                adapters,
+                pool_callbacks,
+                _clock,
+            ) = _execution_inputs(fixture, contract)
+            registry = PoolLeaseRegistry(
+                root / "construction-failure-leases.json",
+                owner_alive=lambda _owner: True,
+                now=FakeClock.now_utc,
+            )
+            captured: list[dict] = []
+
+            def fail_construction(*_args, **kwargs):
+                captured.extend(kwargs["preacquired_leases"])
+                raise NativePoolError("fixed-construction-failure")
+
+            with mock.patch(
+                "cwo_core.native_pool_admitted._build_admitted_pool_coordinator",
+                side_effect=fail_construction,
+            ):
+                with self.assertRaisesRegex(
+                    NativePoolError,
+                    "fixed-construction-failure",
+                ):
+                    run_admitted_native_pool(
+                        reservation,
+                        fixture.admission_capability,
+                        contract,
+                        request,
+                        result,
+                        child_contracts,
+                        tasks,
+                        child_callbacks,
+                        claim_adapter=fixture.claim_adapter,
+                        live_revalidate=_live,
+                        pool_callbacks=pool_callbacks,
+                        lease_registry=registry,
+                        capability_receipt=fixture.pool_capability_receipt,
+                    )
+
+            self.assertEqual(
+                [lease["child_id"] for lease in captured],
+                [child["child_id"] for child in contract["children"]],
+            )
+            self.assertEqual(registry.snapshot(), [])
+            self.assertEqual(fixture.admission_capability.state, "retired")
+            self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
 
     def test_later_child_lease_collision_has_zero_callbacks_and_no_partial_set(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

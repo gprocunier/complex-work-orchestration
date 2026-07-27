@@ -120,6 +120,15 @@ RESULT_FIELDS = frozenset(
 )
 
 
+def _pool_capability_receipt(
+    capability: Mapping[str, Any],
+    requested_workers: int,
+) -> Mapping[str, Any] | None:
+    """Use the concurrency receipt only for a genuinely concurrent pool."""
+
+    return capability if requested_workers > 1 else None
+
+
 class ActivationLedgerTransport:
     """Record preview intents before delegating each sole worker RPC."""
 
@@ -559,9 +568,26 @@ def _contain_allocated_threads(
     server: AppServer | None,
     ledger: NativeActivationLedgerStore | None,
 ) -> dict[str, Any]:
+    preview_summary = (
+        ledger.summary()
+        if ledger is not None
+        else {
+            "phase": None,
+            "pending_allocation": False,
+            "pending_turn": False,
+            "terminal": False,
+        }
+    )
+    preview_unresolved = bool(
+        preview_summary["pending_allocation"]
+        or preview_summary["pending_turn"]
+    )
     try:
         containment = (
-            contain_started_threads(server)
+            contain_started_threads(
+                server,
+                allow_same_process_proofs=not preview_unresolved,
+            )
             if server is not None
             else {
                 "allocated_count": 0,
@@ -577,6 +603,12 @@ def _contain_allocated_threads(
                 "ledger_error_sha256": [],
             }
         )
+        proof_reader = getattr(
+            server,
+            "same_process_containment_proofs",
+            None,
+        )
+        proof_objects = proof_reader() if callable(proof_reader) else []
     except BaseException as exc:
         containment = {
             "allocated_count": 0,
@@ -595,22 +627,10 @@ def _contain_allocated_threads(
                 ).hexdigest()
             ],
         }
-    preview_summary = (
-        ledger.summary()
-        if ledger is not None
-        else {
-            "phase": None,
-            "pending_allocation": False,
-            "pending_turn": False,
-            "terminal": False,
-        }
-    )
-    preview_unresolved = bool(
-        preview_summary["pending_allocation"]
-        or preview_summary["pending_turn"]
-    )
+        proof_objects = []
     return {
         **containment,
+        "same_process_containment_proofs": proof_objects,
         "preview_phase": preview_summary["phase"],
         "preview_pending_allocation": preview_summary[
             "pending_allocation"
@@ -765,6 +785,10 @@ def run_live_activation(
         )
         aggregate_budget = _aggregate_budget(plan["tasks"])
         policy = load_policy("native-worker-execution")
+        pool_capability_receipt = _pool_capability_receipt(
+            capability,
+            plan["requested_workers"],
+        )
         render_request = {
             "request_type": (
                 "cwo-native-supervision-pool-render-request"
@@ -786,7 +810,7 @@ def run_live_activation(
         }
         contract = build_pool_contract(
             render_request,
-            capability_receipt=capability,
+            capability_receipt=pool_capability_receipt,
             enable_concurrency=True,
             owner_pid=os.getpid(),
             now=dt.datetime.now(dt.timezone.utc),
@@ -898,7 +922,7 @@ def run_live_activation(
             lease_registry=PoolLeaseRegistry(
                 Path(plan["paths"]["leases"])
             ),
-            capability_receipt=capability,
+            capability_receipt=pool_capability_receipt,
             activation_capability=activation,
             state_file=Path(plan["paths"]["pool_state"]),
             decision_file=Path(plan["paths"]["pool_decision"]),

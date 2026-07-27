@@ -172,6 +172,7 @@ class FakeCalibrationServer:
         self.connection_epoch_sha256 = "b" * 64
         self._notifications: list[tuple[int, dict]] = []
         self.rpc_latencies = {}
+        self.terminal_containment_calls: list[dict[str, str]] = []
 
     def _write(self, records: list[dict]) -> None:
         self.path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
@@ -448,6 +449,27 @@ class FakeCalibrationServer:
         self.path = target
         return 1.0
 
+    def record_terminal_archive_containment(
+        self,
+        thread_id: str,
+        turn_id: str,
+        *,
+        terminal_evidence_sha256: str,
+    ) -> dict[str, str]:
+        if (
+            (thread_id, turn_id) != (self.thread_id, self.turn_id)
+            or not self.interrupted
+            or self.path.parent != self.archive
+        ):
+            raise AssertionError("terminal containment recorded too early")
+        call = {
+            "thread_id": thread_id,
+            "turn_id": turn_id,
+            "terminal_evidence_sha256": terminal_evidence_sha256,
+        }
+        self.terminal_containment_calls.append(call)
+        return call
+
     def notifications(self, _thread_id: str, _method: str | None = None) -> list[dict]:
         return []
 
@@ -639,7 +661,15 @@ class AppServerRpcErrorTests(unittest.TestCase):
         server._responses = {1: response}
         server._request_id = 0
         server._reader_error = None
+        server.connection_epoch_sha256 = "a" * 64
         server.rpc_latencies = {}
+        server.started_threads = {}
+        server._known_thread_turn_ids = {}
+        server._turn_dispatch_records = {}
+        server._fresh_never_turned_thread_proofs = {}
+        server._archive_acceptance_proofs = {}
+        server._same_process_containment_proofs = {}
+        server.allocation_ledger = None
         return server
 
     def test_correlated_error_preserves_local_method_and_concrete_code(self) -> None:
@@ -745,6 +775,231 @@ class AppServerRpcErrorTests(unittest.TestCase):
         wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
         self.assertEqual(wire["params"]["tools"], ["exec_command"])
         self.assertNotIn("dynamicTools", wire["params"])
+
+    def test_fresh_thread_proof_requires_exact_empty_turns(self) -> None:
+        cases = (
+            ("empty", [], True),
+            ("missing", None, False),
+            ("nonempty", [{"id": "old-turn"}], False),
+        )
+        for name, turns, expected in cases:
+            with self.subTest(name=name):
+                thread_id = str(uuid.uuid4())
+                thread = {"id": thread_id}
+                if turns is not None:
+                    thread["turns"] = turns
+                server = self.request_server(
+                    {
+                        "id": 1,
+                        "result": {
+                            "model": LIVE.EXACT_MODEL,
+                            "thread": thread,
+                        },
+                    }
+                )
+                server.start_thread(ROOT, mutable=False)
+                proof = server.fresh_never_turned_thread_proof(
+                    thread_id
+                )
+                self.assertEqual(proof is not None, expected)
+
+    def test_start_turn_entry_revokes_fresh_thread_proof_before_local_failure(
+        self,
+    ) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.start_thread(ROOT, mutable=False)
+        self.assertIsNotNone(
+            server.fresh_never_turned_thread_proof(thread_id)
+        )
+        server.process.poll.return_value = 17
+        server.process.returncode = 17
+        with self.assertRaisesRegex(
+            LIVE.AppServerError,
+            "app-server-exited-before-turn-intent",
+        ):
+            server.start_turn(thread_id, "bounded")
+        self.assertIsNone(
+            server.fresh_never_turned_thread_proof(thread_id)
+        )
+
+    def test_preview_containment_archives_proven_never_turned_without_read(
+        self,
+    ) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.start_thread(ROOT, mutable=False)
+        server._responses[2] = {"id": 2, "result": {}}
+        server.read_thread = mock.Mock(
+            side_effect=AssertionError("thread/read must not run")
+        )
+        result = LIVE.contain_started_threads(
+            server,
+            allow_same_process_proofs=True,
+        )
+        self.assertTrue(result["all_contained"])
+        self.assertEqual(result["archived_count"], 1)
+        server.read_thread.assert_not_called()
+        proofs = server.same_process_containment_proofs()
+        self.assertEqual(len(proofs), 1)
+        self.assertEqual(proofs[0]["kind"], "never-turned-archived")
+        self.assertNotIn(thread_id, json.dumps(proofs))
+        tampered = dict(proofs[0])
+        tampered["kind"] = "terminal-turn-archived"
+        server._same_process_containment_proofs[thread_id] = tampered
+        self.assertIsNone(
+            server.same_process_containment_proof(thread_id)
+        )
+
+    def test_preview_containment_rejects_absence_and_archive_failure(
+        self,
+    ) -> None:
+        unproven = self.request_server({})
+        unproven.started_threads = {"thread-unproven": None}
+        unproven.read_thread = mock.Mock(
+            side_effect=LIVE.AppServerError(
+                "app-server-request-failed:thread/read:-32600"
+            )
+        )
+        result = LIVE.contain_started_threads(
+            unproven,
+            allow_same_process_proofs=True,
+        )
+        self.assertFalse(result["all_contained"])
+        self.assertEqual(result["ambiguous_count"], 1)
+
+        thread_id = str(uuid.uuid4())
+        archive_failure = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        archive_failure.start_thread(ROOT, mutable=False)
+        archive_failure.read_thread = mock.Mock(
+            side_effect=AssertionError("thread/read must not run")
+        )
+        archive_failure.archive_thread = mock.Mock(
+            side_effect=LIVE.AppServerError("fixed-archive-failure")
+        )
+        result = LIVE.contain_started_threads(
+            archive_failure,
+            allow_same_process_proofs=True,
+        )
+        self.assertFalse(result["all_contained"])
+        self.assertEqual(result["ambiguous_count"], 1)
+        archive_failure.read_thread.assert_not_called()
+
+    def test_preview_containment_proves_calibration_plus_n1_and_n2_workers(
+        self,
+    ) -> None:
+        for worker_count in (1, 2):
+            with self.subTest(worker_count=worker_count):
+                calibration_thread = str(uuid.uuid4())
+                calibration_turn = str(uuid.uuid4())
+                server = self.request_server(
+                    {
+                        "id": 1,
+                        "result": {
+                            "model": LIVE.EXACT_MODEL,
+                            "thread": {
+                                "id": calibration_thread,
+                                "turns": [],
+                            },
+                        },
+                    }
+                )
+                server.start_thread(ROOT, mutable=False)
+                server._fresh_never_turned_thread_proofs.pop(
+                    calibration_thread
+                )
+                server.started_threads[
+                    calibration_thread
+                ] = calibration_turn
+                server._responses[2] = {"id": 2, "result": {}}
+                server.archive_thread(calibration_thread)
+                terminal_proof = (
+                    server.record_terminal_archive_containment(
+                        calibration_thread,
+                        calibration_turn,
+                        terminal_evidence_sha256="b" * 64,
+                    )
+                )
+                self.assertEqual(
+                    terminal_proof["kind"],
+                    "terminal-turn-archived",
+                )
+                connection_epoch = server.connection_epoch_sha256
+                server.connection_epoch_sha256 = "c" * 64
+                self.assertIsNone(
+                    server.same_process_containment_proof(
+                        calibration_thread
+                    )
+                )
+                server.connection_epoch_sha256 = connection_epoch
+
+                worker_threads: list[str] = []
+                for _index in range(worker_count):
+                    thread_id = str(uuid.uuid4())
+                    worker_threads.append(thread_id)
+                    request_id = server._request_id + 1
+                    server._responses[request_id] = {
+                        "id": request_id,
+                        "result": {
+                            "model": LIVE.EXACT_MODEL,
+                            "thread": {
+                                "id": thread_id,
+                                "turns": [],
+                            },
+                        },
+                    }
+                    server.start_thread(ROOT, mutable=False)
+                first_archive_request = server._request_id + 1
+                for index, _thread_id in enumerate(worker_threads):
+                    request_id = first_archive_request + index
+                    server._responses[request_id] = {
+                        "id": request_id,
+                        "result": {},
+                    }
+
+                server.read_thread = mock.Mock(
+                    side_effect=AssertionError("thread/read must not run")
+                )
+                result = LIVE.contain_started_threads(
+                    server,
+                    allow_same_process_proofs=True,
+                )
+                self.assertTrue(result["all_contained"])
+                self.assertEqual(result["already_contained_count"], 1)
+                self.assertEqual(
+                    result["archived_count"],
+                    worker_count,
+                )
+                self.assertEqual(result["ambiguous_count"], 0)
+                server.read_thread.assert_not_called()
+                self.assertEqual(
+                    len(server.same_process_containment_proofs()),
+                    worker_count + 1,
+                )
 
     def test_thread_start_rejects_untrusted_capability_claims_before_allocation(
         self,
@@ -2660,6 +2915,13 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertEqual(receipt["validation_outcome"], "accepted")
             self.assertEqual(receipt["callbacks"]["mark_dispatched"]["max_ms"], 50.0)
             self.assertEqual(receipt["callbacks"]["finalize"]["max_ms"], 50.0)
+            self.assertEqual(len(server.terminal_containment_calls), 1)
+            self.assertRegex(
+                server.terminal_containment_calls[0][
+                    "terminal_evidence_sha256"
+                ],
+                r"^[0-9a-f]{64}$",
+            )
 
     def test_one_pre_attestation_internal_read_fault_recovers_in_same_calibration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
