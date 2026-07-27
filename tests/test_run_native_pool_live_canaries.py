@@ -24,6 +24,13 @@ from cwo_core import native_live_campaign_contracts as CAMPAIGN_CONTRACTS  # noq
 from cwo_core.native_tool_isolation import (  # noqa: E402
     seal_tool_enforcement_override,
 )
+from cwo_core.native_activation_preview import (  # noqa: E402
+    MUTABLE_PATCH_INPUT,
+    fixed_activation_tool_trace,
+)
+from cwo_core.native_worker_contracts import (  # noqa: E402
+    canonical_argument_hash,
+)
 
 SPEC = importlib.util.spec_from_file_location(
     "run_native_pool_live_canaries", ROOT / "scripts" / "run_native_pool_live_canaries.py"
@@ -4368,6 +4375,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 ],
                 "exec_command",
                 1,
+                1,
             ),
             (
                 "unpaired-call",
@@ -4383,6 +4391,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     }
                 ],
                 "exec_command",
+                1,
                 0,
             ),
             (
@@ -4399,6 +4408,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     }
                 ],
                 "telemetry_anomaly.unknown",
+                1,
                 0,
             ),
             (
@@ -4433,6 +4443,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     },
                 ],
                 "telemetry_anomaly.exec_command",
+                2,
                 0,
             ),
             (
@@ -4467,10 +4478,11 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     },
                 ],
                 "telemetry_anomaly.exec_command",
+                1,
                 0,
             ),
         )
-        for label, events, expected_tool, completed in cases:
+        for label, events, expected_tool, expected_calls, completed in cases:
             with self.subTest(label=label):
                 records = [
                     {
@@ -4491,7 +4503,10 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     turn_id="current-turn",
                     terminal_event={"record_index": len(records) - 1},
                 )
-                self.assertEqual(summary["trusted_tool_calls"], 1)
+                self.assertEqual(
+                    summary["trusted_tool_calls"],
+                    expected_calls,
+                )
                 self.assertEqual(
                     summary["trusted_completed_tool_calls"], completed
                 )
@@ -4850,6 +4865,515 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             self.assertEqual(evidence["reasons"], [])
             self.assertFalse(evidence["protected_fault"])
             self.assertEqual(evidence["artifact_disposition"], "accepted")
+
+    def test_exact_tool_trace_accepts_only_complete_ordered_sequence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            expected = fixed_activation_tool_trace(
+                "n1-read-only",
+                0,
+                worktree=root,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt=(
+                    "Use exec_command for git rev-parse HEAD and "
+                    "sha256sum data/shared.txt"
+                ),
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                expected_tool_trace=expected,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message=adapter.prompt)
+            records = []
+            for index, command in enumerate(
+                ("git rev-parse HEAD", "sha256sum data/shared.txt")
+            ):
+                call_id = f"exact-{index}"
+                records.extend(
+                    [
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call",
+                                "name": "exec_command",
+                                "call_id": call_id,
+                                "arguments": json.dumps(
+                                    {"cmd": command}
+                                ),
+                            },
+                        },
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "exit_code": 0,
+                                "output": "bounded",
+                            },
+                        },
+                    ]
+                )
+            records.append(
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "task_complete",
+                        "turn_id": server.turn_id,
+                    },
+                }
+            )
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    "".join(
+                        json.dumps(record) + "\n"
+                        for record in records
+                    )
+                )
+            server.items = [
+                {"type": "commandExecution", "status": "completed"},
+                {"type": "commandExecution", "status": "completed"},
+                {
+                    "type": "agentMessage",
+                    "phase": "finalAnswer",
+                    "text": "DONE",
+                },
+            ]
+            server.status = "completed"
+            self.assertEqual(adapter.check(), {"decision": "complete"})
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=[],
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertEqual(evidence["reasons"], [])
+            self.assertTrue(summary["exact_tool_trace_satisfied"])
+            self.assertEqual(
+                len(summary["trusted_tool_receipts"]),
+                2,
+            )
+
+    def test_exact_tool_trace_accepts_only_bounded_exec_argument_variants(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            expected = fixed_activation_tool_trace(
+                "n1-read-only",
+                0,
+                worktree=root,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                expected_tool_trace=expected,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            commands = (
+                "git rev-parse HEAD",
+                "sha256sum data/shared.txt",
+            )
+            variants = (
+                lambda command: {"cmd": command},
+                lambda command: {
+                    "cmd": command,
+                    "workdir": str(root),
+                },
+                lambda command: {
+                    "cmd": command,
+                    "workdir": str(root),
+                    "login": False,
+                },
+            )
+            for variant in variants:
+                receipts = [
+                    {
+                        "sequence": step["sequence"],
+                        "tool": step["tool"],
+                        "canonical_argument_hash": canonical_argument_hash(
+                            variant(command)
+                        ),
+                        "action_class": step["action_class"],
+                        "determinable_target_paths": step[
+                            "determinable_target_paths"
+                        ],
+                        "pairing_status": "paired",
+                        "result_kind": "paired-success",
+                        "exit_code": 0,
+                    }
+                    for step, command in zip(expected, commands, strict=True)
+                ]
+                with self.subTest(receipts=receipts):
+                    pending = adapter._exact_tool_trace_observation(
+                        receipts,
+                        terminal=False,
+                    )
+                    self.assertEqual(pending["status"], "pending")
+                    self.assertFalse(pending["satisfied"])
+                    observation = adapter._exact_tool_trace_observation(
+                        receipts,
+                        terminal=True,
+                    )
+                    self.assertTrue(observation["satisfied"])
+                    self.assertFalse(observation["mismatch"])
+
+            unexpected = [
+                {
+                    "sequence": step["sequence"],
+                    "tool": step["tool"],
+                    "canonical_argument_hash": canonical_argument_hash(
+                        {
+                            "cmd": command,
+                            "workdir": str(root),
+                            "login": False,
+                            "yield_time_ms": 1_000,
+                        }
+                    ),
+                    "action_class": step["action_class"],
+                    "determinable_target_paths": step[
+                        "determinable_target_paths"
+                    ],
+                    "pairing_status": "paired",
+                    "result_kind": "paired-success",
+                    "exit_code": 0,
+                }
+                for step, command in zip(expected, commands, strict=True)
+            ]
+            observation = adapter._exact_tool_trace_observation(
+                unexpected,
+                terminal=True,
+            )
+            self.assertTrue(observation["mismatch"])
+            self.assertEqual(
+                observation["reason"],
+                "step-0-canonical-argument-mismatch",
+            )
+
+    def test_failed_patch_retry_is_exact_tool_trace_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="Use apply_patch once then exec_command once",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="targets/activation.txt",
+                expected_tool_trace=fixed_activation_tool_trace(
+                    "n1-mutable",
+                    0,
+                    worktree=root,
+                ),
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message=adapter.prompt)
+            failed_patch = MUTABLE_PATCH_INPUT.replace(
+                "+activation-preview-mutated",
+                "activation-preview-mutated",
+            )
+            records = [
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "name": "apply_patch",
+                        "call_id": "failed",
+                        "input": failed_patch,
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call_output",
+                        "call_id": "failed",
+                        "output": (
+                            "apply_patch verification failed: missing line"
+                        ),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "name": "apply_patch",
+                        "call_id": "succeeded",
+                        "input": MUTABLE_PATCH_INPUT,
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "patch_apply_end",
+                        "call_id": "succeeded",
+                        "turn_id": server.turn_id,
+                        "success": True,
+                        "status": "completed",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call_output",
+                        "call_id": "succeeded",
+                        "output": "Exit code: 0\nOutput:\nSuccess.\n",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "check",
+                        "arguments": json.dumps(
+                            {"cmd": "git diff --check"}
+                        ),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "check",
+                        "exit_code": 0,
+                        "output": "bounded",
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "task_complete",
+                        "turn_id": server.turn_id,
+                    },
+                },
+            ]
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    "".join(
+                        json.dumps(record) + "\n"
+                        for record in records
+                    )
+                )
+            server.items = [
+                {"type": "commandExecution", "status": "completed"}
+                for _ in range(3)
+            ] + [
+                {
+                    "type": "agentMessage",
+                    "phase": "finalAnswer",
+                    "text": "DONE",
+                }
+            ]
+            server.status = "completed"
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=["targets/activation.txt"],
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertIn(
+                "exact-tool-trace-mismatch",
+                evidence["reasons"],
+            )
+            self.assertFalse(summary["exact_tool_trace_satisfied"])
+            self.assertEqual(
+                [
+                    receipt["result_kind"]
+                    for receipt in summary["trusted_tool_receipts"]
+                ],
+                ["paired-failure", "paired-success", "paired-success"],
+            )
+            exact_without_failed_attempt = (
+                adapter._exact_tool_trace_observation(
+                    [
+                        {**receipt, "sequence": sequence}
+                        for sequence, receipt in enumerate(
+                            summary["trusted_tool_receipts"][1:]
+                        )
+                    ],
+                    terminal=True,
+                )
+            )
+            self.assertTrue(exact_without_failed_attempt["satisfied"])
+
+    def test_contradictory_patch_success_event_and_failure_output_interrupts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="Use apply_patch once then exec_command once",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="targets/activation.txt",
+                expected_tool_trace=fixed_activation_tool_trace(
+                    "n1-mutable",
+                    0,
+                    worktree=root,
+                ),
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message=adapter.prompt)
+            records = [
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "name": "apply_patch",
+                        "call_id": "patch",
+                        "input": MUTABLE_PATCH_INPUT,
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "patch_apply_end",
+                        "call_id": "patch",
+                        "turn_id": server.turn_id,
+                        "success": True,
+                        "status": "completed",
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call_output",
+                        "call_id": "patch",
+                        "output": (
+                            "apply_patch verification failed: "
+                            "target mismatch"
+                        ),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "check",
+                        "arguments": json.dumps(
+                            {"cmd": "git diff --check"}
+                        ),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "check",
+                        "exit_code": 0,
+                        "output": "bounded",
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "task_complete",
+                        "turn_id": server.turn_id,
+                    },
+                },
+            ]
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    "".join(
+                        json.dumps(record) + "\n"
+                        for record in records
+                    )
+                )
+            server.items = [
+                {"type": "commandExecution", "status": "completed"},
+                {"type": "commandExecution", "status": "completed"},
+                {
+                    "type": "agentMessage",
+                    "phase": "finalAnswer",
+                    "text": "DONE",
+                },
+            ]
+            server.status = "completed"
+
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=["targets/activation.txt"],
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertIn(
+                "exact-tool-trace-mismatch",
+                evidence["reasons"],
+            )
+            self.assertFalse(summary["exact_tool_trace_satisfied"])
+            self.assertEqual(
+                [
+                    receipt["result_kind"]
+                    for receipt in summary["trusted_tool_receipts"]
+                ],
+                [
+                    "ambiguous-call-or-output-cardinality",
+                    "paired-success",
+                ],
+            )
+
+    def test_projected_terminal_does_not_finalize_exact_tool_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt=(
+                    "Use exec_command for git rev-parse HEAD and "
+                    "sha256sum data/shared.txt"
+                ),
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                expected_tool_trace=fixed_activation_tool_trace(
+                    "n1-read-only",
+                    0,
+                    worktree=root,
+                ),
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message=adapter.prompt)
+            server.status = "completed"
+            server.items = [
+                {
+                    "type": "agentMessage",
+                    "phase": "finalAnswer",
+                    "text": "DONE",
+                }
+            ]
+            self.assertEqual(adapter.check(), {"decision": "continue"})
 
     def test_projected_tool_without_trusted_receipt_interrupts_temporary_operative(
         self,

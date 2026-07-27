@@ -709,6 +709,15 @@ def validate_repository() -> list[str]:
             "--enable-tech-preview",
             "permanently claims the activation ID and campaign nonce",
             "There is no retry, resume,",
+            "Every attempted call counts",
+            "Only a durable terminal event can finalize the trace",
+            "activation-tool-trace.json",
+            "activation-bead-closure.json",
+            "never closes the parent or publication Bead",
+            "native-tool-activation-result-v2.schema.json",
+            "tool_trace_sha256",
+            "bead_closure_sha256",
+            "v1 result schema remains historical inspection-only",
         ],
     )
     require_doc_terms(
@@ -723,6 +732,27 @@ def validate_repository() -> list[str]:
             "mints and consumes",
             "--dry-run",
             "--enable-tech-preview",
+            "Every failed, retried, extra,",
+            "Only durable terminal telemetry can finalize the trace",
+            "closes only the authorized implementation child Beads",
+            "never retries or rolls back a partial close",
+            "Accepted activation result v2 binds",
+            "Result v1 remains historical inspection only",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "docs/reference.html",
+        [
+            'id="activation-artifacts"',
+            "native-tool-activation-result-v2.schema.json",
+            "native-tool-activation-trace.schema.json",
+            "native-tool-activation-bead-closure.schema.json",
+            "Only a durable terminal event can finalize the trace",
+            "closes only the pool-authorized implementation child Beads",
+            "never closes the parent or publication Bead",
+            "Accepted activation result v2 binds both artifact hashes",
+            "Result v1 remains historical inspection only",
         ],
     )
     validate_closure_pressure_contract(errors)
@@ -1119,6 +1149,72 @@ def validate_repository() -> list[str]:
         schema=load_json(REPO_ROOT / "schemas" / "execution-environment.schema.json"),
         properties=["profiles"],
     )
+    activation_schema_requirements = {
+        "native-tool-activation-result-v2.schema.json": [
+            "tool_trace_sha256",
+            "bead_closure_sha256",
+            "result_sha256",
+        ],
+        "native-tool-activation-trace.schema.json": [
+            "children",
+            "all_satisfied",
+            "tool_trace_sha256",
+        ],
+        "native-tool-activation-bead-closure.schema.json": [
+            "expected_bead_ids",
+            "attempted_bead_ids",
+            "unattempted_bead_ids",
+            "close_receipts",
+            "errors",
+            "parent_close_attempted",
+            "publication_close_attempted",
+            "all_closed",
+            "bead_closure_sha256",
+        ],
+    }
+    for schema_name, required_properties in (
+        activation_schema_requirements.items()
+    ):
+        activation_schema = load_json(
+            REPO_ROOT / "schemas" / schema_name
+        )
+        require_schema_properties(
+            errors,
+            schema_name=schema_name,
+            schema=activation_schema,
+            properties=required_properties,
+        )
+        missing_required = sorted(
+            set(required_properties)
+            - set(activation_schema.get("required", []))
+        )
+        if missing_required:
+            errors.append(
+                f"schema {schema_name} does not require properties: "
+                + ", ".join(missing_required)
+            )
+    activation_result_v1 = load_json(
+        REPO_ROOT / "schemas" / "native-tool-activation-result.schema.json"
+    )
+    activation_result_v2 = load_json(
+        REPO_ROOT
+        / "schemas"
+        / "native-tool-activation-result-v2.schema.json"
+    )
+    if (
+        activation_result_v1.get("properties", {})
+        .get("version", {})
+        .get("const")
+        != 1
+        or activation_result_v2.get("properties", {})
+        .get("version", {})
+        .get("const")
+        != 2
+    ):
+        errors.append(
+            "native tool activation result schemas must preserve "
+            "historical v1 and current v2"
+        )
     require_schema_properties(
         errors,
         schema_name="run-readiness-plan.schema.json",
@@ -2298,6 +2394,30 @@ def validate_native_supervision_tech_preview_copy(
         (
             "explicit activation switch",
             "<code>--enable-tech-preview</code>",
+        ),
+        (
+            "exact activation trace wording",
+            "Each fixed activation profile requires its exact ordered two-call trace",
+        ),
+        (
+            "all attempts count wording",
+            "Every failed, retried, extra, reordered, wrong-argument, unknown-result, or contradictory call counts",
+        ),
+        (
+            "durable terminal trace wording",
+            "Only a durable terminal event can finalize the trace",
+        ),
+        (
+            "child-only closure wording",
+            "closes only authorized implementation child Beads, once and in task order",
+        ),
+        (
+            "no parent rollback wording",
+            "It never closes the parent or publication Bead, retries a close, or rolls back a partial close",
+        ),
+        (
+            "activation result v2 binding wording",
+            "Accepted activation result v2 binds the private exact-trace and Bead-closure artifact hashes",
         ),
         (
             "operator link",

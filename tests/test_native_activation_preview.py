@@ -21,10 +21,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_activation_preview import (  # noqa: E402
+    MUTABLE_PATCH_INPUT,
     NativeActivationPreviewError,
     acquire_activation_claim,
     activation_dry_run,
     approve_activation_plan,
+    fixed_activation_tool_trace,
     generate_activation_key,
     load_activation_plan,
     prepare_activation_plan,
@@ -35,12 +37,15 @@ from cwo_core.native_activation_ledger import (  # noqa: E402
     validate_activation_ledger,
 )
 from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
+from cwo_core.native_pool_admission import BeadsClaimAdapter  # noqa: E402
 from cwo_core.native_tool_activation import (  # noqa: E402
     verify_tool_enforcement_activation,
 )
 from run_native_pool_activation_preview import (  # noqa: E402
     ActivationLedgerTransport,
+    _close_accepted_activation_beads,
     _contain_allocated_threads,
+    _persist_activation_tool_trace,
     _pool_capability_receipt,
     _persist_pool_outcome,
     _require_accepting_pool_receipt,
@@ -86,6 +91,14 @@ class IntentObservingServer:
         turn_id = str(uuid.uuid4())
         self.started_threads[thread_id] = turn_id
         return {"id": turn_id}, 0.001
+
+
+class StaticTraceAdapter:
+    def __init__(self, summary: dict) -> None:
+        self.summary = summary
+
+    def final_summary(self) -> dict:
+        return copy.deepcopy(self.summary)
 
 
 class ContainmentServer:
@@ -261,10 +274,33 @@ class NativeActivationPreviewTests(unittest.TestCase):
                         for task in plan["tasks"]
                     )
                 )
+                traces = [
+                    fixed_activation_tool_trace(
+                        profile,
+                        int(task["ordinal"]),
+                        worktree=task["worktree"],
+                    )
+                    for task in plan["tasks"]
+                ]
+                self.assertTrue(
+                    all(len(trace) == 2 for trace in traces)
+                )
+                self.assertTrue(
+                    all(
+                        len(step["canonical_argument_hashes"])
+                        in {1, 3}
+                        for trace in traces
+                        for step in trace
+                    )
+                )
                 if profile == "n1-mutable":
                     self.assertEqual(
                         plan["tasks"][0]["integration_target_paths"],
                         ["targets/activation.txt"],
+                    )
+                    self.assertIn(
+                        MUTABLE_PATCH_INPUT,
+                        plan["tasks"][0]["prompt"],
                     )
                 else:
                     self.assertTrue(
@@ -309,6 +345,286 @@ class NativeActivationPreviewTests(unittest.TestCase):
         capability = {"receipt_sha256": "a" * 64}
         self.assertIsNone(_pool_capability_receipt(capability, 1))
         self.assertIs(_pool_capability_receipt(capability, 2), capability)
+
+    def test_activation_trace_artifact_binds_exact_ordered_receipts(
+        self,
+    ) -> None:
+        temporary, _control, _path, _approval_path, plan, _approval = (
+            self.fixture(profile="n1-mutable")
+        )
+        self.addCleanup(temporary.cleanup)
+        task = plan["tasks"][0]
+        expected = fixed_activation_tool_trace(
+            "n1-mutable",
+            0,
+            worktree=task["worktree"],
+        )
+        receipts = [
+            {
+                "sequence": step["sequence"],
+                "tool": step["tool"],
+                "canonical_argument_hash": step[
+                    "canonical_argument_hashes"
+                ][0],
+                "action_class": step["action_class"],
+                "determinable_target_paths": step[
+                    "determinable_target_paths"
+                ],
+                "pairing_status": "paired",
+                "result_kind": "paired-success",
+                "exit_code": 0,
+            }
+            for step in expected
+        ]
+        expected_sha256 = canonical_json_hash(expected)
+        observed_sha256 = canonical_json_hash(receipts)
+        adapter = StaticTraceAdapter(
+            {
+                "exact_tool_trace_observation": {
+                    "status": "satisfied",
+                    "satisfied": True,
+                    "expected_sha256": expected_sha256,
+                    "observed_sha256": observed_sha256,
+                },
+                "trusted_tool_receipts": receipts,
+                "exact_tool_trace_satisfied": True,
+            }
+        )
+        artifact = _persist_activation_tool_trace(
+            plan,
+            {task["child_id"]: adapter},
+            pool_receipt_sha256="e" * 64,
+        )
+        self.assertTrue(artifact["all_satisfied"])
+        self.assertTrue(
+            (
+                Path(plan["paths"]["records"])
+                / "activation-tool-trace.json"
+            ).is_file()
+        )
+        self.validate_schema("native-tool-activation-trace", artifact)
+
+    def test_activation_closes_only_exact_authorized_child_before_acceptance(
+        self,
+    ) -> None:
+        for authorized in (True, False):
+            with self.subTest(authorized=authorized):
+                temporary, _control, _path, _approval_path, plan, _approval = (
+                    self.fixture(profile="n1-mutable")
+                )
+                self.addCleanup(temporary.cleanup)
+                actor = "activation-close-test"
+                adapter = BeadsClaimAdapter(
+                    directory=Path(plan["paths"]["beads_directory"]),
+                    database=Path(plan["paths"]["beads_database"]),
+                    actor=actor,
+                    timeout=20,
+                )
+                task = plan["tasks"][0]
+                claim = adapter.claim(task["bead_id"])
+                self.assertTrue(claim.owned)
+                reservation = {
+                    "reservation_sha256": "b" * 64,
+                    "claim_actor": actor,
+                    "issue_ids": [task["bead_id"]],
+                    "claims": [claim.receipt],
+                }
+                pool_receipt = {
+                    "child_dispositions": [
+                        {
+                            "child_id": task["child_id"],
+                            "bead_id": task["bead_id"],
+                            "implementation_bead_close_authorized": (
+                                authorized
+                            ),
+                            "parent_close_authorized": False,
+                            "publication_close_authorized": False,
+                        }
+                    ]
+                }
+                artifact = _close_accepted_activation_beads(
+                    plan,
+                    reservation,
+                    pool_receipt,
+                    adapter,
+                    pool_receipt_sha256="e" * 64,
+                )
+                self.assertEqual(artifact["all_closed"], authorized)
+                self.assertEqual(
+                    adapter.show_exact(task["bead_id"])["status"],
+                    "closed" if authorized else "in_progress",
+                )
+                self.assertEqual(
+                    adapter.show_exact(plan["epic_id"])["status"],
+                    "open",
+                )
+                self.assertFalse(artifact["parent_close_attempted"])
+                self.assertFalse(
+                    artifact["publication_close_attempted"]
+                )
+                self.validate_schema(
+                    "native-tool-activation-bead-closure",
+                    artifact,
+                )
+                if authorized:
+                    result = _result(
+                        plan,
+                        status="accepted",
+                        started_at="2026-07-27T12:00:00.000Z",
+                        claim_sha256="c" * 64,
+                        approval_sha256="a" * 64,
+                        ledger_sha256="f" * 64,
+                        reservation_sha256="b" * 64,
+                        dispatch_sha256="d" * 64,
+                        pool_receipt_sha256="e" * 64,
+                        tool_trace_sha256="c" * 64,
+                        bead_closure_sha256=artifact[
+                            "bead_closure_sha256"
+                        ],
+                    )
+                    self.validate_schema(
+                        "native-tool-activation-result-v2",
+                        result,
+                    )
+
+    def test_n2_partial_close_stops_without_rollback_or_parent_close(
+        self,
+    ) -> None:
+        temporary, _control, _path, _approval_path, plan, _approval = (
+            self.fixture(profile="n2-read-only")
+        )
+        self.addCleanup(temporary.cleanup)
+        actor = "activation-partial-close-test"
+
+        class FailSecondCloseAdapter(BeadsClaimAdapter):
+            def __init__(self, **kwargs: object) -> None:
+                super().__init__(**kwargs)
+                self.close_calls: list[str] = []
+
+            def close_owned(
+                self,
+                bead_id: str,
+                *,
+                expected_pre_show_sha256: str,
+                reason: str,
+            ):
+                self.close_calls.append(bead_id)
+                if len(self.close_calls) == 2:
+                    expected_pre_show_sha256 = "0" * 64
+                return super().close_owned(
+                    bead_id,
+                    expected_pre_show_sha256=expected_pre_show_sha256,
+                    reason=reason,
+                )
+
+        adapter = FailSecondCloseAdapter(
+            directory=Path(plan["paths"]["beads_directory"]),
+            database=Path(plan["paths"]["beads_database"]),
+            actor=actor,
+            timeout=20,
+        )
+        tasks = sorted(plan["tasks"], key=lambda item: item["ordinal"])
+        claims = [adapter.claim(task["bead_id"]) for task in tasks]
+        self.assertTrue(all(claim.owned for claim in claims))
+        reservation = {
+            "reservation_sha256": "b" * 64,
+            "claim_actor": actor,
+            "issue_ids": [task["bead_id"] for task in tasks],
+            "claims": [claim.receipt for claim in claims],
+        }
+        pool_receipt = {
+            "child_dispositions": [
+                {
+                    "child_id": task["child_id"],
+                    "bead_id": task["bead_id"],
+                    "implementation_bead_close_authorized": True,
+                    "parent_close_authorized": False,
+                    "publication_close_authorized": False,
+                }
+                for task in tasks
+            ]
+        }
+        artifact = _close_accepted_activation_beads(
+            plan,
+            reservation,
+            pool_receipt,
+            adapter,
+            pool_receipt_sha256="e" * 64,
+        )
+        bead_ids = [task["bead_id"] for task in tasks]
+        self.assertFalse(artifact["all_closed"])
+        self.assertEqual(adapter.close_calls, bead_ids)
+        self.assertEqual(artifact["attempted_bead_ids"], bead_ids)
+        self.assertEqual(artifact["unattempted_bead_ids"], [])
+        self.assertEqual(
+            [adapter.show_exact(bead_id)["status"] for bead_id in bead_ids],
+            ["closed", "in_progress"],
+        )
+        self.assertEqual(
+            adapter.show_exact(plan["epic_id"])["status"],
+            "open",
+        )
+        self.assertFalse(artifact["parent_close_attempted"])
+        self.assertFalse(artifact["publication_close_attempted"])
+        self.assertEqual(
+            [error["code"] for error in artifact["errors"]],
+            ["child-close-unproven"],
+        )
+        self.validate_schema(
+            "native-tool-activation-bead-closure",
+            artifact,
+        )
+
+    def test_child_close_rejects_tampered_claim_receipt_before_command(
+        self,
+    ) -> None:
+        temporary, _control, _path, _approval_path, plan, _approval = (
+            self.fixture(profile="n1-read-only")
+        )
+        self.addCleanup(temporary.cleanup)
+        actor = "activation-tampered-claim-test"
+        adapter = BeadsClaimAdapter(
+            directory=Path(plan["paths"]["beads_directory"]),
+            database=Path(plan["paths"]["beads_database"]),
+            actor=actor,
+            timeout=20,
+        )
+        task = plan["tasks"][0]
+        claim = adapter.claim(task["bead_id"])
+        tampered_claim = dict(claim.receipt)
+        tampered_claim["post_show_sha256"] = "0" * 64
+        artifact = _close_accepted_activation_beads(
+            plan,
+            {
+                "reservation_sha256": "b" * 64,
+                "claim_actor": actor,
+                "issue_ids": [task["bead_id"]],
+                "claims": [tampered_claim],
+            },
+            {
+                "child_dispositions": [
+                    {
+                        "child_id": task["child_id"],
+                        "bead_id": task["bead_id"],
+                        "implementation_bead_close_authorized": True,
+                        "parent_close_authorized": False,
+                        "publication_close_authorized": False,
+                    }
+                ]
+            },
+            adapter,
+            pool_receipt_sha256="e" * 64,
+        )
+        self.assertFalse(artifact["all_closed"])
+        self.assertEqual(artifact["attempted_bead_ids"], [])
+        self.assertEqual(
+            adapter.show_exact(task["bead_id"])["status"],
+            "in_progress",
+        )
+        self.assertEqual(
+            [error["code"] for error in artifact["errors"]],
+            ["owned-claim-proof-invalid"],
+        )
 
     def test_cli_has_no_arbitrary_work_or_continuation_options(self) -> None:
         command = parser()
@@ -773,7 +1089,7 @@ class NativeActivationPreviewTests(unittest.TestCase):
             ("native-tool-activation-plan", plan),
             ("native-tool-activation-claim", claim),
             ("native-tool-activation-ledger", ledger),
-            ("native-tool-activation-result", result),
+            ("native-tool-activation-result-v2", result),
         ):
             with self.subTest(schema=name):
                 self.validate_schema(name, artifact)

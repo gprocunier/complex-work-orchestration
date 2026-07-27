@@ -35,6 +35,7 @@ from cwo_core.native_activation_preview import (  # noqa: E402
     activation_dry_run,
     activation_iso,
     approve_activation_plan,
+    fixed_activation_tool_trace,
     generate_activation_key,
     load_activation_plan,
     operator_approval_verifier,
@@ -46,6 +47,8 @@ from cwo_core.native_pool_admission import (  # noqa: E402
     AdmissionCandidate,
     BeadsClaimAdapter,
     reserve_pool_cohort,
+    validate_claim_receipt,
+    validate_close_receipt,
 )
 from cwo_core.native_pool_admitted import run_admitted_native_pool  # noqa: E402
 from cwo_core.native_pool_config import (  # noqa: E402
@@ -92,6 +95,14 @@ from run_native_pool_live_canaries import (  # noqa: E402
 
 
 PREVIEW_CONTROL_ID = "cwo-native-tool-activation-preview"
+TOOL_TRACE_ARTIFACT_TYPE = "cwo-native-tool-activation-trace"
+TOOL_TRACE_ARTIFACT_SCHEMA = (
+    "schemas/native-tool-activation-trace.schema.json"
+)
+BEAD_CLOSURE_ARTIFACT_TYPE = "cwo-native-tool-activation-bead-closure"
+BEAD_CLOSURE_ARTIFACT_SCHEMA = (
+    "schemas/native-tool-activation-bead-closure.schema.json"
+)
 RESULT_FIELDS = frozenset(
     {
         "result_type",
@@ -109,6 +120,8 @@ RESULT_FIELDS = frozenset(
         "reservation_sha256",
         "dispatch_sha256",
         "pool_receipt_sha256",
+        "tool_trace_sha256",
+        "bead_closure_sha256",
         "risk_acknowledgement",
         "no_resume_or_salvage",
         "started_at",
@@ -416,6 +429,11 @@ def _write_worker_contracts(
             worktree=Path(task["worktree"]),
             mutable=task["isolation_class"] == "mutable-isolated",
             expected_mutation=target,
+            expected_tool_trace=fixed_activation_tool_trace(
+                str(plan["profile"]),
+                int(task["ordinal"]),
+                worktree=task["worktree"],
+            ),
             completion_evidence_policy=task[
                 "completion_evidence_policy"
             ],
@@ -488,8 +506,16 @@ def _result(
     reservation_sha256: str | None = None,
     dispatch_sha256: str | None = None,
     pool_receipt_sha256: str | None = None,
+    tool_trace_sha256: str | None = None,
+    bead_closure_sha256: str | None = None,
     failure: BaseException | None = None,
 ) -> dict[str, Any]:
+    if status == "accepted" and (
+        tool_trace_sha256 is None or bead_closure_sha256 is None
+    ):
+        raise NativeActivationPreviewError(
+            "activation-result-acceptance-evidence-missing"
+        )
     value: dict[str, Any] = {
         "result_type": RESULT_TYPE,
         "version": RESULT_VERSION,
@@ -506,6 +532,8 @@ def _result(
         "reservation_sha256": reservation_sha256,
         "dispatch_sha256": dispatch_sha256,
         "pool_receipt_sha256": pool_receipt_sha256,
+        "tool_trace_sha256": tool_trace_sha256,
+        "bead_closure_sha256": bead_closure_sha256,
         "risk_acknowledgement": TOOL_ENFORCEMENT_OVERRIDE_RISK,
         "no_resume_or_salvage": True,
         "started_at": started_at,
@@ -538,6 +566,326 @@ def _require_accepting_pool_receipt(
             "activation-pool-not-accepting"
         )
     return dict(receipt)
+
+
+def _seal_activation_artifact(
+    value: Mapping[str, Any],
+    *,
+    hash_field: str,
+) -> dict[str, Any]:
+    artifact = dict(value)
+    artifact.pop(hash_field, None)
+    artifact[hash_field] = canonical_activation_sha256(artifact)
+    return artifact
+
+
+def _persist_activation_tool_trace(
+    plan: Mapping[str, Any],
+    adapters: Mapping[str, ActivationThreadAdapter],
+    *,
+    pool_receipt_sha256: str,
+) -> dict[str, Any]:
+    children: list[dict[str, Any]] = []
+    for task in plan["tasks"]:
+        child_id = str(task["child_id"])
+        adapter = adapters[child_id]
+        summary = adapter.final_summary()
+        observation = summary["exact_tool_trace_observation"]
+        expected = fixed_activation_tool_trace(
+            str(plan["profile"]),
+            int(task["ordinal"]),
+            worktree=task["worktree"],
+        )
+        expected_sha256 = canonical_sha256(expected)
+        receipts = list(summary["trusted_tool_receipts"])
+        observed_sha256 = canonical_sha256(receipts)
+        satisfied = bool(
+            observation.get("satisfied") is True
+            and observation.get("status") == "satisfied"
+            and observation.get("expected_sha256") == expected_sha256
+            and observation.get("observed_sha256") == observed_sha256
+            and summary.get("exact_tool_trace_satisfied") is True
+        )
+        children.append(
+            {
+                "ordinal": int(task["ordinal"]),
+                "child_id": child_id,
+                "bead_id": str(task["bead_id"]),
+                "expected_tool_trace_sha256": expected_sha256,
+                "observed_tool_trace_sha256": observed_sha256,
+                "trusted_tool_receipts": receipts,
+                "satisfied": satisfied,
+            }
+        )
+    artifact = _seal_activation_artifact(
+        {
+            "trace_type": TOOL_TRACE_ARTIFACT_TYPE,
+            "version": 1,
+            "schema": TOOL_TRACE_ARTIFACT_SCHEMA,
+            "activation_id": plan["activation_id"],
+            "plan_sha256": plan["plan_sha256"],
+            "pool_receipt_sha256": pool_receipt_sha256,
+            "children": children,
+            "all_satisfied": all(
+                child["satisfied"] is True for child in children
+            ),
+        },
+        hash_field="tool_trace_sha256",
+    )
+    write_exclusive_private_json(
+        Path(plan["paths"]["records"]) / "activation-tool-trace.json",
+        artifact,
+        label="activation-tool-trace",
+    )
+    return artifact
+
+
+def _closure_error(
+    code: str,
+    *,
+    bead_id: str | None = None,
+    error: BaseException | None = None,
+) -> dict[str, Any]:
+    return {
+        "code": code,
+        "bead_id": bead_id,
+        "error_class": (
+            type(error).__name__ if error is not None else None
+        ),
+        "error_sha256": (
+            hashlib.sha256(str(error).encode("utf-8")).hexdigest()
+            if error is not None
+            else None
+        ),
+    }
+
+
+def _close_accepted_activation_beads(
+    plan: Mapping[str, Any],
+    reservation: Mapping[str, Any],
+    pool_receipt: Mapping[str, Any],
+    adapter: BeadsClaimAdapter,
+    *,
+    pool_receipt_sha256: str,
+) -> dict[str, Any]:
+    tasks = sorted(plan["tasks"], key=lambda item: int(item["ordinal"]))
+    expected_pairs = [
+        (str(task["child_id"]), str(task["bead_id"]))
+        for task in tasks
+    ]
+    dispositions = pool_receipt.get("child_dispositions")
+    disposition_map: dict[tuple[str, str], Mapping[str, Any]] = {}
+    errors: list[dict[str, Any]] = []
+    if not isinstance(dispositions, list):
+        errors.append(_closure_error("child-dispositions-invalid"))
+    else:
+        for raw in dispositions:
+            if not isinstance(raw, Mapping):
+                errors.append(_closure_error("child-disposition-invalid"))
+                continue
+            key = (str(raw.get("child_id")), str(raw.get("bead_id")))
+            if key in disposition_map:
+                errors.append(
+                    _closure_error(
+                        "child-disposition-duplicate",
+                        bead_id=key[1],
+                    )
+                )
+            disposition_map[key] = raw
+        if set(disposition_map) != set(expected_pairs):
+            errors.append(_closure_error("child-disposition-set-mismatch"))
+        for child_id, bead_id in expected_pairs:
+            disposition = disposition_map.get((child_id, bead_id))
+            if disposition is None:
+                continue
+            if (
+                disposition.get("implementation_bead_close_authorized")
+                is not True
+                or disposition.get("parent_close_authorized") is not False
+                or disposition.get("publication_close_authorized") is not False
+            ):
+                errors.append(
+                    _closure_error(
+                        "child-close-authorization-invalid",
+                        bead_id=bead_id,
+                    )
+                )
+
+    claims = reservation.get("claims")
+    claim_ids = (
+        [
+            str(item.get("bead_id"))
+            for item in claims
+            if isinstance(item, Mapping)
+        ]
+        if isinstance(claims, list)
+        else []
+    )
+    claim_map = (
+        {
+            str(item.get("bead_id")): item
+            for item in claims
+            if isinstance(item, Mapping)
+        }
+        if isinstance(claims, list)
+        else {}
+    )
+    expected_bead_ids = [bead_id for _child_id, bead_id in expected_pairs]
+    if (
+        list(reservation.get("issue_ids", [])) != expected_bead_ids
+        or claim_ids != expected_bead_ids
+        or len(claim_map) != len(expected_bead_ids)
+        or set(claim_map) != set(expected_bead_ids)
+        or reservation.get("claim_actor") != adapter.actor
+    ):
+        errors.append(_closure_error("reservation-close-binding-invalid"))
+
+    receipts: list[dict[str, Any]] = []
+    attempted_bead_ids: list[str] = []
+    for child_id, bead_id in expected_pairs:
+        if errors:
+            break
+        claim = claim_map[bead_id]
+        if (
+            validate_claim_receipt(claim)
+            or claim.get("bead_id") != bead_id
+            or claim.get("actor") != adapter.actor
+            or claim.get("owned") is not True
+            or not isinstance(claim.get("post_show_sha256"), str)
+        ):
+            errors.append(
+                _closure_error(
+                    "owned-claim-proof-invalid",
+                    bead_id=bead_id,
+                )
+            )
+            break
+        reason = (
+            f"CWO native activation {plan['activation_id']} "
+            f"accepted child {child_id}"
+        )
+        attempted_bead_ids.append(bead_id)
+        try:
+            transition = adapter.close_owned(
+                bead_id,
+                expected_pre_show_sha256=claim["post_show_sha256"],
+                reason=reason,
+            )
+        except BaseException as exc:
+            errors.append(
+                _closure_error(
+                    "child-close-exception",
+                    bead_id=bead_id,
+                    error=exc,
+                )
+            )
+            break
+        receipt = dict(transition.receipt)
+        if validate_close_receipt(receipt):
+            errors.append(
+                _closure_error(
+                    "child-close-receipt-invalid",
+                    bead_id=bead_id,
+                )
+            )
+            break
+        receipts.append(receipt)
+        if transition.closed is not True:
+            errors.append(
+                _closure_error(
+                    "child-close-unproven",
+                    bead_id=bead_id,
+                )
+            )
+            break
+
+    final_child_show_sha256: dict[str, str | None] = {}
+    final_child_status: dict[str, str | None] = {}
+    for bead_id in expected_bead_ids:
+        try:
+            issue = dict(adapter.show_exact(bead_id))
+        except BaseException as exc:
+            final_child_show_sha256[bead_id] = None
+            final_child_status[bead_id] = None
+            errors.append(
+                _closure_error(
+                    "final-child-show-failed",
+                    bead_id=bead_id,
+                    error=exc,
+                )
+            )
+            continue
+        final_child_show_sha256[bead_id] = canonical_activation_sha256(
+            issue
+        )
+        final_child_status[bead_id] = str(issue.get("status"))
+
+    epic_show_sha256: str | None = None
+    epic_status: str | None = None
+    try:
+        epic = dict(adapter.show_exact(str(plan["epic_id"])))
+        epic_show_sha256 = canonical_activation_sha256(epic)
+        epic_status = str(epic.get("status"))
+    except BaseException as exc:
+        errors.append(
+            _closure_error(
+                "final-epic-show-failed",
+                bead_id=str(plan["epic_id"]),
+                error=exc,
+            )
+        )
+
+    unattempted_bead_ids = [
+        bead_id
+        for bead_id in expected_bead_ids
+        if bead_id not in attempted_bead_ids
+    ]
+    all_closed = bool(
+        not errors
+        and attempted_bead_ids == expected_bead_ids
+        and len(receipts) == len(expected_bead_ids)
+        and all(receipt["closed"] is True for receipt in receipts)
+        and all(
+            final_child_status.get(bead_id) == "closed"
+            for bead_id in expected_bead_ids
+        )
+        and epic_status == "open"
+    )
+    artifact = _seal_activation_artifact(
+        {
+            "closure_type": BEAD_CLOSURE_ARTIFACT_TYPE,
+            "version": 1,
+            "schema": BEAD_CLOSURE_ARTIFACT_SCHEMA,
+            "activation_id": plan["activation_id"],
+            "plan_sha256": plan["plan_sha256"],
+            "reservation_sha256": reservation["reservation_sha256"],
+            "pool_receipt_sha256": pool_receipt_sha256,
+            "claim_actor": adapter.actor,
+            "epic_id": plan["epic_id"],
+            "child_dispositions_sha256": canonical_activation_sha256(
+                dispositions
+            ),
+            "expected_bead_ids": expected_bead_ids,
+            "attempted_bead_ids": attempted_bead_ids,
+            "unattempted_bead_ids": unattempted_bead_ids,
+            "close_receipts": receipts,
+            "errors": errors,
+            "final_child_show_sha256": final_child_show_sha256,
+            "epic_show_sha256": epic_show_sha256,
+            "epic_status": epic_status,
+            "parent_close_attempted": False,
+            "publication_close_attempted": False,
+            "all_closed": all_closed,
+        },
+        hash_field="bead_closure_sha256",
+    )
+    write_exclusive_private_json(
+        Path(plan["paths"]["records"])
+        / "activation-bead-closure.json",
+        artifact,
+        label="activation-bead-closure",
+    )
+    return artifact
 
 
 def _persist_pool_outcome(
@@ -697,6 +1045,8 @@ def run_live_activation(
     reservation: Mapping[str, Any] | None = None
     dispatch_sha256: str | None = None
     pool_receipt_sha256: str | None = None
+    tool_trace_sha256: str | None = None
+    bead_closure_sha256: str | None = None
     try:
         # A bad or expired approval still consumes this prepared attempt.
         claim = acquire_activation_claim(
@@ -958,13 +1308,39 @@ def run_live_activation(
             Path(plan["paths"]["records"]),
             launched,
         )
+        tool_trace = _persist_activation_tool_trace(
+            plan,
+            adapters,
+            pool_receipt_sha256=pool_receipt_sha256,
+        )
+        tool_trace_sha256 = str(tool_trace["tool_trace_sha256"])
+        if tool_trace["all_satisfied"] is not True:
+            raise NativeActivationPreviewError(
+                "activation-exact-tool-trace-rejected"
+            )
         _require_accepting_pool_receipt(raw_pool_receipt)
+        bead_closure = _close_accepted_activation_beads(
+            plan,
+            reservation,
+            raw_pool_receipt,
+            reserved.claim_adapter,
+            pool_receipt_sha256=pool_receipt_sha256,
+        )
+        bead_closure_sha256 = str(
+            bead_closure["bead_closure_sha256"]
+        )
+        if bead_closure["all_closed"] is not True:
+            raise NativeActivationPreviewError(
+                "activation-bead-closure-rejected"
+            )
         ledger.append(
             "terminal",
             subject_id=pool_receipt_sha256,
             detail={
                 "outcome": "accepted",
                 "pool_receipt_sha256": pool_receipt_sha256,
+                "tool_trace_sha256": tool_trace_sha256,
+                "bead_closure_sha256": bead_closure_sha256,
             },
         )
         ledger_state = ledger.load()
@@ -978,6 +1354,8 @@ def run_live_activation(
             reservation_sha256=reservation["reservation_sha256"],
             dispatch_sha256=dispatch_sha256,
             pool_receipt_sha256=pool_receipt_sha256,
+            tool_trace_sha256=tool_trace_sha256,
+            bead_closure_sha256=bead_closure_sha256,
         )
         write_exclusive_private_json(
             Path(plan["paths"]["result"]),
@@ -1027,6 +1405,8 @@ def run_live_activation(
                             containment
                         ),
                         "all_contained": containment["all_contained"],
+                        "tool_trace_sha256": tool_trace_sha256,
+                        "bead_closure_sha256": bead_closure_sha256,
                     },
                 )
             except Exception:
@@ -1051,6 +1431,8 @@ def run_live_activation(
             ),
             dispatch_sha256=dispatch_sha256,
             pool_receipt_sha256=pool_receipt_sha256,
+            tool_trace_sha256=tool_trace_sha256,
+            bead_closure_sha256=bead_closure_sha256,
             failure=failure,
         )
         result_path = Path(plan["paths"]["result"])

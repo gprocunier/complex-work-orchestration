@@ -147,6 +147,338 @@ class NativeRecoveryTests(unittest.TestCase):
         self.assertEqual(receipt["action_class"], "unknown")
         self.assertEqual(receipt["typed_result"]["kind"], "unpaired-output")
 
+    def test_action_receipts_preserve_failed_patch_retry_trace(self) -> None:
+        turn_id = "turn-1"
+        patch = (
+            "*** Begin Patch\n"
+            "*** Update File: targets/activation.txt\n"
+            "@@\n"
+            "+activation-preview-mutated\n"
+            "*** End of File\n"
+            "*** End Patch\n"
+        )
+        records = [
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "custom_tool_call",
+                    "call_id": "patch-failed",
+                    "name": "apply_patch",
+                    "input": patch.replace("+activation", "activation"),
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "custom_tool_call_output",
+                    "call_id": "patch-failed",
+                    "output": "apply_patch verification failed: missing line",
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "custom_tool_call",
+                    "call_id": "patch-ok",
+                    "name": "apply_patch",
+                    "input": patch,
+                },
+            },
+            {
+                "type": "event_msg",
+                "payload": {
+                    "type": "patch_apply_end",
+                    "call_id": "patch-ok",
+                    "turn_id": turn_id,
+                    "success": True,
+                    "status": "completed",
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "custom_tool_call_output",
+                    "call_id": "patch-ok",
+                    "output": "Exit code: 0\nOutput:\nSuccess.\n",
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call",
+                    "call_id": "check",
+                    "name": "exec_command",
+                    "arguments": json.dumps(
+                        {"cmd": "git diff --check"}
+                    ),
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "function_call_output",
+                    "call_id": "check",
+                    "output": (
+                        "Chunk ID: abc\nWall time: 0.1 seconds\n"
+                        "Process exited with code 0\nOutput:\n"
+                    ),
+                },
+            },
+        ]
+        receipts = normalize_action_receipts(
+            records,
+            segment_id=turn_id,
+        )
+        self.assertEqual(
+            [item["typed_result"]["kind"] for item in receipts],
+            ["paired-failure", "paired-success", "paired-success"],
+        )
+        self.assertEqual(
+            [item["exit_code"] for item in receipts],
+            [1, 0, 0],
+        )
+        self.assertEqual(
+            [item["sequence"] for item in receipts],
+            [0, 1, 2],
+        )
+
+    def test_action_receipts_reject_unknown_and_contradictory_results(
+        self,
+    ) -> None:
+        cases = (
+            (
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call",
+                            "call_id": "patch",
+                            "name": "apply_patch",
+                            "input": "*** Begin Patch",
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call_output",
+                            "call_id": "patch",
+                            "output": "Exit code: 0\nOutput:\nSuccess.\n",
+                        },
+                    },
+                ],
+                "paired-unknown",
+            ),
+            (
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "call_id": "exec",
+                            "name": "exec_command",
+                            "arguments": "{}",
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "exec",
+                            "exit_code": 0,
+                            "output": "Process exited with code 7\n",
+                        },
+                    },
+                ],
+                "ambiguous-call-or-output-cardinality",
+            ),
+            (
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call",
+                            "call_id": "patch",
+                            "name": "apply_patch",
+                            "input": "*** Begin Patch",
+                        },
+                    },
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "patch_apply_end",
+                            "call_id": "patch",
+                            "success": True,
+                            "status": "completed",
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call_output",
+                            "call_id": "patch",
+                            "output": (
+                                "apply_patch verification failed: "
+                                "target mismatch"
+                            ),
+                        },
+                    },
+                ],
+                "ambiguous-call-or-output-cardinality",
+            ),
+        )
+        for records, expected in cases:
+            with self.subTest(expected=expected):
+                receipt = normalize_action_receipts(records)[0]
+                self.assertEqual(
+                    receipt["typed_result"]["kind"],
+                    expected,
+                )
+
+    def test_duplicate_call_ids_preserve_every_attempt(self) -> None:
+        records = []
+        for tool, arguments in (
+            (
+                "apply_patch",
+                {"input": "*** Begin Patch\n*** End Patch"},
+            ),
+            (
+                "exec_command",
+                {"cmd": "git diff --check"},
+            ),
+        ):
+            records.extend(
+                [
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call"
+                            if tool == "apply_patch"
+                            else "function_call",
+                            "call_id": "reused",
+                            "name": tool,
+                            **arguments,
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call_output"
+                            if tool == "apply_patch"
+                            else "function_call_output",
+                            "call_id": "reused",
+                            "exit_code": 0,
+                            "output": "bounded",
+                        },
+                    },
+                ]
+            )
+
+        receipts = normalize_action_receipts(records)
+
+        self.assertEqual(len(receipts), 2)
+        self.assertEqual(
+            [receipt["tool"] for receipt in receipts],
+            ["apply_patch", "exec_command"],
+        )
+        self.assertEqual(
+            [receipt["sequence"] for receipt in receipts],
+            [0, 1],
+        )
+        self.assertTrue(
+            all(
+                receipt["pairing_status"] == "ambiguous"
+                and receipt["typed_result"]["kind"]
+                == "ambiguous-call-or-output-cardinality"
+                for receipt in receipts
+            )
+        )
+        self.assertNotEqual(
+            receipts[0]["canonical_argument_hash"],
+            receipts[1]["canonical_argument_hash"],
+        )
+
+    def test_patch_completion_event_must_match_call_order_and_turn(
+        self,
+    ) -> None:
+        call = {
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call",
+                "call_id": "patch",
+                "name": "apply_patch",
+                "input": "*** Begin Patch",
+            },
+        }
+        output = {
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call_output",
+                "call_id": "patch",
+                "output": "Exit code: 0\nOutput:\nSuccess.\n",
+            },
+        }
+        event = {
+            "type": "event_msg",
+            "payload": {
+                "type": "patch_apply_end",
+                "call_id": "patch",
+                "turn_id": "turn-1",
+                "success": True,
+                "status": "completed",
+            },
+        }
+        for label, records in (
+            ("event-after-output", [call, output, event]),
+            (
+                "wrong-turn",
+                [
+                    call,
+                    {
+                        **event,
+                        "payload": {
+                            **event["payload"],
+                            "turn_id": "other-turn",
+                        },
+                    },
+                    output,
+                ],
+            ),
+        ):
+            with self.subTest(label=label):
+                receipt = normalize_action_receipts(
+                    records,
+                    segment_id="turn-1",
+                )[0]
+                self.assertEqual(receipt["pairing_status"], "ambiguous")
+                self.assertEqual(
+                    receipt["typed_result"]["kind"],
+                    "ambiguous-call-or-output-cardinality",
+                )
+
+        missing_id_event = {
+            **event,
+            "payload": {
+                key: value
+                for key, value in event["payload"].items()
+                if key != "call_id"
+            },
+        }
+        receipts = normalize_action_receipts(
+            [call, missing_id_event, output],
+            segment_id="turn-1",
+        )
+        self.assertEqual(
+            receipts[0]["typed_result"]["kind"],
+            "paired-unknown",
+        )
+        self.assertTrue(
+            any(
+                receipt["pairing_status"] == "unpaired"
+                and receipt["action_class"] == "unknown"
+                for receipt in receipts[1:]
+            )
+        )
+
     def test_first_action_contract_is_fail_closed(self) -> None:
         phase = packet_v3_phase_contract("implementation")
         self.assertTrue(

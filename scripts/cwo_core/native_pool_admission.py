@@ -46,6 +46,15 @@ DISPATCH_SCHEMA = "schemas/native-pool-admission-dispatch.schema.json"
 RESERVATION_AUTHORITY = "reservation-evidence-only"
 DISPATCH_AUTHORITY = "dispatch-evidence-only"
 CLAIM_MUTABLE_FIELDS = frozenset({"status", "assignee", "updated_at", "started_at"})
+CLOSE_MUTABLE_FIELDS = frozenset(
+    {
+        "status",
+        "updated_at",
+        "closed_at",
+        "close_reason",
+        "closed_by_session",
+    }
+)
 CLAIM_OUTCOMES = frozenset(
     {
         "claimed",
@@ -54,6 +63,16 @@ CLAIM_OUTCOMES = frozenset(
         "claim-lost",
         "claim-show-failed",
         "preowned-replay",
+    }
+)
+CLOSE_OUTCOMES = frozenset(
+    {
+        "closed",
+        "closed-after-timeout",
+        "closed-after-command-error",
+        "close-lost",
+        "close-show-failed",
+        "preclosed-replay",
     }
 )
 
@@ -86,6 +105,21 @@ CLAIM_FIELDS = frozenset(
         "command_timed_out",
         "owned",
         "claim_sha256",
+    }
+)
+CLOSE_FIELDS = frozenset(
+    {
+        "bead_id",
+        "actor",
+        "outcome",
+        "reason_sha256",
+        "pre_show_sha256",
+        "post_show_sha256",
+        "command_sha256",
+        "command_returncode",
+        "command_timed_out",
+        "closed",
+        "close_sha256",
     }
 )
 RESERVATION_FIELDS_V2 = frozenset(
@@ -248,6 +282,16 @@ class ClaimTransition:
     @property
     def owned(self) -> bool:
         return self.receipt.get("owned") is True
+
+
+@dataclass(frozen=True, slots=True)
+class CloseTransition:
+    receipt: Mapping[str, Any]
+    post_issue: Mapping[str, Any] | None
+
+    @property
+    def closed(self) -> bool:
+        return self.receipt.get("closed") is True
 
 
 class ClaimAdapter(Protocol):
@@ -433,6 +477,94 @@ class BeadsClaimAdapter:
         )
         return ClaimTransition(receipt=receipt, post_issue=post)
 
+    def close_owned(
+        self,
+        bead_id: str,
+        *,
+        expected_pre_show_sha256: str,
+        reason: str,
+    ) -> CloseTransition:
+        """Close one exactly owned issue with post-command reconciliation."""
+
+        issue_id = str(bead_id).strip()
+        close_reason = str(reason).strip()
+        if not issue_id:
+            raise NativePoolAdmissionError("close-bead-id-empty")
+        if not _sha256(expected_pre_show_sha256):
+            raise NativePoolAdmissionError(
+                "close-expected-pre-show-sha256-invalid"
+            )
+        if not close_reason:
+            raise NativePoolAdmissionError("close-reason-empty")
+        pre = dict(self.show_exact(issue_id))
+        pre_hash = canonical_admission_sha256(pre)
+        if (
+            pre_hash != expected_pre_show_sha256
+            or pre.get("status") != "in_progress"
+            or pre.get("assignee") != self.actor
+        ):
+            outcome = (
+                "preclosed-replay"
+                if pre.get("status") == "closed"
+                else "close-lost"
+            )
+            receipt = _close_receipt(
+                issue_id,
+                actor=self.actor,
+                outcome=outcome,
+                reason=close_reason,
+                pre_show_sha256=pre_hash,
+                post_show_sha256=pre_hash,
+                result=None,
+                closed=False,
+            )
+            return CloseTransition(receipt=receipt, post_issue=pre)
+
+        result = self._run(
+            ("close", issue_id, "--reason", close_reason, "--json")
+        )
+        try:
+            post = dict(self.show_exact(issue_id))
+        except NativePoolAdmissionError:
+            receipt = _close_receipt(
+                issue_id,
+                actor=self.actor,
+                outcome="close-show-failed",
+                reason=close_reason,
+                pre_show_sha256=pre_hash,
+                post_show_sha256=None,
+                result=result,
+                closed=False,
+            )
+            return CloseTransition(receipt=receipt, post_issue=None)
+
+        post_hash = canonical_admission_sha256(post)
+        closed = _is_exact_close_transition(
+            pre,
+            post,
+            actor=self.actor,
+            reason=close_reason,
+        )
+        if closed and result.timed_out:
+            outcome = "closed-after-timeout"
+        elif closed and result.returncode != 0:
+            outcome = "closed-after-command-error"
+        elif closed:
+            outcome = "closed"
+        else:
+            outcome = "close-lost"
+        receipt = _close_receipt(
+            issue_id,
+            actor=self.actor,
+            outcome=outcome,
+            reason=close_reason,
+            pre_show_sha256=pre_hash,
+            post_show_sha256=post_hash,
+            result=result,
+            closed=closed,
+        )
+        return CloseTransition(receipt=receipt, post_issue=post)
+
 
 def _claim_immutable_projection(issue: Mapping[str, Any]) -> dict[str, Any]:
     return {
@@ -483,6 +615,150 @@ def _claim_receipt(
         },
         "claim_sha256",
     )
+
+
+def _close_immutable_projection(
+    issue: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        key: value for key, value in issue.items()
+        if key not in CLOSE_MUTABLE_FIELDS
+    }
+
+
+def _is_exact_close_transition(
+    pre: Mapping[str, Any],
+    post: Mapping[str, Any],
+    *,
+    actor: str,
+    reason: str,
+) -> bool:
+    return (
+        pre.get("status") == "in_progress"
+        and pre.get("assignee") == actor
+        and pre.get("closed_at") in (None, "")
+        and pre.get("close_reason") in (None, "")
+        and post.get("status") == "closed"
+        and post.get("assignee") == actor
+        and post.get("started_at") == pre.get("started_at")
+        and _nonempty(post.get("closed_at"))
+        and post.get("close_reason") == reason
+        and _close_immutable_projection(pre)
+        == _close_immutable_projection(post)
+    )
+
+
+def _close_receipt(
+    bead_id: str,
+    *,
+    actor: str,
+    outcome: str,
+    reason: str,
+    pre_show_sha256: str,
+    post_show_sha256: str | None,
+    result: BdCommandResult | None,
+    closed: bool,
+) -> dict[str, Any]:
+    command_sha256 = (
+        canonical_admission_sha256(list(result.command)) if result else None
+    )
+    return _seal(
+        {
+            "bead_id": bead_id,
+            "actor": actor,
+            "outcome": outcome,
+            "reason_sha256": hashlib.sha256(
+                reason.encode("utf-8")
+            ).hexdigest(),
+            "pre_show_sha256": pre_show_sha256,
+            "post_show_sha256": post_show_sha256,
+            "command_sha256": command_sha256,
+            "command_returncode": result.returncode if result else None,
+            "command_timed_out": result.timed_out if result else False,
+            "closed": closed,
+        },
+        "close_sha256",
+    )
+
+
+def validate_close_receipt(value: Any) -> list[str]:
+    try:
+        receipt = _strict(value, CLOSE_FIELDS, "close")
+        if (
+            not _nonempty(receipt.get("bead_id"))
+            or not _nonempty(receipt.get("actor"))
+            or receipt.get("outcome") not in CLOSE_OUTCOMES
+            or not _sha256(receipt.get("reason_sha256"))
+            or not _sha256(receipt.get("pre_show_sha256"))
+        ):
+            raise NativePoolAdmissionError("close-identity-invalid")
+        post_hash = receipt.get("post_show_sha256")
+        if post_hash is not None and not _sha256(post_hash):
+            raise NativePoolAdmissionError(
+                "close-post-show-sha256-invalid"
+            )
+        command_hash = receipt.get("command_sha256")
+        if command_hash is not None and not _sha256(command_hash):
+            raise NativePoolAdmissionError("close-command-sha256-invalid")
+        if (
+            type(receipt.get("command_timed_out")) is not bool
+            or type(receipt.get("closed")) is not bool
+        ):
+            raise NativePoolAdmissionError("close-state-invalid")
+        returncode = receipt.get("command_returncode")
+        if returncode is not None and (
+            isinstance(returncode, bool) or not isinstance(returncode, int)
+        ):
+            raise NativePoolAdmissionError(
+                "close-command-returncode-invalid"
+            )
+        if command_hash is None and (
+            returncode is not None or receipt["command_timed_out"]
+        ):
+            raise NativePoolAdmissionError(
+                "close-command-evidence-inconsistent"
+            )
+        if (
+            receipt["outcome"] == "preclosed-replay"
+            and command_hash is not None
+        ):
+            raise NativePoolAdmissionError(
+                "close-preclosed-command-forbidden"
+            )
+        if receipt["outcome"] == "closed" and (
+            command_hash is None
+            or returncode != 0
+            or receipt["command_timed_out"]
+        ):
+            raise NativePoolAdmissionError(
+                "close-success-command-evidence-invalid"
+            )
+        if receipt["outcome"] == "closed-after-timeout" and (
+            command_hash is None
+            or returncode is not None
+            or receipt["command_timed_out"] is not True
+        ):
+            raise NativePoolAdmissionError(
+                "close-timeout-command-evidence-invalid"
+            )
+        if receipt["outcome"] == "closed-after-command-error" and (
+            command_hash is None
+            or returncode in (None, 0)
+            or receipt["command_timed_out"]
+        ):
+            raise NativePoolAdmissionError(
+                "close-error-command-evidence-invalid"
+            )
+        if receipt["closed"] is not receipt["outcome"].startswith("closed"):
+            raise NativePoolAdmissionError("close-outcome-state-mismatch")
+        if receipt["closed"] and post_hash is None:
+            raise NativePoolAdmissionError(
+                "close-post-show-sha256-missing"
+            )
+        _verify_seal(receipt, "close_sha256", "close")
+    except NativePoolAdmissionError as exc:
+        return [str(exc)]
+    return []
 
 
 def validate_claim_receipt(value: Any) -> list[str]:

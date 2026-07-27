@@ -79,10 +79,18 @@ CLAIM_TYPE = "cwo-native-tool-activation-claim"
 CLAIM_VERSION = 1
 CLAIM_SCHEMA = "schemas/native-tool-activation-claim.schema.json"
 RESULT_TYPE = "cwo-native-tool-activation-result"
-RESULT_VERSION = 1
-RESULT_SCHEMA = "schemas/native-tool-activation-result.schema.json"
+RESULT_VERSION = 2
+RESULT_SCHEMA = "schemas/native-tool-activation-result-v2.schema.json"
 KEY_NAME = "activation-preview.key"
 MODEL = "gpt-5.3-codex-spark"
+MUTABLE_PATCH_INPUT = (
+    "*** Begin Patch\n"
+    "*** Update File: targets/activation.txt\n"
+    "@@\n"
+    "+activation-preview-mutated\n"
+    "*** End of File\n"
+    "*** End Patch\n"
+)
 PLAN_TTL_SECONDS = 3600
 APPROVAL_TTL_MAX_SECONDS = 600
 APPROVAL_TTL_MIN_SECONDS = 60
@@ -355,12 +363,107 @@ def _fixed_prompt(profile: str, ordinal: int) -> tuple[str, str]:
         )
     token = "ACTIVATION_MUTABLE_0_OK"
     return (
-        "Use apply_patch exactly once to append the exact line "
-        "`activation-preview-mutated` to targets/activation.txt and do not "
-        "modify any other file. Then use exec_command exactly once to run "
-        f"`git diff --check`. Return exactly {token}.",
+        "Use apply_patch exactly once with exactly this payload:\n"
+        f"{MUTABLE_PATCH_INPUT}"
+        "Do not modify any other file. Then use exec_command exactly once "
+        "to run `git diff --check`. "
+        f"Return exactly {token}.",
         token,
     )
+
+
+def _activation_argument_hash(arguments: Any) -> str:
+    """Match the trusted transport's canonical argument digest."""
+
+    encoded = json.dumps(
+        arguments,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def fixed_activation_tool_trace(
+    profile: str,
+    ordinal: int,
+    *,
+    worktree: Path | str,
+) -> list[dict[str, Any]]:
+    """Compile the exact trusted trace required by a fixed activation profile."""
+
+    worktree_value = str(Path(worktree))
+
+    def exec_hashes(command: str) -> list[str]:
+        return sorted(
+            {
+                _activation_argument_hash({"cmd": command}),
+                _activation_argument_hash(
+                    {"cmd": command, "workdir": worktree_value}
+                ),
+                _activation_argument_hash(
+                    {
+                        "cmd": command,
+                        "workdir": worktree_value,
+                        "login": False,
+                    }
+                ),
+            }
+        )
+
+    if profile in {"n1-read-only", "n2-read-only"}:
+        calls = (
+            (
+                "exec_command",
+                exec_hashes("git rev-parse HEAD"),
+                "read",
+                [],
+            ),
+            (
+                "exec_command",
+                exec_hashes("sha256sum data/shared.txt"),
+                "read",
+                ["data/shared.txt"],
+            ),
+        )
+    elif profile == "n1-mutable" and ordinal == 0:
+        calls = (
+            (
+                "apply_patch",
+                [_activation_argument_hash(MUTABLE_PATCH_INPUT)],
+                "write",
+                ["targets/activation.txt"],
+            ),
+            (
+                "exec_command",
+                exec_hashes("git diff --check"),
+                "test",
+                [],
+            ),
+        )
+    else:
+        raise NativeActivationPreviewError(
+            "activation-tool-trace-profile-invalid"
+        )
+    return [
+        {
+            "sequence": sequence,
+            "tool": tool,
+            "canonical_argument_hashes": argument_hashes,
+            "action_class": action_class,
+            "determinable_target_paths": target_paths,
+            "pairing_status": "paired",
+            "result_kind": "paired-success",
+            "exit_code": 0,
+        }
+        for sequence, (
+            tool,
+            argument_hashes,
+            action_class,
+            target_paths,
+        ) in enumerate(calls)
+    ]
 
 
 def _create_git_layout(run_root: Path, activation_id: str, profile: str) -> dict[str, Any]:

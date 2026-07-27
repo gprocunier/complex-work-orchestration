@@ -46,6 +46,7 @@
           <a href="#policies">Policies</a>
           <a href="#operator-controls">Operator Controls</a>
           <a href="#schemas">Schemas</a>
+          <a href="#activation-artifacts">Activation Artifacts</a>
           <a href="#run-readiness">Run Readiness</a>
           <a href="#codex-hooks">Codex Hooks</a>
           <a href="#experts">Experts</a>
@@ -171,11 +172,41 @@
               <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
               <div role="row"><span role="cell">Sprint continuation</span><code role="cell">schemas/sprint-continuation.schema.json</code></div>
               <div role="row"><span role="cell">Execution status report</span><code role="cell">schemas/execution-status-report.schema.json</code></div>
+              <div role="row"><span role="cell">Activation result v2</span><code role="cell">schemas/native-tool-activation-result-v2.schema.json</code></div>
+              <div role="row"><span role="cell">Activation exact trace</span><code role="cell">schemas/native-tool-activation-trace.schema.json</code></div>
+              <div role="row"><span role="cell">Activation Bead closure</span><code role="cell">schemas/native-tool-activation-bead-closure.schema.json</code></div>
             </div>
             <p>
               Research-style contractor returns can add optional source-grounded
               evidence fields to those schemas. They remain evaluator input,
               not direct synthesis or implementation authority.
+            </p>
+          </section>
+
+          <section id="activation-artifacts">
+            <h2>Activation Artifacts</h2>
+            <p>
+              The disabled one-shot activation runner derives an exact ordered
+              two-call trace for each fixed profile. Every failed, retried,
+              extra, reordered, wrong-argument, unknown-result, or
+              contradictory call counts and makes the pool and result
+              non-accepting. Only a durable terminal event can finalize the
+              trace.
+            </p>
+            <p>
+              An accepting controller writes private
+              <code>activation-tool-trace.json</code> evidence, then closes
+              only the pool-authorized implementation child Beads, once and in
+              task order. It never closes the parent or publication Bead,
+              retries a close, reopens a Bead, or rolls back a partial close.
+              The private <code>activation-bead-closure.json</code> records
+              exact reconciliation.
+            </p>
+            <p>
+              Accepted activation result v2 binds both artifact hashes through
+              <code>tool_trace_sha256</code> and
+              <code>bead_closure_sha256</code>. Result v1 remains historical
+              inspection only.
             </p>
           </section>
 
