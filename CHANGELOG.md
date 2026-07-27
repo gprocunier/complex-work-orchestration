@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Make mutable activation evidence phase-aware and contain proven
+  never-turned, pre-rollout activation threads with a request-bound delete
+  proof while preserving fail-closed diagnostics.
 - Add a disabled-by-default, one-shot native tool-boundary activation preview
   for fixed N=1/N=2 read-only or N=1 mutable certification, with private signed
   approvals, permanent claims, a separate intent ledger, and no retry or
