@@ -59,6 +59,12 @@ ALLOWED_IMPORTS = {
     "proportional_execution": {"native_capability", "native_containment"},
     "native_containment": {"native_release", "policy"},
     "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
+    "native_tool_activation": {
+        "native_authority",
+        "native_pool_admission",
+        "native_recovery_authority",
+        "native_tool_isolation",
+    },
     "native_tool_isolation": set(),
     "native_stop_scope": {"native_authority"},
     "native_pool_admission": {
@@ -112,6 +118,7 @@ ALLOWED_IMPORTS = {
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_preflight",
+        "native_tool_activation",
     },
     "native_pool_config": {
         "native_control",
@@ -132,6 +139,7 @@ ALLOWED_IMPORTS = {
         "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_schedulability",
+        "native_tool_activation",
         "native_tool_isolation",
     },
     "native_pool_proportionality": {

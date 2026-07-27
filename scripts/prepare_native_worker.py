@@ -9,7 +9,7 @@ import math
 from pathlib import Path
 import shlex
 import uuid
-from typing import Any
+from typing import Any, Mapping
 
 from cwo_core.checked_command_sequence import normalize_sequence_spec
 from cwo_core.paths import assert_safe_output_path, cwo_temp_dir, is_cwo_temp_path
@@ -22,7 +22,6 @@ from cwo_core.native_precommit import (
     validate_precommit_receipt,
 )
 from cwo_core.native_release import validate_native_release_evidence
-from cwo_core.native_recovery import verify_native_worker_semantics
 from cwo_core.native_tool_isolation import (
     NativeToolIsolationError,
     default_tool_policy,
@@ -76,6 +75,9 @@ NATIVE_WORK_PLAN_SCHEMA = "schemas/native-work-estimate.schema.json"
 NATIVE_WORKER_COMMITMENT_SCHEMA = "schemas/native-worker-commitment.schema.json"
 NATIVE_PRECOMMIT_STATE_SCHEMA = "schemas/native-precommit-state.schema.json"
 NATIVE_PRECOMMIT_RECEIPT_SCHEMA = "schemas/native-precommit-receipt.schema.json"
+NATIVE_TOOL_ENFORCEMENT_OVERRIDE_SCHEMA = (
+    "schemas/native-tool-enforcement-override.schema.json"
+)
 
 
 def _required_string_list(
@@ -538,6 +540,7 @@ def _build_native_worker_packet_unreserved(
     phase: str | None = None,
     permitted_tools: list[str] | None = None,
     forbidden_tools: list[str] | None = None,
+    tool_enforcement_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not str(bead_id).strip():
         raise SystemExit("bead-id must be non-empty")
@@ -612,6 +615,7 @@ def _build_native_worker_packet_unreserved(
             workload_class="operative",
             permitted_tools=permitted_tools,
             forbidden_tools=forbidden_tools,
+            enforcement_override=tool_enforcement_override,
         )
     except NativeToolIsolationError as exc:
         raise SystemExit(str(exc)) from exc
@@ -998,6 +1002,17 @@ def validate_native_worker_packet(
             error.replace("tool-policy", "tool_policy", 1)
             for error in validate_tool_policy(tool_policy)
         )
+        if (
+            dispatchable
+            and isinstance(tool_policy, Mapping)
+            and tool_policy.get("workload_class") == "operative"
+            and tool_policy.get("enforcement_mode")
+            == "trusted-detect-and-contain"
+        ):
+            errors.append(
+                "tool_policy temporary enforcement requires an admitted-pool "
+                "activation capability"
+            )
 
     scope = payload.get("scope")
     if not isinstance(scope, dict):
@@ -1840,7 +1855,7 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         f"Bead: {payload['bead_id']}",
         f"Lane: {payload['lane']}",
         f"Model: {payload['requested_model']}",
-        f"Session policy: fresh session, no-tools attestation, self-report forbidden",
+        "Session policy: fresh session, no-tools attestation, self-report forbidden",
         f"Permitted tools: {', '.join(tool_policy['permitted_tools'])}",
         f"Tool enforcement: {tool_policy['enforcement_mode']}",
         f"Workdir: {scope['workdir']}",
@@ -1914,6 +1929,7 @@ def validate_schema_files() -> list[str]:
         NATIVE_WORKER_COMMITMENT_SCHEMA,
         NATIVE_PRECOMMIT_STATE_SCHEMA,
         NATIVE_PRECOMMIT_RECEIPT_SCHEMA,
+        NATIVE_TOOL_ENFORCEMENT_OVERRIDE_SCHEMA,
     ]:
         path = Path(relative)
         try:
@@ -1943,6 +1959,7 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--requested-model")
     build.add_argument("--permitted-tool", action="append", dest="permitted_tools")
     build.add_argument("--forbidden-tool", action="append", dest="forbidden_tools")
+    build.add_argument("--tool-enforcement-override")
     for field in sorted(ALLOWED_BUDGET_FIELDS):
         build.add_argument("--" + field.replace("_", "-"), type=int, dest=field)
     build.add_argument("--validation-root-packet-id")
@@ -1980,6 +1997,11 @@ def main() -> None:
         work_plan = _load_json_payload(args.work_plan) if args.work_plan else None
         worker_commitment = _load_json_payload(args.worker_commitment) if args.worker_commitment else None
         precommit_receipt = _load_json_payload(args.precommit_receipt) if args.precommit_receipt else None
+        tool_enforcement_override = (
+            _load_json_payload(args.tool_enforcement_override)
+            if args.tool_enforcement_override
+            else None
+        )
         packet = build_native_worker_packet(
             bead_id=args.bead_id,
             lane=args.lane,
@@ -1998,6 +2020,7 @@ def main() -> None:
             requested_model=args.requested_model,
             permitted_tools=args.permitted_tools,
             forbidden_tools=args.forbidden_tools,
+            tool_enforcement_override=tool_enforcement_override,
         )
         _emit_payload(packet, args.output)
         return

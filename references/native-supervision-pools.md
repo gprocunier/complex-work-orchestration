@@ -40,6 +40,46 @@ The public contract is deliberately small:
 See [Pool Capacity Naming Migration](native-pool-capacity-migration.md) for the
 canonical field inventory and the bounded historical-read compatibility window.
 
+## Temporary Audited Tool Boundary
+
+Exact server-side tool enforcement remains the default for operative workers.
+When the app server cannot prove that exact allowlist, an ordinary operative
+launch still fails closed.
+
+The repository contains a narrower `trusted-detect-and-contain` contract for a
+separately activated Tech Preview. It accepts the explicit risk that
+`unlisted-built-ins-may-act-before-detection`, so it is not equivalent to
+server-side prevention. The serialized tool-enforcement override records the
+candidate, campaign, outer authorization, maximum two-worker cohort, maximum
+one mutation lane, and risk acknowledgement. Its self-hash proves only that
+those fields have not changed; it is intent and audit evidence, never dispatch
+authority.
+
+Temporary activation requires an opaque
+`VerifiedToolEnforcementActivation` minted by `OperatorApprovalVerifier` from a
+signed, unexpired operator approval. The capability is bound to the exact
+candidate, campaign, pool identity, fixed child cohort, worker counts, and risk
+statement. Pool preflight rejects a missing, copied, serialized, expired,
+replayed, or mismatched capability. The supported admitted launcher consumes
+the capability before lease acquisition, so a later launch error cannot make
+it reusable. If exact server allowlisting is available, the weaker mode is
+rejected as unnecessary.
+
+The trusted host constructs the verifier and keeps its verification key and
+replay store outside the hostile worker process. A process that controls that
+trust root is the operator control plane, not an untrusted activation caller;
+expanding the threat model to a compromised host requires an external trust
+anchor.
+
+There is deliberately no JSON or command-line representation of activation
+authority. `prepare_native_worker.py --tool-enforcement-override` may embed the
+audit-only intent in a packet, but that packet is rejected by dispatchable
+packet validation and cannot start the single-worker supervisor. Preflight
+acceptance is evidence, not dispatch permission. The normal operator path
+remains unavailable until the separate one-shot activation runner is reviewed,
+published, and explicitly activated; no live activation is implied by the
+presence of these contracts.
+
 ## Trusted Live Canary Gate
 
 The release canary is a separate, single-shot controller:

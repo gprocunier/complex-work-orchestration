@@ -131,6 +131,12 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_retry": {"native_authority"},
     "native_control": set(),
     "native_tool_isolation": set(),
+    "native_tool_activation": {
+        "native_authority",
+        "native_pool_admission",
+        "native_recovery_authority",
+        "native_tool_isolation",
+    },
     "native_stop_scope": {"native_authority"},
     "native_pool_admission": {
         "beads",
@@ -177,6 +183,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_contracts",
         "native_pool_leases",
         "native_pool_preflight",
+        "native_tool_activation",
     },
     "native_pool_config": {
         "native_control",
@@ -197,6 +204,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_capacity",
         "native_pool_contracts",
         "native_pool_schedulability",
+        "native_tool_activation",
         "native_tool_isolation",
     },
     "native_pool_proportionality": {
@@ -666,6 +674,28 @@ def validate_repository() -> list[str]:
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
     validate_native_supervision_tech_preview_copy(errors)
+    require_doc_terms(
+        errors,
+        "references/native-supervision-pools.md",
+        [
+            "Temporary Audited Tool Boundary",
+            "intent and audit evidence, never dispatch authority",
+            "VerifiedToolEnforcementActivation",
+            "keeps its verification key and",
+            "rejected by dispatchable packet validation",
+            "no live activation is implied",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "references/execution-environments.md",
+        [
+            "--tool-enforcement-override",
+            "audit-only intent",
+            "cannot start `supervise_native_worker.py`",
+            "Activation authority has no JSON or CLI form",
+        ],
+    )
     validate_closure_pressure_contract(errors)
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
@@ -2211,6 +2241,18 @@ def validate_native_supervision_tech_preview_copy(
         (
             "single-flight boundary wording",
             "Precommit, critics, integration, retry, replay, and publication remain single-flight",
+        ),
+        (
+            "exact tool boundary wording",
+            "Exact server-side tool allowlisting remains the operative default",
+        ),
+        (
+            "override authority wording",
+            "<code>trusted-detect-and-contain</code> override is audit-only intent, not dispatch authority",
+        ),
+        (
+            "activation gate wording",
+            "unavailable until a separate one-shot runner and explicit activation gate are published",
         ),
         (
             "operator link",

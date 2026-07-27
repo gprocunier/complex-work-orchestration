@@ -159,6 +159,16 @@ python3 scripts/prepare_native_worker.py build \
   --output "<cwo-temp>/packet.json"
 ```
 
+The normal operative packet requires exact server-side tool allowlisting. The
+optional `--tool-enforcement-override` input is audit-only intent for the
+separately gated temporary tool-boundary preview; its self-hash does not grant
+authority. A packet containing that intent is deliberately rejected by
+dispatchable packet validation and cannot start `supervise_native_worker.py`.
+Activation authority has no JSON or CLI form: it must be an opaque,
+operator-verified, exact-cohort capability consumed by the admitted pool
+launcher. Until the separate one-shot activation runner is published and
+explicitly activated, do not use the override for operative work.
+
 Packet version 1 is historical-inspection-only. Rendering or dispatching it
 fails closed. Commitment version 1 is historical-inspection-only; commitment v2
 is the production precommit authority contract.

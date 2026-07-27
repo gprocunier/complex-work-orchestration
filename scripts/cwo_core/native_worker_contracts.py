@@ -6,7 +6,6 @@ future evidence contract but do not authorize dispatch or replay.
 
 from __future__ import annotations
 
-import datetime as dt
 import hashlib
 import json
 import re
@@ -456,6 +455,7 @@ def trusted_tool_name(item: Mapping[str, Any]) -> str:
 def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: str | None = None) -> list[dict[str, Any]]:
     """Normalize tool calls and outputs into deterministic fail-closed receipts."""
     calls: dict[str, dict[str, Any]] = {}
+    duplicate_call_ids: set[str] = set()
     outputs: dict[str, list[dict[str, Any]]] = {}
     events: list[tuple[int, Mapping[str, Any], dict[str, Any]]] = []
     for record_index, record in enumerate(records):
@@ -476,7 +476,11 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
         tool = trusted_tool_name(item)
         arguments = _argument_value(item)
         command = _command_from_arguments(arguments)
-        calls[call_id or f"__anonymous_{order}"] = {
+        call_key = call_id or f"__anonymous_{order}"
+        if call_key in calls:
+            duplicate_call_ids.add(call_key)
+            continue
+        calls[call_key] = {
             "order": order,
             "record": record,
             "item": item,
@@ -489,11 +493,20 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
         call_id = None if key.startswith("__anonymous_") else key
         paired = outputs.get(key, [])
         output = paired[0] if paired else None
+        ambiguous = key in duplicate_call_ids or len(paired) > 1
         output_item = output["item"] if output else None
         exit_code = output_item.get("exit_code") if isinstance(output_item, Mapping) else None
         if not isinstance(exit_code, int):
             exit_code = 0 if output and not output_item.get("error") else (1 if output and output_item.get("error") else None)
-        result_kind = "paired-success" if output and exit_code == 0 else "paired-failure" if output else "unpaired-call"
+        result_kind = (
+            "ambiguous-call-or-output-cardinality"
+            if ambiguous
+            else "paired-success"
+            if output and exit_code == 0
+            else "paired-failure"
+            if output
+            else "unpaired-call"
+        )
         receipts.append({
             "sequence": len(receipts),
             "timestamp": _timestamp(call["record"], call["item"]),
@@ -506,7 +519,9 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
             "determinable_target_paths": _target_paths(call["command"], call["arguments"]),
             "typed_result": {"kind": result_kind, "output_present": bool(output)},
             "exit_code": exit_code,
-            "pairing_status": "paired" if output else "unpaired",
+            "pairing_status": (
+                "ambiguous" if ambiguous else "paired" if output else "unpaired"
+            ),
         })
     for key, entries in sorted(outputs.items(), key=lambda pair: pair[1][0]["order"]):
         if key in calls:

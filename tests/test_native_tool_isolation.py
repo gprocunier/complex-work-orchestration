@@ -13,11 +13,36 @@ from cwo_core.native_tool_isolation import (  # noqa: E402
     build_tool_surface_snapshot,
     default_tool_policy,
     forbidden_tool_activity,
+    normalize_tool_policy,
     prompt_preflight,
     require_prompt_preflight,
     require_unchanged_tool_surface,
+    seal_tool_enforcement_override,
+    validate_tool_enforcement_override_binding,
     validate_tool_policy,
 )
+
+
+def temporary_override(**updates: object) -> dict[str, object]:
+    value: dict[str, object] = {
+        "override_type": "cwo-native-tool-enforcement-override",
+        "version": 1,
+        "schema": "schemas/native-tool-enforcement-override.schema.json",
+        "authorization_id": "11111111-1111-4111-8111-111111111111",
+        "authorization_canonical_sha256": "a" * 64,
+        "outer_authority_id": "22222222-2222-4222-8222-222222222222",
+        "outer_authority_file_sha256": "b" * 64,
+        "outer_authority_canonical_sha256": "c" * 64,
+        "campaign_nonce": "33333333-3333-4333-8333-333333333333",
+        "candidate_commit": "d" * 40,
+        "candidate_tree": "e" * 40,
+        "max_workers": 2,
+        "max_mutating_workers": 1,
+        "single_use": True,
+        "risk_acknowledgement": "unlisted-built-ins-may-act-before-detection",
+    }
+    value.update(updates)
+    return seal_tool_enforcement_override(value)
 
 
 class NativeToolIsolationTests(unittest.TestCase):
@@ -34,7 +59,7 @@ class NativeToolIsolationTests(unittest.TestCase):
 
         policy["enforcement_mode"] = "trusted-detect-and-contain"
         self.assertIn(
-            "tool-policy-operative-requires-server-allowlist",
+            "tool-policy-operative-detect-and-contain-requires-enforcement-override",
             validate_tool_policy(policy),
         )
 
@@ -44,7 +69,10 @@ class NativeToolIsolationTests(unittest.TestCase):
         policy["override_provenance"] = {"authority": "self-report"}
         errors = validate_tool_policy(policy)
         self.assertIn("tool-policy-permitted-forbidden-overlap", errors)
-        self.assertIn("tool-policy-override-provenance-not-yet-authorized", errors)
+        self.assertIn(
+            "tool-policy-operative-unnecessary-tool-enforcement-override",
+            errors,
+        )
 
         expansion = default_tool_policy(mutable=False)
         expansion["permitted_tools"] = ["exec_command", "view_image"]
@@ -62,6 +90,100 @@ class NativeToolIsolationTests(unittest.TestCase):
             default_tool_policy(
                 mutable=False,
                 forbidden_tools=[{"not": "a tool"}],  # type: ignore[list-item]
+            )
+
+    def test_temporary_operative_override_is_explicit_and_hash_bound(self) -> None:
+        override = temporary_override()
+        policy = default_tool_policy(
+            mutable=True,
+            enforcement_override=override,
+        )
+        self.assertEqual(
+            policy["enforcement_mode"], "trusted-detect-and-contain"
+        )
+        self.assertEqual(normalize_tool_policy(policy), policy)
+        self.assertEqual(validate_tool_policy(policy), [])
+
+        snapshot = build_tool_surface_snapshot(
+            policy,
+            source="test-server",
+            server_allowlist_supported=False,
+            allowlist_parameter=None,
+            effective_allowlist=None,
+        )
+        self.assertEqual(snapshot["override_provenance"], override)
+        self.assertIsNone(snapshot["effective_allowlist"])
+
+        tampered = dict(override)
+        tampered["candidate_tree"] = "f" * 40
+        policy["override_provenance"] = tampered
+        self.assertTrue(
+            any(
+                error.endswith("canonical-hash-mismatch")
+                for error in validate_tool_policy(policy)
+            )
+        )
+
+    def test_temporary_override_must_match_live_campaign_and_capacity(self) -> None:
+        override = temporary_override()
+        expected = {
+            "authorization_id": override["authorization_id"],
+            "authorization_canonical_sha256": override[
+                "authorization_canonical_sha256"
+            ],
+            "outer_authority_id": override["outer_authority_id"],
+            "outer_authority_file_sha256": override[
+                "outer_authority_file_sha256"
+            ],
+            "outer_authority_canonical_sha256": override[
+                "outer_authority_canonical_sha256"
+            ],
+            "campaign_nonce": override["campaign_nonce"],
+            "candidate_commit": override["candidate_commit"],
+            "candidate_tree": override["candidate_tree"],
+        }
+        self.assertEqual(
+            validate_tool_enforcement_override_binding(
+                override,
+                **expected,
+                requested_workers=2,
+                mutating_workers=1,
+            ),
+            [],
+        )
+        errors = validate_tool_enforcement_override_binding(
+            override,
+            **{**expected, "campaign_nonce": "44444444-4444-4444-8444-444444444444"},
+            requested_workers=3,
+            mutating_workers=2,
+        )
+        self.assertIn(
+            "tool-enforcement-override-campaign-nonce-mismatch", errors
+        )
+        self.assertIn(
+            "tool-enforcement-override-requested-workers-exceed-override",
+            errors,
+        )
+        self.assertIn(
+            "tool-enforcement-override-mutating-workers-exceed-override",
+            errors,
+        )
+
+    def test_exact_capability_rejects_weaker_operative_override(self) -> None:
+        policy = default_tool_policy(
+            mutable=False,
+            enforcement_override=temporary_override(),
+        )
+        with self.assertRaisesRegex(
+            NativeToolIsolationError,
+            "override-unnecessary-exact-capability-available",
+        ):
+            build_tool_surface_snapshot(
+                policy,
+                source="test-server",
+                server_allowlist_supported=True,
+                allowlist_parameter="nativeTools",
+                effective_allowlist=["exec_command", "write_stdin"],
             )
 
     def test_prompt_preflight_reports_rule_and_location_without_rewriting(self) -> None:

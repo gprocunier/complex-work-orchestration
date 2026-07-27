@@ -142,6 +142,7 @@ from cwo_core.native_tool_isolation import (  # noqa: E402
     normalize_tool_policy,
     require_prompt_preflight,
     require_unchanged_tool_surface,
+    validate_tool_enforcement_override_binding,
     validate_tool_policy,
     validate_tool_surface_snapshot,
 )
@@ -3613,20 +3614,37 @@ def trusted_tool_evidence_summary(
         records[start_index + 1 : end_index],
         segment_id=turn_id,
     )
-    calls = [
-        receipt
-        for receipt in receipts
-        if receipt.get("typed_result", {}).get("kind") != "unpaired-output"
-    ]
+    calls = list(receipts)
     completed = [
         receipt for receipt in calls if receipt.get("pairing_status") == "paired"
     ]
     trusted_activity = []
     for receipt in calls:
         raw_tool = str(receipt.get("tool") or "").strip().lower()
-        tool = raw_tool if re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", raw_tool) else "unknown"
+        normalized_tool = (
+            raw_tool
+            if re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", raw_tool)
+            else "unknown"
+        )
+        typed_result = receipt.get("typed_result")
+        result_kind = (
+            typed_result.get("kind")
+            if isinstance(typed_result, Mapping)
+            else None
+        )
+        telemetry_anomaly = (
+            receipt.get("pairing_status") == "ambiguous"
+            or result_kind == "unpaired-output"
+            or normalized_tool == "unknown"
+        )
+        tool = (
+            f"telemetry_anomaly.{normalized_tool[:96]}"
+            if telemetry_anomaly
+            else normalized_tool
+        )
         activity_payload = {
             "tool": tool,
+            "reported_tool": normalized_tool,
             "call_id_sha256": (
                 hashlib.sha256(str(receipt["call_id"]).encode("utf-8")).hexdigest()
                 if receipt.get("call_id")
@@ -3641,6 +3659,8 @@ def trusted_tool_evidence_summary(
             {
                 "tool": tool,
                 "evidence_sha256": canonical_sha256(activity_payload),
+                "pairing_status": receipt.get("pairing_status"),
+                "result_kind": result_kind,
             }
         )
     evidence_sha256 = sorted(
@@ -4090,9 +4110,82 @@ class LiveThreadAdapter:
     def _observe_forbidden_tool_activity(
         self, boundary: Mapping[str, Any]
     ) -> list[dict[str, str]]:
+        trusted_activity = list(boundary.get("trusted_tool_activity", []))
+        if (
+            self.tool_policy["workload_class"] == "operative"
+            and self.tool_policy["enforcement_mode"]
+            == "trusted-detect-and-contain"
+        ):
+            item_types = [
+                str(item.get("type"))
+                for item in turn_items(self.last_thread, self.turn_id)
+                if item.get("type")
+            ]
+            projected_tool_calls = sum(
+                item_type in OPERATIVE_ITEM_TYPES for item_type in item_types
+            )
+            terminal_event = boundary.get("terminal_event")
+            durable_status = (
+                terminal_event.get("status")
+                if isinstance(terminal_event, Mapping)
+                else None
+            )
+            projected_status = turn_status(self.last_thread, self.turn_id)
+            trusted_tool_calls = int(boundary.get("trusted_tool_calls", 0))
+            terminal = (durable_status or projected_status) in {
+                "completed",
+                "failed",
+                "interrupted",
+            }
+            for item in list(trusted_activity):
+                if (
+                    terminal
+                    and isinstance(item, Mapping)
+                    and item.get("pairing_status") == "unpaired"
+                    and item.get("result_kind") == "unpaired-call"
+                ):
+                    reported_tool = str(item.get("tool") or "unknown")
+                    trusted_activity.append(
+                        {
+                            "tool": (
+                                "telemetry_anomaly."
+                                + (
+                                    reported_tool
+                                    if re.fullmatch(
+                                        r"[a-z][a-z0-9_.:-]{0,96}",
+                                        reported_tool,
+                                    )
+                                    else "unknown"
+                                )
+                            ),
+                            "evidence_sha256": canonical_sha256(
+                                {
+                                    "reported_activity": dict(item),
+                                    "reason": "terminal-unpaired-call",
+                                }
+                            ),
+                        }
+                    )
+            if (
+                terminal
+                and projected_tool_calls > trusted_tool_calls
+            ):
+                trusted_activity.append(
+                    {
+                        "tool": "telemetry_anomaly.missing_call_receipt",
+                        "evidence_sha256": canonical_sha256(
+                            {
+                                "thread_id": self.thread_id,
+                                "turn_id": self.turn_id,
+                                "projected_tool_calls": projected_tool_calls,
+                                "trusted_tool_calls": trusted_tool_calls,
+                            }
+                        ),
+                    }
+                )
         try:
             observed = forbidden_tool_activity(
-                boundary.get("trusted_tool_activity", []), self.tool_policy
+                trusted_activity, self.tool_policy
             )
         except NativeToolIsolationError as exc:
             raise AppServerError(str(exc)) from exc
@@ -4340,12 +4433,12 @@ class LiveThreadAdapter:
 
     def _trusted_summary(self, *, allow_pending: bool = True) -> dict[str, Any]:
         boundary = self._capture_trusted_boundary(allow_pending=allow_pending)
-        violations = self._observe_forbidden_tool_activity(boundary)
         items = turn_items(self.last_thread, self.turn_id)
         item_types = [str(item.get("type")) for item in items if item.get("type")]
         projected_tool_calls = sum(
             item_type in OPERATIVE_ITEM_TYPES for item_type in item_types
         )
+        violations = self._observe_forbidden_tool_activity(boundary)
         compactions = item_types.count("contextCompaction") + len(
             self.server.notifications(self.thread_id, "thread/compacted")
         )
@@ -4381,6 +4474,7 @@ class LiveThreadAdapter:
             if isinstance(terminal_event, Mapping)
             else None
         )
+        trusted_tool_calls = int(boundary.get("trusted_tool_calls", 0))
         return {
             "thread_id": self.thread_id,
             "turn_id": self.turn_id,
@@ -4393,7 +4487,7 @@ class LiveThreadAdapter:
             "model_exact": model_exact,
             "reroute_count": len(reroutes),
             "compactions": compactions,
-            "tool_calls": int(boundary.get("trusted_tool_calls", 0)),
+            "tool_calls": trusted_tool_calls,
             "completed_tool_calls": int(
                 boundary.get("trusted_completed_tool_calls", 0)
             ),
@@ -6266,6 +6360,7 @@ def build_pool_inputs(
     )
     if len(raw_tool_policies) != len(worktrees):
         raise AppServerError("tool-policy-cardinality-mismatch")
+    requested_workers = len(worktrees)
     normalized_tool_policies: list[dict[str, Any]] = []
     prompt_preflights: list[dict[str, Any]] = []
     preflight_tool_surfaces: list[dict[str, Any]] = []
@@ -6289,7 +6384,55 @@ def build_pool_inputs(
         preflight_tool_surfaces.append(
             capture_server_tool_surface(server, normalized_policy)
         )
-    requested_workers = len(worktrees)
+    temporary_overrides = [
+        (index, policy["override_provenance"])
+        for index, policy in enumerate(normalized_tool_policies)
+        if policy["workload_class"] == "operative"
+        and policy["enforcement_mode"] == "trusted-detect-and-contain"
+    ]
+    if temporary_overrides:
+        candidate = campaign_manifest.get("candidate")
+        outer_authority = campaign_manifest.get("outer_authority")
+        candidate_map = candidate if isinstance(candidate, Mapping) else {}
+        outer_map = (
+            outer_authority if isinstance(outer_authority, Mapping) else {}
+        )
+        override_hashes: set[str] = set()
+        override_errors: list[str] = []
+        for index, override in temporary_overrides:
+            if isinstance(override, Mapping):
+                override_hash = override.get("canonical_override_sha256")
+                if isinstance(override_hash, str):
+                    override_hashes.add(override_hash)
+            override_errors.extend(
+                validate_tool_enforcement_override_binding(
+                    override,
+                    authorization_id=campaign_manifest.get("authorization_id"),
+                    authorization_canonical_sha256=campaign_manifest.get(
+                        "authorization_canonical_sha256"
+                    ),
+                    outer_authority_id=outer_map.get("authority_id"),
+                    outer_authority_file_sha256=outer_map.get("file_sha256"),
+                    outer_authority_canonical_sha256=outer_map.get(
+                        "canonical_sha256"
+                    ),
+                    campaign_nonce=campaign_manifest.get("campaign_nonce"),
+                    candidate_commit=candidate_map.get("commit"),
+                    candidate_tree=candidate_map.get("tree"),
+                    requested_workers=requested_workers,
+                    mutating_workers=requested_workers if mutable else 0,
+                    prefix=f"child[{index}]-tool-enforcement-override",
+                )
+            )
+        if len(override_hashes) != 1:
+            override_errors.append(
+                "tool-enforcement-override-cohort-binding-mismatch"
+            )
+        if override_errors:
+            raise AppServerError(
+                "tool-enforcement-override-invalid:"
+                + ";".join(sorted(set(override_errors)))
+            )
     aggregate_hard_budget = {
         "tool_calls": 20,
         "runtime_seconds": 300,

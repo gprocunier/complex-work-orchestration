@@ -53,6 +53,61 @@
         "commands": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/checkedCommandSpec"}}
       },
       "required": ["spec_type", "version", "sequence_id", "packet_id", "work_plan_sha256", "workdir", "commands"]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitObject": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "toolEnforcementOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "override_type",
+        "version",
+        "schema",
+        "authorization_id",
+        "authorization_canonical_sha256",
+        "outer_authority_id",
+        "outer_authority_file_sha256",
+        "outer_authority_canonical_sha256",
+        "campaign_nonce",
+        "candidate_commit",
+        "candidate_tree",
+        "max_workers",
+        "max_mutating_workers",
+        "single_use",
+        "risk_acknowledgement",
+        "canonical_override_sha256"
+      ],
+      "properties": {
+        "override_type": {"const": "cwo-native-tool-enforcement-override"},
+        "version": {"const": 1},
+        "schema": {"const": "schemas/native-tool-enforcement-override.schema.json"},
+        "authorization_id": {"$ref": "#/$defs/uuid"},
+        "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "outer_authority_id": {"$ref": "#/$defs/uuid"},
+        "outer_authority_file_sha256": {"$ref": "#/$defs/sha256"},
+        "outer_authority_canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "campaign_nonce": {"$ref": "#/$defs/uuid"},
+        "candidate_commit": {"$ref": "#/$defs/gitObject"},
+        "candidate_tree": {"$ref": "#/$defs/gitObject"},
+        "max_workers": {"const": 2},
+        "max_mutating_workers": {"const": 1},
+        "single_use": {"const": true},
+        "risk_acknowledgement": {"const": "unlisted-built-ins-may-act-before-detection"},
+        "canonical_override_sha256": {"$ref": "#/$defs/sha256"}
+      }
     }
   },
   "required": [
@@ -190,10 +245,36 @@
           "uniqueItems": true,
           "items": {"type": "string", "pattern": "^[a-z][a-z0-9_.:-]{0,127}$"}
         },
-        "enforcement_mode": {"const": "server-allowlist-required"},
+        "enforcement_mode": {
+          "enum": [
+            "server-allowlist-required",
+            "trusted-detect-and-contain"
+          ]
+        },
         "workload_class": {"const": "operative"},
-        "override_provenance": {"type": "null"}
-      }
+        "override_provenance": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/toolEnforcementOverride"}
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "enforcement_mode": {"const": "server-allowlist-required"},
+            "override_provenance": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "enforcement_mode": {"const": "trusted-detect-and-contain"},
+            "override_provenance": {
+              "$ref": "#/$defs/toolEnforcementOverride"
+            }
+          }
+        }
+      ]
     },
     "scope": {
       "type": "object",
