@@ -30,6 +30,7 @@ from cwo_core.native_pool_admission import (  # noqa: E402
     canonical_admission_sha256,
     consume_pool_admission,
     reserve_pool_cohort,
+    validate_close_receipt,
     validate_dispatch_receipt,
     validate_reservation_receipt,
 )
@@ -113,10 +114,16 @@ class MemoryBdRunner:
         self.issues = {item["id"]: _exact_raw(item) for item in issues}
         self.actions: dict[str, list[str]] = {}
         self.claim_order: list[str] = []
+        self.close_order: list[str] = []
+        self.close_actions: dict[str, list[str]] = {}
+        self.fail_next_show: set[str] = set()
         self.calls: list[tuple[str, ...]] = []
 
     def queue(self, bead_id: str, *actions: str) -> None:
         self.actions.setdefault(bead_id, []).extend(actions)
+
+    def queue_close(self, bead_id: str, *actions: str) -> None:
+        self.close_actions.setdefault(bead_id, []).extend(actions)
 
     def __call__(self, args: tuple[str, ...], **kwargs: object) -> BdCommandResult:
         actor = str(kwargs.get("actor", self.actor))
@@ -124,12 +131,69 @@ class MemoryBdRunner:
         command = ("bd", *args)
         bead_id = args[1]
         if args[0] == "show":
+            if bead_id in self.fail_next_show:
+                self.fail_next_show.remove(bead_id)
+                return BdCommandResult(
+                    command=command,
+                    returncode=7,
+                    stdout="",
+                    stderr="show failed",
+                    timed_out=False,
+                    timeout_seconds=5,
+                )
             return BdCommandResult(
                 command=command,
                 returncode=0,
                 stdout=json.dumps([self.issues[bead_id]]),
                 stderr="",
                 timed_out=False,
+                timeout_seconds=5,
+            )
+        if args[0] == "close":
+            self.close_order.append(bead_id)
+            action = self.close_actions.get(
+                bead_id,
+                ["success"],
+            ).pop(0)
+            issue = self.issues[bead_id]
+            committed = action in {
+                "success",
+                "timeout-committed",
+                "error-committed",
+                "drift-committed",
+                "show-failed",
+            }
+            if committed:
+                reason = args[args.index("--reason") + 1]
+                issue.update(
+                    {
+                        "status": "closed",
+                        "updated_at": "2026-07-21T20:00:02Z",
+                        "closed_at": "2026-07-21T20:00:02Z",
+                        "close_reason": reason,
+                    }
+                )
+                if action == "drift-committed":
+                    issue["title"] += " drift"
+                if action == "show-failed":
+                    self.fail_next_show.add(bead_id)
+            timed_out = action in {
+                "timeout-committed",
+                "timeout-uncommitted",
+            }
+            returncode = (
+                None
+                if timed_out
+                else 7
+                if action == "error-committed"
+                else 0
+            )
+            return BdCommandResult(
+                command=command,
+                returncode=returncode,
+                stdout="[]",
+                stderr="close failed" if returncode else "",
+                timed_out=timed_out,
                 timeout_seconds=5,
             )
         if args[0] != "update":
@@ -648,6 +712,125 @@ class NativePoolAdmissionTests(unittest.TestCase):
         self.assertEqual(commits, [])
         self.assertEqual(capability.state, "available")
 
+    def test_close_owned_reconciles_exact_success_timeout_and_error(
+        self,
+    ) -> None:
+        for action, expected_outcome in (
+            ("success", "closed"),
+            ("timeout-committed", "closed-after-timeout"),
+            ("error-committed", "closed-after-command-error"),
+        ):
+            with self.subTest(action=action):
+                _candidate, items, _policy = _fixture_candidate(1)
+                runner = MemoryBdRunner(items)
+                adapter = _adapter(runner)
+                bead_id = items[0]["id"]
+                claim = adapter.claim(bead_id)
+                self.assertTrue(claim.owned)
+                runner.queue_close(bead_id, action)
+                transition = adapter.close_owned(
+                    bead_id,
+                    expected_pre_show_sha256=claim.receipt[
+                        "post_show_sha256"
+                    ],
+                    reason="fixed close reason",
+                )
+                self.assertTrue(transition.closed)
+                self.assertEqual(
+                    transition.receipt["outcome"],
+                    expected_outcome,
+                )
+                self.assertEqual(
+                    validate_close_receipt(transition.receipt),
+                    [],
+                )
+                self.assertEqual(runner.close_order, [bead_id])
+                if action == "success":
+                    for changes, expected in (
+                        (
+                            {"command_returncode": True},
+                            "close-command-returncode-invalid",
+                        ),
+                        (
+                            {
+                                "command_sha256": None,
+                                "command_returncode": None,
+                            },
+                            "close-success-command-evidence-invalid",
+                        ),
+                    ):
+                        changed = dict(transition.receipt)
+                        changed.update(changes)
+                        changed.pop("close_sha256")
+                        changed["close_sha256"] = (
+                            canonical_admission_sha256(changed)
+                        )
+                        self.assertEqual(
+                            validate_close_receipt(changed),
+                            [expected],
+                        )
+
+    def test_close_owned_fails_closed_without_retry_or_reopen(self) -> None:
+        for action, expected_outcome in (
+            ("timeout-uncommitted", "close-lost"),
+            ("drift-committed", "close-lost"),
+            ("show-failed", "close-show-failed"),
+        ):
+            with self.subTest(action=action):
+                _candidate, items, _policy = _fixture_candidate(1)
+                runner = MemoryBdRunner(items)
+                adapter = _adapter(runner)
+                bead_id = items[0]["id"]
+                claim = adapter.claim(bead_id)
+                runner.queue_close(bead_id, action)
+                transition = adapter.close_owned(
+                    bead_id,
+                    expected_pre_show_sha256=claim.receipt[
+                        "post_show_sha256"
+                    ],
+                    reason="fixed close reason",
+                )
+                self.assertFalse(transition.closed)
+                self.assertEqual(
+                    transition.receipt["outcome"],
+                    expected_outcome,
+                )
+                self.assertEqual(runner.close_order, [bead_id])
+
+    def test_close_owned_rejects_preclosed_or_ownership_drift_before_command(
+        self,
+    ) -> None:
+        for drift, expected_outcome in (
+            ("preclosed", "preclosed-replay"),
+            ("owner", "close-lost"),
+        ):
+            with self.subTest(drift=drift):
+                _candidate, items, _policy = _fixture_candidate(1)
+                runner = MemoryBdRunner(items)
+                adapter = _adapter(runner)
+                bead_id = items[0]["id"]
+                claim = adapter.claim(bead_id)
+                if drift == "preclosed":
+                    runner.issues[bead_id]["status"] = "closed"
+                    runner.issues[bead_id]["closed_at"] = (
+                        "2026-07-21T20:00:02Z"
+                    )
+                else:
+                    runner.issues[bead_id]["assignee"] = "other-actor"
+                transition = adapter.close_owned(
+                    bead_id,
+                    expected_pre_show_sha256=claim.receipt[
+                        "post_show_sha256"
+                    ],
+                    reason="fixed close reason",
+                )
+                self.assertFalse(transition.closed)
+                self.assertEqual(
+                    transition.receipt["outcome"],
+                    expected_outcome,
+                )
+                self.assertEqual(runner.close_order, [])
+
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_temporary_beads_claim_has_exact_started_at_transition(self) -> None:
         with TemporaryDirectory(prefix="cwo-p113b-beads-") as directory:
@@ -682,6 +865,29 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 "admission-real-test",
             )
             self.assertTrue(transition.post_issue["started_at"])
+
+            close = adapter.close_owned(
+                issue_id,
+                expected_pre_show_sha256=transition.receipt[
+                    "post_show_sha256"
+                ],
+                reason="real exact close",
+            )
+            self.assertTrue(close.closed)
+            self.assertEqual(close.post_issue["status"], "closed")
+            self.assertEqual(
+                close.post_issue["assignee"],
+                "admission-real-test",
+            )
+            self.assertEqual(
+                close.post_issue["started_at"],
+                transition.post_issue["started_at"],
+            )
+            self.assertTrue(close.post_issue["closed_at"])
+            self.assertEqual(
+                close.post_issue["close_reason"],
+                "real exact close",
+            )
 
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_concurrent_same_base_actor_allows_one_admission_commit(self) -> None:

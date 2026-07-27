@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-tool-activation-trace.schema.json",
+  "title": "CWO native tool activation exact trace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trace_type",
+    "version",
+    "schema",
+    "activation_id",
+    "plan_sha256",
+    "pool_receipt_sha256",
+    "children",
+    "all_satisfied",
+    "tool_trace_sha256"
+  ],
+  "properties": {
+    "trace_type": {"const": "cwo-native-tool-activation-trace"},
+    "version": {"const": 1},
+    "schema": {
+      "const": "schemas/native-tool-activation-trace.schema.json"
+    },
+    "activation_id": {"type": "string", "format": "uuid"},
+    "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "pool_receipt_sha256": {"$ref": "#/$defs/sha256"},
+    "children": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {"$ref": "#/$defs/child"}
+    },
+    "all_satisfied": {"type": "boolean"},
+    "tool_trace_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "tool",
+        "canonical_argument_hash",
+        "action_class",
+        "determinable_target_paths",
+        "pairing_status",
+        "result_kind",
+        "exit_code"
+      ],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 0},
+        "tool": {"type": "string", "minLength": 1},
+        "canonical_argument_hash": {"$ref": "#/$defs/sha256"},
+        "action_class": {
+          "enum": [
+            "control",
+            "network",
+            "publish",
+            "read",
+            "test",
+            "unknown",
+            "write"
+          ]
+        },
+        "determinable_target_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "pairing_status": {
+          "enum": ["ambiguous", "paired", "unpaired"]
+        },
+        "result_kind": {"type": "string", "minLength": 1},
+        "exit_code": {"type": ["integer", "null"]}
+      }
+    },
+    "child": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "child_id",
+        "bead_id",
+        "expected_tool_trace_sha256",
+        "observed_tool_trace_sha256",
+        "trusted_tool_receipts",
+        "satisfied"
+      ],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 1},
+        "child_id": {"type": "string", "minLength": 1},
+        "bead_id": {"type": "string", "minLength": 1},
+        "expected_tool_trace_sha256": {"$ref": "#/$defs/sha256"},
+        "observed_tool_trace_sha256": {"$ref": "#/$defs/sha256"},
+        "trusted_tool_receipts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/receipt"}
+        },
+        "satisfied": {"type": "boolean"}
+      }
+    }
+  }
+}

@@ -465,6 +465,19 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
                 acknowledgement, and explicit
                 <code>--enable-tech-preview</code>.
               </div>
+              <div class="callout">
+                <strong>Exact activation trace:</strong>
+                Each fixed activation profile requires its exact ordered
+                two-call trace. Every failed, retried, extra, reordered,
+                wrong-argument, unknown-result, or contradictory call counts
+                and makes the pool and result non-accepting. Only a durable
+                terminal event can finalize the trace. After the pool and trace
+                accept, the controller closes only authorized implementation
+                child Beads, once and in task order. It never closes the parent
+                or publication Bead, retries a close, or rolls back a partial
+                close. Accepted activation result v2 binds the private
+                exact-trace and Bead-closure artifact hashes.
+              </div>
               <p>
                 Before opting in, read the
                 <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">native supervision pool operator reference</a>

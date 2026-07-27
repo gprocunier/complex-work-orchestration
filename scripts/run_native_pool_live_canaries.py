@@ -4080,6 +4080,95 @@ def final_message_hash_and_match(
     return sha256_text(final), final.strip() == expected_token
 
 
+EXACT_TOOL_TRACE_STEP_FIELDS = frozenset(
+    {
+        "sequence",
+        "tool",
+        "canonical_argument_hashes",
+        "action_class",
+        "determinable_target_paths",
+        "pairing_status",
+        "result_kind",
+        "exit_code",
+    }
+)
+
+
+def _tool_receipt_projection(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    typed_result = receipt.get("typed_result")
+    return {
+        "sequence": receipt.get("sequence"),
+        "tool": receipt.get("tool"),
+        "canonical_argument_hash": receipt.get("canonical_argument_hash"),
+        "action_class": receipt.get("action_class"),
+        "determinable_target_paths": list(
+            receipt.get("determinable_target_paths", [])
+        ),
+        "pairing_status": receipt.get("pairing_status"),
+        "result_kind": (
+            typed_result.get("kind")
+            if isinstance(typed_result, Mapping)
+            else None
+        ),
+        "exit_code": receipt.get("exit_code"),
+    }
+
+
+def _normalize_expected_tool_trace(
+    value: list[Mapping[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    if value is None:
+        return None
+    if type(value) is not list or not value:
+        raise AppServerError("expected-tool-trace-invalid")
+    normalized: list[dict[str, Any]] = []
+    for sequence, raw_step in enumerate(value):
+        if type(raw_step) is not dict or set(raw_step) != EXACT_TOOL_TRACE_STEP_FIELDS:
+            raise AppServerError("expected-tool-trace-step-fields-invalid")
+        step = dict(raw_step)
+        targets = step.get("determinable_target_paths")
+        if (
+            step.get("sequence") != sequence
+            or not isinstance(step.get("tool"), str)
+            or re.fullmatch(
+                r"[a-z][a-z0-9_.:-]{0,127}", step["tool"]
+            )
+            is None
+            or type(step.get("canonical_argument_hashes")) is not list
+            or not step["canonical_argument_hashes"]
+            or step["canonical_argument_hashes"]
+            != sorted(set(step["canonical_argument_hashes"]))
+            or any(
+                not isinstance(item, str)
+                or re.fullmatch(r"[0-9a-f]{64}", item) is None
+                for item in step["canonical_argument_hashes"]
+            )
+            or step.get("action_class")
+            not in {
+                "control",
+                "network",
+                "publish",
+                "read",
+                "test",
+                "write",
+            }
+            or type(targets) is not list
+            or targets != sorted(set(targets))
+            or any(not isinstance(item, str) or not item for item in targets)
+            or step.get("pairing_status") != "paired"
+            or step.get("result_kind") != "paired-success"
+            or step.get("exit_code") != 0
+        ):
+            raise AppServerError("expected-tool-trace-step-invalid")
+        normalized.append(
+            {
+                **step,
+                "determinable_target_paths": list(targets),
+            }
+        )
+    return normalized
+
+
 def trusted_tool_evidence_summary(
     records: list[Mapping[str, Any]],
     *,
@@ -4094,6 +4183,8 @@ def trusted_tool_evidence_summary(
         "trusted_tool_evidence_sha256": [],
         "trusted_tool_names": [],
         "trusted_tool_activity": [],
+        "trusted_tool_receipts": [],
+        "trusted_tool_trace_sha256": canonical_sha256([]),
     }
     if turn_id is None:
         return empty
@@ -4135,6 +4226,9 @@ def trusted_tool_evidence_summary(
     completed = [
         receipt for receipt in calls if receipt.get("pairing_status") == "paired"
     ]
+    trusted_receipts = [
+        _tool_receipt_projection(receipt) for receipt in calls
+    ]
     trusted_activity = []
     for receipt in calls:
         raw_tool = str(receipt.get("tool") or "").strip().lower()
@@ -4151,7 +4245,7 @@ def trusted_tool_evidence_summary(
         )
         telemetry_anomaly = (
             receipt.get("pairing_status") == "ambiguous"
-            or result_kind == "unpaired-output"
+            or result_kind in {"paired-unknown", "unpaired-output"}
             or normalized_tool == "unknown"
         )
         tool = (
@@ -4200,6 +4294,8 @@ def trusted_tool_evidence_summary(
         "trusted_tool_evidence_sha256": evidence_sha256,
         "trusted_tool_names": sorted({item["tool"] for item in trusted_activity}),
         "trusted_tool_activity": trusted_activity,
+        "trusted_tool_receipts": trusted_receipts,
+        "trusted_tool_trace_sha256": canonical_sha256(trusted_receipts),
     }
 
 
@@ -4252,6 +4348,8 @@ def session_boundary_summary(
             "trusted_tool_evidence_sha256": [],
             "trusted_tool_names": [],
             "trusted_tool_activity": [],
+            "trusted_tool_receipts": [],
+            "trusted_tool_trace_sha256": canonical_sha256([]),
         }
     models: list[str] = []
     efforts: list[str] = []
@@ -4374,6 +4472,7 @@ class LiveThreadAdapter:
         worktree: Path,
         mutable: bool,
         expected_mutation: str | None,
+        expected_tool_trace: list[Mapping[str, Any]] | None = None,
         completion_evidence_policy: Mapping[str, Any] | None = None,
         tool_policy: Mapping[str, Any] | None = None,
         prompt_preflight_receipt: Mapping[str, Any] | None = None,
@@ -4393,6 +4492,14 @@ class LiveThreadAdapter:
         self.worktree = worktree
         self.mutable = mutable
         self.expected_mutation = expected_mutation
+        self.expected_tool_trace = _normalize_expected_tool_trace(
+            expected_tool_trace
+        )
+        self.expected_tool_trace_sha256 = (
+            canonical_sha256(self.expected_tool_trace)
+            if self.expected_tool_trace is not None
+            else None
+        )
         isolation_class = "mutable-isolated" if mutable else "read-only-shared"
         raw_policy = (
             default_completion_evidence_policy(isolation_class)
@@ -4571,8 +4678,6 @@ class LiveThreadAdapter:
             self.last_thread = thread
             self.reported_session_path = thread.get("path") or self.reported_session_path
             boundary = self._capture_trusted_boundary(allow_pending=True)
-            if self._observe_forbidden_tool_activity(boundary):
-                return {"decision": "interrupt"}
             status = turn_status(self.last_thread, self.turn_id)
             terminal_event = boundary.get("terminal_event")
             durable_status = (
@@ -4580,6 +4685,22 @@ class LiveThreadAdapter:
                 if isinstance(terminal_event, Mapping)
                 else None
             )
+            terminal = durable_status in {
+                "completed",
+                "failed",
+                "interrupted",
+            }
+            trace_observation = self._exact_tool_trace_observation(
+                boundary.get("trusted_tool_receipts", []),
+                terminal=terminal,
+            )
+            if (
+                trace_observation["required"]
+                and trace_observation["mismatch"]
+            ):
+                return {"decision": "interrupt"}
+            if self._observe_forbidden_tool_activity(boundary):
+                return {"decision": "interrupt"}
             if durable_status == "completed":
                 _message_hash, matches = final_message_hash_and_match(
                     self.last_thread, self.turn_id, self.expected_token
@@ -4715,6 +4836,99 @@ class LiveThreadAdapter:
         ]
         return list(self._forbidden_tool_activity)
 
+    def _exact_tool_trace_observation(
+        self,
+        observed_value: Any,
+        *,
+        terminal: bool,
+    ) -> dict[str, Any]:
+        expected = self.expected_tool_trace
+        observed = (
+            [dict(item) for item in observed_value]
+            if isinstance(observed_value, list)
+            and all(isinstance(item, Mapping) for item in observed_value)
+            else []
+        )
+        observed_sha256 = canonical_sha256(observed)
+        if expected is None:
+            return {
+                "required": False,
+                "status": "not-required",
+                "mismatch": False,
+                "satisfied": True,
+                "reason": None,
+                "expected_sha256": None,
+                "observed_sha256": observed_sha256,
+            }
+        reason: str | None = None
+        for sequence, observed_step in enumerate(observed):
+            if sequence >= len(expected):
+                reason = "extra-call"
+                break
+            expected_step = expected[sequence]
+            for field in (
+                "sequence",
+                "tool",
+                "action_class",
+                "determinable_target_paths",
+            ):
+                if observed_step.get(field) != expected_step[field]:
+                    reason = f"step-{sequence}-{field}-mismatch"
+                    break
+            if reason is not None:
+                break
+            if (
+                observed_step.get("canonical_argument_hash")
+                not in expected_step["canonical_argument_hashes"]
+            ):
+                reason = f"step-{sequence}-canonical-argument-mismatch"
+                break
+            pairing_status = observed_step.get("pairing_status")
+            if pairing_status == "unpaired":
+                if terminal or sequence != len(observed) - 1:
+                    reason = f"step-{sequence}-unpaired"
+                continue
+            if pairing_status != expected_step["pairing_status"]:
+                reason = f"step-{sequence}-pairing-mismatch"
+                break
+            if (
+                observed_step.get("result_kind")
+                != expected_step["result_kind"]
+                or observed_step.get("exit_code")
+                != expected_step["exit_code"]
+            ):
+                reason = f"step-{sequence}-result-mismatch"
+                break
+        trace_complete = (
+            reason is None
+            and len(observed) == len(expected)
+            and all(
+                observed_step.get("pairing_status") == "paired"
+                and observed_step.get("result_kind") == "paired-success"
+                and observed_step.get("exit_code") == 0
+                for observed_step in observed
+            )
+        )
+        if reason is None and terminal and not trace_complete:
+            reason = "terminal-cardinality-mismatch"
+        mismatch = reason is not None
+        satisfied = trace_complete and terminal
+        return {
+            "required": True,
+            "status": (
+                "mismatch"
+                if mismatch
+                else "satisfied"
+                if satisfied
+                else "pending"
+            ),
+            "mismatch": mismatch,
+            "satisfied": satisfied,
+            "reason": reason,
+            "expected_sha256": self.expected_tool_trace_sha256,
+            "observed_sha256": observed_sha256,
+        }
+
     def _known_completion_evidence_missing(
         self,
         boundary: Mapping[str, Any],
@@ -4729,7 +4943,16 @@ class LiveThreadAdapter:
         if "trusted-tool-call" in required["predicates"] and completed_calls < 1:
             return True
         observed_hashes = set(boundary.get("trusted_tool_evidence_sha256", []))
-        return not set(required["sha256"]).issubset(observed_hashes)
+        if not set(required["sha256"]).issubset(observed_hashes):
+            return True
+        trace_observation = self._exact_tool_trace_observation(
+            boundary.get("trusted_tool_receipts", []),
+            terminal=True,
+        )
+        return (
+            trace_observation["required"]
+            and not trace_observation["satisfied"]
+        )
 
     def interrupt(self, **_kwargs: Any) -> dict[str, str]:
         def action() -> dict[str, str]:
@@ -5016,6 +5239,12 @@ class LiveThreadAdapter:
             "trusted_tool_activity": list(
                 boundary.get("trusted_tool_activity", [])
             ),
+            "trusted_tool_receipts": list(
+                boundary.get("trusted_tool_receipts", [])
+            ),
+            "trusted_tool_trace_sha256": boundary.get(
+                "trusted_tool_trace_sha256"
+            ),
             "forbidden_tool_activity": violations,
             "item_types": sorted(set(item_types)),
             "token_telemetry": {
@@ -5061,6 +5290,15 @@ class LiveThreadAdapter:
         )
         missing_hashes = sorted(set(required["sha256"]) - observed_hashes)
         minimum_met = completed_calls >= policy["minimum_tool_calls"]
+        durable_terminal_event = summary.get("durable_terminal_event")
+        trace_observation = self._exact_tool_trace_observation(
+            summary["trusted_tool_receipts"],
+            terminal=(
+                isinstance(durable_terminal_event, Mapping)
+                and durable_terminal_event.get("status")
+                in {"completed", "interrupted", "failed"}
+            ),
+        )
         observable_action_required = bool(
             policy["minimum_tool_calls"]
             or set(required["predicates"])
@@ -5073,7 +5311,13 @@ class LiveThreadAdapter:
             "missing_predicates": missing_predicates,
             "missing_evidence_sha256": missing_hashes,
             "observable_action_required": observable_action_required,
-            "satisfied": minimum_met and not missing_predicates and not missing_hashes,
+            "exact_tool_trace_observation": trace_observation,
+            "satisfied": (
+                minimum_met
+                and not missing_predicates
+                and not missing_hashes
+                and trace_observation["satisfied"]
+            ),
         }
 
     def _completion_evidence_reasons(
@@ -5116,6 +5360,14 @@ class LiveThreadAdapter:
         status = summary["turn_status"]
         terminal = status in {"completed", "interrupted", "failed"}
         reasons: list[str] = []
+        completion_observation = self._completion_evidence_observation(
+            summary
+        )
+        trace_observation = completion_observation[
+            "exact_tool_trace_observation"
+        ]
+        if trace_observation["required"] and trace_observation["mismatch"]:
+            reasons.append("exact-tool-trace-mismatch")
         if summary["forbidden_tool_activity"]:
             reasons.append("forbidden-tool-activity")
         if terminal and not summary["model_exact"]:
@@ -5134,7 +5386,6 @@ class LiveThreadAdapter:
         if status == "completed" and not summary["expected_final_token_observed"]:
             reasons.append("invalid-final-response")
         mutations = summary["workspace_mutations"]
-        completion_observation = self._completion_evidence_observation(summary)
         reasons.extend(
             self._completion_evidence_reasons(summary, completion_observation)
         )
@@ -5186,6 +5437,13 @@ class LiveThreadAdapter:
             ),
             "trusted_completed_tool_calls": summary["completed_tool_calls"],
             "trusted_tool_evidence_sha256": summary["trusted_tool_evidence_sha256"],
+            "expected_tool_trace_sha256": (
+                trace_observation["expected_sha256"]
+            ),
+            "observed_tool_trace_sha256": (
+                trace_observation["observed_sha256"]
+            ),
+            "exact_tool_trace_status": trace_observation["status"],
             "forbidden_tool_activity": summary["forbidden_tool_activity"],
             "completion_evidence_satisfied": completion_observation["satisfied"],
             "evidence_sequence": self._evidence_sequence,
@@ -5252,6 +5510,14 @@ class LiveThreadAdapter:
         ] = self.completion_evidence_policy_sha256
         summary["completion_evidence_observation"] = completion_observation
         summary["completion_evidence_satisfied"] = completion_observation["satisfied"]
+        trace_observation = completion_observation[
+            "exact_tool_trace_observation"
+        ]
+        summary["expected_tool_trace_sha256"] = (
+            trace_observation["expected_sha256"]
+        )
+        summary["exact_tool_trace_observation"] = trace_observation
+        summary["exact_tool_trace_satisfied"] = trace_observation["satisfied"]
         summary["tool_policy"] = self.tool_policy
         summary["tool_policy_sha256"] = self.tool_policy_sha256
         summary["prompt_preflight"] = self.prompt_preflight

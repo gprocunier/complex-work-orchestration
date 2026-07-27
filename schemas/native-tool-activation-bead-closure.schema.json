@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/native-tool-activation-bead-closure.schema.json",
+  "title": "CWO native tool activation Bead closure",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "closure_type",
+    "version",
+    "schema",
+    "activation_id",
+    "plan_sha256",
+    "reservation_sha256",
+    "pool_receipt_sha256",
+    "claim_actor",
+    "epic_id",
+    "child_dispositions_sha256",
+    "expected_bead_ids",
+    "attempted_bead_ids",
+    "unattempted_bead_ids",
+    "close_receipts",
+    "errors",
+    "final_child_show_sha256",
+    "epic_show_sha256",
+    "epic_status",
+    "parent_close_attempted",
+    "publication_close_attempted",
+    "all_closed",
+    "bead_closure_sha256"
+  ],
+  "properties": {
+    "closure_type": {
+      "const": "cwo-native-tool-activation-bead-closure"
+    },
+    "version": {"const": 1},
+    "schema": {
+      "const": "schemas/native-tool-activation-bead-closure.schema.json"
+    },
+    "activation_id": {"type": "string", "format": "uuid"},
+    "plan_sha256": {"$ref": "#/$defs/sha256"},
+    "reservation_sha256": {"$ref": "#/$defs/sha256"},
+    "pool_receipt_sha256": {"$ref": "#/$defs/sha256"},
+    "claim_actor": {"type": "string", "minLength": 1},
+    "epic_id": {"type": "string", "minLength": 1},
+    "child_dispositions_sha256": {"$ref": "#/$defs/sha256"},
+    "expected_bead_ids": {"$ref": "#/$defs/nonEmptyBeadIds"},
+    "attempted_bead_ids": {"$ref": "#/$defs/beadIds"},
+    "unattempted_bead_ids": {"$ref": "#/$defs/beadIds"},
+    "close_receipts": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {"$ref": "#/$defs/closeReceipt"}
+    },
+    "errors": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/error"}
+    },
+    "final_child_show_sha256": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {"$ref": "#/$defs/sha256"},
+          {"type": "null"}
+        ]
+      }
+    },
+    "epic_show_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "epic_status": {"type": ["string", "null"]},
+    "parent_close_attempted": {"const": false},
+    "publication_close_attempted": {"const": false},
+    "all_closed": {"type": "boolean"},
+    "bead_closure_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullableSha256": {
+      "anyOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "beadIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 2,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "nonEmptyBeadIds": {
+      "allOf": [
+        {"$ref": "#/$defs/beadIds"},
+        {"minItems": 1}
+      ]
+    },
+    "closeReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bead_id",
+        "actor",
+        "outcome",
+        "reason_sha256",
+        "pre_show_sha256",
+        "post_show_sha256",
+        "command_sha256",
+        "command_returncode",
+        "command_timed_out",
+        "closed",
+        "close_sha256"
+      ],
+      "properties": {
+        "bead_id": {"type": "string", "minLength": 1},
+        "actor": {"type": "string", "minLength": 1},
+        "outcome": {
+          "enum": [
+            "closed",
+            "closed-after-timeout",
+            "closed-after-command-error",
+            "close-lost",
+            "close-show-failed",
+            "preclosed-replay"
+          ]
+        },
+        "reason_sha256": {"$ref": "#/$defs/sha256"},
+        "pre_show_sha256": {"$ref": "#/$defs/sha256"},
+        "post_show_sha256": {"$ref": "#/$defs/nullableSha256"},
+        "command_sha256": {"$ref": "#/$defs/nullableSha256"},
+        "command_returncode": {"type": ["integer", "null"]},
+        "command_timed_out": {"type": "boolean"},
+        "closed": {"type": "boolean"},
+        "close_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "bead_id", "error_class", "error_sha256"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "bead_id": {"type": ["string", "null"]},
+        "error_class": {"type": ["string", "null"]},
+        "error_sha256": {"$ref": "#/$defs/nullableSha256"}
+      }
+    }
+  }
+}

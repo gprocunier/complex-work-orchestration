@@ -54,6 +54,15 @@ STANDARD_TOOL_CALL_TYPES = frozenset(
         "toolcall",
     }
 )
+_TOOL_EXIT_CODE_PATTERNS = (
+    re.compile(
+        r"\A(?:Chunk ID: [^\n]*\n)?"
+        r"(?:Wall time: [^\n]*\n)?"
+        r"Process exited with code (-?\d+)\n"
+    ),
+    re.compile(r"\AExit code:\s*(-?\d+)\n"),
+)
+_APPLY_PATCH_FAILURE_PREFIX = "apply_patch verification failed:"
 ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS = {
     "mode",
     "spec",
@@ -365,7 +374,23 @@ def classify_action(tool: Any, command: str = "", arguments: Any = None) -> str:
         return "write"
     if any(word in haystack for word in ("pytest", "unittest", "compileall", " test", "check", "validate")):
         return "test"
-    if any(word in haystack for word in ("cat", "rg", "grep", "sed", "find", "ls", "git status", "git diff", "git show", "read")):
+    if any(
+        word in haystack
+        for word in (
+            "cat",
+            "rg",
+            "grep",
+            "sed",
+            "find",
+            "ls",
+            "sha256sum",
+            "git status",
+            "git diff",
+            "git show",
+            "git rev-parse",
+            "read",
+        )
+    ):
         return "read"
     return "unknown"
 
@@ -452,11 +477,130 @@ def trusted_tool_name(item: Mapping[str, Any]) -> str:
     )
 
 
+def _output_text(item: Mapping[str, Any] | None) -> str:
+    if not isinstance(item, Mapping):
+        return ""
+    output = item.get("output")
+    return output if isinstance(output, str) else ""
+
+
+def _explicit_output_exit_code(
+    item: Mapping[str, Any] | None,
+) -> tuple[int | None, bool]:
+    """Return an explicit/transport-bound exit code and conflict status."""
+
+    if not isinstance(item, Mapping):
+        return None, False
+    observed: list[int] = []
+    explicit = item.get("exit_code")
+    if isinstance(explicit, int) and not isinstance(explicit, bool):
+        observed.append(explicit)
+    text = _output_text(item)
+    observed.extend(
+        int(match.group(1))
+        for pattern in _TOOL_EXIT_CODE_PATTERNS
+        for match in pattern.finditer(text)
+    )
+    error_present = item.get("error") not in (None, False, "")
+    if error_present and 0 in observed:
+        return None, True
+    if len(set(observed)) > 1:
+        return None, True
+    if observed:
+        return observed[0], False
+    if error_present:
+        return 1, False
+    return None, False
+
+
+def _patch_apply_events(
+    records: list[Mapping[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    events: dict[str, list[dict[str, Any]]] = {}
+    for record_index, record in enumerate(records):
+        if record.get("type") != "event_msg":
+            continue
+        payload = record.get("payload")
+        if not isinstance(payload, Mapping) or payload.get("type") != "patch_apply_end":
+            continue
+        call_id = str(
+            payload.get("call_id") or payload.get("callId") or ""
+        ).strip()
+        if not call_id:
+            call_id = f"__missing_{record_index * 1000}"
+        events.setdefault(call_id, []).append(
+            {
+                "order": record_index * 1000,
+                "item": dict(payload),
+                "turn_id": payload.get("turn_id") or payload.get("turnId"),
+            }
+        )
+    return events
+
+
+def _paired_tool_result(
+    *,
+    tool: str,
+    output_item: Mapping[str, Any],
+    patch_events: list[Mapping[str, Any]],
+) -> tuple[str, int | None, bool]:
+    """Classify a paired result from bounded trusted transport grammar."""
+
+    exit_code, transport_conflict = _explicit_output_exit_code(output_item)
+    if transport_conflict:
+        return "paired-unknown", None, True
+    text = _output_text(output_item)
+    if tool == "apply_patch":
+        failure_text = text.startswith(_APPLY_PATCH_FAILURE_PREFIX)
+        if len(patch_events) > 1:
+            return "paired-unknown", None, True
+        if patch_events:
+            event = patch_events[0].get("item")
+            if not isinstance(event, Mapping):
+                return "paired-unknown", None, True
+            event_success = event.get("success")
+            event_status = event.get("status")
+            structured_success = (
+                event_success is True and event_status == "completed"
+            )
+            structured_failure = (
+                event_success is False
+                or event_status in {"failed", "error", "cancelled"}
+            )
+            if structured_success and (
+                failure_text or exit_code not in (None, 0)
+            ):
+                return "paired-unknown", None, True
+            if structured_failure and exit_code == 0:
+                return "paired-unknown", None, True
+            if structured_success:
+                return "paired-success", 0, False
+            if structured_failure:
+                return "paired-failure", exit_code or 1, False
+            return "paired-unknown", exit_code, False
+        if failure_text:
+            if exit_code == 0:
+                return "paired-unknown", None, True
+            return "paired-failure", exit_code or 1, False
+        if exit_code is not None and exit_code != 0:
+            return "paired-failure", exit_code, False
+        # Successful apply_patch evidence requires its matching structured event.
+        return "paired-unknown", exit_code, False
+    if exit_code is None:
+        return "paired-unknown", None, False
+    return (
+        ("paired-success", exit_code, False)
+        if exit_code == 0
+        else ("paired-failure", exit_code, False)
+    )
+
+
 def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: str | None = None) -> list[dict[str, Any]]:
     """Normalize tool calls and outputs into deterministic fail-closed receipts."""
-    calls: dict[str, dict[str, Any]] = {}
-    duplicate_call_ids: set[str] = set()
+    calls: list[dict[str, Any]] = []
+    call_id_counts: dict[str, int] = {}
     outputs: dict[str, list[dict[str, Any]]] = {}
+    patch_events = _patch_apply_events(records)
     events: list[tuple[int, Mapping[str, Any], dict[str, Any]]] = []
     for record_index, record in enumerate(records):
         for item_index, item in enumerate(_event_items(record)):
@@ -477,37 +621,73 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
         arguments = _argument_value(item)
         command = _command_from_arguments(arguments)
         call_key = call_id or f"__anonymous_{order}"
-        if call_key in calls:
-            duplicate_call_ids.add(call_key)
-            continue
-        calls[call_key] = {
+        call_id_counts[call_key] = call_id_counts.get(call_key, 0) + 1
+        calls.append({
+            "key": call_key,
             "order": order,
             "record": record,
             "item": item,
             "tool": tool,
             "arguments": arguments,
             "command": command,
-        }
+        })
     receipts: list[dict[str, Any]] = []
-    for key, call in sorted(calls.items(), key=lambda pair: (pair[1]["order"], pair[0])):
+    for call in sorted(
+        calls,
+        key=lambda item: (item["order"], item["key"]),
+    ):
+        key = str(call["key"])
         call_id = None if key.startswith("__anonymous_") else key
         paired = outputs.get(key, [])
         output = paired[0] if paired else None
-        ambiguous = key in duplicate_call_ids or len(paired) > 1
-        output_item = output["item"] if output else None
-        exit_code = output_item.get("exit_code") if isinstance(output_item, Mapping) else None
-        if not isinstance(exit_code, int):
-            exit_code = 0 if output and not output_item.get("error") else (1 if output and output_item.get("error") else None)
-        result_kind = (
-            "ambiguous-call-or-output-cardinality"
-            if ambiguous
-            else "paired-success"
-            if output and exit_code == 0
-            else "paired-failure"
-            if output
-            else "unpaired-call"
+        all_patch_events = patch_events.get(key, [])
+        valid_patch_events = (
+            [
+                event
+                for event in all_patch_events
+                if output is not None
+                and call["order"] < event["order"] < output["order"]
+                and (
+                    segment_id is None
+                    or event.get("turn_id") == segment_id
+                )
+            ]
+            if call["tool"] == "apply_patch"
+            else []
         )
+        invalid_patch_event = bool(
+            all_patch_events
+            and (
+                call["tool"] != "apply_patch"
+                or len(valid_patch_events) != len(all_patch_events)
+            )
+        )
+        ambiguous = (
+            call_id_counts[key] > 1
+            or len(paired) > 1
+            or len(valid_patch_events) > 1
+            or invalid_patch_event
+        )
+        output_item = output["item"] if output else None
+        result_conflict = False
+        if ambiguous:
+            result_kind = "ambiguous-call-or-output-cardinality"
+            exit_code = None
+        elif isinstance(output_item, Mapping):
+            result_kind, exit_code, result_conflict = _paired_tool_result(
+                tool=str(call["tool"]),
+                output_item=output_item,
+                patch_events=valid_patch_events,
+            )
+            if result_conflict:
+                ambiguous = True
+                result_kind = "ambiguous-call-or-output-cardinality"
+                exit_code = None
+        else:
+            result_kind = "unpaired-call"
+            exit_code = None
         receipts.append({
+            "_source_order": call["order"],
             "sequence": len(receipts),
             "timestamp": _timestamp(call["record"], call["item"]),
             "segment": segment_id or call["record"].get("segment_id") or call["record"].get("segment"),
@@ -523,12 +703,14 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
                 "ambiguous" if ambiguous else "paired" if output else "unpaired"
             ),
         })
+    call_keys = set(call_id_counts)
     for key, entries in sorted(outputs.items(), key=lambda pair: pair[1][0]["order"]):
-        if key in calls:
+        if key in call_keys:
             continue
         for entry in entries:
             item = entry["item"]
             receipts.append({
+                "_source_order": entry["order"],
                 "sequence": len(receipts),
                 "timestamp": _timestamp(entry["record"], item),
                 "segment": segment_id or entry["record"].get("segment_id") or entry["record"].get("segment"),
@@ -542,6 +724,47 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
                 "exit_code": item.get("exit_code") if isinstance(item.get("exit_code"), int) else None,
                 "pairing_status": "unpaired",
             })
+    for key, entries in sorted(
+        patch_events.items(),
+        key=lambda pair: pair[1][0]["order"],
+    ):
+        if key in call_keys:
+            continue
+        for entry in entries:
+            item = entry["item"]
+            receipts.append(
+                {
+                    "_source_order": entry["order"],
+                    "sequence": len(receipts),
+                    "timestamp": None,
+                    "segment": segment_id,
+                    "tool": "unknown",
+                    "call_id": key,
+                    "canonical_argument_hash": canonical_argument_hash({}),
+                    "redacted_command": "",
+                    "action_class": "unknown",
+                    "determinable_target_paths": [],
+                    "typed_result": {
+                        "kind": "unpaired-output",
+                        "output_present": True,
+                    },
+                    "exit_code": (
+                        0 if item.get("success") is True else 1
+                        if item.get("success") is False
+                        else None
+                    ),
+                    "pairing_status": "unpaired",
+                }
+            )
+    receipts.sort(
+        key=lambda item: (
+            item["_source_order"],
+            item["sequence"],
+        )
+    )
+    for sequence, receipt in enumerate(receipts):
+        receipt.pop("_source_order", None)
+        receipt["sequence"] = sequence
     return receipts
 
 

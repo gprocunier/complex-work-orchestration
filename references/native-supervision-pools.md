@@ -125,6 +125,38 @@ retrying. Owner-private mode 0700 directories and mode 0600 key, plan, approval,
 claim, ledger, and result artifacts are required. There is no retry, resume,
 refill, replacement, or salvage path.
 
+An activation now accepts only when every child produces its fixed profile's
+exact ordered tool trace. The two read-only calls are `git rev-parse HEAD` then
+`sha256sum data/shared.txt`; the mutable calls are the frozen `apply_patch`
+payload then `git diff --check`. For an exec call, the only tolerated transport
+shapes are the exact command alone, the exact command plus the task worktree,
+or those two fields plus `login: false`. No other argument key is tolerated.
+
+Every attempted call counts. A failed call followed by a successful retry is
+an extra call, not a successful two-call trace. Reordered tools, wrong
+arguments, wrong targets, unknown or contradictory results, missing result
+pairing, and extra calls all make the pool and result non-accepting. Successful
+`apply_patch` evidence additionally requires its same-call, same-turn
+`patch_apply_end` event between the call and output. Only a durable terminal
+event can finalize the trace; a projected completion remains pending during
+the bounded observation window.
+
+The controller writes the privacy-safe ordered receipts to the private
+`records/activation-tool-trace.json` artifact. After both that exact trace and
+the raw pool receipt accept, it consumes each pool-authorized implementation
+child Bead closure once, in task order, and reconciles the exact post-state. It
+never closes the parent or publication Bead. There is no close retry, reopen,
+or rollback: if an N=2 close fails after the first child closed, the first
+closure remains, the second is left untouched, and the activation rejects.
+`records/activation-bead-closure.json` records the outcome.
+
+New live results use
+`schemas/native-tool-activation-result-v2.schema.json`. An accepted v2 result
+hash-binds both private artifacts through `tool_trace_sha256` and
+`bead_closure_sha256`. The v1 result schema remains historical
+inspection-only. A trace mismatch or closure failure cannot emit an accepted
+v2 result.
+
 ## Trusted Live Canary Gate
 
 The release canary is a separate, single-shot controller:

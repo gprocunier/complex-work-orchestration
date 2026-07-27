@@ -38,6 +38,7 @@ class ValidateRepositoryTests(unittest.TestCase):
           <p>A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default; every concurrent run requires explicit opt-in.</p>
           <p>Concurrent execution requires one fresh same-host capability receipt, a fixed cohort, and either isolated mutable worktrees or a shared read-only topology. The currently released and hard ceilings are both three workers. N&gt;=4 remains blocked pending Phase 2 architecture and recertification. Precommit, critics, integration, retry, replay, and publication remain single-flight.</p>
           <p>Exact server-side tool allowlisting remains the operative default. A serialized <code>trusted-detect-and-contain</code> override is audit-only intent, not dispatch authority. The one-shot activation runner is disabled by default and accepts only <code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code>. Non-consuming validation uses <code>--dry-run</code>. Live execution requires the exact <code>unlisted-built-ins-may-act-before-detection</code> risk acknowledgement and <code>--enable-tech-preview</code>.</p>
+          <p>Each fixed activation profile requires its exact ordered two-call trace. Every failed, retried, extra, reordered, wrong-argument, unknown-result, or contradictory call counts and makes the pool and result non-accepting. Only a durable terminal event can finalize the trace. The controller closes only authorized implementation child Beads, once and in task order. It never closes the parent or publication Bead, retries a close, or rolls back a partial close. Accepted activation result v2 binds the private exact-trace and Bead-closure artifact hashes.</p>
           <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Operator reference</a>
           <p><code>git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy.</p>
         </section>
@@ -164,6 +165,30 @@ class ValidateRepositoryTests(unittest.TestCase):
             "explicit activation switch": (
                 "<code>--enable-tech-preview</code>",
                 "<code>--run</code>",
+            ),
+            "exact activation trace wording": (
+                "Each fixed activation profile requires its exact ordered two-call trace",
+                "Each profile may use any successful calls",
+            ),
+            "all attempts count wording": (
+                "Every failed, retried, extra, reordered, wrong-argument, unknown-result, or contradictory call counts",
+                "Only successful calls count",
+            ),
+            "durable terminal trace wording": (
+                "Only a durable terminal event can finalize the trace",
+                "Projected completion finalizes the trace",
+            ),
+            "child-only closure wording": (
+                "closes only authorized implementation child Beads, once and in task order",
+                "closes any related issue",
+            ),
+            "no parent rollback wording": (
+                "It never closes the parent or publication Bead, retries a close, or rolls back a partial close",
+                "It repairs close failures automatically",
+            ),
+            "activation result v2 binding wording": (
+                "Accepted activation result v2 binds the private exact-trace and Bead-closure artifact hashes",
+                "Accepted results use the pool count",
             ),
         }
         for expected_label, (required, replacement) in cases.items():

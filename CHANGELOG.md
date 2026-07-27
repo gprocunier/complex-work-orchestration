@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Enforce each fixed activation profile's exact ordered tool trace. Failed,
+  retried, extra, reordered, wrong-argument, unknown-result, or contradictory
+  calls now reject the pool and result instead of satisfying a minimum call
+  count.
+- Close only pool-authorized implementation child Beads, once and in task
+  order, after the pool and exact trace accept. Accepted activation result v2
+  binds the private exact-trace and Bead-closure artifacts; partial closure is
+  fail-closed and is never retried, reopened, or rolled back.
 - Make mutable activation evidence phase-aware and contain proven
   never-turned, pre-rollout activation threads with a request-bound delete
   proof while preserving fail-closed diagnostics.
