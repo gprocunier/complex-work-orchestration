@@ -123,6 +123,7 @@ class FakeCalibrationServer:
         read_delays: Mapping[int, float] | None = None,
         materialize_before_fault_read: int | None = None,
         materialize_before_read: int | None = None,
+        automatic_materialize_read: int | None = 3,
         empty_initial_session: bool = False,
     ) -> None:
         self.codex_home = root / "codex-home"
@@ -140,6 +141,7 @@ class FakeCalibrationServer:
         self.read_delays = dict(read_delays or {})
         self.materialize_before_fault_read = materialize_before_fault_read
         self.materialize_before_read = materialize_before_read
+        self.automatic_materialize_read = automatic_materialize_read
         self.empty_initial_session = empty_initial_session
         self.read_started: list[float] = []
         self.read_timeouts: list[float] = []
@@ -388,7 +390,7 @@ class FakeCalibrationServer:
             )
         if self.read_statuses:
             self.early_status = self.read_statuses.pop(0)
-        if self.read_count == 3:
+        if self.read_count == self.automatic_materialize_read:
             self._materialize()
         if self.replace_source_at_read == self.read_count:
             replacement = self.path.with_suffix(".replacement")
@@ -511,6 +513,26 @@ class FakeMonotonicClock:
 
     def advance_ms(self, milliseconds: int) -> None:
         self.now_ns += milliseconds * 1_000_000
+
+
+class FakeElapsedClock:
+    def __init__(self) -> None:
+        self.seconds = 0.0
+        self.started_at = LIVE.dt.datetime(
+            2026, 1, 1, tzinfo=LIVE.dt.timezone.utc
+        )
+
+    def monotonic(self) -> float:
+        return self.seconds
+
+    def monotonic_ns(self) -> int:
+        return round(self.seconds * 1_000_000_000)
+
+    def sleep(self, seconds: float) -> None:
+        self.seconds += seconds
+
+    def utc_now(self) -> LIVE.dt.datetime:
+        return self.started_at + LIVE.dt.timedelta(seconds=self.seconds)
 
 
 def deterministic_calibration_measurement(
@@ -2923,6 +2945,273 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 r"^[0-9a-f]{64}$",
             )
 
+    def test_default_startup_window_covers_delayed_spark_tool_start(
+        self,
+    ) -> None:
+        def run_calibration(
+            root: Path,
+            *,
+            startup_timeout_seconds: float | None,
+        ) -> tuple[FakeCalibrationServer, FakeElapsedClock, dict | None]:
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                automatic_materialize_read=56,
+            )
+            clock = FakeElapsedClock()
+            kwargs: dict[str, object] = {}
+            if startup_timeout_seconds is not None:
+                kwargs["startup_timeout_seconds"] = (
+                    startup_timeout_seconds
+                )
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=clock.sleep,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+            ):
+                receipt, _evidence = LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    **kwargs,
+                )
+            return server, clock, receipt
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "capability-materialization-deadline-exceeded",
+            ):
+                run_calibration(root, startup_timeout_seconds=10.0)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server, clock, receipt = run_calibration(
+                root,
+                startup_timeout_seconds=None,
+            )
+
+        self.assertEqual(
+            LIVE.CALIBRATION_STARTUP_TIMEOUT_SECONDS,
+            30.0,
+        )
+        self.assertIsNotNone(receipt)
+        self.assertEqual(receipt["validation_outcome"], "accepted")
+        self.assertGreater(clock.seconds, 10.0)
+        self.assertLess(
+            clock.seconds,
+            LIVE.CALIBRATION_STARTUP_TIMEOUT_SECONDS,
+        )
+        self.assertGreaterEqual(server.read_count, 56)
+
+    def test_materialization_window_expires_after_first_exact_observation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(root)
+            clock = FakeElapsedClock()
+            original_notification_events = server.notification_events
+            first_observation_at: list[float] = []
+
+            def return_exact_notification_once(*args, **kwargs):
+                events = original_notification_events(*args, **kwargs)
+                if not events or first_observation_at:
+                    return []
+                first_observation_at.append(clock.seconds)
+                return events
+
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=clock.sleep,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+                mock.patch.object(
+                    server,
+                    "notification_events",
+                    side_effect=return_exact_notification_once,
+                ),
+                self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    "capability-materialization-deadline-exceeded",
+                ),
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
+                    materialization_timeout_seconds=1.2,
+                )
+
+            self.assertEqual(len(first_observation_at), 1)
+            elapsed = clock.seconds - first_observation_at[0]
+            self.assertGreaterEqual(elapsed, 1.2)
+            self.assertLessEqual(elapsed, 1.4)
+            self.assertFalse(server.interrupted)
+
+    def test_preinterrupt_read_cannot_finish_after_materialization_deadline(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_delays={9: 0.3},
+            )
+            clock = FakeElapsedClock()
+
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=clock.sleep,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+                self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    "capability-materialization-deadline-exceeded",
+                ),
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
+                    materialization_timeout_seconds=1.2,
+                )
+
+            self.assertEqual(server.read_count, 9)
+            self.assertFalse(server.interrupted)
+
+    def test_recovery_timeout_after_read_keeps_protected_fault(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 1.0)},
+                read_delays={2: 1.1},
+                automatic_materialize_read=None,
+                empty_initial_session=True,
+            )
+            clock = FakeElapsedClock()
+
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=clock.sleep,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+                self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    "capability-materialization-deadline-exceeded",
+                ) as caught,
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=1.0,
+                    materialization_timeout_seconds=1.0,
+                )
+
+            fault = caught.exception.first_protected_fault
+            self.assertEqual(
+                fault["fault_type"],
+                "calibration-thread-read-recovery",
+            )
+            self.assertTrue(
+                fault["recovery_telemetry"]["token_consumed"]
+            )
+            self.assertEqual(
+                fault["recovery_telemetry"]["replacement_attempt_count"],
+                1,
+            )
+
     def test_one_pre_attestation_internal_read_fault_recovers_in_same_calibration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -2941,6 +3230,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 self.owner(),
                 run_nonce=str(uuid.uuid4()),
                 phase_nonce=str(uuid.uuid4()),
+                startup_timeout_seconds=3.0,
                 materialization_timeout_seconds=3.0,
             )
             telemetry = evidence["thread_read_recovery"]
@@ -3078,6 +3368,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             self.assertEqual(server.read_count, 1)
@@ -3121,6 +3412,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             self.assertEqual(server.read_count, 1)
@@ -3153,6 +3445,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 self.owner(),
                 run_nonce=str(uuid.uuid4()),
                 phase_nonce=str(uuid.uuid4()),
+                startup_timeout_seconds=3.0,
                 materialization_timeout_seconds=3.0,
             )
             self.assertEqual(receipt["validation_outcome"], "accepted")
@@ -3206,6 +3499,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                        startup_timeout_seconds=3.0,
                         materialization_timeout_seconds=3.0,
                     )
                 self.assertEqual(server.read_count, expected_reads)
@@ -3255,6 +3549,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             self.assertEqual(server.read_count, 1)
@@ -3314,6 +3609,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             fault = caught.exception.first_protected_fault
@@ -3358,6 +3654,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                        startup_timeout_seconds=2.0,
                         materialization_timeout_seconds=2.0,
                     )
                 self.assertEqual(server.read_count, expected_reads)
@@ -3518,6 +3815,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                        startup_timeout_seconds=1.2,
                         materialization_timeout_seconds=1.2,
                     )
 
@@ -3546,7 +3844,10 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             ({"duplicate_function_call": True}, "function-call-not-singular"),
             ({"competing_function_call": True}, "function-call-not-singular"),
             ({"replace_source_at_read": 6}, "session-source-identity-changed"),
-            ({"replace_notification_at_read": 6}, "materialization-deadline"),
+            (
+                {"replace_notification_at_read": 6},
+                "observation-identity-changed",
+            ),
         )
         for options, expected in cases:
             with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:
@@ -3562,6 +3863,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                        startup_timeout_seconds=1.2,
                         materialization_timeout_seconds=1.2,
                     )
 

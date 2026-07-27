@@ -192,6 +192,7 @@
       "authorization_state_schema": "schemas/native-canary-authorization-state.schema.json",
       "exact_model": "gpt-5.3-codex-spark",
       "calibration_command": "sleep 20",
+      "startup_deadline_seconds": 30,
       "materialization_deadline_seconds": 10,
       "poll_interval_max_ms": 250,
       "liveness_observations": 2,

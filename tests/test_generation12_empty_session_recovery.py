@@ -665,6 +665,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
             self.owner(),
             run_nonce=str(uuid.uuid4()),
             phase_nonce=str(uuid.uuid4()),
+            startup_timeout_seconds=3.0,
             materialization_timeout_seconds=3.0,
         )
 
@@ -839,6 +840,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             self.assertTrue(removed)
@@ -898,6 +900,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             self.assertTrue(materialized)
@@ -923,6 +926,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             self.assertEqual(server.read_count, 1)
@@ -987,6 +991,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                        startup_timeout_seconds=3.0,
                         materialization_timeout_seconds=3.0,
                     )
 
@@ -1035,6 +1040,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                     self.owner(),
                     run_nonce=str(uuid.uuid4()),
                     phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
                     materialization_timeout_seconds=3.0,
                 )
             self.assertEqual(len(RecordingTracker.instances), 1)
@@ -1060,6 +1066,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                         self.owner(),
                         run_nonce=str(uuid.uuid4()),
                         phase_nonce=str(uuid.uuid4()),
+                        startup_timeout_seconds=3.0,
                         materialization_timeout_seconds=3.0,
                     )
 
