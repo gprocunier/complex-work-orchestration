@@ -102,6 +102,7 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(live["runner"], "scripts/run_native_pool_live_canaries.py")
         self.assertEqual(live["exact_model"], "gpt-5.3-codex-spark")
         self.assertEqual(live["calibration_command"], "sleep 20")
+        self.assertEqual(live["startup_deadline_seconds"], 30)
         self.assertEqual(live["materialization_deadline_seconds"], 10)
         self.assertEqual(live["poll_interval_max_ms"], 250)
         self.assertEqual(live["liveness_observations"], 2)

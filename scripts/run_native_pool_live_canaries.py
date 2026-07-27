@@ -169,6 +169,8 @@ PROVISIONAL_TERMINAL_GRACE_SECONDS = 5.0
 THREAD_READ_TIMEOUT_SECONDS = 15.0
 AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS = 5.0
 AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS = 0.05
+CALIBRATION_STARTUP_TIMEOUT_SECONDS = 30.0
+CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS = 10.0
 CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
 CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
 DESCRIPTOR_CAPTURE_ATTEMPT_MAX = 8
@@ -5139,7 +5141,10 @@ def _run_calibration(
     run_nonce: str,
     phase_nonce: str,
     boundary_trackers: list[PreAttestationSessionBoundaryTracker],
-    materialization_timeout_seconds: float = 10.0,
+    startup_timeout_seconds: float = CALIBRATION_STARTUP_TIMEOUT_SECONDS,
+    materialization_timeout_seconds: float = (
+        CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS
+    ),
     pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     samples: dict[str, list[float]] = {}
@@ -5966,9 +5971,12 @@ def _run_calibration(
     observations: list[dict[str, Any]] = []
     last_threads: dict[str, dict[str, Any]] = {}
     poll_started: list[float] = []
+    if startup_timeout_seconds < 1.0:
+        raise AppServerError("capability-startup-timeout-invalid")
     if materialization_timeout_seconds < 1.0:
         raise AppServerError("capability-materialization-timeout-invalid")
-    deadline = time.monotonic() + materialization_timeout_seconds
+    deadline = time.monotonic() + startup_timeout_seconds
+    materialization_deadline_armed = False
 
     def remaining_materialization_seconds() -> float:
         remaining = deadline - time.monotonic()
@@ -6140,6 +6148,14 @@ def _run_calibration(
             if read_recovery.get("token_consumed") is True:
                 raise attach_recovery_fault(exc)
             raise
+        observed_after_read = time.monotonic()
+        if observed_after_read >= deadline:
+            exc = AppServerError(
+                "capability-materialization-deadline-exceeded"
+            )
+            if read_recovery.get("token_consumed") is True:
+                raise attach_recovery_fault(exc)
+            raise exc
         if replacement_attempt:
             try:
                 require_recovery_edge_within_bounds(poll_start)
@@ -6157,6 +6173,10 @@ def _run_calibration(
         if observation is not None:
             if not observations:
                 observations.append(observation)
+                deadline = (
+                    observed_after_read + materialization_timeout_seconds
+                )
+                materialization_deadline_armed = True
             else:
                 first_time = dt.datetime.fromisoformat(
                     observations[0]["observed_at"].replace("Z", "+00:00")
@@ -6188,7 +6208,7 @@ def _run_calibration(
             time.sleep(
                 max(0.0, CALIBRATION_POLL_INTERVAL_SECONDS - elapsed)
             )
-    if len(observations) != 2:
+    if len(observations) != 2 or not materialization_deadline_armed:
         raise AppServerError("capability-materialization-deadline-exceeded")
     pre_interrupt: dict[str, Any] | None = None
     pre_thread: dict[str, Any] | None = None
@@ -6209,6 +6229,13 @@ def _run_calibration(
             ),
             guard_seconds=0.0,
         )
+        if time.monotonic() >= deadline:
+            exc = AppServerError(
+                "capability-materialization-deadline-exceeded"
+            )
+            if read_recovery.get("token_consumed") is True:
+                raise attach_recovery_fault(exc)
+            raise exc
         last_threads[thread_id] = pre_thread
         if pre_interrupt is None:
             time.sleep(
@@ -6597,7 +6624,10 @@ def calibration(
     *,
     run_nonce: str,
     phase_nonce: str,
-    materialization_timeout_seconds: float = 10.0,
+    startup_timeout_seconds: float = CALIBRATION_STARTUP_TIMEOUT_SECONDS,
+    materialization_timeout_seconds: float = (
+        CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS
+    ),
     pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Run one calibration and deterministically release every pinned source."""
@@ -6612,6 +6642,7 @@ def calibration(
             run_nonce=run_nonce,
             phase_nonce=phase_nonce,
             boundary_trackers=boundary_trackers,
+            startup_timeout_seconds=startup_timeout_seconds,
             materialization_timeout_seconds=materialization_timeout_seconds,
             pre_allocation_check=pre_allocation_check,
         )
