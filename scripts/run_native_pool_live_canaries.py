@@ -176,6 +176,9 @@ CALIBRATION_STARTUP_TIMEOUT_SECONDS = 30.0
 CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS = 10.0
 CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
 CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
+CALIBRATION_CERTIFICATION_SAMPLING_PHASE = (
+    "after-first-exact-operative-observation"
+)
 DESCRIPTOR_CAPTURE_ATTEMPT_MAX = 8
 DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS = 0.01
 CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE = (
@@ -6413,6 +6416,7 @@ def _run_calibration(
 
     observations: list[dict[str, Any]] = []
     last_threads: dict[str, dict[str, Any]] = {}
+    startup_samples: dict[str, list[float]] = {}
     poll_started: list[float] = []
     if startup_timeout_seconds < 1.0:
         raise AppServerError("capability-startup-timeout-invalid")
@@ -6436,19 +6440,18 @@ def _run_calibration(
         ):
             raise AppServerError("capability-poll-interval-exceeded")
 
-    def require_recovery_edge_within_bounds(poll_start: float) -> float:
-        observed = time.monotonic()
-        remaining = deadline - observed
+    def remaining_recovery_seconds() -> float:
+        remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise AppServerError("capability-materialization-deadline-exceeded")
-        if observed - poll_start > CALIBRATION_POLL_GAP_MAX_SECONDS:
-            raise AppServerError("capability-poll-interval-exceeded")
         return remaining
 
     while time.monotonic() < deadline and len(observations) < 2:
         poll_start = time.monotonic()
-        poll_started.append(poll_start)
-        require_poll_start_within_bounds()
+        certification_armed = bool(observations)
+        if certification_armed:
+            poll_started.append(poll_start)
+            require_poll_start_within_bounds()
         replacement_attempt = read_recovery_pending
         remaining_before_attempt = remaining_materialization_seconds()
         if replacement_attempt:
@@ -6490,9 +6493,7 @@ def _run_calibration(
                     )
                 )
             try:
-                remaining_before_attempt = require_recovery_edge_within_bounds(
-                    poll_start
-                )
+                remaining_before_attempt = remaining_recovery_seconds()
             except AppServerError as exc:
                 raise attach_recovery_fault(exc)
             read_recovery_pending = False
@@ -6513,9 +6514,10 @@ def _run_calibration(
             read_recovery["pre_attempt_boundary_byte_offset"] = int(
                 pre_attempt_boundary["byte_offset"]
             )
+        sample_sink = samples if certification_armed else startup_samples
         try:
             thread, observation = guarded_measure(
-                samples,
+                sample_sink,
                 "check",
                 lambda: observe(
                     read_timeout_seconds=min(
@@ -6527,7 +6529,7 @@ def _run_calibration(
                 guard_seconds=0.0,
             )
         except AppServerRpcError as exc:
-            samples.setdefault("check", []).append(exc.latency_ms)
+            sample_sink.setdefault("check", []).append(exc.latency_ms)
             if replacement_attempt:
                 raise attach_recovery_fault(exc)
             eligible = (
@@ -6541,9 +6543,7 @@ def _run_calibration(
             )
             if not eligible:
                 raise
-            remaining_before_scheduling = require_recovery_edge_within_bounds(
-                poll_start
-            )
+            remaining_before_scheduling = remaining_recovery_seconds()
             read_recovery.update(
                 {
                     "method": exc.method,
@@ -6599,9 +6599,13 @@ def _run_calibration(
             if read_recovery.get("token_consumed") is True:
                 raise attach_recovery_fault(exc)
             raise exc
+        if not certification_armed and observation is not None:
+            # The establishing read belongs to startup. Arm operative cadence
+            # only after its exact observation is complete.
+            poll_started.append(observed_after_read)
         if replacement_attempt:
             try:
-                require_recovery_edge_within_bounds(poll_start)
+                remaining_recovery_seconds()
             except AppServerError as exc:
                 raise attach_recovery_fault(exc)
             if (
@@ -6688,9 +6692,13 @@ def _run_calibration(
                     - (time.monotonic() - poll_start),
                 )
             )
-    if any(
-        later - earlier > CALIBRATION_POLL_GAP_MAX_SECONDS
+    observed_poll_gaps = [
+        later - earlier
         for earlier, later in zip(poll_started, poll_started[1:])
+    ]
+    if any(
+        gap > CALIBRATION_POLL_GAP_MAX_SECONDS
+        for gap in observed_poll_gaps
     ):
         raise AppServerError("capability-poll-interval-exceeded")
     if pre_interrupt is None or any(
@@ -7066,6 +7074,10 @@ def _run_calibration(
     evidence = {
         "thread_preallocation_stats": stats([preallocation_latency]),
         "guard_band_ms": {"callbacks": 0, "scheduler_overhead": 50},
+        "startup_check_stats": stats(startup_samples["check"]),
+        "startup_check_sample_count": len(startup_samples["check"]),
+        "certification_check_sample_count": len(samples["check"]),
+        "certification_sampling_phase": CALIBRATION_CERTIFICATION_SAMPLING_PHASE,
         "sessions": [summary],
         "materialization_evidence": materialization,
         "materialization_evidence_sha256": materialization["evidence_sha256"],
@@ -7074,12 +7086,9 @@ def _run_calibration(
             "telemetry_sha256"
         ],
         "poll_interval_max_ms": round(
-            max(
-                (later - earlier) * 1000
-                for earlier, later in zip(poll_started, poll_started[1:])
-            ),
+            max(observed_poll_gaps) * 1000,
             3,
-        ) if len(poll_started) > 1 else 0.0,
+        ) if observed_poll_gaps else 0.0,
         "interrupt_confirmed": True,
         "peer_completion_deferred_to_coordinator_interrupt_canary": True,
         "scheduler_inequality_lhs_ms": round(proof.total_demand_ms, 3),

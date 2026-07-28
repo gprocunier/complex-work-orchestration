@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Separate deadline-bound calibration startup and recovery probes from
+  operative timing certification. The 200 ms callback ceiling and 250 ms poll
+  cadence now arm only after the first complete exact tool observation.
 - Enforce each fixed activation profile's exact ordered tool trace. Failed,
   retried, extra, reordered, wrong-argument, unknown-result, or contradictory
   calls now reject the pool and result instead of satisfying a minimum call

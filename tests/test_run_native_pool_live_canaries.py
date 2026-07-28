@@ -3029,6 +3029,18 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
     def owner(self) -> dict:
         return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
 
+    @staticmethod
+    def measure_elapsed(
+        action: Callable[[], Any],
+        *,
+        guard_seconds: float = 0.0,
+    ) -> tuple[Any, float]:
+        started = LIVE.time.monotonic_ns()
+        result = action()
+        if guard_seconds:
+            LIVE.time.sleep(guard_seconds)
+        return result, (LIVE.time.monotonic_ns() - started) / 1_000_000
+
     def test_pool_sleep_adapts_keyword_callback_to_positional_builtin(self) -> None:
         from tests.test_native_pool import PoolHarness
 
@@ -3443,7 +3455,15 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 evidence["thread_read_recovery_sha256"],
                 telemetry["telemetry_sha256"],
             )
-            self.assertGreaterEqual(receipt["callbacks"]["check"]["max_ms"], 137.0)
+            self.assertEqual(telemetry["failed_callback_latency_ms"], 137.0)
+            self.assertLess(receipt["callbacks"]["check"]["max_ms"], 137.0)
+            self.assertGreaterEqual(evidence["startup_check_stats"]["max_ms"], 137.0)
+            self.assertGreaterEqual(evidence["startup_check_sample_count"], 2)
+            self.assertGreaterEqual(evidence["certification_check_sample_count"], 2)
+            self.assertEqual(
+                evidence["certification_sampling_phase"],
+                "after-first-exact-operative-observation",
+            )
             self.assertEqual(server.thread_start_count, 1)
             self.assertEqual(server.turn_start_count, 1)
             self.assertEqual(server.connection_epoch_sha256, connection_epoch)
@@ -3790,46 +3810,230 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             )
             self.assertEqual(server.read_count, 1)
 
-    def test_read_recovery_rejects_late_precheck_and_post_attempt(self) -> None:
-        cases = (
-            (
-                {
-                    "read_faults": {1: ("thread/read", -32603, 1.0)},
-                    "read_delays": {1: 0.26},
-                    "empty_initial_session": True,
-                },
-                1,
-            ),
-            (
-                {
-                    "read_faults": {1: ("thread/read", -32603, 1.0)},
-                    "read_delays": {2: 0.26},
-                    "empty_initial_session": True,
-                },
-                2,
-            ),
-        )
-        for options, expected_reads in cases:
-            with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                record_dir = root / "records"
-                record_dir.mkdir()
-                server = FakeCalibrationServer(root, **options)
-                with self.assertRaisesRegex(
+    def test_slow_startup_read_recovery_is_not_operative_certification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_faults={1: ("thread/read", -32603, 350.0)},
+                read_delays={1: 0.35, 2: 0.35},
+                empty_initial_session=True,
+            )
+            clock = FakeElapsedClock()
+
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=clock.sleep,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+            ):
+                receipt, evidence = LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
+                    materialization_timeout_seconds=3.0,
+                )
+
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertEqual(evidence["thread_read_recovery"]["outcome"], "recovered")
+            self.assertEqual(server.guarded_read_count, 1)
+            self.assertGreaterEqual(evidence["startup_check_stats"]["max_ms"], 350.0)
+            self.assertLessEqual(receipt["callbacks"]["check"]["max_ms"], 200.0)
+            self.assertLessEqual(evidence["poll_interval_max_ms"], 250.0)
+
+    def test_slow_operative_read_fails_callback_certification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_delays={4: 0.22},
+            )
+            clock = FakeElapsedClock()
+
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=clock.sleep,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "_measure_action_ms",
+                    side_effect=self.measure_elapsed,
+                ),
+                self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    (
+                        "capability-receipt-invalid:.*"
+                        "callback-observed-above-certified:check"
+                    ),
+                ),
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
+                    materialization_timeout_seconds=3.0,
+                )
+
+    def test_slow_first_exact_observation_remains_startup_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                read_delays={3: 0.35},
+            )
+            clock = FakeElapsedClock()
+
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=clock.sleep,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "_measure_action_ms",
+                    side_effect=self.measure_elapsed,
+                ),
+            ):
+                receipt, evidence = LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
+                    materialization_timeout_seconds=3.0,
+                )
+
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertGreaterEqual(evidence["startup_check_stats"]["max_ms"], 350.0)
+            self.assertLessEqual(receipt["callbacks"]["check"]["max_ms"], 200.0)
+            self.assertLessEqual(evidence["poll_interval_max_ms"], 250.0)
+
+    def test_controller_stall_after_exact_observation_fails_poll_watchdog(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(root)
+            clock = FakeElapsedClock()
+            injected = False
+
+            def sleep_with_controller_stall(seconds: float) -> None:
+                nonlocal injected
+                if (
+                    not injected
+                    and server.read_count == 3
+                    and seconds >= 0.19
+                ):
+                    injected = True
+                    seconds += 0.061
+                clock.sleep(seconds)
+
+            with (
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic",
+                    side_effect=clock.monotonic,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "monotonic_ns",
+                    side_effect=clock.monotonic_ns,
+                ),
+                mock.patch.object(
+                    LIVE.time,
+                    "sleep",
+                    side_effect=sleep_with_controller_stall,
+                ),
+                mock.patch.object(
+                    LIVE,
+                    "utc_now",
+                    side_effect=clock.utc_now,
+                ),
+                self.assertRaisesRegex(
                     LIVE.AppServerError,
                     "capability-poll-interval-exceeded",
-                ):
-                    LIVE.calibration(
-                        server,
-                        root,
-                        record_dir,
-                        self.owner(),
-                        run_nonce=str(uuid.uuid4()),
-                        phase_nonce=str(uuid.uuid4()),
-                        startup_timeout_seconds=2.0,
-                        materialization_timeout_seconds=2.0,
-                    )
-                self.assertEqual(server.read_count, expected_reads)
+                ),
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    startup_timeout_seconds=3.0,
+                    materialization_timeout_seconds=3.0,
+                )
+
+            self.assertTrue(injected)
+            self.assertEqual(server.read_count, 3)
 
     def test_inprogress_before_turn_context_keeps_polling_then_interrupts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

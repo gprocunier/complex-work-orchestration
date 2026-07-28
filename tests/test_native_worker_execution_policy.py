@@ -104,6 +104,10 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(live["calibration_command"], "sleep 20")
         self.assertEqual(live["startup_deadline_seconds"], 30)
         self.assertEqual(live["materialization_deadline_seconds"], 10)
+        self.assertEqual(
+            live["certification_sampling_phase"],
+            "after-first-exact-operative-observation",
+        )
         self.assertEqual(live["poll_interval_max_ms"], 250)
         self.assertEqual(live["liveness_observations"], 2)
         self.assertEqual(live["liveness_separation_min_ms"], 1000)
