@@ -439,6 +439,19 @@ class FakeCalibrationServer:
             stream.write(
                 json.dumps(
                     {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "call-one",
+                            "output": "aborted by user after 1.3s",
+                        },
+                    }
+                )
+                + "\n"
+            )
+            stream.write(
+                json.dumps(
+                    {
                         "type": "event_msg",
                         "payload": {
                             "type": self.interrupt_terminal_type,
@@ -3878,6 +3891,60 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertEqual(
                 materialization["terminal_event"]["event_type"], "turn_aborted"
             )
+            session = evidence["sessions"][0]
+            self.assertEqual(session["forbidden_tool_activity"], [])
+            self.assertEqual(
+                session["session_boundary"]["trusted_tool_receipts"][0][
+                    "result_kind"
+                ],
+                "paired-interrupted",
+            )
+
+    def test_interrupted_result_remains_an_exact_worker_trace_mismatch(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                expected_tool_trace=fixed_activation_tool_trace(
+                    "n1-read-only",
+                    0,
+                    worktree=root,
+                ),
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            expected = adapter.expected_tool_trace[0]
+            observation = adapter._exact_tool_trace_observation(
+                [
+                    {
+                        "sequence": expected["sequence"],
+                        "tool": expected["tool"],
+                        "canonical_argument_hash": expected[
+                            "canonical_argument_hashes"
+                        ][0],
+                        "action_class": expected["action_class"],
+                        "determinable_target_paths": expected[
+                            "determinable_target_paths"
+                        ],
+                        "pairing_status": "paired",
+                        "result_kind": "paired-interrupted",
+                        "exit_code": None,
+                    }
+                ],
+                terminal=True,
+            )
+            self.assertTrue(observation["mismatch"])
+            self.assertFalse(observation["satisfied"])
+            self.assertEqual(observation["reason"], "step-0-result-mismatch")
 
     def test_transient_interrupted_projection_without_durable_terminal_keeps_polling(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -5482,6 +5549,67 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 evidence = adapter.evidence()
                 summary = adapter.final_summary()
             self.assertIn("forbidden-tool-activity", evidence["reasons"])
+            self.assertEqual(
+                summary["forbidden_tool_activity"][0]["tool"],
+                "telemetry_anomaly.exec_command",
+            )
+
+    def test_interrupted_exec_result_rejects_normal_worker_completion(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            with server.path.open("a", encoding="utf-8") as stream:
+                for record in (
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "interrupted-call",
+                            "arguments": json.dumps({"cmd": "sleep 20"}),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "interrupted-call",
+                            "output": "aborted by user after 1.3s",
+                        },
+                    },
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "task_complete",
+                            "turn_id": server.turn_id,
+                        },
+                    },
+                ):
+                    stream.write(json.dumps(record) + "\n")
+            server.items = [
+                {
+                    "type": "agentMessage",
+                    "phase": "finalAnswer",
+                    "text": "DONE",
+                }
+            ]
+            server.status = "completed"
+
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=[],
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertIn("forbidden-tool-activity", evidence["reasons"])
+            self.assertTrue(evidence["protected_fault"])
+            self.assertFalse(summary["completion_evidence_satisfied"])
             self.assertEqual(
                 summary["forbidden_tool_activity"][0]["tool"],
                 "telemetry_anomaly.exec_command",

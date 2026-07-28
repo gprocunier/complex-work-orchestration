@@ -146,7 +146,10 @@ from cwo_core.native_tool_isolation import (  # noqa: E402
     validate_tool_policy,
     validate_tool_surface_snapshot,
 )
-from cwo_core.native_worker_contracts import normalize_action_receipts  # noqa: E402
+from cwo_core.native_worker_contracts import (  # noqa: E402
+    canonical_argument_hash,
+    normalize_action_receipts,
+)
 from cwo_core.native_session import _record_token_snapshot  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
     LocatedSession,
@@ -4224,7 +4227,13 @@ def trusted_tool_evidence_summary(
     )
     calls = list(receipts)
     completed = [
-        receipt for receipt in calls if receipt.get("pairing_status") == "paired"
+        receipt
+        for receipt in calls
+        if receipt.get("pairing_status") == "paired"
+        and (
+            receipt.get("typed_result", {}).get("kind")
+            != "paired-interrupted"
+        )
     ]
     trusted_receipts = [
         _tool_receipt_projection(receipt) for receipt in calls
@@ -4245,7 +4254,8 @@ def trusted_tool_evidence_summary(
         )
         telemetry_anomaly = (
             receipt.get("pairing_status") == "ambiguous"
-            or result_kind in {"paired-unknown", "unpaired-output"}
+            or result_kind
+            in {"paired-interrupted", "paired-unknown", "unpaired-output"}
             or normalized_tool == "unknown"
         )
         tool = (
@@ -7017,12 +7027,41 @@ def _run_calibration(
         raise AppServerError("capability-session-effort-mismatch")
     if summary["compactions"] or summary["reroute_count"]:
         raise AppServerError("capability-session-containment-failed")
-    calibration_violations = forbidden_tool_activity(
-        boundary.get("trusted_tool_activity", []), calibration_tool_policy
+    trusted_receipts = boundary.get("trusted_tool_receipts", [])
+    trusted_activity = boundary.get("trusted_tool_activity", [])
+    expected_interrupted_result = (
+        type(trusted_receipts) is list
+        and len(trusted_receipts) == 1
+        and trusted_receipts[0].get("sequence") == 0
+        and trusted_receipts[0].get("tool") == "exec_command"
+        and trusted_receipts[0].get("canonical_argument_hash")
+        == canonical_argument_hash({"cmd": "sleep 20"})
+        and trusted_receipts[0].get("determinable_target_paths") == []
+        and trusted_receipts[0].get("pairing_status") == "paired"
+        and trusted_receipts[0].get("result_kind") == "paired-interrupted"
+        and trusted_receipts[0].get("exit_code") is None
+        and type(trusted_activity) is list
+        and len(trusted_activity) == 1
+        and trusted_activity[0].get("tool")
+        == "telemetry_anomaly.exec_command"
+        and trusted_activity[0].get("pairing_status") == "paired"
+        and trusted_activity[0].get("result_kind") == "paired-interrupted"
+        and boundary.get("terminal_event") == confirmed_terminal_event
     )
-    summary["forbidden_tool_activity"] = calibration_violations
-    if calibration_violations:
-        raise AppServerError("capability-forbidden-tool-activity")
+    if not expected_interrupted_result:
+        raise AppServerError("capability-interrupted-tool-result-invalid")
+    calibration_violations = forbidden_tool_activity(
+        trusted_activity, calibration_tool_policy
+    )
+    expected_interrupted_violation = [
+        {
+            "tool": trusted_activity[0]["tool"],
+            "evidence_sha256": trusted_activity[0]["evidence_sha256"],
+        }
+    ]
+    if calibration_violations != expected_interrupted_violation:
+        raise AppServerError("capability-interrupted-tool-result-invalid")
+    summary["forbidden_tool_activity"] = []
 
     evidence = {
         "thread_preallocation_stats": stats([preallocation_latency]),
