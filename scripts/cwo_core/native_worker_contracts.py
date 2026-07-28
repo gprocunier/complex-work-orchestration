@@ -62,6 +62,9 @@ _TOOL_EXIT_CODE_PATTERNS = (
     ),
     re.compile(r"\AExit code:\s*(-?\d+)\n"),
 )
+_EXEC_COMMAND_INTERRUPTED_PATTERN = re.compile(
+    r"\Aaborted by user after (?:0|[1-9][0-9]*)(?:\.[0-9]+)?s\Z"
+)
 _APPLY_PATCH_FAILURE_PREFIX = "apply_patch verification failed:"
 ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS = {
     "mode",
@@ -550,6 +553,10 @@ def _paired_tool_result(
     if transport_conflict:
         return "paired-unknown", None, True
     text = _output_text(output_item)
+    if tool == "exec_command" and _EXEC_COMMAND_INTERRUPTED_PATTERN.fullmatch(text):
+        if exit_code is not None:
+            return "paired-unknown", None, True
+        return "paired-interrupted", None, False
     if tool == "apply_patch":
         failure_text = text.startswith(_APPLY_PATCH_FAILURE_PREFIX)
         if len(patch_events) > 1:

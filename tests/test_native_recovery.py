@@ -147,6 +147,62 @@ class NativeRecoveryTests(unittest.TestCase):
         self.assertEqual(receipt["action_class"], "unknown")
         self.assertEqual(receipt["typed_result"]["kind"], "unpaired-output")
 
+    def test_action_receipts_classify_only_exact_exec_interruption(self) -> None:
+        def result(output: str, **overrides: object) -> dict:
+            records = [
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "call_id": "interrupt",
+                        "name": "exec_command",
+                        "arguments": json.dumps({"cmd": "sleep 20"}),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "interrupt",
+                        "output": output,
+                        **overrides,
+                    },
+                },
+            ]
+            return normalize_action_receipts(records)[0]
+
+        interrupted = result("aborted by user after 1.3s")
+        self.assertEqual(interrupted["pairing_status"], "paired")
+        self.assertEqual(
+            interrupted["typed_result"]["kind"],
+            "paired-interrupted",
+        )
+        self.assertIsNone(interrupted["exit_code"])
+
+        for output in (
+            "aborted by user",
+            "aborted by user after -1.3s",
+            "aborted by user after 1.3 seconds",
+            "prefix aborted by user after 1.3s",
+            "aborted by user after 1.3s\n",
+        ):
+            with self.subTest(output=output):
+                receipt = result(output)
+                self.assertEqual(
+                    receipt["typed_result"]["kind"],
+                    "paired-unknown",
+                )
+
+        contradictory = result(
+            "aborted by user after 1.3s",
+            exit_code=0,
+        )
+        self.assertEqual(contradictory["pairing_status"], "ambiguous")
+        self.assertEqual(
+            contradictory["typed_result"]["kind"],
+            "ambiguous-call-or-output-cardinality",
+        )
+
     def test_action_receipts_preserve_failed_patch_retry_trace(self) -> None:
         turn_id = "turn-1"
         patch = (
