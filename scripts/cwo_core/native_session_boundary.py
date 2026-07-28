@@ -316,6 +316,8 @@ def trusted_terminal_event(
             )
         status = TERMINAL_EVENT_STATUSES.get(event_type)
         if status is not None:
+            if event_type == "task_complete" and payload.get("error") is not None:
+                status = "failed"
             terminal.append(
                 {
                     "record_index": index,

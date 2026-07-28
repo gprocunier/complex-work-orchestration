@@ -5059,17 +5059,39 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 self.assertIsNone(adapter.turn_id)
 
     def test_projected_terminal_without_durable_event_is_advisory(self) -> None:
-        for statuses in (["completed"], ["inProgress", "completed"]):
+        for statuses in (
+            ["completed"],
+            ["failed"],
+            ["interrupted"],
+        ):
             with self.subTest(statuses=statuses), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 clock = FakeMonotonicClock()
-                server = FakeLiveThreadServer(root, read_statuses=statuses)
+                server = FakeLiveThreadServer(
+                    root,
+                    initial_boundary="valid",
+                    read_statuses=statuses,
+                )
                 adapter = self.adapter(root, server, clock)
                 adapter.send_input(message="bounded prompt")
+                self.assertEqual(
+                    adapter.check(),
+                    {"decision": "continue"},
+                )
                 with mock.patch.object(adapter, "_workspace_mutations", return_value=[]):
                     summary = adapter._trusted_summary()
-                self.assertFalse(summary["session_boundary"]["available"])
+                    evidence = adapter.evidence()
+                self.assertTrue(summary["session_boundary"]["available"])
                 self.assertIsNone(summary["durable_terminal_event"])
+                self.assertIsNone(summary["turn_status"])
+                self.assertEqual(
+                    summary["projected_turn_status"],
+                    statuses[0],
+                )
+                self.assertEqual(evidence["reasons"], [])
+                self.assertFalse(evidence["protected_fault"])
+                self.assertFalse(evidence["control_loss"])
+                self.assertIsNone(evidence["failure_class"])
 
     def test_pool_check_uses_durable_terminal_truth_and_tolerates_startup_flip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -5097,6 +5119,226 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 adapter = self.adapter(root, server, clock)
                 adapter.send_input(message="bounded prompt")
                 self.assertEqual(adapter.check(), {"decision": expected})
+
+    def test_task_complete_error_is_control_loss_not_completion_mismatch(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="Use apply_patch exactly once, then run git diff --check",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="targets/activation.txt",
+                expected_tool_trace=fixed_activation_tool_trace(
+                    "n1-mutable",
+                    0,
+                    worktree=root,
+                ),
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message=adapter.prompt)
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(
+                        {
+                            "type": "event_msg",
+                            "payload": {
+                                "type": "task_complete",
+                                "turn_id": server.turn_id,
+                                "last_agent_message": None,
+                                "error": {
+                                    "message": (
+                                        "Selected model is at capacity. "
+                                        "Please try a different model."
+                                    ),
+                                    "codex_error_info": "server_overloaded",
+                                },
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+
+            self.assertEqual(
+                adapter.check(),
+                {"decision": "control-lost"},
+            )
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=[],
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertEqual(evidence["reasons"], ["trusted-turn-failed"])
+            self.assertTrue(evidence["protected_fault"])
+            self.assertTrue(evidence["control_loss"])
+            self.assertEqual(
+                evidence["failure_class"],
+                "control-security-failure",
+            )
+            self.assertEqual(
+                evidence["session_disposition"],
+                "quarantined",
+            )
+            self.assertEqual(
+                evidence["artifact_disposition"],
+                "rejected",
+            )
+            self.assertEqual(summary["turn_status"], "failed")
+            self.assertEqual(
+                summary["exact_tool_trace_observation"]["status"],
+                "pending",
+            )
+            for false_reason in (
+                "exact-tool-trace-mismatch",
+                "invalid-final-response",
+                "mutable-workspace-attribution-mismatch",
+                "zero-tool-completion",
+                "premature-completion",
+                "required-evidence-missing",
+            ):
+                self.assertNotIn(false_reason, evidence["reasons"])
+
+            with mock.patch.object(
+                server,
+                "interrupt_turn",
+                side_effect=AssertionError(
+                    "a durably terminal turn must not be interrupted"
+                ),
+            ) as interrupt_turn:
+                self.assertEqual(
+                    adapter.interrupt(),
+                    {"ack": "already-terminal"},
+                )
+                interrupt_turn.assert_not_called()
+                self.assertFalse(adapter.interrupted)
+                self.assertEqual(adapter.close(), {"ack": "closed"})
+                self.assertTrue(server.archived)
+
+    def test_interrupt_skips_rpc_for_other_durable_terminal_statuses(
+        self,
+    ) -> None:
+        for event_type in ("task_complete", "turn_aborted"):
+            with (
+                self.subTest(event_type=event_type),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                adapter = LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="Use apply_patch exactly once, then run git diff --check",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=True,
+                    expected_mutation="targets/activation.txt",
+                    expected_tool_trace=fixed_activation_tool_trace(
+                        "n1-mutable",
+                        0,
+                        worktree=root,
+                    ),
+                    record_dir=root,
+                    monotonic_ns=FakeMonotonicClock(),
+                )
+                adapter.send_input(message=adapter.prompt)
+                server.append_terminal(event_type)
+                self.assertEqual(
+                    adapter.check(),
+                    {"decision": "interrupt"},
+                )
+
+                with mock.patch.object(
+                    server,
+                    "interrupt_turn",
+                    side_effect=AssertionError(
+                        "a durably terminal turn must not be interrupted"
+                    ),
+                ) as interrupt_turn:
+                    self.assertEqual(
+                        adapter.interrupt(),
+                        {"ack": "already-terminal"},
+                    )
+                    interrupt_turn.assert_not_called()
+                self.assertFalse(adapter.interrupted)
+                self.assertEqual(adapter.close(), {"ack": "closed"})
+                self.assertTrue(server.archived)
+
+    def test_interrupt_adjudicates_terminal_transition_after_rpc_error_once(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+
+            def terminal_race(_thread_id: str, _turn_id: str) -> float:
+                server.append_terminal("task_complete")
+                raise LIVE.AppServerRpcError(
+                    method="turn/interrupt",
+                    code=-32600,
+                    request_id=1,
+                    latency_ms=1.0,
+                )
+
+            with mock.patch.object(
+                server,
+                "interrupt_turn",
+                side_effect=terminal_race,
+            ) as interrupt_turn:
+                self.assertEqual(
+                    adapter.interrupt(),
+                    {"ack": "already-terminal"},
+                )
+                interrupt_turn.assert_called_once_with(
+                    server.thread_id,
+                    server.turn_id,
+                )
+            self.assertEqual(
+                adapter._durable_terminal_status,
+                "completed",
+            )
+            self.assertFalse(adapter.interrupted)
+            self.assertEqual(adapter.close(), {"ack": "closed"})
+            self.assertTrue(server.archived)
+
+    def test_interrupt_rpc_error_without_terminal_evidence_propagates_once(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            error = LIVE.AppServerRpcError(
+                method="turn/interrupt",
+                code=-32600,
+                request_id=1,
+                latency_ms=1.0,
+            )
+
+            with mock.patch.object(
+                server,
+                "interrupt_turn",
+                side_effect=error,
+            ) as interrupt_turn:
+                with self.assertRaises(LIVE.AppServerRpcError) as raised:
+                    adapter.interrupt()
+                self.assertIs(raised.exception, error)
+                interrupt_turn.assert_called_once_with(
+                    server.thread_id,
+                    server.turn_id,
+                )
+            self.assertIsNone(adapter._durable_terminal_status)
+            self.assertFalse(adapter.interrupted)
 
     def test_exact_token_with_zero_trusted_tools_is_interrupted_and_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -5645,6 +5887,71 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 }
             ]
             self.assertEqual(adapter.check(), {"decision": "continue"})
+
+    def test_projected_terminal_does_not_finalize_operative_tool_anomaly(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            _manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=False,
+                enforcement_override=override,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                tool_policy=policy,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.send_input(message="bounded prompt")
+            with server.path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call",
+                                "name": "exec_command",
+                                "call_id": "pending-call",
+                                "arguments": json.dumps(
+                                    {"cmd": "rg bounded"}
+                                ),
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+            server.status = "completed"
+            server.items = [
+                {"type": "commandExecution", "status": "completed"},
+            ]
+
+            self.assertEqual(adapter.check(), {"decision": "continue"})
+            with mock.patch.object(
+                adapter,
+                "_workspace_mutations",
+                return_value=[],
+            ):
+                evidence = adapter.evidence()
+                summary = adapter.final_summary()
+            self.assertIsNone(summary["durable_terminal_event"])
+            self.assertEqual(
+                summary["projected_turn_status"],
+                "completed",
+            )
+            self.assertEqual(summary["forbidden_tool_activity"], [])
+            self.assertNotIn(
+                "forbidden-tool-activity",
+                evidence["reasons"],
+            )
 
     def test_projected_tool_without_trusted_receipt_interrupts_temporary_operative(
         self,

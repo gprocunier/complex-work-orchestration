@@ -137,9 +137,15 @@ an extra call, not a successful two-call trace. Reordered tools, wrong
 arguments, wrong targets, unknown or contradictory results, missing result
 pairing, and extra calls all make the pool and result non-accepting. Successful
 `apply_patch` evidence additionally requires its same-call, same-turn
-`patch_apply_end` event between the call and output. Only a durable terminal
-event can finalize the trace; a projected completion remains pending during
-the bounded observation window.
+`patch_apply_end` event between the call and output. Only a durable successful
+terminal event can finalize required trace cardinality; a projected completion
+remains pending during the bounded observation window. A non-null
+`task_complete.error` is failed terminal control loss, never a successful
+completion missing its final token, required calls, or expected mutation. When
+that durable terminal was already observed, containment archives it without
+issuing a redundant interrupt RPC. If the terminal transition instead wins the
+race with the sole interrupt request, the rejected request is adjudicated
+against the trusted boundary once and is never retried.
 
 The controller writes the privacy-safe ordered receipts to the private
 `records/activation-tool-trace.json` artifact. After both that exact trace and

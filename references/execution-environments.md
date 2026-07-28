@@ -177,12 +177,15 @@ prepared attempt.
 Each fixed activation profile also has an exact two-call trace derived by the
 controller, not supplied by the worker. Every failed, retried, extra,
 reordered, wrong-argument, unknown-result, or contradictory call counts and
-makes the pool and result non-accepting. Only durable terminal telemetry can
-finalize the trace. After the pool and trace accept, the controller closes only
-the authorized implementation child Beads, once and in task order; it never
-closes the parent or publication Bead and never retries or rolls back a partial
-close. Accepted activation result v2 binds the private exact-trace and
-Bead-closure artifact hashes. Result v1 remains historical inspection only.
+makes the pool and result non-accepting. Only durable successful terminal
+telemetry can finalize required trace cardinality. A non-null
+`task_complete.error` is failed terminal control loss and never invokes
+successful-completion final-token, trace-cardinality, or mutation obligations.
+After the pool and trace accept, the controller closes only the authorized
+implementation child Beads, once and in task order; it never closes the parent
+or publication Bead and never retries or rolls back a partial close. Accepted
+activation result v2 binds the private exact-trace and Bead-closure artifact
+hashes. Result v1 remains historical inspection only.
 
 Packet version 1 is historical-inspection-only. Rendering or dispatching it
 fails closed. Commitment version 1 is historical-inspection-only; commitment v2
