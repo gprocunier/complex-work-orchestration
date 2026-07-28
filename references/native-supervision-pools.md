@@ -213,10 +213,13 @@ Calibration runs exactly `sleep 20`. App-server `inProgress` is only a hint:
 the controller waits up to ten seconds for a complete current-turn
 `turn_context` with the exact model and effort and an agent-origin
 `commandExecution` that remains `inProgress` across two complete observations
-at least one second apart. It polls no slower than 250 ms, excludes terminal,
-failed, declined, rerouted, compacted, malformed, duplicate, truncated, or
-rewritten telemetry, then immediately revalidates before interrupt. The same
-turn must confirm interruption within five seconds.
+at least one second apart. Startup probes remain bounded by the 30-second
+startup deadline and do not certify operative callback timing. After the first
+complete exact observation, certified checks remain within 200 ms and polling
+runs no slower than 250 ms through immediate pre-interrupt revalidation. The
+controller excludes terminal, failed, declined, rerouted, compacted, malformed,
+duplicate, truncated, or rewritten telemetry. The same turn must confirm
+interruption within five seconds.
 
 Materialization evidence contains only identities, fresh nonces, timestamps,
 status classes, record/item indices, counts, offsets, and domain-separated
