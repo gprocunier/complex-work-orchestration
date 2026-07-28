@@ -568,6 +568,17 @@ def _require_accepting_pool_receipt(
     return dict(receipt)
 
 
+def _require_accepting_pool_and_tool_trace(
+    receipt: Mapping[str, Any],
+    tool_trace: Mapping[str, Any],
+) -> None:
+    _require_accepting_pool_receipt(receipt)
+    if tool_trace.get("all_satisfied") is not True:
+        raise NativeActivationPreviewError(
+            "activation-exact-tool-trace-rejected"
+        )
+
+
 def _seal_activation_artifact(
     value: Mapping[str, Any],
     *,
@@ -1314,11 +1325,10 @@ def run_live_activation(
             pool_receipt_sha256=pool_receipt_sha256,
         )
         tool_trace_sha256 = str(tool_trace["tool_trace_sha256"])
-        if tool_trace["all_satisfied"] is not True:
-            raise NativeActivationPreviewError(
-                "activation-exact-tool-trace-rejected"
-            )
-        _require_accepting_pool_receipt(raw_pool_receipt)
+        _require_accepting_pool_and_tool_trace(
+            raw_pool_receipt,
+            tool_trace,
+        )
         bead_closure = _close_accepted_activation_beads(
             plan,
             reservation,

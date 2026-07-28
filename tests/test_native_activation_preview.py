@@ -48,6 +48,7 @@ from run_native_pool_activation_preview import (  # noqa: E402
     _persist_activation_tool_trace,
     _pool_capability_receipt,
     _persist_pool_outcome,
+    _require_accepting_pool_and_tool_trace,
     _require_accepting_pool_receipt,
     _result,
     parser,
@@ -1055,6 +1056,44 @@ class NativeActivationPreviewTests(unittest.TestCase):
                 & 0o777,
                 0o600,
             )
+
+    def test_pool_failure_precedes_derivative_trace_incompleteness(
+        self,
+    ) -> None:
+        accepted = {
+            "accepting": True,
+            "pool_disposition": "accepted",
+            "reasons": [],
+            "first_protected_fault": None,
+        }
+        quarantined = {
+            **accepted,
+            "accepting": False,
+            "pool_disposition": "quarantined",
+            "reasons": ["trusted-turn-failed"],
+        }
+        with self.assertRaisesRegex(
+            NativeActivationPreviewError,
+            "activation-pool-not-accepting",
+        ):
+            _require_accepting_pool_and_tool_trace(
+                quarantined,
+                {"all_satisfied": False},
+            )
+        with self.assertRaisesRegex(
+            NativeActivationPreviewError,
+            "activation-exact-tool-trace-rejected",
+        ):
+            _require_accepting_pool_and_tool_trace(
+                accepted,
+                {"all_satisfied": False},
+            )
+        self.assertIsNone(
+            _require_accepting_pool_and_tool_trace(
+                accepted,
+                {"all_satisfied": True},
+            )
+        )
 
     def test_all_new_schemas_validate_emitted_artifacts(self) -> None:
         temporary, _control, _plan_path, _approval_path, plan, approval = (

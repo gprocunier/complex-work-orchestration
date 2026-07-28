@@ -169,6 +169,48 @@ class NativeSessionBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_task_complete_error_is_failed_terminal_without_exposing_error(
+        self,
+    ) -> None:
+        cases = (
+            ({}, "completed"),
+            ({"error": None}, "completed"),
+            (
+                {
+                    "error": {
+                        "message": "Selected model is at capacity.",
+                        "codex_error_info": "server_overloaded",
+                    }
+                },
+                "failed",
+            ),
+        )
+        for extra, expected_status in cases:
+            with self.subTest(extra=extra):
+                terminal = trusted_terminal_event(
+                    self.records()
+                    + [
+                        {
+                            "type": "event_msg",
+                            "payload": {
+                                "type": "task_complete",
+                                "turn_id": self.turn_id,
+                                **extra,
+                            },
+                        }
+                    ],
+                    turn_id=self.turn_id,
+                )
+                self.assertEqual(
+                    terminal,
+                    {
+                        "record_index": 3,
+                        "event_type": "task_complete",
+                        "status": expected_status,
+                        "count": 1,
+                    },
+                )
+
     def test_terminal_grammar_rejects_duplicates_unknowns_and_wrong_attribution(self) -> None:
         base = self.records()
         duplicate = base + [

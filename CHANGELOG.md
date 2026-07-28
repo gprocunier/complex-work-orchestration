@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Treat `task_complete` events with non-null errors as failed terminal control
+  loss instead of successful completion. Exact-trace cardinality, final-token,
+  and expected-mutation obligations now finalize only on durable successful
+  completion; terminal control-plane projections remain advisory. Previously
+  observed durable terminals skip a redundant interrupt RPC, while a terminal
+  transition that wins the interrupt race is adjudicated once without retry.
+  A non-accepting pool cause also takes precedence over derivative exact-trace
+  incompleteness in the activation result.
 - Separate deadline-bound calibration startup and recovery probes from
   operative timing certification. The 200 ms callback ceiling and 250 ms poll
   cadence now arm only after the first complete exact tool observation.

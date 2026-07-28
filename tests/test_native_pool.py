@@ -610,6 +610,113 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 ["released", "released"],
             )
 
+    def test_failed_terminal_control_loss_contains_cohort_before_peer_admission(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=2,
+                decisions=[["control-lost"], ["continue", "complete"]],
+            )
+            read_child_evidence = harness.read_child_evidence
+            triggering_evidence: list[dict] = []
+
+            def failed_terminal_evidence(
+                *, child_id: str, state_file: str
+            ) -> dict:
+                evidence = read_child_evidence(
+                    child_id=child_id,
+                    state_file=state_file,
+                )
+                if (
+                    child_id == "child-0"
+                    and harness.adapters[child_id].calls[-1] == "check"
+                ):
+                    evidence.update(
+                        {
+                            "protected_fault": True,
+                            "control_loss": True,
+                            "failure_class": "control-security-failure",
+                            "recovery_evidence_sha256": evidence["state_sha256"],
+                            "reasons": ["trusted-turn-failed"],
+                            "session_disposition": "quarantined",
+                            "artifact_disposition": "rejected",
+                        }
+                    )
+                    triggering_evidence.append(copy.deepcopy(evidence))
+                return evidence
+
+            harness.coordinator.pool_callbacks["read_child_evidence"] = (
+                failed_terminal_evidence
+            )
+            receipt = harness.coordinator.run()
+            state = harness.coordinator.progress()["state"]
+
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["pool_disposition"], "quarantined")
+            self.assertEqual(len(triggering_evidence), 1)
+            self.assertEqual(
+                triggering_evidence[0]["recovery_evidence_sha256"],
+                triggering_evidence[0]["state_sha256"],
+            )
+            self.assertEqual(
+                triggering_evidence[0]["failure_class"],
+                "control-security-failure",
+            )
+            self.assertEqual(
+                receipt["first_protected_fault"]["code"],
+                "child-control-loss",
+            )
+            self.assertEqual(
+                receipt["reasons"],
+                ["trusted-turn-failed", "child-control-loss"],
+            )
+            self.assertEqual(state["status"], "control-failed")
+            self.assertEqual(state["control_loss_scope"], "pool")
+            self.assertEqual(
+                receipt["terminal_state_sha256"],
+                state["state_sha256"],
+            )
+            self.assertEqual(receipt["admission_order"], ["child-0"])
+            self.assertEqual(receipt["poll_order"], ["child-0"])
+            self.assertIn("check", harness.adapters["child-0"].calls)
+            self.assertIn("interrupt", harness.adapters["child-0"].calls)
+            self.assertEqual(harness.adapters["child-1"].calls, [])
+            self.assertEqual(
+                receipt["child_dispositions"],
+                [
+                    {
+                        "child_id": "child-0",
+                        "runtime_disposition": "failed-ambiguous",
+                        "session_disposition": "quarantined",
+                        "artifact_disposition": "rejected",
+                    },
+                    {
+                        "child_id": "child-1",
+                        "runtime_disposition": "interrupted",
+                        "session_disposition": "quarantined",
+                        "artifact_disposition": "rejected",
+                    },
+                ],
+            )
+            self.assertEqual(
+                [item["lifecycle_state"] for item in receipt["lease_evidence"]],
+                ["release-pending", "release-pending"],
+            )
+            self.assertEqual(
+                validate_pool_state(state, contract=harness.contract),
+                [],
+            )
+            self.assertEqual(
+                validate_pool_receipt(
+                    receipt,
+                    contract=harness.contract,
+                    terminal_state=state,
+                ),
+                [],
+            )
+
     def test_cap_one_runs_to_accepting_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=1, decisions=[["continue", "complete"]])

@@ -471,7 +471,11 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
                 two-call trace. Every failed, retried, extra, reordered,
                 wrong-argument, unknown-result, or contradictory call counts
                 and makes the pool and result non-accepting. Only a durable
-                terminal event can finalize the trace. After the pool and trace
+                successful terminal event can finalize required trace
+                cardinality. A non-null
+                <code>task_complete.error</code> is failed terminal control
+                loss, never a successful completion missing its final token,
+                required calls, or expected mutation. After the pool and trace
                 accept, the controller closes only authorized implementation
                 child Beads, once and in task order. It never closes the parent
                 or publication Bead, retries a close, or rolls back a partial

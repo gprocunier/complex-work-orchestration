@@ -4595,6 +4595,7 @@ class LiveThreadAdapter:
         self._monotonic_ns = monotonic_ns
         self._materialization_deadline_ns: int | None = None
         self._projection_started_ns: int | None = None
+        self._durable_terminal_status: str | None = None
         self._session_boundary_baseline: dict[str, Any] | None = None
         self._session_source_identity_sha256: str | None = None
         self.callback_latencies: dict[str, list[float]] = {}
@@ -4698,10 +4699,10 @@ class LiveThreadAdapter:
                 if isinstance(terminal_event, Mapping)
                 else None
             )
+            if durable_status in {"completed", "failed", "interrupted"}:
+                self._durable_terminal_status = str(durable_status)
             terminal = durable_status in {
                 "completed",
-                "failed",
-                "interrupted",
             }
             trace_observation = self._exact_tool_trace_observation(
                 boundary.get("trusted_tool_receipts", []),
@@ -4781,13 +4782,8 @@ class LiveThreadAdapter:
                 if isinstance(terminal_event, Mapping)
                 else None
             )
-            projected_status = turn_status(self.last_thread, self.turn_id)
             trusted_tool_calls = int(boundary.get("trusted_tool_calls", 0))
-            terminal = (durable_status or projected_status) in {
-                "completed",
-                "failed",
-                "interrupted",
-            }
+            terminal = durable_status == "completed"
             for item in list(trusted_activity):
                 if (
                     terminal
@@ -4972,10 +4968,38 @@ class LiveThreadAdapter:
             with self._boundary_lock:
                 if self.turn_id is None:
                     raise AppServerError("interrupt-turn-id-missing")
+                if self._durable_terminal_status in {
+                    "completed",
+                    "failed",
+                    "interrupted",
+                }:
+                    return {"ack": "already-terminal"}
                 # Interrupt wins locally before the control RPC is attempted;
                 # unavailable telemetry can never be accepted after this point.
                 self._boundary_phase = "interrupt-requested"
-                self.server.interrupt_turn(self.thread_id, self.turn_id)
+                try:
+                    self.server.interrupt_turn(self.thread_id, self.turn_id)
+                except AppServerRpcError:
+                    # A terminal transition may win the race after the last
+                    # check but before turn/interrupt. Adjudicate the trusted
+                    # boundary once; never retry the interrupt request.
+                    boundary = self._capture_trusted_boundary(
+                        allow_pending=True
+                    )
+                    terminal_event = boundary.get("terminal_event")
+                    durable_status = (
+                        terminal_event.get("status")
+                        if isinstance(terminal_event, Mapping)
+                        else None
+                    )
+                    if durable_status in {
+                        "completed",
+                        "failed",
+                        "interrupted",
+                    }:
+                        self._durable_terminal_status = str(durable_status)
+                        return {"ack": "already-terminal"}
+                    raise
                 self.interrupted = True
                 return {"ack": "interrupt-requested"}
 
@@ -5227,13 +5251,15 @@ class LiveThreadAdapter:
             if isinstance(terminal_event, Mapping)
             else None
         )
+        if durable_status in {"completed", "failed", "interrupted"}:
+            self._durable_terminal_status = str(durable_status)
         trusted_tool_calls = int(boundary.get("trusted_tool_calls", 0))
         return {
             "thread_id": self.thread_id,
             "turn_id": self.turn_id,
             "thread_start_model": self.thread_response.get("model"),
             "thread_start_model_provider": self.thread_response.get("modelProvider"),
-            "turn_status": durable_status or projected_status,
+            "turn_status": durable_status,
             "projected_turn_status": projected_status,
             "durable_terminal_event": terminal_event,
             "session_boundary": boundary,
@@ -5308,8 +5334,7 @@ class LiveThreadAdapter:
             summary["trusted_tool_receipts"],
             terminal=(
                 isinstance(durable_terminal_event, Mapping)
-                and durable_terminal_event.get("status")
-                in {"completed", "interrupted", "failed"}
+                and durable_terminal_event.get("status") == "completed"
             ),
         )
         observable_action_required = bool(
@@ -5379,6 +5404,8 @@ class LiveThreadAdapter:
         trace_observation = completion_observation[
             "exact_tool_trace_observation"
         ]
+        if status == "failed":
+            reasons.append("trusted-turn-failed")
         if trace_observation["required"] and trace_observation["mismatch"]:
             reasons.append("exact-tool-trace-mismatch")
         if summary["forbidden_tool_activity"]:

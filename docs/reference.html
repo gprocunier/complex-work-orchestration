@@ -190,8 +190,11 @@
               two-call trace for each fixed profile. Every failed, retried,
               extra, reordered, wrong-argument, unknown-result, or
               contradictory call counts and makes the pool and result
-              non-accepting. Only a durable terminal event can finalize the
-              trace.
+              non-accepting. Only a durable successful terminal event can
+              finalize required trace cardinality. A non-null
+              <code>task_complete.error</code> is failed terminal control loss,
+              never a successful completion missing its final token, required
+              calls, or expected mutation.
             </p>
             <p>
               An accepting controller writes private
