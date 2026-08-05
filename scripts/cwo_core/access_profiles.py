@@ -41,6 +41,8 @@ def access_profile_for_model_profile(model_profile_key: str | None, model_profil
         return None
     profile_key = str(model_profile_key or "").lower()
     provider_key = str((model_profile or {}).get("provider_key") or "").lower()
+    if "glm-5-2-bf16-256k" in profile_key:
+        return "rhoai-glm-bf16-256k"
     if "glm-5-2-bf16" in profile_key:
         return "rhoai-glm-bf16"
     if provider_key == "openshift_ai_vllm":
@@ -67,6 +69,8 @@ def access_profile_for_executor(executor: Mapping[str, Any] | None) -> str | Non
         return "local-openai-compatible"
     if provider_key == "openshift_ai_vllm":
         model_profile_key = str(executor.get("model_profile") or "").lower()
+        if "glm-5-2-bf16-256k" in model_profile_key:
+            return "rhoai-glm-bf16-256k"
         if "glm-5-2-bf16" in model_profile_key:
             return "rhoai-glm-bf16"
         return "rhoai-vllm"

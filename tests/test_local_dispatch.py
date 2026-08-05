@@ -563,6 +563,12 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertEqual(envelope["model"], "glm-5.2-bf16-256k")
         self.assertEqual(envelope["local_profile"], "openshift-ai-glm-256k")
         self.assertEqual(envelope["model_profile"], "rhoai-architect-glm-5-2-bf16-256k-thinking")
+        self.assertEqual(envelope["access_profile"], "rhoai-glm-bf16-256k")
+        self.assertEqual(envelope["access_profile_details"]["status"], "offline")
+        self.assertEqual(
+            envelope["base_url_env"],
+            "CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL",
+        )
         self.assertEqual(envelope["timeout_seconds"], 900)
         self.assertEqual(envelope["max_input_chars"], 24000)
         self.assertEqual(envelope["target_input_chars"], 14000)
@@ -570,6 +576,24 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertTrue(envelope["model_preflight_required"])
         self.assertEqual(envelope["required_finish_reason"], "stop")
         self.assertTrue(envelope["response_model_required"])
+
+    def test_hardened_glm_offline_profile_fails_closed_without_override(self) -> None:
+        route = self._hardened_glm_route()
+        args = self._hardened_glm_args()
+        args.allow_offline_access_profile = False
+        envelope = build_local_envelope(
+            task="Compact independent architecture review.",
+            route=route,
+            dispatch_id="dispatch-glm-256k-offline",
+            bead_id="cwo-glm-256k",
+            epic_id=None,
+            args=args,
+        )
+
+        with self.assertRaises(SystemExit) as context:
+            execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertIn("marked offline", str(context.exception))
 
     def test_hardened_glm_preflight_strips_separate_reasoning_and_completes(self) -> None:
         route = self._hardened_glm_route()
@@ -811,9 +835,9 @@ class LocalDispatchTests(unittest.TestCase):
                         f"http://127.0.0.1:{server.server_port}",
                         "--execute-local",
                         "--allow-offline-access-profile",
-                        "--waiver-reason",
-                        "focused compact CLI test",
                         "--no-audit",
+                        "--waiver-reason",
+                        "focused compact CLI test uses offline profile and no-audit",
                         "--rehearsal",
                         "--requested-role",
                         "architecture",

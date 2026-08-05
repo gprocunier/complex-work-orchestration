@@ -54,6 +54,14 @@ profile but reads the GLM route and model from
 `glm-5.2-bf16-128k`. Its model profile is
 `rhoai-architect-glm-5-2-bf16-thinking`.
 
+The hardened 256K review lane is separate from that older profile. The executor
+`rhoai_glm_hardened_architecture_critic` selects local profile
+`openshift-ai-glm-256k`, access profile `rhoai-glm-bf16-256k`, and model
+profile `rhoai-architect-glm-5-2-bf16-256k-thinking`. It reads its route from
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL`, requires the exact model
+`glm-5.2-bf16-256k`, and preflights `/v1/models` immediately before posting to
+`/v1/chat/completions`.
+
 The same endpoint can be selected as an experimental primary architect through
 `rhoai_glm_primary_architect` by choosing the
 `connected-codex-glm-primary` execution environment. That path keeps the Codex
@@ -77,7 +85,8 @@ vLLM. The important distinction is:
 The access registry does not rename current operator env vars. It records names
 such as `CWO_OPENSHIFT_AI_VLLM_BASE_URL`,
 `CWO_OPENSHIFT_AI_VLLM_API_KEY`,
-`CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL`, and
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL`,
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL`, and
 `CWO_CHATGPT_BROWSER_CONFIG` so packets and status reports can show the access
 path without printing values.
 
@@ -105,11 +114,15 @@ export CWO_OPENSHIFT_AI_VLLM_API_KEY="..."
 export CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL="https://glm-route.example.internal"
 export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
 
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL="https://glm-256k-route.example.internal"
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_MODEL="glm-5.2-bf16-256k"
+
 # Optional for private route trust.
 export CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE="$HOME/.config/cwo/rhoai-ca.pem"
 
 # Lab-only escape hatch when the endpoint route cannot be validated normally.
 # export CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false
+# export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_TLS_VERIFY=false
 ```
 
 Source the file before starting Codex or running CWO helpers:
@@ -123,6 +136,7 @@ Smoke-test the configuration in layers:
 ```bash
 python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16 --require-configured
+python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured
 
 curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
   -H "Authorization: Bearer $CWO_OPENSHIFT_AI_VLLM_API_KEY"
@@ -135,12 +149,12 @@ python3 scripts/dispatch_work.py \
   "Return one sentence confirming the local endpoint is reachable."
 ```
 
-`rhoai-glm-bf16` is intentionally marked `offline` when the GLM route is not
-available. After the operator confirms the route is restored, update
-`policy/access-profiles.yaml` to set that profile to `available`, reinstall the
-skill, and rerun the access-profile readiness check. While it is marked
-`offline`, CWO fails closed for GLM execution unless the operator passes the
-explicit offline waiver with a waiver reason.
+The older `rhoai-glm-bf16` profile and the independently configured
+`rhoai-glm-bf16-256k` profile remain `offline` by default. The 256K profile
+still requires its dedicated base-URL environment variable. An operator must
+verify the intended route and deliberately change its policy status before
+normal execution. Any profile marked `offline` fails closed unless the
+operator supplies the explicit offline waiver and reason.
 
 For example, `airgapped-rhoai` binds its worker role to
 `rhoai-worker-qwen2-5-coder-32b-fp8`. Rendering a harness envelope resolves that
@@ -244,6 +258,7 @@ To inspect access readiness without dispatching:
 ```bash
 python3 scripts/render_access_profile_status.py --profile rhoai-vllm
 python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
+python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured
 ```
 
 For GLM-5.2 BF16 thinking:
@@ -258,6 +273,18 @@ python3 scripts/dispatch_work.py \
   --requested-role architecture \
   --execute-local \
   "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion."
+```
+
+After an operator verifies the route and marks the access profile available,
+the hardened GLM-5.2 BF16 256K lane can be dispatched with:
+
+```bash
+python3 scripts/dispatch_work.py \
+  --local-ok \
+  --local-profile openshift-ai-glm-256k \
+  --requested-role architecture \
+  --execute-local \
+  "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion."
 ```
 
 ### GLM-5.2 BF16 thinking modes
