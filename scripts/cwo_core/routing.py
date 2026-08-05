@@ -34,6 +34,7 @@ from .policy import (
     validate_peer_review_controls,
 )
 from .routing_signals import (
+    architecture_critic_intent_conflicts,
     architecture_review_complexity,
     claude_architecture_effort,
     command_with_claude_effort,
@@ -44,7 +45,11 @@ from .routing_signals import (
     explicit_openai_deep_research_requested,
     requested_architecture_critic_executor_keys,
 )
-from .synthesis import recommend_model_synthesis, zero_trust_route_requirement
+from .synthesis import (
+    model_synthesis_intent_conflicts,
+    recommend_model_synthesis,
+    zero_trust_route_requirement,
+)
 from .types import RouteResult
 from .util import rank_allows, rank_max, term_hits
 
@@ -1053,7 +1058,25 @@ def classify_work(
     architecture_complexity = architecture_review_complexity(text, risk)
     claude_effort = claude_architecture_effort(architecture_complexity)
     requested_critic_keys = requested_architecture_critic_executor_keys(text)
+    critic_intent_conflicts = architecture_critic_intent_conflicts(text)
     ranked_by_key = {str(item.get("key")): item for item in ranked_executors}
+    architecture_expert = next(
+        (expert for expert in experts if expert.get("name") == "architecture"),
+        None,
+    )
+    architecture_candidates = (
+        architecture_expert.get("executor_candidates", [])
+        if isinstance(architecture_expert, dict)
+        else []
+    )
+    critic_ranked_by_key = {
+        str(item.get("key")): item
+        for item in (
+            architecture_candidates
+            if isinstance(architecture_candidates, list) and architecture_candidates
+            else ranked_executors
+        )
+    }
     if execution_environment_key == GLM_PRIMARY_EXECUTION_ENVIRONMENT:
         requested_critic_keys = [
             key for key in requested_critic_keys if key != GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR
@@ -1081,7 +1104,7 @@ def classify_work(
             route_primary = primary
     architecture_critic_contracts: list[dict[str, Any]] = []
     for key in requested_critic_keys:
-        candidate = ranked_by_key.get(key)
+        candidate = critic_ranked_by_key.get(key)
         if not candidate or candidate.get("policy_violations"):
             continue
         contract = {
@@ -1124,7 +1147,14 @@ def classify_work(
     else:
         route = "internal-worker"
 
-    hard_stops = selected.get("policy_violations", [])
+    hard_stops = list(selected.get("policy_violations", []))
+    hard_stops.extend(
+        f"conflicting architecture critic intent: {key} is both requested and prohibited"
+        for key in critic_intent_conflicts
+    )
+    hard_stops.extend(
+        model_synthesis_intent_conflicts(text, force_accepted=model_synthesis)
+    )
     guard_labels: list[str] = []
     if route == "external-contract":
         guard_labels = EXTERNAL_GUARD_LABELS + [

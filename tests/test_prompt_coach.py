@@ -478,6 +478,82 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("architecture-critic=claude_architecture_critic", result["enabled_levers"])
         self.assertIn("architecture-critic=gemini_architecture_critic", result["enabled_levers"])
 
+    def test_closed_critic_panel_omits_prohibited_models_from_coach(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Claude Opus and GLM as architecture critics with model synthesis. "
+            "The critic panel is closed to those two providers. "
+            "Do not add Gemini or ChatGPT Pro.",
+            external_ok=True,
+            local_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+
+        self.assertIn(
+            "architecture-critic=claude_architecture_critic",
+            result["enabled_levers"],
+        )
+        self.assertIn(
+            "architecture-critic=rhoai_glm_hardened_architecture_critic",
+            result["enabled_levers"],
+        )
+        self.assertNotIn(
+            "architecture-critic=gemini_architecture_critic",
+            result["enabled_levers"],
+        )
+        synthesis_line = next(
+            line
+            for line in result["paste_ready_prompt"].splitlines()
+            if "CWO-native model synthesis" in line
+        )
+        self.assertNotIn("gemini_architecture_critic", synthesis_line)
+        self.assertNotIn("chatgpt_pro_browser_master_reviewer", synthesis_line)
+
+    def test_single_claude_critic_direct_adjudication_disables_synthesis_in_coach(self) -> None:
+        result = coach_orchestration_prompt(
+            "Use Claude Opus as only external architecture critic. "
+            "No Gemini/Agy. No GLM. "
+            "Do not use model synthesis; direct adjudication.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+
+        critic_levers = [
+            lever
+            for lever in result["enabled_levers"]
+            if lever.startswith("architecture-critic=")
+        ]
+        self.assertEqual(
+            critic_levers,
+            ["architecture-critic=claude_architecture_critic"],
+        )
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
+        self.assertFalse(result["model_synthesis"]["active"])
+        self.assertNotIn("model-synthesis-lane", result["enabled_levers"])
+        self.assertIn(
+            "model-synthesis-explicitly-disabled",
+            result["disabled_levers"],
+        )
+        self.assertFalse(
+            any(
+                item["id"] == "model_synthesis_opt_in"
+                for item in result["missing_questions"]
+            )
+        )
+        self.assertIn(
+            "Do not add CWO-native model synthesis",
+            result["paste_ready_prompt"],
+        )
+        self.assertNotIn(
+            "Offer CWO-native model synthesis",
+            result["paste_ready_prompt"],
+        )
+        self.assertTrue(
+            any("direct architect adjudication" in item for item in result["rationale"])
+        )
+
     def test_chatgpt_pro_master_plan_without_opt_in_asks_for_boundary(self) -> None:
         result = coach_orchestration_prompt(
             "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."

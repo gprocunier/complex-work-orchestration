@@ -491,6 +491,133 @@ class RouteWorkTests(unittest.TestCase):
             ["claude_architecture_critic", "gemini_architecture_critic"],
         )
 
+    def test_prohibited_provider_is_not_treated_as_architecture_critic_opt_in(self) -> None:
+        result = classify_work(
+            "Use Claude Opus and GLM as architecture critics. "
+            "The critic panel is closed to those two providers. "
+            "Do not add Gemini or ChatGPT Pro.",
+            requested_roles=["architecture"],
+            external_ok=True,
+            local_ok=True,
+            share_boundary="redacted-packet",
+            model_synthesis=True,
+        )
+
+        self.assertEqual(
+            result["requested_architecture_critic_executors"],
+            [
+                "claude_architecture_critic",
+                "rhoai_glm_hardened_architecture_critic",
+            ],
+        )
+        self.assertFalse(result["blocking_review_required"])
+        self.assertFalse(
+            any("conflicting architecture critic intent" in item for item in result["hard_stops"])
+        )
+
+    def test_public_docs_gate_does_not_change_architecture_critic_task_class(self) -> None:
+        result = classify_work(
+            "Reconcile and publish the public README and docs pages. "
+            "Use Claude Opus and GLM as architecture critics with model synthesis. "
+            "The critic panel is closed to those two providers. "
+            "Do not add Gemini or ChatGPT Pro.",
+            file_paths=["README.md", "docs/workflows.html"],
+            requested_roles=["architecture"],
+            external_ok=True,
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-glm-256k",
+            share_boundary="redacted-packet",
+            model_synthesis=True,
+        )
+
+        self.assertTrue(result["editor_gate_required"])
+        self.assertEqual(
+            [contract["executor"] for contract in result["architecture_critic_contracts"]],
+            [
+                "claude_architecture_critic",
+                "rhoai_glm_hardened_architecture_critic",
+            ],
+        )
+        self.assertTrue(
+            all(
+                not contract["selected_executor"]["policy_violations"]
+                for contract in result["architecture_critic_contracts"]
+            )
+        )
+
+    def test_conflicting_architecture_critic_intent_fails_closed(self) -> None:
+        result = classify_work(
+            "Use Gemini as an architecture critic. Do not add Gemini.",
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+
+        self.assertNotIn(
+            "gemini_architecture_critic",
+            result["requested_architecture_critic_executors"],
+        )
+        self.assertFalse(
+            any(
+                contract.get("executor") == "gemini_architecture_critic"
+                for contract in result["architecture_critic_contracts"]
+            )
+        )
+        self.assertIn(
+            "conflicting architecture critic intent: gemini_architecture_critic "
+            "is both requested and prohibited",
+            result["hard_stops"],
+        )
+
+    def test_single_claude_critic_with_direct_adjudication_disables_synthesis(self) -> None:
+        result = classify_work(
+            "Use Claude Opus as only external architecture critic. "
+            "No Gemini/Agy. No GLM. "
+            "Do not use model synthesis; direct adjudication.",
+            requested_roles=["architecture"],
+            external_ok=True,
+            share_boundary="redacted-packet",
+        )
+
+        self.assertEqual(
+            result["requested_architecture_critic_executors"],
+            ["claude_architecture_critic"],
+        )
+        self.assertEqual(
+            [contract["executor"] for contract in result["architecture_critic_contracts"]],
+            ["claude_architecture_critic"],
+        )
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
+        self.assertFalse(result["model_synthesis"]["active"])
+        self.assertEqual(result["hard_stops"], [])
+
+    def test_conflicting_model_synthesis_language_fails_closed(self) -> None:
+        result = classify_work(
+            "Use model synthesis. Do not use model synthesis.",
+            requested_roles=["architecture"],
+        )
+
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
+        self.assertIn(
+            "conflicting model synthesis intent: synthesis is both requested and prohibited",
+            result["hard_stops"],
+        )
+
+    def test_model_synthesis_flag_conflicting_with_prohibition_fails_closed(self) -> None:
+        result = classify_work(
+            "Do not use model synthesis; use direct architect adjudication.",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+
+        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
+        self.assertFalse(result["model_synthesis"]["active"])
+        self.assertIn(
+            "conflicting model synthesis intent: synthesis is both requested and prohibited",
+            result["hard_stops"],
+        )
+
     def test_routing_public_imports_remain_available(self) -> None:
         from cwo_core.routing import classify_work as imported_classify_work
         from cwo_core.routing import explicit_gemini_architect_critique_requested

@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from .policy import load_policy
-from .util import term_hits
+from .util import provider_term_intent, term_hits, term_intent
 
 
 def synthesis_policy() -> dict[str, Any]:
@@ -28,9 +28,21 @@ def mentioned_provider_camps(text: str, policy: dict[str, Any] | None = None) ->
     camps = config.get("provider_camps", {})
     mentioned: list[str] = []
     for camp, details in camps.items():
-        if term_hits(text, list(details.get("terms", []))):
+        affirmative, excluded = provider_term_intent(text, list(details.get("terms", [])))
+        if affirmative and not excluded:
             mentioned.append(str(camp))
     return sorted(set(mentioned))
+
+
+def excluded_provider_camps(text: str, policy: dict[str, Any] | None = None) -> list[str]:
+    config = policy or synthesis_policy()
+    camps = config.get("provider_camps", {})
+    excluded_camps: list[str] = []
+    for camp, details in camps.items():
+        _, excluded = provider_term_intent(text, list(details.get("terms", [])))
+        if excluded:
+            excluded_camps.append(str(camp))
+    return sorted(set(excluded_camps))
 
 
 def zero_trust_route_requirement(
@@ -80,11 +92,42 @@ def active_synthesis_modes(policy: dict[str, Any] | None = None) -> set[str]:
     return {str(item) for item in config.get("active_modes", ["requested", "accepted"])}
 
 
+def model_synthesis_intent(
+    text: str,
+    policy: dict[str, Any] | None = None,
+) -> tuple[bool, bool]:
+    """Return affirmative/prohibited model-synthesis intent."""
+
+    config = policy or synthesis_policy()
+    return term_intent(text, list(config.get("explicit_terms", [])))
+
+
+def model_synthesis_intent_conflicts(
+    text: str,
+    *,
+    force_requested: bool = False,
+    force_accepted: bool = False,
+    disabled: bool = False,
+    policy: dict[str, Any] | None = None,
+) -> list[str]:
+    """Return fail-closed conflicts between synthesis requests and prohibitions."""
+
+    affirmative, prohibited = model_synthesis_intent(text, policy)
+    if prohibited and not disabled and (affirmative or force_requested or force_accepted):
+        return [
+            "conflicting model synthesis intent: synthesis is both requested and prohibited"
+        ]
+    return []
+
+
 def route_provider_camps(route: dict[str, Any]) -> list[str]:
     camps: set[str] = set()
     architecture_authority = str(route.get("architecture_authority") or "")
     if architecture_authority == "glm-5.2-primary-architect":
         camps.update({"local", "codex"})
+    for contract in route.get("architecture_critic_contracts", []):
+        if isinstance(contract, dict):
+            camps.add(_contract_provider_camp(contract))
     return sorted(camps)
 
 
@@ -94,7 +137,68 @@ def synthesis_owner_for_route(policy: dict[str, Any], route: dict[str, Any]) -> 
     return str(policy.get("synthesis_owner", "frontier_architect"))
 
 
-def synthesis_panel_for_route(policy: dict[str, Any], route: dict[str, Any]) -> list[dict[str, Any]]:
+def _contract_provider_camp(contract: dict[str, Any]) -> str:
+    provider = " ".join(
+        str(contract.get(field) or "")
+        for field in ("provider_family", "provider_key", "executor")
+    ).lower()
+    if "anthropic" in provider or "claude" in provider:
+        return "anthropic"
+    if "google" in provider or "gemini" in provider or "agy" in provider:
+        return "google"
+    if "local" in provider or "rhoai" in provider or "glm" in provider or "vllm" in provider:
+        return "local"
+    if "openai" in provider or "chatgpt" in provider:
+        return "openai"
+    return "codex"
+
+
+def _contract_panel_entry(
+    contract: dict[str, Any],
+    default_panel: list[dict[str, Any]],
+) -> dict[str, Any]:
+    executor = str(contract.get("executor") or "")
+    provider_camp = _contract_provider_camp(contract)
+    selected = contract.get("selected_executor")
+    selected_executor = selected if isinstance(selected, dict) else {}
+    transport = selected_executor.get("transport")
+    transport_config = transport if isinstance(transport, dict) else {}
+    template = next(
+        (
+            item
+            for item in default_panel
+            if item.get("executor") == executor
+            or (
+                item.get("role") == "architecture-critic"
+                and item.get("provider_camp") == provider_camp
+            )
+        ),
+        {},
+    )
+    if contract.get("claude_effort"):
+        effort = str(contract["claude_effort"])
+    elif transport_config.get("thinking_required"):
+        effort = "thinking-enabled"
+    else:
+        effort = str(template.get("effort") or "configured")
+    entry = {
+        "executor": executor,
+        "role": "architecture-critic",
+        "provider_camp": provider_camp,
+        "effort": effort,
+        "external": bool(selected_executor.get("external")),
+    }
+    if template.get("synthesis_use"):
+        entry["synthesis_use"] = template["synthesis_use"]
+    return entry
+
+
+def synthesis_panel_for_route(
+    policy: dict[str, Any],
+    route: dict[str, Any],
+    *,
+    text: str = "",
+) -> list[dict[str, Any]]:
     if route.get("architecture_authority") == "glm-5.2-primary-architect":
         primary_architect = str(
             route.get("primary_architect_executor")
@@ -120,7 +224,49 @@ def synthesis_panel_for_route(policy: dict[str, Any], route: dict[str, Any]) -> 
                 "external": False,
             },
         ]
-    return [dict(item) for item in policy.get("default_panel", [])]
+    default_panel = [dict(item) for item in policy.get("default_panel", [])]
+    excluded_camps = set(excluded_provider_camps(text, policy))
+    contracts = [
+        contract
+        for contract in route.get("architecture_critic_contracts", [])
+        if isinstance(contract, dict)
+    ]
+    if contracts:
+        owner = synthesis_owner_for_route(policy, route)
+        owner_entry = next(
+            (dict(item) for item in default_panel if item.get("executor") == owner),
+            {
+                "executor": owner,
+                "role": "synthesis-owner",
+                "provider_camp": "codex",
+                "effort": "configured",
+                "external": False,
+            },
+        )
+        panel = [owner_entry]
+        panel.extend(
+            _contract_panel_entry(contract, default_panel)
+            for contract in contracts
+            if _contract_provider_camp(contract) not in excluded_camps
+        )
+        if "openai" in mentioned_provider_camps(text, policy):
+            master_review = next(
+                (
+                    dict(item)
+                    for item in default_panel
+                    if item.get("role") == "master-plan-review"
+                ),
+                None,
+            )
+            if master_review:
+                panel.append(master_review)
+        return panel
+    return [
+        item
+        for item in default_panel
+        if item.get("role") in {"synthesis-owner", "primary-architect"}
+        or str(item.get("provider_camp") or "") not in excluded_camps
+    ]
 
 
 def provider_conflict_flags(route: dict[str, Any], camps: list[str]) -> list[dict[str, Any]]:
@@ -716,6 +862,7 @@ def recommend_model_synthesis(
 ) -> dict[str, Any]:
     policy = synthesis_policy()
     explicit_hits = term_hits(text, list(policy.get("explicit_terms", [])))
+    explicit_requested, explicit_prohibited = model_synthesis_intent(text, policy)
     creativity_hits = term_hits(text, list(policy.get("creativity_terms", [])))
     camps = sorted(set(mentioned_provider_camps(text, policy)) | set(route_provider_camps(route)))
     trigger_reasons: list[str] = []
@@ -724,7 +871,7 @@ def recommend_model_synthesis(
         trigger_reasons.append("operator accepted model synthesis")
     elif force_requested:
         trigger_reasons.append("operator explicitly enabled model synthesis")
-    if explicit_hits:
+    if explicit_requested:
         trigger_reasons.append("explicit synthesis language: " + ", ".join(explicit_hits[:5]))
     if route.get("provider_conflict_detected"):
         domains = route.get("provider_conflict_domains") or ["provider conflict"]
@@ -739,11 +886,11 @@ def recommend_model_synthesis(
     if len(camps) >= 2:
         trigger_reasons.append("multiple model camps mentioned: " + ", ".join(camps))
 
-    if disabled:
+    if disabled or explicit_prohibited:
         mode = "disabled"
     elif force_accepted:
         mode = "accepted"
-    elif force_requested or explicit_hits:
+    elif force_requested or explicit_requested:
         mode = "requested"
     elif trigger_reasons and (
         route.get("provider_conflict_detected")
@@ -755,7 +902,7 @@ def recommend_model_synthesis(
     else:
         mode = "none"
 
-    panel = synthesis_panel_for_route(policy, route)
+    panel = synthesis_panel_for_route(policy, route, text=text)
     external_panel = any(bool(item.get("external")) for item in panel)
     active_modes = active_synthesis_modes(policy)
     active = mode in active_modes
@@ -776,7 +923,7 @@ def recommend_model_synthesis(
         rationale.append("Synthesis was explicitly disabled; keep independent evidence lanes and normal adjudication.")
     else:
         rationale.append("No conservative synthesis trigger matched.")
-    if external_panel:
+    if external_panel and mode not in {"none", "disabled"}:
         rationale.append("External panel members still require explicit opt-in and the selected share boundary.")
     rationale.append("Synthesis preserves independent evidence and does not replace architect adjudication.")
     conflict_flags = provider_conflict_flags(route, camps)

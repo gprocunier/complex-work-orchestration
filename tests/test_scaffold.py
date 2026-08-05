@@ -533,6 +533,81 @@ class ScaffoldTests(unittest.TestCase):
             "claude --model claude-opus-4-6 --effort xhigh -p",
         )
 
+    def test_closed_critic_panel_creates_only_authorized_synthesis_inputs(self) -> None:
+        route = classify_work(
+            "Use Claude Opus and GLM as architecture critics with model synthesis. "
+            "The critic panel is closed to those two providers. "
+            "Do not add Gemini or ChatGPT Pro.",
+            external_ok=True,
+            local_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+        graph = planned_graph("Closed Critic Panel", route)
+        by_lane = {item.get("lane"): item for item in graph}
+        claude_lane = "expert-review-architecture-critic-claude-architecture-critic"
+        glm_lane = (
+            "expert-review-architecture-critic-"
+            "rhoai-glm-hardened-architecture-critic"
+        )
+
+        critic_lanes = sorted(
+            lane
+            for lane in by_lane
+            if str(lane).startswith("expert-review-architecture-critic-")
+        )
+        self.assertEqual(critic_lanes, sorted([claude_lane, glm_lane]))
+        self.assertIn(claude_lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertIn(glm_lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertEqual(
+            by_lane["model-synthesis"]["depends_on_lanes"],
+            ["evaluation"],
+        )
+        self.assertEqual(
+            [
+                item["executor"]
+                for item in by_lane["model-synthesis"]["metadata"][
+                    "model_synthesis"
+                ]["recommended_panel"]
+            ],
+            [
+                "frontier_architect",
+                "claude_architecture_critic",
+                "rhoai_glm_hardened_architecture_critic",
+            ],
+        )
+
+    def test_single_claude_critic_direct_adjudication_omits_synthesis_lane(self) -> None:
+        route = classify_work(
+            "Use Claude Opus as only external architecture critic. "
+            "No Gemini/Agy. No GLM. "
+            "Do not use model synthesis; direct adjudication.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+        )
+        graph = planned_graph("Direct Adjudication Example", route)
+        by_lane = {item.get("lane"): item for item in graph}
+        critic_lanes = sorted(
+            lane
+            for lane in by_lane
+            if str(lane).startswith("expert-review-architecture-critic-")
+        )
+        claude_lane = "expert-review-architecture-critic-claude-architecture-critic"
+
+        self.assertEqual(critic_lanes, [claude_lane])
+        self.assertNotIn("model-synthesis", by_lane)
+        self.assertIn(claude_lane, by_lane["evaluation"]["depends_on_lanes"])
+        self.assertEqual(
+            by_lane["architect-adjudication"]["depends_on_lanes"],
+            ["evaluation"],
+        )
+        self.assertIn(
+            "architect-adjudication",
+            by_lane["implementation"]["depends_on_lanes"],
+        )
+
     def test_chatgpt_pro_master_review_is_blocking_gate(self) -> None:
         route = classify_work(
             "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet.",

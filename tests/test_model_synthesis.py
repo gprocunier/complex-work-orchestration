@@ -57,6 +57,79 @@ class ModelSynthesisTests(unittest.TestCase):
         self.assertEqual(panel["frontier_architect"]["role"], "synthesis-owner")
         self.assertEqual(panel["frontier_architect"]["effort"], "codex-5.6-sol")
 
+    def test_explicit_critic_contracts_constrain_synthesis_panel(self) -> None:
+        route = classify_work(
+            "Use Claude Opus and GLM as architecture critics. "
+            "The critic panel is closed to those two providers. "
+            "Do not add Gemini or ChatGPT Pro.",
+            external_ok=True,
+            local_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+        synthesis = route["model_synthesis"]
+
+        self.assertEqual(
+            [item["executor"] for item in synthesis["recommended_panel"]],
+            [
+                "frontier_architect",
+                "claude_architecture_critic",
+                "rhoai_glm_hardened_architecture_critic",
+            ],
+        )
+        self.assertEqual(synthesis["mentioned_provider_camps"], ["anthropic", "local"])
+        self.assertTrue(synthesis["active"])
+
+    def test_explicit_provider_exclusion_filters_generic_synthesis_panel(self) -> None:
+        route = classify_work(
+            "Use model synthesis without Gemini.",
+            requested_roles=["architecture"],
+        )
+
+        self.assertEqual(route["model_synthesis"]["recommended_mode"], "requested")
+        self.assertTrue(route["model_synthesis"]["active"])
+        executors = [
+            item["executor"] for item in route["model_synthesis"]["recommended_panel"]
+        ]
+        self.assertNotIn("gemini_architecture_critic", executors)
+        self.assertNotIn("google", route["model_synthesis"]["mentioned_provider_camps"])
+
+    def test_natural_language_synthesis_prohibitions_disable_the_lane(self) -> None:
+        prompts = [
+            "No model synthesis.",
+            "Proceed without model synthesis.",
+            "Do not use model synthesis; direct adjudication.",
+        ]
+        for text in prompts:
+            with self.subTest(text=text):
+                route = classify_work(text, requested_roles=["architecture"])
+                synthesis = route["model_synthesis"]
+
+                self.assertEqual(synthesis["recommended_mode"], "disabled")
+                self.assertEqual(synthesis["activation_state"], "disabled")
+                self.assertFalse(synthesis["active"])
+                self.assertFalse(synthesis_lane_enabled(synthesis))
+                self.assertFalse(synthesis["requires_user_acceptance"])
+                self.assertFalse(synthesis["prompt_user_in_plan_mode"])
+                self.assertEqual(synthesis["recommended_panel"], [])
+                self.assertEqual(synthesis["mentioned_provider_camps"], [])
+                self.assertEqual(synthesis["artifact_contract"], [])
+                self.assertEqual(route["hard_stops"], [])
+
+    def test_conflicting_natural_language_synthesis_intent_disables_and_stops(self) -> None:
+        route = classify_work(
+            "Use model synthesis. Do not use model synthesis.",
+            requested_roles=["architecture"],
+        )
+
+        self.assertEqual(route["model_synthesis"]["recommended_mode"], "disabled")
+        self.assertFalse(route["model_synthesis"]["active"])
+        self.assertIn(
+            "conflicting model synthesis intent: synthesis is both requested and prohibited",
+            route["hard_stops"],
+        )
+
     def test_accepted_synthesis_opt_in_is_active(self) -> None:
         text = "Refactor a high-risk architecture policy route."
         route = classify_work(text, requested_roles=["architecture"])
