@@ -29,7 +29,9 @@ class AccessProfileTests(unittest.TestCase):
         profiles = access_profiles()
         self.assertIn("codex-connected-shell", profiles)
         self.assertIn("rhoai-glm-bf16", profiles)
+        self.assertIn("rhoai-glm-bf16-256k", profiles)
         self.assertEqual(profiles["rhoai-glm-bf16"]["status"], "offline")
+        self.assertEqual(profiles["rhoai-glm-bf16-256k"]["status"], "offline")
 
     def test_every_executor_resolves_to_known_access_profile(self) -> None:
         profiles = access_profiles()
@@ -81,6 +83,24 @@ class AccessProfileTests(unittest.TestCase):
                 }
             ),
             "rhoai-glm-bf16",
+        )
+
+    def test_glm_bf16_256k_matching_precedes_generic_bf16(self) -> None:
+        profile_key = "rhoai-architect-GLM-5-2-BF16-256K-thinking"
+        self.assertEqual(
+            access_profile_for_model_profile(profile_key, {"provider_key": "openshift_ai_vllm"}),
+            "rhoai-glm-bf16-256k",
+        )
+        self.assertEqual(
+            access_profile_for_executor(
+                {
+                    "provider_key": "openshift_ai_vllm",
+                    "dispatch_mode": "local_secure_review",
+                    "model_profile": profile_key,
+                    "external": False,
+                }
+            ),
+            "rhoai-glm-bf16-256k",
         )
 
     def test_runtime_status_reports_env_names_without_values(self) -> None:

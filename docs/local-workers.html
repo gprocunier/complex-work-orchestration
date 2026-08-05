@@ -259,12 +259,20 @@ export CWO_OPENSHIFT_AI_VLLM_API_KEY="..."
 export CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL="https://glm-route.example.internal"
 export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
 
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL="https://glm-256k-route.example.internal"
+export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_MODEL="glm-5.2-bf16-256k"
+
 # Optional for private route trust.
-export CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE="$HOME/.config/cwo/rhoai-ca.pem"</code></pre>
+export CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE="$HOME/.config/cwo/rhoai-ca.pem"
+
+# Lab-only escape hatches when the endpoint route cannot yet be validated.
+# export CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false
+# export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_TLS_VERIFY=false</code></pre>
             <pre><code>source ~/.config/cwo/vllm-endpoints.env
 
 python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16 --require-configured
+python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured
 
 curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
   -H "Authorization: Bearer $CWO_OPENSHIFT_AI_VLLM_API_KEY"</code></pre>
@@ -275,10 +283,14 @@ curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
               profile, reinstall the skill and rerun the readiness check.
             </p>
             <p>
-              Keep <code>rhoai-glm-bf16</code> marked
-              <code>offline</code> while the GLM route is unavailable. CWO will
-              fail closed for GLM execution unless an operator passes the
-              explicit offline waiver with a waiver reason.
+              The older <code>rhoai-glm-bf16</code> profile and the
+              independently configured <code>rhoai-glm-bf16-256k</code>
+              profile remain <code>offline</code> by default. The 256K profile
+              requires its dedicated base-URL environment variable. An
+              operator must verify the route and deliberately change its
+              policy status before normal execution. Any offline profile fails
+              closed unless an operator supplies the explicit waiver and
+              reason.
             </p>
           </section>
 
@@ -303,7 +315,25 @@ python3 scripts/dispatch_work.py \
   --json \
   "Summarize docs-review risks."</code></pre>
             <pre><code>python3 scripts/render_access_profile_status.py --profile rhoai-vllm
-python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured</code></pre>
+python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
+python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured</code></pre>
+            <p>
+              The hardened GLM lane uses local profile
+              <code>openshift-ai-glm-256k</code>, requires exact model
+              <code>glm-5.2-bf16-256k</code>, and preflights
+              <code>/v1/models</code> before posting to
+              <code>/v1/chat/completions</code>.
+            </p>
+            <p>
+              After an operator verifies the route and marks the access
+              profile available, dispatch the hardened lane with:
+            </p>
+            <pre><code>python3 scripts/dispatch_work.py \
+  --local-ok \
+  --local-profile openshift-ai-glm-256k \
+  --requested-role architecture \
+  --execute-local \
+  "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion."</code></pre>
           </section>
 
           <section id="endpoint-safety">

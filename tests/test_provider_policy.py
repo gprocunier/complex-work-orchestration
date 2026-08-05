@@ -333,7 +333,16 @@ class ProviderPolicyTests(unittest.TestCase):
 
         self.assertEqual(route["route"], "local-worker")
         self.assertEqual(route["recommended_executor"], "rhoai_glm_hardened_architecture_critic")
+        self.assertEqual(route["access_profile"], "rhoai-glm-bf16-256k")
+        self.assertEqual(route["selected_executor"]["access_profile_details"]["status"], "offline")
         self.assertEqual(route["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-256k-thinking")
+        self.assertEqual(
+            route["selected_executor"]["transport"]["base_url_env"],
+            "CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL",
+        )
+        self.assertEqual(route["selected_executor"]["transport"]["required_model"], "glm-5.2-bf16-256k")
+        self.assertEqual(route["selected_executor"]["transport"]["model_preflight_endpoint_path"], "/v1/models")
+        self.assertEqual(route["selected_executor"]["transport"]["endpoint_path"], "/v1/chat/completions")
         self.assertIn(
             "rhoai_glm_hardened_architecture_critic",
             route["requested_architecture_critic_executors"],
