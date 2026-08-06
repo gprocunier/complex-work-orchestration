@@ -1805,7 +1805,7 @@ def prompt_coach_enabled_levers(
                 levers.append("workerbee-dispatch-stopped")
         elif status == "native-first":
             levers.append("codex-5.3-spark-workerbees-native-first")
-    if model_synthesis and model_synthesis.get("recommended_mode") != "none":
+    if model_synthesis and model_synthesis.get("recommended_mode") not in {"none", "disabled"}:
         mode = str(model_synthesis.get("recommended_mode"))
         levers.append(f"model-synthesis={mode}")
         levers.append(f"synthesis-pattern={model_synthesis.get('synthesis_pattern')}")
@@ -1853,6 +1853,8 @@ def prompt_coach_disabled_levers(
         levers.append("model-synthesis-unselected")
     elif synthesis_mode == "recommended":
         levers.append("model-synthesis-until-opt-in")
+    elif synthesis_mode == "disabled":
+        levers.append("model-synthesis-explicitly-disabled")
     if (
         model_synthesis
         and model_synthesis.get("external_reviewers_require_opt_in")
@@ -1917,6 +1919,10 @@ def prompt_coach_rationale(
         rationale.append(
             "CWO-native model synthesis is recommended as an opt-in choice because risk, creativity, provider conflict, or multi-camp signals warrant more eyes."
         )
+    elif model_synthesis and model_synthesis.get("recommended_mode") == "disabled":
+        rationale.append(
+            "CWO-native model synthesis is explicitly disabled; keep independent evidence lanes and use direct architect adjudication."
+        )
     if scaffold_sizing and scaffold_sizing.get("recommended_size") == "tight":
         rationale.append("Tight-chain scaffold sizing is requested; optional expert fan-out should be limited.")
     if beads_context_depth_signal:
@@ -1977,7 +1983,7 @@ def prompt_coach_warnings(
         )
     if any(question["id"] == "outside_sharing_boundary" for question in missing_questions):
         warnings.append("Do not export context to outside models until the sharing boundary is explicitly answered.")
-    if model_synthesis and model_synthesis.get("recommended_mode") != "none":
+    if model_synthesis and model_synthesis.get("recommended_mode") not in {"none", "disabled"}:
         warnings.append("Model synthesis is evidence collation; it must preserve per-model provenance and cannot replace architect adjudication.")
     if (
         route.get("has_external_expert_contracts")
@@ -2019,6 +2025,11 @@ def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
 def synthesis_prompt_line(model_synthesis: dict[str, Any] | None) -> str:
     if not model_synthesis or model_synthesis.get("recommended_mode") == "none":
         return ""
+    if model_synthesis.get("recommended_mode") == "disabled":
+        return (
+            "Do not add CWO-native model synthesis. Keep independent review evidence separate "
+            "and use direct architect adjudication.\n"
+        )
     panel = [
         str(item.get("executor"))
         for item in model_synthesis.get("recommended_panel", [])

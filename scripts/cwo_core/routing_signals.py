@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from .util import term_hits
+from .util import provider_term_intent, term_hits
 
 
 def _routing_text_variants(text: str) -> list[str]:
@@ -14,10 +14,15 @@ def _hits(text: str, terms: list[str]) -> bool:
     return any(term_hits(variant, terms) for variant in _routing_text_variants(text))
 
 
+def _affirmative_provider_hit(text: str, terms: list[str]) -> bool:
+    affirmative, excluded = provider_term_intent(text, terms)
+    return affirmative and not excluded
+
+
 def explicit_gemini_architect_critique_requested(text: str) -> bool:
     """Return true only for the opt-in Gemini/Agy design-critic pattern."""
     return bool(
-        _hits(text, ["gemini", "agy", "antigravity"])
+        _affirmative_provider_hit(text, ["gemini", "agy", "antigravity"])
         and _hits(text, ["architect", "architecture", "design"])
         and _hits(
             text,
@@ -44,7 +49,7 @@ def explicit_gemini_architect_critique_requested(text: str) -> bool:
 def explicit_claude_architect_critique_requested(text: str) -> bool:
     """Return true only for the opt-in Claude Opus design-critic pattern."""
     return bool(
-        _hits(text, ["claude", "opus", "anthropic"])
+        _affirmative_provider_hit(text, ["claude", "opus", "anthropic"])
         and _hits(text, ["architect", "architecture", "design"])
         and _hits(
             text,
@@ -71,7 +76,7 @@ def explicit_claude_architect_critique_requested(text: str) -> bool:
 def explicit_glm_architect_critique_requested(text: str) -> bool:
     """Return true only for the opt-in GLM design-critic pattern."""
     return bool(
-        _hits(text, ["glm", "glm 5.2", "glm-5.2", "glm52"])
+        _affirmative_provider_hit(text, ["glm", "glm 5.2", "glm-5.2", "glm52"])
         and _hits(text, ["architect", "architecture", "design", "synthesis"])
         and _hits(
             text,
@@ -95,6 +100,48 @@ def explicit_glm_architect_critique_requested(text: str) -> bool:
             ],
         )
     )
+
+
+def architecture_critic_intent_conflicts(text: str) -> list[str]:
+    """Return critic executors that are both affirmatively requested and prohibited."""
+
+    architecture_context = _hits(text, ["architect", "architecture", "design", "synthesis"])
+    critique_context = _hits(
+        text,
+        [
+            "second opinion",
+            "second opinions",
+            "2nd opinion",
+            "2nd opinions",
+            "independent opinion",
+            "independent opinions",
+            "peer opinion",
+            "peer opinions",
+            "critique",
+            "critiques",
+            "critic",
+            "critics",
+            "review",
+            "reviews",
+            "synthesis",
+            "synthesize",
+        ],
+    )
+    if not (architecture_context and critique_context):
+        return []
+    conflicts: list[str] = []
+    for executor, terms in [
+        ("claude_architecture_critic", ["claude", "opus", "anthropic"]),
+        ("gemini_architecture_critic", ["gemini", "agy", "antigravity"]),
+        (
+            "rhoai_glm_hardened_architecture_critic",
+            ["glm", "glm 5.2", "glm-5.2", "glm52"],
+        ),
+    ]:
+        affirmative, excluded = provider_term_intent(text, terms)
+        if affirmative and excluded:
+            conflicts.append(executor)
+    return conflicts
 
 
 def requested_architecture_critic_executor_keys(text: str) -> list[str]:
@@ -157,7 +204,7 @@ def command_with_claude_effort(command: str, effort: str) -> str:
 def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
     """Return true for the ChatGPT Pro Extended Reasoning plan-review lane."""
     return bool(
-        _hits(text, ["chatgpt", "gpt 5.5", "5.5 pro", "openai"])
+        _affirmative_provider_hit(text, ["chatgpt", "gpt 5.5", "5.5 pro", "openai"])
         and _hits(
             text,
             [
@@ -180,8 +227,8 @@ def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
 def explicit_openai_deep_research_requested(text: str) -> bool:
     """Return true for the separate ChatGPT Deep Research opt-in lane."""
     return bool(
-        _hits(text, ["deep research"])
-        and _hits(
+        _affirmative_provider_hit(text, ["deep research"])
+        and _affirmative_provider_hit(
             text,
             [
                 "openai",

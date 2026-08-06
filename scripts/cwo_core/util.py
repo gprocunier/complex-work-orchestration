@@ -10,6 +10,27 @@ from pathlib import Path
 from typing import Any
 
 
+_NEGATIVE_TERM_ACTIONS = (
+    r"add|use|include|select|request|authorize|launch|dispatch|route|assign|"
+    r"invoke|call|ask\s+for|tap\s+in"
+)
+_NEGATIVE_TERM_PREFIX = re.compile(
+    rf"(?:"
+    rf"\b(?:do\s+not|don't|never|must\s+not|should\s+not)\s+"
+    rf"(?:{_NEGATIVE_TERM_ACTIONS})\b"
+    rf"|\b(?:without|exclude|excluding|omit|forbid|prohibit)\b"
+    rf"|\bno\b"
+    rf")[^.;!?\n]*$",
+    re.IGNORECASE,
+)
+_NEGATIVE_TERM_SUFFIX = re.compile(
+    r"^\s*(?:is|are|was|were|remains?|must\s+be|should\s+be)?\s*"
+    r"(?:not\s+(?:authorized|requested|selected|allowed|part\s+of)|"
+    r"excluded|forbidden|prohibited|out\s+of\s+scope)\b",
+    re.IGNORECASE,
+)
+
+
 def read_text_arg(text: str | None, file_path: str | None) -> str:
     parts: list[str] = []
     if text:
@@ -34,6 +55,49 @@ def term_hits(text: str, terms: list[str]) -> list[str]:
         if re.search(pattern, haystack):
             hits.append(term)
     return hits
+
+
+def term_intent(text: str, terms: list[str]) -> tuple[bool, bool]:
+    """Return affirmative/excluded term mentions without treating prohibitions as opt-in."""
+
+    normalized_text = re.sub(r"[-_]+", " ", text)
+    normalized_terms = {
+        re.sub(r"[-_]+", " ", str(term)).strip().lower()
+        for term in terms
+        if str(term).strip()
+    }
+    affirmative = False
+    excluded = False
+    for term in sorted(normalized_terms, key=len, reverse=True):
+        pattern = re.compile(rf"(?<!\w){re.escape(term)}(?!\w)", re.IGNORECASE)
+        for match in pattern.finditer(normalized_text):
+            clause_start = max(
+                normalized_text.rfind(separator, 0, match.start())
+                for separator in ".;!?\n"
+            )
+            following_boundaries = [
+                position
+                for separator in ".;!?\n"
+                if (position := normalized_text.find(separator, match.end())) >= 0
+            ]
+            clause_end = min(following_boundaries) if following_boundaries else len(normalized_text)
+            prefix = normalized_text[clause_start + 1 : match.start()]
+            suffix = normalized_text[match.end() : clause_end]
+            mention_excluded = bool(
+                _NEGATIVE_TERM_PREFIX.search(prefix)
+                or _NEGATIVE_TERM_SUFFIX.search(suffix)
+            )
+            if mention_excluded:
+                excluded = True
+            else:
+                affirmative = True
+    return affirmative, excluded
+
+
+def provider_term_intent(text: str, terms: list[str]) -> tuple[bool, bool]:
+    """Compatibility wrapper for provider-specific callers."""
+
+    return term_intent(text, terms)
 
 
 def rank_max(values: list[str], order: list[str], default: str) -> str:

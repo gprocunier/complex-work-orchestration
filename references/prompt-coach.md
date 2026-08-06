@@ -10,6 +10,14 @@ disabled levers, warnings, `beads_tracking_required=true`,
 `workerbee_parallelism`, `model_synthesis`, `beads_context_depth`, and the
 underlying route result.
 
+Provider names in explicit prohibitions are not opt-ins. Phrases such as
+`do not add Gemini`, `without ChatGPT Pro`, or `Claude is not authorized`
+exclude those providers from critic routing and model-synthesis recommendations.
+When explicit architecture-critic contracts are selected, the synthesis panel
+uses those exact executors rather than adding optional entries from the default
+provider catalog. Contradictory instructions that both request and prohibit the
+same architecture critic fail closed in `hard_stops`.
+
 ## Basic Use
 
 First-class in-Codex use starts in `/plan`; Codex can run the helper, summarize
@@ -260,6 +268,14 @@ or an advanced helper is launched with `--model-synthesis`, the active state is
 `recommended_mode=accepted`. `coach_prompt.py`, `route_work.py`, and
 `scaffold_workgraph.py` all accept that flag so opt-in can be represented
 before or during graph creation. Low-risk work remains `recommended_mode=none`.
+
+Explicit prohibitions such as `no model synthesis`, `without model synthesis`,
+or `do not use model synthesis` take precedence over recommendations and set
+`recommended_mode=disabled`, `active=false`. The coach emits no synthesis
+opt-in question, and the scaffold keeps direct architect adjudication without a
+model-synthesis lane. If the same request both asks for and prohibits synthesis,
+or `--model-synthesis` conflicts with a prohibition, routing fails closed with a
+`conflicting model synthesis intent` hard stop.
 
 The v1 implementation is CWO-native. It does not call OpenRouter Fusion
 directly. External panel members such as Claude Opus, Gemini, or ChatGPT Pro
